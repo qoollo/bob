@@ -1,0 +1,2 @@
+# bob
+Distributed blob storage
