@@ -41,8 +41,8 @@ message OpStatus {
 
 // Operation result with data
 message BlobResult {
-    OpStatus status = 2; // Operation status
-    Blob data = 3; // Data
+    OpStatus status = 1; // Operation status
+    Blob data = 2; // Data
 }
 
 // Put operation options
