@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package bob_storage;
+
+// API
+service BobApi {
+    rpc Put (PutRequest) returns (OpStatus) {}
+    rpc Get (GetRequest) returns (BlobResult) {}
+}
+
+// Put operation parameters
+message PutRequest {
+    BlobKey key = 1; // Blob's key
+    Blob data = 2; // Data
+    PutOptions options = 3; // options
+}
+
+// Get operation parameters
+message GetRequest {
+    BlobKey id = 1; // Blob's key
+    GetOptions options = 2; // options
+}
+
+// Blob id
+message BlobKey {
+    uint64 key = 1; //Inner id representation
+}
+
+// Data blob
+message Blob {
+    bytes data = 1; // Data
+}
+
+// Operation status
+message OpStatus {
+    BobError error = 1; // If all good - null
+}
+
+// Operation result with data
+message BlobResult {
+    OpStatus status = 1; // Operation status
+    Blob data = 2; // Data
+}
+
+// Put operation options
+message PutOptions {
+   bool force_node = 1; // Force operation to be served by node to which it comes
+   bool overwrite = 2; // Overwrite data in case of id existens
+}
+
+// Get operation options
+message GetOptions {
+    bool force_node = 1; // Force operation to be served by node to which it comes
+}
+
+message BobError {
+    int32 code = 1; // Error code in case of error
+    string desc = 2; // Error desription
+}
