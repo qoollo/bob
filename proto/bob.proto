@@ -1,7 +1,5 @@
 syntax = "proto3";
 
-import "timestamp.proto";
-
 package bob_storage;
 
 // API
@@ -30,13 +28,12 @@ message BlobKey {
 
 // Data blob
 message Blob {
-    google.protobuf.Timestamp timestamp = 1; // Timestamp of data
-    bytes data = 2; // Data
+    bytes data = 1; // Data
 }
 
 // Operation status
 message OpStatus {
-    BobError = 1; // If all good - null
+    BobError error = 1; // If all good - null
 }
 
 // Operation result with data
