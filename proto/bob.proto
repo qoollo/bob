@@ -36,9 +36,7 @@ message Blob {
 
 // Operation status
 message OpStatus {
-    bool is_ok = 1; // Is operaion processed without error
-    int32 code = 2; // Error code in case of error
-    string desc = 3; // Error desription
+    BobError = 1; // If all good - null
 }
 
 // Operation result with data
@@ -56,4 +54,9 @@ message PutOptions {
 // Get operation options
 message GetOptions {
     bool force_node = 1; // Force operation to be served by node to which it comes
- }
+}
+
+message BobError {
+    int32 code = 1; // Error code in case of error
+    string desc = 2; // Error desription
+}
