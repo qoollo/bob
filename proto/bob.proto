@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+import "timestamp.proto";
+
+package bob_storage;
+
+// API
+service BobApi {
+    rpc Put (PutRequest) returns (OpStatus) {}
+    rpc Get (GetRequest) returns (BlobResult) {}
+}
+
+// Put operation parameters
+message PutRequest {
+    BlobKey key = 1; // Blob's key
+    Blob data = 2; // Data
+    PutOptions options = 3; // options
+}
+
+// Get operation parameters
+message GetRequest {
+    BlobKey id = 1; // Blob's key
+    GetOptions options = 2; // options
+}
+
+// Blob id
+message BlobKey {
+    uint64 key = 1; //Inner id representation
+}
+
+// Data blob
+message Blob {
+    google.protobuf.Timestamp timestamp = 2; // Timestamp of data
+    bytes data = 3; // Data
+}
+
+// Operation status
+message OpStatus {
+    bool is_ok = 1; // Is operaion processed without error
+    int32 code = 2; // Error code in case of error
+    string desc = 3; // Error desription
+}
+
+// Operation result with data
+message BlobResult {
+    OpStatus status = 2; // Operation status
+    Blob data = 3; // Data
+}
+
+// Put operation options
+message PutOptions {
+   bool force_node = 1; // Force operation to be served by node to which it comes
+   bool overwrite = 2; // Overwrite data in case of id existens
+}
+
+// Get operation options
+message GetOptions {
+    bool force_node = 1; // Force operation to be served by node to which it comes
+ }
