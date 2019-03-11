@@ -30,8 +30,8 @@ message BlobKey {
 
 // Data blob
 message Blob {
-    google.protobuf.Timestamp timestamp = 2; // Timestamp of data
-    bytes data = 3; // Data
+    google.protobuf.Timestamp timestamp = 1; // Timestamp of data
+    bytes data = 2; // Data
 }
 
 // Operation status
