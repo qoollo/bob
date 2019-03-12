@@ -1,0 +1,26 @@
+[package]
+name = "bob"
+version = "0.1.0"
+authors = ["Kirill Bushminkin <kb@qoollo.com>"]
+edition = "2018"
+
+[dependencies]
+grpc            = "~0.6"
+protobuf        = "~2"
+futures         = "~0.1"
+futures-cpupool = "~0.1"
+
+[build-dependencies]
+protoc-rust-grpc = "~0.6"
+
+[lib]
+name = "bob"
+
+[[bin]]
+name = "bobd"
+
+[[bin]]
+name = "bobc"
+
+[[bin]]
+name = "bobp"
