@@ -155,9 +155,8 @@ fn main() {
         }));
     }
 
-    for worker in workers {
-        let _ = worker.join();
-    }
+    workers.drain(..).for_each(|w| w.join().unwrap());
+
     stop_token.store(true, Ordering::Relaxed);
     
     stat_thread.join().unwrap();
