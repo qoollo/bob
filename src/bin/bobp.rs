@@ -1,7 +1,12 @@
+
+extern crate clap;
+
+use clap::{App, Arg};
+
 use grpc::ClientStubExt;
 use grpc::RequestOptions;
 
-use std::{thread, time, env};
+use std::{thread, time};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
 
@@ -68,29 +73,52 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
     }
 }
 
-fn help() {
-    println!("usage: bobp <target ip> <target port> <payload size> <worker count> <record count>");
-}
-
-
 fn main() {
-    let args: Vec<String> = env::args().collect(); 
-    if args.len() != 6 {
-        help();
-        return;
-    }
+    let matches = App::new("MyApp")
+                    .arg(Arg::with_name("host")
+                                    .help("ip or hostname of bob")
+                                    .takes_value(true)
+                                    .short("h")
+                                    .long("host")
+                                    .default_value("127.0.0.1"))
+                    .arg(Arg::with_name("port")
+                                    .help("port of bob")
+                                    .takes_value(true)
+                                    .short("p")
+                                    .long("port")
+                                    .default_value("20000"))
+                    .arg(Arg::with_name("payload")
+                                    .help("payload size")
+                                    .takes_value(true)
+                                    .short("l")
+                                    .long("payload")
+                                    .default_value("100000"))
+                    .arg(Arg::with_name("threads")
+                                    .help("worker thread count")
+                                    .takes_value(true)
+                                    .short("t")
+                                    .long("threads")
+                                    .default_value("4"))
+                    .arg(Arg::with_name("count")
+                                    .help("count of records to proceed")
+                                    .takes_value(true)
+                                    .short("c")
+                                    .long("count")
+                                    .default_value("1000000"))
+                    .get_matches();
+
     let net_conf = NetConfig {
-        port: args[2].parse().unwrap(),
-        target: args[1].to_string()
+        port: matches.value_of("port").unwrap_or_default().parse().unwrap(),
+        target: matches.value_of("host").unwrap_or_default().to_string()
     };
 
     let task_conf = TaskConfig {
         low_idx: 1,
-        high_idx: args[5].parse().unwrap(),
-        payload_size: args[3].parse().unwrap()
+        high_idx: matches.value_of("count").unwrap_or_default().parse().unwrap(),
+        payload_size: matches.value_of("payload").unwrap_or_default().parse().unwrap()
     };
 
-    let workers_count: u64 = args[4].parse().unwrap();
+    let workers_count: u64 = matches.value_of("threads").unwrap_or_default().parse().unwrap();
 
     println!("Bob will be benchmarked now");
     println!("target: {}:{} workers_count: {} payload size: {} total records: {}",
@@ -130,7 +158,7 @@ fn main() {
     for worker in workers {
         let _ = worker.join();
     }
-    stop_token.store(true, Ordering::Acquire);
+    stop_token.store(true, Ordering::Relaxed);
     
     stat_thread.join().unwrap();
 }
