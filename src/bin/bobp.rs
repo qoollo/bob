@@ -1,7 +1,7 @@
 use grpc::ClientStubExt;
 use grpc::RequestOptions;
 
-use std::{thread, time};
+use std::{thread, time, env};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
 
@@ -68,19 +68,36 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
     }
 }
 
+fn help() {
+    println!("usage: bobp <target ip> <target port> <payload size> <worker count> <record count>");
+}
+
+
 fn main() {
-    println!("Bob will be benchmarked now");
-    let workers_count = 4;
+    let args: Vec<String> = env::args().collect(); 
+    if args.len() != 6 {
+        help();
+        return;
+    }
     let net_conf = NetConfig {
-        port: 20000,
-        target: "::1".to_string()
+        port: args[2].parse().unwrap(),
+        target: args[1].to_string()
     };
 
     let task_conf = TaskConfig {
-        low_idx: 0,
-        high_idx: 1000000,
-        payload_size: 100000
+        low_idx: 1,
+        high_idx: args[5].parse().unwrap(),
+        payload_size: args[3].parse().unwrap()
     };
+
+    let workers_count: u64 = args[4].parse().unwrap();
+
+    println!("Bob will be benchmarked now");
+    println!("target: {}:{} workers_count: {} payload size: {} total records: {}",
+            net_conf.target, net_conf.port, workers_count, task_conf.payload_size, task_conf.high_idx-task_conf.low_idx+1);
+
+
+
 
     let stat = Arc::new(Stat {
         put_total: AtomicU64::new(0)
@@ -111,7 +128,6 @@ fn main() {
     }
 
     for worker in workers {
-        // Wait for the thread to finish. Returns a result.
         let _ = worker.join();
     }
     stop_token.store(true, Ordering::Acquire);
