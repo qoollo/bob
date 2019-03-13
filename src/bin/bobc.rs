@@ -2,7 +2,7 @@ use grpc::ClientStubExt;
 use grpc::RequestOptions;
 
 use bob::api::bob_grpc::{BobApi, BobApiClient};
-use bob::api::bob::{PutRequest, GetRequest, OpStatus, BlobResult};
+use bob::api::bob::{PutRequest, GetRequest};
 
 fn main() {
     let port = 20000;

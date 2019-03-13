@@ -24,8 +24,8 @@ fn main() {
     server.http.set_port(port);
     server.add_service(BobApiServer::new_service_def(BobApiImpl));
 
+    server.http.set_cpu_pool_threads(4);
     let _server = server.build().expect("server");
-
     println!(
         "bobd started on port {}",
         port
