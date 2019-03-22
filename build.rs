@@ -1,11 +1,11 @@
-extern crate protoc_rust_grpc;
+
+extern crate tower_grpc_build;
 
 fn main() {
-    protoc_rust_grpc::run(protoc_rust_grpc::Args {
-        out_dir: "src/api/",
-        includes: &[],
-        input: &["proto/bob.proto"],
-        rust_protobuf: true,
-        ..Default::default()
-    }).expect("protoc-rust-grpc");
+    // Build helloworld
+    tower_grpc_build::Config::new()
+        .enable_server(true)
+        .enable_client(true)
+        .build(&["proto/bob.proto"], &["proto/"])
+        .unwrap_or_else(|e| panic!("protobuf compilation failed: {}", e));
 }
