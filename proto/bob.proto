@@ -17,7 +17,7 @@ message PutRequest {
 
 // Get operation parameters
 message GetRequest {
-    BlobKey id = 1; // Blob's key
+    BlobKey key = 1; // Blob's key
     GetOptions options = 2; // options
 }
 
