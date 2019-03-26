@@ -10,19 +10,20 @@ use futures::stream::*;
 
 
 
-
+#[derive(Clone)]
 pub struct NodeConnection {
     pub node: Node,
     pub conn: BobClient
 }
 
-
+#[derive(Clone)]
 pub struct Cluster {
     pub nodes: Vec<NodeConnection>,
     pub vdisks: Vec<VDisk>
 
 }
 
+#[derive(Clone)]
 pub struct Sprinkler {
     cluster: Cluster,
     quorum: u8,
@@ -75,7 +76,7 @@ impl Sprinkler {
                         conn: BobClient::new(Node {
                                 host: "127.0.0.1".to_string(),
                                 port: 20000
-                            }).unwrap()
+                            })
                     },
                     NodeConnection {
                         node: Node {
@@ -86,7 +87,7 @@ impl Sprinkler {
                         conn: BobClient::new(Node {
                                 host: "127.0.0.1".to_string(),
                                 port: 20002
-                            }).unwrap()
+                            })
                     }
                 ]
             }
@@ -121,7 +122,7 @@ impl Sprinkler {
         let reqs: Vec<_> = conn_to_send.iter().map(|c| {
             //Timeout::new(c.put(&key, &data).join_metadata_result(), self.put_timeout)
             // TODO: some issue with temout. Will think about it later
-            c.put(&key, &data).join_metadata_result()
+            c.put(&key, &data)
         }).collect();
         let l_quorum = self.quorum;
         Box::new(futures_unordered(reqs)

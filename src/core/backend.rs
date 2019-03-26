@@ -4,6 +4,7 @@ use tokio::prelude::{Future};
 
 
 use futures::future::ok;
+#[derive(Clone)]
 pub struct Backend {
 
 }

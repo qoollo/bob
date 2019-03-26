@@ -5,16 +5,24 @@ authors = ["Kirill Bushminkin <kb@qoollo.com>"]
 edition = "2018"
 
 [dependencies]
-grpc            = "~0.6"
-protobuf        = "~2"
 futures         = "~0.1"
 futures-cpupool = "~0.1"
 clap            = "~2.31"
-tokio           = "~0.1"
 bitflags        = "~1.0"
+http = "~0.1"
+prost = "~0.5"
+bytes = "~0.4"
+tokio = "~0.1"
+stopwatch = "0.0.7"
+tower-h2 = { git = "https://github.com/tower-rs/tower-h2" }
+tower-add-origin = { git = "https://github.com/tower-rs/tower-http" }
+tower-grpc = { git = "https://github.com/tower-rs/tower-grpc"  }
+tower-service = "0.2"
+tower = { git = "https://github.com/tower-rs/tower" }
+
 
 [build-dependencies]
-protoc-rust-grpc = "~0.6"
+tower-grpc-build = { git = "https://github.com/tower-rs/tower-grpc" }
 
 [lib]
 name = "bob"

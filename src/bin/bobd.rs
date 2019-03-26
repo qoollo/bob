@@ -1,67 +1,90 @@
-use std::thread;
+use bob::api::grpc::{server, PutRequest, GetRequest, OpStatus, BlobResult};
 
-use grpc::RequestOptions;
-use grpc::SingleResponse;
-use grpc::ServerBuilder;
-
-use futures::future::*;   
-
-use bob::api::bob_grpc::{BobApi, BobApiServer};
-use bob::api::bob::{PutRequest, GetRequest, OpStatus, BlobResult};
+use futures::{future, Future, Stream};
+use futures::future::ok;
+use tokio::executor::DefaultExecutor;
+use tokio::net::TcpListener;
+use tower_h2::Server;
+use tower_grpc::{Request, Response};
 use bob::core::grinder::{Grinder};
 use bob::core::data::{BobKey, BobData, BobOptions};
 use bob::core::backend::Backend;
 use bob::core::sprinkler::{Sprinkler};
 
 
-struct BobApiImpl {
+#[derive(Clone)]
+struct BobSrv {
     grinder: Grinder
 }
 
-impl BobApi for BobApiImpl {
-    fn put(&self, _ :RequestOptions, req:PutRequest) -> SingleResponse<OpStatus> {
-        let f = self.grinder.put(
-            BobKey{
-                key: req.get_key().get_key()
+impl server::BobApi for BobSrv {
+        type PutFuture = Box<Future<Item=Response<OpStatus>,Error=tower_grpc::Status> + Send>;
+        type GetFuture = future::FutureResult<Response<BlobResult>, tower_grpc::Status>;
+
+        fn put(&mut self, req: Request<PutRequest>) -> Self::PutFuture {
+            let param = req.get_ref();
+            let f = self.grinder.put(
+                BobKey{
+                    key: param.key.as_ref().unwrap().key.clone()
+                    },
+                BobData{
+                    data: param.data.as_ref().unwrap().data.clone()
                 },
-            BobData{
-                data: req.get_data().get_data().to_vec()
-            },
-            {
-                let mut opts: BobOptions = Default::default();
-                if req.get_options().get_force_node() {
-                    opts = opts | BobOptions::FORCE_NODE;
+                {
+                    let mut opts: BobOptions = Default::default();
+                    match param.options.as_ref() {
+                        Some(vopts) => { 
+                            if vopts.force_node {
+                                opts = opts | BobOptions::FORCE_NODE;
+                            }
+                        },
+                        None => {}
+                    }
+                    opts
                 }
-                opts
-            }
-        ).then(|_r| ok(OpStatus::new())); 
-        SingleResponse::no_metadata(Box::new(f))
-        //SingleResponse::no_metadata(op)      
-    }
-    fn get(&self, _:RequestOptions, _:GetRequest) -> SingleResponse<BlobResult> {
-        SingleResponse::completed(BlobResult::new())
-    }
+            ).then(|_r| ok(Response::new(OpStatus {
+                error: None
+            })));//.map_err(|_| err(tower_grpc::Status::new(tower_grpc::Code::Unknown, "error")));
+            Box::new(f)
+        }
+
+        fn get(&mut self, _request: Request<GetRequest>) -> Self::GetFuture{
+            let response = Response::new(BlobResult {
+                status: None,
+                data: None
+            });
+            future::ok(response)
+        }
 }
 
 fn main() {
-    let port = 20000;
-    let mut server = ServerBuilder::new_plain();
-    server.http.set_port(port);
-    server.add_service(BobApiServer::new_service_def(BobApiImpl{
+
+
+    let new_service = server::BobApiServer::new(BobSrv {
         grinder: Grinder {
             backend: Backend {},
             sprinkler: Sprinkler::new()
-        },
-    }));
+        }
+    });
 
-    server.http.set_cpu_pool_threads(4);
-    let _server = server.build().expect("server");
-    println!(
-        "bobd started on port {}",
-        port
-    );
+    let h2_settings = Default::default();
+    let mut h2 = Server::new(new_service, h2_settings, DefaultExecutor::current());
 
-    loop {
-        thread::park();
-    }
+    let addr = "127.0.0.1:20000".parse().unwrap();
+    let bind = TcpListener::bind(&addr).expect("bind");
+
+    let serve = bind.incoming()
+        .for_each(move |sock| {
+            if let Err(e) = sock.set_nodelay(true) {
+                return Err(e);
+            }
+
+            let serve = h2.serve(sock);
+            tokio::spawn(serve.map_err(|e| println!("h2 error: {:?}", e)));
+
+            Ok(())
+        })
+        .map_err(|e| eprintln!("accept error: {}", e));
+
+    tokio::run(serve)
 }

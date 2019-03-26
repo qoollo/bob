@@ -1,7 +1,14 @@
 pub struct BobError {
 
 }
+#[derive(Debug)]
+pub struct BobPutResult {
 
+}
+#[derive(Debug)]
+pub struct BobErrorResult {
+
+}
 
 pub struct BobData {
     pub data: Vec<u8>
@@ -26,10 +33,16 @@ pub struct VDisk {
     pub replicas: Vec<NodeDisk>
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Node {
     pub host: String,
     pub port: u16,
+}
+
+impl std::fmt::Debug for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}:{}", self.host, self.port)
+    }
 }
 
 impl PartialEq for Node {

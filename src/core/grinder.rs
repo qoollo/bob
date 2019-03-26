@@ -8,7 +8,7 @@ use crate::core::backend::{Backend};
 use crate::core::sprinkler::{Sprinkler};
 use crate::core::data::{BobKey, BobData, BobOptions, };
 
-
+#[derive(Clone)]
 pub struct Grinder {
     pub backend: Backend,
     pub sprinkler: Sprinkler
@@ -32,6 +32,7 @@ impl<T> Future for GrinderPutResponse<T>
 }
 
 type GrinderResult = std::result::Result<GrinderOk, GrinderError>;
+
 impl Grinder {
     pub fn put(&self, key: BobKey, data: BobData, opts: BobOptions) -> 
         impl Future<Item = GrinderOk, Error = GrinderError> + 'static + Send {
@@ -52,21 +53,4 @@ impl Grinder {
         })
         
     }
-    // pub fn put(&self, key: BobKey, data: BobData, opts: BobOptions) -> GrinderPutResponse<Box<dyn Future<Item = GrinderOk, Error = GrinderError> + '_>> {
-    //     if opts.contains(BobOptions::FORCE_NODE) {
-    //         GrinderPutResponse(Box::new(self.backend.put(key, data).then(|r| {
-    //                         let k: GrinderResult = 
-    //                         Ok(GrinderOk{});
-    //                         k
-    //                     })))
-    //     } else {
-    //         let t = self.sprinkler.put_clustered(key, data).then(|r| {
-    //                         let k: GrinderResult = 
-    //                         Ok(GrinderOk{});
-    //                         k
-    //                     }); 
-    //         GrinderPutResponse(Box::new(t))
-    //     }
-        
-    // }
 }

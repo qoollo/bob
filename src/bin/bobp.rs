@@ -3,20 +3,39 @@ extern crate clap;
 
 use clap::{App, Arg};
 
-use grpc::ClientStubExt;
-use grpc::RequestOptions;
-
 use std::{thread, time};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
 
-use bob::api::bob_grpc::{BobApi, BobApiClient};
-use bob::api::bob::{PutRequest/*, GetRequest*/, BlobKey, Blob};
+use tokio::runtime::current_thread::{Runtime};
+
+use futures::{Future, Poll};
+use tokio::net::tcp::{ConnectFuture, TcpStream};
+use tower_grpc::Request;
+use tower_h2::client;
+use tower_service::Service;
+use tower::MakeService;
+use std::net::{SocketAddr};
+
+use bob::api::grpc::client::BobApi;
+use bob::api::grpc::PutRequest;
+//use stopwatch::{Stopwatch};
 
 #[derive(Debug, Clone)]
 struct NetConfig {
     port: u16,
     target: String
+}
+
+impl NetConfig {
+
+    pub fn get_uri(&self) -> http::Uri {
+        format!("http://{}:{}", self.target, self.port).parse().unwrap()
+    }
+
+    pub fn get_connector(&self) -> Dst {
+        Dst::new(self)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -28,6 +47,30 @@ struct TaskConfig {
 
 struct Stat {
     put_total: AtomicU64
+}
+
+struct Dst {
+    addr: SocketAddr
+}
+impl Dst {
+    pub fn new(net_conf: &NetConfig) -> Dst {
+        Dst {
+            addr: SocketAddr::new(net_conf.target.parse().unwrap(), net_conf.port)
+        }
+    }
+}
+impl Service<()> for Dst {
+    type Response = TcpStream;
+    type Error = ::std::io::Error;
+    type Future = ConnectFuture;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        Ok(().into())
+    }
+
+    fn call(&mut self, _: ()) -> Self::Future {
+        TcpStream::connect(&self.addr)
+    }
 }
 
 fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
@@ -44,37 +87,41 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
 }
 
 fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
-    let client = BobApiClient::new_plain(net_conf.target.as_str(),
-                                            net_conf.port, Default::default()).unwrap();
 
+    let uri = std::sync::Arc::new(net_conf.get_uri());
+    let mut rt = Runtime::new().unwrap();
 
+    let h2_settings = Default::default();   
+    let mut make_client = client::Connect::new(net_conf.get_connector(), h2_settings, rt.handle());
+    let conn = rt.block_on(make_client.make_service(())).unwrap();
+    let p_conn = tower_add_origin::Builder::new()
+                .uri(uri.as_ref())
+                .build(conn)
+                .unwrap();
+    let mut client = BobApi::new(p_conn.clone());
     for i in task_conf.low_idx..task_conf.high_idx {
-        let mut put_req = PutRequest::new();
-        put_req.set_key({
-                            let mut bk = BlobKey::new();
-                            bk.set_key(i);
-                            bk
-                        });
-        put_req.set_data({
-                            let mut blob = Blob::new();
-                            blob.set_data(vec![0; task_conf.payload_size as usize]);
-                            blob
-                        });
-        let res = client.put(RequestOptions::new(), put_req).wait();
-        stat.put_total.fetch_add(1, Ordering::SeqCst);
-        if let Err(e) = res {
-            println!("Error: {:?}", e);
+        let pur_req =  client.put(Request::new(PutRequest { key: None, data: None, options: None}))
+        .map_err(|e| panic!("gRPC request failed; err={:?}", e))
+        .and_then(|_response| {
+            Ok(())
+        })
+        .map_err(|e| {
+            println!("ERR = {:?}", e);
+        });
+
+        if i % 1000 == 0 {
+            println!("{:?}", i);
         }
 
-        // let get_req = GetRequest::new();
-        // let get_resp = client.get(RequestOptions::new(), get_req);
-
-        // println!("GET: {:?}", get_resp.wait());
+        //let sw = Stopwatch::start_new();
+        rt.block_on(pur_req).unwrap();
+        stat.put_total.fetch_add(1, Ordering::SeqCst);
+        //println!("Thing took {}ms", sw.elapsed_ms());
     }
 }
 
 fn main() {
-    let matches = App::new("MyApp")
+    let matches = App::new("Bob benchmark tool")
                     .arg(Arg::with_name("host")
                                     .help("ip or hostname of bob")
                                     .takes_value(true)
@@ -92,13 +139,13 @@ fn main() {
                                     .takes_value(true)
                                     .short("l")
                                     .long("payload")
-                                    .default_value("100000"))
+                                    .default_value("4"))
                     .arg(Arg::with_name("threads")
                                     .help("worker thread count")
                                     .takes_value(true)
                                     .short("t")
                                     .long("threads")
-                                    .default_value("4"))
+                                    .default_value("1"))
                     .arg(Arg::with_name("count")
                                     .help("count of records to proceed")
                                     .takes_value(true)
