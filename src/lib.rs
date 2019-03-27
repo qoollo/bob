@@ -11,5 +11,6 @@ extern crate tower_grpc;
 extern crate tower_service;
 extern crate tower;
 extern crate stopwatch;
+extern crate tokio_periodic;
 pub mod api;
 pub mod core;

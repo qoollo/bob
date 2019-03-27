@@ -5,8 +5,14 @@ pub struct BobError {
 pub struct BobPutResult {
 
 }
+
 #[derive(Debug)]
 pub struct BobErrorResult {
+
+}
+
+#[derive(Debug)]
+pub struct BobPingResult {
 
 }
 
@@ -37,6 +43,12 @@ pub struct VDisk {
 pub struct Node {
     pub host: String,
     pub port: u16,
+}
+
+impl Node {
+    pub fn get_uri(&self) -> http::Uri {
+        format!("http://{}:{}", self.host, self.port).parse().unwrap()
+    }
 }
 
 impl std::hash::Hash for Node {

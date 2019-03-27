@@ -53,4 +53,8 @@ impl Grinder {
         })
         
     }
+
+    pub fn get_periodic_tasks(&self, ex: tokio::runtime::TaskExecutor) -> Box<impl Future<Item=(), Error=()>> {
+        self.sprinkler.get_periodic_tasks(ex)
+    }
 }

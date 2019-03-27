@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use futures::future::*;
 use futures::stream::*;
+use tokio::executor::Executor;
 
 
 
@@ -70,6 +71,10 @@ impl Sprinkler {
             cluster: ex_cluster,
             link_manager: Arc::new(LinkManager::new(nodes))
         }
+    }
+
+    pub fn get_periodic_tasks(&self, ex: tokio::runtime::TaskExecutor) -> Box<impl Future<Item=(), Error=()>> {
+        self.link_manager.get_checker_future(ex)
     }
 
     pub fn put_clustered(&self, key: BobKey, data: BobData) 
