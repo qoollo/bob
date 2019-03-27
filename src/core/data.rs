@@ -33,10 +33,17 @@ pub struct VDisk {
     pub replicas: Vec<NodeDisk>
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq)]
 pub struct Node {
     pub host: String,
     pub port: u16,
+}
+
+impl std::hash::Hash for Node {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.host.hash(state);
+        self.port.hash(state);
+    }
 }
 
 impl std::fmt::Debug for Node {
