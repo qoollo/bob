@@ -1,4 +1,4 @@
-use crate::core::data::{BobKey, BobData, Node, NodeDisk, VDisk};
+use crate::core::data::{BobKey, BobData, Node, NodeDisk, VDisk, BobErrorResult};
 use crate::core::link_manager::LinkManager;
 
 use tokio::prelude::*;
@@ -78,6 +78,7 @@ impl Sprinkler {
     pub fn put_clustered(&self, key: BobKey, data: BobData) 
             -> impl Future<Item = SprinklerResult, Error = SprinklerError> + 'static + Send {
         println!("PUT[{:?}]: Data size: {:?}", key, data.data.len());
+        
         let target_vdisks: Vec<VDisk> = self.cluster.vdisks.iter()
             .filter(|disk| disk.id == 0)
             .cloned()
@@ -96,19 +97,20 @@ impl Sprinkler {
         println!("PUT[{:?}]: Nodes for fan out: {:?}", key, target_nodes);
 
         // incupsulate vdisk in transaction
-        let conn_to_send: Vec<_> = target_nodes.iter()
+        let mut conn_to_send: Vec<_> = target_nodes.iter()
                                         .map(|n| self.link_manager.clone()
                                         .get_link(n))
-                                        .filter_map(|l| l)
+                                        //.filter_map(|l| l)
                                         .collect();
-        // let conn_to_send:Vec<BobClient> = self.cluster.nodes.iter()
-        //                                                 .filter(|nc| target_nodes.contains(&nc.node) )
-        //                                                 .map(|nc| nc.conn.clone())
-        //                                                 .collect();
-        let reqs: Vec<_> = conn_to_send.iter().map(|c| {
+
+        let reqs: Vec<_> = conn_to_send.iter_mut().map(move |c| {
+            match c {
+                Some(conn) => Either::A(conn.put(&key, &data)),
+                None => Either::B(err(BobErrorResult {}))
+            }
             //Timeout::new(c.put(&key, &data).join_metadata_result(), self.put_timeout)
             // TODO: some issue with temout. Will think about it later
-            c.put(&key, &data)
+            
         }).collect();
         let l_quorum = self.quorum;
         Box::new(futures_unordered(reqs)

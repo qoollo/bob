@@ -1,6 +1,6 @@
 use crate::core::data::{BobKey, BobData, Node, BobPutResult, BobErrorResult, BobPingResult};
 
-use crate::api::grpc::{PutRequest,GetRequest, Null};
+use crate::api::grpc::{PutRequest,GetRequest, Null, BlobKey, Blob, PutOptions};
 
 use crate::api::grpc::client::BobApi;
 use tower_h2::client;
@@ -66,8 +66,17 @@ impl BobClient {
         })
     }
 
-    pub fn put(&self, key: &BobKey, data: &BobData) -> impl Future<Item=BobPutResult, Error=BobErrorResult> {
-        futures::future::ok(BobPutResult {})
+    pub fn put(&mut self, key: &BobKey, data: &BobData) -> impl Future<Item=BobPutResult, Error=BobErrorResult> {
+        self.client.put(Request::new(PutRequest{ 
+                key: Some(BlobKey{
+                    key: key.key
+                }), data: Some(Blob{
+                    data: data.data.clone()
+                }), options: Some(PutOptions{
+                    force_node: true,
+                    overwrite: false
+                })
+            })).map(|_| BobPutResult{}).map_err(|_| BobErrorResult{})
     }
 
     pub fn ping(&mut self) -> impl Future<Item=BobPingResult, Error=BobErrorResult> {

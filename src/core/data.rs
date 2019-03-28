@@ -20,7 +20,7 @@ pub struct BobData {
     pub data: Vec<u8>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct BobKey {
     pub key: u64
 }

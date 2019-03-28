@@ -18,7 +18,7 @@ use tower::MakeService;
 use std::net::{SocketAddr};
 
 use bob::api::grpc::client::BobApi;
-use bob::api::grpc::PutRequest;
+use bob::api::grpc::{PutRequest, Blob, BlobKey};
 //use stopwatch::{Stopwatch};
 
 #[derive(Debug, Clone)]
@@ -100,7 +100,7 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
                 .unwrap();
     let mut client = BobApi::new(p_conn.clone());
     for i in task_conf.low_idx..task_conf.high_idx {
-        let pur_req =  client.put(Request::new(PutRequest { key: None, data: None, options: None}))
+        let pur_req =  client.put(Request::new(PutRequest {key: Some(BlobKey {key:i}), data: Some(Blob {data: vec![0; task_conf.payload_size as usize]}), options: None}))
         .map_err(|e| panic!("gRPC request failed; err={:?}", e))
         .and_then(|_response| {
             Ok(())
