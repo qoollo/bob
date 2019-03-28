@@ -3,8 +3,6 @@ use crate::core::net_abs::BobClient;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::timer::Interval;
-use tokio::executor::Executor;
-use futures::future::lazy;
 use futures::stream::Stream;
 use futures::future::Future;
 use std::time::{ Duration};
@@ -57,7 +55,7 @@ impl LinkManager {
         let local_repo = self.repo.clone();
         Box::new(
             Interval::new_interval(Duration::from_millis(1000))
-            .for_each(move |instant| {
+            .for_each(move |_| {
                 for (_, v) in local_repo.iter() {
                         match v.get_connection() {
                         Some(mut conn) => {
@@ -89,7 +87,7 @@ impl LinkManager {
 
                 Ok(())
             })
-            .map_err(|e| panic!("can't make to work timer"))
+            .map_err(|e| panic!("can't make to work timer {:?}", e))
             
             )
     }

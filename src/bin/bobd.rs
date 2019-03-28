@@ -115,5 +115,5 @@ fn main() {
         })
         .map_err(|e| eprintln!("accept error: {}", e));
 
-    rt.block_on_all(serve);
+    rt.block_on_all(serve).unwrap();
 }
