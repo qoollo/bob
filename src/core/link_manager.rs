@@ -36,11 +36,12 @@ impl NodeLink {
 
 pub struct LinkManager {
     repo: Arc<HashMap<Node, NodeLink>>,
-    check_interval: Duration
+    check_interval: Duration,
+    timeout: Duration
 }
 
 impl LinkManager {
-    pub fn new(nodes: Vec<Node>) -> LinkManager {
+    pub fn new(nodes: Vec<Node>, timeout: Duration) -> LinkManager {
         LinkManager {
             repo: { 
                 let mut hm = HashMap::new();
@@ -49,12 +50,14 @@ impl LinkManager {
                 }
                 Arc::new(hm)
             },
-            check_interval: Duration::from_millis(5000)
+            check_interval: Duration::from_millis(5000),
+            timeout: timeout
         }
     }
 
     pub fn get_checker_future(&self, ex: tokio::runtime::TaskExecutor) -> Box<impl Future<Item=(), Error=()>> {
         let local_repo = self.repo.clone();
+        let timeout = self.timeout;
         Box::new(
             Interval::new_interval(self.check_interval)
             .for_each(move |_| {
@@ -79,7 +82,7 @@ impl LinkManager {
                         None => {
                             let lv = v.clone();
                             println!("will esteblish new connection to {:?}", v.node);
-                            tokio::spawn(BobClient::new(lv.node.clone(), ex.clone()).map(move |client| {
+                            tokio::spawn(BobClient::new(lv.node.clone(), ex.clone(), timeout).map(move |client| {
                                  lv.set_connection(client);
                              })
                             );  

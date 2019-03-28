@@ -11,6 +11,8 @@ use tower::MakeService;
 use std::net::{SocketAddr};
 use tokio::runtime::TaskExecutor;
 use futures::{Future, Poll};
+use tokio::prelude::FutureExt;
+use std::time::Duration;
 
 struct Dst {
     addr: SocketAddr
@@ -39,13 +41,12 @@ impl Service<()> for Dst {
 #[derive(Clone)]
 pub struct BobClient {
     node: Node,
-    //client: BobApi<T>
+    timeout: Duration,
     client: BobApi<tower_add_origin::AddOrigin<tower_h2::client::Connection<tokio::net::TcpStream, tokio::runtime::TaskExecutor, tower_grpc::BoxBody>>>
 }
 
 impl BobClient {
-    pub fn new(node: Node, executor: TaskExecutor) -> impl Future<Item=Self, Error=()> {
-        println!("In new bobclient");
+    pub fn new(node: Node, executor: TaskExecutor, timeout: Duration) -> impl Future<Item=Self, Error=()> {
         let h2_settings = Default::default();
         let mut make_client = client::Connect::new(Dst::new(&node), h2_settings, executor);
         make_client.make_service(())
@@ -58,7 +59,8 @@ impl BobClient {
 
             BobClient { 
                 node: node,
-                client: BobApi::new(conn)
+                client: BobApi::new(conn),
+                timeout: timeout
             }
         })
         .map_err(|e| {
@@ -76,10 +78,16 @@ impl BobClient {
                     force_node: true,
                     overwrite: false
                 })
-            })).map(|_| BobPutResult{}).map_err(|_| BobErrorResult{})
+            }))
+            .timeout(self.timeout)
+            .map(|_| BobPutResult{})
+            .map_err(|_| BobErrorResult{})
     }
 
     pub fn ping(&mut self) -> impl Future<Item=BobPingResult, Error=BobErrorResult> {
-        self.client.ping(Request::new(Null{})).map(|_| BobPingResult{}).map_err(|_| BobErrorResult{})
+        self.client.ping(Request::new(Null{}))
+            .timeout(self.timeout)
+            .map(|_| BobPingResult{})
+            .map_err(|_| BobErrorResult{})
     }
 }

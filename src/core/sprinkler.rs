@@ -22,7 +22,6 @@ pub struct Cluster {
 pub struct Sprinkler {
     cluster: Cluster,
     quorum: u8,
-    put_timeout: Duration,
     link_manager: Arc<LinkManager>
 }
 
@@ -64,10 +63,9 @@ impl Sprinkler {
                                     .flat_map(|vdisk| vdisk.replicas.iter().map(|nd| nd.node.clone())  )
                                     .collect();
         Sprinkler {
-            put_timeout: Duration::from_millis(10000),
             quorum: 1,
             cluster: ex_cluster,
-            link_manager: Arc::new(LinkManager::new(nodes))
+            link_manager: Arc::new(LinkManager::new(nodes, Duration::from_millis(3000)))
         }
     }
 
@@ -107,10 +105,7 @@ impl Sprinkler {
             match c {
                 Some(conn) => Either::A(conn.put(&key, &data)),
                 None => Either::B(err(BobErrorResult {}))
-            }
-            //Timeout::new(c.put(&key, &data).join_metadata_result(), self.put_timeout)
-            // TODO: some issue with temout. Will think about it later
-            
+            }            
         }).collect();
         let l_quorum = self.quorum;
         Box::new(futures_unordered(reqs)
