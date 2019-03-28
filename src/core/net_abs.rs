@@ -71,6 +71,6 @@ impl BobClient {
     }
 
     pub fn ping(&mut self) -> impl Future<Item=BobPingResult, Error=BobErrorResult> {
-        self.client.ping(Request::new(Null{})).map(|r| BobPingResult{}).map_err(|e| BobErrorResult{})
+        self.client.ping(Request::new(Null{})).map(|_| BobPingResult{}).map_err(|_| BobErrorResult{})
     }
 }

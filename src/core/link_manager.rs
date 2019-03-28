@@ -35,7 +35,8 @@ impl NodeLink {
 }
 
 pub struct LinkManager {
-    repo: Arc<HashMap<Node, NodeLink>>
+    repo: Arc<HashMap<Node, NodeLink>>,
+    check_interval: Duration
 }
 
 impl LinkManager {
@@ -47,14 +48,15 @@ impl LinkManager {
                     hm.insert(node.clone(), NodeLink::new(node));
                 }
                 Arc::new(hm)
-            }
+            },
+            check_interval: Duration::from_millis(5000)
         }
     }
 
     pub fn get_checker_future(&self, ex: tokio::runtime::TaskExecutor) -> Box<impl Future<Item=(), Error=()>> {
         let local_repo = self.repo.clone();
         Box::new(
-            Interval::new_interval(Duration::from_millis(1000))
+            Interval::new_interval(self.check_interval)
             .for_each(move |_| {
                 for (_, v) in local_repo.iter() {
                         match v.get_connection() {
@@ -89,7 +91,7 @@ impl LinkManager {
             })
             .map_err(|e| panic!("can't make to work timer {:?}", e))
             
-            )
+        )
     }
 
     pub fn get_link(&self, node: &Node) -> Option<BobClient> {
