@@ -1,5 +1,5 @@
 use crate::core::data::Node;
-use crate::core::net_abs::BobClient;
+use crate::core::bob_client::BobClient;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::timer::Interval;
