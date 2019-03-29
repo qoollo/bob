@@ -58,9 +58,9 @@ impl BobClient {
             .unwrap();
 
             BobClient { 
-                node: node,
+                node,
                 client: BobApi::new(conn),
-                timeout: timeout
+                timeout
             }
         })
         .map_err(|e| {
