@@ -1,6 +1,7 @@
 
 extern crate clap;
 
+use futures::future::{loop_fn, Loop};
 use clap::{App, Arg};
 
 use std::{thread, time};
@@ -87,7 +88,6 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
 }
 
 fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
-
     let uri = std::sync::Arc::new(net_conf.get_uri());
     let mut rt = Runtime::new().unwrap();
 
@@ -99,25 +99,24 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
                 .build(conn)
                 .unwrap();
     let mut client = BobApi::new(p_conn.clone());
-    for i in task_conf.low_idx..task_conf.high_idx {
-        let pur_req =  client.put(Request::new(PutRequest {key: Some(BlobKey {key:i}), data: Some(Blob {data: vec![0; task_conf.payload_size as usize]}), options: None}))
-        .map_err(|e| panic!("gRPC request failed; err={:?}", e))
-        .and_then(|_response| {
-            Ok(())
+    rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
+        client.put(Request::new(PutRequest {key: Some(BlobKey {key:i}), data: Some(Blob {data: vec![0; task_conf.payload_size as usize]}), options: None}))
+        .and_then(move |_|{
+
+            lstat.clone().put_total.fetch_add(1, Ordering::SeqCst);
+            if i == task_conf.high_idx {
+                Ok(Loop::Break((lstat,i)))
+            } else {
+                Ok(Loop::Continue((lstat,i+1)))
+            }
         })
-        .map_err(|e| {
-            println!("ERR = {:?}", e);
-        });
+    })).unwrap();
 
-        if i % 1000 == 0 {
-            println!("{:?}", i);
-        }
-
-        //let sw = Stopwatch::start_new();
-        rt.block_on(pur_req).unwrap();
-        stat.put_total.fetch_add(1, Ordering::SeqCst);
-        //println!("Thing took {}ms", sw.elapsed_ms());
-    }
+    //     //let sw = Stopwatch::start_new();
+    //     rt.block_on(pur_req).unwrap();
+    //     stat.put_total.fetch_add(1, Ordering::SeqCst);
+    //     //println!("Thing took {}ms", sw.elapsed_ms());
+    // }
 }
 
 fn main() {
