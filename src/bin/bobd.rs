@@ -17,7 +17,7 @@ use clap::{App, Arg};
 
 #[derive(Clone)]
 struct BobSrv {
-    grinder: Grinder
+    grinder: std::sync::Arc<Grinder>
 }
 
 impl BobSrv {
@@ -82,10 +82,10 @@ fn main() {
     let mut rt = Runtime::new().unwrap();
 
     let bob = BobSrv {
-        grinder: Grinder {
+        grinder: std::sync::Arc::new(Grinder {
             backend: Backend {},
             sprinkler: Sprinkler::new()
-        }
+        })
     };
     
     rt.spawn(bob.get_periodic_tasks(rt.executor()));

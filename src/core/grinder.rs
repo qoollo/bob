@@ -8,7 +8,6 @@ use crate::core::backend::{Backend};
 use crate::core::sprinkler::{Sprinkler};
 use crate::core::data::{BobKey, BobData, BobOptions, };
 
-#[derive(Clone)]
 pub struct Grinder {
     pub backend: Backend,
     pub sprinkler: Sprinkler

@@ -85,11 +85,9 @@ impl Sprinkler {
         
         println!("PUT[{:?}]: Will use this vdisks {:?}", key, target_vdisks);
 
-        let mut target_nodes: Vec<Node> = target_vdisks.iter()
-            .flat_map(|node_disk| node_disk.replicas.iter()
-                                                    .map(|nd| nd.node.clone())
-                                                    .collect::<Vec<Node>>())
-            .collect();
+        let mut target_nodes: Vec<_> = target_vdisks.iter()
+                                        .flat_map(|node_disk| node_disk.replicas.iter().map(|nd| nd.node.clone()))
+                                        .collect();
         target_nodes.dedup();
 
         println!("PUT[{:?}]: Nodes for fan out: {:?}", key, target_nodes);
