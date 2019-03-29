@@ -101,7 +101,7 @@ impl Sprinkler {
 
         let reqs: Vec<_> = conn_to_send.iter_mut().map(move |nl| {
             match &mut nl.conn {
-                Some(conn) => Either::A(conn.put(&key, &data)),
+                Some(conn) => Either::A(conn.put(key, &data)),
                 None => Either::B(err(BobError::Other(format!("No active connection {:?}", nl.node))))
             }            
         }).collect();

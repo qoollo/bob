@@ -32,30 +32,26 @@ impl server::BobApi for BobSrv {
         type PingFuture = future::FutureResult<Response<Null>, tower_grpc::Status>;
 
         fn put(&mut self, req: Request<PutRequest>) -> Self::PutFuture {
-            let param = req.get_ref();
-            let f = self.grinder.put(
+            let mut param = req.into_inner();
+            Box::new(self.grinder.put(
                 BobKey{
                     key: param.key.as_ref().unwrap().key
                     },
                 BobData{
-                    data: param.data.as_ref().unwrap().data.clone()
+                    data: param.data.take().unwrap().data
                 },
                 {
                     let mut opts: BobOptions = Default::default();
-                    match param.options.as_ref() {
-                        Some(vopts) => { 
-                            if vopts.force_node {
-                                opts |= BobOptions::FORCE_NODE;
-                            }
-                        },
-                        None => {}
+                    if let Some(vopts) = param.options.as_ref() { 
+                        if vopts.force_node {
+                            opts |= BobOptions::FORCE_NODE;
+                        }
                     }
                     opts
                 }
             ).then(|_r| ok(Response::new(OpStatus {
                 error: None
-            })));//.map_err(|_| err(tower_grpc::Status::new(tower_grpc::Code::Unknown, "error")));
-            Box::new(f)
+            }))))
         }
 
         fn get(&mut self, _request: Request<GetRequest>) -> Self::GetFuture{

@@ -68,12 +68,12 @@ impl BobClient {
         })
     }
 
-    pub fn put(&mut self, key: &BobKey, data: &BobData) -> impl Future<Item=BobPutResult, Error=BobError> {
+    pub fn put(&mut self, key: BobKey, data: &BobData) -> impl Future<Item=BobPutResult, Error=BobError> {
         self.client.put(Request::new(PutRequest{ 
                 key: Some(BlobKey{
                     key: key.key
                 }), data: Some(Blob{
-                    data: data.data.clone()
+                    data: data.data.clone() // TODO: find way to eliminate data copying
                 }), options: Some(PutOptions{
                     force_node: true,
                     overwrite: false
