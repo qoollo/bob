@@ -1,4 +1,4 @@
-use crate::core::data::{BobKey, BobData, Node, NodeDisk, VDisk, BobErrorResult};
+use crate::core::data::{BobKey, BobData, Node, NodeDisk, VDisk, BobError};
 use crate::core::link_manager::LinkManager;
 
 use tokio::prelude::*;
@@ -96,15 +96,13 @@ impl Sprinkler {
 
         // incupsulate vdisk in transaction
         let mut conn_to_send: Vec<_> = target_nodes.iter()
-                                        .map(|n| self.link_manager.clone()
-                                        .get_link(n))
-                                        //.filter_map(|l| l)
+                                        .map(|n| self.link_manager.clone().get_link(n))
                                         .collect();
 
-        let reqs: Vec<_> = conn_to_send.iter_mut().map(move |c| {
-            match c {
+        let reqs: Vec<_> = conn_to_send.iter_mut().map(move |nl| {
+            match &mut nl.conn {
                 Some(conn) => Either::A(conn.put(&key, &data)),
-                None => Either::B(err(BobErrorResult {}))
+                None => Either::B(err(BobError::Other(format!("No active connection {:?}", nl.node))))
             }            
         }).collect();
         let l_quorum = self.quorum;
@@ -115,10 +113,7 @@ impl Sprinkler {
             let res = acc.unwrap();
             println!("PUT[{:?}] cluster ans: {:?}", key, res);
             let total_ops = res.iter().count();
-            let ok_count = res.iter().filter(|&r| match r {
-                Ok(_) => true,
-                Err(_) => false
-            }).count();
+            let ok_count = res.iter().filter(|&r| r.is_ok()).count();
             // TODO: send actuall list of vdisk it has been written on
             if ok_count >= l_quorum as usize {
                 ok(SprinklerResult{

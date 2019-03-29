@@ -21,7 +21,7 @@ fn wait_for_input() {
 fn main() {
 
     let mut rt = Runtime::new().unwrap();
-    let uri: http::Uri = format!("http://localhost:20000").parse().unwrap();
+    let uri: http::Uri = "http://localhost:20000".parse().unwrap();
 
     let h2_settings = Default::default();
     let mut make_client = client::Connect::new(Dst, h2_settings, rt.executor());

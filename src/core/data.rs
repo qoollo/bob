@@ -1,13 +1,12 @@
-pub struct BobError {
 
+#[derive(Debug)]
+pub enum BobError {
+    Timeout,
+    
+    Other(String)
 }
 #[derive(Debug)]
 pub struct BobPutResult {
-
-}
-
-#[derive(Debug)]
-pub struct BobErrorResult {
 
 }
 

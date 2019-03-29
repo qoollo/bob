@@ -1,4 +1,4 @@
-use crate::core::data::{BobKey, BobData, Node, BobPutResult, BobErrorResult, BobPingResult};
+use crate::core::data::{BobKey, BobData, Node, BobPutResult, BobError, BobPingResult};
 
 use crate::api::grpc::{PutRequest,GetRequest, Null, BlobKey, Blob, PutOptions};
 
@@ -68,7 +68,7 @@ impl BobClient {
         })
     }
 
-    pub fn put(&mut self, key: &BobKey, data: &BobData) -> impl Future<Item=BobPutResult, Error=BobErrorResult> {
+    pub fn put(&mut self, key: &BobKey, data: &BobData) -> impl Future<Item=BobPutResult, Error=BobError> {
         self.client.put(Request::new(PutRequest{ 
                 key: Some(BlobKey{
                     key: key.key
@@ -81,13 +81,31 @@ impl BobClient {
             }))
             .timeout(self.timeout)
             .map(|_| BobPutResult{})
-            .map_err(|_| BobErrorResult{})
+            .map_err(|e| {
+                if e.is_elapsed() {
+                    BobError::Timeout
+                } else if e.is_timer() {
+                    panic!("Timeout can't failed in core - can't continue")
+                } else {
+                    let err = e.into_inner();
+                    BobError::Other(format!("Put operation for failed: {:?}", err))
+                }
+            })
     }
 
-    pub fn ping(&mut self) -> impl Future<Item=BobPingResult, Error=BobErrorResult> {
+    pub fn ping(&mut self) -> impl Future<Item=BobPingResult, Error=BobError> {
         self.client.ping(Request::new(Null{}))
             .timeout(self.timeout)
             .map(|_| BobPingResult{})
-            .map_err(|_| BobErrorResult{})
+            .map_err(|e|  {
+                if e.is_elapsed() {
+                    BobError::Timeout
+                } else if e.is_timer() {
+                    panic!("Timeout can't failed in core - can't continue")
+                } else {
+                    let err = e.into_inner();
+                    BobError::Other(format!("Ping operation failed: {:?}", err))
+                }
+            })
     }
 }

@@ -35,7 +35,7 @@ impl server::BobApi for BobSrv {
             let param = req.get_ref();
             let f = self.grinder.put(
                 BobKey{
-                    key: param.key.as_ref().unwrap().key.clone()
+                    key: param.key.as_ref().unwrap().key
                     },
                 BobData{
                     data: param.data.as_ref().unwrap().data.clone()
@@ -45,7 +45,7 @@ impl server::BobApi for BobSrv {
                     match param.options.as_ref() {
                         Some(vopts) => { 
                             if vopts.force_node {
-                                opts = opts | BobOptions::FORCE_NODE;
+                                opts |= BobOptions::FORCE_NODE;
                             }
                         },
                         None => {}

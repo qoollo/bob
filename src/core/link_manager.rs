@@ -7,22 +7,30 @@ use futures::stream::Stream;
 use futures::future::Future;
 use std::time::{ Duration};
 
-#[derive(Clone)]
 pub struct NodeLink {
+    pub node: Node,
+    pub conn: Option<BobClient>
+}
+
+#[derive(Clone)]
+pub struct NodeLinkHolder {
     node: Node,
     conn: Arc<Mutex<Option<BobClient>>>
 }
 
-impl NodeLink {
-    pub fn new(node: Node) -> NodeLink {
-        NodeLink {
-            node: node,
+impl NodeLinkHolder {
+    pub fn new(node: Node) -> NodeLinkHolder {
+        NodeLinkHolder {
+            node,
             conn: Arc::new(Mutex::new(None))
         }
     }
 
-    pub fn get_connection(&self) -> Option<BobClient> {
-        self.conn.lock().unwrap().clone()
+    pub fn get_connection(&self) -> NodeLink {
+        NodeLink {
+            node: self.node.clone(),
+            conn: self.conn.lock().unwrap().clone()
+        }
     }
 
     pub fn set_connection(&self, client: BobClient) {
@@ -35,7 +43,7 @@ impl NodeLink {
 }
 
 pub struct LinkManager {
-    repo: Arc<HashMap<Node, NodeLink>>,
+    repo: Arc<HashMap<Node, NodeLinkHolder>>,
     check_interval: Duration,
     timeout: Duration
 }
@@ -46,12 +54,12 @@ impl LinkManager {
             repo: { 
                 let mut hm = HashMap::new();
                 for node in nodes {
-                    hm.insert(node.clone(), NodeLink::new(node));
+                    hm.insert(node.clone(), NodeLinkHolder::new(node));
                 }
                 Arc::new(hm)
             },
             check_interval: Duration::from_millis(5000),
-            timeout: timeout
+            timeout
         }
     }
 
@@ -62,7 +70,7 @@ impl LinkManager {
             Interval::new_interval(self.check_interval)
             .for_each(move |_| {
                 for (_, v) in local_repo.iter() {
-                        match v.get_connection() {
+                        match v.get_connection().conn {
                         Some(mut conn) => {
                             let lv = v.clone();
                             tokio::spawn(
@@ -97,7 +105,7 @@ impl LinkManager {
         )
     }
 
-    pub fn get_link(&self, node: &Node) -> Option<BobClient> {
+    pub fn get_link(&self, node: &Node) -> NodeLink {
         match self.repo.get(node) {
             Some(link) => link.get_connection(),
             None => panic!("No such node in repo. Check config and cluster setup")
