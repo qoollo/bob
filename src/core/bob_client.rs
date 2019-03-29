@@ -112,3 +112,15 @@ impl BobClient {
             })
     }
 }
+
+#[derive(Clone)]
+pub struct BobClientFactory {
+    pub executor: TaskExecutor,
+    pub timeout: Duration
+}
+
+impl BobClientFactory {
+    pub fn produce(&self, node: Node) -> impl Future<Item=BobClient, Error=()> {
+        BobClient::new(node, self.executor.clone(), self.timeout)
+    }
+}
