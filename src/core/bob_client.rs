@@ -1,3 +1,5 @@
+use tower_h2::client::Connection;
+use tower_grpc::BoxBody;
 use crate::core::data::{BobKey, BobData, Node, BobPutResult, BobError, BobPingResult};
 
 use crate::api::grpc::{PutRequest,GetRequest, Null, BlobKey, Blob, PutOptions};
@@ -12,6 +14,7 @@ use std::net::{SocketAddr};
 use tokio::runtime::TaskExecutor;
 use futures::{Future, Poll};
 use tokio::prelude::FutureExt;
+
 use std::time::Duration;
 
 struct Dst {
@@ -26,7 +29,7 @@ impl Dst {
 }
 impl Service<()> for Dst {
     type Response = TcpStream;
-    type Error = ::std::io::Error;
+    type Error = std::io::Error;
     type Future = ConnectFuture;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -42,7 +45,7 @@ impl Service<()> for Dst {
 pub struct BobClient {
     node: Node,
     timeout: Duration,
-    client: BobApi<tower_add_origin::AddOrigin<tower_h2::client::Connection<tokio::net::TcpStream, tokio::runtime::TaskExecutor, tower_grpc::BoxBody>>>
+    client: BobApi<tower_add_origin::AddOrigin<Connection<TcpStream, TaskExecutor, BoxBody>>>
 }
 
 impl BobClient {

@@ -106,9 +106,6 @@ impl LinkManager {
     }
 
     pub fn get_link(&self, node: &Node) -> NodeLink {
-        match self.repo.get(node) {
-            Some(link) => link.get_connection(),
-            None => panic!("No such node in repo. Check config and cluster setup")
-        }
+        self.repo.get(node).expect("No such node in repo. Check config and cluster setup").get_connection()
     }
 }
