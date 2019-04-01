@@ -138,7 +138,7 @@ fn main() {
                                     .takes_value(true)
                                     .short("l")
                                     .long("payload")
-                                    .default_value("4"))
+                                    .default_value("100000"))
                     .arg(Arg::with_name("threads")
                                     .help("worker thread count")
                                     .takes_value(true)

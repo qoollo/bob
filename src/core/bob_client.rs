@@ -1,6 +1,6 @@
 use tower_h2::client::Connection;
 use tower_grpc::BoxBody;
-use crate::core::data::{BobKey, BobData, Node, BobPutResult, BobError, BobPingResult};
+use crate::core::data::{BobKey, BobData, Node, BobPutResult, BobError, BobPingResult, ClusterResult};
 
 use crate::api::grpc::{PutRequest,GetRequest, Null, BlobKey, Blob, PutOptions};
 
@@ -54,7 +54,7 @@ impl BobClient {
         let mut make_client = client::Connect::new(Dst::new(&node), h2_settings, executor);
         make_client.make_service(())
         .map(move |conn_l| {
-            println!("COnnected to {:?}", node);
+            trace!("COnnected to {:?}", node);
             let conn = tower_add_origin::Builder::new()
             .uri(node.get_uri())
             .build(conn_l)
@@ -67,11 +67,14 @@ impl BobClient {
             }
         })
         .map_err(|e| {
-            println!("ERR = {:?}", e);
+            debug!("BobClient: ERR = {:?}", e);
         })
     }
 
-    pub fn put(&mut self, key: BobKey, data: &BobData) -> impl Future<Item=BobPutResult, Error=BobError> {
+    pub fn put(&mut self, key: BobKey, data: &BobData)
+            -> impl Future<Item=ClusterResult<BobPutResult>, Error=ClusterResult<BobError>> {
+        let n1 = self.node.clone();
+        let n2 = self.node.clone();
         self.client.put(Request::new(PutRequest{ 
                 key: Some(BlobKey{
                     key: key.key
@@ -83,31 +86,43 @@ impl BobClient {
                 })
             }))
             .timeout(self.timeout)
-            .map(|_| BobPutResult{})
-            .map_err(|e| {
-                if e.is_elapsed() {
-                    BobError::Timeout
-                } else if e.is_timer() {
-                    panic!("Timeout can't failed in core - can't continue")
-                } else {
-                    let err = e.into_inner();
-                    BobError::Other(format!("Put operation for failed: {:?}", err))
+            .map(|_| 
+                    ClusterResult {
+                        node: n1,
+                        result: BobPutResult{}
+                    })
+            .map_err(move |e| {
+                ClusterResult {
+                    result: {
+                        if e.is_elapsed() {
+                            BobError::Timeout
+                        } else if e.is_timer() {
+                            panic!("Timeout failed in core - can't continue")
+                        } else {
+                            let err = e.into_inner();
+                            BobError::Other(format!("Put operation for {} failed: {:?}", n2, err))
+                        }
+                    },
+                    node: n2
+
                 }
             })
     }
 
     pub fn ping(&mut self) -> impl Future<Item=BobPingResult, Error=BobError> {
+        let n1 = self.node.clone();
+        let n2 = self.node.clone();
         self.client.ping(Request::new(Null{}))
             .timeout(self.timeout)
-            .map(|_| BobPingResult{})
-            .map_err(|e|  {
+            .map(move |_| BobPingResult{ node: n1 })
+            .map_err(move |e|  {
                 if e.is_elapsed() {
                     BobError::Timeout
                 } else if e.is_timer() {
                     panic!("Timeout can't failed in core - can't continue")
                 } else {
                     let err = e.into_inner();
-                    BobError::Other(format!("Ping operation failed: {:?}", err))
+                    BobError::Other(format!("Ping operation for {} failed: {:?}", n2, err))
                 }
             })
     }

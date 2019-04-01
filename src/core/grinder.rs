@@ -4,8 +4,8 @@ use tokio::prelude::{Future};
 //use futures::future::;
 use futures::{Poll};
 use futures::future::Either;
-use crate::core::backend::{Backend};
-use crate::core::sprinkler::{Sprinkler};
+use crate::core::backend::{Backend, BackendResult, BackendError};
+use crate::core::sprinkler::{Sprinkler, SprinklerResult, SprinklerError};
 use crate::core::data::{BobKey, BobData, BobOptions, };
 
 pub struct Grinder {
@@ -13,9 +13,44 @@ pub struct Grinder {
     pub sprinkler: Sprinkler
 }
 
+pub enum ServeTypeOk {
+    Cluster(SprinklerResult),
+    Local(BackendResult)
+}
 
-pub struct GrinderOk {}
-pub struct GrinderError {}
+pub enum ServeTypeError {
+    Cluster(SprinklerError),
+    Local(BackendError)
+}
+
+pub struct GrinderOk {
+    pub is_clustered: bool,
+    pub details: ServeTypeOk
+}
+
+impl std::fmt::Display for GrinderOk {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match &self.details {
+            ServeTypeOk::Cluster(detail) => write!(f, "[status= {}]", detail),
+            ServeTypeOk::Local(_) => write!(f, "-", )
+        }
+    }
+}
+
+pub struct GrinderError {
+    pub is_clustered: bool,
+    pub details: ServeTypeError
+}
+
+
+impl std::fmt::Display for GrinderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match &self.details {
+            ServeTypeError::Cluster(detail) => write!(f, "[status= {}]", detail),
+            ServeTypeError::Local(_) => write!(f, "-", )
+        }
+    }
+}
 
 pub struct GrinderPutResponse<T>(T);
 
@@ -30,25 +65,40 @@ impl<T> Future for GrinderPutResponse<T>
 
 }
 
-type GrinderResult = std::result::Result<GrinderOk, GrinderError>;
-
 impl Grinder {
     pub fn put(&self, key: BobKey, data: BobData, opts: BobOptions) -> 
         impl Future<Item = GrinderOk, Error = GrinderError> + 'static + Send {
         Box::new(if opts.contains(BobOptions::FORCE_NODE) {
-            println!("PUT[{:?}] FORCE_NODE will handle it by myself", key);
-            Either::A(self.backend.put(key, data).then(|_r| {
-                            let k: GrinderResult = 
-                            Ok(GrinderOk{});
-                            k
-                        }))
+            debug!("PUT[{}] flag FORCE_NODE is on - will handle it by local node", key);
+            Either::A(self.backend.put(key, data)
+                            .map(|r| {
+                                GrinderOk{
+                                    is_clustered: false,
+                                    details: ServeTypeOk::Local(r)
+                                }
+                            })
+                            .map_err(|err| {
+                                GrinderError{
+                                    is_clustered: false,
+                                    details: ServeTypeError::Local(err)
+                                }
+                            })
+                        )
         } else {
-            println!("PUT[{:?}] will forward it to cluster", key);
-            Either::B(self.sprinkler.put_clustered(key, data).then(|_r| {
-                            let k: GrinderResult = 
-                            Ok(GrinderOk{});
-                            k
-                        }))
+            debug!("PUT[{}] will route to cluster", key);
+            Either::B(self.sprinkler.put_clustered(key, data).map(|r| {
+                
+                            GrinderOk{
+                                is_clustered: true,
+                                details: ServeTypeOk::Cluster(r)
+                            }
+                        })
+                        .map_err(|err| 
+                            GrinderError{
+                                is_clustered: true,
+                                details: ServeTypeError::Cluster(err)
+                            }
+                        ))
         })
         
     }
