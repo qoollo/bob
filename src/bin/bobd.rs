@@ -1,23 +1,57 @@
-use bob::api::grpc::{server, PutRequest, GetRequest, OpStatus, BlobResult};
+use bob::api::grpc::{server, PutRequest, GetRequest, OpStatus, BlobResult, Null};
 
 use futures::{future, Future, Stream};
+use futures::future::ok;
 use tokio::executor::DefaultExecutor;
 use tokio::net::TcpListener;
 use tower_h2::Server;
 use tower_grpc::{Request, Response};
+use bob::core::grinder::{Grinder};
+use bob::core::data::{BobKey, BobData, BobOptions};
+use bob::core::backend::Backend;
+use bob::core::sprinkler::{Sprinkler};
+use tokio::runtime::{Runtime};
+extern crate clap;
 
-#[derive(Clone, Debug)]
-struct BobSrv;
+use clap::{App, Arg};
+
+#[derive(Clone)]
+struct BobSrv {
+    grinder: std::sync::Arc<Grinder>
+}
+
+impl BobSrv {
+    pub fn get_periodic_tasks(&self, ex: tokio::runtime::TaskExecutor) -> Box<impl Future<Item=(), Error=()>> {
+        self.grinder.get_periodic_tasks(ex)
+    }
+}
 
 impl server::BobApi for BobSrv {
-        type PutFuture = future::FutureResult<Response<OpStatus>, tower_grpc::Status>;
+        type PutFuture = Box<Future<Item=Response<OpStatus>,Error=tower_grpc::Status> + Send>;
         type GetFuture = future::FutureResult<Response<BlobResult>, tower_grpc::Status>;
+        type PingFuture = future::FutureResult<Response<Null>, tower_grpc::Status>;
 
-        fn put(&mut self, _request: Request<PutRequest>) -> Self::PutFuture {
-            let response = Response::new(OpStatus {
+        fn put(&mut self, req: Request<PutRequest>) -> Self::PutFuture {
+            let mut param = req.into_inner();
+            Box::new(self.grinder.put(
+                BobKey{
+                    key: param.key.as_ref().unwrap().key
+                    },
+                BobData{
+                    data: param.data.take().unwrap().data
+                },
+                {
+                    let mut opts: BobOptions = Default::default();
+                    if let Some(vopts) = param.options.as_ref() { 
+                        if vopts.force_node {
+                            opts |= BobOptions::FORCE_NODE;
+                        }
+                    }
+                    opts
+                }
+            ).then(|_r| ok(Response::new(OpStatus {
                 error: None
-            });
-            future::ok(response)
+            }))))
         }
 
         fn get(&mut self, _request: Request<GetRequest>) -> Self::GetFuture{
@@ -27,17 +61,41 @@ impl server::BobApi for BobSrv {
             });
             future::ok(response)
         }
+
+        fn ping(&mut self, _request: Request<Null>) -> Self::PingFuture{
+            let response = Response::new(Null { });
+            future::ok(response)
+        }
 }
 
 fn main() {
 
+    let matches = App::new("Bob")
+                    .arg(Arg::with_name("bind")
+                                    .help("server bind point")
+                                    .takes_value(true)
+                                    .short("b")
+                                    .long("bind")
+                                    .default_value("127.0.0.1:20000"))
+                    .get_matches();
 
-    let new_service = server::BobApiServer::new(BobSrv);
+    let mut rt = Runtime::new().unwrap();
+
+    let bob = BobSrv {
+        grinder: std::sync::Arc::new(Grinder {
+            backend: Backend {},
+            sprinkler: Sprinkler::new()
+        })
+    };
+    
+    rt.spawn(bob.get_periodic_tasks(rt.executor()));
+    let new_service = server::BobApiServer::new(bob);
 
     let h2_settings = Default::default();
     let mut h2 = Server::new(new_service, h2_settings, DefaultExecutor::current());
 
-    let addr = "127.0.0.1:20000".parse().unwrap();
+    let addr = matches.value_of("bind").unwrap_or_default().parse().unwrap();
+    println!("Listen on {:?}", addr);
     let bind = TcpListener::bind(&addr).expect("bind");
 
     let serve = bind.incoming()
@@ -47,11 +105,11 @@ fn main() {
             }
 
             let serve = h2.serve(sock);
-            tokio::spawn(serve.map_err(|e| println!("h2 error: {:?}", e)));
+            tokio::spawn(serve.map_err(|e| println!("Server h2 error: {:?}", e)));
 
             Ok(())
         })
         .map_err(|e| eprintln!("accept error: {}", e));
 
-    tokio::run(serve)
+    rt.block_on_all(serve).unwrap();
 }

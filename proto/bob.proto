@@ -6,8 +6,10 @@ package bob_storage;
 service BobApi {
     rpc Put (PutRequest) returns (OpStatus) {}
     rpc Get (GetRequest) returns (BlobResult) {}
+    rpc Ping (Null) returns (Null) {}
 }
 
+message Null {};
 // Put operation parameters
 message PutRequest {
     BlobKey key = 1; // Blob's key
