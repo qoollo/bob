@@ -20,6 +20,8 @@ tower-grpc = { git = "https://github.com/tower-rs/tower-grpc"  }
 tower-service = "0.2"
 tower = { git = "https://github.com/tower-rs/tower" }
 tokio-periodic = "~0.1"
+log = "~0.4"
+env_logger = "~0.6"
 
 
 [build-dependencies]

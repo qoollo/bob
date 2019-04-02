@@ -5,14 +5,20 @@ pub enum BobError {
     
     Other(String)
 }
+
+#[derive(Debug)]
+pub struct ClusterResult<T> {
+    pub node: Node,
+    pub result: T
+}
+
 #[derive(Debug)]
 pub struct BobPutResult {
-
 }
 
 #[derive(Debug)]
 pub struct BobPingResult {
-
+    pub node: Node
 }
 
 pub struct BobData {
@@ -22,6 +28,12 @@ pub struct BobData {
 #[derive(Debug, Copy, Clone)]
 pub struct BobKey {
     pub key: u64
+}
+
+impl std::fmt::Display for BobKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.key)
+    }
 }
 
 bitflags! {
@@ -38,6 +50,12 @@ pub struct VDisk {
     pub replicas: Vec<NodeDisk>
 }
 
+impl std::fmt::Display for VDisk {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "#{}-{}", self.id, self.replicas.iter().map(|nd| nd.to_string()).collect::<Vec<_>>().join(","))
+    }
+}
+
 #[derive(Clone, Eq)]
 pub struct Node {
     pub host: String,
@@ -46,7 +64,13 @@ pub struct Node {
 
 impl Node {
     pub fn get_uri(&self) -> http::Uri {
-        format!("http://{}:{}", self.host, self.port).parse().unwrap()
+        format!("http://{}", self).parse().unwrap()
+    }
+}
+
+impl std::fmt::Display for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}:{}", self.host, self.port)
     }
 }
 
@@ -75,8 +99,18 @@ pub struct NodeDisk {
     pub path: String
 }
 
+impl std::fmt::Display for NodeDisk {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}/{}", self.node, self.path)
+    }
+}
+
 impl PartialEq for NodeDisk {
     fn eq(&self, other: &NodeDisk) -> bool {
         self.node == other.node && self.path == other.path
     }
+}
+
+pub fn print_vec<T: std::fmt::Display>(coll: &[T]) -> String {
+    coll.iter().map(|vd| vd.to_string()).collect::<Vec<_>>().join(",")
 }

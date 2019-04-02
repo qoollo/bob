@@ -49,9 +49,9 @@ impl NodeLinkHolder {
                 Either::A(conn.ping()
                     .then(move |r| { 
                             match r {
-                                Ok(_) => println!("All good with pinging node {:?}", nlh.node),
+                                Ok(_) => debug!("All good with pinging node {:?}", nlh.node),
                                 Err(_) => {
-                                    println!("Got broken connection to node {:?}", nlh.node);
+                                    debug!("Got broken connection to node {:?}", nlh.node);
                                     nlh.clear_connection();
                                 }
                             };
@@ -60,7 +60,7 @@ impl NodeLinkHolder {
         },
         None => {
             let nlh = self.clone();
-            println!("will esteblish new connection to {:?}", nlh.node);
+            debug!("will connect to {:?}", nlh.node);
             Either::B(client_fatory.produce(nlh.node.clone()).map(move |client| {
                     nlh.set_connection(client);
                 }))
