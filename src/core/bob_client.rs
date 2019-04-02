@@ -2,7 +2,7 @@ use tower_h2::client::Connection;
 use tower_grpc::BoxBody;
 use crate::core::data::{BobKey, BobData, Node, BobPutResult, BobError, BobPingResult, ClusterResult};
 
-use crate::api::grpc::{PutRequest,GetRequest, Null, BlobKey, Blob, PutOptions};
+use crate::api::grpc::{PutRequest, Null, BlobKey, Blob, PutOptions};
 
 use crate::api::grpc::client::BobApi;
 use tower_h2::client;

@@ -2,7 +2,6 @@ use bob::api::grpc::{server, PutRequest, GetRequest, OpStatus, BlobResult, Null,
 
 use futures::{future, Future, Stream};
 use futures::future::ok;
-use tokio::executor::DefaultExecutor;
 use tokio::net::TcpListener;
 use tower_h2::Server;
 use tower_grpc::{Request, Response};
@@ -128,7 +127,7 @@ fn main() {
     let new_service = server::BobApiServer::new(bob);
 
     let h2_settings = Default::default();
-    let mut h2 = Server::new(new_service, h2_settings, DefaultExecutor::current());
+    let mut h2 = Server::new(new_service, h2_settings, rt.executor());
 
     let addr = matches.value_of("bind").unwrap_or_default().parse().unwrap();
     info!("Listen on {:?}", addr);
