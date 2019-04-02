@@ -52,7 +52,7 @@ impl server::BobApi for BobSrv {
                             data: param.data.unwrap().data
                         };
 
-                debug!("PUT[{}] data size: {}", key, data.data.len());
+                trace!("PUT[{}] data size: {}", key, data.data.len());
                 Box::new(self.grinder.put(key,data,
                     {
                         let mut opts: BobOptions = Default::default();
