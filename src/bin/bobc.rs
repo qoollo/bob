@@ -1,16 +1,15 @@
-
 use futures::{Future, Poll};
+use std::io;
 use tokio::net::tcp::{ConnectFuture, TcpStream};
+use tower::MakeService;
 use tower_grpc::Request;
 use tower_h2::client;
 use tower_service::Service;
-use tower::MakeService;
-use std::io;
 
 use bob::api::grpc::client::BobApi;
-use bob::api::grpc::{PutRequest,GetRequest, BlobKey, Blob};
+use bob::api::grpc::{Blob, BlobKey, GetRequest, PutRequest};
 
-use tokio::runtime::{Runtime};
+use tokio::runtime::Runtime;
 
 fn wait_for_input() {
     println!("Press any key to send GET");
@@ -19,7 +18,6 @@ fn wait_for_input() {
 }
 
 fn main() {
-
     let mut rt = Runtime::new().unwrap();
     let uri: http::Uri = "http://localhost:20000".parse().unwrap();
 
@@ -28,47 +26,58 @@ fn main() {
 
     let conn_l = rt.block_on(make_client.make_service(())).unwrap();
     let conn = tower_add_origin::Builder::new()
-            .uri(uri)
-            .build(conn_l)
-            .unwrap();
+        .uri(uri)
+        .build(conn_l)
+        .unwrap();
     let mut client = BobApi::new(conn);
 
-
-    let pur_req = client.put(Request::new(
-        PutRequest { key: Some(BlobKey {key:0}), data: Some(Blob {data: vec![0]}), options: None}))
-                .map_err(|e| println!("gRPC request failed; err={:?}", e))
-    .and_then(|response| {
-        println!("RESPONSE = {:?}", response);
-        Ok(())
-    })
-    .map_err(|e| {
-        println!("ERR = {:?}", e);
-    });
+    let pur_req = client
+        .put(Request::new(PutRequest {
+            key: Some(BlobKey { key: 0 }),
+            data: Some(Blob { data: vec![0] }),
+            options: None,
+        }))
+        .map_err(|e| println!("gRPC request failed; err={:?}", e))
+        .and_then(|response| {
+            println!("RESPONSE = {:?}", response);
+            Ok(())
+        })
+        .map_err(|e| {
+            println!("ERR = {:?}", e);
+        });
 
     rt.block_on(pur_req).unwrap();
     wait_for_input();
-    let get_req = client.get(Request::new(GetRequest { key: None, options: None}))
-    .map_err(|e| println!("gRPC request failed; err={:?}", e))
-    .and_then(|response| {
-        println!("RESPONSE = {:?}", response);
-        Ok(())
-    })
-    .map_err(|e| {
-        println!("ERR = {:?}", e);
-    });    
+    let get_req = client
+        .get(Request::new(GetRequest {
+            key: None,
+            options: None,
+        }))
+        .map_err(|e| println!("gRPC request failed; err={:?}", e))
+        .and_then(|response| {
+            println!("RESPONSE = {:?}", response);
+            Ok(())
+        })
+        .map_err(|e| {
+            println!("ERR = {:?}", e);
+        });
 
     rt.block_on(get_req).unwrap();
 
     wait_for_input();
-    let get_req2 = client.get(Request::new(GetRequest { key: None, options: None}))
-    .map_err(|e| println!("gRPC request failed; err={:?}", e))
-    .and_then(|response| {
-        println!("RESPONSE = {:?}", response);
-        Ok(())
-    })
-    .map_err(|e| {
-        println!("ERR = {:?}", e);
-    });    
+    let get_req2 = client
+        .get(Request::new(GetRequest {
+            key: None,
+            options: None,
+        }))
+        .map_err(|e| println!("gRPC request failed; err={:?}", e))
+        .and_then(|response| {
+            println!("RESPONSE = {:?}", response);
+            Ok(())
+        })
+        .map_err(|e| {
+            println!("ERR = {:?}", e);
+        });
 
     rt.block_on(get_req2).unwrap();
     // println!("PUT: {:?}", put_resp.wait());

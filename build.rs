@@ -1,4 +1,3 @@
-
 extern crate tower_grpc_build;
 
 fn main() {

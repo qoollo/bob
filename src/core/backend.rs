@@ -1,24 +1,21 @@
-use crate::core::data::{BobKey, BobData};
+use crate::core::data::{BobData, BobKey};
 
-use tokio::prelude::{Future};
-
+use tokio::prelude::Future;
 
 use futures::future::ok;
 #[derive(Clone)]
-pub struct Backend {
+pub struct Backend {}
 
-}
+pub struct BackendResult {}
 
-pub struct BackendResult{
-
-}
-
-pub struct BackendError {
-
-}
+pub struct BackendError {}
 
 impl Backend {
-    pub fn put(&self, _key: BobKey, _data: BobData) -> impl Future<Item = BackendResult, Error = BackendError> {
-        ok(BackendResult{})
+    pub fn put(
+        &self,
+        _key: BobKey,
+        _data: BobData,
+    ) -> impl Future<Item = BackendResult, Error = BackendError> {
+        ok(BackendResult {})
     }
 }
