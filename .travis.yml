@@ -18,3 +18,7 @@ script:
   - cargo build --all
   # run unit tests
   - cargo test
+
+notifications:
+  email:
+    on_success: never
