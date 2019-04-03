@@ -23,7 +23,7 @@ impl NodeLinkHolder {
     pub fn new(node: Node) -> NodeLinkHolder {
         NodeLinkHolder {
             node,
-            conn: Arc::new(Mutex::new(None)),
+            conn: Arc::new(Mutex::new(None)), // TODO: consider to use RwLock
         }
     }
 
