@@ -63,14 +63,21 @@ impl Dst {
 impl Service<()> for Dst {
     type Response = TcpStream;
     type Error = ::std::io::Error;
-    type Future = ConnectFuture;
+    type Future = Box<Future<Item = TcpStream, Error = ::std::io::Error> + Send>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(().into())
     }
 
     fn call(&mut self, _: ()) -> Self::Future {
-        TcpStream::connect(&self.addr)
+        Box::new(
+            TcpStream::connect(&self.addr)
+                .map(|stream| {
+                    stream.set_nodelay(true).unwrap();
+                    stream
+                })
+                .map_err(|err| err),
+        )
     }
 }
 
