@@ -16,9 +16,12 @@ pub struct NodeDisk {
  
 impl Validatable for NodeDisk {
      fn validate(&self) -> bool {
-        // TODO log
-        !self.path.is_empty() && !self.name.is_empty()
-            && self.path != "~" && self.name != "~"
+        let result = !self.path.is_empty() && !self.name.is_empty()
+            && self.path != "~" && self.name != "~";
+        if !result {
+            error!("disk is invalid: {} {}", self.name, self.path);
+        }
+        result
     }
  }
 
@@ -31,9 +34,7 @@ pub struct Node {
 
 impl Validatable for Node {
     fn validate(&self) -> bool {
-        //TODO log
-
-        !self.address.is_empty() && !self.name.is_empty()
+        let result = !self.address.is_empty() && !self.name.is_empty()
             && self.address != "~" && self.name != "~"
             && self.disks.iter().all(|x| x.validate())
             && self.disks.iter()
@@ -41,7 +42,11 @@ impl Validatable for Node {
             .into_iter()
             .map(|(_, group)| group.count())
             .filter(|x| *x > 1)
-            .count() == 0
+            .count() == 0;
+        if !result {
+            error!("node is invalid: {} {}", self.name, self.address);
+        }
+        result
     }
 }
 
@@ -59,9 +64,12 @@ impl PartialEq for Replica {
 
 impl Validatable for Replica {
     fn validate(&self) -> bool {
-        // TODO log
-        !self.node.is_empty() && !self.disk.is_empty()
-            && self.node != "~" && self.disk != "~"
+        let result = !self.node.is_empty() && !self.disk.is_empty()
+            && self.node != "~" && self.disk != "~";
+        if !result {
+            error!("replica is invalid: {} {}", self.node, self.disk);
+        }
+        result
     }
  }
 
@@ -73,14 +81,17 @@ pub struct VDisk {
 
 impl Validatable for VDisk {
     fn validate(&self) -> bool {
-        //TODO log
-        true && self.replicas.iter().all(|x| x.validate())
+        let result = self.replicas.iter().all(|x| x.validate())
             && self.replicas.iter()
             .group_by(|x| x.clone())
             .into_iter()
             .map(|(_, group)| group.count())
             .filter(|x| *x > 1)
-            .count() == 0
+            .count() == 0;
+        if !result {
+            error!("vdisk is invalid: {}", self.id);
+        }
+        result
     }
 }
 
@@ -100,20 +111,22 @@ impl Validatable for Cluster {
         }
 
         if self.vdisks.iter()
-            .group_by(|x| x.id)
-            .into_iter()
-            .map(|(_, group)| group.count())
-            .filter(|x| *x > 1)
-            .count() != 0{
+                .group_by(|x| x.id)
+                .into_iter()
+                .map(|(_, group)| group.count())
+                .filter(|x| *x > 1)
+                .count() != 0 {
+            error!("config contains duplicates vdisks ids");
             return false;
         }
 
         if self.nodes.iter()
-            .group_by(|x| x.name.clone())
-            .into_iter()
-            .map(|(_, group)| group.count())
-            .filter(|x| *x > 1)
-            .count() != 0{
+                .group_by(|x| x.name.clone())
+                .into_iter()
+                .map(|(_, group)| group.count())
+                .filter(|x| *x > 1)
+                .count() != 0 {
+            error!("config contains duplicates nodes names");
             return false;
         }
 
@@ -122,12 +135,12 @@ impl Validatable for Cluster {
                 match self.nodes.iter().find(|x|x.name==replica.node) {
                     Some(node) => {
                         if node.disks.iter().find(|x|x.name==replica.disk) == None {
-                            //TODO log cannot find disk in node
+                            error!("cannot find in node: {}, disk with name: {} for vdisk: {}", replica.node, replica.disk, vdisk.id);
                             return false;
                         }
                     },
                     None    => {
-                        //TODO log cannot find node
+                        error!("cannot find node: {} for vdisk: {}", replica.node, vdisk.id);
                         return false;
                     },
                 }
@@ -143,7 +156,7 @@ pub fn read_config(filename: &String) -> Option<Cluster> {
     match result {
         Ok(config) => return parse_config(&config),
         Err(e) => {
-            //TODO log
+            error!("error on file opening: {}", e);
             return None;
         }
     }
@@ -154,7 +167,7 @@ pub fn parse_config(config: &String) -> Option<Cluster> {
     match result {
         Ok(cluster) => return Some(cluster),
         Err(e) => {
-            //TODO log
+            error!("error on yaml parsing: {}", e);
             return None;
         }
     }
@@ -206,5 +219,4 @@ pub fn get_cluster_config(filename: &String) -> Option<Vec<DataVDisk>> {
         },
         _ => return None,
     }
-    None
 }
