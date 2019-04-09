@@ -1,4 +1,9 @@
 use std::panic;
+use std::fs;
+
+pub trait Validatable {
+    fn validate(&self) -> bool;
+}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeDisk {
@@ -6,8 +11,8 @@ pub struct NodeDisk {
     pub name: String,
 }
  
- impl NodeDisk {
-    pub fn validate(&self) -> bool {
+impl Validatable for NodeDisk {
+     fn validate(&self) -> bool {
         // TODO log
         !self.path.is_empty() && !self.name.is_empty()
             && self.path != "~" && self.name != "~"
@@ -21,8 +26,8 @@ pub struct Node {
     pub disks: Vec<NodeDisk>,
 }
 
-impl Node {
-    pub fn validate(&self) -> bool {
+impl Validatable for Node {
+    fn validate(&self) -> bool {
         //TODO log
         !self.address.is_empty() && !self.name.is_empty()
             && self.address != "~" && self.name != "~"
@@ -36,8 +41,8 @@ pub struct Replica {
     pub disk: String,
 }
 
-impl Replica {
-    pub fn validate(&self) -> bool {
+impl Validatable for Replica {
+    fn validate(&self) -> bool {
         // TODO log
         !self.node.is_empty() && !self.disk.is_empty()
             && self.node != "~" && self.disk != "~"
@@ -50,8 +55,8 @@ pub struct VDisk {
     pub replicas: Vec<Replica>,
 }
 
-impl VDisk {
-    pub fn validate(&self) -> bool {
+impl Validatable for VDisk {
+    fn validate(&self) -> bool {
         //TODO log
         true && self.replicas.iter().all(|x| x.validate())
     }
@@ -63,8 +68,8 @@ pub struct Cluster {
     pub vdisks: Vec<VDisk>
 }
 
-impl Cluster {
-    pub fn validate(&self) -> bool {
+impl Validatable for Cluster {
+    fn validate(&self) -> bool {
         if self.nodes.len() == 0
             || self.vdisks.len() == 0
             || self.nodes.iter().any(|x| !x.validate()) 
@@ -93,15 +98,13 @@ impl Cluster {
     }
 }
 
-use std::fs;
-
 pub fn read_config(filename: &String) -> Option<Cluster> {
     let result:Result<String,_> = fs::read_to_string(filename);
     match result {
         Ok(config) => return parse_config(&config),
         Err(e) => {
             //TODO log
-            return None
+            return None;
         }
     }
 }
@@ -112,7 +115,7 @@ pub fn parse_config(config: &String) -> Option<Cluster> {
         Ok(cluster) => return Some(cluster),
         Err(e) => {
             //TODO log
-            return None
+            return None;
         }
     }
 }
