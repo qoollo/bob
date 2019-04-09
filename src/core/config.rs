@@ -1,5 +1,8 @@
-use std::panic;
+extern crate itertools;
+
+use itertools::Itertools;
 use std::fs;
+
 
 pub trait Validatable {
     fn validate(&self) -> bool;
@@ -29,16 +32,29 @@ pub struct Node {
 impl Validatable for Node {
     fn validate(&self) -> bool {
         //TODO log
+
         !self.address.is_empty() && !self.name.is_empty()
             && self.address != "~" && self.name != "~"
             && self.disks.iter().all(|x| x.validate())
+            && self.disks.iter()
+            .group_by(|x| x.name.clone())
+            .into_iter()
+            .map(|(_, group)| group.count())
+            .filter(|x| *x > 1)
+            .count() == 0
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Replica {
     pub node: String,
     pub disk: String,
+}
+
+impl PartialEq for Replica {
+    fn eq(&self, other: &Replica) -> bool {
+        self.node == other.node && self.disk == other.disk
+    }
 }
 
 impl Validatable for Replica {
@@ -59,6 +75,12 @@ impl Validatable for VDisk {
     fn validate(&self) -> bool {
         //TODO log
         true && self.replicas.iter().all(|x| x.validate())
+            && self.replicas.iter()
+            .group_by(|x| x.clone())
+            .into_iter()
+            .map(|(_, group)| group.count())
+            .filter(|x| *x > 1)
+            .count() == 0
     }
 }
 
@@ -74,6 +96,24 @@ impl Validatable for Cluster {
             || self.vdisks.len() == 0
             || self.nodes.iter().any(|x| !x.validate()) 
             || self.vdisks.iter().any(|x| !x.validate()) {
+            return false;
+        }
+
+        if self.vdisks.iter()
+            .group_by(|x| x.id)
+            .into_iter()
+            .map(|(_, group)| group.count())
+            .filter(|x| *x > 1)
+            .count() != 0{
+            return false;
+        }
+
+        if self.nodes.iter()
+            .group_by(|x| x.name.clone())
+            .into_iter()
+            .map(|(_, group)| group.count())
+            .filter(|x| *x > 1)
+            .count() != 0{
             return false;
         }
 

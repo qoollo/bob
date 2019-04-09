@@ -28,6 +28,128 @@ vdisks:
     }
 
     #[test]
+    fn test_node_check_duplicate_disk_names() {
+        let s = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk1
+          path: /tmp/d2
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+";
+        let d: Cluster = parse_config(&s.to_string()).unwrap();
+        assert_eq!(false, d.validate());
+    }
+
+    #[test]
+    fn test_vdisk_check_duplicate_replicas_no_dup() {
+        let s = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d1
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+        - node: n1
+          disk: disk2
+";
+        let d: Cluster = parse_config(&s.to_string()).unwrap();
+        assert_eq!(true, d.validate());
+    }
+
+    #[test]
+    fn test_vdisk_check_duplicate_ids() {
+        let s = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d1
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+        - node: n1
+          disk: disk2
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+";
+        let d: Cluster = parse_config(&s.to_string()).unwrap();
+        assert_eq!(false, d.validate());
+    }
+
+    #[test]
+    fn test_cluster_check_duplicate_nodes_names() {
+        let s = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d1
+    - name: n1
+      address: 0.0.0.0:111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+        - node: n1
+          disk: disk2
+";
+        let d: Cluster = parse_config(&s.to_string()).unwrap();
+        assert_eq!(false, d.validate());
+    }
+
+    #[test]
+    fn test_vdisk_check_duplicate_replicas_dup() {
+        let s = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d1
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+        - node: n1
+          disk: disk1
+";
+        let d: Cluster = parse_config(&s.to_string()).unwrap();
+        assert_eq!(false, d.validate());
+    }
+
+    #[test]
     fn test_node_disk_path_is_empty() {
         let s = "
 nodes:
