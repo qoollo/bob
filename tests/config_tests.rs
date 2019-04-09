@@ -352,7 +352,7 @@ vdisks:
         assert_eq!(false, d.validate());
     }
 
-        #[test]
+    #[test]
     fn test_validate_no_disk_in_node() {
         let s = "
 nodes:
@@ -369,5 +369,51 @@ vdisks:
 ";
         let d: Cluster = parse_config(&s.to_string()).unwrap();
         assert_eq!(false, d.validate());
+    }
+
+    #[test]
+    fn test_cluster_convertation() {
+        let s = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d2
+    - name: n2
+      address: 0.0.0.0:1111
+      disks:
+        - name: disk1
+          path: /tmp/d3
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+    - id: 1
+      replicas:
+        - node: n1
+          disk: disk2
+        - node: n2
+          disk: disk1
+";
+        let d: Cluster = parse_config(&s.to_string()).unwrap();
+        assert_eq!(true, d.validate());
+        
+        let vdisks = conver_to_data(&d);
+        assert_eq!(2, vdisks.len());
+        assert_eq!(0, vdisks[0].id);
+        assert_eq!(1, vdisks[0].replicas.len());
+        assert_eq!("/tmp/d1", vdisks[0].replicas[0].path);
+        assert_eq!(111, vdisks[0].replicas[0].node.port);
+
+
+        assert_eq!(1, vdisks[1].id);
+        assert_eq!(2, vdisks[1].replicas.len());
+        assert_eq!("/tmp/d2", vdisks[1].replicas[0].path);
+        assert_eq!(111, vdisks[1].replicas[0].node.port);
+        assert_eq!(1111, vdisks[1].replicas[1].node.port);
     }
 }

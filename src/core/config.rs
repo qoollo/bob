@@ -159,3 +159,52 @@ pub fn parse_config(config: &String) -> Option<Cluster> {
         }
     }
 }
+
+use crate::core::data::VDisk as DataVDisk;
+use crate::core::data::NodeDisk as DataNodeDisk;
+use crate::core::data::Node as DataNode;
+
+use std::collections::HashMap;
+
+pub fn conver_to_data(cluster: &Cluster) -> Vec<DataVDisk>  {
+    let mut node_map = HashMap::new();
+    for node in cluster.nodes.iter() {
+        let mut disk_map = HashMap::new();
+        for disk in node.disks.iter() {
+            disk_map.insert(disk.name.clone(), disk.path.clone());
+        }
+        node_map.insert(node.name.clone(), (node.address.split(":").collect::<Vec<&str>>(), disk_map));
+    }
+
+    let mut result: Vec<DataVDisk> = Vec::with_capacity(cluster.vdisks.len());
+    for vdisk in cluster.vdisks.iter() {
+        let mut disk = DataVDisk{
+            id: vdisk.id as u32,
+            replicas: Vec::with_capacity(vdisk.replicas.len())
+        };
+        for replica in vdisk.replicas.iter() {
+            let finded_node = node_map.get(&replica.node).unwrap();
+            let node_disk = DataNodeDisk {
+                path: finded_node.1.get(&replica.disk).unwrap().to_string(),
+                node: DataNode {
+                    host: finded_node.0[0].to_string(),
+                    port: finded_node.0[1].parse().unwrap(),
+                },
+            };
+            disk.replicas.push(node_disk);
+        }
+        result.push(disk);
+    }
+    result
+}
+
+pub fn get_cluster_config(filename: &String) -> Option<Vec<DataVDisk>> {
+    let file: Option<Cluster> = read_config(filename);
+    match file {
+        Some(config) => {
+             return Some(conver_to_data(&config))
+        },
+        _ => return None,
+    }
+    None
+}
