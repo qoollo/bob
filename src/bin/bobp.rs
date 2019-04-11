@@ -108,8 +108,8 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
     let h2_settings = Default::default();
     let mut make_client = client::Connect::new(net_conf.get_connector(), h2_settings, rt.handle());
     let conn = rt.block_on(make_client.make_service(())).unwrap();
-    let p_conn = tower_add_origin::Builder::new()
-        .uri(uri.as_ref())
+    let p_conn = tower_request_modifier::Builder::new()
+        .set_origin(uri.as_ref())
         .build(conn)
         .unwrap();
     let mut client = BobApi::new(p_conn.clone());

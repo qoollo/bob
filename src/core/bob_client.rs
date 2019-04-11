@@ -10,13 +10,12 @@ use crate::api::grpc::client::BobApi;
 use futures::{Future, Poll};
 use std::net::SocketAddr;
 use tokio::net::tcp::TcpStream;
-use tokio::prelude::FutureExt;
 use tokio::runtime::TaskExecutor;
 use tower::MakeService;
 use tower_grpc::Request;
 use tower_h2::client;
 use tower_service::Service;
-
+use tokio::prelude::FutureExt;
 use std::time::Duration;
 
 struct Dst {
@@ -54,7 +53,7 @@ impl Service<()> for Dst {
 pub struct BobClient {
     node: Node,
     timeout: Duration,
-    client: BobApi<tower_add_origin::AddOrigin<Connection<TcpStream, TaskExecutor, BoxBody>>>,
+    client: BobApi<tower_request_modifier::RequestModifier<Connection<TcpStream, TaskExecutor, BoxBody>, BoxBody>>,
 }
 
 impl BobClient {
@@ -69,8 +68,8 @@ impl BobClient {
             .make_service(())
             .map(move |conn_l| {
                 trace!("COnnected to {:?}", node);
-                let conn = tower_add_origin::Builder::new()
-                    .uri(node.get_uri())
+                let conn = tower_request_modifier::Builder::new()
+                    .set_origin(node.get_uri())
                     .build(conn_l)
                     .unwrap();
 

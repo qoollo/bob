@@ -25,8 +25,8 @@ fn main() {
     let mut make_client = client::Connect::new(Dst, h2_settings, rt.executor());
 
     let conn_l = rt.block_on(make_client.make_service(())).unwrap();
-    let conn = tower_add_origin::Builder::new()
-        .uri(uri)
+    let conn = tower_request_modifier::Builder::new()
+        .set_origin(uri)
         .build(conn_l)
         .unwrap();
     let mut client = BobApi::new(conn);
