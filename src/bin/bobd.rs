@@ -98,10 +98,10 @@ impl server::BobApi for BobSrv {
         let sw = Stopwatch::start_new();
         let param = req.into_inner();
         if !Self::get_is_valid(&param) {
-            warn!("GET[-] invalid arguments - key and data is mandatory");
+            warn!("GET[-] invalid arguments - key is mandatory");
             Box::new(future::err(tower_grpc::Status::new(
                 tower_grpc::Code::InvalidArgument,
-                "Key and data is mandatory",
+                "Key is mandatory",
             )))
         } else {
             let key = BobKey {
