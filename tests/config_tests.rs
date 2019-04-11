@@ -24,7 +24,7 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(false, d.validate());
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -45,7 +45,7 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(false, d.validate());
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -68,7 +68,7 @@ vdisks:
           disk: disk2
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(true, d.validate());
+        assert_eq!(true, d.validate().is_none());
     }
 
     #[test]
@@ -95,7 +95,7 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(false, d.validate());
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -123,7 +123,7 @@ vdisks:
           disk: disk2
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(false, d.validate());
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -146,7 +146,7 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(false, d.validate());
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -170,7 +170,7 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(false, d.validate());
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -194,7 +194,7 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(false, d.validate());
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -218,7 +218,7 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(false, d.validate());
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -237,7 +237,7 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(false, d.validate());
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -256,7 +256,7 @@ vdisks:
           disk:         # empty
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(false, d.validate());
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -278,8 +278,8 @@ vdisks:
         - node: n1
           disk: disk1        # empty
 ";
-        let d: Option<Cluster> = YamlConfig {}.parse_config(&s.to_string());
-        assert_eq!(true, d.is_none());
+        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -298,12 +298,12 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(1, d.nodes.len());
-        assert_eq!(1, d.nodes[0].disks.len());
-        assert_eq!(1, d.vdisks.len());
-        assert_eq!(1, d.vdisks[0].replicas.len());
+        assert_eq!(1, d.nodes.as_ref().unwrap().len());
+        assert_eq!(1, d.nodes.as_ref().unwrap()[0].disks.as_ref().unwrap().len());
+        assert_eq!(1, d.vdisks.as_ref().unwrap().len());
+        assert_eq!(1, d.vdisks.as_ref().unwrap()[0].replicas.as_ref().unwrap().len());
 
-        assert_eq!(true, d.validate());
+        assert_eq!(true, d.validate().is_none());
     }
 
     #[test]
@@ -315,8 +315,8 @@ vdisks:
         - node: disk1
           disk: /tmp/d1
 ";
-        let d: Option<Cluster> = YamlConfig {}.parse_config(&s.to_string());
-        assert_eq!(true, d.is_none());
+        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -329,8 +329,8 @@ nodes:
         - name: disk1
           path: /tmp/d1
 ";
-        let d: Option<Cluster> = YamlConfig {}.parse_config(&s.to_string());
-        assert_eq!(true, d.is_none());
+        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -349,7 +349,7 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(false, d.validate());
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -368,7 +368,7 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(false, d.validate());
+        assert_eq!(false, d.validate().is_none());
     }
 
     #[test]
@@ -400,9 +400,9 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
-        assert_eq!(true, d.validate());
+        assert_eq!(true, d.validate().is_none());
 
-        let vdisks = YamlConfig {}.convert_to_data(&d);
+        let vdisks = YamlConfig {}.convert_to_data(&d).unwrap();
         assert_eq!(2, vdisks.len());
         assert_eq!(0, vdisks[0].id);
         assert_eq!(1, vdisks[0].replicas.len());

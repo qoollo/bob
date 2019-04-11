@@ -4,60 +4,112 @@ use itertools::Itertools;
 use std::fs;
 
 pub trait Validatable {
-    fn validate(&self) -> bool;
+    fn validate(&self) -> Option<String>;
+
+    fn aggregate<T: Validatable>(&self, elements: &Option<Vec<T>>) -> Option<String>{
+        let options: Vec<Option<String>> = elements.as_ref()?.iter()
+            .map(|elem|elem.validate())
+            .filter(|f| f.is_some())
+            .collect::<Vec<Option<String>>>();
+        if options.len() > 0 {
+            return Some(options.iter().fold("".to_string(), |acc, x| acc + &x.as_ref().unwrap()));
+        }
+        None
+    }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeDisk {
-    pub path: String,
-    pub name: String,
+    pub path: Option<String>,
+    pub name: Option<String>,
 }
 
 impl Validatable for NodeDisk {
-    fn validate(&self) -> bool {
-        let result =
-            !self.path.is_empty() && !self.name.is_empty() && self.path != "~" && self.name != "~";
-        if !result {
-            error!("disk is invalid: {} {}", self.name, self.path);
+    fn validate(&self) -> Option<String> {
+        if self.path.is_none() {
+            debug!("field 'path' for 'disk' is invalid");
+            return Some("field 'path' for 'disk' is invalid".to_string());
         }
-        result
+        if self.path.as_ref()?.is_empty() {
+            debug!("field 'path' for 'disk' is empty");
+            return Some("field 'path' for 'disk' is empty".to_string());
+        }
+        if self.name.is_none() {
+            debug!("field 'name' for 'disk' is invalid");
+            return Some("field 'name' for 'disk' is invalid".to_string());
+        }
+        if self.name.as_ref()?.is_empty() {
+            debug!("field 'name' for 'disk' is empty");
+            return Some("field 'name' for 'disk' is empty".to_string());
+        }
+        None
     }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Node {
-    pub name: String,
-    pub address: String,
-    pub disks: Vec<NodeDisk>,
+    pub name: Option<String>,
+    pub address: Option<String>,
+    pub disks: Option<Vec<NodeDisk>>,
+
+    #[serde(skip)]
+    pub host: String,
+    #[serde(skip)]
+    pub port: i32,
 }
 
 impl Validatable for Node {
-    fn validate(&self) -> bool {
-        let result = !self.address.is_empty()
-            && !self.name.is_empty()
-            && self.address != "~"
-            && self.name != "~"
-            && self.disks.iter().all(|x| x.validate())
-            && self
-                .disks
-                .iter()
-                .group_by(|x| x.name.clone())
-                .into_iter()
-                .map(|(_, group)| group.count())
-                .filter(|x| *x > 1)
-                .count()
-                == 0;
-        if !result {
-            error!("node is invalid: {} {}", self.name, self.address);
+    fn validate(&self) -> Option<String> {
+        if self.name.is_none() {
+            debug!("field 'name' for 'Node' is invalid");
+            return Some("field 'name' for 'Node' is invalid".to_string());
         }
-        result
+        if self.name.as_ref()?.is_empty() {
+            debug!("field 'name' for 'Node' is empty");
+            return Some("field 'name' for 'Node' is empty".to_string());
+        }
+        if self.address.is_none() {
+            debug!("field 'address' for 'Node' is invalid");
+            return Some("field 'address' for 'Node' is invalid".to_string());
+        }
+        if self.address.as_ref()?.is_empty() {
+            debug!("field 'address' for 'Node' is empty");
+            return Some("field 'address' for 'Node' is empty".to_string());
+        }
+        
+        let result = self.aggregate(&self.disks);
+        if result.is_some() {
+            debug!("node is invalid: {} {}", self.name.as_ref()?, self.address.as_ref()?);
+            return result;
+        }
+
+        if self.disks.as_ref()?
+            .iter()
+            .group_by(|x| x.name.clone())
+            .into_iter()
+            .map(|(_, group)| group.count())
+            .filter(|x| *x > 1)
+            .count() != 0 {
+                debug!("node: {} contains duplicate disk names", self.name.as_ref()?);
+                return Some(format!("node: {} contains duplicate disk names", self.name.as_ref()?))
+            }
+
+        // let ip: Vec<&str> = self.address.as_ref()?.split(":").collect::<Vec<&str>>();
+        // self.host = ip[0].to_string();
+        // let port = ip[1].parse::<i32>();
+        // if port.is_err(){
+        //     debug!("cannot parse node: {} address: {}", self.name.as_ref()?, self.address.as_ref()?);
+        //     return Some(format!("cannot parse node: {} address: {}", self.name.as_ref()?, self.address.as_ref()?));
+        // }
+        // self.port = port?;
+        None
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Replica {
-    pub node: String,
-    pub disk: String,
+    pub node: Option<String>,
+    pub disk: Option<String>,
 }
 
 impl PartialEq for Replica {
@@ -67,106 +119,139 @@ impl PartialEq for Replica {
 }
 
 impl Validatable for Replica {
-    fn validate(&self) -> bool {
-        let result =
-            !self.node.is_empty() && !self.disk.is_empty() && self.node != "~" && self.disk != "~";
-        if !result {
-            error!("replica is invalid: {} {}", self.node, self.disk);
+    fn validate(&self) -> Option<String> {
+        if self.node.is_none() {
+            debug!("field 'node' for 'Replica' is invalid");
+            return Some("field 'node' for 'Replica' is invalid".to_string());
         }
-        result
+        if self.node.as_ref()?.is_empty() {
+            debug!("field 'node' for 'Replica' is empty");
+            return Some("field 'node' for 'Replica' is empty".to_string());
+        }
+        if self.disk.is_none() {
+            debug!("field 'disk' for 'Replica' is invalid");
+            return Some("field 'disk' for 'Replica' is invalid".to_string());
+        }
+        if self.disk.as_ref()?.is_empty() {
+            debug!("field 'disk' for 'Replica' is empty");
+            return Some("field 'disk' for 'Replica' is empty".to_string());
+        }
+        None
     }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct VDisk {
-    pub id: i32,
-    pub replicas: Vec<Replica>,
+    pub id: Option<i32>,
+    pub replicas: Option<Vec<Replica>>,
 }
 
 impl Validatable for VDisk {
-    fn validate(&self) -> bool {
-        let result = self.replicas.iter().all(|x| x.validate())
-            && self
-                .replicas
-                .iter()
-                .group_by(|x| x.clone())
-                .into_iter()
-                .map(|(_, group)| group.count())
-                .filter(|x| *x > 1)
-                .count()
-                == 0;
-        if !result {
-            error!("vdisk is invalid: {}", self.id);
+    fn validate(&self) -> Option<String> {
+        if self.id.is_none() {
+            debug!("field 'id' for 'VDisk' is invalid");
+            return Some("field 'id' for 'VDisk' is invalid".to_string());
         }
-        result
+
+        let result = self.aggregate(&self.replicas);
+        if result.is_some() {
+            debug!("vdisk is invalid: {}", self.id.as_ref()?);
+            return result;
+        }
+
+        if self.replicas.as_ref()?
+            .iter()
+            .group_by(|x| x.clone())
+            .into_iter()
+            .map(|(_, group)| group.count())
+            .filter(|x| *x > 1)
+            .count() != 0 {
+                debug!("vdisk: {} contains duplicate replicas", self.id.as_ref()?);
+                return Some(format!("vdisk: {} contains duplicate replicas", self.id.as_ref()?))
+            }
+        None
     }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct TestStruct {
+    pub a: i32,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Cluster {
-    pub nodes: Vec<Node>,
-    pub vdisks: Vec<VDisk>,
+    pub nodes: Option<Vec<Node>>,
+    pub vdisks: Option<Vec<VDisk>>,
 }
 
 impl Validatable for Cluster {
-    fn validate(&self) -> bool {
-        if self.nodes.len() == 0
-            || self.vdisks.len() == 0
-            || self.nodes.iter().any(|x| !x.validate())
-            || self.vdisks.iter().any(|x| !x.validate())
+    fn validate(&self) -> Option<String> {
+        if self.nodes.is_none()
         {
-            return false;
+            debug!("no nodes in config");
+            return Some("no nodes in config".to_string());
+        }
+        if self.vdisks.is_none()
+        {
+            debug!("no vdisks in config");
+            return Some("no vdisks in config".to_string()   );
+        }
+        let mut result = self.aggregate(&self.nodes);
+        if result.is_some() {
+            debug!("some nodes in config are invalid");
+            return result;
+        }
+        result = self.aggregate(&self.vdisks);
+        if result.is_some() {
+            debug!("some vdisks in config are invalid");
+            return result;
         }
 
-        if self
-            .vdisks
+        if self.vdisks.as_ref()?
             .iter()
             .group_by(|x| x.id)
             .into_iter()
             .map(|(_, group)| group.count())
             .filter(|x| *x > 1)
-            .count()
-            != 0
+            .count() != 0 
         {
-            error!("config contains duplicates vdisks ids");
-            return false;
+            debug!("config contains duplicates vdisks ids");
+            return Some("config contains duplicates vdisks ids".to_string())
         }
-
-        if self
-            .nodes
+        if self.nodes.as_ref()?
             .iter()
             .group_by(|x| x.name.clone())
             .into_iter()
             .map(|(_, group)| group.count())
             .filter(|x| *x > 1)
-            .count()
-            != 0
+            .count() != 0 
         {
-            error!("config contains duplicates nodes names");
-            return false;
-        }
+            debug!("config contains duplicates nodes names");
+            return Some("config contains duplicates nodes names".to_string())
+        }        
 
-        for vdisk in self.vdisks.iter() {
-            for replica in vdisk.replicas.iter() {
-                match self.nodes.iter().find(|x| x.name == replica.node) {
+        for vdisk in self.vdisks.as_ref()?.iter() {
+            for replica in vdisk.replicas.as_ref()?.iter() {
+                match self.nodes.as_ref()?.iter().find(|x| x.name == replica.node) {
                     Some(node) => {
-                        if node.disks.iter().find(|x| x.name == replica.disk) == None {
-                            error!(
+                        if node.disks.as_ref()?.iter().find(|x| x.name == replica.disk) == None {
+                            debug!(
                                 "cannot find in node: {}, disk with name: {} for vdisk: {}",
-                                replica.node, replica.disk, vdisk.id
+                                replica.node.as_ref()?, replica.disk.as_ref()?, vdisk.id?
                             );
-                            return false;
+                            return Some(format!("cannot find in node: {}, disk with name: {} for vdisk: {}",
+                                replica.node.as_ref()?, replica.disk.as_ref()?, vdisk.id?));
                         }
                     }
                     None => {
-                        error!("cannot find node: {} for vdisk: {}", replica.node, vdisk.id);
-                        return false;
+                        debug!("cannot find node: {} for vdisk: {}", replica.node.as_ref()?, vdisk.id?);
+                        return Some(format!("cannot find node: {} for vdisk: {}", replica.node.as_ref()?, vdisk.id?));
                     }
                 }
             }
         }
 
-        true
+        None
     }
 }
 
@@ -181,7 +266,7 @@ pub trait BobConfig {
 
     fn read_config(&self, filename: &String) -> Option<Cluster>;
     fn parse_config(&self, config: &String) -> Option<Cluster>;
-    fn convert_to_data(&self, cluster: &Cluster) -> Vec<DataVDisk>;
+    fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>>;
 }
 
 pub struct YamlConfig {}
@@ -207,51 +292,53 @@ impl BobConfig for YamlConfig {
             }
         }
     }
-    fn convert_to_data(&self, cluster: &Cluster) -> Vec<DataVDisk> {
-        let mut node_map = HashMap::new();
-        for node in cluster.nodes.iter() {
-            let mut disk_map = HashMap::new();
-            for disk in node.disks.iter() {
-                disk_map.insert(disk.name.clone(), disk.path.clone());
-            }
-            node_map.insert(
-                node.name.clone(),
-                (node.address.split(":").collect::<Vec<&str>>(), disk_map),
-            );
-        }
+    fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>> {
+        // let mut node_map = HashMap::new();
+        // for node in cluster.nodes.as_ref()?.iter() {
+        //     let mut disk_map = HashMap::new();
+        //     for disk in node.disks.as_ref()?.iter() {
+        //         disk_map.insert(disk.name.as_ref()?.clone(), disk.path.as_ref()?.clone());
+        //     }
+        //     node_map.insert(
+        //         node.name.clone(),
+        //         (node.address.as_ref()?.split(":").collect::<Vec<&str>>(), disk_map),
+        //     );
+        // }
 
-        let mut result: Vec<DataVDisk> = Vec::with_capacity(cluster.vdisks.len());
-        for vdisk in cluster.vdisks.iter() {
-            let mut disk = DataVDisk {
-                id: vdisk.id as u32,
-                replicas: Vec::with_capacity(vdisk.replicas.len()),
-            };
-            for replica in vdisk.replicas.iter() {
-                let finded_node = node_map.get(&replica.node).unwrap();
-                let node_disk = DataNodeDisk {
-                    path: finded_node.1.get(&replica.disk).unwrap().to_string(),
-                    node: DataNode {
-                        host: finded_node.0[0].to_string(),
-                        port: finded_node.0[1].parse().unwrap(),
-                    },
-                };
-                disk.replicas.push(node_disk);
-            }
-            result.push(disk);
-        }
-        result
+        // let mut result: Vec<DataVDisk> = Vec::with_capacity(123);
+        // for vdisk in cluster.vdisks.as_ref()?.iter() {
+        //     let mut disk = DataVDisk {
+        //         id: vdisk.id? as u32,
+        //         replicas: Vec::with_capacity(vdisk.replicas.as_ref()?.len()),
+        //     };
+        //     for replica in vdisk.replicas.as_ref()?.iter() {
+        //         let finded_node = node_map.get(&replica.node.as_ref()?).unwrap();
+        //         let node_disk = DataNodeDisk {
+        //             path: finded_node.1.get(&replica.disk.as_ref()?).unwrap().to_string(),
+        //             node: DataNode {
+        //                 host: finded_node.0[0].to_string(),
+        //                 port: finded_node.0[1].parse().unwrap(),
+        //             },
+        //         };
+        //         disk.replicas.push(node_disk);
+        //     }
+        //     result.push(disk);
+        // }
+        // Some(result)
+        None
     }
     fn get_cluster_config(&self, filename: &String) -> Option<Vec<DataVDisk>> {
-        let file: Option<Cluster> = self.read_config(filename);
-        match file {
-            Some(config) => {
-                if !config.validate() {
-                    error!("config is not valid");
-                    return None;
-                }
-                return Some(self.convert_to_data(&config));
-            }
-            _ => return None,
-        }
+        // let file: Option<Cluster> = self.read_config(filename);
+        // match file {
+        //     Some(config) => {
+        //         // if !config.validate() {
+        //         //     error!("config is not valid");
+        //         //     return None;
+        //         // }
+        //         return Some(self.convert_to_data(&config));
+        //     }
+        //     _ => return None,
+        // }
+        None
     }
 }
