@@ -90,11 +90,11 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
     while !stop_token.load(Ordering::Relaxed) {
         thread::sleep(pause);
         let cur_put_count = stat.put_total.load(Ordering::Relaxed);
-        let put_count_spd = (cur_put_count - last_put_count) / (period_ms / 1000);
+        let put_count_spd = (cur_put_count - last_put_count) * 1000 / period_ms;
         last_put_count = cur_put_count;
 
         let cur_get_count = stat.get_total.load(Ordering::Relaxed);
-        let get_count_spd = (cur_get_count - last_get_count) / (period_ms / 1000);
+        let get_count_spd = (cur_get_count - last_get_count) * 1000 / period_ms;
         last_get_count = cur_get_count;
 
         println!("put: {:5} rps | get {:5} rps", put_count_spd, get_count_spd);
