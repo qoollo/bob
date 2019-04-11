@@ -9,14 +9,14 @@ use crate::api::grpc::{Blob, BlobKey, GetOptions, GetRequest, Null, PutOptions, 
 use crate::api::grpc::client::BobApi;
 use futures::{Future, Poll};
 use std::net::SocketAddr;
+use std::time::Duration;
 use tokio::net::tcp::TcpStream;
+use tokio::prelude::FutureExt;
 use tokio::runtime::TaskExecutor;
 use tower::MakeService;
 use tower_grpc::Request;
 use tower_h2::client;
 use tower_service::Service;
-use tokio::prelude::FutureExt;
-use std::time::Duration;
 
 struct Dst {
     addr: SocketAddr,
@@ -53,7 +53,12 @@ impl Service<()> for Dst {
 pub struct BobClient {
     node: Node,
     timeout: Duration,
-    client: BobApi<tower_request_modifier::RequestModifier<Connection<TcpStream, TaskExecutor, BoxBody>, BoxBody>>,
+    client: BobApi<
+        tower_request_modifier::RequestModifier<
+            Connection<TcpStream, TaskExecutor, BoxBody>,
+            BoxBody,
+        >,
+    >,
 }
 
 impl BobClient {
