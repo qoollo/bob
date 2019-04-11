@@ -1,12 +1,12 @@
-use bob::api::grpc::{server, BlobResult, BobError, GetRequest, Null, OpStatus, PutRequest};
+use bob::api::grpc::{server, Blob, GetRequest, Null, OpStatus, PutRequest};
 
-use bob::core::backend::Backend;
-use bob::core::data::{BobData, BobKey, BobOptions};
-use bob::core::grinder::Grinder;
+use bob::core::backend::{Backend, BackendError};
+use bob::core::data::{BobData, BobError, BobKey, BobOptions};
+use bob::core::grinder::{Grinder, ServeTypeError, ServeTypeOk};
 use bob::core::sprinkler::Sprinkler;
 use clap::{App, Arg};
 use env_logger;
-use futures::future::ok;
+use futures::future::{err, ok};
 use futures::{future, Future, Stream};
 use log::LevelFilter;
 use stopwatch::Stopwatch;
@@ -30,21 +30,25 @@ impl BobSrv {
         self.grinder.get_periodic_tasks(ex)
     }
 
-    fn put_validate(&self, req: &PutRequest) -> bool {
+    fn put_is_valid(req: &PutRequest) -> bool {
         !(req.key == None || req.data == None)
+    }
+
+    fn get_is_valid(req: &GetRequest) -> bool {
+        req.key != None
     }
 }
 
 impl server::BobApi for BobSrv {
     type PutFuture = Box<Future<Item = Response<OpStatus>, Error = tower_grpc::Status> + Send>;
-    type GetFuture = future::FutureResult<Response<BlobResult>, tower_grpc::Status>;
+    type GetFuture = Box<Future<Item = Response<Blob>, Error = tower_grpc::Status> + Send>;
     type PingFuture = future::FutureResult<Response<Null>, tower_grpc::Status>;
 
     fn put(&mut self, req: Request<PutRequest>) -> Self::PutFuture {
         let sw = Stopwatch::start_new();
         let param = req.into_inner();
 
-        if !self.put_validate(&param) {
+        if !Self::put_is_valid(&param) {
             warn!("PUT[-] invalid arguments - key and data is mandatory");
             Box::new(future::err(tower_grpc::Status::new(
                 tower_grpc::Code::InvalidArgument,
@@ -74,26 +78,15 @@ impl server::BobApi for BobSrv {
                         let elapsed = sw.elapsed_ms();
                         match r {
                             Ok(r_ok) => {
-                                info!(
-                                    "PUT[{}]-OK local:{} ok dt: {}ms",
-                                    key, !r_ok.is_clustered, elapsed
-                                );
+                                info!("PUT[{}]-OK local:{:?} ok dt: {}ms", key, r_ok, elapsed);
                                 ok(Response::new(OpStatus { error: None }))
                             }
                             Err(r_err) => {
-                                error!(
-                                    "PUT[{}]-ERR local:{}  dt: {}ms {}",
-                                    key,
-                                    !r_err.is_clustered,
-                                    elapsed,
-                                    r_err.to_string()
-                                );
-                                ok(Response::new(OpStatus {
-                                    error: Some(BobError {
-                                        code: 1,
-                                        desc: format!("Failed to write {}", r_err.to_string()),
-                                    }),
-                                }))
+                                error!("PUT[{}]-ERR dt: {}ms {:?}", key, elapsed, r_err);
+                                err(tower_grpc::Status::new(
+                                    tower_grpc::Code::Internal,
+                                    format!("Failed to write {:?}", r_err),
+                                ))
                             }
                         }
                     }),
@@ -101,12 +94,84 @@ impl server::BobApi for BobSrv {
         }
     }
 
-    fn get(&mut self, _request: Request<GetRequest>) -> Self::GetFuture {
-        let response = Response::new(BlobResult {
-            status: None,
-            data: None,
-        });
-        future::ok(response)
+    fn get(&mut self, req: Request<GetRequest>) -> Self::GetFuture {
+        let sw = Stopwatch::start_new();
+        let param = req.into_inner();
+        if !Self::get_is_valid(&param) {
+            warn!("GET[-] invalid arguments - key and data is mandatory");
+            Box::new(future::err(tower_grpc::Status::new(
+                tower_grpc::Code::InvalidArgument,
+                "Key and data is mandatory",
+            )))
+        } else {
+            let key = BobKey {
+                key: param.key.unwrap().key,
+            };
+
+            Box::new(
+                self.grinder
+                    .get(key, {
+                        let mut opts: BobOptions = Default::default();
+                        if let Some(vopts) = param.options.as_ref() {
+                            if vopts.force_node {
+                                opts |= BobOptions::FORCE_NODE;
+                            }
+                        }
+                        opts
+                    })
+                    .then(move |r| {
+                        let elapsed = sw.elapsed_ms();
+                        match r {
+                            Ok(r_ok) => {
+                                info!(
+                                    "GET[{}]-OK local:{} dt: {}ms",
+                                    key,
+                                    r_ok.is_local(),
+                                    elapsed
+                                );
+                                ok(Response::new(Blob {
+                                    data: match r_ok {
+                                        ServeTypeOk::Cluster(r) => r.result.data,
+                                        ServeTypeOk::Local(r) => r.data,
+                                    },
+                                }))
+                            }
+                            Err(r_err) => {
+                                error!(
+                                    "GET[{}]-ERR local:{}  dt: {}ms {:?}",
+                                    key,
+                                    r_err.is_local(),
+                                    elapsed,
+                                    r_err
+                                );
+                                let err = match r_err {
+                                    ServeTypeError::Cluster(cerr) => match cerr {
+                                        BobError::NotFound => tower_grpc::Status::new(
+                                            tower_grpc::Code::NotFound,
+                                            format!("[cluster] Can't find blob with key {}", key),
+                                        ),
+                                        _ => tower_grpc::Status::new(
+                                            tower_grpc::Code::Unknown,
+                                            "[cluster]Some error",
+                                        ),
+                                    },
+                                    ServeTypeError::Local(lerr) => match lerr {
+                                        BackendError::NotFound => tower_grpc::Status::new(
+                                            tower_grpc::Code::NotFound,
+                                            format!("[backend] Can't find blob with key {}", key),
+                                        ),
+                                        _ => tower_grpc::Status::new(
+                                            tower_grpc::Code::Unknown,
+                                            "[backend] Some error",
+                                        ),
+                                    },
+                                };
+                                future::err(err)
+                            }
+                        }
+                    }),
+            )
+        }
     }
 
     fn ping(&mut self, _request: Request<Null>) -> Self::PingFuture {
@@ -118,7 +183,7 @@ impl server::BobApi for BobSrv {
 
 fn main() {
     env_logger::builder()
-        .filter_module("bob", LevelFilter::Info)
+        .filter_module("bob", LevelFilter::Debug)
         .init();
 
     let matches = App::new("Bob")

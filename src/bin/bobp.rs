@@ -11,14 +11,14 @@ use tokio::runtime::current_thread::Runtime;
 
 use futures::{Future, Poll};
 use std::net::SocketAddr;
-use tokio::net::tcp::{ConnectFuture, TcpStream};
+use tokio::net::tcp::TcpStream;
 use tower::MakeService;
 use tower_grpc::Request;
 use tower_h2::client;
 use tower_service::Service;
 
 use bob::api::grpc::client::BobApi;
-use bob::api::grpc::{Blob, BlobKey, PutRequest};
+use bob::api::grpc::{Blob, BlobKey, GetRequest, PutRequest};
 //use stopwatch::{Stopwatch};
 
 #[derive(Debug, Clone)]
@@ -48,6 +48,7 @@ struct TaskConfig {
 
 struct Stat {
     put_total: AtomicU64,
+    get_total: AtomicU64,
 }
 
 struct Dst {
@@ -84,13 +85,19 @@ impl Service<()> for Dst {
 fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
     let pause = time::Duration::from_millis(period_ms);
     let mut last_put_count = stat.put_total.load(Ordering::Relaxed);
+    let mut last_get_count = stat.get_total.load(Ordering::Relaxed);
 
     while !stop_token.load(Ordering::Relaxed) {
         thread::sleep(pause);
         let cur_put_count = stat.put_total.load(Ordering::Relaxed);
         let put_count_spd = (cur_put_count - last_put_count) / (period_ms / 1000);
         last_put_count = cur_put_count;
-        println!("put: {:5} rps", put_count_spd);
+
+        let cur_get_count = stat.get_total.load(Ordering::Relaxed);
+        let get_count_spd = (cur_get_count - last_get_count) / (period_ms / 1000);
+        last_get_count = cur_get_count;
+
+        println!("put: {:5} rps | get {:5} rps", put_count_spd, get_count_spd);
     }
 }
 
@@ -106,7 +113,7 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
         .build(conn)
         .unwrap();
     let mut client = BobApi::new(p_conn.clone());
-    rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
+    rt.block_on(loop_fn((stat.clone(), task_conf.low_idx), |(lstat, i)| {
         client
             .put(Request::new(PutRequest {
                 key: Some(BlobKey { key: i }),
@@ -117,6 +124,23 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
             }))
             .and_then(move |_| {
                 lstat.clone().put_total.fetch_add(1, Ordering::SeqCst);
+                if i == task_conf.high_idx {
+                    Ok(Loop::Break((lstat, i)))
+                } else {
+                    Ok(Loop::Continue((lstat, i + 1)))
+                }
+            })
+    }))
+    .unwrap();
+
+    rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
+        client
+            .get(Request::new(GetRequest {
+                key: Some(BlobKey { key: i }),
+                options: None,
+            }))
+            .and_then(move |_| {
+                lstat.clone().get_total.fetch_add(1, Ordering::SeqCst);
                 if i == task_conf.high_idx {
                     Ok(Loop::Break((lstat, i)))
                 } else {
@@ -218,6 +242,7 @@ fn main() {
 
     let stat = Arc::new(Stat {
         put_total: AtomicU64::new(0),
+        get_total: AtomicU64::new(0),
     });
 
     let stop_token: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));

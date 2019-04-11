@@ -5,7 +5,7 @@ package bob_storage;
 // API
 service BobApi {
     rpc Put (PutRequest) returns (OpStatus) {}
-    rpc Get (GetRequest) returns (BlobResult) {}
+    rpc Get (GetRequest) returns (Blob) {}
     rpc Ping (Null) returns (Null) {}
 }
 
@@ -36,12 +36,6 @@ message Blob {
 // Operation status
 message OpStatus {
     BobError error = 1; // If all good - null
-}
-
-// Operation result with data
-message BlobResult {
-    OpStatus status = 1; // Operation status
-    Blob data = 2; // Data
 }
 
 // Put operation options

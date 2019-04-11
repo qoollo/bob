@@ -50,7 +50,7 @@ fn main() {
     wait_for_input();
     let get_req = client
         .get(Request::new(GetRequest {
-            key: None,
+            key: Some(BlobKey { key: 0 }),
             options: None,
         }))
         .map_err(|e| println!("gRPC request failed; err={:?}", e))

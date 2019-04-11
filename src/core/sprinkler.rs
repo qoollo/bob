@@ -1,7 +1,8 @@
+use crate::core::bob_client::BobClient;
 use crate::core::data::{
-    print_vec, BobData, BobError, BobKey, ClusterResult, Node, NodeDisk, VDisk,
+    print_vec, BobData, BobError, BobGetResult, BobKey, ClusterResult, Node, NodeDisk, VDisk,
 };
-use crate::core::link_manager::LinkManager;
+use crate::core::link_manager::{LinkManager, NodeLink};
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,6 +23,13 @@ pub struct Sprinkler {
     link_manager: Arc<LinkManager>,
 }
 
+pub struct SprinklerGetResult {
+    pub data: Vec<u8>,
+}
+#[derive(Debug)]
+pub struct SprinklerGetError {}
+
+#[derive(Debug)]
 pub struct SprinklerError {
     total_ops: u16,
     ok_ops: u16,
@@ -38,6 +46,7 @@ impl std::fmt::Display for SprinklerError {
     }
 }
 
+#[derive(Debug)]
 pub struct SprinklerResult {
     total_ops: u16,
     ok_ops: u16,
@@ -101,52 +110,17 @@ impl Sprinkler {
         key: BobKey,
         data: BobData,
     ) -> impl Future<Item = SprinklerResult, Error = SprinklerError> + 'static + Send {
-        let target_vdisks: Vec<VDisk> = self
-            .cluster
-            .vdisks
-            .iter()
-            .filter(|disk| disk.id == 0)
-            .cloned()
-            .collect();
-
-        trace!(
-            "PUT[{}]: Will use this vdisks {}",
-            key,
-            print_vec(&target_vdisks)
-        );
-
-        let mut target_nodes: Vec<_> = target_vdisks
-            .iter()
-            .flat_map(|node_disk| node_disk.replicas.iter().map(|nd| nd.node.clone()))
-            .collect();
-        target_nodes.dedup();
+        let target_nodes = self.calc_target_nodes(key);
 
         debug!(
-            "PUT[{}]: VDisks count: {}. Nodes for fan out: {:?}",
+            "PUT[{}]: Nodes for fan out: {:?}",
             key,
-            target_vdisks.len(),
             print_vec(&target_nodes)
         );
 
-        // incupsulate vdisk in transaction
-        let mut conn_to_send: Vec<_> = target_nodes
-            .iter()
-            .map(|n| self.link_manager.clone().get_link(n))
-            .collect();
-
-        let reqs: Vec<_> = conn_to_send
-            .iter_mut()
-            .map(move |nl| {
-                let node = nl.node.clone();
-                match &mut nl.conn {
-                    Some(conn) => Either::A(conn.put(key, &data)),
-                    None => Either::B(err(ClusterResult {
-                        result: BobError::Other(format!("No active connection {:?}", node)),
-                        node,
-                    })),
-                }
-            })
-            .collect();
+        let reqs = Self::call_nodes(&mut self.get_connections(&target_nodes), |conn| {
+            Box::new(conn.put(key, &data))
+        });
 
         let l_quorum = self.quorum;
         Box::new(
@@ -186,5 +160,81 @@ impl Sprinkler {
                     }
                 }),
         )
+    }
+
+    pub fn get_clustered(
+        &self,
+        key: BobKey,
+    ) -> impl Future<Item = ClusterResult<BobGetResult>, Error = BobError> + 'static + Send {
+        let target_nodes = self.calc_target_nodes(key);
+
+        debug!(
+            "GET[{}]: Nodes for fan out: {:?}",
+            key,
+            print_vec(&target_nodes)
+        );
+        let reqs = Self::call_nodes(&mut self.get_connections(&target_nodes), |conn| {
+            Box::new(conn.get(key))
+        });
+
+        Box::new(
+            select_ok(reqs) // any result will enought
+                .map(|(r, _)| r)
+                .map_err(|r| {
+                    println!("FUCK {:?}", r);
+                    BobError::NotFound
+                }),
+        )
+    }
+
+    fn calc_target_nodes(&self, _key: BobKey) -> Vec<Node> {
+        let target_vdisks: Vec<VDisk> = self
+            .cluster
+            .vdisks
+            .iter()
+            .filter(|disk| disk.id == 0)
+            .cloned()
+            .collect();
+
+        let mut target_nodes: Vec<_> = target_vdisks
+            .iter()
+            .flat_map(|node_disk| node_disk.replicas.iter().map(|nd| nd.node.clone()))
+            .collect();
+        target_nodes.dedup();
+        target_nodes
+    }
+
+    fn get_connections(&self, nodes: &[Node]) -> Vec<NodeLink> {
+        nodes
+            .iter()
+            .map(|n| self.link_manager.clone().get_link(n))
+            .collect()
+    }
+
+    fn call_nodes<F, T: 'static + Send>(
+        links: &mut [NodeLink],
+        mut f: F,
+    ) -> Vec<Box<Future<Item = ClusterResult<T>, Error = ClusterResult<BobError>> + 'static + Send>>
+    where
+        F: FnMut(
+            &mut BobClient,
+        ) -> (Box<
+            Future<Item = ClusterResult<T>, Error = ClusterResult<BobError>> + 'static + Send,
+        >),
+    {
+        let t: Vec<_> = links
+            .iter_mut()
+            .map(move |nl| {
+                let node = nl.node.clone();
+                match &mut nl.conn {
+                    Some(conn) => f(conn),
+                    None => Box::new(err(ClusterResult {
+                        result: BobError::Other(format!("No active connection {:?}", node)),
+                        node,
+                    })),
+                }
+            })
+            .collect();
+        t
     }
 }

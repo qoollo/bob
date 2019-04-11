@@ -1,7 +1,7 @@
 #[derive(Debug)]
 pub enum BobError {
     Timeout,
-
+    NotFound,
     Other(String),
 }
 
@@ -13,6 +13,11 @@ pub struct ClusterResult<T> {
 
 #[derive(Debug)]
 pub struct BobPutResult {}
+
+#[derive(Debug)]
+pub struct BobGetResult {
+    pub data: Vec<u8>,
+}
 
 #[derive(Debug)]
 pub struct BobPingResult {
