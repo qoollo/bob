@@ -295,10 +295,9 @@ impl BobConfig for YamlConfig {
     fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>> {
         let mut node_map: HashMap<&Option<String>, (&Node, HashMap<&Option<String>, String>)> = HashMap::new();
         for node in cluster.nodes.as_ref()?.iter() {
-            let mut disk_map = HashMap::new();
-            for disk in node.disks.as_ref()?.iter() {
-                disk_map.insert(&disk.name, disk.path.as_ref()?.clone());
-            }
+            let disk_map = node.disks.as_ref()?.iter()
+                .map(|disk|(&disk.name, disk.path.as_ref().unwrap().clone()))
+                .collect::<HashMap<_,_>>();
             node_map.insert(&node.name, (node, disk_map));
         }
 
