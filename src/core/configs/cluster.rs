@@ -60,7 +60,6 @@ pub struct Node {
 
 impl Node {
     fn prepare (&self)->Option<String> {
-        print!("------------------------------------------------------");
         let ip: Vec<&str> = self.address.as_ref()?.split(":").collect::<Vec<&str>>();
         self.host.replace(ip[0].to_string());
         let port = ip[1].parse::<i32>();
@@ -112,16 +111,10 @@ impl Validatable for Node {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Replica {
     pub node: Option<String>,
     pub disk: Option<String>,
-}
-
-impl PartialEq for Replica {
-    fn eq(&self, other: &Replica) -> bool {
-        self.node == other.node && self.disk == other.disk
-    }
 }
 
 impl Validatable for Replica {
@@ -287,6 +280,7 @@ impl BobConfig for YamlConfig {
                 return Err(format!("error on file opening: {}", e));
             }
         }
+        
     }
     fn parse_config(&self, config: &String) -> Result<Cluster, String> {
         let result: Result<Cluster, _> = serde_yaml::from_str(config);
