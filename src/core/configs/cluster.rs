@@ -1,18 +1,24 @@
 use itertools::Itertools;
-use std::fs;
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::fs;
 
 pub trait Validatable {
     fn validate(&self) -> Option<String>;
 
-    fn aggregate<T: Validatable>(&self, elements: &Option<Vec<T>>) -> Option<String>{
-        let options: Vec<Option<String>> = elements.as_ref()?.iter()
-            .map(|elem|elem.validate())
+    fn aggregate<T: Validatable>(&self, elements: &Option<Vec<T>>) -> Option<String> {
+        let options: Vec<Option<String>> = elements
+            .as_ref()?
+            .iter()
+            .map(|elem| elem.validate())
             .filter(|f| f.is_some())
             .collect::<Vec<Option<String>>>();
         if options.len() > 0 {
-            return Some(options.iter().fold("".to_string(), |acc, x| acc + &x.as_ref().unwrap()));
+            return Some(
+                options
+                    .iter()
+                    .fold("".to_string(), |acc, x| acc + &x.as_ref().unwrap()),
+            );
         }
         None
     }
@@ -59,13 +65,21 @@ pub struct Node {
 }
 
 impl Node {
-    fn prepare (&self)->Option<String> {
+    fn prepare(&self) -> Option<String> {
         let ip: Vec<&str> = self.address.as_ref()?.split(":").collect::<Vec<&str>>();
         self.host.replace(ip[0].to_string());
         let port = ip[1].parse::<i32>();
-        if port.is_err(){
-            debug!("cannot parse node: {} address: {}", self.name.as_ref()?, self.address.as_ref()?);
-            return Some(format!("cannot parse node: {} address: {}", self.name.as_ref()?, self.address.as_ref()?));
+        if port.is_err() {
+            debug!(
+                "cannot parse node: {} address: {}",
+                self.name.as_ref()?,
+                self.address.as_ref()?
+            );
+            return Some(format!(
+                "cannot parse node: {} address: {}",
+                self.name.as_ref()?,
+                self.address.as_ref()?
+            ));
         }
         self.port.set(port.unwrap());
         None
@@ -89,23 +103,37 @@ impl Validatable for Node {
             debug!("field 'address' for 'Node' is empty");
             return Some("field 'address' for 'Node' is empty".to_string());
         }
-        
+
         let result = self.aggregate(&self.disks);
         if result.is_some() {
-            debug!("node is invalid: {} {}", self.name.as_ref()?, self.address.as_ref()?);
+            debug!(
+                "node is invalid: {} {}",
+                self.name.as_ref()?,
+                self.address.as_ref()?
+            );
             return result;
         }
 
-        if self.disks.as_ref()?
+        if self
+            .disks
+            .as_ref()?
             .iter()
             .group_by(|x| x.name.clone())
             .into_iter()
             .map(|(_, group)| group.count())
             .filter(|x| *x > 1)
-            .count() != 0 {
-                debug!("node: {} contains duplicate disk names", self.name.as_ref()?);
-                return Some(format!("node: {} contains duplicate disk names", self.name.as_ref()?))
-            }
+            .count()
+            != 0
+        {
+            debug!(
+                "node: {} contains duplicate disk names",
+                self.name.as_ref()?
+            );
+            return Some(format!(
+                "node: {} contains duplicate disk names",
+                self.name.as_ref()?
+            ));
+        }
 
         None
     }
@@ -159,16 +187,23 @@ impl Validatable for VDisk {
             return result;
         }
 
-        if self.replicas.as_ref()?
+        if self
+            .replicas
+            .as_ref()?
             .iter()
             .group_by(|x| x.clone())
             .into_iter()
             .map(|(_, group)| group.count())
             .filter(|x| *x > 1)
-            .count() != 0 {
-                debug!("vdisk: {} contains duplicate replicas", self.id?);
-                return Some(format!("vdisk: {} contains duplicate replicas", self.id.as_ref()?))
-            }
+            .count()
+            != 0
+        {
+            debug!("vdisk: {} contains duplicate replicas", self.id?);
+            return Some(format!(
+                "vdisk: {} contains duplicate replicas",
+                self.id.as_ref()?
+            ));
+        }
         None
     }
 }
@@ -181,15 +216,13 @@ pub struct Cluster {
 
 impl Validatable for Cluster {
     fn validate(&self) -> Option<String> {
-        if self.nodes.is_none()
-        {
+        if self.nodes.is_none() {
             debug!("no nodes in config");
             return Some("no nodes in config".to_string());
         }
-        if self.vdisks.is_none()
-        {
+        if self.vdisks.is_none() {
             debug!("no vdisks in config");
-            return Some("no vdisks in config".to_string()   );
+            return Some("no vdisks in config".to_string());
         }
         let mut result = self.aggregate(&self.nodes);
         if result.is_some() {
@@ -202,28 +235,34 @@ impl Validatable for Cluster {
             return result;
         }
 
-        if self.vdisks.as_ref()?
+        if self
+            .vdisks
+            .as_ref()?
             .iter()
             .group_by(|x| x.id)
             .into_iter()
             .map(|(_, group)| group.count())
             .filter(|x| *x > 1)
-            .count() != 0 
+            .count()
+            != 0
         {
             debug!("config contains duplicates vdisks ids");
-            return Some("config contains duplicates vdisks ids".to_string())
+            return Some("config contains duplicates vdisks ids".to_string());
         }
-        if self.nodes.as_ref()?
+        if self
+            .nodes
+            .as_ref()?
             .iter()
             .group_by(|x| x.name.clone())
             .into_iter()
             .map(|(_, group)| group.count())
             .filter(|x| *x > 1)
-            .count() != 0 
+            .count()
+            != 0
         {
             debug!("config contains duplicates nodes names");
-            return Some("config contains duplicates nodes names".to_string())
-        }        
+            return Some("config contains duplicates nodes names".to_string());
+        }
 
         for node in self.nodes.as_ref()?.iter() {
             node.prepare();
@@ -236,15 +275,29 @@ impl Validatable for Cluster {
                         if node.disks.as_ref()?.iter().find(|x| x.name == replica.disk) == None {
                             debug!(
                                 "cannot find in node: {}, disk with name: {} for vdisk: {}",
-                                replica.node.as_ref()?, replica.disk.as_ref()?, vdisk.id?
+                                replica.node.as_ref()?,
+                                replica.disk.as_ref()?,
+                                vdisk.id?
                             );
-                            return Some(format!("cannot find in node: {}, disk with name: {} for vdisk: {}",
-                                replica.node.as_ref()?, replica.disk.as_ref()?, vdisk.id?));
+                            return Some(format!(
+                                "cannot find in node: {}, disk with name: {} for vdisk: {}",
+                                replica.node.as_ref()?,
+                                replica.disk.as_ref()?,
+                                vdisk.id?
+                            ));
                         }
                     }
                     None => {
-                        debug!("cannot find node: {} for vdisk: {}", replica.node.as_ref()?, vdisk.id?);
-                        return Some(format!("cannot find node: {} for vdisk: {}", replica.node.as_ref()?, vdisk.id?));
+                        debug!(
+                            "cannot find node: {} for vdisk: {}",
+                            replica.node.as_ref()?,
+                            vdisk.id?
+                        );
+                        return Some(format!(
+                            "cannot find node: {} for vdisk: {}",
+                            replica.node.as_ref()?,
+                            vdisk.id?
+                        ));
                     }
                 }
             }
@@ -280,7 +333,6 @@ impl BobConfig for YamlConfig {
                 return Err(format!("error on file opening: {}", e));
             }
         }
-        
     }
     fn parse_config(&self, config: &String) -> Result<Cluster, String> {
         let result: Result<Cluster, _> = serde_yaml::from_str(config);
@@ -293,11 +345,15 @@ impl BobConfig for YamlConfig {
         }
     }
     fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>> {
-        let mut node_map: HashMap<&Option<String>, (&Node, HashMap<&Option<String>, String>)> = HashMap::new();
+        let mut node_map: HashMap<&Option<String>, (&Node, HashMap<&Option<String>, String>)> =
+            HashMap::new();
         for node in cluster.nodes.as_ref()?.iter() {
-            let disk_map = node.disks.as_ref()?.iter()
-                .map(|disk|(&disk.name, disk.path.as_ref().unwrap().clone()))
-                .collect::<HashMap<_,_>>();
+            let disk_map = node
+                .disks
+                .as_ref()?
+                .iter()
+                .map(|disk| (&disk.name, disk.path.as_ref().unwrap().clone()))
+                .collect::<HashMap<_, _>>();
             node_map.insert(&node.name, (node, disk_map));
         }
 
@@ -327,14 +383,14 @@ impl BobConfig for YamlConfig {
     fn get_cluster_config(&self, filename: &String) -> Result<Vec<DataVDisk>, String> {
         let file = self.read_config(filename);
         match file {
-            Ok(config)=>{
+            Ok(config) => {
                 let is_valid = config.validate();
                 if is_valid.is_some() {
                     debug!("config is not valid: {}", is_valid.as_ref().unwrap());
                     return Err(format!("config is not valid: {}", is_valid.unwrap()));
                 }
                 return Ok(self.convert_to_data(&config).unwrap());
-            },
+            }
             _ => return Err("".to_string()),
         }
     }

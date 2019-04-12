@@ -298,9 +298,19 @@ vdisks:
 ";
         let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
         assert_eq!(1, d.nodes.as_ref().unwrap().len());
-        assert_eq!(1, d.nodes.as_ref().unwrap()[0].disks.as_ref().unwrap().len());
+        assert_eq!(
+            1,
+            d.nodes.as_ref().unwrap()[0].disks.as_ref().unwrap().len()
+        );
         assert_eq!(1, d.vdisks.as_ref().unwrap().len());
-        assert_eq!(1, d.vdisks.as_ref().unwrap()[0].replicas.as_ref().unwrap().len());
+        assert_eq!(
+            1,
+            d.vdisks.as_ref().unwrap()[0]
+                .replicas
+                .as_ref()
+                .unwrap()
+                .len()
+        );
 
         assert_eq!(true, d.validate().is_none());
     }
@@ -436,6 +446,9 @@ vdisks:
         assert_eq!(true, d.validate().is_none());
 
         assert_eq!(111, d.nodes.as_ref().unwrap()[0].port.get());
-        assert_eq!("0.0.0.0", d.nodes.as_ref().unwrap()[0].host.borrow().to_string());
+        assert_eq!(
+            "0.0.0.0",
+            d.nodes.as_ref().unwrap()[0].host.borrow().to_string()
+        );
     }
 }
