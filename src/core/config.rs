@@ -1,7 +1,7 @@
-extern crate itertools;
-
 use itertools::Itertools;
 use std::fs;
+use std::cell::Cell;
+use std::cell::RefCell;
 
 pub trait Validatable {
     fn validate(&self) -> Option<String>;
@@ -53,11 +53,25 @@ pub struct Node {
     pub disks: Option<Vec<NodeDisk>>,
 
     #[serde(skip)]
-    pub host: String,
+    pub host: RefCell<String>,
     #[serde(skip)]
-    pub port: i32,
+    pub port: Cell<i32>,
 }
 
+impl Node {
+    fn prepare (&self)->Option<String> {
+        print!("------------------------------------------------------");
+        let ip: Vec<&str> = self.address.as_ref()?.split(":").collect::<Vec<&str>>();
+        self.host.replace(ip[0].to_string());
+        let port = ip[1].parse::<i32>();
+        if port.is_err(){
+            debug!("cannot parse node: {} address: {}", self.name.as_ref()?, self.address.as_ref()?);
+            return Some(format!("cannot parse node: {} address: {}", self.name.as_ref()?, self.address.as_ref()?));
+        }
+        self.port.set(port.unwrap());
+        None
+    }
+}
 impl Validatable for Node {
     fn validate(&self) -> Option<String> {
         if self.name.is_none() {
@@ -94,14 +108,6 @@ impl Validatable for Node {
                 return Some(format!("node: {} contains duplicate disk names", self.name.as_ref()?))
             }
 
-        // let ip: Vec<&str> = self.address.as_ref()?.split(":").collect::<Vec<&str>>();
-        // self.host = ip[0].to_string();
-        // let port = ip[1].parse::<i32>();
-        // if port.is_err(){
-        //     debug!("cannot parse node: {} address: {}", self.name.as_ref()?, self.address.as_ref()?);
-        //     return Some(format!("cannot parse node: {} address: {}", self.name.as_ref()?, self.address.as_ref()?));
-        // }
-        // self.port = port?;
         None
     }
 }
@@ -136,6 +142,7 @@ impl Validatable for Replica {
             debug!("field 'disk' for 'Replica' is empty");
             return Some("field 'disk' for 'Replica' is empty".to_string());
         }
+
         None
     }
 }
@@ -166,16 +173,11 @@ impl Validatable for VDisk {
             .map(|(_, group)| group.count())
             .filter(|x| *x > 1)
             .count() != 0 {
-                debug!("vdisk: {} contains duplicate replicas", self.id.as_ref()?);
+                debug!("vdisk: {} contains duplicate replicas", self.id?);
                 return Some(format!("vdisk: {} contains duplicate replicas", self.id.as_ref()?))
             }
         None
     }
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct TestStruct {
-    pub a: i32,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -230,6 +232,10 @@ impl Validatable for Cluster {
             return Some("config contains duplicates nodes names".to_string())
         }        
 
+        for node in self.nodes.as_ref()?.iter() {
+            node.prepare();
+        }
+
         for vdisk in self.vdisks.as_ref()?.iter() {
             for replica in vdisk.replicas.as_ref()?.iter() {
                 match self.nodes.as_ref()?.iter().find(|x| x.name == replica.node) {
@@ -262,83 +268,81 @@ use crate::core::data::VDisk as DataVDisk;
 use std::collections::HashMap;
 
 pub trait BobConfig {
-    fn get_cluster_config(&self, filename: &String) -> Option<Vec<DataVDisk>>;
+    fn get_cluster_config(&self, filename: &String) -> Result<Vec<DataVDisk>, String>;
 
-    fn read_config(&self, filename: &String) -> Option<Cluster>;
-    fn parse_config(&self, config: &String) -> Option<Cluster>;
+    fn read_config(&self, filename: &String) -> Result<Cluster, String>;
+    fn parse_config(&self, config: &String) -> Result<Cluster, String>;
     fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>>;
 }
 
 pub struct YamlConfig {}
 
 impl BobConfig for YamlConfig {
-    fn read_config(&self, filename: &String) -> Option<Cluster> {
+    fn read_config(&self, filename: &String) -> Result<Cluster, String> {
         let result: Result<String, _> = fs::read_to_string(filename);
         match result {
             Ok(config) => return self.parse_config(&config),
             Err(e) => {
-                error!("error on file opening: {}", e);
-                return None;
+                debug!("error on file opening: {}", e);
+                return Err(format!("error on file opening: {}", e));
             }
         }
     }
-    fn parse_config(&self, config: &String) -> Option<Cluster> {
+    fn parse_config(&self, config: &String) -> Result<Cluster, String> {
         let result: Result<Cluster, _> = serde_yaml::from_str(config);
         match result {
-            Ok(cluster) => return Some(cluster),
+            Ok(cluster) => return Ok(cluster),
             Err(e) => {
-                error!("error on yaml parsing: {}", e);
-                return None;
+                debug!("error on yaml parsing: {}", e);
+                return Err(format!("error on yaml parsing: {}", e));
             }
         }
     }
     fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>> {
-        // let mut node_map = HashMap::new();
-        // for node in cluster.nodes.as_ref()?.iter() {
-        //     let mut disk_map = HashMap::new();
-        //     for disk in node.disks.as_ref()?.iter() {
-        //         disk_map.insert(disk.name.as_ref()?.clone(), disk.path.as_ref()?.clone());
-        //     }
-        //     node_map.insert(
-        //         node.name.clone(),
-        //         (node.address.as_ref()?.split(":").collect::<Vec<&str>>(), disk_map),
-        //     );
-        // }
+        let mut node_map: HashMap<&Option<String>, (&Node, HashMap<&Option<String>, String>)> = HashMap::new();
+        for node in cluster.nodes.as_ref()?.iter() {
+            let mut disk_map = HashMap::new();
+            for disk in node.disks.as_ref()?.iter() {
+                disk_map.insert(&disk.name, disk.path.as_ref()?.clone());
+            }
+            node_map.insert(&node.name, (node, disk_map));
+        }
 
-        // let mut result: Vec<DataVDisk> = Vec::with_capacity(123);
-        // for vdisk in cluster.vdisks.as_ref()?.iter() {
-        //     let mut disk = DataVDisk {
-        //         id: vdisk.id? as u32,
-        //         replicas: Vec::with_capacity(vdisk.replicas.as_ref()?.len()),
-        //     };
-        //     for replica in vdisk.replicas.as_ref()?.iter() {
-        //         let finded_node = node_map.get(&replica.node.as_ref()?).unwrap();
-        //         let node_disk = DataNodeDisk {
-        //             path: finded_node.1.get(&replica.disk.as_ref()?).unwrap().to_string(),
-        //             node: DataNode {
-        //                 host: finded_node.0[0].to_string(),
-        //                 port: finded_node.0[1].parse().unwrap(),
-        //             },
-        //         };
-        //         disk.replicas.push(node_disk);
-        //     }
-        //     result.push(disk);
-        // }
-        // Some(result)
-        None
+        let mut result: Vec<DataVDisk> = Vec::with_capacity(cluster.vdisks.as_ref()?.len());
+        for vdisk in cluster.vdisks.as_ref()?.iter() {
+            let mut disk = DataVDisk {
+                id: vdisk.id? as u32,
+                replicas: Vec::with_capacity(vdisk.replicas.as_ref()?.len()),
+            };
+            for replica in vdisk.replicas.as_ref()?.iter() {
+                let finded_node = node_map.get(&replica.node).unwrap();
+                let path = finded_node.1.get(&replica.disk).unwrap();
+
+                let node_disk = DataNodeDisk {
+                    path: path.to_string(),
+                    node: DataNode {
+                        host: finded_node.0.host.borrow().to_string(),
+                        port: finded_node.0.port.get() as u16,
+                    },
+                };
+                disk.replicas.push(node_disk);
+            }
+            result.push(disk);
+        }
+        Some(result)
     }
-    fn get_cluster_config(&self, filename: &String) -> Option<Vec<DataVDisk>> {
-        // let file: Option<Cluster> = self.read_config(filename);
-        // match file {
-        //     Some(config) => {
-        //         // if !config.validate() {
-        //         //     error!("config is not valid");
-        //         //     return None;
-        //         // }
-        //         return Some(self.convert_to_data(&config));
-        //     }
-        //     _ => return None,
-        // }
-        None
+    fn get_cluster_config(&self, filename: &String) -> Result<Vec<DataVDisk>, String> {
+        let file = self.read_config(filename);
+        match file {
+            Ok(config)=>{
+                let is_valid = config.validate();
+                if is_valid.is_some() {
+                    debug!("config is not valid: {}", is_valid.as_ref().unwrap());
+                    return Err(format!("config is not valid: {}", is_valid.unwrap()));
+                }
+                return Ok(self.convert_to_data(&config).unwrap());
+            },
+            _ => return Err("".to_string()),
+        }
     }
 }

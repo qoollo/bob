@@ -415,4 +415,28 @@ vdisks:
         assert_eq!(111, vdisks[1].replicas[0].node.port);
         assert_eq!(1111, vdisks[1].replicas[1].node.port);
     }
+
+    #[test]
+    fn test_ip_parsing() {
+        let s = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d2
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+";
+        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        assert_eq!(true, d.validate().is_none());
+
+        assert_eq!(111, d.nodes.as_ref().unwrap()[0].port.get());
+        assert_eq!("0.0.0.0", d.nodes.as_ref().unwrap()[0].host.borrow().to_string());
+    }
 }
