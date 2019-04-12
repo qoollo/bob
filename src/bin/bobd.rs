@@ -31,11 +31,11 @@ impl BobSrv {
     }
 
     fn put_is_valid(req: &PutRequest) -> bool {
-        !(req.key == None || req.data == None)
+        req.key.is_some() && req.data.is_some()
     }
 
     fn get_is_valid(req: &GetRequest) -> bool {
-        req.key != None
+        req.key.is_some()
     }
 }
 

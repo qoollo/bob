@@ -180,8 +180,7 @@ impl Sprinkler {
         Box::new(
             select_ok(reqs) // any result will enought
                 .map(|(r, _)| r)
-                .map_err(|r| {
-                    println!("FUCK {:?}", r);
+                .map_err(|_r| {
                     BobError::NotFound
                 }),
         )
