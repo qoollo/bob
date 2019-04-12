@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    extern crate serde_yaml;
-    use bob::core::config::*;
+    use crate::core::configs::cluster::*;
 
     #[test]
     fn test_node_disk_name_is_empty() {
