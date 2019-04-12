@@ -1,13 +1,15 @@
 use tokio::prelude::Future;
 
 //use futures::future::;
-use crate::core::backend::{Backend, BackendError, BackendGetResult, BackendResult};
+use crate::core::backend::{
+    stub_backend::StubBackend, Backend, BackendError, BackendGetResult, BackendResult,
+};
 use crate::core::data::{BobData, BobError, BobGetResult, BobKey, BobOptions, ClusterResult};
 use crate::core::sprinkler::{Sprinkler, SprinklerError, SprinklerResult};
 use futures::future::Either;
 
 pub struct Grinder {
-    pub backend: Backend,
+    pub backend: StubBackend,
     pub sprinkler: Sprinkler,
 }
 

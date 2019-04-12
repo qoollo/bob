@@ -1,6 +1,6 @@
 use bob::api::grpc::{server, Blob, GetRequest, Null, OpStatus, PutRequest};
 
-use bob::core::backend::{Backend, BackendError};
+use bob::core::backend::{stub_backend::StubBackend, BackendError};
 use bob::core::data::{BobData, BobError, BobKey, BobOptions};
 use bob::core::grinder::{Grinder, ServeTypeError, ServeTypeOk};
 use bob::core::sprinkler::Sprinkler;
@@ -201,7 +201,7 @@ fn main() {
 
     let bob = BobSrv {
         grinder: std::sync::Arc::new(Grinder {
-            backend: Backend {},
+            backend: StubBackend {},
             sprinkler: Sprinkler::new(),
         }),
     };
