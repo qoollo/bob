@@ -131,8 +131,8 @@ impl server::BobApi for BobSrv {
                                 );
                                 ok(Response::new(Blob {
                                     data: match r_ok {
-                                        ServeTypeOk::Cluster(r) => r.result.data,
-                                        ServeTypeOk::Local(r) => r.data,
+                                        ServeTypeOk::Cluster(r) => r.result.data.data,
+                                        ServeTypeOk::Local(r) => r.data.data,
                                     },
                                 }))
                             }

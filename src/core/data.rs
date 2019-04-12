@@ -14,9 +14,8 @@ pub struct ClusterResult<T> {
 #[derive(Debug)]
 pub struct BobPutResult {}
 
-#[derive(Debug)]
 pub struct BobGetResult {
-    pub data: Vec<u8>,
+    pub data: BobData,
 }
 
 #[derive(Debug)]
@@ -24,11 +23,12 @@ pub struct BobPingResult {
     pub node: Node,
 }
 
+#[derive(Clone)]
 pub struct BobData {
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct BobKey {
     pub key: u64,
 }

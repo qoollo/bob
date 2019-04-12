@@ -68,7 +68,7 @@ impl Grinder {
             );
             Either::A(
                 self.backend
-                    .put(key, data)
+                    .put(&"".to_string(), key, data)
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )
@@ -100,7 +100,7 @@ impl Grinder {
             );
             Either::A(
                 self.backend
-                    .get(key)
+                    .get(&"".to_string(), key)
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )
