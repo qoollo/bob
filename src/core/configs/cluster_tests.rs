@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::core::configs::cluster::*;
+    use crate::core::configs::config::*;
 
     #[test]
     fn test_node_disk_name_is_empty() {
@@ -22,7 +23,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -43,7 +44,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -66,7 +67,7 @@ vdisks:
         - node: n1
           disk: disk2
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(true, d.validate().is_none());
     }
 
@@ -93,7 +94,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -121,7 +122,7 @@ vdisks:
         - node: n1
           disk: disk2
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -144,7 +145,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -168,7 +169,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -192,7 +193,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -216,7 +217,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -235,7 +236,7 @@ vdisks:
         - node:
           disk: disk1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -254,7 +255,7 @@ vdisks:
         - node: n1
           disk:         # empty
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -277,7 +278,7 @@ vdisks:
         - node: n1
           disk: disk1        # empty
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -296,7 +297,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(1, d.nodes.as_ref().unwrap().len());
         assert_eq!(
             1,
@@ -324,7 +325,7 @@ vdisks:
         - node: disk1
           disk: /tmp/d1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -338,7 +339,7 @@ nodes:
         - name: disk1
           path: /tmp/d1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -357,7 +358,7 @@ vdisks:
         - node: some_name
           disk: disk1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -376,7 +377,7 @@ vdisks:
         - node: some_name
           disk: disk1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(false, d.validate().is_none());
     }
 
@@ -408,10 +409,10 @@ vdisks:
         - node: n2
           disk: disk1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(true, d.validate().is_none());
 
-        let vdisks = YamlConfig {}.convert_to_data(&d).unwrap();
+        let vdisks = ClusterConfigYaml {}.convert_to_data(&d).unwrap();
         assert_eq!(2, vdisks.len());
         assert_eq!(0, vdisks[0].id);
         assert_eq!(1, vdisks[0].replicas.len());
@@ -442,7 +443,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: Cluster = YamlConfig {}.parse_config(&s.to_string()).unwrap();
+        let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(true, d.validate().is_none());
 
         assert_eq!(111, d.nodes.as_ref().unwrap()[0].port.get());

@@ -2,27 +2,7 @@ use itertools::Itertools;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::fs;
-
-pub trait Validatable {
-    fn validate(&self) -> Option<String>;
-
-    fn aggregate<T: Validatable>(&self, elements: &Option<Vec<T>>) -> Option<String> {
-        let options: Vec<Option<String>> = elements
-            .as_ref()?
-            .iter()
-            .map(|elem| elem.validate())
-            .filter(|f| f.is_some())
-            .collect::<Vec<Option<String>>>();
-        if options.len() > 0 {
-            return Some(
-                options
-                    .iter()
-                    .fold("".to_string(), |acc, x| acc + &x.as_ref().unwrap()),
-            );
-        }
-        None
-    }
-}
+use crate::core::configs::config::Validatable;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeDisk {
@@ -313,7 +293,7 @@ use crate::core::data::VDisk as DataVDisk;
 
 use std::collections::HashMap;
 
-pub trait BobConfig {
+pub trait BobClusterConfig {
     fn get_cluster_config(&self, filename: &String) -> Result<Vec<DataVDisk>, String>;
 
     fn read_config(&self, filename: &String) -> Result<Cluster, String>;
@@ -321,9 +301,9 @@ pub trait BobConfig {
     fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>>;
 }
 
-pub struct YamlConfig {}
+pub struct ClusterConfigYaml {}
 
-impl BobConfig for YamlConfig {
+impl BobClusterConfig for ClusterConfigYaml {
     fn read_config(&self, filename: &String) -> Result<Cluster, String> {
         let result: Result<String, _> = fs::read_to_string(filename);
         match result {
