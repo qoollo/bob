@@ -1,8 +1,13 @@
 use itertools::Itertools;
 use std::cell::Cell;
 use std::cell::RefCell;
-use std::fs;
-use crate::core::configs::config::Validatable;
+use std::collections::HashMap;
+
+use crate::core::configs::config::{Validatable, YamlBobConfigReader, BobConfigReader};
+use crate::core::data::Node as DataNode;
+use crate::core::data::NodeDisk as DataNodeDisk;
+use crate::core::data::VDisk as DataVDisk;
+
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeDisk {
@@ -287,43 +292,14 @@ impl Validatable for Cluster {
     }
 }
 
-use crate::core::data::Node as DataNode;
-use crate::core::data::NodeDisk as DataNodeDisk;
-use crate::core::data::VDisk as DataVDisk;
-
-use std::collections::HashMap;
-
 pub trait BobClusterConfig {
-    fn get_cluster_config(&self, filename: &String) -> Result<Vec<DataVDisk>, String>;
-
-    fn read_config(&self, filename: &String) -> Result<Cluster, String>;
-    fn parse_config(&self, config: &String) -> Result<Cluster, String>;
+    fn get(&self, filename: &String) -> Result<Vec<DataVDisk>, String>;
     fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>>;
 }
 
 pub struct ClusterConfigYaml {}
 
 impl BobClusterConfig for ClusterConfigYaml {
-    fn read_config(&self, filename: &String) -> Result<Cluster, String> {
-        let result: Result<String, _> = fs::read_to_string(filename);
-        match result {
-            Ok(config) => return self.parse_config(&config),
-            Err(e) => {
-                debug!("error on file opening: {}", e);
-                return Err(format!("error on file opening: {}", e));
-            }
-        }
-    }
-    fn parse_config(&self, config: &String) -> Result<Cluster, String> {
-        let result: Result<Cluster, _> = serde_yaml::from_str(config);
-        match result {
-            Ok(cluster) => return Ok(cluster),
-            Err(e) => {
-                debug!("error on yaml parsing: {}", e);
-                return Err(format!("error on yaml parsing: {}", e));
-            }
-        }
-    }
     fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>> {
         let mut node_map: HashMap<&Option<String>, (&Node, HashMap<&Option<String>, String>)> =
             HashMap::new();
@@ -360,8 +336,8 @@ impl BobClusterConfig for ClusterConfigYaml {
         }
         Some(result)
     }
-    fn get_cluster_config(&self, filename: &String) -> Result<Vec<DataVDisk>, String> {
-        let file = self.read_config(filename);
+    fn get(&self, filename: &String) -> Result<Vec<DataVDisk>, String> {
+        let file: Result<Cluster, String> = YamlBobConfigReader{}.get(filename);
         match file {
             Ok(config) => {
                 let is_valid = config.validate();
