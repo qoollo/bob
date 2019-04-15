@@ -5,17 +5,16 @@ pub trait Validatable {
     fn validate(&self) -> Option<String>;
 
     fn aggregate<T: Validatable>(&self, elements: &Option<Vec<T>>) -> Option<String> {
-        let options: Vec<Option<String>> = elements
+        let options = elements
             .as_ref()?
             .iter()
-            .map(|elem| elem.validate())
-            .filter(|f| f.is_some())
-            .collect::<Vec<Option<String>>>();
+            .filter_map(|elem|elem.validate())
+            .collect::<Vec<String>>();
         if options.len() > 0 {
             return Some(
                 options
                     .iter()
-                    .fold("".to_string(), |acc, x| acc + &x.as_ref().unwrap()),
+                    .fold("".to_string(), |acc, x| acc + "\n" + x),
             );
         }
         None
@@ -35,12 +34,15 @@ pub trait BobConfigReader<T> {
     }
     fn parse(&self, config: &String) -> Result<T, String>;
     fn get(&self, filename: &String) -> Result<T, String>;
+    fn get2(&self, filename: &String) -> Result<T, String>;
 }
 
 pub struct YamlBobConfigReader {
 }
 
-impl<T> BobConfigReader<T> for YamlBobConfigReader where T: for<'de> Deserialize<'de> {
+impl<T> BobConfigReader<T> for YamlBobConfigReader 
+        where T: for<'de> Deserialize<'de>,
+        T: Validatable {
     fn parse(&self, config: &String) -> Result<T, String>{
         let result: Result<T, _> = serde_yaml::from_str(config);
         match result {
@@ -55,6 +57,21 @@ impl<T> BobConfigReader<T> for YamlBobConfigReader where T: for<'de> Deserialize
         let result = (self as &BobConfigReader<T>).read(filename);
         match result {
             Ok(config) => return self.parse(&config),
+            Err(e) => return Err(e),
+        }
+    }
+
+    fn get2(&self, filename: &String) -> Result<T, String> {
+        let file: Result<T, String> = self.get(filename);
+        match file {
+            Ok(config) => {
+                let is_valid = config.validate();
+                if is_valid.is_some() {
+                    debug!("config is not valid: {}", is_valid.as_ref().unwrap());
+                    return Err(format!("config is not valid: {}", is_valid.unwrap()));
+                }
+                return Ok(config);
+            }
             Err(e) => return Err(e),
         }
     }

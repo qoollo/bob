@@ -347,7 +347,7 @@ impl BobClusterConfig for ClusterConfigYaml {
                 }
                 return Ok(self.convert_to_data(&config).unwrap());
             }
-            _ => return Err("".to_string()),
+            Err(e) => return Err(e),
         }
     }
 }
