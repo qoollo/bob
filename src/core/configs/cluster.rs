@@ -4,11 +4,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
-use crate::core::configs::reader::{Validatable, YamlBobConfigReader, BobConfigReader};
+use crate::core::configs::reader::{BobConfigReader, Validatable, YamlBobConfigReader};
 use crate::core::data::Node as DataNode;
 use crate::core::data::NodeDisk as DataNodeDisk;
 use crate::core::data::VDisk as DataVDisk;
-
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeDisk {
@@ -55,8 +54,16 @@ impl Node {
     fn prepare(&self) -> Option<String> {
         let addr: Result<SocketAddr, _> = self.address.as_ref()?.parse();
         if addr.is_err() {
-            debug!("field 'address': {} for 'Node': {} is invalid", self.address.as_ref()?, self.name.as_ref()?);
-            return Some(format!("field 'address': {} for 'Node': {} is invalid", self.address.as_ref()?, self.name.as_ref()?));
+            debug!(
+                "field 'address': {} for 'Node': {} is invalid",
+                self.address.as_ref()?,
+                self.name.as_ref()?
+            );
+            return Some(format!(
+                "field 'address': {} for 'Node': {} is invalid",
+                self.address.as_ref()?,
+                self.name.as_ref()?
+            ));
         }
         let ip = addr.unwrap();
         self.host.replace(ip.ip().to_string());
@@ -160,10 +167,10 @@ impl Validatable for VDisk {
             return Some("field 'id' for 'VDisk' is not set".to_string());
         }
 
-        if self.replicas.len() == 0{
+        if self.replicas.len() == 0 {
             debug!("vdisk must have replicas: {}", self.id.as_ref()?);
             return Some(format!("vdisk must have replicas: {}", self.id.as_ref()?));
-        }        
+        }
         let result = self.aggregate(&self.replicas);
         if result.is_some() {
             debug!("vdisk is invalid: {}", self.id.as_ref()?);
@@ -249,10 +256,9 @@ impl Validatable for Cluster {
         let err = self
             .nodes
             .iter()
-            .filter_map(|x|x.prepare())
+            .filter_map(|x| x.prepare())
             .fold("".to_string(), |acc, x| acc + "\n" + &x);
-        if !err.is_empty()
-        {
+        if !err.is_empty() {
             return Some(err);
         }
 
@@ -339,7 +345,7 @@ impl BobClusterConfig for ClusterConfigYaml {
         Some(result)
     }
     fn get(&self, filename: &str) -> Result<Vec<DataVDisk>, String> {
-        let config: Cluster = YamlBobConfigReader{}.get(filename)?;
+        let config: Cluster = YamlBobConfigReader {}.get(filename)?;
         let is_valid = config.validate();
         if is_valid.is_some() {
             debug!("config is not valid: {}", is_valid.as_ref().unwrap());

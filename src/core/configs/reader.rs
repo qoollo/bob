@@ -1,5 +1,5 @@
-use std::fs;
 use serde::de::Deserialize;
+use std::fs;
 
 pub trait Validatable {
     fn validate(&self) -> Option<String>;
@@ -7,14 +7,10 @@ pub trait Validatable {
     fn aggregate<T: Validatable>(&self, elements: &Vec<T>) -> Option<String> {
         let options = elements
             .iter()
-            .filter_map(|elem|elem.validate())
+            .filter_map(|elem| elem.validate())
             .collect::<Vec<String>>();
         if options.len() > 0 {
-            return Some(
-                options
-                    .iter()
-                    .fold("".to_string(), |acc, x| acc + "\n" + x),
-            );
+            return Some(options.iter().fold("".to_string(), |acc, x| acc + "\n" + x));
         }
         None
     }
@@ -32,20 +28,23 @@ pub trait BobConfigReader {
         }
     }
     fn parse<T>(&self, config: &str) -> Result<T, String>
-        where T: for<'de> Deserialize<'de>,
-              T: Validatable;
+    where
+        T: for<'de> Deserialize<'de>,
+        T: Validatable;
     fn get<T>(&self, filename: &str) -> Result<T, String>
-        where T: for<'de> Deserialize<'de>,
-              T: Validatable;
+    where
+        T: for<'de> Deserialize<'de>,
+        T: Validatable;
 }
 
-pub struct YamlBobConfigReader {
-}
+pub struct YamlBobConfigReader {}
 
 impl BobConfigReader for YamlBobConfigReader {
     fn parse<T>(&self, config: &str) -> Result<T, String>
-        where T: for<'de> Deserialize<'de>,
-              T: Validatable{
+    where
+        T: for<'de> Deserialize<'de>,
+        T: Validatable,
+    {
         let result: Result<T, _> = serde_yaml::from_str(config);
         match result {
             Ok(conf) => return Ok(conf),
@@ -56,11 +55,13 @@ impl BobConfigReader for YamlBobConfigReader {
         }
     }
     fn get<T>(&self, filename: &str) -> Result<T, String>
-        where T: for<'de> Deserialize<'de>,
-              T: Validatable{
+    where
+        T: for<'de> Deserialize<'de>,
+        T: Validatable,
+    {
         let file = self.read(filename)?;
         let config: T = self.parse(&file)?;
-        
+
         let is_valid = config.validate();
         if is_valid.is_some() {
             debug!("config is not valid: {}", is_valid.as_ref().unwrap());

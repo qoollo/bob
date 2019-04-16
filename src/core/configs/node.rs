@@ -25,24 +25,19 @@ pub impl Validatable for NodeConfig {
 }
 
 pub trait BobNodeConfig {
-    fn get(&self, filename: &String) -> Result<Vec<DataVDisk>, String>;
+    fn get(&self, filename: &str) -> Result<Vec<DataVDisk>, String>;
 }
 
 pub struct NodeConfigYaml {}
 
 impl BobNodeConfig for NodeConfigYaml {
-    fn get(&self, filename: &String) -> Result<NodeConfig, String> {
-        let file: Result<NodeConfig, String> = YamlBobConfigReader{}.get(filename);
-        match file {
-            Ok(config) => {
-                let is_valid = config.validate();
-                if is_valid.is_some() {
-                    debug!("config is not valid: {}", is_valid.as_ref().unwrap());
-                    return Err(format!("config is not valid: {}", is_valid.unwrap()));
-                }
-                return Ok(config);
-            }
-            Err(e) => return Err(e),
+    fn get(&self, filename: &str) -> Result<NodeConfig, String> {
+        let config: Result<NodeConfig, String> = YamlBobConfigReader{}.get(filename)?;
+        let is_valid = config.validate();
+        if is_valid.is_some() {
+            debug!("config is not valid: {}", is_valid.as_ref().unwrap());
+            return Err(format!("config is not valid: {}", is_valid.unwrap()));
         }
+        return Ok(config);
     }
 }
