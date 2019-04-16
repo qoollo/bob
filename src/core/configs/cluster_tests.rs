@@ -496,4 +496,48 @@ vdisks:
             d.nodes[0].host.borrow().to_string()
         );
     }
+
+    #[test]
+    fn test_ip_parsing2() {
+        let s = "
+nodes:
+    - name: n1
+      address: 0.0.0:111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d2
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+";
+        let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
+        println!("aaaa: {}", d.validate().unwrap());
+        assert!(d.validate().is_some());
+    }
+
+        #[test]
+    fn test_ip_parsing3() {
+        let s = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:11111111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d2
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+";
+        let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
+        println!("aaaa: {}", d.validate().unwrap());
+        assert!(d.validate().is_some());
+    }
 }

@@ -2,6 +2,7 @@ use itertools::Itertools;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 
 use crate::core::configs::reader::{Validatable, YamlBobConfigReader, BobConfigReader};
 use crate::core::data::Node as DataNode;
@@ -47,27 +48,19 @@ pub struct Node {
     #[serde(skip)]
     pub host: RefCell<String>,
     #[serde(skip)]
-    pub port: Cell<i32>,
+    pub port: Cell<u16>,
 }
 
 impl Node {
     fn prepare(&self) -> Option<String> {
-        let ip = self.address.as_ref()?.split(":").collect::<Vec<&str>>();
-        self.host.replace(ip[0].to_string());
-        let port = ip[1].parse::<i32>();
-        if port.is_err() {
-            debug!(
-                "cannot parse node: {} address: {}",
-                self.name.as_ref()?,
-                self.address.as_ref()?
-            );
-            return Some(format!(
-                "cannot parse node: {} address: {}",
-                self.name.as_ref()?,
-                self.address.as_ref()?
-            ));
+        let addr: Result<SocketAddr, _> = self.address.as_ref()?.parse();
+        if addr.is_err() {
+            debug!("field 'address': {} for 'Node': {} is invalid", self.address.as_ref()?, self.name.as_ref()?);
+            return Some(format!("field 'address': {} for 'Node': {} is invalid", self.address.as_ref()?, self.name.as_ref()?));
         }
-        self.port.set(port.unwrap());
+        let ip = addr.unwrap();
+        self.host.replace(ip.ip().to_string());
+        self.port.set(ip.port());
         None
     }
 }
@@ -253,8 +246,14 @@ impl Validatable for Cluster {
             return Some("config contains duplicates nodes names".to_string());
         }
 
-        for node in self.nodes.iter() {
-            node.prepare();
+        let err = self
+            .nodes
+            .iter()
+            .filter_map(|x|x.prepare())
+            .fold("".to_string(), |acc, x| acc + "\n" + &x);
+        if !err.is_empty()
+        {
+            return Some(err);
         }
 
         for vdisk in self.vdisks.iter() {
@@ -330,7 +329,7 @@ impl BobClusterConfig for ClusterConfigYaml {
                     path: path.to_string(),
                     node: DataNode {
                         host: finded_node.0.host.borrow().to_string(),
-                        port: finded_node.0.port.get() as u16,
+                        port: finded_node.0.port.get(),
                     },
                 };
                 disk.replicas.push(node_disk);
