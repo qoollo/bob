@@ -296,7 +296,7 @@ impl Validatable for Cluster {
 }
 
 pub trait BobClusterConfig {
-    fn get(&self, filename: &String) -> Result<Vec<DataVDisk>, String>;
+    fn get(&self, filename: &str) -> Result<Vec<DataVDisk>, String>;
     fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>>;
 }
 
@@ -338,7 +338,7 @@ impl BobClusterConfig for ClusterConfigYaml {
         }
         Some(result)
     }
-    fn get(&self, filename: &String) -> Result<Vec<DataVDisk>, String> {
+    fn get(&self, filename: &str) -> Result<Vec<DataVDisk>, String> {
         let config: Cluster = YamlBobConfigReader{}.get(filename)?;
         let is_valid = config.validate();
         if is_valid.is_some() {

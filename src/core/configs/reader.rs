@@ -34,7 +34,7 @@ pub trait BobConfigReader {
     fn parse<T>(&self, config: &str) -> Result<T, String>
         where T: for<'de> Deserialize<'de>,
               T: Validatable;
-    fn get<T>(&self, filename: &String) -> Result<T, String>
+    fn get<T>(&self, filename: &str) -> Result<T, String>
         where T: for<'de> Deserialize<'de>,
               T: Validatable;
 }
@@ -55,7 +55,7 @@ impl BobConfigReader for YamlBobConfigReader {
             }
         }
     }
-    fn get<T>(&self, filename: &String) -> Result<T, String>
+    fn get<T>(&self, filename: &str) -> Result<T, String>
         where T: for<'de> Deserialize<'de>,
               T: Validatable{
         let file = self.read(filename)?;

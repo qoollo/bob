@@ -515,7 +515,6 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        println!("aaaa: {}", d.validate().unwrap());
         assert!(d.validate().is_some());
     }
 
@@ -537,7 +536,6 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        println!("aaaa: {}", d.validate().unwrap());
         assert!(d.validate().is_some());
     }
 }
