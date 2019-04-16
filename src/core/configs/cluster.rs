@@ -163,8 +163,8 @@ pub struct VDisk {
 impl Validatable for VDisk {
     fn validate(&self) -> Option<String> {
         if self.id.is_none() {
-            debug!("field 'id' for 'VDisk' is invalid");
-            return Some("field 'id' for 'VDisk' is invalid".to_string());
+            debug!("field 'id' for 'VDisk' is not set");
+            return Some("field 'id' for 'VDisk' is not set".to_string());
         }
 
         if self.replicas.len() == 0{

@@ -20,8 +20,8 @@ pub trait Validatable {
     }
 }
 
-pub trait BobConfigReader<T> {
-    fn read(&self, filename: &String) -> Result<String, String> {
+pub trait BobConfigReader {
+    fn read(&self, filename: &str) -> Result<String, String> {
         let result: Result<String, _> = fs::read_to_string(filename);
         match result {
             Ok(config) => return Ok(config),
@@ -31,18 +31,21 @@ pub trait BobConfigReader<T> {
             }
         }
     }
-    fn parse(&self, config: &String) -> Result<T, String>;
-    fn get(&self, filename: &String) -> Result<T, String>;
-    fn get2(&self, filename: &String) -> Result<T, String>;
+    fn parse<T>(&self, config: &str) -> Result<T, String>
+        where T: for<'de> Deserialize<'de>,
+              T: Validatable;
+    fn get<T>(&self, filename: &String) -> Result<T, String>
+        where T: for<'de> Deserialize<'de>,
+              T: Validatable;
 }
 
 pub struct YamlBobConfigReader {
 }
 
-impl<T> BobConfigReader<T> for YamlBobConfigReader 
+impl BobConfigReader for YamlBobConfigReader {
+    fn parse<T>(&self, config: &str) -> Result<T, String>
         where T: for<'de> Deserialize<'de>,
-        T: Validatable {
-    fn parse(&self, config: &String) -> Result<T, String>{
+              T: Validatable{
         let result: Result<T, _> = serde_yaml::from_str(config);
         match result {
             Ok(conf) => return Ok(conf),
@@ -52,26 +55,17 @@ impl<T> BobConfigReader<T> for YamlBobConfigReader
             }
         }
     }
-    fn get(&self, filename: &String) -> Result<T, String>{
-        let result = (self as &BobConfigReader<T>).read(filename);
-        match result {
-            Ok(config) => return self.parse(&config),
-            Err(e) => return Err(e),
+    fn get<T>(&self, filename: &String) -> Result<T, String>
+        where T: for<'de> Deserialize<'de>,
+              T: Validatable{
+        let file = self.read(filename)?;
+        let config: T = self.parse(&file)?;
+        
+        let is_valid = config.validate();
+        if is_valid.is_some() {
+            debug!("config is not valid: {}", is_valid.as_ref().unwrap());
+            return Err(format!("config is not valid: {}", is_valid.unwrap()));
         }
-    }
-
-    fn get2(&self, filename: &String) -> Result<T, String> {
-        let file: Result<T, String> = self.get(filename);
-        match file {
-            Ok(config) => {
-                let is_valid = config.validate();
-                if is_valid.is_some() {
-                    debug!("config is not valid: {}", is_valid.as_ref().unwrap());
-                    return Err(format!("config is not valid: {}", is_valid.unwrap()));
-                }
-                return Ok(config);
-            }
-            Err(e) => return Err(e),
-        }
+        return Ok(config);
     }
 }
