@@ -4,9 +4,8 @@ use serde::de::Deserialize;
 pub trait Validatable {
     fn validate(&self) -> Option<String>;
 
-    fn aggregate<T: Validatable>(&self, elements: &Option<Vec<T>>) -> Option<String> {
+    fn aggregate<T: Validatable>(&self, elements: &Vec<T>) -> Option<String> {
         let options = elements
-            .as_ref()?
             .iter()
             .filter_map(|elem|elem.validate())
             .collect::<Vec<String>>();

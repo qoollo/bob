@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::core::configs::cluster::*;
-    use crate::core::configs::config::*;
+    use crate::core::configs::reader::*;
 
     #[test]
     fn test_node_disk_name_is_empty() {
@@ -298,18 +298,16 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
-        assert_eq!(1, d.nodes.as_ref().unwrap().len());
+        assert_eq!(1, d.nodes.len());
         assert_eq!(
             1,
-            d.nodes.as_ref().unwrap()[0].disks.as_ref().unwrap().len()
+            d.nodes[0].disks.len()
         );
-        assert_eq!(1, d.vdisks.as_ref().unwrap().len());
+        assert_eq!(1, d.vdisks.len());
         assert_eq!(
             1,
-            d.vdisks.as_ref().unwrap()[0]
+            d.vdisks[0]
                 .replicas
-                .as_ref()
-                .unwrap()
                 .len()
         );
 
@@ -446,10 +444,10 @@ vdisks:
         let d: Cluster = YamlBobConfigReader {}.parse(&s.to_string()).unwrap();
         assert_eq!(true, d.validate().is_none());
 
-        assert_eq!(111, d.nodes.as_ref().unwrap()[0].port.get());
+        assert_eq!(111, d.nodes[0].port.get());
         assert_eq!(
             "0.0.0.0",
-            d.nodes.as_ref().unwrap()[0].host.borrow().to_string()
+            d.nodes[0].host.borrow().to_string()
         );
     }
 }
