@@ -1,28 +1,13 @@
 use itertools::Itertools;
 use std::cell::Cell;
 use std::cell::RefCell;
-use std::fs;
+use std::collections::HashMap;
+use std::net::SocketAddr;
 
-pub trait Validatable {
-    fn validate(&self) -> Option<String>;
-
-    fn aggregate<T: Validatable>(&self, elements: &Option<Vec<T>>) -> Option<String> {
-        let options: Vec<Option<String>> = elements
-            .as_ref()?
-            .iter()
-            .map(|elem| elem.validate())
-            .filter(|f| f.is_some())
-            .collect::<Vec<Option<String>>>();
-        if options.len() > 0 {
-            return Some(
-                options
-                    .iter()
-                    .fold("".to_string(), |acc, x| acc + &x.as_ref().unwrap()),
-            );
-        }
-        None
-    }
-}
+use crate::core::configs::reader::{BobConfigReader, Validatable, YamlBobConfigReader};
+use crate::core::data::Node as DataNode;
+use crate::core::data::NodeDisk as DataNodeDisk;
+use crate::core::data::VDisk as DataVDisk;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeDisk {
@@ -56,32 +41,33 @@ impl Validatable for NodeDisk {
 pub struct Node {
     pub name: Option<String>,
     pub address: Option<String>,
-    pub disks: Option<Vec<NodeDisk>>,
+    #[serde(default)]
+    pub disks: Vec<NodeDisk>,
 
     #[serde(skip)]
     pub host: RefCell<String>,
     #[serde(skip)]
-    pub port: Cell<i32>,
+    pub port: Cell<u16>,
 }
 
 impl Node {
     fn prepare(&self) -> Option<String> {
-        let ip: Vec<&str> = self.address.as_ref()?.split(":").collect::<Vec<&str>>();
-        self.host.replace(ip[0].to_string());
-        let port = ip[1].parse::<i32>();
-        if port.is_err() {
+        let addr: Result<SocketAddr, _> = self.address.as_ref()?.parse();
+        if addr.is_err() {
             debug!(
-                "cannot parse node: {} address: {}",
-                self.name.as_ref()?,
-                self.address.as_ref()?
+                "field 'address': {} for 'Node': {} is invalid",
+                self.address.as_ref()?,
+                self.name.as_ref()?
             );
             return Some(format!(
-                "cannot parse node: {} address: {}",
-                self.name.as_ref()?,
-                self.address.as_ref()?
+                "field 'address': {} for 'Node': {} is invalid",
+                self.address.as_ref()?,
+                self.name.as_ref()?
             ));
         }
-        self.port.set(port.unwrap());
+        let ip = addr.unwrap();
+        self.host.replace(ip.ip().to_string());
+        self.port.set(ip.port());
         None
     }
 }
@@ -116,7 +102,6 @@ impl Validatable for Node {
 
         if self
             .disks
-            .as_ref()?
             .iter()
             .group_by(|x| x.name.clone())
             .into_iter()
@@ -171,16 +156,21 @@ impl Validatable for Replica {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct VDisk {
     pub id: Option<i32>,
-    pub replicas: Option<Vec<Replica>>,
+    #[serde(default)]
+    pub replicas: Vec<Replica>,
 }
 
 impl Validatable for VDisk {
     fn validate(&self) -> Option<String> {
         if self.id.is_none() {
-            debug!("field 'id' for 'VDisk' is invalid");
-            return Some("field 'id' for 'VDisk' is invalid".to_string());
+            debug!("field 'id' for 'VDisk' is not set");
+            return Some("field 'id' for 'VDisk' is not set".to_string());
         }
 
+        if self.replicas.len() == 0 {
+            debug!("vdisk must have replicas: {}", self.id.as_ref()?);
+            return Some(format!("vdisk must have replicas: {}", self.id.as_ref()?));
+        }
         let result = self.aggregate(&self.replicas);
         if result.is_some() {
             debug!("vdisk is invalid: {}", self.id.as_ref()?);
@@ -189,7 +179,6 @@ impl Validatable for VDisk {
 
         if self
             .replicas
-            .as_ref()?
             .iter()
             .group_by(|x| x.clone())
             .into_iter()
@@ -210,17 +199,19 @@ impl Validatable for VDisk {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Cluster {
-    pub nodes: Option<Vec<Node>>,
-    pub vdisks: Option<Vec<VDisk>>,
+    #[serde(default)]
+    pub nodes: Vec<Node>,
+    #[serde(default)]
+    pub vdisks: Vec<VDisk>,
 }
 
 impl Validatable for Cluster {
     fn validate(&self) -> Option<String> {
-        if self.nodes.is_none() {
+        if self.nodes.len() == 0 {
             debug!("no nodes in config");
             return Some("no nodes in config".to_string());
         }
-        if self.vdisks.is_none() {
+        if self.vdisks.len() == 0 {
             debug!("no vdisks in config");
             return Some("no vdisks in config".to_string());
         }
@@ -237,7 +228,6 @@ impl Validatable for Cluster {
 
         if self
             .vdisks
-            .as_ref()?
             .iter()
             .group_by(|x| x.id)
             .into_iter()
@@ -251,7 +241,6 @@ impl Validatable for Cluster {
         }
         if self
             .nodes
-            .as_ref()?
             .iter()
             .group_by(|x| x.name.clone())
             .into_iter()
@@ -264,15 +253,20 @@ impl Validatable for Cluster {
             return Some("config contains duplicates nodes names".to_string());
         }
 
-        for node in self.nodes.as_ref()?.iter() {
-            node.prepare();
+        let err = self
+            .nodes
+            .iter()
+            .filter_map(|x| x.prepare())
+            .fold("".to_string(), |acc, x| acc + "\n" + &x);
+        if !err.is_empty() {
+            return Some(err);
         }
 
-        for vdisk in self.vdisks.as_ref()?.iter() {
-            for replica in vdisk.replicas.as_ref()?.iter() {
-                match self.nodes.as_ref()?.iter().find(|x| x.name == replica.node) {
+        for vdisk in self.vdisks.iter() {
+            for replica in vdisk.replicas.iter() {
+                match self.nodes.iter().find(|x| x.name == replica.node) {
                     Some(node) => {
-                        if node.disks.as_ref()?.iter().find(|x| x.name == replica.disk) == None {
+                        if node.disks.iter().find(|x| x.name == replica.disk) == None {
                             debug!(
                                 "cannot find in node: {}, disk with name: {} for vdisk: {}",
                                 replica.node.as_ref()?,
@@ -307,63 +301,33 @@ impl Validatable for Cluster {
     }
 }
 
-use crate::core::data::Node as DataNode;
-use crate::core::data::NodeDisk as DataNodeDisk;
-use crate::core::data::VDisk as DataVDisk;
-
-use std::collections::HashMap;
-
-pub trait BobConfig {
-    fn get_cluster_config(&self, filename: &String) -> Result<Vec<DataVDisk>, String>;
-
-    fn read_config(&self, filename: &String) -> Result<Cluster, String>;
-    fn parse_config(&self, config: &String) -> Result<Cluster, String>;
+pub trait BobClusterConfig {
+    fn get(&self, filename: &str) -> Result<Vec<DataVDisk>, String>;
     fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>>;
 }
 
-pub struct YamlConfig {}
+pub struct ClusterConfigYaml {}
 
-impl BobConfig for YamlConfig {
-    fn read_config(&self, filename: &String) -> Result<Cluster, String> {
-        let result: Result<String, _> = fs::read_to_string(filename);
-        match result {
-            Ok(config) => return self.parse_config(&config),
-            Err(e) => {
-                debug!("error on file opening: {}", e);
-                return Err(format!("error on file opening: {}", e));
-            }
-        }
-    }
-    fn parse_config(&self, config: &String) -> Result<Cluster, String> {
-        let result: Result<Cluster, _> = serde_yaml::from_str(config);
-        match result {
-            Ok(cluster) => return Ok(cluster),
-            Err(e) => {
-                debug!("error on yaml parsing: {}", e);
-                return Err(format!("error on yaml parsing: {}", e));
-            }
-        }
-    }
+impl BobClusterConfig for ClusterConfigYaml {
     fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>> {
         let mut node_map: HashMap<&Option<String>, (&Node, HashMap<&Option<String>, String>)> =
             HashMap::new();
-        for node in cluster.nodes.as_ref()?.iter() {
+        for node in cluster.nodes.iter() {
             let disk_map = node
                 .disks
-                .as_ref()?
                 .iter()
                 .map(|disk| (&disk.name, disk.path.as_ref().unwrap().clone()))
                 .collect::<HashMap<_, _>>();
             node_map.insert(&node.name, (node, disk_map));
         }
 
-        let mut result: Vec<DataVDisk> = Vec::with_capacity(cluster.vdisks.as_ref()?.len());
-        for vdisk in cluster.vdisks.as_ref()?.iter() {
+        let mut result: Vec<DataVDisk> = Vec::with_capacity(cluster.vdisks.len());
+        for vdisk in cluster.vdisks.iter() {
             let mut disk = DataVDisk {
                 id: vdisk.id? as u32,
-                replicas: Vec::with_capacity(vdisk.replicas.as_ref()?.len()),
+                replicas: Vec::with_capacity(vdisk.replicas.len()),
             };
-            for replica in vdisk.replicas.as_ref()?.iter() {
+            for replica in vdisk.replicas.iter() {
                 let finded_node = node_map.get(&replica.node).unwrap();
                 let path = finded_node.1.get(&replica.disk).unwrap();
 
@@ -371,7 +335,7 @@ impl BobConfig for YamlConfig {
                     path: path.to_string(),
                     node: DataNode {
                         host: finded_node.0.host.borrow().to_string(),
-                        port: finded_node.0.port.get() as u16,
+                        port: finded_node.0.port.get(),
                     },
                 };
                 disk.replicas.push(node_disk);
@@ -380,18 +344,13 @@ impl BobConfig for YamlConfig {
         }
         Some(result)
     }
-    fn get_cluster_config(&self, filename: &String) -> Result<Vec<DataVDisk>, String> {
-        let file = self.read_config(filename);
-        match file {
-            Ok(config) => {
-                let is_valid = config.validate();
-                if is_valid.is_some() {
-                    debug!("config is not valid: {}", is_valid.as_ref().unwrap());
-                    return Err(format!("config is not valid: {}", is_valid.unwrap()));
-                }
-                return Ok(self.convert_to_data(&config).unwrap());
-            }
-            _ => return Err("".to_string()),
+    fn get(&self, filename: &str) -> Result<Vec<DataVDisk>, String> {
+        let config: Cluster = YamlBobConfigReader {}.get(filename)?;
+        let is_valid = config.validate();
+        if is_valid.is_some() {
+            debug!("config is not valid: {}", is_valid.as_ref().unwrap());
+            return Err(format!("config is not valid: {}", is_valid.unwrap()));
         }
+        return Ok(self.convert_to_data(&config).unwrap());
     }
 }
