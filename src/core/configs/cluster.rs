@@ -340,17 +340,12 @@ impl BobClusterConfig for ClusterConfigYaml {
         Some(result)
     }
     fn get(&self, filename: &String) -> Result<Vec<DataVDisk>, String> {
-        let file: Result<Cluster, String> = YamlBobConfigReader{}.get(filename);
-        match file {
-            Ok(config) => {
-                let is_valid = config.validate();
-                if is_valid.is_some() {
-                    debug!("config is not valid: {}", is_valid.as_ref().unwrap());
-                    return Err(format!("config is not valid: {}", is_valid.unwrap()));
-                }
-                return Ok(self.convert_to_data(&config).unwrap());
-            }
-            Err(e) => return Err(e),
+        let config: Cluster = YamlBobConfigReader{}.get(filename)?;
+        let is_valid = config.validate();
+        if is_valid.is_some() {
+            debug!("config is not valid: {}", is_valid.as_ref().unwrap());
+            return Err(format!("config is not valid: {}", is_valid.unwrap()));
         }
+        return Ok(self.convert_to_data(&config).unwrap());
     }
 }
