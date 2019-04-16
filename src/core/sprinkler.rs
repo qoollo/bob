@@ -1,6 +1,6 @@
 use crate::core::bob_client::BobClient;
 use crate::core::data::{
-    print_vec, BobData, BobError, BobGetResult, BobKey, ClusterResult, Node, NodeDisk, VDisk,
+    print_vec, BobData, BobError, BobGetResult, BobKey, ClusterResult, Node, NodeDisk, VDisk, VDiskId, VDiskMapper
 };
 use crate::core::link_manager::{LinkManager, NodeLink};
 
@@ -21,6 +21,7 @@ pub struct Sprinkler {
     cluster: Cluster,
     quorum: u8,
     link_manager: Arc<LinkManager>,
+    mapper: VDiskMapper
 }
 
 pub struct SprinklerGetResult {
@@ -67,7 +68,7 @@ impl Sprinkler {
     pub fn new() -> Sprinkler {
         let ex_cluster = Cluster {
             vdisks: vec![VDisk {
-                id: 0,
+                id: VDiskId::new(0),
                 replicas: vec![
                     NodeDisk {
                         node: Node {
@@ -91,10 +92,13 @@ impl Sprinkler {
             .iter()
             .flat_map(|vdisk| vdisk.replicas.iter().map(|nd| nd.node.clone()))
             .collect();
+
+        let vdisk_count = ex_cluster.vdisks.iter().count() as u32;
         Sprinkler {
             quorum: 1,
             cluster: ex_cluster,
             link_manager: Arc::new(LinkManager::new(nodes, Duration::from_millis(3000))),
+            mapper: VDiskMapper::new(vdisk_count)
         }
     }
 
@@ -184,18 +188,15 @@ impl Sprinkler {
         )
     }
 
-    fn calc_target_nodes(&self, _key: BobKey) -> Vec<Node> {
-        let target_vdisks: Vec<VDisk> = self
+    fn calc_target_nodes(&self, key: BobKey) -> Vec<Node> {
+        let vdisk_id = self.mapper.get_id(key);
+        let target_vdisk = self
             .cluster
             .vdisks
             .iter()
-            .filter(|disk| disk.id == 0)
-            .cloned()
-            .collect();
+            .find(|disk| disk.id == vdisk_id).unwrap();
 
-        let mut target_nodes: Vec<_> = target_vdisks
-            .iter()
-            .flat_map(|node_disk| node_disk.replicas.iter().map(|nd| nd.node.clone()))
+        let mut target_nodes: Vec<_> = target_vdisk.replicas.iter().map(|nd| nd.node.clone())
             .collect();
         target_nodes.dedup();
         target_nodes

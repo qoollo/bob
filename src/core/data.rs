@@ -46,12 +46,28 @@ bitflags! {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct VDisk {
-    pub id: u32,
-    pub replicas: Vec<NodeDisk>,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VDiskId{
+    id: u32
 }
 
+impl VDiskId {
+    pub fn new(id: u32) -> VDiskId {
+        VDiskId { id }
+    }
+}
+
+impl std::fmt::Display for VDiskId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.id)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct VDisk {
+    pub id: VDiskId,
+    pub replicas: Vec<NodeDisk>,
+}
 impl std::fmt::Display for VDisk {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
@@ -64,6 +80,22 @@ impl std::fmt::Display for VDisk {
                 .collect::<Vec<_>>()
                 .join(",")
         )
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct VDiskMapper {
+    vdisk_count: u32
+}
+
+impl VDiskMapper {
+    pub fn new(vdisk_count: u32) -> VDiskMapper {
+        VDiskMapper {
+            vdisk_count
+        }
+    }
+    pub fn get_id(&self, key: BobKey) -> VDiskId {
+        VDiskId::new((key.key % self.vdisk_count as u64) as u32)
     }
 }
 
