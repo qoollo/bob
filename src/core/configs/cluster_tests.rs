@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::core::configs::cluster::*;
+    use crate::core::configs::node::*;
     use crate::core::configs::reader::*;
 
     #[test]
@@ -526,5 +527,69 @@ vdisks:
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_some());
+    }
+
+    #[test]
+    fn test_node_config() {
+        let s = "
+log_level: Debug
+name: no
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_none());
+    }
+
+    #[test]
+    fn test_node_config_valid() {
+        let s = "
+log_level: Debug
+name: n1
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_none());
+        let s1 = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:11111111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d2
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+";
+        let cl: Cluster = YamlBobConfigReader {}.parse(s1).unwrap();
+        assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_ok());
+    }
+
+    #[test]
+    fn test_node_config_invalid() {
+        let s = "
+log_level: Debug
+name: 1n2112321321321321
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_none());
+        let s1 = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:11111111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d2
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+";
+        let cl: Cluster = YamlBobConfigReader {}.parse(s1).unwrap();
+        assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_err());
     }
 }
