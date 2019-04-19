@@ -167,7 +167,7 @@ impl Validatable for VDisk {
             return Some("field 'id' for 'VDisk' is not set".to_string());
         }
 
-        if self.replicas.len() == 0 {
+        if self.replicas.is_empty() {
             debug!("vdisk must have replicas: {}", self.id.as_ref()?);
             return Some(format!("vdisk must have replicas: {}", self.id.as_ref()?));
         }
@@ -180,7 +180,7 @@ impl Validatable for VDisk {
         if self
             .replicas
             .iter()
-            .group_by(|x| x.clone())
+            .group_by(|&x| x.clone())
             .into_iter()
             .map(|(_, group)| group.count())
             .filter(|x| *x > 1)
@@ -207,11 +207,11 @@ pub struct Cluster {
 
 impl Validatable for Cluster {
     fn validate(&self) -> Option<String> {
-        if self.nodes.len() == 0 {
+        if self.nodes.is_empty() {
             debug!("no nodes in config");
             return Some("no nodes in config".to_string());
         }
-        if self.vdisks.len() == 0 {
+        if self.vdisks.is_empty() {
             debug!("no vdisks in config");
             return Some("no vdisks in config".to_string());
         }
@@ -351,6 +351,6 @@ impl BobClusterConfig for ClusterConfigYaml {
             debug!("config is not valid: {}", is_valid.as_ref().unwrap());
             return Err(format!("config is not valid: {}", is_valid.unwrap()));
         }
-        return Ok((self.convert_to_data(&config).unwrap(), config));
+        Ok((self.convert_to_data(&config).unwrap(), config))
     }
 }
