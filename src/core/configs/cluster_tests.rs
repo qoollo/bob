@@ -534,9 +534,25 @@ vdisks:
         let s = "
 log_level: Debug
 name: no
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100ms
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());
+    }
+
+    #[test]
+    fn test_node_config_invalid_time() {
+        let s = "
+log_level: Debug
+name: no
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100mms
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_some());
     }
 
     #[test]
@@ -544,6 +560,9 @@ name: no
         let s = "
 log_level: Debug
 name: n1
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100sec
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());
@@ -571,6 +590,9 @@ vdisks:
         let s = "
 log_level: Debug
 name: 1n2112321321321321
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100sec
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());

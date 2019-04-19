@@ -1,20 +1,82 @@
-use crate::core::configs::cluster::Cluster;
+use crate::core::configs::cluster::{Cluster, Node};
 use crate::core::configs::reader::{BobConfigReader, Validatable, YamlBobConfigReader};
+use std::cell::RefCell;
+use std::cell::Cell;
+use std::time::Duration;
+use log::LevelFilter;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum LogLevel {
-    Debug,
+    Off,
     Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeConfig {
     pub log_level: Option<LogLevel>,
     pub name: Option<String>,
+    pub quorum: Option<u8>,
+    pub timeout: Option<String>,
+    pub check_interval: Option<String>,
+
+    #[serde(skip)]
+    pub bind_ref: RefCell<String>,
+    #[serde(skip)]
+    pub timeout_ref: Cell<Duration>,
+    #[serde(skip)]
+    pub check_ref: Cell<Duration>,
 }
 
+impl NodeConfig {
+    pub fn bind(&self)-> String {
+        self.bind_ref.borrow().to_string()
+    }
+    pub fn timeout(&self)-> Duration {
+        self.timeout_ref.get()
+    }
+    pub fn check_interval(&self)-> Duration {
+        self.check_ref.get()
+    }
+    pub fn log_level(&self) -> LevelFilter {
+        //self.log_level.unwrap() as i32 as LevelFilter
+        LevelFilter::Debug
+    }
+
+    pub fn prepare(&self, node: &Node)->Result<(), String> {
+        self.bind_ref.replace(node.address.as_ref().unwrap().clone());
+
+        let t: Duration = self.timeout.as_ref().unwrap().clone().parse::<humantime::Duration>().unwrap().into();
+        self.timeout_ref.set(t);
+
+        let t1: Duration = self.check_interval.as_ref().unwrap().clone().parse::<humantime::Duration>().unwrap().into();
+        self.check_ref.set(t1);
+
+        Ok(())
+    }
+}
 impl Validatable for NodeConfig {
     fn validate(&self) -> Option<String> {
+        if self.timeout.is_none() {
+            debug!("field 'timeout' for 'config' is not set");
+            return Some("field 'timeout' for 'config' is not set".to_string());
+        }
+        if self.timeout.as_ref()?.clone().parse::<humantime::Duration>().is_err() {
+            debug!("field 'timeout' for 'config' is not valid");
+            return Some("field 'timeout' for 'config' is not valid".to_string());
+        }
+        if self.check_interval.is_none() {
+            debug!("field 'check_interval' for 'config' is not set");
+            return Some("field 'check_interval' for 'config' is not set".to_string());
+        }
+        if self.check_interval.as_ref()?.clone().parse::<humantime::Duration>().is_err() {
+            debug!("field 'check_interval' for 'config' is not valid");
+            return Some("field 'check_interval' for 'config' is not valid".to_string());
+        }
+
         if self.name.is_none() {
             debug!("field 'name' for 'config' is not set");
             return Some("field 'name' for 'config' is not set".to_string());
@@ -26,6 +88,14 @@ impl Validatable for NodeConfig {
         if self.log_level.is_none() {
             debug!("field 'log_level' for 'config' is not set");
             return Some("field 'log_level' for 'config' is not set".to_string());
+        }
+        if self.quorum.is_none() {
+            debug!("field 'quorum' for 'config' is not set");
+            return Some("field 'quorum' for 'config' is not set".to_string());
+        }
+        if self.quorum?<=0 {
+            debug!("field 'quorum' for 'config' must be greater than 0");
+            return Some("field 'quorum' for 'config' must be greater than 0".to_string());
         }
         None
     }
@@ -51,6 +121,7 @@ impl BobNodeConfig for NodeConfigYaml {
                 node.name.as_ref().unwrap()
             ));
         }
+        node.prepare(finded.unwrap())?;
         Ok(())
     }
 
@@ -62,6 +133,7 @@ impl BobNodeConfig for NodeConfigYaml {
             return Err(format!("config is not valid: {}", is_valid.unwrap()));
         }
         self.check_cluster(cluster, &config)?;
+
 
         Ok(config)
     }

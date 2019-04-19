@@ -75,7 +75,7 @@ pub struct LinkManager {
 }
 
 impl LinkManager {
-    pub fn new(nodes: Vec<Node>, timeout: Duration) -> LinkManager {
+    pub fn new(nodes: Vec<Node>, check_interval: Duration, timeout: Duration) -> LinkManager {
         LinkManager {
             repo: {
                 let mut hm = HashMap::new();
@@ -84,7 +84,7 @@ impl LinkManager {
                 }
                 Arc::new(hm)
             },
-            check_interval: Duration::from_millis(5000),
+            check_interval,
             timeout,
         }
     }
