@@ -186,14 +186,14 @@ impl server::BobApi for BobSrv {
 
 fn main() {
     let matches = App::new("Bob")
-        .arg(            
+        .arg(
             Arg::with_name("cluster")
                 .help("cluster config file")
                 .takes_value(true)
                 .short("c")
                 .long("cluster"),
         )
-        .arg(            
+        .arg(
             Arg::with_name("node")
                 .help("node config file")
                 .takes_value(true)
@@ -204,18 +204,14 @@ fn main() {
 
     let mut rt = Runtime::new().unwrap();
 
-    let cluster_config = matches
-        .value_of("cluster")
-        .expect("expect cluster config");
+    let cluster_config = matches.value_of("cluster").expect("expect cluster config");
     println!("Cluster config: {:?}", cluster_config);
     let (disks, cluster) = ClusterConfigYaml {}.get(cluster_config).unwrap();
 
-    let node_config = matches
-        .value_of("node")
-        .expect("expect node config");
+    let node_config = matches.value_of("node").expect("expect node config");
     println!("Node config: {:?}", node_config);
-    let node = NodeConfigYaml{}.get(node_config, &cluster).unwrap();
-    
+    let node = NodeConfigYaml {}.get(node_config, &cluster).unwrap();
+
     env_logger::builder()
         .filter_module("bob", node.log_level())
         .init();
@@ -232,10 +228,8 @@ fn main() {
 
     let h2_settings = Default::default();
     let mut h2 = Server::new(new_service, h2_settings, rt.executor());
-    
-    let addr = node.bind()
-        .parse()
-        .unwrap();
+
+    let addr = node.bind().parse().unwrap();
     info!("Listen on {:?}", addr);
     let bind = TcpListener::bind(&addr).expect("bind");
 

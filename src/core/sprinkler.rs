@@ -1,9 +1,9 @@
 use crate::core::bob_client::BobClient;
+use crate::core::configs::node::NodeConfig;
 use crate::core::data::{
     print_vec, BobData, BobError, BobGetResult, BobKey, ClusterResult, Node, VDisk,
 };
 use crate::core::link_manager::{LinkManager, NodeLink};
-use crate::core::configs::node::{NodeConfig};
 
 use std::sync::Arc;
 use tokio::prelude::*;
@@ -76,7 +76,11 @@ impl Sprinkler {
         Sprinkler {
             quorum: config.quorum.unwrap(),
             cluster: ex_cluster,
-            link_manager: Arc::new(LinkManager::new(nodes, config.check_interval(), config.timeout())),
+            link_manager: Arc::new(LinkManager::new(
+                nodes,
+                config.check_interval(),
+                config.timeout(),
+            )),
         }
     }
 
