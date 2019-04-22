@@ -43,13 +43,13 @@ impl NodeConfig {
     }
     pub fn log_level(&self) -> LevelFilter {
         match self.log_level {
-            Some(LogLevel::Debug) => return LevelFilter::Debug,
-            Some(LogLevel::Error) => return LevelFilter::Error,
-            Some(LogLevel::Warn) => return LevelFilter::Warn,
-            Some(LogLevel::Info) => return LevelFilter::Info,
-            Some(LogLevel::Trace) => return LevelFilter::Trace,
-            Some(LogLevel::Off) => return LevelFilter::Off,
-            None => return LevelFilter::Off,
+            Some(LogLevel::Debug) => LevelFilter::Debug,
+            Some(LogLevel::Error) => LevelFilter::Error,
+            Some(LogLevel::Warn) => LevelFilter::Warn,
+            Some(LogLevel::Info) => LevelFilter::Info,
+            Some(LogLevel::Trace) => LevelFilter::Trace,
+            Some(LogLevel::Off) => LevelFilter::Off,
+            None => LevelFilter::Off,
         }
     }
 
@@ -127,7 +127,7 @@ impl Validatable for NodeConfig {
             debug!("field 'quorum' for 'config' is not set");
             return Some("field 'quorum' for 'config' is not set".to_string());
         }
-        if self.quorum? <= 0 {
+        if self.quorum? == 0 {
             debug!("field 'quorum' for 'config' must be greater than 0");
             return Some("field 'quorum' for 'config' must be greater than 0".to_string());
         }
