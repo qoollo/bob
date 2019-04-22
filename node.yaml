@@ -1,0 +1,5 @@
+log_level: Debug
+name: local_node
+quorum: 1
+timeout: 3sec
+check_interval: 5000ms

@@ -1,11 +1,11 @@
 use crate::core::bob_client::BobClient;
+use crate::core::configs::node::NodeConfig;
 use crate::core::data::{
     print_vec, BobData, BobError, BobGetResult, BobKey, ClusterResult, Node, NodeDisk, VDisk, VDiskId, VDiskMapper
 };
 use crate::core::link_manager::{LinkManager, NodeLink};
 
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::prelude::*;
 
 use futures::future::*;
@@ -65,27 +65,9 @@ impl std::fmt::Display for SprinklerResult {
 }
 
 impl Sprinkler {
-    pub fn new() -> Sprinkler {
+    pub fn new(disks: &[VDisk], config: &NodeConfig) -> Sprinkler {
         let ex_cluster = Cluster {
-            vdisks: vec![VDisk {
-                id: VDiskId::new(0),
-                replicas: vec![
-                    NodeDisk {
-                        node: Node {
-                            host: "127.0.0.1".to_string(),
-                            port: 20000,
-                        },
-                        path: "/tmp/disk1".to_string(),
-                    },
-                    NodeDisk {
-                        node: Node {
-                            host: "127.0.0.1".to_string(),
-                            port: 20002,
-                        },
-                        path: "/tmp/disk2".to_string(),
-                    },
-                ],
-            }],
+            vdisks: disks.to_vec(),
         };
         let nodes: Vec<_> = ex_cluster
             .vdisks
@@ -95,9 +77,13 @@ impl Sprinkler {
 
         let vdisk_count = ex_cluster.vdisks.iter().count() as u32;
         Sprinkler {
-            quorum: 1,
+            quorum: config.quorum.unwrap(),
             cluster: ex_cluster,
-            link_manager: Arc::new(LinkManager::new(nodes, Duration::from_millis(3000))),
+            link_manager: Arc::new(LinkManager::new(
+                nodes,
+                config.check_interval(),
+                config.timeout(),
+            )),
             mapper: VDiskMapper::new(vdisk_count)
         }
     }

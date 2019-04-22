@@ -1,0 +1,11 @@
+nodes:
+    - name: local_node
+      address: 127.0.0.1:2000
+      disks:
+        - name: disk1
+          path: /tmp/d1
+vdisks:
+    - id: 0
+      replicas:
+        - node: local_node
+          disk: disk1
