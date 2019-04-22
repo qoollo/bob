@@ -8,7 +8,6 @@ use clap::{App, Arg};
 use env_logger;
 use futures::future::{err, ok};
 use futures::{future, Future, Stream};
-use log::LevelFilter;
 use stopwatch::Stopwatch;
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
@@ -186,10 +185,6 @@ impl server::BobApi for BobSrv {
 }
 
 fn main() {
-    env_logger::builder()
-        .filter_module("bob", LevelFilter::Debug)
-        .init();
-
     let matches = App::new("Bob")
         .arg(            
             Arg::with_name("cluster")
@@ -212,15 +207,19 @@ fn main() {
     let cluster_config = matches
         .value_of("cluster")
         .expect("expect cluster config");
-    info!("Cluster config: {:?}", cluster_config);
+    println!("Cluster config: {:?}", cluster_config);
     let (disks, cluster) = ClusterConfigYaml {}.get(cluster_config).unwrap();
 
     let node_config = matches
         .value_of("node")
         .expect("expect node config");
-    info!("Node config: {:?}", node_config);
+    println!("Node config: {:?}", node_config);
     let node = NodeConfigYaml{}.get(node_config, &cluster).unwrap();
     
+    env_logger::builder()
+        .filter_module("bob", node.log_level())
+        .init();
+
     let bob = BobSrv {
         grinder: std::sync::Arc::new(Grinder {
             backend: Backend {},

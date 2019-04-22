@@ -7,7 +7,7 @@ use log::LevelFilter;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum LogLevel {
-    Off,
+    Off = 0,
     Error,
     Warn,
     Info,
@@ -42,8 +42,15 @@ impl NodeConfig {
         self.check_ref.get()
     }
     pub fn log_level(&self) -> LevelFilter {
-        //self.log_level.unwrap() as i32 as LevelFilter
-        LevelFilter::Debug
+        match self.log_level {
+            Some(LogLevel::Debug) => return LevelFilter::Debug,
+            Some(LogLevel::Error) => return LevelFilter::Error,
+            Some(LogLevel::Warn) => return LevelFilter::Warn,
+            Some(LogLevel::Info) => return LevelFilter::Info,
+            Some(LogLevel::Trace) => return LevelFilter::Trace,
+            Some(LogLevel::Off) => return LevelFilter::Off,
+            None => return LevelFilter::Off,
+        }
     }
 
     pub fn prepare(&self, node: &Node)->Result<(), String> {
