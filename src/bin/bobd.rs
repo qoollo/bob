@@ -8,12 +8,15 @@ use clap::{App, Arg};
 use env_logger;
 use futures::future::{err, ok};
 use futures::{future, Future, Stream};
-use log::LevelFilter;
 use stopwatch::Stopwatch;
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 use tower_grpc::{Request, Response};
 use tower_h2::Server;
+
+use bob::core::configs::cluster::{BobClusterConfig, ClusterConfigYaml};
+use bob::core::configs::node::{BobNodeConfig, NodeConfigYaml};
+
 #[macro_use]
 extern crate log;
 
@@ -182,27 +185,41 @@ impl server::BobApi for BobSrv {
 }
 
 fn main() {
-    env_logger::builder()
-        .filter_module("bob", LevelFilter::Debug)
-        .init();
-
     let matches = App::new("Bob")
         .arg(
-            Arg::with_name("bind")
-                .help("server bind point")
+            Arg::with_name("cluster")
+                .help("cluster config file")
                 .takes_value(true)
-                .short("b")
-                .long("bind")
-                .default_value("127.0.0.1:20000"),
+                .short("c")
+                .long("cluster"),
+        )
+        .arg(
+            Arg::with_name("node")
+                .help("node config file")
+                .takes_value(true)
+                .short("n")
+                .long("node"),
         )
         .get_matches();
 
     let mut rt = Runtime::new().unwrap();
 
+    let cluster_config = matches.value_of("cluster").expect("expect cluster config");
+    println!("Cluster config: {:?}", cluster_config);
+    let (disks, cluster) = ClusterConfigYaml {}.get(cluster_config).unwrap();
+
+    let node_config = matches.value_of("node").expect("expect node config");
+    println!("Node config: {:?}", node_config);
+    let node = NodeConfigYaml {}.get(node_config, &cluster).unwrap();
+
+    env_logger::builder()
+        .filter_module("bob", node.log_level())
+        .init();
+
     let bob = BobSrv {
         grinder: std::sync::Arc::new(Grinder {
             backend: Backend {},
-            sprinkler: Sprinkler::new(),
+            sprinkler: Sprinkler::new(&disks, &node),
         }),
     };
 
@@ -212,11 +229,7 @@ fn main() {
     let h2_settings = Default::default();
     let mut h2 = Server::new(new_service, h2_settings, rt.executor());
 
-    let addr = matches
-        .value_of("bind")
-        .unwrap_or_default()
-        .parse()
-        .unwrap();
+    let addr = node.bind().parse().unwrap();
     info!("Listen on {:?}", addr);
     let bind = TcpListener::bind(&addr).expect("bind");
 
