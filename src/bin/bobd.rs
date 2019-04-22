@@ -1,6 +1,7 @@
 use bob::api::grpc::{server, Blob, GetRequest, Null, OpStatus, PutRequest};
 
 use bob::core::backend::{stub_backend::StubBackend, BackendError};
+use bob::core::backend::mem_backend::MemBackend;
 use bob::core::data::{BobData, BobError, BobKey, BobOptions};
 use bob::core::grinder::{Grinder, ServeTypeError, ServeTypeOk};
 use bob::core::sprinkler::Sprinkler;

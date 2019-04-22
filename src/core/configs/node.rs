@@ -15,6 +15,12 @@ pub enum LogLevel {
     Trace,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct DiskPath {
+    pub name: String,
+    pub path: String,
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeConfig {
     pub log_level: Option<LogLevel>,
@@ -22,6 +28,7 @@ pub struct NodeConfig {
     pub quorum: Option<u8>,
     pub timeout: Option<String>,
     pub check_interval: Option<String>,
+    pub in_memory: Option<bool>,
 
     #[serde(skip)]
     pub bind_ref: RefCell<String>,
@@ -29,6 +36,8 @@ pub struct NodeConfig {
     pub timeout_ref: Cell<Duration>,
     #[serde(skip)]
     pub check_ref: Cell<Duration>,
+    #[serde(skip)]
+    pub disks_ref: RefCell<Vec<DiskPath>>,
 }
 
 impl NodeConfig {
@@ -40,6 +49,9 @@ impl NodeConfig {
     }
     pub fn check_interval(&self) -> Duration {
         self.check_ref.get()
+    }
+    pub fn disks(&self) -> Vec<DiskPath> {
+        self.disks_ref.borrow().clone()
     }
     pub fn log_level(&self) -> LevelFilter {
         match self.log_level {
@@ -77,6 +89,10 @@ impl NodeConfig {
             .into();
         self.check_ref.set(t1);
 
+        self.disks_ref.replace(node.disks
+            .iter()
+            .map(|disk| DiskPath {name:disk.name.as_ref().unwrap().clone(), path:disk.path.as_ref().unwrap().clone()})
+            .collect::<Vec<DiskPath>>());
         Ok(())
     }
 }
@@ -85,6 +101,10 @@ impl Validatable for NodeConfig {
         if self.timeout.is_none() {
             debug!("field 'timeout' for 'config' is not set");
             return Some("field 'timeout' for 'config' is not set".to_string());
+        }
+        if self.in_memory.is_none() {
+            debug!("field 'in_memory' for 'config' is not set");
+            return Some("field 'in_memory' for 'config' is not set".to_string());
         }
         if self
             .timeout

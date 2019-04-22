@@ -68,7 +68,7 @@ impl Grinder {
             );
             Either::A(
                 self.backend
-                    .put(&"".to_string(), key, data)
+                    .put(&"".to_string(), 0, key, data) // TODO need vdisk and disk path
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )
@@ -100,7 +100,7 @@ impl Grinder {
             );
             Either::A(
                 self.backend
-                    .get(&"".to_string(), key)
+                    .get(&"".to_string(), 0, key) // TODO need vdisk and disk path
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )

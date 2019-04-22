@@ -5,14 +5,14 @@ use futures_locks::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-struct MemDisk {
+struct VDisk {
     repo: HashMap<BobKey, BobData>,
 }
-
-impl MemDisk {
-    pub fn new() -> MemDisk {
-        MemDisk {
-            repo: HashMap::new(),
+ 
+impl  VDisk {
+    pub fn new() -> VDisk {
+        VDisk{
+            repo: HashMap::<BobKey, BobData>::new()
         }
     }
 
@@ -28,34 +28,65 @@ impl MemDisk {
     }
 }
 
+struct MemDisk {
+    name: String,
+    vdisks: HashMap<u32, VDisk>,
+}
+
+impl MemDisk {
+    pub fn new(name: String, vdisks_count: u32) -> MemDisk {
+        let mut b: HashMap<u32, VDisk> = HashMap::new();
+        for i in 0..vdisks_count {
+            b.insert(i, VDisk::new());
+        }
+        MemDisk {
+            name: name.clone(),
+            vdisks: b,
+        }
+    }
+
+    pub fn put(&mut self, vdisk_id: u32, key: BobKey, data: BobData) {
+        match self.vdisks.get_mut(&vdisk_id) {
+            Some(vdisk) => vdisk.put(key, data),
+            None => (), // TODO log
+        }
+    }
+
+    pub fn get(&self, vdisk_id: u32, key: BobKey) -> Option<BobData> {
+        match self.vdisks.get(&vdisk_id) {
+            Some(vdisk) => vdisk.get(key),
+            None => None, // TODO log
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct MemBackend {
-    vdisks: Arc<RwLock<HashMap<String, MemDisk>>>,
+    disks: Arc<RwLock<HashMap<String, MemDisk>>>,
 }
 
 impl MemBackend {
-    pub fn new(paths: &[String]) -> MemBackend {
-        let mut b: HashMap<String, MemDisk> = HashMap::new();
-        for p in paths.iter() {
-            b.insert(p.clone(), MemDisk::new());
-        }
+    pub fn new(paths: &[String], vdisks_count: u32) -> MemBackend {
+        let b = paths.iter()
+            .map(|p|(p.clone(), MemDisk::new(p.clone(), vdisks_count)))
+            .collect::<HashMap<String, MemDisk>>();
         MemBackend {
-            vdisks: Arc::new(RwLock::new(b)),
+            disks: Arc::new(RwLock::new(b)),
         }
     }
 }
 
 impl Backend for MemBackend {
-    fn put(&self, disk: &String, key: BobKey, data: BobData) -> BackendPutFuture {
+    fn put(&self, disk: &String, vdisk_id: u32, key: BobKey, data: BobData) -> BackendPutFuture {
         let disk = disk.clone();
         debug!("PUT[{}][{}]", key, disk);
         Box::new(self
-            .vdisks
+            .disks
             .write()
-            .then(move |vdisks_lock_res| match vdisks_lock_res {
-                Ok(mut vdisks) => match vdisks.get_mut(&disk) {
+            .then(move |disks_lock_res| match disks_lock_res {
+                Ok(mut disks) => match disks.get_mut(&disk) {
                     Some(mem_disk) => {
-                        mem_disk.put(key, data);
+                        mem_disk.put(vdisk_id, key, data);
                         ok(BackendResult {})
                     }
                     None => {
@@ -66,15 +97,15 @@ impl Backend for MemBackend {
                 Err(_) => err(BackendError::Other),
             }))
     }
-    fn get(&self, disk: &String, key: BobKey) -> BackendGetFuture {
+    fn get(&self, disk: &String, vdisk_id: u32, key: BobKey) -> BackendGetFuture {
         let disk = disk.clone();
         debug!("GET[{}][{}]", key, disk);
         Box::new(self
-            .vdisks
+            .disks
             .read()
-            .then(move |vdisks_lock_res| match vdisks_lock_res {
-                Ok(vdisks) => match vdisks.get(&disk) {
-                    Some(mem_disk) => match mem_disk.get(key) {
+            .then(move |disks_lock_res| match disks_lock_res {
+                Ok(disks) => match disks.get(&disk) {
+                    Some(mem_disk) => match mem_disk.get(vdisk_id, key) {
                                 Some(data) => ok(BackendGetResult { data }),
                                 None => err(BackendError::NotFound),
                             }

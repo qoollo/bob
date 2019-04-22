@@ -538,6 +538,7 @@ name: no
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100ms
+in_memory: false
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());
@@ -551,6 +552,7 @@ name: no
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100mms
+in_memory: false
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_some());
@@ -564,6 +566,7 @@ name: n1
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100sec
+in_memory: false
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());
@@ -594,6 +597,7 @@ name: 1n2112321321321321
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100sec
+in_memory: false
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());

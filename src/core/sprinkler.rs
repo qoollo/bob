@@ -1,7 +1,7 @@
 use crate::core::bob_client::BobClient;
 use crate::core::configs::node::NodeConfig;
 use crate::core::data::{
-    print_vec, BobData, BobError, BobGetResult, BobKey, ClusterResult, Node, NodeDisk, VDisk, VDiskId, VDiskMapper
+    print_vec, BobData, BobError, BobGetResult, BobKey, ClusterResult, Node, VDisk, VDiskMapper
 };
 use crate::core::link_manager::{LinkManager, NodeLink};
 
