@@ -1,5 +1,5 @@
 use crate::core::backend::*;
-use crate::core::data::{BobData, BobKey};
+use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper, WriteOption};
 use futures::future::{err, ok};
 use futures_locks::RwLock;
 use std::collections::HashMap;
@@ -30,14 +30,14 @@ impl  VDisk {
 
 struct MemDisk {
     name: String,
-    vdisks: HashMap<u32, VDisk>,
+    vdisks: HashMap<VDiskId, VDisk>,
 }
 
 impl MemDisk {
     pub fn new(name: String, vdisks_count: u32) -> MemDisk {
-        let mut b: HashMap<u32, VDisk> = HashMap::new();
+        let mut b: HashMap<VDiskId, VDisk> = HashMap::new();
         for i in 0..vdisks_count {
-            b.insert(i, VDisk::new());
+            b.insert(VDiskId::new(i), VDisk::new());
         }
         MemDisk {
             name: name.clone(),
@@ -45,14 +45,14 @@ impl MemDisk {
         }
     }
 
-    pub fn put(&mut self, vdisk_id: u32, key: BobKey, data: BobData) {
+    pub fn put(&mut self, vdisk_id: VDiskId, key: BobKey, data: BobData) {
         match self.vdisks.get_mut(&vdisk_id) {
             Some(vdisk) => vdisk.put(key, data),
             None => (), // TODO log
         }
     }
 
-    pub fn get(&self, vdisk_id: u32, key: BobKey) -> Option<BobData> {
+    pub fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Option<BobData> {
         match self.vdisks.get(&vdisk_id) {
             Some(vdisk) => vdisk.get(key),
             None => None, // TODO log
@@ -74,11 +74,22 @@ impl MemBackend {
             disks: Arc::new(RwLock::new(b)),
         }
     }
+
+    pub fn new2(mapper: &VDiskMapper) -> MemBackend {
+        let b = mapper.local_disks().iter()
+            .map(|p|(p.name.clone(), MemDisk::new(p.name.clone(), 10)))   //TODO usereal vdisks
+            .collect::<HashMap<String, MemDisk>>();
+        MemBackend {
+            disks: Arc::new(RwLock::new(b)),
+        }
+    }
 }
 
 impl Backend for MemBackend {
-    fn put(&self, disk: &String, vdisk_id: u32, key: BobKey, data: BobData) -> BackendPutFuture {
-        let disk = disk.clone();
+    fn put(&self, op: &WriteOption, key: BobKey, data: BobData) -> BackendPutFuture {
+        let disk = op.disk_name.clone();
+        let id = op.vdisk_id.clone();
+
         debug!("PUT[{}][{}]", key, disk);
         Box::new(self
             .disks
@@ -86,7 +97,7 @@ impl Backend for MemBackend {
             .then(move |disks_lock_res| match disks_lock_res {
                 Ok(mut disks) => match disks.get_mut(&disk) {
                     Some(mem_disk) => {
-                        mem_disk.put(vdisk_id, key, data);
+                        mem_disk.put(id, key, data);
                         ok(BackendResult {})
                     }
                     None => {
@@ -97,15 +108,17 @@ impl Backend for MemBackend {
                 Err(_) => err(BackendError::Other),
             }))
     }
-    fn get(&self, disk: &String, vdisk_id: u32, key: BobKey) -> BackendGetFuture {
-        let disk = disk.clone();
+    fn get(&self, op: &WriteOption, key: BobKey) -> BackendGetFuture {
+        let disk = op.disk_name.clone();
+        let id = op.vdisk_id.clone();
+
         debug!("GET[{}][{}]", key, disk);
         Box::new(self
             .disks
             .read()
             .then(move |disks_lock_res| match disks_lock_res {
                 Ok(disks) => match disks.get(&disk) {
-                    Some(mem_disk) => match mem_disk.get(vdisk_id, key) {
+                    Some(mem_disk) => match mem_disk.get(id, key) {
                                 Some(data) => ok(BackendGetResult { data }),
                                 None => err(BackendError::NotFound),
                             }

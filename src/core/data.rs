@@ -1,3 +1,5 @@
+use crate::core::configs::node::NodeConfig;
+
 #[derive(Debug)]
 pub enum BobError {
     Timeout,
@@ -46,9 +48,9 @@ bitflags! {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VDiskId{
-    id: u32
+    pub id: u32 // TODO remove pub
 }
 
 impl VDiskId {
@@ -83,24 +85,105 @@ impl std::fmt::Display for VDisk {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
+pub struct WriteOption {
+    pub vdisk_id: VDiskId,
+    pub disk_name: String,
+    pub disk_path: String,
+    pub local: bool,  // is data belongs local node
+}
+
+impl std::fmt::Display for WriteOption {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "#{}-{}-{}-{}",
+            self.vdisk_id,
+            self.disk_name,
+            self.disk_path,
+            self.local
+        )
+    }
+}
+
+impl WriteOption{
+    pub fn new_other(vdisk_id: VDiskId) -> WriteOption {
+        WriteOption{
+            vdisk_id: vdisk_id,
+            disk_name: "".to_string(),
+            disk_path: "".to_string(),
+            local: false,
+        }
+    }
+    pub fn new_local(vdisk_id: VDiskId, disk_path: &str, disk_name: &str) -> WriteOption {
+        WriteOption{
+            vdisk_id: vdisk_id,
+            disk_path: disk_path.to_string(),
+            disk_name: disk_name.to_string(),
+            local: true,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct DiskPath {
+    pub name: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct VDiskMapper {
-    vdisk_count: u32
+    local_node_name: String,
+    disks: Vec<DiskPath>,
+    vdisks: Vec<VDisk>
 }
 
 impl VDiskMapper {
-    pub fn new(vdisk_count: u32) -> VDiskMapper {
+    pub fn new(vdisks: Vec<VDisk>, config: &NodeConfig) -> VDiskMapper {
         VDiskMapper {
-            vdisk_count
+            vdisks: vdisks,
+            local_node_name: config.name.as_ref().unwrap().to_string(),
+            disks:config.disks().iter().map(|d|DiskPath{name:d.name.clone(), path:d.path.clone()}).collect(),
         }
     }
-    pub fn get_id(&self, key: BobKey) -> VDiskId {
-        VDiskId::new((key.key % self.vdisk_count as u64) as u32)
+
+    pub fn local_disks(&self) -> &Vec<DiskPath> {
+        &self.disks
+    }
+
+    pub fn nodes(&self) -> Vec<Node> {
+        self.vdisks.to_vec()
+            .iter()
+            .flat_map(|vdisk| vdisk.replicas.iter().map(|nd| nd.node.clone()))
+            .collect()
+    }
+
+    pub fn get_vdisk(&self, key: BobKey) -> &VDisk {
+        let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
+        self.vdisks
+            .iter()
+            .find(|disk| disk.id == vdisk_id).unwrap()
+    }
+
+    pub fn get_write(&self, key: BobKey) -> WriteOption {
+        let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
+        let vdisk = self.vdisks
+            .iter()
+            .find(|disk| disk.id == vdisk_id).unwrap();
+        let disk = vdisk.replicas
+            .iter()
+            .find(|disk|disk.node.name == self.local_node_name);
+        if disk.is_none() {
+            trace!("cannot find node: {} for vdisk: {}", self.local_node_name, vdisk_id);
+            return WriteOption::new_other(vdisk_id)
+        }
+        WriteOption::new_local(vdisk_id, &disk.unwrap().path, &disk.unwrap().name)
     }
 }
 
 #[derive(Clone, Eq)]
 pub struct Node {
+    pub name: String,
     pub host: String,
     pub port: u16,
 }
@@ -113,7 +196,7 @@ impl Node {
 
 impl std::fmt::Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}:{}", self.host, self.port)
+        write!(f, "{}={}:{}", self.name, self.host, self.port)
     }
 }
 
@@ -126,7 +209,7 @@ impl std::hash::Hash for Node {
 
 impl std::fmt::Debug for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}:{}", self.host, self.port)
+        write!(f, "{}={}:{}", self.name, self.host, self.port)
     }
 }
 
@@ -140,17 +223,18 @@ impl PartialEq for Node {
 pub struct NodeDisk {
     pub node: Node,
     pub path: String,
+    pub name: String,
 }
 
 impl std::fmt::Display for NodeDisk {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}/{}", self.node, self.path)
+        write!(f, "{}/{}-{}", self.node, self.name, self.path)
     }
 }
 
 impl PartialEq for NodeDisk {
     fn eq(&self, other: &NodeDisk) -> bool {
-        self.node == other.node && self.path == other.path
+        self.node == other.node && self.path == other.path && self.name == other.name
     }
 }
 

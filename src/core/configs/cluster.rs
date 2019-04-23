@@ -334,7 +334,9 @@ impl BobClusterConfig for ClusterConfigYaml {
 
                 let node_disk = DataNodeDisk {
                     path: path.to_string(),
+                    name: replica.disk.as_ref()?.clone(),
                     node: DataNode {
+                        name: replica.node.as_ref()?.clone(),
                         host: finded_node.0.host.borrow().to_string(),
                         port: finded_node.0.port.get(),
                     },

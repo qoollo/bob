@@ -1,10 +1,10 @@
 use bob::api::grpc::{server, Blob, GetRequest, Null, OpStatus, PutRequest};
 
-use bob::core::backend::{stub_backend::StubBackend, BackendError};
+use bob::core::backend::{BackendError};
+use bob::core::backend::stub_backend::StubBackend;
 use bob::core::backend::mem_backend::MemBackend;
-use bob::core::data::{BobData, BobError, BobKey, BobOptions};
+use bob::core::data::{BobData, BobError, BobKey, BobOptions, VDiskMapper};
 use bob::core::grinder::{Grinder, ServeTypeError, ServeTypeOk};
-use bob::core::sprinkler::Sprinkler;
 use clap::{App, Arg};
 use env_logger;
 use futures::future::{err, ok};
@@ -217,11 +217,11 @@ fn main() {
         .filter_module("bob", node.log_level())
         .init();
 
+    let mapper = VDiskMapper::new(disks.to_vec(), &node);
+    let backend = MemBackend::new2(&mapper);
+
     let bob = BobSrv {
-        grinder: std::sync::Arc::new(Grinder {
-            backend: StubBackend {},
-            sprinkler: Sprinkler::new(&disks, &node),
-        }),
+        grinder: std::sync::Arc::new(Grinder::new(mapper, &node, backend)),
     };
 
     rt.spawn(bob.get_periodic_tasks(rt.executor()));

@@ -2,15 +2,18 @@ use tokio::prelude::Future;
 
 //use futures::future::;
 use crate::core::backend::{
-    stub_backend::StubBackend, Backend, BackendError, BackendGetResult, BackendResult,
+    Backend, BackendError, BackendGetResult, BackendResult,
 };
 use crate::core::data::{BobData, BobError, BobGetResult, BobKey, BobOptions, ClusterResult};
 use crate::core::sprinkler::{Sprinkler, SprinklerError, SprinklerResult};
 use futures::future::Either;
+use crate::core::configs::node::NodeConfig;
+use crate::core::data::VDiskMapper;
 
 pub struct Grinder {
-    pub backend: StubBackend,
+    pub backend: Box<dyn Backend + Send + Sync>,
     pub sprinkler: Sprinkler,
+    mapper: VDiskMapper,
 }
 
 #[derive(Debug)]
@@ -50,6 +53,15 @@ impl<CT, BT> ServeTypeError<CT, BT> {
 }
 
 impl Grinder {
+    pub fn new<TBackend>(mapper: VDiskMapper, config: &NodeConfig, backend: TBackend) -> Grinder
+    where TBackend : Backend + Send + Sync +'static{
+        Grinder {
+            backend: Box::new(backend),
+            sprinkler: Sprinkler::new(&mapper, config),
+            mapper: mapper
+        }
+    }
+
     pub fn put(
         &self,
         key: BobKey,
@@ -62,13 +74,15 @@ impl Grinder {
                  + 'static
                  + Send {
         Box::new(if opts.contains(BobOptions::FORCE_NODE) {
+            let write_op = self.mapper.get_write(key);
             debug!(
-                "PUT[{}] flag FORCE_NODE is on - will handle it by local node",
-                key
+                "PUT[{}] flag FORCE_NODE is on - will handle it by local node. Put params: {}",
+                key, write_op
             );
+
             Either::A(
                 self.backend
-                    .put(&"".to_string(), 0, key, data) // TODO need vdisk and disk path
+                    .put(&write_op, key, data) // TODO need vdisk and disk path
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )
@@ -94,13 +108,14 @@ impl Grinder {
                  + 'static
                  + Send {
         Box::new(if opts.contains(BobOptions::FORCE_NODE) {
+            let write_op = self.mapper.get_write(key);
             debug!(
-                "GET[{}] flag FORCE_NODE is on - will handle it by local node",
-                key
+                "GET[{}] flag FORCE_NODE is on - will handle it by local node. Get params: {}",
+                key, write_op
             );
             Either::A(
                 self.backend
-                    .get(&"".to_string(), 0, key) // TODO need vdisk and disk path
+                    .get(&write_op, key) // TODO need vdisk and disk path
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )

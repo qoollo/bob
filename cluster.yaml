@@ -1,6 +1,6 @@
 nodes:
     - name: local_node
-      address: 127.0.0.1:2000
+      address: 127.0.0.1:20000
       disks:
         - name: disk1
           path: /tmp/d1

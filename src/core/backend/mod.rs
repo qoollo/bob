@@ -1,7 +1,7 @@
 pub mod mem_backend;
 pub mod stub_backend;
 pub mod mem_tests;
-use crate::core::data::{BobData, BobKey};
+use crate::core::data::{BobData, BobKey, VDiskId, WriteOption};
 use tokio::prelude::Future;
 
 #[derive(Debug)]
@@ -20,6 +20,6 @@ pub struct BackendGetResult {
 pub type BackendPutFuture = Box<Future<Item = BackendResult, Error = BackendError> + Send>;
 pub type BackendGetFuture = Box<Future<Item = BackendGetResult, Error = BackendError> + Send>;
 pub trait Backend {
-    fn put(&self, disk: &String, vdisk_id: u32, key: BobKey, _data: BobData) -> BackendPutFuture;
-    fn get(&self, disk: &String, vdisk_id: u32, key: BobKey) -> BackendGetFuture;
+    fn put(&self, op: &WriteOption, key: BobKey, _data: BobData) -> BackendPutFuture;
+    fn get(&self, op: &WriteOption, key: BobKey) -> BackendGetFuture;
 }
