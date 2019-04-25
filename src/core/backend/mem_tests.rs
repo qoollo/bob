@@ -13,7 +13,7 @@ mod tests {
         let mut reactor = Core::new().unwrap();
 
         let retval = reactor.run(backend.put(&WriteOption::new_local(VDiskId::new(0), "123", "invalid path"), BobKey {key:1}, BobData{data:vec![0]}));
-        assert_eq!(retval.err().unwrap(), BackendError::NotFound)
+        assert_eq!(retval.err().unwrap(), BackendError::Other)
     }
 
         #[test]
@@ -33,7 +33,7 @@ mod tests {
 
         reactor.run(backend.put(&WriteOption::new_local(VDiskId::new(0), "123", "path"), BobKey {key:1}, BobData{data:vec![1]})).unwrap();
         let retval = reactor.run(backend.get(&WriteOption::new_local(VDiskId::new(0), "123", "invalid path"), BobKey {key:1}));
-        assert_eq!(retval.err().unwrap(), BackendError::NotFound)
+        assert_eq!(retval.err().unwrap(), BackendError::Other)
     }
 
     #[test]

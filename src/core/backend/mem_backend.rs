@@ -5,36 +5,55 @@ use futures_locks::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+#[derive(Clone)]
 struct VDisk {
-    repo: HashMap<BobKey, BobData>,
+    repo: Arc<RwLock<HashMap<BobKey, BobData>>>,
 }
  
-impl  VDisk {
+impl VDisk {
     pub fn new() -> VDisk {
         VDisk{
-            repo: HashMap::<BobKey, BobData>::new()
+            repo: Arc::new(RwLock::new(HashMap::<BobKey, BobData>::new())),
         }
     }
 
-    pub fn put(&mut self, key: BobKey, data: BobData) {
+    fn put(&self, key: BobKey, data: BobData) -> BackendPutFuture {
         trace!("PUT[{}] to vdisk", key);
-        self.repo.insert(key, data);
+        Box::new(self
+            .repo
+            .write()
+            .then(move |disks_lock_res| match disks_lock_res {
+                Ok(mut repo) => {
+                    repo.insert(key, data);
+                    ok(BackendResult {})
+                },
+                Err(_) => err(BackendError::Other),
+            })
+        )
+
     }
 
-    pub fn get(&self, key: BobKey) -> Option<BobData> {
-        match self.repo.get(&key) {
-            Some(data) => {
-                trace!("GET[{}] from vdisk", key);
-                Some(data.clone())
-            },
-            None => {
-                trace!("GET[{}] from vdisk failed. Cannot find key", key);
-                None
-            },
-        }
+    fn get(&self, key: BobKey) -> BackendGetFuture {
+        Box::new(self
+            .repo
+            .read()
+            .then(move |repo_lock_res| match repo_lock_res {
+                Ok(repo) => match repo.get(&key) {
+                    Some(data) => {
+                        trace!("GET[{}] from vdisk", key);
+                        ok(BackendGetResult { data: data.clone() })
+                    }
+                    None => {
+                        trace!("GET[{}] from vdisk failed. Cannot find key", key);
+                        err(BackendError::NotFound)
+                    }
+                },
+                Err(_) => err(BackendError::Other),
+            }))
     }
 }
 
+#[derive(Clone)]
 struct MemDisk {
     name: String,
     vdisks: HashMap<VDiskId, VDisk>,
@@ -63,19 +82,7 @@ impl MemDisk {
         }
     }
 
-    pub fn put(&mut self, vdisk_id: VDiskId, key: BobKey, data: BobData) {
-        match self.vdisks.get_mut(&vdisk_id) {
-            Some(vdisk) => {
-                trace!("PUT[{}] to vdisk: {} for disk: {}", key, vdisk_id, self.name);
-                vdisk.put(key, data)
-            },
-            None => {
-                trace!("PUT[{}] to vdisk: {} failed. Cannot find vdisk for disk: {}", key, vdisk_id, self.name);
-            },
-        }
-    }
-
-    pub fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Option<BobData> {
+    pub fn get(&self, vdisk_id: VDiskId, key: BobKey) -> BackendGetFuture {
         match self.vdisks.get(&vdisk_id) {
             Some(vdisk) => {
                 trace!("GET[{}] from vdisk: {} for disk: {}", key, vdisk_id, self.name);
@@ -83,15 +90,28 @@ impl MemDisk {
             },
             None => {
                 trace!("GET[{}] from vdisk: {} failed. Cannot find vdisk for disk: {}", key, vdisk_id, self.name);
-                None
+                Box::new(err(BackendError::Other))
             },
         }
+    }
+
+    pub fn put(&self, vdisk_id: VDiskId, key: BobKey, data: BobData) -> BackendPutFuture {
+        match self.vdisks.get(&vdisk_id) {
+            Some(vdisk) => {
+                trace!("PUT[{}] to vdisk: {} for disk: {}", key, vdisk_id, self.name);
+                vdisk.put(key, data)
+            },
+            None => {
+                trace!("PUT[{}] to vdisk: {} failed. Cannot find vdisk for disk: {}", key, vdisk_id, self.name);
+                Box::new(err(BackendError::Other))
+            },
+        }  
     }
 }
 
 #[derive(Clone)]
 pub struct MemBackend {
-    disks: Arc<RwLock<HashMap<String, MemDisk>>>,
+    disks: HashMap<String, MemDisk>,
 }
 
 impl MemBackend {
@@ -100,7 +120,7 @@ impl MemBackend {
             .map(|p|(p.clone(), MemDisk::new_test(p.clone(), vdisks_count)))
             .collect::<HashMap<String, MemDisk>>();
         MemBackend {
-            disks: Arc::new(RwLock::new(b)),
+            disks: b,
         }
     }
 
@@ -109,7 +129,7 @@ impl MemBackend {
             .map(|node_disk|(node_disk.name.clone(), MemDisk::new(node_disk.name.clone(), mapper)))
             .collect::<HashMap<String, MemDisk>>();
         MemBackend {
-            disks: Arc::new(RwLock::new(b)),
+            disks: b,
         }
     }
 }
@@ -119,44 +139,29 @@ impl Backend for MemBackend {
         let disk = op.disk_name.clone();
         let id = op.vdisk_id.clone();
 
-        debug!("PUT[{}][{}]", key, disk);
-        Box::new(self
-            .disks
-            .write()
-            .then(move |disks_lock_res| match disks_lock_res {
-                Ok(mut disks) => match disks.get_mut(&disk) {
-                    Some(mem_disk) => {
-                        mem_disk.put(id, key, data);
-                        ok(BackendResult {})
-                    }
-                    None => {
-                        error!("PUT[{}][{}] Can't find disk {}", key, disk, disk);
-                        err(BackendError::NotFound)
-                    }
-                },
-                Err(_) => err(BackendError::Other),
-            }))
+        debug!("PUT[{}][{}] to backend", key, disk);
+        match self.disks.get(&disk) {
+            Some(mem_disk) => {
+                mem_disk.put(id, key, data)
+            }
+            None => {
+                error!("PUT[{}][{}] Can't find disk {}", key, disk, disk);
+                Box::new(err(BackendError::Other))
+            }
+        }
     }
+    
     fn get(&self, op: &WriteOption, key: BobKey) -> BackendGetFuture {
         let disk = op.disk_name.clone();
         let id = op.vdisk_id.clone();
 
-        debug!("GET[{}][{}]", key, disk);
-        Box::new(self
-            .disks
-            .read()
-            .then(move |disks_lock_res| match disks_lock_res {
-                Ok(disks) => match disks.get(&disk) {
-                    Some(mem_disk) => match mem_disk.get(id, key) {
-                                Some(data) => ok(BackendGetResult { data }),
-                                None => err(BackendError::NotFound),
-                            }
-                    None => {
-                        error!("GET[{}][{}] Can't find disk {}", key, disk, disk);
-                        err(BackendError::NotFound)
-                    }
-                },
-                Err(_) => err(BackendError::Other),
-            }))
+        debug!("GET[{}][{}] to backend", key, disk);
+        match self.disks.get(&disk) {
+            Some(mem_disk) => mem_disk.get(id, key),
+            None => {
+                error!("GET[{}][{}] Can't find disk {}", key, disk, disk);
+                Box::new(err(BackendError::Other))
+            }
+        }
     }
 }
