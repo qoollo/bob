@@ -538,10 +538,40 @@ name: no
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100ms
-in_memory: false
+backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());
+    }
+    #[test]
+    fn test_node_config_invalid_backend_type() {
+        let s = "
+log_level: Debug
+name: n1
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100sec
+backend_type: InvalidType
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_none());
+        let s1 = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:11111111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d2
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+";
+        let cl: Cluster = YamlBobConfigReader {}.parse(s1).unwrap();
+        assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_err());
     }
 
     #[test]
@@ -552,7 +582,7 @@ name: no
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100mms
-in_memory: false
+backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_some());
@@ -566,7 +596,7 @@ name: n1
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100sec
-in_memory: false
+backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());
@@ -597,7 +627,7 @@ name: 1n2112321321321321
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100sec
-in_memory: false
+backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());

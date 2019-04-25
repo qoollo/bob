@@ -41,7 +41,7 @@ struct MemDisk {
 }
 
 impl MemDisk {
-    pub fn new(name: String, vdisks_count: u32) -> MemDisk {
+    pub fn new_test(name: String, vdisks_count: u32) -> MemDisk {
         let mut b: HashMap<VDiskId, VDisk> = HashMap::new();
         for i in 0..vdisks_count {
             b.insert(VDiskId::new(i), VDisk::new());
@@ -52,7 +52,7 @@ impl MemDisk {
         }
     }
 
-    pub fn new2(name: String, mapper: &VDiskMapper) -> MemDisk {
+    pub fn new(name: String, mapper: &VDiskMapper) -> MemDisk {
         let b: HashMap<VDiskId, VDisk> =  mapper.get_vdisks_by_disk(&name)
             .iter()
             .map(|id|(id.clone(), VDisk::new()))
@@ -95,18 +95,18 @@ pub struct MemBackend {
 }
 
 impl MemBackend {
-    pub fn new(paths: &[String], vdisks_count: u32) -> MemBackend {
+    pub fn new_test(paths: &[String], vdisks_count: u32) -> MemBackend {
         let b = paths.iter()
-            .map(|p|(p.clone(), MemDisk::new(p.clone(), vdisks_count)))
+            .map(|p|(p.clone(), MemDisk::new_test(p.clone(), vdisks_count)))
             .collect::<HashMap<String, MemDisk>>();
         MemBackend {
             disks: Arc::new(RwLock::new(b)),
         }
     }
 
-    pub fn new2(mapper: &VDiskMapper) -> MemBackend {
+    pub fn new(mapper: &VDiskMapper) -> MemBackend {
         let b = mapper.local_disks().iter()
-            .map(|node_disk|(node_disk.name.clone(), MemDisk::new2(node_disk.name.clone(), mapper)))
+            .map(|node_disk|(node_disk.name.clone(), MemDisk::new(node_disk.name.clone(), mapper)))
             .collect::<HashMap<String, MemDisk>>();
         MemBackend {
             disks: Arc::new(RwLock::new(b)),

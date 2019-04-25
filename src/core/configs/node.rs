@@ -21,6 +21,12 @@ pub struct DiskPath {
     pub path: String,
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
+pub enum BackendType {
+    InMemory = 0,
+    Stub,
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeConfig {
     pub log_level: Option<LogLevel>,
@@ -28,7 +34,8 @@ pub struct NodeConfig {
     pub quorum: Option<u8>,
     pub timeout: Option<String>,
     pub check_interval: Option<String>,
-    pub in_memory: Option<bool>,
+    
+    pub backend_type: Option<String>,
 
     #[serde(skip)]
     pub bind_ref: RefCell<String>,
@@ -64,7 +71,19 @@ impl NodeConfig {
             None => LevelFilter::Off,
         }
     }
-
+    pub fn backend_type(&self) -> BackendType {
+        self.backend_result().unwrap()
+    }
+    fn backend_result(&self)-> Result<BackendType, String> {
+        let value = self.backend_type.as_ref().unwrap().clone();
+        if value == "in_memory".to_string() {
+            return Ok(BackendType::InMemory);
+        }
+        if value == "stub".to_string() {
+            return Ok(BackendType::Stub);
+        }
+         Err(format!("unknown backend type: {}", value))
+    }
     pub fn prepare(&self, node: &Node) -> Result<(), String> {
         self.bind_ref
             .replace(node.address.as_ref().unwrap().clone());
@@ -93,6 +112,8 @@ impl NodeConfig {
             .iter()
             .map(|disk| DiskPath {name:disk.name.as_ref().unwrap().clone(), path:disk.path.as_ref().unwrap().clone()})
             .collect::<Vec<DiskPath>>());
+
+        self.backend_result()?;
         Ok(())
     }
 }
@@ -102,9 +123,9 @@ impl Validatable for NodeConfig {
             debug!("field 'timeout' for 'config' is not set");
             return Some("field 'timeout' for 'config' is not set".to_string());
         }
-        if self.in_memory.is_none() {
-            debug!("field 'in_memory' for 'config' is not set");
-            return Some("field 'in_memory' for 'config' is not set".to_string());
+        if self.backend_type.is_none() {
+            debug!("field 'backend_type' for 'config' is not set");
+            return Some("field 'backend_type' for 'config' is not set".to_string());
         }
         if self
             .timeout

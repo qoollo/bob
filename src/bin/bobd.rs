@@ -1,8 +1,7 @@
 use bob::api::grpc::{server, Blob, GetRequest, Null, OpStatus, PutRequest};
 
 use bob::core::backend::{BackendError};
-use bob::core::backend::stub_backend::StubBackend;
-use bob::core::backend::mem_backend::MemBackend;
+
 use bob::core::data::{BobData, BobError, BobKey, BobOptions, VDiskMapper};
 use bob::core::grinder::{Grinder, ServeTypeError, ServeTypeOk};
 use clap::{App, Arg};
@@ -218,10 +217,8 @@ fn main() {
         .init();
 
     let mapper = VDiskMapper::new(disks.to_vec(), &node);
-    let backend = MemBackend::new2(&mapper);
-
     let bob = BobSrv {
-        grinder: std::sync::Arc::new(Grinder::new(mapper, &node, backend)),
+        grinder: std::sync::Arc::new(Grinder::new(mapper, &node)),
     };
 
     rt.spawn(bob.get_periodic_tasks(rt.executor()));

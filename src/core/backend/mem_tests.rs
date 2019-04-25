@@ -9,7 +9,7 @@ mod tests {
 
     #[test]
     fn test_mem_put_wrong_disk() {
-        let backend = MemBackend::new(&["path".to_string()], vdisks_count);
+        let backend = MemBackend::new_test(&["path".to_string()], vdisks_count);
         let mut reactor = Core::new().unwrap();
 
         let retval = reactor.run(backend.put(&WriteOption::new_local(VDiskId::new(0), "123", "invalid path"), BobKey {key:1}, BobData{data:vec![0]}));
@@ -18,7 +18,7 @@ mod tests {
 
         #[test]
     fn test_mem_put_get() {
-        let backend = MemBackend::new(&["path".to_string()], vdisks_count);
+        let backend = MemBackend::new_test(&["path".to_string()], vdisks_count);
         let mut reactor = Core::new().unwrap();
         
         reactor.run(backend.put(&WriteOption::new_local(VDiskId::new(0), "123", "path"), BobKey {key:1}, BobData{data:vec![1]})).unwrap();
@@ -28,7 +28,7 @@ mod tests {
 
     #[test]
     fn test_mem_get_wrong_disk() {
-        let backend = MemBackend::new(&["path".to_string()], vdisks_count);
+        let backend = MemBackend::new_test(&["path".to_string()], vdisks_count);
         let mut reactor = Core::new().unwrap();
 
         reactor.run(backend.put(&WriteOption::new_local(VDiskId::new(0), "123", "path"), BobKey {key:1}, BobData{data:vec![1]})).unwrap();
@@ -38,7 +38,7 @@ mod tests {
 
     #[test]
     fn test_mem_get_no_data() {
-        let backend = MemBackend::new(&["path".to_string()], vdisks_count);
+        let backend = MemBackend::new_test(&["path".to_string()], vdisks_count);
         let mut reactor = Core::new().unwrap();
 
         let retval = reactor.run(backend.get(&WriteOption::new_local(VDiskId::new(0), "123", "path"), BobKey {key:1}));
