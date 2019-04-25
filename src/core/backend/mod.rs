@@ -1,7 +1,7 @@
 pub mod mem_backend;
 pub mod stub_backend;
 pub mod mem_tests;
-use crate::core::data::{BobData, BobKey, VDiskId, WriteOption};
+use crate::core::data::{BobData, BobKey, WriteOption};
 use tokio::prelude::Future;
 
 #[derive(Debug)]

@@ -17,13 +17,20 @@ impl  VDisk {
     }
 
     pub fn put(&mut self, key: BobKey, data: BobData) {
+        trace!("PUT[{}] to vdisk", key);
         self.repo.insert(key, data);
     }
 
     pub fn get(&self, key: BobKey) -> Option<BobData> {
         match self.repo.get(&key) {
-            Some(data) => Some(data.clone()),
-            None => None,
+            Some(data) => {
+                trace!("GET[{}] from vdisk", key);
+                Some(data.clone())
+            },
+            None => {
+                trace!("GET[{}] from vdisk failed. Cannot find key", key);
+                None
+            },
         }
     }
 }
@@ -45,17 +52,39 @@ impl MemDisk {
         }
     }
 
+    pub fn new2(name: String, mapper: &VDiskMapper) -> MemDisk {
+        let b: HashMap<VDiskId, VDisk> =  mapper.get_vdisks_by_disk(&name)
+            .iter()
+            .map(|id|(id.clone(), VDisk::new()))
+            .collect::<HashMap<VDiskId, VDisk>>();
+        MemDisk {
+            name: name.clone(),
+            vdisks: b
+        }
+    }
+
     pub fn put(&mut self, vdisk_id: VDiskId, key: BobKey, data: BobData) {
         match self.vdisks.get_mut(&vdisk_id) {
-            Some(vdisk) => vdisk.put(key, data),
-            None => (), // TODO log
+            Some(vdisk) => {
+                trace!("PUT[{}] to vdisk: {} for disk: {}", key, vdisk_id, self.name);
+                vdisk.put(key, data)
+            },
+            None => {
+                trace!("PUT[{}] to vdisk: {} failed. Cannot find vdisk for disk: {}", key, vdisk_id, self.name);
+            },
         }
     }
 
     pub fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Option<BobData> {
         match self.vdisks.get(&vdisk_id) {
-            Some(vdisk) => vdisk.get(key),
-            None => None, // TODO log
+            Some(vdisk) => {
+                trace!("GET[{}] from vdisk: {} for disk: {}", key, vdisk_id, self.name);
+                vdisk.get(key)
+            },
+            None => {
+                trace!("GET[{}] from vdisk: {} failed. Cannot find vdisk for disk: {}", key, vdisk_id, self.name);
+                None
+            },
         }
     }
 }
@@ -77,7 +106,7 @@ impl MemBackend {
 
     pub fn new2(mapper: &VDiskMapper) -> MemBackend {
         let b = mapper.local_disks().iter()
-            .map(|p|(p.name.clone(), MemDisk::new(p.name.clone(), 10)))   //TODO usereal vdisks
+            .map(|node_disk|(node_disk.name.clone(), MemDisk::new2(node_disk.name.clone(), mapper)))
             .collect::<HashMap<String, MemDisk>>();
         MemBackend {
             disks: Arc::new(RwLock::new(b)),

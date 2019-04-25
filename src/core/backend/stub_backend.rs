@@ -1,5 +1,5 @@
 use crate::core::backend::*;
-use crate::core::data::{BobData, BobKey, VDiskId, WriteOption};
+use crate::core::data::{BobData, BobKey, WriteOption};
 use futures::future::ok;
 
 #[derive(Clone)]

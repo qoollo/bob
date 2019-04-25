@@ -165,6 +165,17 @@ impl VDiskMapper {
             .find(|disk| disk.id == vdisk_id).unwrap()
     }
 
+    pub fn get_vdisks_by_disk(&self, disk: &str) -> Vec<VDiskId> {
+        self.vdisks
+            .iter()
+            .filter(|vdisk| vdisk.replicas
+                .iter()
+                .any(|replica| replica.node.name == self.local_node_name 
+                                && replica.name == disk.to_string()))
+            .map(|vdisk| vdisk.id.clone())
+            .collect()
+    }
+
     pub fn get_write(&self, key: BobKey) -> WriteOption {
         let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
         let vdisk = self.vdisks
