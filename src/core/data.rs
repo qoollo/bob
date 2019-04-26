@@ -89,7 +89,7 @@ impl std::fmt::Display for VDisk {
 pub struct BackendOperation {
     pub vdisk_id: VDiskId,
     pub disk_path: Option<DiskPath>,
-    pub local: bool, // is data belongs local node
+    pub alien: bool, // is data belongs local node
 }
 
 impl std::fmt::Display for BackendOperation {
@@ -98,9 +98,9 @@ impl std::fmt::Display for BackendOperation {
             Some(path) => write!(
                 f,
                 "#{}-{}-{}-{}",
-                self.vdisk_id, path.name, path.path, self.local
+                self.vdisk_id, path.name, path.path, self.alien
             ),
-            None => write!(f, "#{}-{}", self.vdisk_id, self.local),
+            None => write!(f, "#{}-{}", self.vdisk_id, self.alien),
         }
     }
 }
@@ -110,18 +110,18 @@ impl BackendOperation {
         BackendOperation {
             vdisk_id,
             disk_path: None,
-            local: false,
+            alien: true,
         }
     }
     pub fn new_local(vdisk_id: VDiskId, path: DiskPath) -> BackendOperation {
         BackendOperation {
             vdisk_id,
             disk_path: Some(path),
-            local: true,
+            alien: false,
         }
     }
-    pub fn is_data_local(&self) -> bool {
-        self.local
+    pub fn is_data_alien(&self) -> bool {
+        self.alien
     }
     pub fn disk_name_local(&self) -> String {
         self.disk_path.clone().unwrap().name.clone()

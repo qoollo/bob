@@ -9,7 +9,7 @@ mod tests {
 
     #[test]
     fn test_mem_put_wrong_disk() {
-        let backend = MemBackend::new_test(&["name".to_string()], VDISKS_COUNT);
+        let backend = MemBackend::new_direct(&["name".to_string()], VDISKS_COUNT);
         let mut reactor = Core::new().unwrap();
 
         let retval = reactor.run(backend.put(
@@ -22,7 +22,7 @@ mod tests {
 
     #[test]
     fn test_mem_put_get() {
-        let backend = MemBackend::new_test(&["name".to_string()], VDISKS_COUNT);
+        let backend = MemBackend::new_direct(&["name".to_string()], VDISKS_COUNT);
         let mut reactor = Core::new().unwrap();
 
         reactor
@@ -43,7 +43,7 @@ mod tests {
 
     #[test]
     fn test_mem_get_wrong_disk() {
-        let backend = MemBackend::new_test(&["name".to_string()], VDISKS_COUNT);
+        let backend = MemBackend::new_direct(&["name".to_string()], VDISKS_COUNT);
         let mut reactor = Core::new().unwrap();
 
         reactor
@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn test_mem_get_no_data() {
-        let backend = MemBackend::new_test(&["name".to_string()], VDISKS_COUNT);
+        let backend = MemBackend::new_direct(&["name".to_string()], VDISKS_COUNT);
         let mut reactor = Core::new().unwrap();
 
         let retval = reactor.run(backend.get(

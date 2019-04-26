@@ -60,7 +60,7 @@ struct MemDisk {
 }
 
 impl MemDisk {
-    pub fn new_test(name: String, vdisks_count: u32) -> MemDisk {
+    pub fn new_direct(name: String, vdisks_count: u32) -> MemDisk {
         let mut b: HashMap<VDiskId, VDisk> = HashMap::new();
         for i in 0..vdisks_count {
             b.insert(VDiskId::new(i), VDisk::new());
@@ -137,14 +137,14 @@ pub struct MemBackend {
 }
 
 impl MemBackend {
-    pub fn new_test(paths: &[String], vdisks_count: u32) -> MemBackend {
+    pub fn new_direct(paths: &[String], vdisks_count: u32) -> MemBackend {
         let b = paths
             .iter()
-            .map(|p| (p.clone(), MemDisk::new_test(p.clone(), vdisks_count)))
+            .map(|p| (p.clone(), MemDisk::new_direct(p.clone(), vdisks_count)))
             .collect::<HashMap<String, MemDisk>>();
         MemBackend {
             disks: b,
-            foreign_data: MemDisk::new_test("foreign".to_string(), vdisks_count),
+            foreign_data: MemDisk::new_direct("foreign".to_string(), vdisks_count),
         }
     }
 
@@ -161,7 +161,7 @@ impl MemBackend {
             .collect::<HashMap<String, MemDisk>>();
         MemBackend {
             disks: b,
-            foreign_data: MemDisk::new_test("foreign".to_string(), mapper.vdisks_count()),
+            foreign_data: MemDisk::new_direct("foreign".to_string(), mapper.vdisks_count()),
         }
     }
 }
@@ -170,7 +170,7 @@ impl Backend for MemBackend {
     fn put(&self, op: &BackendOperation, key: BobKey, data: BobData) -> BackendPutFuture {
         let id = op.vdisk_id.clone();
 
-        if op.is_data_local() {
+        if !op.is_data_alien() {
             let disk = op.disk_name_local();
             debug!("PUT[{}][{}] to backend", key, disk);
             match self.disks.get(&disk) {
@@ -189,7 +189,7 @@ impl Backend for MemBackend {
     fn get(&self, op: &BackendOperation, key: BobKey) -> BackendGetFuture {
         let id = op.vdisk_id.clone();
 
-        if op.is_data_local() {
+        if !op.is_data_alien() {
             let disk = op.disk_name_local();
             debug!("GET[{}][{}] to backend", key, disk);
             match self.disks.get(&disk) {
