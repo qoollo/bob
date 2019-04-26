@@ -1,16 +1,14 @@
 use tokio::prelude::Future;
 
 //use futures::future::;
-use crate::core::backend::{
-    Backend, BackendError, BackendGetResult, BackendResult,
-};
-use crate::core::backend::stub_backend::StubBackend;
 use crate::core::backend::mem_backend::MemBackend;
+use crate::core::backend::stub_backend::StubBackend;
+use crate::core::backend::{Backend, BackendError, BackendGetResult, BackendResult};
+use crate::core::configs::node::{BackendType, NodeConfig};
+use crate::core::data::VDiskMapper;
 use crate::core::data::{BobData, BobError, BobGetResult, BobKey, BobOptions, ClusterResult};
 use crate::core::sprinkler::{Sprinkler, SprinklerError, SprinklerResult};
 use futures::future::Either;
-use crate::core::configs::node::{NodeConfig, BackendType};
-use crate::core::data::VDiskMapper;
 
 #[derive(Debug)]
 pub enum ServeTypeOk<CT, BT> {
@@ -56,14 +54,14 @@ pub struct Grinder {
 
 impl Grinder {
     pub fn new(mapper: VDiskMapper, config: &NodeConfig) -> Grinder {
-        let backend: Box<Backend + Send + Sync +'static> = match config.backend_type() {
+        let backend: Box<Backend + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Box::new(MemBackend::new(&mapper)),
-            BackendType::Stub => Box::new(StubBackend{}),
+            BackendType::Stub => Box::new(StubBackend {}),
         };
         Grinder {
-            backend: backend,
+            backend,
             sprinkler: Sprinkler::new(&mapper, config),
-            mapper: mapper
+            mapper,
         }
     }
     pub fn put(

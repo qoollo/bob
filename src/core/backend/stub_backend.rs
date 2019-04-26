@@ -1,5 +1,5 @@
 use crate::core::backend::*;
-use crate::core::data::{BobData, BobKey, BackendOperation};
+use crate::core::data::{BackendOperation, BobData, BobKey};
 use futures::future::ok;
 
 #[derive(Clone)]

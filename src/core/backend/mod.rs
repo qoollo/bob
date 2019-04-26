@@ -1,7 +1,7 @@
 pub mod mem_backend;
-pub mod stub_backend;
 pub mod mem_tests;
-use crate::core::data::{BobData, BobKey, BackendOperation};
+pub mod stub_backend;
+use crate::core::data::{BackendOperation, BobData, BobKey};
 use tokio::prelude::Future;
 
 #[derive(Debug)]

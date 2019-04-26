@@ -34,7 +34,7 @@ pub struct NodeConfig {
     pub quorum: Option<u8>,
     pub timeout: Option<String>,
     pub check_interval: Option<String>,
-    
+
     pub backend_type: Option<String>,
 
     #[serde(skip)]
@@ -74,15 +74,15 @@ impl NodeConfig {
     pub fn backend_type(&self) -> BackendType {
         self.backend_result().unwrap()
     }
-    fn backend_result(&self)-> Result<BackendType, String> {
+    fn backend_result(&self) -> Result<BackendType, String> {
         let value = self.backend_type.as_ref().unwrap().clone();
-        if value == "in_memory".to_string() {
+        if value == "in_memory" {
             return Ok(BackendType::InMemory);
         }
-        if value == "stub".to_string() {
+        if value == "stub" {
             return Ok(BackendType::Stub);
         }
-         Err(format!("unknown backend type: {}", value))
+        Err(format!("unknown backend type: {}", value))
     }
     pub fn prepare(&self, node: &Node) -> Result<(), String> {
         self.bind_ref
@@ -108,10 +108,15 @@ impl NodeConfig {
             .into();
         self.check_ref.set(t1);
 
-        self.disks_ref.replace(node.disks
-            .iter()
-            .map(|disk| DiskPath {name:disk.name.as_ref().unwrap().clone(), path:disk.path.as_ref().unwrap().clone()})
-            .collect::<Vec<DiskPath>>());
+        self.disks_ref.replace(
+            node.disks
+                .iter()
+                .map(|disk| DiskPath {
+                    name: disk.name.as_ref().unwrap().clone(),
+                    path: disk.path.as_ref().unwrap().clone(),
+                })
+                .collect::<Vec<DiskPath>>(),
+        );
 
         self.backend_result()?;
         Ok(())

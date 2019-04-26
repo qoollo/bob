@@ -1,7 +1,7 @@
 use crate::core::bob_client::BobClient;
 use crate::core::configs::node::NodeConfig;
 use crate::core::data::{
-    print_vec, BobData, BobError, BobGetResult, BobKey, ClusterResult, Node, VDiskMapper
+    print_vec, BobData, BobError, BobGetResult, BobKey, ClusterResult, Node, VDiskMapper,
 };
 use crate::core::link_manager::{LinkManager, NodeLink};
 
@@ -15,7 +15,7 @@ use futures::stream::*;
 pub struct Sprinkler {
     quorum: u8,
     link_manager: Arc<LinkManager>,
-    mapper: VDiskMapper
+    mapper: VDiskMapper,
 }
 
 pub struct SprinklerGetResult {
@@ -160,7 +160,10 @@ impl Sprinkler {
     fn calc_target_nodes(&self, key: BobKey) -> Vec<Node> {
         let target_vdisk = self.mapper.get_vdisk(key);
 
-        let mut target_nodes: Vec<_> = target_vdisk.replicas.iter().map(|nd| nd.node.clone())
+        let mut target_nodes: Vec<_> = target_vdisk
+            .replicas
+            .iter()
+            .map(|nd| nd.node.clone())
             .collect();
         target_nodes.dedup();
         target_nodes

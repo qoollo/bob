@@ -49,8 +49,8 @@ bitflags! {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct VDiskId{
-    pub id: u32 // TODO remove pub
+pub struct VDiskId {
+    id: u32,
 }
 
 impl VDiskId {
@@ -89,7 +89,7 @@ impl std::fmt::Display for VDisk {
 pub struct BackendOperation {
     pub vdisk_id: VDiskId,
     pub disk_path: Option<DiskPath>,
-    pub local: bool,  // is data belongs local node
+    pub local: bool, // is data belongs local node
 }
 
 impl std::fmt::Display for BackendOperation {
@@ -98,33 +98,24 @@ impl std::fmt::Display for BackendOperation {
             Some(path) => write!(
                 f,
                 "#{}-{}-{}-{}",
-                self.vdisk_id,
-                path.name,
-                path.path,
-                self.local
+                self.vdisk_id, path.name, path.path, self.local
             ),
-            None => write!(
-                f,
-                "#{}-{}",
-                self.vdisk_id,
-                self.local
-            ),
+            None => write!(f, "#{}-{}", self.vdisk_id, self.local),
         }
-        
     }
 }
 
-impl BackendOperation{
+impl BackendOperation {
     pub fn new_other(vdisk_id: VDiskId) -> BackendOperation {
-        BackendOperation{
-            vdisk_id: vdisk_id,
+        BackendOperation {
+            vdisk_id,
             disk_path: None,
             local: false,
         }
     }
     pub fn new_local(vdisk_id: VDiskId, path: DiskPath) -> BackendOperation {
-        BackendOperation{
-            vdisk_id: vdisk_id,
+        BackendOperation {
+            vdisk_id,
             disk_path: Some(path),
             local: true,
         }
@@ -144,7 +135,7 @@ pub struct DiskPath {
 }
 
 impl DiskPath {
-    pub fn new (name: &str, path: &str) -> DiskPath {
+    pub fn new(name: &str, path: &str) -> DiskPath {
         DiskPath {
             name: name.to_string().clone(),
             path: path.to_string().clone(),
@@ -155,15 +146,19 @@ impl DiskPath {
 pub struct VDiskMapper {
     local_node_name: String,
     disks: Vec<DiskPath>,
-    vdisks: Vec<VDisk>
+    vdisks: Vec<VDisk>,
 }
 
 impl VDiskMapper {
     pub fn new(vdisks: Vec<VDisk>, config: &NodeConfig) -> VDiskMapper {
         VDiskMapper {
-            vdisks: vdisks,
+            vdisks,
             local_node_name: config.name.as_ref().unwrap().to_string(),
-            disks:config.disks().iter().map(|d|DiskPath::new(&d.name.clone(), &d.path.clone())).collect(),
+            disks: config
+                .disks()
+                .iter()
+                .map(|d| DiskPath::new(&d.name.clone(), &d.path.clone()))
+                .collect(),
         }
     }
 
@@ -176,7 +171,8 @@ impl VDiskMapper {
     }
 
     pub fn nodes(&self) -> Vec<Node> {
-        self.vdisks.to_vec()
+        self.vdisks
+            .to_vec()
             .iter()
             .flat_map(|vdisk| vdisk.replicas.iter().map(|nd| nd.node.clone()))
             .collect()
@@ -184,35 +180,40 @@ impl VDiskMapper {
 
     pub fn get_vdisk(&self, key: BobKey) -> &VDisk {
         let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
-        self.vdisks
-            .iter()
-            .find(|disk| disk.id == vdisk_id).unwrap()
+        self.vdisks.iter().find(|disk| disk.id == vdisk_id).unwrap()
     }
 
     pub fn get_vdisks_by_disk(&self, disk: &str) -> Vec<VDiskId> {
         self.vdisks
             .iter()
-            .filter(|vdisk| vdisk.replicas
-                .iter()
-                .any(|replica| replica.node.name == self.local_node_name 
-                                && replica.name == disk.to_string()))
+            .filter(|vdisk| {
+                vdisk.replicas.iter().any(|replica| {
+                    replica.node.name == self.local_node_name && replica.name == disk
+                })
+            })
             .map(|vdisk| vdisk.id.clone())
             .collect()
     }
 
     pub fn get_operation(&self, key: BobKey) -> BackendOperation {
         let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
-        let vdisk = self.vdisks
+        let vdisk = self.vdisks.iter().find(|disk| disk.id == vdisk_id).unwrap();
+        let disk = vdisk
+            .replicas
             .iter()
-            .find(|disk| disk.id == vdisk_id).unwrap();
-        let disk = vdisk.replicas
-            .iter()
-            .find(|disk|disk.node.name == self.local_node_name);
+            .find(|disk| disk.node.name == self.local_node_name);
         if disk.is_none() {
-            trace!("cannot find node: {} for vdisk: {}", self.local_node_name, vdisk_id);
-            return BackendOperation::new_other(vdisk_id)
+            trace!(
+                "cannot find node: {} for vdisk: {}",
+                self.local_node_name,
+                vdisk_id
+            );
+            return BackendOperation::new_other(vdisk_id);
         }
-        BackendOperation::new_local(vdisk_id, DiskPath::new(&disk.unwrap().name, &disk.unwrap().path))
+        BackendOperation::new_local(
+            vdisk_id,
+            DiskPath::new(&disk.unwrap().name, &disk.unwrap().path),
+        )
     }
 }
 
