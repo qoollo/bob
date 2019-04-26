@@ -78,15 +78,15 @@ impl Grinder {
                  + 'static
                  + Send {
         Box::new(if opts.contains(BobOptions::FORCE_NODE) {
-            let write_op = self.mapper.get_write(key);
+            let op = self.mapper.get_operation(key);
             debug!(
                 "PUT[{}] flag FORCE_NODE is on - will handle it by local node. Put params: {}",
-                key, write_op
+                key, op
             );
 
             Either::A(
                 self.backend
-                    .put(&write_op, key, data) // TODO need vdisk and disk path
+                    .put(&op, key, data)
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )
@@ -112,14 +112,14 @@ impl Grinder {
                  + 'static
                  + Send {
         Box::new(if opts.contains(BobOptions::FORCE_NODE) {
-            let write_op = self.mapper.get_write(key);
+            let op = self.mapper.get_operation(key);
             debug!(
                 "GET[{}] flag FORCE_NODE is on - will handle it by local node. Get params: {}",
-                key, write_op
+                key, op
             );
             Either::A(
                 self.backend
-                    .get(&write_op, key) // TODO need vdisk and disk path
+                    .get(&op, key) // TODO need vdisk and disk path
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )

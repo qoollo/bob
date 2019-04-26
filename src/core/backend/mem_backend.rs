@@ -1,5 +1,5 @@
 use crate::core::backend::*;
-use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper, WriteOption};
+use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper, BackendOperation};
 use futures::future::{err, ok};
 use futures_locks::RwLock;
 use std::collections::HashMap;
@@ -112,6 +112,7 @@ impl MemDisk {
 #[derive(Clone)]
 pub struct MemBackend {
     disks: HashMap<String, MemDisk>,
+    foreign_data: MemDisk,
 }
 
 impl MemBackend {
@@ -121,6 +122,7 @@ impl MemBackend {
             .collect::<HashMap<String, MemDisk>>();
         MemBackend {
             disks: b,
+            foreign_data: MemDisk::new_test("foreign".to_string(), vdisks_count),
         }
     }
 
@@ -130,38 +132,51 @@ impl MemBackend {
             .collect::<HashMap<String, MemDisk>>();
         MemBackend {
             disks: b,
+            foreign_data: MemDisk::new_test("foreign".to_string(), mapper.vdisks_count()),
         }
     }
 }
 
 impl Backend for MemBackend {
-    fn put(&self, op: &WriteOption, key: BobKey, data: BobData) -> BackendPutFuture {
-        let disk = op.disk_name.clone();
+    fn put(&self, op: &BackendOperation, key: BobKey, data: BobData) -> BackendPutFuture {
         let id = op.vdisk_id.clone();
 
-        debug!("PUT[{}][{}] to backend", key, disk);
-        match self.disks.get(&disk) {
-            Some(mem_disk) => {
-                mem_disk.put(id, key, data)
+        if op.is_data_local() {
+            let disk = op.disk_name_local();
+            debug!("PUT[{}][{}] to backend", key, disk);
+            match self.disks.get(&disk) {
+                Some(mem_disk) => {
+                    mem_disk.put(id, key, data)
+                }
+                None => {
+                    error!("PUT[{}][{}] Can't find disk {}", key, disk, disk);
+                    Box::new(err(BackendError::Other))
+                }
             }
-            None => {
-                error!("PUT[{}][{}] Can't find disk {}", key, disk, disk);
-                Box::new(err(BackendError::Other))
-            }
+        } else {
+            debug!("PUT[{}] to backend, foreign data", key);
+            self.foreign_data.put(id, key, data)
         }
     }
     
-    fn get(&self, op: &WriteOption, key: BobKey) -> BackendGetFuture {
-        let disk = op.disk_name.clone();
+    fn get(&self, op: &BackendOperation, key: BobKey) -> BackendGetFuture {
         let id = op.vdisk_id.clone();
 
-        debug!("GET[{}][{}] to backend", key, disk);
-        match self.disks.get(&disk) {
-            Some(mem_disk) => mem_disk.get(id, key),
-            None => {
-                error!("GET[{}][{}] Can't find disk {}", key, disk, disk);
-                Box::new(err(BackendError::Other))
+        if op.is_data_local(){
+            let disk = op.disk_name_local();
+            debug!("GET[{}][{}] to backend", key, disk);
+            match self.disks.get(&disk) {
+                Some(mem_disk) => mem_disk.get(id, key),
+                None => {
+                    error!("GET[{}][{}] Can't find disk {}", key, disk, disk);
+                    Box::new(err(BackendError::Other))
+                }
             }
         }
+        else {
+            debug!("GET[{}] to backend, foreign data", key);
+            self.foreign_data.get(id, key)
+        }
+        
     }
 }

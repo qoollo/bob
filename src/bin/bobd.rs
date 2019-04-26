@@ -81,7 +81,7 @@ impl server::BobApi for BobSrv {
                         let elapsed = sw.elapsed_ms();
                         match r {
                             Ok(r_ok) => {
-                                info!("PUT[{}]-OK local:{:?} ok dt: {}ms", key, r_ok, elapsed);
+                                debug!("PUT[{}]-OK local:{:?} ok dt: {}ms", key, r_ok, elapsed);
                                 ok(Response::new(OpStatus { error: None }))
                             }
                             Err(r_err) => {
@@ -126,7 +126,7 @@ impl server::BobApi for BobSrv {
                         let elapsed = sw.elapsed_ms();
                         match r {
                             Ok(r_ok) => {
-                                info!(
+                                debug!(
                                     "GET[{}]-OK local:{} dt: {}ms",
                                     key,
                                     r_ok.is_local(),

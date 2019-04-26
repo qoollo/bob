@@ -86,42 +86,54 @@ impl std::fmt::Display for VDisk {
 }
 
 #[derive(Debug)]
-pub struct WriteOption {
+pub struct BackendOperation {
     pub vdisk_id: VDiskId,
-    pub disk_name: String,
-    pub disk_path: String,
+    pub disk_path: Option<DiskPath>,
     pub local: bool,  // is data belongs local node
 }
 
-impl std::fmt::Display for WriteOption {
+impl std::fmt::Display for BackendOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "#{}-{}-{}-{}",
-            self.vdisk_id,
-            self.disk_name,
-            self.disk_path,
-            self.local
-        )
+        match self.disk_path.clone() {
+            Some(path) => write!(
+                f,
+                "#{}-{}-{}-{}",
+                self.vdisk_id,
+                path.name,
+                path.path,
+                self.local
+            ),
+            None => write!(
+                f,
+                "#{}-{}",
+                self.vdisk_id,
+                self.local
+            ),
+        }
+        
     }
 }
 
-impl WriteOption{
-    pub fn new_other(vdisk_id: VDiskId) -> WriteOption {
-        WriteOption{
+impl BackendOperation{
+    pub fn new_other(vdisk_id: VDiskId) -> BackendOperation {
+        BackendOperation{
             vdisk_id: vdisk_id,
-            disk_name: "".to_string(),
-            disk_path: "".to_string(),
+            disk_path: None,
             local: false,
         }
     }
-    pub fn new_local(vdisk_id: VDiskId, disk_path: &str, disk_name: &str) -> WriteOption {
-        WriteOption{
+    pub fn new_local(vdisk_id: VDiskId, path: DiskPath) -> BackendOperation {
+        BackendOperation{
             vdisk_id: vdisk_id,
-            disk_path: disk_path.to_string(),
-            disk_name: disk_name.to_string(),
+            disk_path: Some(path),
             local: true,
         }
+    }
+    pub fn is_data_local(&self) -> bool {
+        self.local
+    }
+    pub fn disk_name_local(&self) -> String {
+        self.disk_path.clone().unwrap().name.clone()
     }
 }
 
@@ -131,6 +143,14 @@ pub struct DiskPath {
     pub path: String,
 }
 
+impl DiskPath {
+    pub fn new (name: &str, path: &str) -> DiskPath {
+        DiskPath {
+            name: name.to_string().clone(),
+            path: path.to_string().clone(),
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub struct VDiskMapper {
     local_node_name: String,
@@ -143,8 +163,12 @@ impl VDiskMapper {
         VDiskMapper {
             vdisks: vdisks,
             local_node_name: config.name.as_ref().unwrap().to_string(),
-            disks:config.disks().iter().map(|d|DiskPath{name:d.name.clone(), path:d.path.clone()}).collect(),
+            disks:config.disks().iter().map(|d|DiskPath::new(&d.name.clone(), &d.path.clone())).collect(),
         }
+    }
+
+    pub fn vdisks_count(&self) -> u32 {
+        self.vdisks.len() as u32
     }
 
     pub fn local_disks(&self) -> &Vec<DiskPath> {
@@ -176,7 +200,7 @@ impl VDiskMapper {
             .collect()
     }
 
-    pub fn get_write(&self, key: BobKey) -> WriteOption {
+    pub fn get_operation(&self, key: BobKey) -> BackendOperation {
         let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
         let vdisk = self.vdisks
             .iter()
@@ -186,9 +210,9 @@ impl VDiskMapper {
             .find(|disk|disk.node.name == self.local_node_name);
         if disk.is_none() {
             trace!("cannot find node: {} for vdisk: {}", self.local_node_name, vdisk_id);
-            return WriteOption::new_other(vdisk_id)
+            return BackendOperation::new_other(vdisk_id)
         }
-        WriteOption::new_local(vdisk_id, &disk.unwrap().path, &disk.unwrap().name)
+        BackendOperation::new_local(vdisk_id, DiskPath::new(&disk.unwrap().name, &disk.unwrap().path))
     }
 }
 
