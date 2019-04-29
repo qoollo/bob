@@ -8,6 +8,7 @@ use crate::core::configs::reader::{BobConfigReader, Validatable, YamlBobConfigRe
 use crate::core::data::Node as DataNode;
 use crate::core::data::NodeDisk as DataNodeDisk;
 use crate::core::data::VDisk as DataVDisk;
+use crate::core::data::VDiskId;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeDisk {
@@ -324,7 +325,7 @@ impl BobClusterConfig for ClusterConfigYaml {
         let mut result: Vec<DataVDisk> = Vec::with_capacity(cluster.vdisks.len());
         for vdisk in cluster.vdisks.iter() {
             let mut disk = DataVDisk {
-                id: vdisk.id? as u32,
+                id: VDiskId::new(vdisk.id? as u32),
                 replicas: Vec::with_capacity(vdisk.replicas.len()),
             };
             for replica in vdisk.replicas.iter() {
@@ -333,7 +334,9 @@ impl BobClusterConfig for ClusterConfigYaml {
 
                 let node_disk = DataNodeDisk {
                     path: path.to_string(),
+                    name: replica.disk.as_ref()?.clone(),
                     node: DataNode {
+                        name: replica.node.as_ref()?.clone(),
                         host: finded_node.0.host.borrow().to_string(),
                         port: finded_node.0.port.get(),
                     },

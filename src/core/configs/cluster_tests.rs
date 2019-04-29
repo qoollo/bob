@@ -3,6 +3,7 @@ mod tests {
     use crate::core::configs::cluster::*;
     use crate::core::configs::node::*;
     use crate::core::configs::reader::*;
+    use crate::core::data::VDiskId;
 
     #[test]
     fn test_node_disk_name_is_empty() {
@@ -451,12 +452,12 @@ vdisks:
 
         let vdisks = ClusterConfigYaml {}.convert_to_data(&d).unwrap();
         assert_eq!(2, vdisks.len());
-        assert_eq!(0, vdisks[0].id);
+        assert_eq!(VDiskId::new(0), vdisks[0].id);
         assert_eq!(1, vdisks[0].replicas.len());
         assert_eq!("/tmp/d1", vdisks[0].replicas[0].path);
         assert_eq!(111, vdisks[0].replicas[0].node.port);
 
-        assert_eq!(1, vdisks[1].id);
+        assert_eq!(VDiskId::new(1), vdisks[1].id);
         assert_eq!(2, vdisks[1].replicas.len());
         assert_eq!("/tmp/d2", vdisks[1].replicas[0].path);
         assert_eq!(111, vdisks[1].replicas[0].node.port);
@@ -537,9 +538,40 @@ name: no
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100ms
+backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());
+    }
+    #[test]
+    fn test_node_config_invalid_backend_type() {
+        let s = "
+log_level: Debug
+name: n1
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100sec
+backend_type: InvalidType
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_none());
+        let s1 = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:11111111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d2
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+";
+        let cl: Cluster = YamlBobConfigReader {}.parse(s1).unwrap();
+        assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_err());
     }
 
     #[test]
@@ -550,6 +582,7 @@ name: no
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100mms
+backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_some());
@@ -563,6 +596,7 @@ name: n1
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100sec
+backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());
@@ -593,6 +627,7 @@ name: 1n2112321321321321
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100sec
+backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());

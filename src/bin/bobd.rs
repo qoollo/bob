@@ -1,9 +1,9 @@
 use bob::api::grpc::{server, Blob, GetRequest, Null, OpStatus, PutRequest};
 
-use bob::core::backend::{Backend, BackendError};
-use bob::core::data::{BobData, BobError, BobKey, BobOptions};
+use bob::core::backend::BackendError;
+
+use bob::core::data::{BobData, BobError, BobKey, BobOptions, VDiskMapper};
 use bob::core::grinder::{Grinder, ServeTypeError, ServeTypeOk};
-use bob::core::sprinkler::Sprinkler;
 use clap::{App, Arg};
 use env_logger;
 use futures::future::{err, ok};
@@ -81,7 +81,7 @@ impl server::BobApi for BobSrv {
                         let elapsed = sw.elapsed_ms();
                         match r {
                             Ok(r_ok) => {
-                                info!("PUT[{}]-OK local:{:?} ok dt: {}ms", key, r_ok, elapsed);
+                                debug!("PUT[{}]-OK local:{:?} ok dt: {}ms", key, r_ok, elapsed);
                                 ok(Response::new(OpStatus { error: None }))
                             }
                             Err(r_err) => {
@@ -126,7 +126,7 @@ impl server::BobApi for BobSrv {
                         let elapsed = sw.elapsed_ms();
                         match r {
                             Ok(r_ok) => {
-                                info!(
+                                debug!(
                                     "GET[{}]-OK local:{} dt: {}ms",
                                     key,
                                     r_ok.is_local(),
@@ -134,8 +134,8 @@ impl server::BobApi for BobSrv {
                                 );
                                 ok(Response::new(Blob {
                                     data: match r_ok {
-                                        ServeTypeOk::Cluster(r) => r.result.data,
-                                        ServeTypeOk::Local(r) => r.data,
+                                        ServeTypeOk::Cluster(r) => r.result.data.data,
+                                        ServeTypeOk::Local(r) => r.data.data,
                                     },
                                 }))
                             }
@@ -216,11 +216,9 @@ fn main() {
         .filter_module("bob", node.log_level())
         .init();
 
+    let mapper = VDiskMapper::new(disks.to_vec(), &node);
     let bob = BobSrv {
-        grinder: std::sync::Arc::new(Grinder {
-            backend: Backend {},
-            sprinkler: Sprinkler::new(&disks, &node),
-        }),
+        grinder: std::sync::Arc::new(Grinder::new(mapper, &node)),
     };
 
     rt.spawn(bob.get_periodic_tasks(rt.executor()));

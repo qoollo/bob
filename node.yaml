@@ -1,5 +1,6 @@
-log_level: Debug
+log_level: Info
 name: local_node
 quorum: 1
 timeout: 3sec
 check_interval: 5000ms
+backend_type: in_memory # in_memory, stub

@@ -143,7 +143,9 @@ impl BobClient {
                 let ans = r.into_inner();
                 ClusterResult {
                     node: n1,
-                    result: BobGetResult { data: ans.data },
+                    result: BobGetResult {
+                        data: BobData { data: ans.data },
+                    },
                 }
             })
             .map_err(move |e| ClusterResult {

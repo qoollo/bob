@@ -1,15 +1,14 @@
 use tokio::prelude::Future;
 
 //use futures::future::;
+use crate::core::backend::mem_backend::MemBackend;
+use crate::core::backend::stub_backend::StubBackend;
 use crate::core::backend::{Backend, BackendError, BackendGetResult, BackendResult};
+use crate::core::configs::node::{BackendType, NodeConfig};
+use crate::core::data::VDiskMapper;
 use crate::core::data::{BobData, BobError, BobGetResult, BobKey, BobOptions, ClusterResult};
 use crate::core::sprinkler::{Sprinkler, SprinklerError, SprinklerResult};
 use futures::future::Either;
-
-pub struct Grinder {
-    pub backend: Backend,
-    pub sprinkler: Sprinkler,
-}
 
 #[derive(Debug)]
 pub enum ServeTypeOk<CT, BT> {
@@ -47,7 +46,24 @@ impl<CT, BT> ServeTypeError<CT, BT> {
     }
 }
 
+pub struct Grinder {
+    pub backend: Box<dyn Backend + Send + Sync>,
+    pub sprinkler: Sprinkler,
+    mapper: VDiskMapper,
+}
+
 impl Grinder {
+    pub fn new(mapper: VDiskMapper, config: &NodeConfig) -> Grinder {
+        let backend: Box<Backend + Send + Sync + 'static> = match config.backend_type() {
+            BackendType::InMemory => Box::new(MemBackend::new(&mapper)),
+            BackendType::Stub => Box::new(StubBackend {}),
+        };
+        Grinder {
+            backend,
+            sprinkler: Sprinkler::new(&mapper, config),
+            mapper,
+        }
+    }
     pub fn put(
         &self,
         key: BobKey,
@@ -60,13 +76,15 @@ impl Grinder {
                  + 'static
                  + Send {
         Box::new(if opts.contains(BobOptions::FORCE_NODE) {
+            let op = self.mapper.get_operation(key);
             debug!(
-                "PUT[{}] flag FORCE_NODE is on - will handle it by local node",
-                key
+                "PUT[{}] flag FORCE_NODE is on - will handle it by local node. Put params: {}",
+                key, op
             );
+
             Either::A(
                 self.backend
-                    .put(key, data)
+                    .put(&op, key, data)
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )
@@ -92,13 +110,14 @@ impl Grinder {
                  + 'static
                  + Send {
         Box::new(if opts.contains(BobOptions::FORCE_NODE) {
+            let op = self.mapper.get_operation(key);
             debug!(
-                "GET[{}] flag FORCE_NODE is on - will handle it by local node",
-                key
+                "GET[{}] flag FORCE_NODE is on - will handle it by local node. Get params: {}",
+                key, op
             );
             Either::A(
                 self.backend
-                    .get(key)
+                    .get(&op, key) // TODO need vdisk and disk path
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )
