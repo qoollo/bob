@@ -1,4 +1,5 @@
 use crate::core::configs::node::NodeConfig;
+use crate::core::configs::node::DiskPath as ConfigDiskPath;
 
 #[derive(Debug)]
 pub enum BobError {
@@ -28,6 +29,12 @@ pub struct BobPingResult {
 #[derive(Clone)]
 pub struct BobData {
     pub data: Vec<u8>,
+    //pub meta: BobMeta,
+}
+
+#[derive(Debug, Clone)]
+pub struct BobMeta {
+    pub timestump: u16,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -161,7 +168,16 @@ impl VDiskMapper {
                 .collect(),
         }
     }
-
+    pub fn new2(vdisks: Vec<VDisk>, node_name: &str, disks: &Vec<ConfigDiskPath>) -> VDiskMapper {
+        VDiskMapper {
+            vdisks,
+            local_node_name: node_name.to_string(),
+            disks: disks
+                .iter()
+                .map(|d| DiskPath::new(&d.name.clone(), &d.path.clone()))
+                .collect(),
+        }
+    }
     pub fn vdisks_count(&self) -> u32 {
         self.vdisks.len() as u32
     }
@@ -171,11 +187,13 @@ impl VDiskMapper {
     }
 
     pub fn nodes(&self) -> Vec<Node> {
-        self.vdisks
+        let mut nodes: Vec<Node> = self.vdisks
             .to_vec()
             .iter()
             .flat_map(|vdisk| vdisk.replicas.iter().map(|nd| nd.node.clone()))
-            .collect()
+            .collect();
+        nodes.dedup();
+        nodes
     }
 
     pub fn get_vdisk(&self, key: BobKey) -> &VDisk {

@@ -16,6 +16,14 @@ pub struct NodeDisk {
     pub name: Option<String>,
 }
 
+impl NodeDisk {
+    pub fn name(&self) -> String{
+        self.name.as_ref().unwrap().clone()
+    } 
+    pub fn path(&self) -> String{
+        self.path.as_ref().unwrap().clone()
+    } 
+}
 impl Validatable for NodeDisk {
     fn validate(&self) -> Option<String> {
         if self.path.is_none() {
@@ -52,6 +60,13 @@ pub struct Node {
 }
 
 impl Node {
+    pub fn name(&self) -> String{
+        self.name.as_ref().unwrap().clone()
+    }
+    pub fn address(&self) -> String{
+        self.address.as_ref().unwrap().clone()
+    }
+
     fn prepare(&self) -> Option<String> {
         let addr: Result<SocketAddr, _> = self.address.as_ref()?.parse();
         if addr.is_err() {

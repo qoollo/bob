@@ -6,3 +6,4 @@ mod link_manager;
 pub mod sprinkler;
 
 pub mod configs;
+pub mod server;

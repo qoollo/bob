@@ -48,6 +48,9 @@ pub struct NodeConfig {
 }
 
 impl NodeConfig {
+    pub fn name(&self) -> String{
+        self.name.as_ref().unwrap().clone()
+    }
     pub fn bind(&self) -> String {
         self.bind_ref.borrow().to_string()
     }
