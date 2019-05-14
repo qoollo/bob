@@ -7,7 +7,7 @@ use tower_h2::client;
 use tower_service::Service;
 
 use bob::api::grpc::client::BobApi;
-use bob::api::grpc::{Blob, BlobKey, GetRequest, PutRequest};
+use bob::api::grpc::{Blob, BlobKey, GetRequest, PutRequest, BlobMeta};
 
 use tokio::runtime::Runtime;
 
@@ -34,7 +34,7 @@ fn main() {
     let pur_req = client
         .put(Request::new(PutRequest {
             key: Some(BlobKey { key: 0 }),
-            data: Some(Blob { data: vec![0] }),
+            data: Some(Blob { data: vec![0], meta: Some(BlobMeta{timestamp:1}) }), // TODO
             options: None,
         }))
         .map_err(|e| println!("gRPC request failed; err={:?}", e))

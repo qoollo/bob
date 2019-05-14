@@ -15,7 +15,7 @@ mod tests {
         let retval = reactor.run(backend.put(
             &BackendOperation::new_local(VDiskId::new(0), DiskPath::new("invalid name", "path")),
             BobKey { key: 1 },
-            BobData { data: vec![0] },
+            BobData { data: vec![0], meta: BobMeta::new_stub() },
         ));
         assert_eq!(retval.err().unwrap(), BackendError::Other)
     }
@@ -29,7 +29,7 @@ mod tests {
             .run(backend.put(
                 &BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "path")),
                 BobKey { key: 1 },
-                BobData { data: vec![1] },
+                BobData { data: vec![1], meta: BobMeta::new_stub() },
             ))
             .unwrap();
         let retval = reactor
@@ -50,7 +50,7 @@ mod tests {
             .run(backend.put(
                 &BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "path")),
                 BobKey { key: 1 },
-                BobData { data: vec![1] },
+                BobData { data: vec![1], meta: BobMeta::new_stub() },
             ))
             .unwrap();
         let retval = reactor.run(backend.get(

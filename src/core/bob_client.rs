@@ -1,10 +1,10 @@
 use crate::core::data::{
-    BobData, BobError, BobGetResult, BobKey, BobPingResult, BobPutResult, ClusterResult, Node,
+    BobData, BobError, BobGetResult, BobKey, BobPingResult, BobPutResult, ClusterResult, Node, BobMeta
 };
 use tower_grpc::BoxBody;
 use tower_h2::client::Connection;
 
-use crate::api::grpc::{Blob, BlobKey, GetOptions, GetRequest, Null, PutOptions, PutRequest};
+use crate::api::grpc::{Blob, BlobKey, GetOptions, GetRequest, Null, PutOptions, PutRequest, BlobMeta};
 
 use crate::api::grpc::client::BobApi;
 use futures::{Future, Poll};
@@ -101,6 +101,7 @@ impl BobClient {
                 key: Some(BlobKey { key: key.key }),
                 data: Some(Blob {
                     data: data.data.clone(), // TODO: find way to eliminate data copying
+                    meta: Some(BlobMeta{timestamp: data.meta.timestamp}),
                 }),
                 options: Some(PutOptions {
                     force_node: true,
@@ -144,7 +145,7 @@ impl BobClient {
                 ClusterResult {
                     node: n1,
                     result: BobGetResult {
-                        data: BobData { data: ans.data },
+                        data: BobData { data: ans.data, meta: BobMeta::new(ans.meta.unwrap()) },
                     },
                 }
             })

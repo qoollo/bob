@@ -1,5 +1,6 @@
 use crate::core::configs::node::NodeConfig;
 use crate::core::configs::node::DiskPath as ConfigDiskPath;
+use crate::api::grpc::{BlobMeta};
 
 #[derive(Debug)]
 pub enum BobError {
@@ -29,12 +30,31 @@ pub struct BobPingResult {
 #[derive(Clone)]
 pub struct BobData {
     pub data: Vec<u8>,
-    //pub meta: BobMeta,
+    pub meta: BobMeta,
 }
 
 #[derive(Debug, Clone)]
 pub struct BobMeta {
-    pub timestump: u16,
+    pub timestamp: u32,
+}
+impl BobMeta {
+    pub fn new (data: BlobMeta) -> Self {
+        BobMeta {
+            timestamp: data.timestamp,
+        }
+    }
+
+    pub fn new_stub() -> Self {
+        BobMeta {
+            timestamp : 1,
+        }
+    }
+}
+
+impl std::fmt::Display for BobMeta {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.timestamp)
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
