@@ -12,8 +12,7 @@ mod tests {
         let backend = MemBackend::new_direct(&["name".to_string()], VDISKS_COUNT);
         let mut reactor = Core::new().unwrap();
 
-        let retval = reactor.run(backend.put(
-            &BackendOperation::new_local(VDiskId::new(0), DiskPath::new("invalid name", "path")),
+        let retval = reactor.run(backend.put("invalid name".to_string(), VDiskId::new(0),
             BobKey { key: 1 },
             BobData { data: vec![0], meta: BobMeta::new_stub() },
         ));
@@ -26,15 +25,13 @@ mod tests {
         let mut reactor = Core::new().unwrap();
 
         reactor
-            .run(backend.put(
-                &BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "path")),
+            .run(backend.put("name".to_string(), VDiskId::new(0),
                 BobKey { key: 1 },
                 BobData { data: vec![1], meta: BobMeta::new_stub() },
             ))
             .unwrap();
         let retval = reactor
-            .run(backend.get(
-                &BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "path")),
+            .run(backend.get("name".to_string(), VDiskId::new(0),
                 BobKey { key: 1 },
             ))
             .unwrap();
@@ -47,14 +44,12 @@ mod tests {
         let mut reactor = Core::new().unwrap();
 
         reactor
-            .run(backend.put(
-                &BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "path")),
+            .run(backend.put("name".to_string(), VDiskId::new(0),
                 BobKey { key: 1 },
                 BobData { data: vec![1], meta: BobMeta::new_stub() },
             ))
             .unwrap();
-        let retval = reactor.run(backend.get(
-            &BackendOperation::new_local(VDiskId::new(0), DiskPath::new("invalid name", "path")),
+        let retval = reactor.run(backend.get("invalid name".to_string(), VDiskId::new(0),
             BobKey { key: 1 },
         ));
         assert_eq!(retval.err().unwrap(), BackendError::Other)
@@ -65,8 +60,7 @@ mod tests {
         let backend = MemBackend::new_direct(&["name".to_string()], VDISKS_COUNT);
         let mut reactor = Core::new().unwrap();
 
-        let retval = reactor.run(backend.get(
-            &BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "path")),
+        let retval = reactor.run(backend.get("name".to_string(), VDiskId::new(0),
             BobKey { key: 1 },
         ));
         assert_eq!(retval.err().unwrap(), BackendError::NotFound)

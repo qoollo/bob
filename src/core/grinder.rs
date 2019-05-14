@@ -3,7 +3,7 @@ use tokio::prelude::Future;
 //use futures::future::;
 use crate::core::backend::mem_backend::MemBackend;
 use crate::core::backend::stub_backend::StubBackend;
-use crate::core::backend::{Backend, BackendError, BackendGetResult, BackendResult};
+use crate::core::backend::{Backend, BackendError, BackendGetResult, BackendResult, BackendStruct};
 use crate::core::configs::node::{BackendType, NodeConfig};
 use crate::core::data::VDiskMapper;
 use crate::core::data::{BobData, BobError, BobGetResult, BobKey, BobOptions, ClusterResult};
@@ -47,17 +47,14 @@ impl<CT, BT> ServeTypeError<CT, BT> {
 }
 
 pub struct Grinder {
-    pub backend: Box<dyn Backend + Send + Sync>,
+    pub backend: BackendStruct,
     pub sprinkler: Sprinkler,
     mapper: VDiskMapper,
 }
 
 impl Grinder {
     pub fn new(mapper: VDiskMapper, config: &NodeConfig) -> Grinder {
-        let backend: Box<Backend + Send + Sync + 'static> = match config.backend_type() {
-            BackendType::InMemory => Box::new(MemBackend::new(&mapper)),
-            BackendType::Stub => Box::new(StubBackend {}),
-        };
+        let backend = BackendStruct::new(&mapper, &config.backend_type());
         Grinder {
             backend,
             sprinkler: Sprinkler::new(&mapper, config),
