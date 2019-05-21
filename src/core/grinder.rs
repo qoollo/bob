@@ -1,10 +1,7 @@
 use tokio::prelude::Future;
 
-//use futures::future::;
-use crate::core::backend::mem_backend::MemBackend;
-use crate::core::backend::stub_backend::StubBackend;
-use crate::core::backend::{Backend, BackendError, BackendGetResult, BackendResult, BackendStruct};
-use crate::core::configs::node::{BackendType, NodeConfig};
+use crate::core::backend::{Backend, BackendError, BackendGetResult, BackendResult};
+use crate::core::configs::node::NodeConfig;
 use crate::core::data::VDiskMapper;
 use crate::core::data::{BobData, BobError, BobGetResult, BobKey, BobOptions, ClusterResult};
 use crate::core::sprinkler::{Sprinkler, SprinklerError, SprinklerResult};
@@ -47,14 +44,14 @@ impl<CT, BT> ServeTypeError<CT, BT> {
 }
 
 pub struct Grinder {
-    pub backend: BackendStruct,
+    pub backend: Backend,
     pub sprinkler: Sprinkler,
     mapper: VDiskMapper,
 }
 
 impl Grinder {
     pub fn new(mapper: VDiskMapper, config: &NodeConfig) -> Grinder {
-        let backend = BackendStruct::new(&mapper, &config.backend_type());
+        let backend = Backend::new(&mapper, &config.backend_type());
         Grinder {
             backend,
             sprinkler: Sprinkler::new(&mapper, config),
@@ -78,10 +75,10 @@ impl Grinder {
                 "PUT[{}] flag FORCE_NODE is on - will handle it by local node. Put params: {}",
                 key, op
             );
-
             Either::A(
                 self.backend
                     .put(&op, key, data)
+                    .0
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )
@@ -114,7 +111,8 @@ impl Grinder {
             );
             Either::A(
                 self.backend
-                    .get(&op, key) // TODO need vdisk and disk path
+                    .get(&op, key)
+                    .0
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )

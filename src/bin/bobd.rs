@@ -10,7 +10,7 @@ use tokio::runtime::Runtime;
 use tower_h2::Server;
 
 use bob::core::configs::cluster::{BobClusterConfig, ClusterConfigYaml};
-use bob::core::configs::node::{BobNodeConfig, NodeConfigYaml, DiskPath};
+use bob::core::configs::node::{BobNodeConfig, DiskPath, NodeConfigYaml};
 
 use bob::core::server::BobSrv;
 
@@ -62,10 +62,18 @@ fn main() {
     let node_name = matches.value_of("name");
     if node_name.is_some() {
         let name = node_name.unwrap();
-        let finded = cluster.nodes.iter().find(|n|n.name()==name).unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
-        let disks: Vec<DiskPath> = finded.disks
+        let finded = cluster
+            .nodes
             .iter()
-            .map(|d|DiskPath{name: d.name(), path: d.path()})
+            .find(|n| n.name() == name)
+            .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
+        let disks: Vec<DiskPath> = finded
+            .disks
+            .iter()
+            .map(|d| DiskPath {
+                name: d.name(),
+                path: d.path(),
+            })
             .collect();
         mapper = VDiskMapper::new2(vdisks.to_vec(), name, &disks);
         addr = finded.address().parse().unwrap();

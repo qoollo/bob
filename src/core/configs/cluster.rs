@@ -17,12 +17,12 @@ pub struct NodeDisk {
 }
 
 impl NodeDisk {
-    pub fn name(&self) -> String{
+    pub fn name(&self) -> String {
         self.name.as_ref().unwrap().clone()
-    } 
-    pub fn path(&self) -> String{
+    }
+    pub fn path(&self) -> String {
         self.path.as_ref().unwrap().clone()
-    } 
+    }
 }
 impl Validatable for NodeDisk {
     fn validate(&self) -> Option<String> {
@@ -60,10 +60,10 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn name(&self) -> String{
+    pub fn name(&self) -> String {
         self.name.as_ref().unwrap().clone()
     }
-    pub fn address(&self) -> String{
+    pub fn address(&self) -> String {
         self.address.as_ref().unwrap().clone()
     }
 

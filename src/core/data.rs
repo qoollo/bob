@@ -1,6 +1,7 @@
-use crate::core::configs::node::NodeConfig;
+use crate::api::grpc::BlobMeta;
+use crate::core::backend::BackendOperation;
 use crate::core::configs::node::DiskPath as ConfigDiskPath;
-use crate::api::grpc::{BlobMeta};
+use crate::core::configs::node::NodeConfig;
 
 #[derive(Debug)]
 pub enum BobError {
@@ -38,16 +39,14 @@ pub struct BobMeta {
     pub timestamp: u32,
 }
 impl BobMeta {
-    pub fn new (data: BlobMeta) -> Self {
+    pub fn new(data: BlobMeta) -> Self {
         BobMeta {
             timestamp: data.timestamp,
         }
     }
 
     pub fn new_stub() -> Self {
-        BobMeta {
-            timestamp : 1,
-        }
+        BobMeta { timestamp: 1 }
     }
 }
 
@@ -112,49 +111,6 @@ impl std::fmt::Display for VDisk {
     }
 }
 
-#[derive(Debug)]
-pub struct BackendOperation {
-    pub vdisk_id: VDiskId,
-    pub disk_path: Option<DiskPath>,
-    pub alien: bool, // is data belongs local node
-}
-
-impl std::fmt::Display for BackendOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self.disk_path.clone() {
-            Some(path) => write!(
-                f,
-                "#{}-{}-{}-{}",
-                self.vdisk_id, path.name, path.path, self.alien
-            ),
-            None => write!(f, "#{}-{}", self.vdisk_id, self.alien),
-        }
-    }
-}
-
-impl BackendOperation {
-    pub fn new_other(vdisk_id: VDiskId) -> BackendOperation {
-        BackendOperation {
-            vdisk_id,
-            disk_path: None,
-            alien: true,
-        }
-    }
-    pub fn new_local(vdisk_id: VDiskId, path: DiskPath) -> BackendOperation {
-        BackendOperation {
-            vdisk_id,
-            disk_path: Some(path),
-            alien: false,
-        }
-    }
-    pub fn is_data_alien(&self) -> bool {
-        self.alien
-    }
-    pub fn disk_name_local(&self) -> String {
-        self.disk_path.clone().unwrap().name.clone()
-    }
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct DiskPath {
     pub name: String,
@@ -207,7 +163,8 @@ impl VDiskMapper {
     }
 
     pub fn nodes(&self) -> Vec<Node> {
-        let mut nodes: Vec<Node> = self.vdisks
+        let mut nodes: Vec<Node> = self
+            .vdisks
             .to_vec()
             .iter()
             .flat_map(|vdisk| vdisk.replicas.iter().map(|nd| nd.node.clone()))

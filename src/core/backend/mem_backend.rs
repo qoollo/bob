@@ -1,5 +1,5 @@
 use crate::core::backend::*;
-use crate::core::data::{BackendOperation, BobData, BobKey, VDiskId, VDiskMapper};
+use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
 use futures::future::{err, ok};
 use futures_locks::RwLock;
 use std::collections::HashMap;
@@ -166,7 +166,7 @@ impl MemBackend {
     }
 }
 
-impl Backend for MemBackend {
+impl BackendStorage for MemBackend {
     fn put(&self, disk: String, vdisk: VDiskId, key: BobKey, data: BobData) -> BackendPutFuture {
         debug!("PUT[{}][{}] to backend", key, disk);
         match self.disks.get(&disk) {
@@ -177,7 +177,7 @@ impl Backend for MemBackend {
             }
         }
     }
-    
+
     fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> BackendPutFuture {
         debug!("PUT[{}] to backend, foreign data", key);
         self.foreign_data.put(vdisk, key, data)

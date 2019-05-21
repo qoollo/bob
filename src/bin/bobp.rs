@@ -18,7 +18,7 @@ use tower_h2::client;
 use tower_service::Service;
 
 use bob::api::grpc::client::BobApi;
-use bob::api::grpc::{Blob, BlobKey, GetRequest, PutRequest, BlobMeta};
+use bob::api::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
 //use stopwatch::{Stopwatch};
 
 #[derive(Debug, Clone)]
@@ -119,7 +119,7 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
                 key: Some(BlobKey { key: i }),
                 data: Some(Blob {
                     data: vec![0; task_conf.payload_size as usize],
-                    meta: Some(BlobMeta{timestamp:1}), // TODO
+                    meta: Some(BlobMeta { timestamp: 1 }), // TODO
                 }),
                 options: None,
             }))

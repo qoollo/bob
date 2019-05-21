@@ -1,6 +1,6 @@
 use bob::api::grpc::server;
 
-use bob::core::data::{VDiskMapper, VDisk};
+use bob::core::data::{VDisk, VDiskMapper};
 use bob::core::grinder::Grinder;
 use clap::{App, Arg};
 use env_logger;
@@ -9,19 +9,27 @@ use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 use tower_h2::Server;
 
-use bob::core::configs::cluster::{BobClusterConfig, ClusterConfigYaml, Cluster};
-use bob::core::configs::node::{BobNodeConfig, NodeConfigYaml, DiskPath,NodeConfig};
+use bob::core::configs::cluster::{BobClusterConfig, Cluster, ClusterConfigYaml};
+use bob::core::configs::node::{BobNodeConfig, DiskPath, NodeConfig, NodeConfigYaml};
 use bob::core::server::BobSrv;
 
 #[macro_use]
 extern crate log;
 
-fn build_bobs(vdisks: &[VDisk], cluster: &Cluster, node_config: &NodeConfig)-> Vec<(BobSrv, String)>{
+fn build_bobs(
+    vdisks: &[VDisk],
+    cluster: &Cluster,
+    node_config: &NodeConfig,
+) -> Vec<(BobSrv, String)> {
     let mut bobs = Vec::new();
     for node in cluster.nodes.iter() {
-        let disks: Vec<DiskPath> = node.disks
+        let disks: Vec<DiskPath> = node
+            .disks
             .iter()
-            .map(|d|DiskPath{name: d.name(), path: d.path()})
+            .map(|d| DiskPath {
+                name: d.name(),
+                path: d.path(),
+            })
             .collect();
         let mapper = VDiskMapper::new2(vdisks.to_vec(), &node.name(), &disks);
         let bob = BobSrv {

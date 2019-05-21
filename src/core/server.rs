@@ -1,8 +1,8 @@
-use crate::api::grpc::{server, Blob, GetRequest, Null, OpStatus, PutRequest, BlobMeta};
+use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRequest};
 
 use crate::core::backend::BackendError;
 
-use crate::core::data::{BobData, BobError, BobKey, BobOptions, BobMeta};
+use crate::core::data::{BobData, BobError, BobKey, BobMeta, BobOptions};
 use crate::core::grinder::{Grinder, ServeTypeError, ServeTypeOk};
 use futures::future::{err, ok};
 use futures::{future, Future};
@@ -123,18 +123,20 @@ impl server::BobApi for BobSrv {
                                     r_ok.is_local(),
                                     elapsed
                                 );
-                                ok(Response::new(
-                                    match r_ok {
-                                        ServeTypeOk::Cluster(r) => Blob{
-                                            data: r.result.data.data,
-                                            meta: Some(BlobMeta{timestamp:r.result.data.meta.timestamp}),
-                                        },
-                                        ServeTypeOk::Local(r) => Blob{
-                                            data: r.data.data,
-                                            meta: Some(BlobMeta{timestamp:r.data.meta.timestamp}),
-                                        },
-                                    }
-                                ))
+                                ok(Response::new(match r_ok {
+                                    ServeTypeOk::Cluster(r) => Blob {
+                                        data: r.result.data.data,
+                                        meta: Some(BlobMeta {
+                                            timestamp: r.result.data.meta.timestamp,
+                                        }),
+                                    },
+                                    ServeTypeOk::Local(r) => Blob {
+                                        data: r.data.data,
+                                        meta: Some(BlobMeta {
+                                            timestamp: r.data.meta.timestamp,
+                                        }),
+                                    },
+                                }))
                             }
                             Err(r_err) => {
                                 error!(
