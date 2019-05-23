@@ -9,12 +9,9 @@ use std::{thread, time};
 
 use tokio::runtime::current_thread::Runtime;
 
-use futures::{Future, Poll};
-use std::net::SocketAddr;
-use tokio::net::tcp::TcpStream;
+use futures::Future;
 use tower::MakeService;
 use tower_grpc::Request;
-use tower_service::Service;
 
 use bob::api::grpc::client::BobApi;
 use bob::api::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest};

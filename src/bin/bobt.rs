@@ -12,7 +12,7 @@ use bob::core::configs::cluster::{BobClusterConfig, Cluster, ClusterConfigYaml};
 use bob::core::configs::node::{BobNodeConfig, DiskPath, NodeConfig, NodeConfigYaml};
 use bob::core::server::BobSrv;
 
-use tower_hyper::server::{Http, Server};
+use tower_hyper::server::Server;
 
 #[macro_use]
 extern crate log;
@@ -58,7 +58,6 @@ fn main() {
                 .long("node"),
         )
         .get_matches();
-
 
     let cluster_config = matches.value_of("cluster").expect("expect cluster config");
     println!("Cluster config: {:?}", cluster_config);

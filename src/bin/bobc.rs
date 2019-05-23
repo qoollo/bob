@@ -21,12 +21,11 @@ fn wait_for_input() {
 fn main() {
     let mut rt = Runtime::new().unwrap();
     let uri: http::Uri = "http://localhost:20000".parse().unwrap();
-    
+
     let dst = Destination::try_from_uri(uri.clone()).unwrap();
     let connector = util::Connector::new(HttpConnector::new(4));
     let settings = client::Builder::new().http2_only(true).clone();
     let mut make_client = client::Connect::with_builder(connector, settings);
-
 
     let conn_l = rt.block_on(make_client.make_service(dst)).unwrap();
     let conn = tower_request_modifier::Builder::new()

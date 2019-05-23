@@ -221,7 +221,9 @@ pub struct Node {
 
 impl Node {
     pub fn get_uri(&self) -> http::Uri {
-        format!("http://{}:{}", self.host, self.port).parse().unwrap()
+        format!("http://{}:{}", self.host, self.port)
+            .parse()
+            .unwrap()
     }
 }
 
