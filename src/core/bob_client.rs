@@ -72,7 +72,7 @@ impl BobClient {
         Put({
             let n1 = self.node.clone();
             let n2 = self.node.clone();
-            let data = d.clone();
+            let data = d.clone(); // TODO: find way to eliminate data copying
             let client = self.client.clone();
             let timeout = self.timeout;
 
@@ -81,7 +81,7 @@ impl BobClient {
                     cl.put(Request::new(PutRequest {
                         key: Some(BlobKey { key: key.key }),
                         data: Some(Blob {
-                            data: data.data.clone(), // TODO: find way to eliminate data copying
+                            data: data.data, 
                             meta: Some(BlobMeta {
                                 timestamp: data.meta.timestamp,
                             }),
