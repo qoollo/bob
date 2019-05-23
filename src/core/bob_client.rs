@@ -1,11 +1,11 @@
+use crate::api::grpc::{
+    Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions, PutRequest,
+};
 use crate::core::data::{
     BobData, BobError, BobGetResult, BobKey, BobMeta, BobPingResult, BobPutResult, ClusterResult,
     Node,
 };
 use tower_grpc::BoxBody;
-use crate::api::grpc::{
-    Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions, PutRequest,
-};
 
 use crate::api::grpc::client::BobApi;
 use std::time::Duration;
@@ -18,21 +18,9 @@ use futures::Future;
 use hyper::client::connect::{Destination, HttpConnector};
 use tower_hyper::{client, util};
 
-extern crate bytes;
-extern crate env_logger;
-extern crate futures;
-extern crate http;
-extern crate hyper;
-extern crate log;
-extern crate prost;
-extern crate tokio;
-extern crate tower_grpc;
-extern crate tower_hyper;
-extern crate tower_request_modifier;
-extern crate tower_service;
-extern crate tower_util;
-use futures_locks::RwLock;
+use futures_locks::Mutex;
 use std::sync::Arc;
+use tower_grpc::{Code, Status};
 
 type TowerConnect =
     tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>;
@@ -40,7 +28,7 @@ type TowerConnect =
 pub struct BobClient {
     node: Node,
     timeout: Duration,
-    client: Arc<RwLock<BobApi<TowerConnect>>>,
+    client: Arc<Mutex<BobApi<TowerConnect>>>,
 }
 
 pub struct Put(
@@ -60,25 +48,24 @@ impl BobClient {
         let connector = util::Connector::new(HttpConnector::new(4));
         let settings = client::Builder::new().http2_only(true).clone();
         let mut make_client = client::Connect::with_executor(connector, settings, executor);
-
+        let n1 = node.clone();
         make_client
             .make_service(dst)
-            .map(move |conn_l| {
-                trace!("Connected to {:?}", node);
+            .map_err(|e| Status::new(Code::Unavailable, format!("Connection error: {}", e)))
+            .and_then(move |conn_l| {
+                trace!("Connected to {:?}", n1);
                 let conn = tower_request_modifier::Builder::new()
-                    .set_origin(node.get_uri())
+                    .set_origin(n1.get_uri())
                     .build(conn_l)
                     .unwrap();
-
-                BobClient {
-                    node,
-                    client: Arc::new(RwLock::new(BobApi::new(conn))),
-                    timeout,
-                }
+                BobApi::new(conn).ready()
             })
-            .map_err(|e| {
-                debug!("BobClient: ERR = {:?}", e);
+            .map(move |client| BobClient {
+                node,
+                client: Arc::new(Mutex::new(client)),
+                timeout,
             })
+            .map_err(|e| debug!("BobClient: ERR = {:?}", e))
     }
 
     pub fn put(&mut self, key: BobKey, d: &BobData) -> Put {
@@ -89,7 +76,7 @@ impl BobClient {
             let client = self.client.clone();
             let timeout = self.timeout;
 
-            Box::new(client.write().then(move |client_res| match client_res {
+            Box::new(client.lock().then(move |client_res| match client_res {
                 Ok(mut cl) => {
                     cl.put(Request::new(PutRequest {
                         key: Some(BlobKey { key: key.key }),
@@ -138,7 +125,7 @@ impl BobClient {
             let client = self.client.clone();
             let timeout = self.timeout;
 
-            Box::new(client.write().then(move |client_res| {
+            Box::new(client.lock().then(move |client_res| {
                 match client_res {
                     Ok(mut cl) => cl
                         .get(Request::new(GetRequest {
@@ -193,25 +180,23 @@ impl BobClient {
         let n1 = self.node.clone();
         let n2 = self.node.clone();
         let to = self.timeout;
-        self.client
-            .write()
-            .then(move |client_res| match client_res {
-                Ok(mut cl) => cl
-                    .ping(Request::new(Null {}))
-                    .timeout(to)
-                    .map(move |_| BobPingResult { node: n1 })
-                    .map_err(move |e| {
-                        if e.is_elapsed() {
-                            BobError::Timeout
-                        } else if e.is_timer() {
-                            panic!("Timeout can't failed in core - can't continue")
-                        } else {
-                            let err = e.into_inner();
-                            BobError::Other(format!("Ping operation for {} failed: {:?}", n2, err))
-                        }
-                    }),
-                Err(_) => panic!("Timeout failed in core - can't continue"), //TODO
-            })
+        self.client.lock().then(move |client_res| match client_res {
+            Ok(mut cl) => cl
+                .ping(Request::new(Null {}))
+                .timeout(to)
+                .map(move |_| BobPingResult { node: n1 })
+                .map_err(move |e| {
+                    if e.is_elapsed() {
+                        BobError::Timeout
+                    } else if e.is_timer() {
+                        panic!("Timeout can't failed in core - can't continue")
+                    } else {
+                        let err = e.into_inner();
+                        BobError::Other(format!("Ping operation for {} failed: {:?}", n2, err))
+                    }
+                }),
+            Err(_) => panic!("Timeout failed in core - can't continue"), //TODO
+        })
     }
 }
 
