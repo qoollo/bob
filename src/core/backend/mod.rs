@@ -11,9 +11,9 @@ use tokio::prelude::Future;
 
 #[derive(Debug, Clone)]
 pub struct BackendOperation {
-    pub vdisk_id: VDiskId,
-    pub disk_path: Option<DiskPath>,
-    pub alien: bool, // is data belongs local node
+    vdisk_id: VDiskId,
+    disk_path: Option<DiskPath>,
+    alien: bool, // flag marks data belonging for different node
 }
 
 impl std::fmt::Display for BackendOperation {
@@ -30,7 +30,7 @@ impl std::fmt::Display for BackendOperation {
 }
 
 impl BackendOperation {
-    pub fn new_other(vdisk_id: VDiskId) -> BackendOperation {
+    pub fn new_alien(vdisk_id: VDiskId) -> BackendOperation {
         BackendOperation {
             vdisk_id,
             disk_path: None,
@@ -89,7 +89,7 @@ pub struct Put(pub Box<dyn Future<Item = BackendResult, Error = BackendError> + 
 pub struct Get(pub Box<dyn Future<Item = BackendGetResult, Error = BackendError> + Send>);
 
 impl Backend {
-    pub fn new(mapper: &VDiskMapper, backend_type: &BackendType) -> Self {
+    pub fn new(mapper: &VDiskMapper, backend_type: BackendType) -> Self {
         let backend: Arc<BackendStorage + Send + Sync + 'static> = match backend_type {
             BackendType::InMemory => Arc::new(MemBackend::new(mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),

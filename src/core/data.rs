@@ -144,7 +144,7 @@ impl VDiskMapper {
                 .collect(),
         }
     }
-    pub fn new2(vdisks: Vec<VDisk>, node_name: &str, disks: &Vec<ConfigDiskPath>) -> VDiskMapper {
+    pub fn new2(vdisks: Vec<VDisk>, node_name: &str, disks: &[ConfigDiskPath]) -> VDiskMapper {
         VDiskMapper {
             vdisks,
             local_node_name: node_name.to_string(),
@@ -203,7 +203,7 @@ impl VDiskMapper {
                 self.local_node_name,
                 vdisk_id
             );
-            return BackendOperation::new_other(vdisk_id);
+            return BackendOperation::new_alien(vdisk_id);
         }
         BackendOperation::new_local(
             vdisk_id,

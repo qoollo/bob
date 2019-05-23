@@ -3,23 +3,16 @@ use crate::core::data::{
     Node,
 };
 use tower_grpc::BoxBody;
-//use tower_h2::client::Connection;
-
 use crate::api::grpc::{
     Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions, PutRequest,
 };
 
 use crate::api::grpc::client::BobApi;
-//use futures::{Future, Poll};
-// use std::net::SocketAddr;
 use std::time::Duration;
-//use tokio::net::tcp::TcpStream;
 use tokio::prelude::FutureExt;
 use tokio::runtime::TaskExecutor;
 use tower::MakeService;
 use tower_grpc::Request;
-//use tower_h2::client;
-// use tower_service::Service;
 
 use futures::Future;
 use hyper::client::connect::{Destination, HttpConnector};
@@ -41,17 +34,13 @@ extern crate tower_util;
 use futures_locks::RwLock;
 use std::sync::Arc;
 
+type TowerConnect =
+    tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>;
 #[derive(Clone)]
 pub struct BobClient {
     node: Node,
     timeout: Duration,
-    client: Arc<
-        RwLock<
-            BobApi<
-                tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>,
-            >,
-        >,
-    >,
+    client: Arc<RwLock<BobApi<TowerConnect>>>,
 }
 
 pub struct Put(
