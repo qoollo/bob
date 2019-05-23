@@ -76,44 +76,45 @@ impl BobClient {
             let client = self.client.clone();
             let timeout = self.timeout;
 
-            Box::new(client.lock().then(move |client_res| match client_res {
-                Ok(mut cl) => {
-                    cl.put(Request::new(PutRequest {
-                        key: Some(BlobKey { key: key.key }),
-                        data: Some(Blob {
-                            data: data.data, 
-                            meta: Some(BlobMeta {
-                                timestamp: data.meta.timestamp,
+            Box::new(client.lock().then(move |client_res| {
+                match client_res {
+                    Ok(mut cl) => cl
+                        .put(Request::new(PutRequest {
+                            key: Some(BlobKey { key: key.key }),
+                            data: Some(Blob {
+                                data: data.data,
+                                meta: Some(BlobMeta {
+                                    timestamp: data.meta.timestamp,
+                                }),
                             }),
+                            options: Some(PutOptions {
+                                force_node: true,
+                                overwrite: false,
+                            }),
+                        }))
+                        .timeout(timeout)
+                        .map(|_| ClusterResult {
+                            node: n1,
+                            result: BobPutResult {},
+                        })
+                        .map_err(move |e| ClusterResult {
+                            result: {
+                                if e.is_elapsed() {
+                                    BobError::Timeout
+                                } else if e.is_timer() {
+                                    panic!("Timeout failed in core - can't continue")
+                                } else {
+                                    let err = e.into_inner();
+                                    BobError::Other(format!(
+                                        "Put operation for {} failed: {:?}",
+                                        n2, err
+                                    ))
+                                }
+                            },
+                            node: n2,
                         }),
-                        options: Some(PutOptions {
-                            force_node: true,
-                            overwrite: false,
-                        }),
-                    }))
-                    .timeout(timeout)
-                    .map(|_| ClusterResult {
-                        node: n1,
-                        result: BobPutResult {},
-                    })
-                    .map_err(move |e| ClusterResult {
-                        result: {
-                            if e.is_elapsed() {
-                                BobError::Timeout
-                            } else if e.is_timer() {
-                                panic!("Timeout failed in core - can't continue")
-                            } else {
-                                let err = e.into_inner();
-                                BobError::Other(format!(
-                                    "Put operation for {} failed: {:?}",
-                                    n2, err
-                                ))
-                            }
-                        },
-                        node: n2,
-                    })
+                    Err(_) => panic!("Timeout failed in core - can't continue"), //TODO
                 }
-                Err(_) => panic!("Timeout failed in core - can't continue"), //TODO
             }))
         })
     }
