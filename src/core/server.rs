@@ -18,7 +18,7 @@ impl BobSrv {
     pub fn get_periodic_tasks(
         &self,
         ex: tokio::runtime::TaskExecutor,
-    ) -> Box<impl Future<Item = (), Error = ()>> {
+    ) -> Box<impl Future<Item = (), Error = ()> + Send> {
         self.grinder.get_periodic_tasks(ex)
     }
 

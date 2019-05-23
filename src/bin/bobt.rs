@@ -7,11 +7,12 @@ use env_logger;
 use futures::{Future, Stream};
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
-use tower_h2::Server;
 
 use bob::core::configs::cluster::{BobClusterConfig, Cluster, ClusterConfigYaml};
 use bob::core::configs::node::{BobNodeConfig, DiskPath, NodeConfig, NodeConfigYaml};
 use bob::core::server::BobSrv;
+
+use tower_hyper::server::{Http, Server};
 
 #[macro_use]
 extern crate log;
@@ -58,7 +59,6 @@ fn main() {
         )
         .get_matches();
 
-    let mut rt = Runtime::new().unwrap();
 
     let cluster_config = matches.value_of("cluster").expect("expect cluster config");
     println!("Cluster config: {:?}", cluster_config);
@@ -72,12 +72,12 @@ fn main() {
         .filter_module("bob", node.log_level())
         .init();
 
+    let mut rt = Runtime::new().unwrap();
     let bobs = build_bobs(&disks, &cluster, &node);
     for (b, address) in bobs.iter() {
         rt.spawn(b.get_periodic_tasks(rt.executor()));
         let new_service = server::BobApiServer::new(b.clone());
-        let h2_settings = Default::default();
-        let mut h2 = Server::new(new_service, h2_settings, rt.executor());
+        let mut server = Server::new(new_service);
 
         let addr = address.parse().unwrap();
         let bind = TcpListener::bind(&addr).expect("bind");
@@ -88,7 +88,7 @@ fn main() {
                     return Err(e);
                 }
 
-                let serve = h2.serve(sock);
+                let serve = server.serve(sock);
                 tokio::spawn(serve.map_err(|e| error!("Server h2 error: {:?}", e)));
 
                 Ok(())

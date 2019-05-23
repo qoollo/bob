@@ -4,15 +4,16 @@ use bob::core::data::VDiskMapper;
 use bob::core::grinder::Grinder;
 use clap::{App, Arg};
 use env_logger;
-use futures::{Future, Stream};
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
-use tower_h2::Server;
 
 use bob::core::configs::cluster::{BobClusterConfig, ClusterConfigYaml};
 use bob::core::configs::node::{BobNodeConfig, DiskPath, NodeConfigYaml};
 
 use bob::core::server::BobSrv;
+
+use futures::{Future, Stream};
+use tower_hyper::server::{Http, Server};
 
 #[macro_use]
 extern crate log;
@@ -41,8 +42,6 @@ fn main() {
                 .long("name"),
         )
         .get_matches();
-
-    let mut rt = Runtime::new().unwrap();
 
     let cluster_config = matches.value_of("cluster").expect("expect cluster config");
     println!("Cluster config: {:?}", cluster_config);
@@ -82,14 +81,16 @@ fn main() {
         grinder: std::sync::Arc::new(Grinder::new(mapper, &node)),
     };
 
+    let mut rt = Runtime::new().unwrap();
     rt.spawn(bob.get_periodic_tasks(rt.executor()));
+
     let new_service = server::BobApiServer::new(bob);
 
-    let h2_settings = Default::default();
-    let mut h2 = Server::new(new_service, h2_settings, rt.executor());
+    let mut server = Server::new(new_service);
 
     info!("Listen on {:?}", addr);
     let bind = TcpListener::bind(&addr).expect("bind");
+    let http = Http::new().http2_only(true).clone();
 
     let serve = bind
         .incoming()
@@ -98,7 +99,7 @@ fn main() {
                 return Err(e);
             }
 
-            let serve = h2.serve(sock);
+            let serve = server.serve_with(sock, http.clone());
             tokio::spawn(serve.map_err(|e| error!("Server h2 error: {:?}", e)));
 
             Ok(())

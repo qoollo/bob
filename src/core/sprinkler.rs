@@ -92,7 +92,7 @@ impl Sprinkler {
         );
 
         let reqs = Self::call_nodes(&mut self.get_connections(&target_nodes), |conn| {
-            Box::new(conn.put(key, &data))
+            conn.put(key, &data).0
         });
 
         let l_quorum = self.quorum;
@@ -147,7 +147,7 @@ impl Sprinkler {
             print_vec(&target_nodes)
         );
         let reqs = Self::call_nodes(&mut self.get_connections(&target_nodes), |conn| {
-            Box::new(conn.get(key))
+            conn.get(key).0
         });
 
         Box::new(
