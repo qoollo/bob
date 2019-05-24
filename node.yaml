@@ -1,4 +1,4 @@
-log_level: Info
+log_level: Trace
 name: local_node
 quorum: 1
 timeout: 3sec

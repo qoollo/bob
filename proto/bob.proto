@@ -31,6 +31,12 @@ message BlobKey {
 // Data blob
 message Blob {
     bytes data = 1; // Data
+    BlobMeta meta = 2; // Metadata
+}
+
+// Blob metadata
+message BlobMeta {
+    uint32 timestamp = 1; // timestamp for data version
 }
 
 // Operation status

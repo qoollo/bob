@@ -48,7 +48,7 @@ pub struct NodeConfig {
 }
 
 impl NodeConfig {
-    pub fn name(&self) -> String{
+    pub fn name(&self) -> String {
         self.name.as_ref().unwrap().clone()
     }
     pub fn bind(&self) -> String {

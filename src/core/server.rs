@@ -1,8 +1,8 @@
-use crate::api::grpc::{server, Blob, GetRequest, Null, OpStatus, PutRequest};
+use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRequest};
 
 use crate::core::backend::BackendError;
 
-use crate::core::data::{BobData, BobError, BobKey, BobOptions};
+use crate::core::data::{BobData, BobError, BobKey, BobMeta, BobOptions};
 use crate::core::grinder::{Grinder, ServeTypeError, ServeTypeOk};
 use futures::future::{err, ok};
 use futures::{future, Future};
@@ -18,7 +18,7 @@ impl BobSrv {
     pub fn get_periodic_tasks(
         &self,
         ex: tokio::runtime::TaskExecutor,
-    ) -> Box<impl Future<Item = (), Error = ()>> {
+    ) -> Box<impl Future<Item = (), Error = ()> + Send> {
         self.grinder.get_periodic_tasks(ex)
     }
 
@@ -50,8 +50,10 @@ impl server::BobApi for BobSrv {
             let key = BobKey {
                 key: param.key.unwrap().key,
             };
+            let blob = param.data.unwrap();
             let data = BobData {
-                data: param.data.unwrap().data,
+                data: blob.data,
+                meta: BobMeta::new(blob.meta.unwrap()),
             };
 
             trace!("PUT[{}] data size: {}", key, data.data.len());
@@ -121,10 +123,18 @@ impl server::BobApi for BobSrv {
                                     r_ok.is_local(),
                                     elapsed
                                 );
-                                ok(Response::new(Blob {
-                                    data: match r_ok {
-                                        ServeTypeOk::Cluster(r) => r.result.data.data,
-                                        ServeTypeOk::Local(r) => r.data.data,
+                                ok(Response::new(match r_ok {
+                                    ServeTypeOk::Cluster(r) => Blob {
+                                        data: r.result.data.data,
+                                        meta: Some(BlobMeta {
+                                            timestamp: r.result.data.meta.timestamp,
+                                        }),
+                                    },
+                                    ServeTypeOk::Local(r) => Blob {
+                                        data: r.data.data,
+                                        meta: Some(BlobMeta {
+                                            timestamp: r.data.meta.timestamp,
+                                        }),
                                     },
                                 }))
                             }

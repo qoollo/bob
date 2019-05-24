@@ -9,17 +9,15 @@ use std::{thread, time};
 
 use tokio::runtime::current_thread::Runtime;
 
-use futures::{Future, Poll};
-use std::net::SocketAddr;
-use tokio::net::tcp::TcpStream;
+use futures::Future;
 use tower::MakeService;
 use tower_grpc::Request;
-use tower_h2::client;
-use tower_service::Service;
 
 use bob::api::grpc::client::BobApi;
-use bob::api::grpc::{Blob, BlobKey, GetRequest, PutRequest};
-//use stopwatch::{Stopwatch};
+use bob::api::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
+
+use hyper::client::connect::{Destination, HttpConnector};
+use tower_hyper::{client, util};
 
 #[derive(Debug, Clone)]
 struct NetConfig {
@@ -33,10 +31,6 @@ impl NetConfig {
             .parse()
             .unwrap()
     }
-
-    pub fn get_connector(&self) -> Dst {
-        Dst::new(self)
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -49,37 +43,6 @@ struct TaskConfig {
 struct Stat {
     put_total: AtomicU64,
     get_total: AtomicU64,
-}
-
-struct Dst {
-    addr: SocketAddr,
-}
-impl Dst {
-    pub fn new(net_conf: &NetConfig) -> Dst {
-        Dst {
-            addr: SocketAddr::new(net_conf.target.parse().unwrap(), net_conf.port),
-        }
-    }
-}
-impl Service<()> for Dst {
-    type Response = TcpStream;
-    type Error = ::std::io::Error;
-    type Future = Box<Future<Item = TcpStream, Error = ::std::io::Error> + Send>;
-
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(().into())
-    }
-
-    fn call(&mut self, _: ()) -> Self::Future {
-        Box::new(
-            TcpStream::connect(&self.addr)
-                .map(|stream| {
-                    stream.set_nodelay(true).unwrap();
-                    stream
-                })
-                .map_err(|err| err),
-        )
-    }
 }
 
 fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
@@ -105,20 +68,26 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
     let uri = std::sync::Arc::new(net_conf.get_uri());
     let mut rt = Runtime::new().unwrap();
 
-    let h2_settings = Default::default();
-    let mut make_client = client::Connect::new(net_conf.get_connector(), h2_settings, rt.handle());
-    let conn = rt.block_on(make_client.make_service(())).unwrap();
+    // let h2_settings = Default::default();
+    // let mut make_client = client::Connect::new(net_conf.get_connector(), h2_settings, rt.handle());
+    let dst = Destination::try_from_uri(net_conf.get_uri()).unwrap();
+    let connector = util::Connector::new(HttpConnector::new(4));
+    let settings = client::Builder::new().http2_only(true).clone();
+    let mut make_client = client::Connect::with_builder(connector, settings);
+
+    let conn = rt.block_on(make_client.make_service(dst)).unwrap();
     let p_conn = tower_request_modifier::Builder::new()
         .set_origin(uri.as_ref())
         .build(conn)
         .unwrap();
-    let mut client = BobApi::new(p_conn.clone());
+    let mut client = BobApi::new(p_conn);
     rt.block_on(loop_fn((stat.clone(), task_conf.low_idx), |(lstat, i)| {
         client
             .put(Request::new(PutRequest {
                 key: Some(BlobKey { key: i }),
                 data: Some(Blob {
                     data: vec![0; task_conf.payload_size as usize],
+                    meta: Some(BlobMeta { timestamp: 1 }), // TODO
                 }),
                 options: None,
             }))
