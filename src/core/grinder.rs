@@ -87,6 +87,7 @@ impl Grinder {
             Either::B(
                 self.sprinkler
                     .put_clustered(key, data)
+                    .0
                     .map(|r| ServeTypeOk::Cluster(r))
                     .map_err(|err| ServeTypeError::Cluster(err)),
             )
@@ -121,6 +122,7 @@ impl Grinder {
             Either::B(
                 self.sprinkler
                     .get_clustered(key)
+                    .0
                     .map(|r| ServeTypeOk::Cluster(r))
                     .map_err(|err| ServeTypeError::Cluster(err)),
             )

@@ -1,5 +1,5 @@
 use crate::core::bob_client::{BobClient, BobClientFactory};
-use crate::core::data::Node;
+use crate::core::data::{Node, ClusterResult, BobError};
 use futures::future::Either;
 use futures::future::Future;
 use futures::stream::Stream;
@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::timer::Interval;
+use futures::future::*;
 
 pub struct NodeLink {
     pub node: Node,
@@ -116,5 +117,40 @@ impl LinkManager {
             .get(node)
             .expect("No such node in repo. Check config and cluster setup")
             .get_connection()
+    }
+
+    pub fn get_connections(&self, nodes: &[Node]) -> Vec<NodeLink> {
+        nodes
+            .iter()
+            .map(|n| self.get_link(n))
+            .collect()
+    }
+    pub fn call_nodes<F, T: 'static + Send>(
+        &self,
+        nodes: &[Node],
+        mut f: F,
+    ) -> Vec<Box<Future<Item = ClusterResult<T>, Error = ClusterResult<BobError>> + 'static + Send>>
+    where
+        F: FnMut(
+            &mut BobClient,
+        ) -> (Box<
+            Future<Item = ClusterResult<T>, Error = ClusterResult<BobError>> + 'static + Send,
+        >),
+    {
+        let links = &mut self.get_connections(nodes);
+        let t: Vec<_> = links
+            .iter_mut()
+            .map(move |nl| {
+                let node = nl.node.clone();
+                match &mut nl.conn {
+                    Some(conn) => f(conn),
+                    None => Box::new(err(ClusterResult {
+                        result: BobError::Other(format!("No active connection {:?}", node)),
+                        node,
+                    })),
+                }
+            })
+            .collect();
+        t
     }
 }

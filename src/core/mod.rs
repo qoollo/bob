@@ -7,3 +7,4 @@ pub mod sprinkler;
 
 pub mod configs;
 pub mod server;
+pub mod cluster;
