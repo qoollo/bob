@@ -1,9 +1,7 @@
-use crate::core::data::{
-    print_vec, BobData, BobError, BobKey, Node, VDiskMapper
-};
 use crate::core::configs::node::NodeConfig;
-use crate::core::sprinkler::{SprinklerResult, SprinklerError, Put, Get};
-use crate::core::link_manager::{LinkManager};
+use crate::core::data::{print_vec, BobData, BobError, BobKey, Node, VDiskMapper};
+use crate::core::link_manager::LinkManager;
+use crate::core::sprinkler::{Get, Put, SprinklerError, SprinklerResult};
 use futures::future::*;
 use futures::stream::*;
 use std::sync::Arc;
@@ -13,9 +11,12 @@ pub trait Cluster {
     fn get_clustered(&self, key: BobKey) -> Get;
 }
 
-pub fn get_cluster(link: Arc<LinkManager>, mapper: &VDiskMapper, config: &NodeConfig) -> Arc<dyn Cluster + Send + Sync> {
-    if config.cluster_policy() == "quorum" 
-    {
+pub fn get_cluster(
+    link: Arc<LinkManager>,
+    mapper: &VDiskMapper,
+    config: &NodeConfig,
+) -> Arc<dyn Cluster + Send + Sync> {
+    if config.cluster_policy() == "quorum" {
         return Arc::new(QuorumCluster::new(link.clone(), mapper, config));
     }
     panic!("unknown cluster policy: {}", config.cluster_policy())
@@ -28,8 +29,8 @@ pub struct QuorumCluster {
 }
 
 impl QuorumCluster {
-    pub fn new(link_manager: Arc<LinkManager>, mapper: &VDiskMapper, config: &NodeConfig) ->Self{
-        QuorumCluster{
+    pub fn new(link_manager: Arc<LinkManager>, mapper: &VDiskMapper, config: &NodeConfig) -> Self {
+        QuorumCluster {
             quorum: config.quorum.unwrap(),
             link_manager,
             mapper: mapper.clone(),
@@ -50,7 +51,7 @@ impl QuorumCluster {
 }
 
 impl Cluster for QuorumCluster {
-    fn put_clustered(&self, key: BobKey, data: BobData) -> Put{
+    fn put_clustered(&self, key: BobKey, data: BobData) -> Put {
         Put({
             let target_nodes = self.calc_target_nodes(key);
 
@@ -60,9 +61,9 @@ impl Cluster for QuorumCluster {
                 print_vec(&target_nodes)
             );
 
-            let reqs = self.link_manager.call_nodes(&target_nodes, |conn| {
-                conn.put(key, &data).0
-            });
+            let reqs = self
+                .link_manager
+                .call_nodes(&target_nodes, |conn| conn.put(key, &data).0);
 
             let l_quorum = self.quorum;
             Box::new(
@@ -105,7 +106,7 @@ impl Cluster for QuorumCluster {
         })
     }
 
-    fn get_clustered(&self, key: BobKey) -> Get{
+    fn get_clustered(&self, key: BobKey) -> Get {
         Get({
             let target_nodes = self.calc_target_nodes(key);
 
@@ -114,9 +115,9 @@ impl Cluster for QuorumCluster {
                 key,
                 print_vec(&target_nodes)
             );
-            let reqs = self.link_manager.call_nodes(&target_nodes, |conn| {
-                conn.get(key).0
-            });
+            let reqs = self
+                .link_manager
+                .call_nodes(&target_nodes, |conn| conn.get(key).0);
 
             Box::new(
                 select_ok(reqs) // any result will enought

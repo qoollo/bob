@@ -1,13 +1,13 @@
 use crate::core::bob_client::{BobClient, BobClientFactory};
-use crate::core::data::{Node, ClusterResult, BobError};
+use crate::core::data::{BobError, ClusterResult, Node};
 use futures::future::Either;
 use futures::future::Future;
+use futures::future::*;
 use futures::stream::Stream;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::timer::Interval;
-use futures::future::*;
 
 pub struct NodeLink {
     pub node: Node,
@@ -120,10 +120,7 @@ impl LinkManager {
     }
 
     pub fn get_connections(&self, nodes: &[Node]) -> Vec<NodeLink> {
-        nodes
-            .iter()
-            .map(|n| self.get_link(n))
-            .collect()
+        nodes.iter().map(|n| self.get_link(n)).collect()
     }
     pub fn call_nodes<F, T: 'static + Send>(
         &self,

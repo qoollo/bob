@@ -1,9 +1,7 @@
+use crate::core::cluster::{get_cluster, Cluster};
 use crate::core::configs::node::NodeConfig;
-use crate::core::data::{
-    BobData, BobError, BobGetResult, BobKey, ClusterResult, VDiskMapper,
-};
-use crate::core::link_manager::{LinkManager};
-use crate::core::cluster::{Cluster, get_cluster};
+use crate::core::data::{BobData, BobError, BobGetResult, BobKey, ClusterResult, VDiskMapper};
+use crate::core::link_manager::LinkManager;
 
 use std::sync::Arc;
 use tokio::prelude::*;
@@ -62,10 +60,10 @@ pub struct Sprinkler {
 impl Sprinkler {
     pub fn new(mapper: &VDiskMapper, config: &NodeConfig) -> Sprinkler {
         let link = Arc::new(LinkManager::new(
-                mapper.nodes(),
-                config.check_interval(),
-                config.timeout(),
-            ));
+            mapper.nodes(),
+            config.check_interval(),
+            config.timeout(),
+        ));
         Sprinkler {
             link_manager: link.clone(),
             mapper: mapper.clone(),
