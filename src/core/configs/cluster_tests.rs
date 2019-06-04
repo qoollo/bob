@@ -538,6 +538,7 @@ name: no
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100ms
+cluster_policy: quorum # quorum
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -551,6 +552,7 @@ name: n1
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100sec
+cluster_policy: quorum # quorum
 backend_type: InvalidType
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -582,6 +584,7 @@ name: no
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100mms
+cluster_policy: quorum # quorum
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -596,6 +599,7 @@ name: n1
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100sec
+cluster_policy: quorum # quorum
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -627,6 +631,7 @@ name: 1n2112321321321321
 quorum: 1
 timeout: 12h 5min 2ns
 check_interval: 100sec
+cluster_policy: quorum # quorum
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();

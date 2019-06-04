@@ -34,6 +34,7 @@ pub struct NodeConfig {
     pub quorum: Option<u8>,
     pub timeout: Option<String>,
     pub check_interval: Option<String>,
+    pub cluster_policy: Option<String>,
 
     pub backend_type: Option<String>,
 
@@ -50,6 +51,9 @@ pub struct NodeConfig {
 impl NodeConfig {
     pub fn name(&self) -> String {
         self.name.as_ref().unwrap().clone()
+    }
+    pub fn cluster_policy(&self) -> String {
+        self.cluster_policy.as_ref().unwrap().clone()
     }
     pub fn bind(&self) -> String {
         self.bind_ref.borrow().to_string()
@@ -167,6 +171,14 @@ impl Validatable for NodeConfig {
         if self.name.as_ref()?.is_empty() {
             debug!("field 'name' for 'config' is empty");
             return Some("field 'name' for 'config' is empty".to_string());
+        }
+        if self.cluster_policy.is_none() {
+            debug!("field 'cluster_policy' for 'config' is not set");
+            return Some("field 'cluster_policy' for 'config' is not set".to_string());
+        }
+        if self.cluster_policy.as_ref()?.is_empty() {
+            debug!("field 'cluster_policy' for 'config' is empty");
+            return Some("field 'cluster_policy' for 'config' is empty".to_string());
         }
         if self.log_level.is_none() {
             debug!("field 'log_level' for 'config' is not set");
