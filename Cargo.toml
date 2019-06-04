@@ -31,7 +31,7 @@ itertools = "0.8"
 humantime = "1.2.0"
 futures-locks = "0.3"
 tokio-core = "0.1"
-
+pearl = { git = "https://github.com/qoollo/pearl" }
 
 [build-dependencies]
 tower-grpc-build = { git = "https://github.com/tower-rs/tower-grpc", features = ["tower-hyper"] }

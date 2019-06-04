@@ -4,4 +4,4 @@ quorum: 1
 timeout: 3sec
 check_interval: 5000ms
 cluster_policy: quorum # quorum
-backend_type: in_memory # in_memory, stub
+backend_type: in_memory # in_memory, stub, pearl

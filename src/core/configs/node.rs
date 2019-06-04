@@ -25,6 +25,7 @@ pub struct DiskPath {
 pub enum BackendType {
     InMemory = 0,
     Stub,
+    Pearl,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -83,13 +84,12 @@ impl NodeConfig {
     }
     fn backend_result(&self) -> Result<BackendType, String> {
         let value = self.backend_type.as_ref().unwrap().clone();
-        if value == "in_memory" {
-            return Ok(BackendType::InMemory);
+        match value.as_ref() {
+            "in_memory" => Ok(BackendType::InMemory),
+            "stub" => Ok(BackendType::Stub),
+            "pearl" => Ok(BackendType::Pearl),
+            _ =>  Err(format!("unknown backend type: {}", value)),
         }
-        if value == "stub" {
-            return Ok(BackendType::Stub);
-        }
-        Err(format!("unknown backend type: {}", value))
     }
     pub fn prepare(&self, node: &Node) -> Result<(), String> {
         self.bind_ref

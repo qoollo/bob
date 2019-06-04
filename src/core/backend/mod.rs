@@ -1,8 +1,11 @@
 pub mod mem_backend;
 pub mod mem_tests;
 pub mod stub_backend;
+pub mod pearl_backend;
+
 use crate::core::backend::mem_backend::MemBackend;
 use crate::core::backend::stub_backend::StubBackend;
+use crate::core::backend::pearl_backend::PearlBackend;
 use crate::core::configs::node::BackendType;
 use crate::core::data::VDiskMapper;
 use crate::core::data::{BobData, BobKey, DiskPath, VDiskId};
@@ -93,6 +96,7 @@ impl Backend {
         let backend: Arc<BackendStorage + Send + Sync + 'static> = match backend_type {
             BackendType::InMemory => Arc::new(MemBackend::new(mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
+            BackendType::Pearl => Arc::new(PearlBackend {}),
         };
         Backend { backend }
     }
