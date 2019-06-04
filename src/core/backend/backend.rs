@@ -1,7 +1,7 @@
 use crate::core::backend::mem_backend::MemBackend;
 use crate::core::backend::stub_backend::StubBackend;
 use crate::core::backend::pearl_backend::PearlBackend;
-use crate::core::configs::node::BackendType;
+use crate::core::configs::node::{BackendType, NodeConfig};
 use crate::core::data::VDiskMapper;
 use crate::core::data::{BobData, BobKey, DiskPath, VDiskId};
 use std::sync::Arc;
@@ -87,11 +87,15 @@ pub struct Put(pub Box<dyn Future<Item = BackendResult, Error = BackendError> + 
 pub struct Get(pub Box<dyn Future<Item = BackendGetResult, Error = BackendError> + Send>);
 
 impl Backend {
-    pub fn new(mapper: &VDiskMapper, backend_type: BackendType) -> Self {
-        let backend: Arc<BackendStorage + Send + Sync + 'static> = match backend_type {
+    pub fn new(mapper: &VDiskMapper, config: &NodeConfig) -> Self {
+        let backend: Arc<BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
-            BackendType::Pearl => Arc::new(PearlBackend {}),
+            BackendType::Pearl => {
+                let mut pearl = PearlBackend::new(config);
+                pearl.init(mapper).unwrap();
+                Arc::new(pearl)
+            },
         };
         Backend { backend }
     }

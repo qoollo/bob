@@ -544,6 +544,79 @@ backend_type: stub
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());
     }
+
+    #[test]
+    fn test_node_pearl_config_no_pearl_config() {
+        let s = "
+log_level: Debug
+name: no
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100ms
+cluster_policy: quorum # quorum
+backend_type: pearl
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_some());
+    }
+
+    #[test]
+    fn test_node_pearl_config() {
+        let s = "
+log_level: Debug
+name: no
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100ms
+cluster_policy: quorum # quorum
+backend_type: pearl
+pearl:
+  max_blob_size: 1
+  max_data_in_blob: 1
+  blob_file_name_prefix: bob
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_none());
+    }
+
+    #[test]
+    fn test_node_pearl_config2() {
+        let s = "
+log_level: Debug
+name: no
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100ms
+cluster_policy: quorum # quorum
+backend_type: pearl
+pearl:
+  max_blob_size: 1
+#  max_data_in_blob: 1
+#  blob_file_name_prefix: bob
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_none());
+    }
+
+    #[test]
+    fn test_node_pearl_config_no_field() {
+        let s = "
+log_level: Debug
+name: no
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100ms
+cluster_policy: quorum # quorum
+backend_type: pearl
+pearl:
+#  max_blob_size: 1
+  max_data_in_blob: 1
+#  blob_file_name_prefix: bob
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_some());
+    }
+
     #[test]
     fn test_node_config_invalid_backend_type() {
         let s = "

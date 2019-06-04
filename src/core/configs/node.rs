@@ -5,6 +5,34 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::time::Duration;
 
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct PearlConfig {
+    pub max_blob_size: Option<u64>,
+    pub max_data_in_blob: Option<u64>,
+    pub blob_file_name_prefix: Option<String>,
+    pub pool_count_threads: Option<u16>,
+}
+
+impl PearlConfig {
+    pub fn pool_count_threads(&self) -> u16 {
+        self.pool_count_threads.unwrap()
+    }
+}
+
+impl Validatable for PearlConfig {
+    fn validate(&self) -> Option<String> {
+        if self.max_blob_size.is_none() {
+            debug!("field 'max_blob_size' for 'pearl' is not set");
+            return Some("field 'max_blob_size' for 'pearl' is not set".to_string());
+        }
+        if self.pool_count_threads.is_none() {
+            debug!("field 'pool_count_threads' for 'pearl' is not set");
+            return Some("field 'pool_count_threads' for 'pearl' is not set".to_string());
+        }
+        None
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum LogLevel {
     Off = 0,
@@ -38,6 +66,7 @@ pub struct NodeConfig {
     pub cluster_policy: Option<String>,
 
     pub backend_type: Option<String>,
+    pub pearl: Option<PearlConfig>,
 
     #[serde(skip)]
     pub bind_ref: RefCell<String>,
@@ -138,6 +167,16 @@ impl Validatable for NodeConfig {
         if self.backend_type.is_none() {
             debug!("field 'backend_type' for 'config' is not set");
             return Some("field 'backend_type' for 'config' is not set".to_string());
+        }
+        if self.backend_result().ok()? == BackendType::Pearl {
+            if self.pearl.is_none() {
+                debug!("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set");
+                return Some("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set".to_string());
+            }
+            let r = self.pearl.as_ref()?.validate();
+            if r.is_some() {
+                return r;
+            }
         }
         if self
             .timeout

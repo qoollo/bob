@@ -51,7 +51,7 @@ pub struct Grinder {
 
 impl Grinder {
     pub fn new(mapper: VDiskMapper, config: &NodeConfig) -> Grinder {
-        let backend = Backend::new(&mapper, config.backend_type());
+        let backend = Backend::new(&mapper, config);
         Grinder {
             backend,
             sprinkler: Sprinkler::new(&mapper, config),
