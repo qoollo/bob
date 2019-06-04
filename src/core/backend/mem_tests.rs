@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::core::backend::mem_backend::*;
-    use crate::core::backend::*;
+    use crate::core::backend::backend::*;
     use crate::core::data::*;
     use tokio_core::reactor::Core;
 
