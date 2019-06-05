@@ -72,10 +72,10 @@ pub type BackendPutFuture = Box<Future<Item = BackendResult, Error = BackendErro
 pub type BackendGetFuture = Box<Future<Item = BackendGetResult, Error = BackendError> + Send>;
 
 pub trait BackendStorage {
-    fn put(&self, disk: String, vdisk: VDiskId, key: BobKey, data: BobData) -> BackendPutFuture;
+    fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;
     fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> BackendPutFuture;
 
-    fn get(&self, disk: String, vdisk: VDiskId, key: BobKey) -> BackendGetFuture;
+    fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get;
     fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> BackendGetFuture;
 }
 
@@ -112,7 +112,7 @@ impl Backend {
                     oper.vdisk_id.clone(),
                     key,
                     data.clone(),
-                );
+                ).0;
 
                 let func = move |err| {
                     error!(
@@ -142,7 +142,7 @@ impl Backend {
 
             if !oper.is_data_alien() {
                 debug!("GET[{}][{}] to backend", key, oper.disk_name_local());
-                backend.get(oper.disk_name_local(), oper.vdisk_id.clone(), key)
+                backend.get(oper.disk_name_local(), oper.vdisk_id.clone(), key).0
             } else {
                 debug!("GET[{}] to backend, foreign data", key);
                 backend.get_alien(oper.vdisk_id.clone(), key)

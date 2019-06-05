@@ -1,21 +1,53 @@
 use crate::core::backend::backend::*;
-use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
+use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper, BobMeta};
 use crate::core::configs::node::{NodeConfig, PearlConfig};
-//use futures::future::{err, ok};
-use pearl::{Builder, Storage};
+use futures::future::{err};
+use pearl::{Builder, Storage, Key};
+
+use futures::future::Future;
+use futures03::future::{FutureExt, TryFutureExt};
 
 use futures03::executor::{ThreadPool, ThreadPoolBuilder};
 
 use std::path::{Path, PathBuf};
 use std::fs::create_dir_all;
+use std::sync::Arc;
+
+pub type PearlStorage = Storage<PearlKey>;
+
+pub struct PearlKey {
+    pub key: Vec<u8>,
+    pub timestamp: u32,
+}
+impl PearlKey {
+    pub fn new (key: BobKey, meta: &BobMeta) -> Self {
+        PearlKey {
+            key: key.key.clone().to_be_bytes().to_vec(),
+            timestamp: meta.timestamp,
+        }
+    }
+
+    pub fn new_read (key: BobKey) -> Self {
+        PearlKey {
+            key: key.key.clone().to_be_bytes().to_vec(),
+            timestamp: 0, // TODO 
+        }
+    }
+}
+impl Key for PearlKey {
+    const LEN: u16 = 16;
+}
+impl AsRef<[u8]> for PearlKey {
+    fn as_ref(&self) -> &[u8] {
+        &self.key
+    }
+}
 
 pub struct PearlBackend {
     config: PearlConfig,
     pool: ThreadPool,
-    vdisks: Vec<PearlVDisk>,
+    vdisks: Arc<Vec<PearlVDisk>>,
 }
-
-//  /<disk>/bob/<vdisk_id>/<data>/<pearl>
 
 impl PearlBackend {
     pub fn new (config: &NodeConfig) -> Self {
@@ -28,12 +60,13 @@ impl PearlBackend {
         PearlBackend {
             config: pearl_config,
             pool,
-            vdisks: vec![],
+            vdisks: Arc::new(vec![]),
         }
     }
 
     pub fn init(&mut self, mapper: &VDiskMapper) -> Result<(), String>{
-        self.vdisks = Vec::new();
+        let mut result = Vec::new();
+
         for disk in mapper.local_disks().iter() {
             let base_path = PathBuf::from(format!("{}/bob/", disk.path));
             Self::check_or_create_directory(&base_path).unwrap();
@@ -49,11 +82,12 @@ impl PearlBackend {
                     let mut storage = Self::init_pearl_by_path(vdisk_path, &self.config);
                     self.run_storage(&mut storage);
                     
-                    PearlVDisk::new(&disk.path, vdisk_id.clone(), storage)
+                    PearlVDisk::new(&disk.path, &disk.name, vdisk_id.clone(), storage)
                 })
                 .collect();
-            self.vdisks.append(&mut vdisks);
+            result.append(&mut vdisks);
         }
+        self.vdisks = Arc::new(result);
         Ok(())
     }
     
@@ -70,7 +104,7 @@ impl PearlBackend {
         Ok(())
     }
 
-    fn init_pearl_by_path(path: PathBuf, config: &PearlConfig) -> Storage<BobKey> {
+    fn init_pearl_by_path(path: PathBuf, config: &PearlConfig) -> PearlStorage {
         let mut builder = Builder::new()
             .work_dir(path);
         
@@ -90,43 +124,116 @@ impl PearlBackend {
         builder.build().unwrap()
     }
 
-    fn run_storage(&mut self, storage: &mut Storage<BobKey>) {
+    fn run_storage(&mut self, storage: &mut PearlStorage) {
         self.pool
             .run(storage.init(self.pool.clone()))
             .unwrap();
     }
 }
 
+impl BackendStorage for PearlBackend {
+    fn put(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
+        debug!("PUT[{}][{}][{}] to pearl backend", disk_name, vdisk_id, key);
+
+        //TODO remove clone for vdisk_id
+        let t = self.vdisks.clone();
+        Put({
+            let vdisk = t
+                .iter()
+                .find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
+
+            if vdisk.is_some() {
+                let storage = vdisk.unwrap().storage.clone();
+                Box::new({
+                    PearlVDisk::write(storage, PearlKey::new(key, &data.meta), data)
+                        .boxed()
+                        .compat()
+                        .map(|_r| BackendResult {})
+                        .map_err(|_e| BackendError::Other)
+                })
+            }
+            else
+            {
+                Box::new({
+                    debug!("PUT[{}][{}][{}] to pearl backend. Cannot find storage", disk_name, vdisk_id, key);
+                    err(BackendError::Other)
+                })
+            }
+        })
+    }
+
+    fn put_alien(&self, _vdisk_id: VDiskId, _key: BobKey, _data: BobData) -> BackendPutFuture {
+        unimplemented!();
+    }
+
+    fn get(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey) -> Get {
+        debug!("Get[{}][{}][{}] from pearl backend", disk_name, vdisk_id, key);
+
+        //TODO remove clone for vdisk_id
+        let t = self.vdisks.clone();
+        Get({
+            let vdisk = t
+                .iter()
+                .find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
+
+            if vdisk.is_some() {
+                let storage = vdisk.unwrap().storage.clone();
+                Box::new({
+                    PearlVDisk::read(storage, PearlKey::new_read(key))
+                        .boxed()
+                        .compat()
+                        .map(|r| BackendGetResult { data: BobData{
+                            data: r.clone(),
+                            meta:BobMeta{timestamp:0} //TODO
+                        }})
+                        .map_err(|_e| BackendError::Other)
+                })
+            }
+            else
+            {
+                Box::new({
+                    debug!("Get[{}][{}][{}] to pearl backend. Cannot find storage", disk_name, vdisk_id, key);
+                    err(BackendError::Other)
+                })
+            }
+        })
+    }
+
+    fn get_alien(&self, _vdisk_id: VDiskId, _key: BobKey) -> BackendGetFuture {
+        unimplemented!();
+    }
+}
+
+#[derive(Clone)]
 struct PearlVDisk {
-    pub disk: String,
+    pub path: String,
+    pub name: String,
     pub vdisk: VDiskId,
-    pub storage: Storage<BobKey>,
+    pub storage: PearlStorage,
 }
 
 impl PearlVDisk {
-    pub fn new (disk:&str, vdisk: VDiskId, storage: Storage<BobKey>)->Self {
+    pub fn new (path:&str, name:&str, vdisk: VDiskId, storage: Storage<PearlKey>)->Self {
         PearlVDisk{
-            disk: disk.to_string(),
+            path: path.to_string(),
+            name: name.to_string(),
             vdisk,
             storage,
         }
     }
-}
 
-impl BackendStorage for PearlBackend {
-    fn put(&self, _disk: String, _vdisk: VDiskId, _key: BobKey, _data: BobData) -> BackendPutFuture {
-        unimplemented!();
+    pub fn equal(&self, name: &str, vdisk: VDiskId) -> bool {
+        return self.name == name && self.vdisk == vdisk;
     }
 
-    fn put_alien(&self, _vdisk: VDiskId, _key: BobKey, _data: BobData) -> BackendPutFuture {
-        unimplemented!();
+    pub async fn write(storage: PearlStorage, key: PearlKey, data: BobData) -> Result<(), ()> {
+        storage.write(key, data.data).await
+            .map_err(|_e| ()) // TODO make error public
     }
-
-    fn get(&self, _disk: String, _vdisk: VDiskId, _key: BobKey) -> BackendGetFuture {
-        unimplemented!();
-    }
-
-    fn get_alien(&self, _vdisk: VDiskId, _key: BobKey) -> BackendGetFuture {
-        unimplemented!();
+    
+    pub async fn read(storage: PearlStorage, key: PearlKey) -> Result<Vec<u8>, ()> {
+        storage.read(key).await
+            .map_err(|_e| ()) // TODO make error public
     }
 }
+

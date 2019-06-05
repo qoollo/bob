@@ -1,4 +1,5 @@
 #![crate_type = "lib"]
+#![feature(async_await)]
 
 #[macro_use]
 extern crate bitflags;
