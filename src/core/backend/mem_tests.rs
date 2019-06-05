@@ -20,7 +20,7 @@ mod tests {
                 data: vec![0],
                 meta: BobMeta::new_stub(),
             },
-        ));
+        ).0);
         assert_eq!(retval.err().unwrap(), BackendError::Other)
     }
 
@@ -38,10 +38,10 @@ mod tests {
                     data: vec![1],
                     meta: BobMeta::new_stub(),
                 },
-            ))
+            ).0)
             .unwrap();
         let retval = reactor
-            .run(backend.get("name".to_string(), VDiskId::new(0), BobKey { key: 1 }))
+            .run(backend.get("name".to_string(), VDiskId::new(0), BobKey { key: 1 }).0)
             .unwrap();
         assert_eq!(retval.data.data, vec![1]);
     }
@@ -60,13 +60,13 @@ mod tests {
                     data: vec![1],
                     meta: BobMeta::new_stub(),
                 },
-            ))
+            ).0)
             .unwrap();
         let retval = reactor.run(backend.get(
             "invalid name".to_string(),
             VDiskId::new(0),
             BobKey { key: 1 },
-        ));
+        ).0);
         assert_eq!(retval.err().unwrap(), BackendError::Other)
     }
 
@@ -76,7 +76,7 @@ mod tests {
         let mut reactor = Core::new().unwrap();
 
         let retval =
-            reactor.run(backend.get("name".to_string(), VDiskId::new(0), BobKey { key: 1 }));
+            reactor.run(backend.get("name".to_string(), VDiskId::new(0), BobKey { key: 1 }).0);
         assert_eq!(retval.err().unwrap(), BackendError::NotFound)
     }
 }
