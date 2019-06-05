@@ -6,7 +6,8 @@ use pearl::{Builder, Storage};
 
 use futures03::executor::{ThreadPool, ThreadPoolBuilder};
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::fs::create_dir_all;
 
 pub struct PearlBackend {
     config: PearlConfig,
@@ -34,13 +35,20 @@ impl PearlBackend {
     pub fn init(&mut self, mapper: &VDiskMapper) -> Result<(), String>{
         self.vdisks = Vec::new();
         for disk in mapper.local_disks().iter() {
-            let mut vdisks: Vec<PearlVDisk> =mapper
-                .get_vdisks_by_disk(&disk.path)
+            let base_path = PathBuf::from(format!("{}/bob/", disk.path));
+            Self::check_or_create_directory(&base_path).unwrap();
+
+            let mut vdisks: Vec<PearlVDisk> = mapper
+                .get_vdisks_by_disk(&disk.name)
                 .iter()
                 .map(|vdisk_id| {
-                    let path = Path::new(&format!("/{}/bob/{}/", disk.path, vdisk_id.clone())).to_str().unwrap().to_string();
-                    let mut storage = Self::init_pearl_by_path(path, &self.config);
+                    let mut vdisk_path = base_path.clone();
+                    vdisk_path.push(format!("{}/", vdisk_id.clone()));
+                    Self::check_or_create_directory(&vdisk_path).unwrap();
+
+                    let mut storage = Self::init_pearl_by_path(vdisk_path, &self.config);
                     self.run_storage(&mut storage);
+                    
                     PearlVDisk::new(&disk.path, vdisk_id.clone(), storage)
                 })
                 .collect();
@@ -49,9 +57,22 @@ impl PearlBackend {
         Ok(())
     }
     
-    fn init_pearl_by_path(path: String, config: &PearlConfig) -> Storage<BobKey> {
+    fn check_or_create_directory(path: &Path) -> Result<(), String> {
+        if !path.exists() {
+            let dir = path.to_str().unwrap();
+            return create_dir_all(path)
+                .map(|_r| {
+                    info!("create directory: {}", dir);
+                    ()
+                } )
+                .map_err(|e| format!("cannot create directory: {}, error: {}", dir, e.to_string()));
+        }
+        Ok(())
+    }
+
+    fn init_pearl_by_path(path: PathBuf, config: &PearlConfig) -> Storage<BobKey> {
         let mut builder = Builder::new()
-            .work_dir(&path);
+            .work_dir(path);
         
         builder = match &config.blob_file_name_prefix {
             Some(blob_file_name_prefix) => builder.blob_file_name_prefix(blob_file_name_prefix),
