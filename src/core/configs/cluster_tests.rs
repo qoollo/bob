@@ -574,6 +574,8 @@ pearl:
   max_blob_size: 1
   max_data_in_blob: 1
   blob_file_name_prefix: bob
+  pool_count_threads: 4
+  alien_disk: disk1
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());
@@ -593,6 +595,8 @@ pearl:
   max_blob_size: 1
 #  max_data_in_blob: 1
 #  blob_file_name_prefix: bob
+  pool_count_threads: 4
+  alien_disk: disk1  
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_none());
@@ -612,6 +616,7 @@ pearl:
 #  max_blob_size: 1
   max_data_in_blob: 1
 #  blob_file_name_prefix: bob
+  alien_disk: disk1
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_some());
@@ -728,3 +733,5 @@ vdisks:
         assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_err());
     }
 }
+
+    
