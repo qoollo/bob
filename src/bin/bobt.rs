@@ -8,7 +8,7 @@ use futures::{Future, Stream};
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 
-use bob::core::configs::cluster::{Cluster, ClusterConfigYaml};
+use bob::core::configs::cluster::{ClusterConfig, ClusterConfigYaml};
 use bob::core::configs::node::{DiskPath, NodeConfig, NodeConfigYaml};
 use bob::core::server::BobSrv;
 
@@ -19,7 +19,7 @@ extern crate log;
 
 fn build_bobs(
     vdisks: &[VDisk],
-    cluster: &Cluster,
+    cluster: &ClusterConfig,
     node_config: &NodeConfig,
 ) -> Vec<(BobSrv, String)> {
     let mut bobs = Vec::new();

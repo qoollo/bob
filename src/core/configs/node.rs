@@ -1,4 +1,4 @@
-use crate::core::configs::cluster::{Cluster, Node};
+use crate::core::configs::cluster::{ClusterConfig, Node};
 use crate::core::configs::reader::{Validatable, YamlBobConfigReader};
 use log::LevelFilter;
 use std::cell::Cell;
@@ -135,12 +135,11 @@ impl NodeConfig {
         self.backend_result().unwrap()
     }
     fn backend_result(&self) -> Result<BackendType, String> {
-        let value = self.backend_type.as_ref().unwrap().clone();
-        match value.as_ref() {
+        match self.backend_type.as_ref().unwrap().as_str() {
             "in_memory" => Ok(BackendType::InMemory),
             "stub" => Ok(BackendType::Stub),
             "pearl" => Ok(BackendType::Pearl),
-            _ => Err(format!("unknown backend type: {}", value)),
+            value => Err(format!("unknown backend type: {}", value)),
         }
     }
     pub fn prepare(&self, node: &Node) -> Result<(), String> {
@@ -195,12 +194,7 @@ impl Validatable for NodeConfig {
                             debug!("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set");
                             return Err("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set".to_string());
                         },
-                        Some(pearl) => {
-                            let r = pearl.validate();
-                            if r.is_err() {
-                                return r;
-                            }
-                        },
+                        Some(pearl) => pearl.validate()?,
                     };
                 };
             },
@@ -286,7 +280,7 @@ impl Validatable for NodeConfig {
 pub struct NodeConfigYaml {}
 
 impl NodeConfigYaml {
-    pub fn check_cluster(&self, cluster: &Cluster, node: &NodeConfig) -> Result<(), String> {
+    pub fn check_cluster(&self, cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
         let finded = cluster.nodes.iter().find(|n| n.name == node.name);
         if finded.is_none() {
             debug!("cannot find node: {} in cluster config", node.name());
@@ -295,7 +289,7 @@ impl NodeConfigYaml {
                 node.name()
             ));
         }
-        if node.backend_result().is_ok() && node.backend_result().unwrap() == BackendType::Pearl {
+        if node.backend_result().is_ok() && node.backend_type() == BackendType::Pearl {
             let pearl = node.pearl.as_ref().unwrap();
             let finded_disk = finded
                 .unwrap()
@@ -304,14 +298,14 @@ impl NodeConfigYaml {
                 .find(|d| d.name == pearl.alien_disk);
             if finded_disk.is_none() {
                 debug!(
-                    "cannot find disk {} for node {} in cluster config",
-                    pearl.alien_disk(),
-                    node.name()
+                    "cannot find disk {:?} for node {:?} in cluster config",
+                    pearl.alien_disk,
+                    node.name
                 );
                 return Err(format!(
-                    "cannot find disk {} for node {} in cluster config",
-                    pearl.alien_disk(),
-                    node.name()
+                    "cannot find disk {:?} for node {:?} in cluster config",
+                    pearl.alien_disk,
+                    node.name
                 ));
             }
         }
@@ -319,10 +313,9 @@ impl NodeConfigYaml {
         Ok(())
     }
 
-    pub fn get(&self, filename: &str, cluster: &Cluster) -> Result<NodeConfig, String> {
+    pub fn get(&self, filename: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
         let config: NodeConfig = YamlBobConfigReader {}.get::<NodeConfig>(filename)?;
-        let is_valid = config.validate();
-        match is_valid {
+        match config.validate() {
             Ok(_) => {
                 self.check_cluster(cluster, &config)?;
                 Ok(config)
