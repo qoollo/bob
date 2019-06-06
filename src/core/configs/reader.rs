@@ -2,17 +2,18 @@ use serde::de::Deserialize;
 use std::fs;
 
 pub trait Validatable {
-    fn validate(&self) -> Option<String>;
+    fn validate(&self) -> Result<(), String>;
 
-    fn aggregate<T: Validatable>(&self, elements: &[T]) -> Option<String> {
+    fn aggregate<T: Validatable>(&self, elements: &[T]) -> Result<(), String> {
         let options = elements
             .iter()
-            .filter_map(|elem| elem.validate())
+            .map(|elem| elem.validate())
+            .filter_map(Result::err)
             .collect::<Vec<String>>();
         if !options.is_empty() {
-            return Some(options.iter().fold("".to_string(), |acc, x| acc + "\n" + x));
+            return Err(options.iter().fold("".to_string(), |acc, x| acc + "\n" + x));
         }
-        None
+        Ok(())
     }
 }
 
@@ -54,10 +55,12 @@ impl YamlBobConfigReader {
         let config: T = self.parse(&file)?;
 
         let is_valid = config.validate();
-        if is_valid.is_some() {
-            debug!("config is not valid: {}", is_valid.as_ref().unwrap());
-            return Err(format!("config is not valid: {}", is_valid.unwrap()));
+        match is_valid {
+            Ok(_) => Ok(config),
+            Err(e) => {
+                debug!("config is not valid: {}", e);
+                Err(format!("config is not valid: {}", e))
+            },
         }
-        Ok(config)
     }
 }

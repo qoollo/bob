@@ -26,7 +26,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -49,7 +50,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -70,7 +72,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -93,7 +96,8 @@ vdisks:
           disk: disk2
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_none());
+        assert!(d.validate().is_ok());
+        // assert!(d.validate().is_none());
     }
 
     #[test]
@@ -120,7 +124,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -148,7 +153,8 @@ vdisks:
           disk: disk2
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -171,7 +177,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -194,7 +201,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -218,7 +226,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -242,7 +251,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -266,7 +276,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -285,7 +296,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -304,7 +316,8 @@ vdisks:
           disk:         # empty
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -327,7 +340,8 @@ vdisks:
           disk: disk1        # empty
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -351,7 +365,8 @@ vdisks:
         assert_eq!(1, d.vdisks.len());
         assert_eq!(1, d.vdisks[0].replicas.len());
 
-        assert!(d.validate().is_none());
+        assert!(d.validate().is_ok());
+        // assert!(d.validate().is_none());
     }
 
     #[test]
@@ -364,7 +379,8 @@ vdisks:
           disk: /tmp/d1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -378,7 +394,8 @@ nodes:
           path: /tmp/d1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -397,7 +414,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -416,7 +434,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -448,7 +467,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_none());
+        assert!(d.validate().is_ok());
+        // assert!(d.validate().is_none());
 
         let vdisks = ClusterConfigYaml {}.convert_to_data(&d).unwrap();
         assert_eq!(2, vdisks.len());
@@ -482,7 +502,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_none());
+        assert!(d.validate().is_ok());
+        // assert!(d.validate().is_none());
 
         assert_eq!(111, d.nodes[0].port.get());
         assert_eq!("0.0.0.0", d.nodes[0].host.borrow().to_string());
@@ -506,7 +527,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        // assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
     }
 
     #[test]
@@ -527,7 +549,8 @@ vdisks:
           disk: disk1
 ";
         let d: Cluster = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -542,7 +565,8 @@ cluster_policy: quorum # quorum
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_none());
+        assert!(d.validate().is_ok());
+        // assert!(d.validate().is_none());
     }
 
     #[test]
@@ -557,7 +581,8 @@ cluster_policy: quorum # quorum
 backend_type: pearl
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        // assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
     }
 
     #[test]
@@ -578,7 +603,8 @@ pearl:
   alien_disk: disk1
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_none());
+        assert!(d.validate().is_ok());
+        // assert!(d.validate().is_none());
     }
 
     #[test]
@@ -599,7 +625,8 @@ pearl:
   alien_disk: disk1  
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_none());
+        assert!(d.validate().is_ok());
+        // assert!(d.validate().is_none());
     }
 
     #[test]
@@ -619,7 +646,8 @@ pearl:
   alien_disk: disk1
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+        // assert!(d.validate().is_some());
     }
 
     #[test]
@@ -634,7 +662,9 @@ cluster_policy: quorum # quorum
 backend_type: InvalidType
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_none());
+        // assert!(d.validate().is_none());
+        assert!(d.validate().is_ok());
+
         let s1 = "
 nodes:
     - name: n1
@@ -666,7 +696,8 @@ cluster_policy: quorum # quorum
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        // assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
     }
 
     #[test]
@@ -681,7 +712,8 @@ cluster_policy: quorum # quorum
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_none());
+        assert!(d.validate().is_ok());
+        // assert!(d.validate().is_none());
         let s1 = "
 nodes:
     - name: n1
@@ -713,7 +745,8 @@ cluster_policy: quorum # quorum
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_none());
+        // assert!(d.validate().is_none());
+        assert!(d.validate().is_ok());
         let s1 = "
 nodes:
     - name: n1
@@ -750,7 +783,8 @@ pearl:
   alien_disk: disk1
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        // assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
         let s1 = "
 nodes:
     - name: n1
@@ -787,7 +821,9 @@ pearl:
   alien_disk: disk112312312312321
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_some());
+        // assert!(d.validate().is_some());
+        assert!(d.validate().is_err());
+
         let s1 = "
 nodes:
     - name: n1
