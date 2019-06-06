@@ -11,11 +11,15 @@ pub struct PearlConfig {
     pub max_data_in_blob: Option<u64>,
     pub blob_file_name_prefix: Option<String>,
     pub pool_count_threads: Option<u16>,
+    pub alien_disk: Option<String>,
 }
 
 impl PearlConfig {
     pub fn pool_count_threads(&self) -> u16 {
         self.pool_count_threads.unwrap()
+    }
+    pub fn alien_disk(&self) -> String {
+        self.alien_disk.as_ref().unwrap().clone()
     }
 }
 
@@ -28,6 +32,14 @@ impl Validatable for PearlConfig {
         if self.pool_count_threads.is_none() {
             debug!("field 'pool_count_threads' for 'pearl' is not set");
             return Some("field 'pool_count_threads' for 'pearl' is not set".to_string());
+        }
+        if self.alien_disk.is_none() {
+            debug!("field 'alien_disk' for 'config' is not set");
+            return Some("field 'alien_disk' for 'config' is not set".to_string());
+        }
+        if self.alien_disk.as_ref()?.is_empty() {
+            debug!("field 'alien_disk' for 'config' is empty");
+            return Some("field 'alien_disk' for 'config' is empty".to_string());
         }
         None
     }
@@ -248,12 +260,26 @@ impl BobNodeConfig for NodeConfigYaml {
         if finded.is_none() {
             debug!(
                 "cannot find node: {} in cluster config",
-                node.name.as_ref().unwrap()
+                node.name()
             );
             return Err(format!(
                 "cannot find node: {} in cluster config",
-                node.name.as_ref().unwrap()
+                node.name()
             ));
+        }
+        if node.backend_result().is_ok() && node.backend_result().unwrap() == BackendType::Pearl {
+            let pearl = node.pearl.as_ref().unwrap();
+            let finded_disk = finded.unwrap().disks.iter().find(|d| d.name == pearl.alien_disk);
+            if finded_disk.is_none() {
+               debug!(
+                    "cannot find disk {} for node {} in cluster config",
+                    pearl.alien_disk(), node.name()
+                );
+                return Err(format!(
+                    "cannot find disk {} for node {} in cluster config",
+                    pearl.alien_disk(), node.name()
+                )); 
+            }
         }
         node.prepare(finded.unwrap())?;
         Ok(())

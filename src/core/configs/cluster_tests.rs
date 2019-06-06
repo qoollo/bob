@@ -732,6 +732,80 @@ vdisks:
         let cl: Cluster = YamlBobConfigReader {}.parse(s1).unwrap();
         assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_err());
     }
+
+    #[test]
+    fn test_node_config_check_valid_pearl_disk() {
+        let s = "
+log_level: Debug
+name: n1
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100sec
+cluster_policy: quorum # quorum
+backend_type: pearl
+pearl:
+#  max_blob_size: 1
+  max_data_in_blob: 1
+#  blob_file_name_prefix: bob
+  alien_disk: disk1
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_some());
+        let s1 = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:11111111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d2
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+";
+        let cl: Cluster = YamlBobConfigReader {}.parse(s1).unwrap();
+        assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_ok());
+    }
+
+    #[test]
+    fn test_node_config_check_invalid_pearl_disk() {
+        let s = "
+log_level: Debug
+name: n1
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100sec
+cluster_policy: quorum # quorum
+backend_type: pearl
+pearl:
+#  max_blob_size: 1
+  max_data_in_blob: 1
+#  blob_file_name_prefix: bob
+  alien_disk: disk112312312312321
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_some());
+        let s1 = "
+nodes:
+    - name: n1
+      address: 0.0.0.0:11111111
+      disks:
+        - name: disk1
+          path: /tmp/d1
+        - name: disk2
+          path: /tmp/d2
+vdisks:
+    - id: 0
+      replicas:
+        - node: n1
+          disk: disk1
+";
+        let cl: Cluster = YamlBobConfigReader {}.parse(s1).unwrap();
+        assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_err());
+    }
 }
 
     
