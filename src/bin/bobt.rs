@@ -8,8 +8,8 @@ use futures::{Future, Stream};
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 
-use bob::core::configs::cluster::{BobClusterConfig, Cluster, ClusterConfigYaml};
-use bob::core::configs::node::{BobNodeConfig, DiskPath, NodeConfig, NodeConfigYaml};
+use bob::core::configs::cluster::{Cluster, ClusterConfigYaml};
+use bob::core::configs::node::{DiskPath, NodeConfig, NodeConfigYaml};
 use bob::core::server::BobSrv;
 
 use tower_hyper::server::Server;

@@ -7,8 +7,8 @@ use env_logger;
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 
-use bob::core::configs::cluster::{BobClusterConfig, ClusterConfigYaml};
-use bob::core::configs::node::{BobNodeConfig, DiskPath, NodeConfigYaml};
+use bob::core::configs::cluster::{ClusterConfigYaml};
+use bob::core::configs::node::{DiskPath, NodeConfigYaml};
 
 use bob::core::server::BobSrv;
 

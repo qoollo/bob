@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
-use crate::core::configs::reader::{BobConfigReader, Validatable, YamlBobConfigReader};
+use crate::core::configs::reader::{Validatable, YamlBobConfigReader};
 use crate::core::data::Node as DataNode;
 use crate::core::data::NodeDisk as DataNodeDisk;
 use crate::core::data::VDisk as DataVDisk;
@@ -317,15 +317,10 @@ impl Validatable for Cluster {
     }
 }
 
-pub trait BobClusterConfig {
-    fn get(&self, filename: &str) -> Result<(Vec<DataVDisk>, Cluster), String>;
-    fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>>;
-}
-
 pub struct ClusterConfigYaml {}
 
-impl BobClusterConfig for ClusterConfigYaml {
-    fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>> {
+impl ClusterConfigYaml {
+    pub fn convert_to_data(&self, cluster: &Cluster) -> Option<Vec<DataVDisk>> {
         let mut node_map: HashMap<&Option<String>, (&Node, HashMap<&Option<String>, String>)> =
             HashMap::new();
         for node in cluster.nodes.iter() {
@@ -362,8 +357,9 @@ impl BobClusterConfig for ClusterConfigYaml {
         }
         Some(result)
     }
-    fn get(&self, filename: &str) -> Result<(Vec<DataVDisk>, Cluster), String> {
-        let config: Cluster = YamlBobConfigReader {}.get(filename)?;
+
+    pub fn get(&self, filename: &str) -> Result<(Vec<DataVDisk>, Cluster), String> {
+        let config: Cluster = YamlBobConfigReader {}.get::<Cluster>(filename)?;
         let is_valid = config.validate();
         if is_valid.is_some() {
             debug!("config is not valid: {}", is_valid.as_ref().unwrap());

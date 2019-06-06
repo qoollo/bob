@@ -1,5 +1,5 @@
 use crate::core::configs::cluster::{Cluster, Node};
-use crate::core::configs::reader::{BobConfigReader, Validatable, YamlBobConfigReader};
+use crate::core::configs::reader::{Validatable, YamlBobConfigReader};
 use log::LevelFilter;
 use std::cell::Cell;
 use std::cell::RefCell;
@@ -252,15 +252,10 @@ impl Validatable for NodeConfig {
     }
 }
 
-pub trait BobNodeConfig {
-    fn check_cluster(&self, cluster: &Cluster, node: &NodeConfig) -> Result<(), String>;
-    fn get(&self, filename: &str, cluster: &Cluster) -> Result<NodeConfig, String>;
-}
-
 pub struct NodeConfigYaml {}
 
-impl BobNodeConfig for NodeConfigYaml {
-    fn check_cluster(&self, cluster: &Cluster, node: &NodeConfig) -> Result<(), String> {
+impl NodeConfigYaml {
+    pub fn check_cluster(&self, cluster: &Cluster, node: &NodeConfig) -> Result<(), String> {
         let finded = cluster.nodes.iter().find(|n| n.name == node.name);
         if finded.is_none() {
             debug!("cannot find node: {} in cluster config", node.name());
@@ -293,8 +288,8 @@ impl BobNodeConfig for NodeConfigYaml {
         Ok(())
     }
 
-    fn get(&self, filename: &str, cluster: &Cluster) -> Result<NodeConfig, String> {
-        let config: NodeConfig = YamlBobConfigReader {}.get(filename)?;
+    pub fn get(&self, filename: &str, cluster: &Cluster) -> Result<NodeConfig, String> {
+        let config: NodeConfig = YamlBobConfigReader {}.get::<NodeConfig>(filename)?;
         let is_valid = config.validate();
         if is_valid.is_some() {
             debug!("config is not valid: {}", is_valid.as_ref().unwrap());

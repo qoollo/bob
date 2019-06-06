@@ -16,8 +16,10 @@ pub trait Validatable {
     }
 }
 
-pub trait BobConfigReader {
-    fn read(&self, filename: &str) -> Result<String, String> {
+pub struct YamlBobConfigReader {}
+
+impl YamlBobConfigReader {
+    pub fn read(&self, filename: &str) -> Result<String, String> {
         let result: Result<String, _> = fs::read_to_string(filename);
         match result {
             Ok(config) => Ok(config),
@@ -27,20 +29,8 @@ pub trait BobConfigReader {
             }
         }
     }
-    fn parse<T>(&self, config: &str) -> Result<T, String>
-    where
-        T: for<'de> Deserialize<'de>,
-        T: Validatable;
-    fn get<T>(&self, filename: &str) -> Result<T, String>
-    where
-        T: for<'de> Deserialize<'de>,
-        T: Validatable;
-}
 
-pub struct YamlBobConfigReader {}
-
-impl BobConfigReader for YamlBobConfigReader {
-    fn parse<T>(&self, config: &str) -> Result<T, String>
+    pub fn parse<T>(&self, config: &str) -> Result<T, String>
     where
         T: for<'de> Deserialize<'de>,
         T: Validatable,
@@ -54,7 +44,8 @@ impl BobConfigReader for YamlBobConfigReader {
             }
         }
     }
-    fn get<T>(&self, filename: &str) -> Result<T, String>
+
+    pub fn get<T>(&self, filename: &str) -> Result<T, String>
     where
         T: for<'de> Deserialize<'de>,
         T: Validatable,
