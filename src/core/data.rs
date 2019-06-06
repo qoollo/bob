@@ -161,7 +161,9 @@ impl VDiskMapper {
     pub fn local_disks(&self) -> &Vec<DiskPath> {
         &self.disks
     }
-
+    pub fn get_disk_by_name(&self, name: &str) -> Option<&DiskPath> {
+        self.disks.iter().find(|d|d.name == name)
+    }
     pub fn nodes(&self) -> Vec<Node> {
         let mut nodes: Vec<Node> = self
             .vdisks

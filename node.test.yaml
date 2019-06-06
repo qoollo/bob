@@ -1,10 +1,10 @@
-log_level: Trace
-name: local_node
+log_level: Info
+name: node1
 quorum: 1
 timeout: 3sec
 check_interval: 5000ms
 cluster_policy: quorum        # quorum
-backend_type: in_memory       # in_memory, stub, pearl
+backend_type: pearl       # in_memory, stub, pearl
 pearl:                        # used only for 'backend_type: pearl'
   max_blob_size: 1000000      # size in bytes. required for 'pearl'
   max_data_in_blob: 10000     # optional

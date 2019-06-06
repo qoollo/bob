@@ -73,10 +73,10 @@ pub type BackendGetFuture = Box<Future<Item = BackendGetResult, Error = BackendE
 
 pub trait BackendStorage {
     fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;
-    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> BackendPutFuture;
+    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;
 
     fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get;
-    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> BackendGetFuture;
+    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> Get;
 }
 
 pub struct Backend {
@@ -121,7 +121,7 @@ impl Backend {
                         oper.disk_name_local(),
                         err
                     );
-                    backend.put_alien(oper.vdisk_id.clone(), key, data)
+                    backend.put_alien(oper.vdisk_id.clone(), key, data).0
                 };
                 Box::new(result.or_else(|err| func(err)))
             } else {
@@ -130,7 +130,7 @@ impl Backend {
                     key,
                     op.vdisk_id.clone()
                 );
-                backend.put_alien(op.vdisk_id.clone(), key, data)
+                backend.put_alien(op.vdisk_id.clone(), key, data).0
             }
         })
     }
@@ -145,7 +145,7 @@ impl Backend {
                 backend.get(oper.disk_name_local(), oper.vdisk_id.clone(), key).0
             } else {
                 debug!("GET[{}] to backend, foreign data", key);
-                backend.get_alien(oper.vdisk_id.clone(), key)
+                backend.get_alien(oper.vdisk_id.clone(), key).0
             }
         })
     }

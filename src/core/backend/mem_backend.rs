@@ -181,9 +181,11 @@ impl BackendStorage for MemBackend {
         })
     }
 
-    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> BackendPutFuture {
+    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}] to backend, foreign data", key);
-        self.foreign_data.put(vdisk, key, data)
+        Put({
+            self.foreign_data.put(vdisk, key, data)
+        })
     }
 
     fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get {
@@ -199,8 +201,10 @@ impl BackendStorage for MemBackend {
         })
     }
 
-    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> BackendGetFuture {
+    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> Get {
         debug!("GET[{}] to backend, foreign data", key);
-        self.foreign_data.get(vdisk, key)
+        Get({
+            self.foreign_data.get(vdisk, key)
+        })
     }
 }
