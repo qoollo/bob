@@ -807,5 +807,3 @@ vdisks:
         assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_err());
     }
 }
-
-    

@@ -1,10 +1,10 @@
 use crate::core::backend::backend::*;
 use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
+use futures::future::Future;
 use futures::future::{err, ok};
 use futures_locks::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
-use futures::future::Future;
 
 #[derive(Clone)]
 struct VDisk {
@@ -183,9 +183,7 @@ impl BackendStorage for MemBackend {
 
     fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}] to backend, foreign data", key);
-        Put({
-            self.foreign_data.put(vdisk, key, data)
-        })
+        Put({ self.foreign_data.put(vdisk, key, data) })
     }
 
     fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get {
@@ -203,8 +201,6 @@ impl BackendStorage for MemBackend {
 
     fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> Get {
         debug!("GET[{}] to backend, foreign data", key);
-        Get({
-            self.foreign_data.get(vdisk, key)
-        })
+        Get({ self.foreign_data.get(vdisk, key) })
     }
 }

@@ -129,7 +129,7 @@ impl NodeConfig {
             "in_memory" => Ok(BackendType::InMemory),
             "stub" => Ok(BackendType::Stub),
             "pearl" => Ok(BackendType::Pearl),
-            _ =>  Err(format!("unknown backend type: {}", value)),
+            _ => Err(format!("unknown backend type: {}", value)),
         }
     }
     pub fn prepare(&self, node: &Node) -> Result<(), String> {
@@ -182,8 +182,13 @@ impl Validatable for NodeConfig {
         }
         if self.backend_result().ok()? == BackendType::Pearl {
             if self.pearl.is_none() {
-                debug!("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set");
-                return Some("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set".to_string());
+                debug!(
+                    "choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set"
+                );
+                return Some(
+                    "choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set"
+                        .to_string(),
+                );
             }
             let r = self.pearl.as_ref()?.validate();
             if r.is_some() {
@@ -258,10 +263,7 @@ impl BobNodeConfig for NodeConfigYaml {
     fn check_cluster(&self, cluster: &Cluster, node: &NodeConfig) -> Result<(), String> {
         let finded = cluster.nodes.iter().find(|n| n.name == node.name);
         if finded.is_none() {
-            debug!(
-                "cannot find node: {} in cluster config",
-                node.name()
-            );
+            debug!("cannot find node: {} in cluster config", node.name());
             return Err(format!(
                 "cannot find node: {} in cluster config",
                 node.name()
@@ -269,16 +271,22 @@ impl BobNodeConfig for NodeConfigYaml {
         }
         if node.backend_result().is_ok() && node.backend_result().unwrap() == BackendType::Pearl {
             let pearl = node.pearl.as_ref().unwrap();
-            let finded_disk = finded.unwrap().disks.iter().find(|d| d.name == pearl.alien_disk);
+            let finded_disk = finded
+                .unwrap()
+                .disks
+                .iter()
+                .find(|d| d.name == pearl.alien_disk);
             if finded_disk.is_none() {
-               debug!(
+                debug!(
                     "cannot find disk {} for node {} in cluster config",
-                    pearl.alien_disk(), node.name()
+                    pearl.alien_disk(),
+                    node.name()
                 );
                 return Err(format!(
                     "cannot find disk {} for node {} in cluster config",
-                    pearl.alien_disk(), node.name()
-                )); 
+                    pearl.alien_disk(),
+                    node.name()
+                ));
             }
         }
         node.prepare(finded.unwrap())?;

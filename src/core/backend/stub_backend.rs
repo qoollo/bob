@@ -7,16 +7,12 @@ pub struct StubBackend {}
 
 impl BackendStorage for StubBackend {
     fn put(&self, _disk_name: String, _vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
-        debug!("PUT[{}]: hi from backend, timestamp: {}", key, data.meta);        
-        Put({
-            Box::new(ok(BackendResult {}))
-        })
+        debug!("PUT[{}]: hi from backend, timestamp: {}", key, data.meta);
+        Put({ Box::new(ok(BackendResult {})) })
     }
     fn put_alien(&self, _vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}]: hi from backend, timestamp: {}", key, data.meta);
-        Put({
-            Box::new(ok(BackendResult {}))
-        })
+        Put({ Box::new(ok(BackendResult {})) })
     }
 
     fn get(&self, _disk_name: String, _vdisk: VDiskId, key: BobKey) -> Get {
@@ -27,7 +23,7 @@ impl BackendStorage for StubBackend {
                     data: vec![0],
                     meta: BobMeta::new_stub(),
                 },
-            }))    
+            }))
         })
     }
 

@@ -1,16 +1,16 @@
 use crate::core::backend::backend::*;
-use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper, BobMeta};
 use crate::core::configs::node::{NodeConfig, PearlConfig};
-use futures::future::{err};
-use pearl::{Builder, Storage, Key};
+use crate::core::data::{BobData, BobKey, BobMeta, VDiskId, VDiskMapper};
+use futures::future::err;
+use pearl::{Builder, Key, Storage};
 
 use futures::future::Future;
 use futures03::future::{FutureExt, TryFutureExt};
 
 use futures03::executor::{ThreadPool, ThreadPoolBuilder};
 
-use std::path::{Path, PathBuf};
 use std::fs::create_dir_all;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub type PearlStorage = Storage<PearlKey>;
@@ -20,17 +20,17 @@ pub struct PearlKey {
     pub timestamp: u32,
 }
 impl PearlKey {
-    pub fn new (key: BobKey, meta: &BobMeta) -> Self {
+    pub fn new(key: BobKey, meta: &BobMeta) -> Self {
         PearlKey {
             key: key.key.clone().to_be_bytes().to_vec(),
             timestamp: meta.timestamp,
         }
     }
 
-    pub fn new_read (key: BobKey) -> Self {
+    pub fn new_read(key: BobKey) -> Self {
         PearlKey {
             key: key.key.clone().to_be_bytes().to_vec(),
-            timestamp: 0, // TODO 
+            timestamp: 0, // TODO
         }
     }
 }
@@ -51,7 +51,7 @@ pub struct PearlBackend {
 }
 
 impl PearlBackend {
-    pub fn new (config: &NodeConfig) -> Self {
+    pub fn new(config: &NodeConfig) -> Self {
         let pearl_config = config.pearl.clone().unwrap();
         let pool = ThreadPoolBuilder::new()
             .pool_size(pearl_config.pool_count_threads() as usize)
@@ -66,7 +66,7 @@ impl PearlBackend {
         }
     }
 
-    pub fn init(&mut self, mapper: &VDiskMapper) -> Result<(), String>{
+    pub fn init(&mut self, mapper: &VDiskMapper) -> Result<(), String> {
         let mut result = Vec::new();
 
         //init pearl storages for each vdisk
@@ -84,7 +84,7 @@ impl PearlBackend {
 
                     let mut storage = Self::init_pearl_by_path(vdisk_path, &self.config);
                     self.run_storage(&mut storage);
-                    
+
                     PearlVDisk::new(&disk.path, &disk.name, vdisk_id.clone(), storage)
                 })
                 .collect();
@@ -93,17 +93,27 @@ impl PearlBackend {
         self.vdisks = Arc::new(result);
 
         //init alien storage
-        let path = format!("{}/alien/", mapper.get_disk_by_name(&self.config.alien_disk()).unwrap().path);
+        let path = format!(
+            "{}/alien/",
+            mapper
+                .get_disk_by_name(&self.config.alien_disk())
+                .unwrap()
+                .path
+        );
         let alien_path = PathBuf::from(path.clone());
         Self::check_or_create_directory(&alien_path).unwrap();
         let mut storage = Self::init_pearl_by_path(alien_path, &self.config);
         self.run_storage(&mut storage);
 
-        self.alien_dir = Arc::new(Some(PearlVDisk::new_alien(&path, &self.config.alien_disk(), storage)));
+        self.alien_dir = Arc::new(Some(PearlVDisk::new_alien(
+            &path,
+            &self.config.alien_disk(),
+            storage,
+        )));
 
         Ok(())
     }
-    
+
     fn check_or_create_directory(path: &Path) -> Result<(), String> {
         if !path.exists() {
             let dir = path.to_str().unwrap();
@@ -111,16 +121,17 @@ impl PearlBackend {
                 .map(|_r| {
                     info!("create directory: {}", dir);
                     ()
-                } )
-                .map_err(|e| format!("cannot create directory: {}, error: {}", dir, e.to_string()));
+                })
+                .map_err(|e| {
+                    format!("cannot create directory: {}, error: {}", dir, e.to_string())
+                });
         }
         Ok(())
     }
 
     fn init_pearl_by_path(path: PathBuf, config: &PearlConfig) -> PearlStorage {
-        let mut builder = Builder::new()
-            .work_dir(path);
-        
+        let mut builder = Builder::new().work_dir(path);
+
         builder = match &config.blob_file_name_prefix {
             Some(blob_file_name_prefix) => builder.blob_file_name_prefix(blob_file_name_prefix),
             _ => builder.blob_file_name_prefix("bob"),
@@ -138,9 +149,7 @@ impl PearlBackend {
     }
 
     fn run_storage(&mut self, storage: &mut PearlStorage) {
-        self.pool
-            .run(storage.init(self.pool.clone()))
-            .unwrap();
+        self.pool.run(storage.init(self.pool.clone())).unwrap();
     }
 }
 
@@ -151,9 +160,7 @@ impl BackendStorage for PearlBackend {
         //TODO remove clone for vdisk_id
         let t = self.vdisks.clone();
         Put({
-            let vdisk = t
-                .iter()
-                .find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
+            let vdisk = t.iter().find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
 
             if vdisk.is_some() {
                 let storage = vdisk.unwrap().storage.clone();
@@ -164,11 +171,12 @@ impl BackendStorage for PearlBackend {
                         .map(|_r| BackendResult {})
                         .map_err(|_e| BackendError::Other)
                 })
-            }
-            else
-            {
+            } else {
                 Box::new({
-                    debug!("PUT[{}][{}][{}] to pearl backend. Cannot find storage", disk_name, vdisk_id, key);
+                    debug!(
+                        "PUT[{}][{}][{}] to pearl backend. Cannot find storage",
+                        disk_name, vdisk_id, key
+                    );
                     err(BackendError::Other)
                 })
             }
@@ -190,9 +198,7 @@ impl BackendStorage for PearlBackend {
                         .map(|_r| BackendResult {})
                         .map_err(|_e| BackendError::Other)
                 })
-            }
-            else
-            {
+            } else {
                 Box::new({
                     debug!("PUT[alien][{}] to pearl backend. Cannot find storage", key);
                     err(BackendError::Other)
@@ -202,14 +208,15 @@ impl BackendStorage for PearlBackend {
     }
 
     fn get(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey) -> Get {
-        debug!("Get[{}][{}][{}] from pearl backend", disk_name, vdisk_id, key);
+        debug!(
+            "Get[{}][{}][{}] from pearl backend",
+            disk_name, vdisk_id, key
+        );
 
         //TODO remove clone for vdisk_id
         let t = self.vdisks.clone();
         Get({
-            let vdisk = t
-                .iter()
-                .find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
+            let vdisk = t.iter().find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
 
             if vdisk.is_some() {
                 let storage = vdisk.unwrap().storage.clone();
@@ -217,17 +224,20 @@ impl BackendStorage for PearlBackend {
                     PearlVDisk::read(storage, PearlKey::new_read(key))
                         .boxed()
                         .compat()
-                        .map(|r| BackendGetResult { data: BobData{
-                            data: r.clone(),
-                            meta:BobMeta{timestamp:0} //TODO
-                        }})
+                        .map(|r| BackendGetResult {
+                            data: BobData {
+                                data: r.clone(),
+                                meta: BobMeta { timestamp: 0 }, //TODO
+                            },
+                        })
                         .map_err(|_e| BackendError::Other)
                 })
-            }
-            else
-            {
+            } else {
                 Box::new({
-                    debug!("Get[{}][{}][{}] to pearl backend. Cannot find storage", disk_name, vdisk_id, key);
+                    debug!(
+                        "Get[{}][{}][{}] to pearl backend. Cannot find storage",
+                        disk_name, vdisk_id, key
+                    );
                     err(BackendError::Other)
                 })
             }
@@ -244,15 +254,15 @@ impl BackendStorage for PearlBackend {
                     PearlVDisk::read(storage, PearlKey::new_read(key))
                         .boxed()
                         .compat()
-                        .map(|r| BackendGetResult { data: BobData{
-                            data: r.clone(),
-                            meta:BobMeta{timestamp:0} //TODO
-                        }})
+                        .map(|r| BackendGetResult {
+                            data: BobData {
+                                data: r.clone(),
+                                meta: BobMeta { timestamp: 0 }, //TODO
+                            },
+                        })
                         .map_err(|_e| BackendError::Other)
                 })
-            }
-            else
-            {
+            } else {
                 Box::new({
                     debug!("Get[alien][{}] to pearl backend. Cannot find storage", key);
                     err(BackendError::Other)
@@ -272,16 +282,16 @@ struct PearlVDisk {
 }
 
 impl PearlVDisk {
-    pub fn new (path:&str, name:&str, vdisk: VDiskId, storage: Storage<PearlKey>)->Self {
-        PearlVDisk{
+    pub fn new(path: &str, name: &str, vdisk: VDiskId, storage: Storage<PearlKey>) -> Self {
+        PearlVDisk {
             path: path.to_string(),
             name: name.to_string(),
             vdisk,
             storage,
         }
     }
-    pub fn new_alien (path:&str, name:&str, storage: Storage<PearlKey>)->Self {
-        PearlVDisk{
+    pub fn new_alien(path: &str, name: &str, storage: Storage<PearlKey>) -> Self {
+        PearlVDisk {
             path: path.to_string(),
             name: name.to_string(),
             vdisk: VDiskId::new(ALIEN_VDISKID),
@@ -294,13 +304,10 @@ impl PearlVDisk {
     }
 
     pub async fn write(storage: PearlStorage, key: PearlKey, data: BobData) -> Result<(), ()> {
-        storage.write(key, data.data).await
-            .map_err(|_e| ()) // TODO make error public
+        storage.write(key, data.data).await.map_err(|_e| ()) // TODO make error public
     }
-    
+
     pub async fn read(storage: PearlStorage, key: PearlKey) -> Result<Vec<u8>, ()> {
-        storage.read(key).await
-            .map_err(|_e| ()) // TODO make error public
+        storage.read(key).await.map_err(|_e| ()) // TODO make error public
     }
 }
-

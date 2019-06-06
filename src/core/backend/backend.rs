@@ -1,6 +1,6 @@
 use crate::core::backend::mem_backend::MemBackend;
-use crate::core::backend::stub_backend::StubBackend;
 use crate::core::backend::pearl_backend::PearlBackend;
+use crate::core::backend::stub_backend::StubBackend;
 use crate::core::configs::node::{BackendType, NodeConfig};
 use crate::core::data::VDiskMapper;
 use crate::core::data::{BobData, BobKey, DiskPath, VDiskId};
@@ -95,7 +95,7 @@ impl Backend {
                 let mut pearl = PearlBackend::new(config);
                 pearl.init(mapper).unwrap();
                 Arc::new(pearl)
-            },
+            }
         };
         Backend { backend }
     }
@@ -107,12 +107,14 @@ impl Backend {
 
             if !oper.is_data_alien() {
                 debug!("PUT[{}][{}] to backend", key, oper.disk_name_local());
-                let result = backend.put(
-                    oper.disk_name_local(),
-                    oper.vdisk_id.clone(),
-                    key,
-                    data.clone(),
-                ).0;
+                let result = backend
+                    .put(
+                        oper.disk_name_local(),
+                        oper.vdisk_id.clone(),
+                        key,
+                        data.clone(),
+                    )
+                    .0;
 
                 let func = move |err| {
                     error!(
@@ -142,7 +144,9 @@ impl Backend {
 
             if !oper.is_data_alien() {
                 debug!("GET[{}][{}] to backend", key, oper.disk_name_local());
-                backend.get(oper.disk_name_local(), oper.vdisk_id.clone(), key).0
+                backend
+                    .get(oper.disk_name_local(), oper.vdisk_id.clone(), key)
+                    .0
             } else {
                 debug!("GET[{}] to backend, foreign data", key);
                 backend.get_alien(oper.vdisk_id.clone(), key).0
