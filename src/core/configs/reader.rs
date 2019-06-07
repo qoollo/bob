@@ -2,22 +2,25 @@ use serde::de::Deserialize;
 use std::fs;
 
 pub trait Validatable {
-    fn validate(&self) -> Option<String>;
+    fn validate(&self) -> Result<(), String>;
 
-    fn aggregate<T: Validatable>(&self, elements: &[T]) -> Option<String> {
+    fn aggregate<T: Validatable>(&self, elements: &[T]) -> Result<(), String> {
         let options = elements
             .iter()
-            .filter_map(|elem| elem.validate())
+            .map(|elem| elem.validate())
+            .filter_map(Result::err)
             .collect::<Vec<String>>();
         if !options.is_empty() {
-            return Some(options.iter().fold("".to_string(), |acc, x| acc + "\n" + x));
+            return Err(options.iter().fold("".to_string(), |acc, x| acc + "\n" + x));
         }
-        None
+        Ok(())
     }
 }
 
-pub trait BobConfigReader {
-    fn read(&self, filename: &str) -> Result<String, String> {
+pub struct YamlBobConfigReader {}
+
+impl YamlBobConfigReader {
+    pub fn read(&self, filename: &str) -> Result<String, String> {
         let result: Result<String, _> = fs::read_to_string(filename);
         match result {
             Ok(config) => Ok(config),
@@ -27,20 +30,8 @@ pub trait BobConfigReader {
             }
         }
     }
-    fn parse<T>(&self, config: &str) -> Result<T, String>
-    where
-        T: for<'de> Deserialize<'de>,
-        T: Validatable;
-    fn get<T>(&self, filename: &str) -> Result<T, String>
-    where
-        T: for<'de> Deserialize<'de>,
-        T: Validatable;
-}
 
-pub struct YamlBobConfigReader {}
-
-impl BobConfigReader for YamlBobConfigReader {
-    fn parse<T>(&self, config: &str) -> Result<T, String>
+    pub fn parse<T>(&self, config: &str) -> Result<T, String>
     where
         T: for<'de> Deserialize<'de>,
         T: Validatable,
@@ -54,7 +45,8 @@ impl BobConfigReader for YamlBobConfigReader {
             }
         }
     }
-    fn get<T>(&self, filename: &str) -> Result<T, String>
+
+    pub fn get<T>(&self, filename: &str) -> Result<T, String>
     where
         T: for<'de> Deserialize<'de>,
         T: Validatable,
@@ -63,10 +55,12 @@ impl BobConfigReader for YamlBobConfigReader {
         let config: T = self.parse(&file)?;
 
         let is_valid = config.validate();
-        if is_valid.is_some() {
-            debug!("config is not valid: {}", is_valid.as_ref().unwrap());
-            return Err(format!("config is not valid: {}", is_valid.unwrap()));
+        match is_valid {
+            Ok(_) => Ok(config),
+            Err(e) => {
+                debug!("config is not valid: {}", e);
+                Err(format!("config is not valid: {}", e))
+            }
         }
-        Ok(config)
     }
 }

@@ -1,5 +1,5 @@
-use crate::core::configs::cluster::{Cluster, Node};
-use crate::core::configs::reader::{BobConfigReader, Validatable, YamlBobConfigReader};
+use crate::core::configs::cluster::{ClusterConfig, Node};
+use crate::core::configs::reader::{Validatable, YamlBobConfigReader};
 use log::LevelFilter;
 use std::cell::Cell;
 use std::cell::RefCell;
@@ -24,24 +24,35 @@ impl PearlConfig {
 }
 
 impl Validatable for PearlConfig {
-    fn validate(&self) -> Option<String> {
-        if self.max_blob_size.is_none() {
-            debug!("field 'max_blob_size' for 'pearl' is not set");
-            return Some("field 'max_blob_size' for 'pearl' is not set".to_string());
-        }
-        if self.pool_count_threads.is_none() {
-            debug!("field 'pool_count_threads' for 'pearl' is not set");
-            return Some("field 'pool_count_threads' for 'pearl' is not set".to_string());
-        }
-        if self.alien_disk.is_none() {
-            debug!("field 'alien_disk' for 'config' is not set");
-            return Some("field 'alien_disk' for 'config' is not set".to_string());
-        }
-        if self.alien_disk.as_ref()?.is_empty() {
-            debug!("field 'alien_disk' for 'config' is empty");
-            return Some("field 'alien_disk' for 'config' is empty".to_string());
-        }
-        None
+    fn validate(&self) -> Result<(), String> {
+        match self.max_blob_size {
+            None => {
+                debug!("field 'max_blob_size' for 'config' is not set");
+                return Err("field 'max_blob_size' for 'config' is not set".to_string());
+            }
+            _ => {}
+        };
+        match self.pool_count_threads {
+            None => {
+                debug!("field 'pool_count_threads' for 'config' is not set");
+                return Err("field 'pool_count_threads' for 'config' is not set".to_string());
+            }
+            _ => {}
+        };
+        match &self.alien_disk {
+            None => {
+                debug!("field 'alien_disk' for 'config' is not set");
+                return Err("field 'alien_disk' for 'config' is not set".to_string());
+            }
+            Some(alien_disk) => {
+                if alien_disk.is_empty() {
+                    debug!("field 'alien_disk' for 'config' is empty");
+                    return Err("field 'alien_disk' for 'config' is empty".to_string());
+                }
+            }
+        };
+
+        Ok(())
     }
 }
 
@@ -124,12 +135,11 @@ impl NodeConfig {
         self.backend_result().unwrap()
     }
     fn backend_result(&self) -> Result<BackendType, String> {
-        let value = self.backend_type.as_ref().unwrap().clone();
-        match value.as_ref() {
+        match self.backend_type.as_ref().unwrap().as_str() {
             "in_memory" => Ok(BackendType::InMemory),
             "stub" => Ok(BackendType::Stub),
             "pearl" => Ok(BackendType::Pearl),
-            _ => Err(format!("unknown backend type: {}", value)),
+            value => Err(format!("unknown backend type: {}", value)),
         }
     }
     pub fn prepare(&self, node: &Node) -> Result<(), String> {
@@ -171,96 +181,100 @@ impl NodeConfig {
     }
 }
 impl Validatable for NodeConfig {
-    fn validate(&self) -> Option<String> {
-        if self.timeout.is_none() {
-            debug!("field 'timeout' for 'config' is not set");
-            return Some("field 'timeout' for 'config' is not set".to_string());
-        }
-        if self.backend_type.is_none() {
-            debug!("field 'backend_type' for 'config' is not set");
-            return Some("field 'backend_type' for 'config' is not set".to_string());
-        }
-        if self.backend_result().ok()? == BackendType::Pearl {
-            if self.pearl.is_none() {
-                debug!(
-                    "choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set"
-                );
-                return Some(
-                    "choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set"
-                        .to_string(),
-                );
+    fn validate(&self) -> Result<(), String> {
+        match &self.backend_type {
+            None => {
+                debug!("field 'backend_type' for 'config' is not set");
+                return Err("field 'backend_type' for 'config' is not set".to_string());
             }
-            let r = self.pearl.as_ref()?.validate();
-            if r.is_some() {
-                return r;
+            Some(_) => {
+                if self.backend_result().is_ok() && self.backend_type() == BackendType::Pearl {
+                    match &self.pearl {
+                        None => {
+                            debug!("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set");
+                            return Err("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set".to_string());
+                        }
+                        Some(pearl) => pearl.validate()?,
+                    };
+                };
             }
-        }
-        if self
-            .timeout
-            .as_ref()?
-            .clone()
-            .parse::<humantime::Duration>()
-            .is_err()
-        {
-            debug!("field 'timeout' for 'config' is not valid");
-            return Some("field 'timeout' for 'config' is not valid".to_string());
-        }
-        if self.check_interval.is_none() {
-            debug!("field 'check_interval' for 'config' is not set");
-            return Some("field 'check_interval' for 'config' is not set".to_string());
-        }
-        if self
-            .check_interval
-            .as_ref()?
-            .clone()
-            .parse::<humantime::Duration>()
-            .is_err()
-        {
-            debug!("field 'check_interval' for 'config' is not valid");
-            return Some("field 'check_interval' for 'config' is not valid".to_string());
-        }
+        };
+        match &self.timeout {
+            None => {
+                debug!("field 'timeout' for 'config' is not set");
+                return Err("field 'timeout' for 'config' is not set".to_string());
+            }
+            Some(timeout) => {
+                if timeout.parse::<humantime::Duration>().is_err() {
+                    debug!("field 'timeout' for 'config' is not valid");
+                    return Err("field 'timeout' for 'config' is not valid".to_string());
+                }
+            }
+        };
+        match &self.check_interval {
+            None => {
+                debug!("field 'check_interval' for 'config' is not set");
+                return Err("field 'check_interval' for 'config' is not set".to_string());
+            }
+            Some(check_interval) => {
+                if check_interval.parse::<humantime::Duration>().is_err() {
+                    debug!("field 'check_interval' for 'config' is not valid");
+                    return Err("field 'check_interval' for 'config' is not valid".to_string());
+                }
+            }
+        };
+        match &self.name {
+            None => {
+                debug!("field 'name' for 'config' is not set");
+                return Err("field 'name' for 'config' is not set".to_string());
+            }
+            Some(name) => {
+                if name.is_empty() {
+                    debug!("field 'name' for 'config' is empty");
+                    return Err("field 'name' for 'config' is empty".to_string());
+                }
+            }
+        };
+        match &self.cluster_policy {
+            None => {
+                debug!("field 'cluster_policy' for 'config' is not set");
+                return Err("field 'cluster_policy' for 'config' is not set".to_string());
+            }
+            Some(cluster_policy) => {
+                if cluster_policy.is_empty() {
+                    debug!("field 'cluster_policy' for 'config' is empty");
+                    return Err("field 'cluster_policy' for 'config' is empty".to_string());
+                }
+            }
+        };
+        match self.log_level {
+            None => {
+                debug!("field 'log_level' for 'config' is not set");
+                return Err("field 'log_level' for 'config' is not set".to_string());
+            }
+            _ => {}
+        };
+        match self.quorum {
+            None => {
+                debug!("field 'quorum' for 'config' is not set");
+                return Err("field 'quorum' for 'config' is not set".to_string());
+            }
+            Some(quorum) => {
+                if quorum == 0 {
+                    debug!("field 'quorum' for 'config' must be greater than 0");
+                    return Err("field 'quorum' for 'config' must be greater than 0".to_string());
+                }
+            }
+        };
 
-        if self.name.is_none() {
-            debug!("field 'name' for 'config' is not set");
-            return Some("field 'name' for 'config' is not set".to_string());
-        }
-        if self.name.as_ref()?.is_empty() {
-            debug!("field 'name' for 'config' is empty");
-            return Some("field 'name' for 'config' is empty".to_string());
-        }
-        if self.cluster_policy.is_none() {
-            debug!("field 'cluster_policy' for 'config' is not set");
-            return Some("field 'cluster_policy' for 'config' is not set".to_string());
-        }
-        if self.cluster_policy.as_ref()?.is_empty() {
-            debug!("field 'cluster_policy' for 'config' is empty");
-            return Some("field 'cluster_policy' for 'config' is empty".to_string());
-        }
-        if self.log_level.is_none() {
-            debug!("field 'log_level' for 'config' is not set");
-            return Some("field 'log_level' for 'config' is not set".to_string());
-        }
-        if self.quorum.is_none() {
-            debug!("field 'quorum' for 'config' is not set");
-            return Some("field 'quorum' for 'config' is not set".to_string());
-        }
-        if self.quorum? == 0 {
-            debug!("field 'quorum' for 'config' must be greater than 0");
-            return Some("field 'quorum' for 'config' must be greater than 0".to_string());
-        }
-        None
+        Ok(())
     }
-}
-
-pub trait BobNodeConfig {
-    fn check_cluster(&self, cluster: &Cluster, node: &NodeConfig) -> Result<(), String>;
-    fn get(&self, filename: &str, cluster: &Cluster) -> Result<NodeConfig, String>;
 }
 
 pub struct NodeConfigYaml {}
 
-impl BobNodeConfig for NodeConfigYaml {
-    fn check_cluster(&self, cluster: &Cluster, node: &NodeConfig) -> Result<(), String> {
+impl NodeConfigYaml {
+    pub fn check_cluster(&self, cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
         let finded = cluster.nodes.iter().find(|n| n.name == node.name);
         if finded.is_none() {
             debug!("cannot find node: {} in cluster config", node.name());
@@ -269,7 +283,7 @@ impl BobNodeConfig for NodeConfigYaml {
                 node.name()
             ));
         }
-        if node.backend_result().is_ok() && node.backend_result().unwrap() == BackendType::Pearl {
+        if node.backend_result().is_ok() && node.backend_type() == BackendType::Pearl {
             let pearl = node.pearl.as_ref().unwrap();
             let finded_disk = finded
                 .unwrap()
@@ -278,14 +292,12 @@ impl BobNodeConfig for NodeConfigYaml {
                 .find(|d| d.name == pearl.alien_disk);
             if finded_disk.is_none() {
                 debug!(
-                    "cannot find disk {} for node {} in cluster config",
-                    pearl.alien_disk(),
-                    node.name()
+                    "cannot find disk {:?} for node {:?} in cluster config",
+                    pearl.alien_disk, node.name
                 );
                 return Err(format!(
-                    "cannot find disk {} for node {} in cluster config",
-                    pearl.alien_disk(),
-                    node.name()
+                    "cannot find disk {:?} for node {:?} in cluster config",
+                    pearl.alien_disk, node.name
                 ));
             }
         }
@@ -293,15 +305,17 @@ impl BobNodeConfig for NodeConfigYaml {
         Ok(())
     }
 
-    fn get(&self, filename: &str, cluster: &Cluster) -> Result<NodeConfig, String> {
-        let config: NodeConfig = YamlBobConfigReader {}.get(filename)?;
-        let is_valid = config.validate();
-        if is_valid.is_some() {
-            debug!("config is not valid: {}", is_valid.as_ref().unwrap());
-            return Err(format!("config is not valid: {}", is_valid.unwrap()));
+    pub fn get(&self, filename: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
+        let config: NodeConfig = YamlBobConfigReader {}.get::<NodeConfig>(filename)?;
+        match config.validate() {
+            Ok(_) => {
+                self.check_cluster(cluster, &config)?;
+                Ok(config)
+            }
+            Err(e) => {
+                debug!("config is not valid: {}", e);
+                Err(format!("config is not valid: {}", e))
+            }
         }
-        self.check_cluster(cluster, &config)?;
-
-        Ok(config)
     }
 }
