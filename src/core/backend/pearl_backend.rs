@@ -149,6 +149,7 @@ impl PearlBackend {
     }
 
     fn run_storage(&mut self, storage: &mut PearlStorage) {
+        // init could take a while
         self.pool.run(storage.init(self.pool.clone())).unwrap(); //TODO handle fail and try restart
     }
 }
@@ -169,7 +170,7 @@ impl BackendStorage for PearlBackend {
                         .boxed()
                         .compat()
                         .map(|_r| BackendResult {})
-                        .map_err(|_e| BackendError::StorageError)
+                        .map_err(|_e| BackendError::StorageError) //TODO - add description for error key or vdisk for example
                 })
             } else {
                 Box::new({
@@ -177,7 +178,7 @@ impl BackendStorage for PearlBackend {
                         "PUT[{}][{}][{}] to pearl backend. Cannot find storage",
                         disk_name, vdisk_id, key
                     );
-                    err(BackendError::VDiskNotFound)
+                    err(BackendError::VDiskNotFound) //TODO - add description for error key or vdisk for example
                 })
             }
         })
@@ -196,12 +197,12 @@ impl BackendStorage for PearlBackend {
                         .boxed()
                         .compat()
                         .map(|_r| BackendResult {})
-                        .map_err(|_e| BackendError::StorageError)
+                        .map_err(|_e| BackendError::StorageError) //TODO - add description for error
                 })
             } else {
                 Box::new({
                     debug!("PUT[alien][{}] to pearl backend. Cannot find storage", key);
-                    err(BackendError::VDiskNotFound)
+                    err(BackendError::VDiskNotFound) //TODO - add description for error key or vdisk for example
                 })
             }
         })
@@ -230,7 +231,7 @@ impl BackendStorage for PearlBackend {
                                 meta: BobMeta { timestamp: 0 }, //TODO
                             },
                         })
-                        .map_err(|_e| BackendError::Other)
+                        .map_err(|_e| BackendError::Other) //TODO - add description for error
                 })
             } else {
                 Box::new({
@@ -238,7 +239,7 @@ impl BackendStorage for PearlBackend {
                         "Get[{}][{}][{}] to pearl backend. Cannot find storage",
                         disk_name, vdisk_id, key
                     );
-                    err(BackendError::Other)
+                    err(BackendError::Other) //TODO - add description for error
                 })
             }
         })
@@ -260,12 +261,12 @@ impl BackendStorage for PearlBackend {
                                 meta: BobMeta { timestamp: 0 }, //TODO
                             },
                         })
-                        .map_err(|_e| BackendError::Other)
+                        .map_err(|_e| BackendError::Other) //TODO - add description for error
                 })
             } else {
                 Box::new({
                     debug!("Get[alien][{}] to pearl backend. Cannot find storage", key);
-                    err(BackendError::Other)
+                    err(BackendError::Other) //TODO - add description for error
                 })
             }
         })
