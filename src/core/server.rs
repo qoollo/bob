@@ -1,6 +1,6 @@
 use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRequest};
 
-use crate::core::backend::BackendError;
+use crate::core::backend::backend::BackendError;
 
 use crate::core::data::{BobData, BobError, BobKey, BobMeta, BobOptions};
 use crate::core::grinder::{Grinder, ServeTypeError, ServeTypeOk};

@@ -5,6 +5,46 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::time::Duration;
 
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct PearlConfig {
+    pub max_blob_size: Option<u64>,
+    pub max_data_in_blob: Option<u64>,
+    pub blob_file_name_prefix: Option<String>,
+    pub pool_count_threads: Option<u16>,
+    pub alien_disk: Option<String>,
+}
+
+impl PearlConfig {
+    pub fn pool_count_threads(&self) -> u16 {
+        self.pool_count_threads.unwrap()
+    }
+    pub fn alien_disk(&self) -> String {
+        self.alien_disk.as_ref().unwrap().clone()
+    }
+}
+
+impl Validatable for PearlConfig {
+    fn validate(&self) -> Option<String> {
+        if self.max_blob_size.is_none() {
+            debug!("field 'max_blob_size' for 'pearl' is not set");
+            return Some("field 'max_blob_size' for 'pearl' is not set".to_string());
+        }
+        if self.pool_count_threads.is_none() {
+            debug!("field 'pool_count_threads' for 'pearl' is not set");
+            return Some("field 'pool_count_threads' for 'pearl' is not set".to_string());
+        }
+        if self.alien_disk.is_none() {
+            debug!("field 'alien_disk' for 'config' is not set");
+            return Some("field 'alien_disk' for 'config' is not set".to_string());
+        }
+        if self.alien_disk.as_ref()?.is_empty() {
+            debug!("field 'alien_disk' for 'config' is empty");
+            return Some("field 'alien_disk' for 'config' is empty".to_string());
+        }
+        None
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum LogLevel {
     Off = 0,
@@ -25,6 +65,7 @@ pub struct DiskPath {
 pub enum BackendType {
     InMemory = 0,
     Stub,
+    Pearl,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -37,6 +78,7 @@ pub struct NodeConfig {
     pub cluster_policy: Option<String>,
 
     pub backend_type: Option<String>,
+    pub pearl: Option<PearlConfig>,
 
     #[serde(skip)]
     pub bind_ref: RefCell<String>,
@@ -83,13 +125,12 @@ impl NodeConfig {
     }
     fn backend_result(&self) -> Result<BackendType, String> {
         let value = self.backend_type.as_ref().unwrap().clone();
-        if value == "in_memory" {
-            return Ok(BackendType::InMemory);
+        match value.as_ref() {
+            "in_memory" => Ok(BackendType::InMemory),
+            "stub" => Ok(BackendType::Stub),
+            "pearl" => Ok(BackendType::Pearl),
+            _ => Err(format!("unknown backend type: {}", value)),
         }
-        if value == "stub" {
-            return Ok(BackendType::Stub);
-        }
-        Err(format!("unknown backend type: {}", value))
     }
     pub fn prepare(&self, node: &Node) -> Result<(), String> {
         self.bind_ref
@@ -138,6 +179,21 @@ impl Validatable for NodeConfig {
         if self.backend_type.is_none() {
             debug!("field 'backend_type' for 'config' is not set");
             return Some("field 'backend_type' for 'config' is not set".to_string());
+        }
+        if self.backend_result().ok()? == BackendType::Pearl {
+            if self.pearl.is_none() {
+                debug!(
+                    "choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set"
+                );
+                return Some(
+                    "choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set"
+                        .to_string(),
+                );
+            }
+            let r = self.pearl.as_ref()?.validate();
+            if r.is_some() {
+                return r;
+            }
         }
         if self
             .timeout
@@ -207,14 +263,31 @@ impl BobNodeConfig for NodeConfigYaml {
     fn check_cluster(&self, cluster: &Cluster, node: &NodeConfig) -> Result<(), String> {
         let finded = cluster.nodes.iter().find(|n| n.name == node.name);
         if finded.is_none() {
-            debug!(
-                "cannot find node: {} in cluster config",
-                node.name.as_ref().unwrap()
-            );
+            debug!("cannot find node: {} in cluster config", node.name());
             return Err(format!(
                 "cannot find node: {} in cluster config",
-                node.name.as_ref().unwrap()
+                node.name()
             ));
+        }
+        if node.backend_result().is_ok() && node.backend_result().unwrap() == BackendType::Pearl {
+            let pearl = node.pearl.as_ref().unwrap();
+            let finded_disk = finded
+                .unwrap()
+                .disks
+                .iter()
+                .find(|d| d.name == pearl.alien_disk);
+            if finded_disk.is_none() {
+                debug!(
+                    "cannot find disk {} for node {} in cluster config",
+                    pearl.alien_disk(),
+                    node.name()
+                );
+                return Err(format!(
+                    "cannot find disk {} for node {} in cluster config",
+                    pearl.alien_disk(),
+                    node.name()
+                ));
+            }
         }
         node.prepare(finded.unwrap())?;
         Ok(())

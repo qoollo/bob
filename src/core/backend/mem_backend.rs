@@ -1,5 +1,6 @@
-use crate::core::backend::*;
+use crate::core::backend::backend::*;
 use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
+use futures::future::Future;
 use futures::future::{err, ok};
 use futures_locks::RwLock;
 use std::collections::HashMap;
@@ -167,35 +168,39 @@ impl MemBackend {
 }
 
 impl BackendStorage for MemBackend {
-    fn put(&self, disk: String, vdisk: VDiskId, key: BobKey, data: BobData) -> BackendPutFuture {
-        debug!("PUT[{}][{}] to backend", key, disk);
-        match self.disks.get(&disk) {
-            Some(mem_disk) => mem_disk.put(vdisk, key, data),
-            None => {
-                error!("PUT[{}][{}] Can't find disk {}", key, disk, disk);
-                Box::new(err(BackendError::Other))
+    fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
+        debug!("PUT[{}][{}] to backend", key, disk_name);
+        Put({
+            match self.disks.get(&disk_name) {
+                Some(mem_disk) => mem_disk.put(vdisk, key, data),
+                None => {
+                    error!("PUT[{}][{}] Can't find disk {}", key, disk_name, disk_name);
+                    Box::new(err(BackendError::Other))
+                }
             }
-        }
+        })
     }
 
-    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> BackendPutFuture {
+    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}] to backend, foreign data", key);
-        self.foreign_data.put(vdisk, key, data)
+        Put({ self.foreign_data.put(vdisk, key, data) })
     }
 
-    fn get(&self, disk: String, vdisk: VDiskId, key: BobKey) -> BackendGetFuture {
-        debug!("GET[{}][{}] to backend", key, disk);
-        match self.disks.get(&disk) {
-            Some(mem_disk) => mem_disk.get(vdisk, key),
-            None => {
-                error!("GET[{}][{}] Can't find disk {}", key, disk, disk);
-                Box::new(err(BackendError::Other))
+    fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get {
+        debug!("GET[{}][{}] to backend", key, disk_name);
+        Get({
+            match self.disks.get(&disk_name) {
+                Some(mem_disk) => mem_disk.get(vdisk, key),
+                None => {
+                    error!("GET[{}][{}] Can't find disk {}", key, disk_name, disk_name);
+                    Box::new(err(BackendError::Other))
+                }
             }
-        }
+        })
     }
 
-    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> BackendGetFuture {
+    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> Get {
         debug!("GET[{}] to backend, foreign data", key);
-        self.foreign_data.get(vdisk, key)
+        Get({ self.foreign_data.get(vdisk, key) })
     }
 }

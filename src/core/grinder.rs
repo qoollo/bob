@@ -1,6 +1,6 @@
 use tokio::prelude::Future;
 
-use crate::core::backend::{Backend, BackendError, BackendGetResult, BackendResult};
+use crate::core::backend::backend::{Backend, BackendError, BackendGetResult, BackendResult};
 use crate::core::configs::node::NodeConfig;
 use crate::core::data::VDiskMapper;
 use crate::core::data::{BobData, BobError, BobGetResult, BobKey, BobOptions, ClusterResult};
@@ -51,7 +51,7 @@ pub struct Grinder {
 
 impl Grinder {
     pub fn new(mapper: VDiskMapper, config: &NodeConfig) -> Grinder {
-        let backend = Backend::new(&mapper, config.backend_type());
+        let backend = Backend::new(&mapper, config);
         Grinder {
             backend,
             sprinkler: Sprinkler::new(&mapper, config),

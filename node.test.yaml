@@ -3,5 +3,11 @@ name: node1
 quorum: 1
 timeout: 3sec
 check_interval: 5000ms
-cluster_policy: quorum # quorum
-backend_type: in_memory # in_memory, stub
+cluster_policy: quorum        # quorum
+backend_type: pearl       # in_memory, stub, pearl
+pearl:                        # used only for 'backend_type: pearl'
+  max_blob_size: 1000000      # size in bytes. required for 'pearl'
+  max_data_in_blob: 10000     # optional
+  blob_file_name_prefix: bob  # optional
+  pool_count_threads: 4       # required for 'pearl'
+  alien_disk: disk1           # required for 'pearl'  

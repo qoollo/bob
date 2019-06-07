@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 futures         = "~0.1"
+futures03       = { package = "futures-preview", version = "0.3.0-alpha.16", features = ["compat"] }
 futures-cpupool = "~0.1"
 clap            = "~2.31"
 bitflags        = "~1.0"
@@ -31,7 +32,7 @@ itertools = "0.8"
 humantime = "1.2.0"
 futures-locks = "0.3"
 tokio-core = "0.1"
-
+pearl = { git = "https://github.com/qoollo/pearl", branch = "develop" }
 
 [build-dependencies]
 tower-grpc-build = { git = "https://github.com/tower-rs/tower-grpc", features = ["tower-hyper"] }
