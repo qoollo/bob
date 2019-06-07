@@ -60,7 +60,7 @@ impl YamlBobConfigReader {
             Err(e) => {
                 debug!("config is not valid: {}", e);
                 Err(format!("config is not valid: {}", e))
-            },
+            }
         }
     }
 }

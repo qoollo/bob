@@ -29,27 +29,27 @@ impl Validatable for PearlConfig {
             None => {
                 debug!("field 'max_blob_size' for 'config' is not set");
                 return Err("field 'max_blob_size' for 'config' is not set".to_string());
-            },
-            _ => {},
+            }
+            _ => {}
         };
         match self.pool_count_threads {
             None => {
                 debug!("field 'pool_count_threads' for 'config' is not set");
                 return Err("field 'pool_count_threads' for 'config' is not set".to_string());
-            },
-            _ => {},
+            }
+            _ => {}
         };
         match &self.alien_disk {
             None => {
                 debug!("field 'alien_disk' for 'config' is not set");
                 return Err("field 'alien_disk' for 'config' is not set".to_string());
-            },
+            }
             Some(alien_disk) => {
                 if alien_disk.is_empty() {
                     debug!("field 'alien_disk' for 'config' is empty");
                     return Err("field 'alien_disk' for 'config' is empty".to_string());
                 }
-            },
+            }
         };
 
         Ok(())
@@ -186,93 +186,87 @@ impl Validatable for NodeConfig {
             None => {
                 debug!("field 'backend_type' for 'config' is not set");
                 return Err("field 'backend_type' for 'config' is not set".to_string());
-            },
+            }
             Some(_) => {
                 if self.backend_result().is_ok() && self.backend_type() == BackendType::Pearl {
                     match &self.pearl {
                         None => {
                             debug!("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set");
                             return Err("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set".to_string());
-                        },
+                        }
                         Some(pearl) => pearl.validate()?,
                     };
                 };
-            },
+            }
         };
         match &self.timeout {
             None => {
                 debug!("field 'timeout' for 'config' is not set");
                 return Err("field 'timeout' for 'config' is not set".to_string());
-            },
+            }
             Some(timeout) => {
-                if timeout
-                    .parse::<humantime::Duration>()
-                    .is_err()
-                {
+                if timeout.parse::<humantime::Duration>().is_err() {
                     debug!("field 'timeout' for 'config' is not valid");
                     return Err("field 'timeout' for 'config' is not valid".to_string());
                 }
-            },
+            }
         };
         match &self.check_interval {
             None => {
                 debug!("field 'check_interval' for 'config' is not set");
                 return Err("field 'check_interval' for 'config' is not set".to_string());
-            },
+            }
             Some(check_interval) => {
-                if check_interval
-                    .parse::<humantime::Duration>()
-                    .is_err()
-                {
+                if check_interval.parse::<humantime::Duration>().is_err() {
                     debug!("field 'check_interval' for 'config' is not valid");
                     return Err("field 'check_interval' for 'config' is not valid".to_string());
                 }
-            },
+            }
         };
         match &self.name {
             None => {
                 debug!("field 'name' for 'config' is not set");
                 return Err("field 'name' for 'config' is not set".to_string());
-            },
+            }
             Some(name) => {
                 if name.is_empty() {
                     debug!("field 'name' for 'config' is empty");
                     return Err("field 'name' for 'config' is empty".to_string());
                 }
-            },
+            }
         };
         match &self.cluster_policy {
             None => {
                 debug!("field 'cluster_policy' for 'config' is not set");
                 return Err("field 'cluster_policy' for 'config' is not set".to_string());
-            },
+            }
             Some(cluster_policy) => {
                 if cluster_policy.is_empty() {
                     debug!("field 'cluster_policy' for 'config' is empty");
                     return Err("field 'cluster_policy' for 'config' is empty".to_string());
                 }
-            },
+            }
         };
         match self.log_level {
             None => {
                 debug!("field 'log_level' for 'config' is not set");
                 return Err("field 'log_level' for 'config' is not set".to_string());
-            },
-            _ => {},
+            }
+            _ => {}
         };
         match self.quorum {
             None => {
                 debug!("field 'quorum' for 'config' is not set");
                 return Err("field 'quorum' for 'config' is not set".to_string());
-            },
+            }
             Some(quorum) => {
                 if quorum == 0 {
                     debug!("field 'quorum' for 'config' must be greater than 0");
                     return Err("field 'quorum' for 'config' must be greater than 0".to_string());
                 }
-            },
+            }
         };
-        
+
         Ok(())
     }
 }
@@ -299,13 +293,11 @@ impl NodeConfigYaml {
             if finded_disk.is_none() {
                 debug!(
                     "cannot find disk {:?} for node {:?} in cluster config",
-                    pearl.alien_disk,
-                    node.name
+                    pearl.alien_disk, node.name
                 );
                 return Err(format!(
                     "cannot find disk {:?} for node {:?} in cluster config",
-                    pearl.alien_disk,
-                    node.name
+                    pearl.alien_disk, node.name
                 ));
             }
         }
@@ -319,11 +311,11 @@ impl NodeConfigYaml {
             Ok(_) => {
                 self.check_cluster(cluster, &config)?;
                 Ok(config)
-            },
+            }
             Err(e) => {
                 debug!("config is not valid: {}", e);
                 Err(format!("config is not valid: {}", e))
-            },
+            }
         }
     }
 }

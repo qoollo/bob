@@ -30,25 +30,25 @@ impl Validatable for NodeDisk {
             None => {
                 debug!("field 'name' for 'disk' is not set");
                 return Err("field 'name' for 'disk' is not set".to_string());
-            },
+            }
             Some(name) => {
                 if name.is_empty() {
                     debug!("field 'name' for 'disk' is empty");
                     return Err("field 'name' for 'disk' is empty".to_string());
                 }
-            },
+            }
         };
         match &self.path {
             None => {
                 debug!("field 'path' for 'disk' is not set");
                 return Err("field 'path' for 'disk' is not set".to_string());
-            },
+            }
             Some(path) => {
                 if path.is_empty() {
                     debug!("field 'path' for 'disk' is empty");
                     return Err("field 'path' for 'disk' is empty".to_string());
                 }
-            },
+            }
         };
         Ok(())
     }
@@ -101,25 +101,25 @@ impl Validatable for Node {
             None => {
                 debug!("field 'name' for 'Node' is not set");
                 return Err("field 'name' for 'Node' is not set".to_string());
-            },
+            }
             Some(name) => {
                 if name.is_empty() {
                     debug!("field 'name' for 'Node' is empty");
                     return Err("field 'name' for 'Node' is empty".to_string());
                 }
-            },
+            }
         };
         match &self.address {
             None => {
                 debug!("field 'address' for 'Node' is not set");
                 return Err("field 'address' for 'Node' is not set".to_string());
-            },
+            }
             Some(address) => {
                 if address.is_empty() {
                     debug!("field 'address' for 'Node' is empty");
                     return Err("field 'address' for 'Node' is empty".to_string());
                 }
-            },
+            }
         };
 
         let result = self.aggregate(&self.disks);
@@ -138,10 +138,7 @@ impl Validatable for Node {
             .count()
             != 0
         {
-            debug!(
-                "node: {} contains duplicate disk names",
-                self.name()
-            );
+            debug!("node: {} contains duplicate disk names", self.name());
             return Err(format!(
                 "node: {} contains duplicate disk names",
                 self.name()
@@ -172,25 +169,25 @@ impl Validatable for Replica {
             None => {
                 debug!("field 'node' for 'Replica' is not set");
                 return Err("field 'node' for 'Replica' is not set".to_string());
-            },
+            }
             Some(node) => {
                 if node.is_empty() {
                     debug!("field 'node' for 'Replica' is empty");
                     return Err("field 'node' for 'Replica' is empty".to_string());
                 }
-            },
+            }
         };
         match &self.disk {
             None => {
                 debug!("field 'disk' for 'Replica' is not set");
                 return Err("field 'disk' for 'Replica' is not set".to_string());
-            },
+            }
             Some(disk) => {
                 if disk.is_empty() {
                     debug!("field 'disk' for 'Replica' is empty");
                     return Err("field 'disk' for 'Replica' is empty".to_string());
                 }
-            },
+            }
         };
         Ok(())
     }
@@ -315,28 +312,22 @@ impl Validatable for ClusterConfig {
                         if node.disks.iter().find(|x| x.name == replica.disk) == None {
                             debug!(
                                 "cannot find in node: {:?}, disk with name: {:?} for vdisk: {:?}",
-                                replica.node,
-                                replica.disk,
-                                vdisk.id
+                                replica.node, replica.disk, vdisk.id
                             );
                             return Err(format!(
                                 "cannot find in node: {:?}, disk with name: {:?} for vdisk: {:?}",
-                                replica.node,
-                                replica.disk,
-                                vdisk.id
+                                replica.node, replica.disk, vdisk.id
                             ));
                         }
                     }
                     None => {
                         debug!(
                             "cannot find node: {:?} for vdisk: {:?}",
-                            replica.node,
-                            vdisk.id
+                            replica.node, vdisk.id
                         );
                         return Err(format!(
                             "cannot find node: {:?} for vdisk: {:?}",
-                            replica.node,
-                            vdisk.id
+                            replica.node, vdisk.id
                         ));
                     }
                 }
