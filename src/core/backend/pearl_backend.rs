@@ -35,7 +35,7 @@ impl PearlKey {
     }
 }
 impl Key for PearlKey {
-    const LEN: u16 = 16;
+    const LEN: u16 = 8;
 }
 impl AsRef<[u8]> for PearlKey {
     fn as_ref(&self) -> &[u8] {
@@ -72,7 +72,7 @@ impl PearlBackend {
         //init pearl storages for each vdisk
         for disk in mapper.local_disks().iter() {
             let base_path = PathBuf::from(format!("{}/bob/", disk.path));
-            Self::check_or_create_directory(&base_path).unwrap();
+            Self::check_or_create_directory(&base_path).unwrap(); //TODO handle fail and try restart
 
             let mut vdisks: Vec<PearlVDisk> = mapper
                 .get_vdisks_by_disk(&disk.name)
@@ -80,7 +80,7 @@ impl PearlBackend {
                 .map(|vdisk_id| {
                     let mut vdisk_path = base_path.clone();
                     vdisk_path.push(format!("{}/", vdisk_id.clone()));
-                    Self::check_or_create_directory(&vdisk_path).unwrap();
+                    Self::check_or_create_directory(&vdisk_path).unwrap(); //TODO handle fail and try restart
 
                     let mut storage = Self::init_pearl_by_path(vdisk_path, &self.config);
                     self.run_storage(&mut storage);
@@ -101,7 +101,7 @@ impl PearlBackend {
                 .path
         );
         let alien_path = PathBuf::from(path.clone());
-        Self::check_or_create_directory(&alien_path).unwrap();
+        Self::check_or_create_directory(&alien_path).unwrap(); //TODO handle fail and try restart
         let mut storage = Self::init_pearl_by_path(alien_path, &self.config);
         self.run_storage(&mut storage);
 
@@ -116,10 +116,10 @@ impl PearlBackend {
 
     fn check_or_create_directory(path: &Path) -> Result<(), String> {
         if !path.exists() {
-            let dir = path.to_str().unwrap();
+            let dir = path.to_str().unwrap(); //TODO handle fail and try restart
             return create_dir_all(path)
                 .map(|_r| {
-                    info!("create directory: {}", dir);
+                    info!("created directory: {}", dir);
                     ()
                 })
                 .map_err(|e| {
@@ -145,11 +145,12 @@ impl PearlBackend {
             _ => panic!("'max_blob_size' is not set in pearl config"),
         };
 
-        builder.build().unwrap()
+        builder.build().unwrap() //TODO handle fail and try restart
     }
 
     fn run_storage(&mut self, storage: &mut PearlStorage) {
-        self.pool.run(storage.init(self.pool.clone())).unwrap();
+        // init could take a while
+        self.pool.run(storage.init(self.pool.clone())).unwrap(); //TODO handle fail and try restart
     }
 }
 
@@ -169,7 +170,7 @@ impl BackendStorage for PearlBackend {
                         .boxed()
                         .compat()
                         .map(|_r| BackendResult {})
-                        .map_err(|_e| BackendError::Other)
+                        .map_err(|_e| BackendError::StorageError) //TODO - add description for error key or vdisk for example
                 })
             } else {
                 Box::new({
@@ -177,7 +178,7 @@ impl BackendStorage for PearlBackend {
                         "PUT[{}][{}][{}] to pearl backend. Cannot find storage",
                         disk_name, vdisk_id, key
                     );
-                    err(BackendError::Other)
+                    err(BackendError::VDiskNotFound) //TODO - add description for error key or vdisk for example
                 })
             }
         })
@@ -196,12 +197,12 @@ impl BackendStorage for PearlBackend {
                         .boxed()
                         .compat()
                         .map(|_r| BackendResult {})
-                        .map_err(|_e| BackendError::Other)
+                        .map_err(|_e| BackendError::StorageError) //TODO - add description for error
                 })
             } else {
                 Box::new({
                     debug!("PUT[alien][{}] to pearl backend. Cannot find storage", key);
-                    err(BackendError::Other)
+                    err(BackendError::VDiskNotFound) //TODO - add description for error key or vdisk for example
                 })
             }
         })
@@ -226,11 +227,11 @@ impl BackendStorage for PearlBackend {
                         .compat()
                         .map(|r| BackendGetResult {
                             data: BobData {
-                                data: r.clone(),
+                                data: r,
                                 meta: BobMeta { timestamp: 0 }, //TODO
                             },
                         })
-                        .map_err(|_e| BackendError::Other)
+                        .map_err(|_e| BackendError::Other) //TODO - add description for error
                 })
             } else {
                 Box::new({
@@ -238,7 +239,7 @@ impl BackendStorage for PearlBackend {
                         "Get[{}][{}][{}] to pearl backend. Cannot find storage",
                         disk_name, vdisk_id, key
                     );
-                    err(BackendError::Other)
+                    err(BackendError::Other) //TODO - add description for error
                 })
             }
         })
@@ -260,12 +261,12 @@ impl BackendStorage for PearlBackend {
                                 meta: BobMeta { timestamp: 0 }, //TODO
                             },
                         })
-                        .map_err(|_e| BackendError::Other)
+                        .map_err(|_e| BackendError::Other) //TODO - add description for error
                 })
             } else {
                 Box::new({
                     debug!("Get[alien][{}] to pearl backend. Cannot find storage", key);
-                    err(BackendError::Other)
+                    err(BackendError::Other) //TODO - add description for error
                 })
             }
         })

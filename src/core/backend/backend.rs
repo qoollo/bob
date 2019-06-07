@@ -56,6 +56,8 @@ pub struct BackendResult {}
 #[derive(Debug, PartialEq)]
 pub enum BackendError {
     NotFound,
+    VDiskNotFound,
+    StorageError,
     Other,
     __Nonexhaustive,
 }
