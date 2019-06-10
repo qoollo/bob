@@ -1,6 +1,7 @@
 use crate::core::backend::backend::*;
 use crate::core::data::{BobData, BobKey, BobMeta, VDiskId};
 use futures::future::ok;
+use futures03::future::ok as ok2;
 
 #[derive(Clone)]
 pub struct StubBackend {}
@@ -10,6 +11,12 @@ impl BackendStorage for StubBackend {
         debug!("PUT[{}]: hi from backend, timestamp: {}", key, data.meta);
         Put({ Box::new(ok(BackendResult {})) })
     }
+
+    fn put2(&self, _disk_name: String, _vdisk: VDiskId, key: BobKey, data: BobData) -> Put2 {
+        debug!("PUT[{}]: hi from backend, timestamp: {}", key, data.meta);
+        Put2({ Box::new(ok2(BackendResult {})) })
+    }
+
     fn put_alien(&self, _vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}]: hi from backend, timestamp: {}", key, data.meta);
         Put({ Box::new(ok(BackendResult {})) })

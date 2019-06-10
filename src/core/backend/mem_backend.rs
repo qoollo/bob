@@ -5,6 +5,9 @@ use futures::future::{err, ok};
 use futures_locks::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
+use futures03::future::ok as ok2;
+use futures03::future::err as err2;
+use futures03::compat::Future01CompatExt;
 
 #[derive(Clone)]
 struct VDisk {
@@ -16,6 +19,24 @@ impl VDisk {
         VDisk {
             repo: Arc::new(RwLock::new(HashMap::<BobKey, BobData>::new())),
         }
+    }
+
+    fn put2(&self, key: BobKey, data: BobData) -> Put2 {
+        Put2({
+            Box::new({
+                trace!("PUT[{}] to vdisk", key);
+                self.repo
+                    .write()
+                    .then(move |disks_lock_res| match disks_lock_res {
+                        Ok(mut repo) => {
+                            repo.insert(key, data);
+                            ok(BackendResult {})
+                        }
+                        Err(_) => err(BackendError::Other),
+                    })
+                    .compat()
+            })
+        })
     }
 
     fn put(&self, key: BobKey, data: BobData) -> BackendPutFuture {
@@ -129,6 +150,31 @@ impl MemDisk {
             }
         }
     }
+
+    pub fn put2(&self, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put2 {
+        Put2({
+        match self.vdisks.get(&vdisk_id) {
+            Some(vdisk) => {
+                trace!(
+                    "PUT[{}] to vdisk: {} for disk: {}",
+                    key,
+                    vdisk_id,
+                    self.name
+                );
+                vdisk.put2(key, data).0
+            }
+            None => {
+                trace!(
+                    "PUT[{}] to vdisk: {} failed. Cannot find vdisk for disk: {}",
+                    key,
+                    vdisk_id,
+                    self.name
+                );
+                Box::new(err2(BackendError::Other))
+            }
+        }
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -176,6 +222,20 @@ impl BackendStorage for MemBackend {
                 None => {
                     error!("PUT[{}][{}] Can't find disk {}", key, disk_name, disk_name);
                     Box::new(err(BackendError::Other))
+                }
+            }
+        })
+    }
+
+    fn put2(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) ->  Put2 {
+        debug!("PUT[{}][{}] to backend", key, disk_name);
+        let disk = self.disks.get(&disk_name).clone();
+        Put2({
+            match disk {
+                Some(mem_disk) => mem_disk.put2(vdisk, key, data).0,
+                None => {
+                    error!("PUT[{}][{}] Can't find disk {}", key, disk_name, disk_name);
+                    Box::new(err2(BackendError::Other))
                 }
             }
         })

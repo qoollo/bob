@@ -12,6 +12,8 @@ use futures03::executor::{ThreadPool, ThreadPoolBuilder};
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use futures03::future::ok as ok2;
+use futures03::future::err as err2;
 
 pub type PearlStorage = Storage<PearlKey>;
 
@@ -179,6 +181,33 @@ impl BackendStorage for PearlBackend {
                         disk_name, vdisk_id, key
                     );
                     err(BackendError::VDiskNotFound) //TODO - add description for error key or vdisk for example
+                })
+            }
+        })
+    }
+
+    fn put2(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put2 {
+        debug!("PUT[{}][{}][{}] to pearl backend", disk_name, vdisk_id, key);
+
+        //TODO remove clone for vdisk_id
+        let t = self.vdisks.clone();
+        Put2({
+            let vdisk = t.iter().find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
+
+            if vdisk.is_some() {
+                let storage = vdisk.unwrap().storage.clone();
+                Box::new({
+                    PearlVDisk::write(storage, PearlKey::new(key, &data.meta), data)
+                        .map(|_r| Ok(BackendResult {}))
+                        .map_err(|_e: ()| BackendError::StorageError) //TODO - add description for error key or vdisk for example
+                })
+            } else {
+                Box::new({
+                    debug!(
+                        "PUT[{}][{}][{}] to pearl backend. Cannot find storage",
+                        disk_name, vdisk_id, key
+                    );
+                    err2(BackendError::VDiskNotFound) //TODO - add description for error key or vdisk for example
                 })
             }
         })

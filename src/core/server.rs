@@ -32,8 +32,8 @@ impl BobSrv {
 }
 
 impl server::BobApi for BobSrv {
-    type PutFuture = Box<Future<Item = Response<OpStatus>, Error = tower_grpc::Status> + Send>;
-    type GetFuture = Box<Future<Item = Response<Blob>, Error = tower_grpc::Status> + Send>;
+    type PutFuture = Box<dyn Future<Item = Response<OpStatus>, Error = tower_grpc::Status> + Send>;
+    type GetFuture = Box<dyn Future<Item = Response<Blob>, Error = tower_grpc::Status> + Send>;
     type PingFuture = future::FutureResult<Response<Null>, tower_grpc::Status>;
 
     fn put(&mut self, req: Request<PutRequest>) -> Self::PutFuture {

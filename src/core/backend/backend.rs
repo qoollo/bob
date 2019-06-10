@@ -6,6 +6,7 @@ use crate::core::data::VDiskMapper;
 use crate::core::data::{BobData, BobKey, DiskPath, VDiskId};
 use std::sync::Arc;
 use tokio::prelude::Future;
+use futures03::Future as NewFuture;
 
 #[derive(Debug, Clone)]
 pub struct BackendOperation {
@@ -70,11 +71,14 @@ impl std::fmt::Display for BackendError {
 pub struct BackendGetResult {
     pub data: BobData,
 }
-pub type BackendPutFuture = Box<Future<Item = BackendResult, Error = BackendError> + Send>;
-pub type BackendGetFuture = Box<Future<Item = BackendGetResult, Error = BackendError> + Send>;
+pub type BackendPutFuture = Box<dyn Future<Item = BackendResult, Error = BackendError> + Send>;
+pub type BackendGetFuture = Box<dyn Future<Item = BackendGetResult, Error = BackendError> + Send>;
+
+pub struct Put2(pub Box<dyn NewFuture<Output = Result<BackendResult, BackendError>> + Send>);
 
 pub trait BackendStorage {
     fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;
+    fn put2(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put2;
     fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;
 
     fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get;
@@ -90,7 +94,7 @@ pub struct Get(pub Box<dyn Future<Item = BackendGetResult, Error = BackendError>
 
 impl Backend {
     pub fn new(mapper: &VDiskMapper, config: &NodeConfig) -> Self {
-        let backend: Arc<BackendStorage + Send + Sync + 'static> = match config.backend_type() {
+        let backend: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
             BackendType::Pearl => {
