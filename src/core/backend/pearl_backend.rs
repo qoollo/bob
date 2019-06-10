@@ -153,12 +153,12 @@ impl PearlBackend {
 }
 
 impl BackendStorage for PearlBackend {
-    fn put(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put2 {
+    fn put(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}][{}][{}] to pearl backend", disk_name, vdisk_id, key);
 
         //TODO remove clone for vdisk_id
         let t = self.vdisks.clone();
-        Put2({
+        Put({
             let vdisk = t.iter().find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
 
             if vdisk.is_some() {
@@ -176,12 +176,12 @@ impl BackendStorage for PearlBackend {
         })
     }
 
-    fn put_alien(&self, _vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put2 {
+    fn put_alien(&self, _vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[alien][{}] to pearl backend", key);
 
         //TODO remove clone for vdisk_id
         let vdisk = self.alien_dir.as_ref().clone();
-        Put2({
+        Put({
             if vdisk.is_some() {
                 let storage = vdisk.unwrap().storage.clone();
                 PearlVDisk::write(storage, PearlKey::new(key, &data.meta), data)
@@ -194,7 +194,7 @@ impl BackendStorage for PearlBackend {
         })
     }
 
-    fn get(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey) -> Get2 {
+    fn get(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey) -> Get {
         debug!(
             "Get[{}][{}][{}] from pearl backend",
             disk_name, vdisk_id, key
@@ -202,7 +202,7 @@ impl BackendStorage for PearlBackend {
 
         //TODO remove clone for vdisk_id
         let t = self.vdisks.clone();
-        Get2({
+        Get({
             let vdisk = t.iter().find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
 
             if vdisk.is_some() {
@@ -225,10 +225,10 @@ impl BackendStorage for PearlBackend {
         })
     }
 
-    fn get_alien(&self, _vdisk_id: VDiskId, key: BobKey) -> Get2 {
+    fn get_alien(&self, _vdisk_id: VDiskId, key: BobKey) -> Get {
         debug!("Get[alien][{}] from pearl backend", key);
         let vdisk = self.alien_dir.as_ref().clone();
-        Get2({
+        Get({
             if vdisk.is_some() {
                 let storage = vdisk.unwrap().storage.clone();
                 PearlVDisk::read(storage, PearlKey::new_read(key))

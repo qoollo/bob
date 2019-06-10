@@ -5,9 +5,8 @@ use crate::core::configs::node::{BackendType, NodeConfig};
 use crate::core::data::VDiskMapper;
 use crate::core::data::{BobData, BobKey, DiskPath, VDiskId};
 use std::sync::Arc;
-use tokio::prelude::Future;
-use futures03::Future as NewFuture;
-use futures03::future::{TryFutureExt};
+use futures03::Future;
+use futures03::future::{TryFutureExt, FutureExt};
 use std::pin::Pin;
 
 #[derive(Debug, Clone)]
@@ -74,18 +73,15 @@ pub struct BackendGetResult {
     pub data: BobData,
 }
 
-pub struct Put2(pub Pin<Box<dyn NewFuture<Output = Result<BackendResult, BackendError>> + Send>>);
-pub struct Get2(pub Pin<Box<dyn NewFuture<Output = Result<BackendGetResult, BackendError>> + Send>>);
-
-pub struct Put(pub Box<dyn Future<Item = BackendResult, Error = BackendError> + Send>);
-pub struct Get(pub Box<dyn Future<Item = BackendGetResult, Error = BackendError> + Send>);
+pub struct Put(pub Pin<Box<dyn Future<Output = Result<BackendResult, BackendError>> + Send>>);
+pub struct Get(pub Pin<Box<dyn Future<Output = Result<BackendGetResult, BackendError>> + Send>>);
 
 pub trait BackendStorage {
-    fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put2;
-    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put2;
+    fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;
+    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;
 
-    fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get2;
-    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> Get2;
+    fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get;
+    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> Get;
 }
 
 pub struct Backend {
@@ -119,7 +115,7 @@ impl Backend {
                         oper.vdisk_id.clone(),
                         key,
                         data.clone(),
-                    ).0.compat();
+                    ).0;
                 let func = move |err| {
                     error!(
                         "PUT[{}][{}] to backend. Error: {}",
@@ -127,17 +123,18 @@ impl Backend {
                         oper.disk_name_local(),
                         err
                     );
-                    backend.put_alien(oper.vdisk_id.clone(), key, data).0.compat()
+                    backend.put_alien(oper.vdisk_id.clone(), key, data).0
                 };
 
-                Box::new(result.or_else(|err| func(err)))
+                result.or_else(|err| func(err)).boxed()
+
             } else {
                 debug!(
                     "PUT[{}] to backend, alien data for {}",
                     key,
                     op.vdisk_id.clone()
                 );
-                Box::new(backend.put_alien(op.vdisk_id.clone(), key, data).0.compat())
+                backend.put_alien(op.vdisk_id.clone(), key, data).0
             }
         })
     }
@@ -149,14 +146,12 @@ impl Backend {
 
             if !oper.is_data_alien() {
                 debug!("GET[{}][{}] to backend", key, oper.disk_name_local());
-                Box::new(backend
+                backend
                     .get(oper.disk_name_local(), oper.vdisk_id.clone(), key)
                     .0
-                    .compat()
-                )
             } else {
                 debug!("GET[{}] to backend, foreign data", key);
-                Box::new(backend.get_alien(oper.vdisk_id.clone(), key).0.compat())
+                backend.get_alien(oper.vdisk_id.clone(), key).0
             }
         })
     }

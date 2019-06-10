@@ -21,8 +21,8 @@ impl VDisk {
         }
     }
 
-    fn put(&self, key: BobKey, data: BobData) -> Put2 {
-        Put2({
+    fn put(&self, key: BobKey, data: BobData) -> Put {
+        Put({
             trace!("PUT[{}] to vdisk", key);
                 self.repo
                     .write()
@@ -38,8 +38,8 @@ impl VDisk {
         })
     }
 
-    fn get(&self, key: BobKey) -> Get2 {
-        Get2(
+    fn get(&self, key: BobKey) -> Get {
+        Get(
             self.repo
                 .read()
                 .then(move |repo_lock_res| match repo_lock_res {
@@ -91,8 +91,8 @@ impl MemDisk {
         }
     }
 
-    pub fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Get2 {
-        Get2(
+    pub fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Get {
+        Get(
             match self.vdisks.get(&vdisk_id) {
                 Some(vdisk) => {
                     trace!(
@@ -116,8 +116,8 @@ impl MemDisk {
         )
     }
 
-    pub fn put(&self, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put2 {
-        Put2({
+    pub fn put(&self, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
+        Put({
         match self.vdisks.get(&vdisk_id) {
             Some(vdisk) => {
                 trace!(
@@ -179,10 +179,10 @@ impl MemBackend {
 }
 
 impl BackendStorage for MemBackend {
-    fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) ->  Put2 {
+    fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) ->  Put {
         debug!("PUT[{}][{}] to backend", key, disk_name);
         let disk = self.disks.get(&disk_name).clone();
-        Put2(
+        Put(
             match disk {
                 Some(mem_disk) => mem_disk.put(vdisk, key, data).0,
                 None => {
@@ -193,14 +193,14 @@ impl BackendStorage for MemBackend {
         )
     }
 
-    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put2 {
+    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}] to backend, foreign data", key);
-        Put2( self.foreign_data.put(vdisk, key, data).0 )
+        Put( self.foreign_data.put(vdisk, key, data).0 )
     }
 
-    fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get2 {
+    fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get {
         debug!("GET[{}][{}] to backend", key, disk_name);
-        Get2(
+        Get(
             match self.disks.get(&disk_name) {
                 Some(mem_disk) => mem_disk.get(vdisk, key).0,
                 None => {
@@ -211,8 +211,8 @@ impl BackendStorage for MemBackend {
         )
     }
 
-    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> Get2 {
+    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> Get {
         debug!("GET[{}] to backend, foreign data", key);
-        Get2( self.foreign_data.get(vdisk, key).0 )
+        Get( self.foreign_data.get(vdisk, key).0 )
     }
 }

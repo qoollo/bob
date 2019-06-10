@@ -6,6 +6,7 @@ use crate::core::data::VDiskMapper;
 use crate::core::data::{BobData, BobError, BobGetResult, BobKey, BobOptions, ClusterResult};
 use crate::core::sprinkler::{Sprinkler, SprinklerError, SprinklerResult};
 use futures::future::Either;
+use futures03::future::{TryFutureExt};
 
 #[derive(Debug)]
 pub enum ServeTypeOk<CT, BT> {
@@ -79,6 +80,7 @@ impl Grinder {
                 self.backend
                     .put(&op, key, data)
                     .0
+                    .compat()
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )
@@ -114,6 +116,7 @@ impl Grinder {
                 self.backend
                     .get(&op, key)
                     .0
+                    .compat()
                     .map(|r| ServeTypeOk::Local(r))
                     .map_err(|err| ServeTypeError::Local(err)),
             )
