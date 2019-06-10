@@ -126,11 +126,11 @@ impl LinkManager {
         &self,
         nodes: &[Node],
         mut f: F,
-    ) -> Vec<Box<Future<Item = ClusterResult<T>, Error = ClusterResult<BobError>> + 'static + Send>>
+    ) -> Vec<Box<dyn Future<Item = ClusterResult<T>, Error = ClusterResult<BobError>> + 'static + Send>>
     where
         F: FnMut(
             &mut BobClient,
-        ) -> (Box<
+        ) -> (Box< dyn
             Future<Item = ClusterResult<T>, Error = ClusterResult<BobError>> + 'static + Send,
         >),
     {

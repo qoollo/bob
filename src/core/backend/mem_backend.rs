@@ -5,9 +5,9 @@ use futures::future::{err, ok};
 use futures_locks::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
-use futures03::future::ok as ok2;
 use futures03::future::err as err2;
 use futures03::compat::Future01CompatExt;
+use futures03::{FutureExt};
 
 #[derive(Clone)]
 struct VDisk {
@@ -21,10 +21,9 @@ impl VDisk {
         }
     }
 
-    fn put2(&self, key: BobKey, data: BobData) -> Put2 {
+    fn put(&self, key: BobKey, data: BobData) -> Put2 {
         Put2({
-            Box::new({
-                trace!("PUT[{}] to vdisk", key);
+            trace!("PUT[{}] to vdisk", key);
                 self.repo
                     .write()
                     .then(move |disks_lock_res| match disks_lock_res {
@@ -35,27 +34,12 @@ impl VDisk {
                         Err(_) => err(BackendError::Other),
                     })
                     .compat()
-            })
+                    .boxed()
         })
     }
 
-    fn put(&self, key: BobKey, data: BobData) -> BackendPutFuture {
-        trace!("PUT[{}] to vdisk", key);
-        Box::new(
-            self.repo
-                .write()
-                .then(move |disks_lock_res| match disks_lock_res {
-                    Ok(mut repo) => {
-                        repo.insert(key, data);
-                        ok(BackendResult {})
-                    }
-                    Err(_) => err(BackendError::Other),
-                }),
-        )
-    }
-
-    fn get(&self, key: BobKey) -> BackendGetFuture {
-        Box::new(
+    fn get(&self, key: BobKey) -> Get2 {
+        Get2(
             self.repo
                 .read()
                 .then(move |repo_lock_res| match repo_lock_res {
@@ -70,7 +54,9 @@ impl VDisk {
                         }
                     },
                     Err(_) => err(BackendError::Other),
-                }),
+                })
+                .compat()
+                .boxed(),
         )
     }
 }
@@ -105,53 +91,32 @@ impl MemDisk {
         }
     }
 
-    pub fn get(&self, vdisk_id: VDiskId, key: BobKey) -> BackendGetFuture {
-        match self.vdisks.get(&vdisk_id) {
-            Some(vdisk) => {
-                trace!(
-                    "GET[{}] from vdisk: {} for disk: {}",
-                    key,
-                    vdisk_id,
-                    self.name
-                );
-                vdisk.get(key)
+    pub fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Get2 {
+        Get2(
+            match self.vdisks.get(&vdisk_id) {
+                Some(vdisk) => {
+                    trace!(
+                        "GET[{}] from vdisk: {} for disk: {}",
+                        key,
+                        vdisk_id,
+                        self.name
+                    );
+                    vdisk.get(key).0
+                }
+                None => {
+                    trace!(
+                        "GET[{}] from vdisk: {} failed. Cannot find vdisk for disk: {}",
+                        key,
+                        vdisk_id,
+                        self.name
+                    );
+                    err2(BackendError::Other).boxed()
+                }
             }
-            None => {
-                trace!(
-                    "GET[{}] from vdisk: {} failed. Cannot find vdisk for disk: {}",
-                    key,
-                    vdisk_id,
-                    self.name
-                );
-                Box::new(err(BackendError::Other))
-            }
-        }
+        )
     }
 
-    pub fn put(&self, vdisk_id: VDiskId, key: BobKey, data: BobData) -> BackendPutFuture {
-        match self.vdisks.get(&vdisk_id) {
-            Some(vdisk) => {
-                trace!(
-                    "PUT[{}] to vdisk: {} for disk: {}",
-                    key,
-                    vdisk_id,
-                    self.name
-                );
-                vdisk.put(key, data)
-            }
-            None => {
-                trace!(
-                    "PUT[{}] to vdisk: {} failed. Cannot find vdisk for disk: {}",
-                    key,
-                    vdisk_id,
-                    self.name
-                );
-                Box::new(err(BackendError::Other))
-            }
-        }
-    }
-
-    pub fn put2(&self, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put2 {
+    pub fn put(&self, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put2 {
         Put2({
         match self.vdisks.get(&vdisk_id) {
             Some(vdisk) => {
@@ -161,7 +126,7 @@ impl MemDisk {
                     vdisk_id,
                     self.name
                 );
-                vdisk.put2(key, data).0
+                vdisk.put(key, data).0
             }
             None => {
                 trace!(
@@ -170,7 +135,7 @@ impl MemDisk {
                     vdisk_id,
                     self.name
                 );
-                Box::new(err2(BackendError::Other))
+                err2(BackendError::Other).boxed()
             }
         }
         })
@@ -214,53 +179,40 @@ impl MemBackend {
 }
 
 impl BackendStorage for MemBackend {
-    fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
-        debug!("PUT[{}][{}] to backend", key, disk_name);
-        Put({
-            match self.disks.get(&disk_name) {
-                Some(mem_disk) => mem_disk.put(vdisk, key, data),
-                None => {
-                    error!("PUT[{}][{}] Can't find disk {}", key, disk_name, disk_name);
-                    Box::new(err(BackendError::Other))
-                }
-            }
-        })
-    }
-
-    fn put2(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) ->  Put2 {
+    fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) ->  Put2 {
         debug!("PUT[{}][{}] to backend", key, disk_name);
         let disk = self.disks.get(&disk_name).clone();
-        Put2({
+        Put2(
             match disk {
-                Some(mem_disk) => mem_disk.put2(vdisk, key, data).0,
+                Some(mem_disk) => mem_disk.put(vdisk, key, data).0,
                 None => {
                     error!("PUT[{}][{}] Can't find disk {}", key, disk_name, disk_name);
-                    Box::new(err2(BackendError::Other))
+                    err2(BackendError::Other).boxed()
                 }
             }
-        })
+        )
     }
 
-    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
+    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put2 {
         debug!("PUT[{}] to backend, foreign data", key);
-        Put({ self.foreign_data.put(vdisk, key, data) })
+        Put2( self.foreign_data.put(vdisk, key, data).0 )
     }
 
-    fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get {
+    fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get2 {
         debug!("GET[{}][{}] to backend", key, disk_name);
-        Get({
+        Get2(
             match self.disks.get(&disk_name) {
-                Some(mem_disk) => mem_disk.get(vdisk, key),
+                Some(mem_disk) => mem_disk.get(vdisk, key).0,
                 None => {
                     error!("GET[{}][{}] Can't find disk {}", key, disk_name, disk_name);
-                    Box::new(err(BackendError::Other))
+                    err2(BackendError::Other).boxed()
                 }
             }
-        })
+        )
     }
 
-    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> Get {
+    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> Get2 {
         debug!("GET[{}] to backend, foreign data", key);
-        Get({ self.foreign_data.get(vdisk, key) })
+        Get2( self.foreign_data.get(vdisk, key).0 )
     }
 }
