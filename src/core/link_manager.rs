@@ -9,6 +9,12 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::timer::Interval;
 
+use futures03::future::err as err2;
+use futures03::Future as NewFuture;
+use futures03::future::{TryFutureExt, FutureExt};
+use std::pin::Pin;
+use futures03::stream::FuturesUnordered as unordered;
+
 pub struct NodeLink {
     pub node: Node,
     pub conn: Option<BobClient>,
@@ -145,6 +151,60 @@ impl LinkManager {
                         result: BobError::Other(format!("No active connection {:?}", node)),
                         node,
                     })),
+                }
+            })
+            .collect();
+        t
+    }
+
+    pub fn call_nodes2<F, T: 'static + Send>(
+        &self,
+        nodes: &[Node],
+        mut f: F,
+    ) -> Vec<Pin<Box<dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>> + 'static + Send>>>
+    where
+        F: FnMut(
+            &mut BobClient,
+        ) -> (Pin<Box<dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>> + 'static + Send>>),
+    {
+        let links = &mut self.get_connections(nodes);
+        let t: Vec<_> = links
+            .iter_mut()
+            .map(move |nl| {
+                let node = nl.node.clone();
+                match &mut nl.conn {
+                    Some(conn) => f(conn),
+                    None => err2(ClusterResult {
+                        result: BobError::Other(format!("No active connection {:?}", node)),
+                        node,
+                    }).boxed(),
+                }
+            })
+            .collect();
+        t
+    }
+
+    pub fn call_nodes3<F, T: 'static + Send>(
+        &self,
+        nodes: &[Node],
+        mut f: F,
+    ) -> unordered<Pin<Box<dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>> + 'static + Send>>>
+    where
+        F: FnMut(
+            &mut BobClient,
+        ) -> (Pin<Box<dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>> + 'static + Send>>),
+    {
+        let links = &mut self.get_connections(nodes);
+        let t: unordered<_> = links
+            .iter_mut()
+            .map(move |nl| {
+                let node = nl.node.clone();
+                match &mut nl.conn {
+                    Some(conn) => f(conn),
+                    None => err2(ClusterResult {
+                        result: BobError::Other(format!("No active connection {:?}", node)),
+                        node,
+                    }).boxed(),
                 }
             })
             .collect();

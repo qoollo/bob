@@ -22,6 +22,10 @@ use futures_locks::Mutex;
 use std::sync::Arc;
 use tower_grpc::{Code, Status};
 
+// use futures03::Future as NewFuture;
+// use futures03::future::{TryFutureExt, FutureExt};
+// use std::pin::Pin;
+
 type TowerConnect =
     tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>;
 #[derive(Clone)]
@@ -37,6 +41,8 @@ pub struct Put(
 pub struct Get(
     pub Box<dyn Future<Item = ClusterResult<BobGetResult>, Error = ClusterResult<BobError>> + Send>,
 );
+
+//pub type ClusterFuture<T> = Pin<Box<dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>> + 'static + Send>>;
 
 impl BobClient {
     pub fn new(
