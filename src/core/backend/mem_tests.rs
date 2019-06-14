@@ -3,14 +3,21 @@ mod tests {
     use crate::core::backend::backend::*;
     use crate::core::backend::mem_backend::*;
     use crate::core::data::*;
-    use tokio_core::reactor::Core;
+    use futures03::executor::{ThreadPool, ThreadPoolBuilder};
 
     const VDISKS_COUNT: u32 = 10;
+
+    fn get_pool() -> ThreadPool {
+        ThreadPoolBuilder::new()
+            .pool_size(1)
+            .create()
+            .unwrap()
+    }
 
     #[test]
     fn test_mem_put_wrong_disk() {
         let backend = MemBackend::new_direct(&["name".to_string()], VDISKS_COUNT);
-        let mut reactor = Core::new().unwrap();
+        let mut reactor = get_pool();
 
         let retval = reactor.run(
             backend
@@ -31,7 +38,7 @@ mod tests {
     #[test]
     fn test_mem_put_get() {
         let backend = MemBackend::new_direct(&["name".to_string()], VDISKS_COUNT);
-        let mut reactor = Core::new().unwrap();
+        let mut reactor = get_pool();
 
         reactor
             .run(
@@ -61,7 +68,7 @@ mod tests {
     #[test]
     fn test_mem_get_wrong_disk() {
         let backend = MemBackend::new_direct(&["name".to_string()], VDISKS_COUNT);
-        let mut reactor = Core::new().unwrap();
+        let mut reactor = get_pool();
 
         reactor
             .run(
@@ -93,7 +100,7 @@ mod tests {
     #[test]
     fn test_mem_get_no_data() {
         let backend = MemBackend::new_direct(&["name".to_string()], VDISKS_COUNT);
-        let mut reactor = Core::new().unwrap();
+        let mut reactor = get_pool();
 
         let retval = reactor.run(
             backend
