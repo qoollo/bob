@@ -1,8 +1,11 @@
-use crate::core::backend::backend::{Backend, BackendError, BackendGetResult, BackendResult};
+use crate::core::backend::backend::{Backend, BackendGetResult, BackendResult, BackendError};
 use crate::core::configs::node::NodeConfig;
 use crate::core::data::VDiskMapper;
-use crate::core::data::{BobData, BobError, BobGetResult, BobKey, BobOptions, ClusterResult};
-use crate::core::sprinkler::{Sprinkler, SprinklerError, SprinklerResult};
+use crate::core::data::{BobData, BobGetResult, BobKey, BobOptions, ClusterResult, BobPutResult};
+use crate::core::link_manager::LinkManager;
+use crate::core::cluster::{get_cluster, Cluster};
+
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum ServeTypeOk<CT, BT> {
@@ -23,36 +26,71 @@ impl<CT, BT> ServeTypeOk<CT, BT> {
 }
 
 #[derive(Debug)]
-pub enum ServeTypeError<CT, BT> {
-    Cluster(CT),
-    Local(BT),
+pub enum BobError {
+    Cluster(BackendError),
+    Local(BackendError),
+
+    NotFound,
+    Other,
 }
 
-impl<CT, BT> ServeTypeError<CT, BT> {
-    pub fn is_cluster(&self) -> bool {
-        match *self {
-            ServeTypeError::Cluster(_) => true,
-            ServeTypeError::Local(_) => false,
+impl BobError {
+    pub fn error(&self) -> BobError {
+        match self {
+            BobError::Cluster(err) => self.match_error(err, false),
+            BobError::Local(err) => self.match_error(err, true),
+            _ => panic!("dont use anything except Local and Cluster types"),
         }
     }
-    pub fn is_local(&self) -> bool {
+
+    fn match_error(&self, err: &BackendError, _is_local: bool) -> BobError {
+        match err {
+            BackendError::NotFound => BobError::NotFound,
+            _ => BobError::Other,
+        }
+    }
+    fn is_cluster(&self) -> bool {
+        match *self {
+            BobError::Cluster(_) => true,
+            BobError::Local(_) => false,
+            _ => panic!("dont use anything except Local and Cluster types"),
+        }
+    }
+    fn is_local(&self) -> bool {
         !self.is_cluster()
+    }
+}
+
+impl std::fmt::Display for BobError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let dest = if self.is_local() {"local"} else {"cluster"};
+        write!(f, "dest: {}, error: {}", dest, self)
     }
 }
 
 pub struct Grinder {
     pub backend: Backend,
-    pub sprinkler: Sprinkler,
     mapper: VDiskMapper,
+
+    link_manager: Arc<LinkManager>,
+    cluster: Arc<dyn Cluster + Send + Sync>,
+
 }
 
 impl Grinder {
     pub fn new(mapper: VDiskMapper, config: &NodeConfig) -> Grinder {
+        let link = Arc::new(LinkManager::new(
+            mapper.nodes(),
+            config.check_interval(),
+            config.timeout(),
+        ));
+
         let backend = Backend::new(&mapper, config);
         Grinder {
             backend,
-            sprinkler: Sprinkler::new(&mapper, config),
-            mapper,
+            mapper: mapper.clone(),
+            link_manager: link.clone(),
+            cluster: get_cluster(link, &mapper, config),
         }
     }
     pub async fn put(
@@ -61,8 +99,8 @@ impl Grinder {
         data: BobData,
         opts: BobOptions,
     ) -> Result<
-        ServeTypeOk<SprinklerResult, BackendResult>,
-        ServeTypeError<SprinklerError, BackendError>,
+        ServeTypeOk<BobPutResult, BackendResult>,
+        BobError,
     > {
         if opts.contains(BobOptions::FORCE_NODE) {
             let op = self.mapper.get_operation(key);
@@ -75,14 +113,15 @@ impl Grinder {
                 .0
                 .await
                 .map(|r| ServeTypeOk::Local(r))
-                .map_err(|err| ServeTypeError::Local(err))
+                .map_err(|err| BobError::Local(err))
         } else {
             debug!("PUT[{}] will route to cluster", key);
-            self.sprinkler
+            self.cluster
                 .put_clustered(key, data)
+                .0
                 .await
                 .map(|r| ServeTypeOk::Cluster(r))
-                .map_err(|err| ServeTypeError::Cluster(err))
+                .map_err(|err| BobError::Cluster(err))
         }
     }
 
@@ -91,8 +130,8 @@ impl Grinder {
         key: BobKey,
         opts: BobOptions,
     ) -> Result<
-        ServeTypeOk<ClusterResult<BobGetResult>, BackendGetResult>,
-        ServeTypeError<BobError, BackendError>,
+        ServeTypeOk<BobGetResult, BackendGetResult>,
+        BobError,
     > {
         if opts.contains(BobOptions::FORCE_NODE) {
             let op = self.mapper.get_operation(key);
@@ -105,18 +144,19 @@ impl Grinder {
                 .0
                 .await
                 .map(|r| ServeTypeOk::Local(r))
-                .map_err(|err| ServeTypeError::Local(err))
+                .map_err(|err| BobError::Local(err))
         } else {
             debug!("GET[{}] will route to cluster", key);
-            self.sprinkler
+            self.cluster
                 .get_clustered(key)
+                .0
                 .await
-                .map(|r| ServeTypeOk::Cluster(r))
-                .map_err(|err| ServeTypeError::Cluster(err))
+                .map(|r| ServeTypeOk::Cluster(r.result))
+                .map_err(|err| BobError::Cluster(err.result))
         }
     }
 
     pub async fn get_periodic_tasks(&self, ex: tokio::runtime::TaskExecutor) -> Result<(), ()> {
-        self.sprinkler.get_periodic_tasks(ex).await
+        self.link_manager.get_checker_future(ex).await
     }
 }
