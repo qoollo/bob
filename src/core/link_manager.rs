@@ -1,19 +1,18 @@
 use crate::core::bob_client::{BobClient, BobClientFactory};
 use crate::core::data::{BobError, ClusterResult, Node};
-use futures::future::Either;
 use futures::future::Future;
-use futures::future::*;
 use futures::stream::Stream;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::timer::Interval;
 
-use futures03::future::err as err2;
+use futures03::compat::Future01CompatExt;
+use futures03::executor::ThreadPoolBuilder;
+use futures03::future::err;
+use futures03::future::FutureExt as OtherFutureExt;
 use futures03::Future as NewFuture;
-use futures03::future::{TryFutureExt, FutureExt};
 use std::pin::Pin;
-use futures03::stream::FuturesUnordered as unordered;
 
 pub struct NodeLink {
     pub node: Node,
@@ -49,27 +48,28 @@ impl NodeLinkHolder {
         *self.conn.lock().unwrap() = None;
     }
 
-    fn check(&self, client_fatory: BobClientFactory) -> impl Future<Item = (), Error = ()> {
+    async fn check(&self, client_fatory: BobClientFactory) -> Result<(), ()> {
         match self.get_connection().conn {
             Some(mut conn) => {
                 let nlh = self.clone();
-                Either::A(conn.ping().then(move |r| {
-                    match r {
-                        Ok(_) => debug!("All good with pinging node {:?}", nlh.node),
-                        Err(_) => {
-                            debug!("Got broken connection to node {:?}", nlh.node);
-                            nlh.clear_connection();
-                        }
-                    };
-                    Ok(())
-                }))
+                match conn.ping().await {
+                    Ok(_) => debug!("All good with pinging node {:?}", nlh.node),
+                    Err(_) => {
+                        debug!("Got broken connection to node {:?}", nlh.node);
+                        nlh.clear_connection();
+                    }
+                };
+                Ok(())
             }
             None => {
                 let nlh = self.clone();
                 debug!("will connect to {:?}", nlh.node);
-                Either::B(client_fatory.produce(nlh.node.clone()).map(move |client| {
-                    nlh.set_connection(client);
-                }))
+                client_fatory
+                    .produce(nlh.node.clone())
+                    .await
+                    .map(move |client| {
+                        nlh.set_connection(client);
+                    })
             }
         }
     }
@@ -96,26 +96,32 @@ impl LinkManager {
         }
     }
 
-    pub fn get_checker_future(
-        &self,
-        ex: tokio::runtime::TaskExecutor,
-    ) -> Box<impl Future<Item = (), Error = ()>> {
+    pub async fn get_checker_future(&self, ex: tokio::runtime::TaskExecutor) -> Result<(), ()> {
         let local_repo = self.repo.clone();
         let client_factory = BobClientFactory {
             executor: ex,
             timeout: self.timeout,
         };
-        Box::new(
-            Interval::new_interval(self.check_interval)
-                .for_each(move |_| {
-                    local_repo.values().for_each(|v| {
-                        tokio::spawn(v.check(client_factory.clone()));
-                    });
 
-                    Ok(())
-                })
-                .map_err(|e| panic!("can't make to work timer {:?}", e)),
-        )
+        Interval::new_interval(self.check_interval)
+            .for_each(move |_| {
+                local_repo.values().for_each(|v| {
+                    let mut pool = ThreadPoolBuilder::new() //TODO use external spawner
+                        .pool_size(1)
+                        .create()
+                        .unwrap();
+                    // tokio::spawn(v.check(client_factory.clone()).boxed().compat());
+                    let _ = pool
+                        .run(v.check(client_factory.clone()))
+                        .map_err(|e| panic!("can't run timer task {:?}", e));
+                });
+
+                Ok(())
+            })
+            .map_err(|e| panic!("can't make to work timer {:?}", e))
+            .compat()
+            .boxed()
+            .await
     }
 
     pub fn get_link(&self, node: &Node) -> NodeLink {
@@ -128,16 +134,29 @@ impl LinkManager {
     pub fn get_connections(&self, nodes: &[Node]) -> Vec<NodeLink> {
         nodes.iter().map(|n| self.get_link(n)).collect()
     }
+
     pub fn call_nodes<F, T: 'static + Send>(
         &self,
         nodes: &[Node],
         mut f: F,
-    ) -> Vec<Box<dyn Future<Item = ClusterResult<T>, Error = ClusterResult<BobError>> + 'static + Send>>
+    ) -> Vec<
+        Pin<
+            Box<
+                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>>
+                    + 'static
+                    + Send,
+            >,
+        >,
+    >
     where
         F: FnMut(
             &mut BobClient,
-        ) -> (Box< dyn
-            Future<Item = ClusterResult<T>, Error = ClusterResult<BobError>> + 'static + Send,
+        ) -> (Pin<
+            Box<
+                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>>
+                    + 'static
+                    + Send,
+            >,
         >),
     {
         let links = &mut self.get_connections(nodes);
@@ -147,64 +166,11 @@ impl LinkManager {
                 let node = nl.node.clone();
                 match &mut nl.conn {
                     Some(conn) => f(conn),
-                    None => Box::new(err(ClusterResult {
+                    None => err(ClusterResult {
                         result: BobError::Other(format!("No active connection {:?}", node)),
                         node,
-                    })),
-                }
-            })
-            .collect();
-        t
-    }
-
-    pub fn call_nodes2<F, T: 'static + Send>(
-        &self,
-        nodes: &[Node],
-        mut f: F,
-    ) -> Vec<Pin<Box<dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>> + 'static + Send>>>
-    where
-        F: FnMut(
-            &mut BobClient,
-        ) -> (Pin<Box<dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>> + 'static + Send>>),
-    {
-        let links = &mut self.get_connections(nodes);
-        let t: Vec<_> = links
-            .iter_mut()
-            .map(move |nl| {
-                let node = nl.node.clone();
-                match &mut nl.conn {
-                    Some(conn) => f(conn),
-                    None => err2(ClusterResult {
-                        result: BobError::Other(format!("No active connection {:?}", node)),
-                        node,
-                    }).boxed(),
-                }
-            })
-            .collect();
-        t
-    }
-
-    pub fn call_nodes3<F, T: 'static + Send>(
-        &self,
-        nodes: &[Node],
-        mut f: F,
-    ) -> unordered<Pin<Box<dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>> + 'static + Send>>>
-    where
-        F: FnMut(
-            &mut BobClient,
-        ) -> (Pin<Box<dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>> + 'static + Send>>),
-    {
-        let links = &mut self.get_connections(nodes);
-        let t: unordered<_> = links
-            .iter_mut()
-            .map(move |nl| {
-                let node = nl.node.clone();
-                match &mut nl.conn {
-                    Some(conn) => f(conn),
-                    None => err2(ClusterResult {
-                        result: BobError::Other(format!("No active connection {:?}", node)),
-                        node,
-                    }).boxed(),
+                    })
+                    .boxed(),
                 }
             })
             .collect();

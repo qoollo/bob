@@ -3,13 +3,13 @@ use crate::core::configs::node::{NodeConfig, PearlConfig};
 use crate::core::data::{BobData, BobKey, BobMeta, VDiskId, VDiskMapper};
 use pearl::{Builder, Key, Storage};
 
-use futures03::{FutureExt, TryFutureExt};
 use futures03::executor::{ThreadPool, ThreadPoolBuilder};
+use futures03::{FutureExt, TryFutureExt};
 
+use futures03::future::err;
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use futures03::future::err;
 
 pub type PearlStorage = Storage<PearlKey>;
 
@@ -164,14 +164,15 @@ impl BackendStorage for PearlBackend {
             if vdisk.is_some() {
                 let storage = vdisk.unwrap().storage.clone();
                 PearlVDisk::write(storage, PearlKey::new(key, &data.meta), data)
-                        .map(|_r| Ok(BackendResult {}))
-                        .map_err(|_e: ()| BackendError::StorageError).boxed() //TODO - add description for error key or vdisk for example
+                    .map(|_r| Ok(BackendResult {}))
+                    .map_err(|_e: ()| BackendError::StorageError)
+                    .boxed() //TODO - add description for error key or vdisk for example
             } else {
                 debug!(
-                        "PUT[{}][{}][{}] to pearl backend. Cannot find storage",
-                        disk_name, vdisk_id, key
-                    );
-                    err(BackendError::VDiskNotFound).boxed() //TODO - add description for error key or vdisk for example
+                    "PUT[{}][{}][{}] to pearl backend. Cannot find storage",
+                    disk_name, vdisk_id, key
+                );
+                err(BackendError::VDiskNotFound).boxed() //TODO - add description for error key or vdisk for example
             }
         })
     }
@@ -185,8 +186,9 @@ impl BackendStorage for PearlBackend {
             if vdisk.is_some() {
                 let storage = vdisk.unwrap().storage.clone();
                 PearlVDisk::write(storage, PearlKey::new(key, &data.meta), data)
-                        .map(|_r| Ok(BackendResult {}))
-                        .map_err(|_e: ()| BackendError::StorageError).boxed() //TODO - add description for error
+                    .map(|_r| Ok(BackendResult {}))
+                    .map_err(|_e: ()| BackendError::StorageError)
+                    .boxed() //TODO - add description for error
             } else {
                 debug!("PUT[alien][{}] to pearl backend. Cannot find storage", key);
                 err(BackendError::VDiskNotFound).boxed() //TODO - add description for error key or vdisk for example
@@ -208,18 +210,21 @@ impl BackendStorage for PearlBackend {
             if vdisk.is_some() {
                 let storage = vdisk.unwrap().storage.clone();
                 PearlVDisk::read(storage, PearlKey::new_read(key))
-                    .map(|r| Ok(BackendGetResult {
-                        data: BobData {
-                            data: r.unwrap(),//TODO check
-                            meta: BobMeta { timestamp: 0 }, //TODO
-                        },
-                    }))
-                    .map_err(|_e: ()| BackendError::StorageError).boxed() //TODO - add description for error
+                    .map(|r| {
+                        Ok(BackendGetResult {
+                            data: BobData {
+                                data: r.unwrap(),               //TODO check
+                                meta: BobMeta { timestamp: 0 }, //TODO
+                            },
+                        })
+                    })
+                    .map_err(|_e: ()| BackendError::StorageError)
+                    .boxed() //TODO - add description for error
             } else {
                 debug!(
-                        "Get[{}][{}][{}] to pearl backend. Cannot find storage",
-                        disk_name, vdisk_id, key
-                    );
+                    "Get[{}][{}][{}] to pearl backend. Cannot find storage",
+                    disk_name, vdisk_id, key
+                );
                 err(BackendError::VDiskNotFound).boxed() //TODO - add description for error key or vdisk for example
             }
         })
@@ -232,16 +237,19 @@ impl BackendStorage for PearlBackend {
             if vdisk.is_some() {
                 let storage = vdisk.unwrap().storage.clone();
                 PearlVDisk::read(storage, PearlKey::new_read(key))
-                    .map(|r| Ok(BackendGetResult {
-                        data: BobData {
-                            data: r.unwrap(),//TODO check
-                            meta: BobMeta { timestamp: 0 }, //TODO
-                        },
-                    }))
-                    .map_err(|_e: ()| BackendError::StorageError).boxed() //TODO - add description for error
+                    .map(|r| {
+                        Ok(BackendGetResult {
+                            data: BobData {
+                                data: r.unwrap(),               //TODO check
+                                meta: BobMeta { timestamp: 0 }, //TODO
+                            },
+                        })
+                    })
+                    .map_err(|_e: ()| BackendError::StorageError)
+                    .boxed() //TODO - add description for error
             } else {
                 debug!("Get[alien][{}] to pearl backend. Cannot find storage", key);
-                    err(BackendError::VDiskNotFound).boxed() //TODO - add description for error key or vdisk for example
+                err(BackendError::VDiskNotFound).boxed() //TODO - add description for error key or vdisk for example
             }
         })
     }

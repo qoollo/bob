@@ -8,10 +8,7 @@ mod tests {
     const VDISKS_COUNT: u32 = 10;
 
     fn get_pool() -> ThreadPool {
-        ThreadPoolBuilder::new()
-            .pool_size(1)
-            .create()
-            .unwrap()
+        ThreadPoolBuilder::new().pool_size(1).create().unwrap()
     }
 
     #[test]

@@ -4,10 +4,10 @@ use crate::core::backend::stub_backend::StubBackend;
 use crate::core::configs::node::{BackendType, NodeConfig};
 use crate::core::data::VDiskMapper;
 use crate::core::data::{BobData, BobKey, DiskPath, VDiskId};
-use std::sync::Arc;
+use futures03::future::{FutureExt, TryFutureExt};
 use futures03::Future;
-use futures03::future::{TryFutureExt, FutureExt};
 use std::pin::Pin;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct BackendOperation {
@@ -115,7 +115,8 @@ impl Backend {
                         oper.vdisk_id.clone(),
                         key,
                         data.clone(),
-                    ).0;
+                    )
+                    .0;
                 let func = move |err| {
                     error!(
                         "PUT[{}][{}] to backend. Error: {}",
@@ -127,7 +128,6 @@ impl Backend {
                 };
 
                 result.or_else(|err| func(err)).boxed()
-
             } else {
                 debug!(
                     "PUT[{}] to backend, alien data for {}",

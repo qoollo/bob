@@ -4,7 +4,9 @@ use crate::core::data::{BobData, BobError, BobGetResult, BobKey, ClusterResult, 
 use crate::core::link_manager::LinkManager;
 
 use std::sync::Arc;
-use tokio::prelude::*;
+
+use futures03::Future as NewFuture;
+use std::pin::Pin;
 
 pub struct SprinklerGetResult {
     pub data: Vec<u8>,
@@ -47,8 +49,14 @@ impl std::fmt::Display for SprinklerResult {
     }
 }
 
-pub struct Put(pub Box<dyn Future<Item = SprinklerResult, Error = SprinklerError> + Send>);
-pub struct Get(pub Box<dyn Future<Item = ClusterResult<BobGetResult>, Error = BobError> + Send>);
+pub struct Put(
+    pub Pin<Box<dyn NewFuture<Output = Result<SprinklerResult, SprinklerError>> + Send>>,
+);
+pub type PutResult = Result<SprinklerResult, SprinklerError>;
+pub struct Get(
+    pub Pin<Box<dyn NewFuture<Output = Result<ClusterResult<BobGetResult>, BobError>> + Send>>,
+);
+pub type GetResult = Result<ClusterResult<BobGetResult>, BobError>;
 
 #[derive(Clone)]
 pub struct Sprinkler {
@@ -71,18 +79,15 @@ impl Sprinkler {
         }
     }
 
-    pub fn get_periodic_tasks(
-        &self,
-        ex: tokio::runtime::TaskExecutor,
-    ) -> Box<impl Future<Item = (), Error = ()>> {
-        self.link_manager.get_checker_future(ex)
+    pub async fn get_periodic_tasks(&self, ex: tokio::runtime::TaskExecutor) -> Result<(), ()> {
+        self.link_manager.get_checker_future(ex).await
     }
 
-    pub fn put_clustered(&self, key: BobKey, data: BobData) -> Put {
-        self.cluster.put_clustered(key, data)
+    pub async fn put_clustered(&self, key: BobKey, data: BobData) -> PutResult {
+        self.cluster.put_clustered(key, data).0.await
     }
 
-    pub fn get_clustered(&self, key: BobKey) -> Get {
-        self.cluster.get_clustered(key)
+    pub async fn get_clustered(&self, key: BobKey) -> GetResult {
+        self.cluster.get_clustered(key).0.await
     }
 }
