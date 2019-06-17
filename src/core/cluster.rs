@@ -1,14 +1,16 @@
 use crate::core::configs::node::NodeConfig;
-use crate::core::data::{print_vec, BobData, BobKey, Node, VDiskMapper, BobPutResult};
+use crate::core::data::{print_vec, BobData, BobKey, Node, VDiskMapper, BobPutResult, BobGetResult};
 use crate::core::link_manager::LinkManager;
 use std::sync::Arc;
-use crate::core::bob_client::{Get};
 use crate::core::backend::backend::BackendError;
 
 use futures03::future::{err, ok, ready, FutureExt};
 use futures03::stream::{FuturesUnordered, StreamExt};
 use futures03::Future as NewFuture;
 use std::pin::Pin;
+
+pub type GetResult = Result<BobGetResult, BackendError>;
+pub struct Get(pub Pin<Box<dyn NewFuture<Output = GetResult> + Send >>);
 
 pub type PutResult = Result<BobPutResult, BackendError>;
 pub struct Put(pub Pin<Box<dyn NewFuture<Output = PutResult> + Send >>);
@@ -117,15 +119,12 @@ impl Cluster for QuorumCluster {
         let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
 
         let mut w = t
-            .then(move |r| {
-                ok::<_, ()>(r) // wrap all result kind to process it later
-            })
             .skip_while(move |r| ready(!r.is_ok()));
         let q = async move {
             w.next()
-                .map(|r| r.unwrap().unwrap()) // TODO handle errors
+                .map(|r| r.map(|res|res.map(|ok|ok.result).map_err(|err|err.result)).unwrap()) // TODO handle errors
                 .await
         };
-        Get({ q.boxed() })
+        Get( q.boxed() )
     }
 }

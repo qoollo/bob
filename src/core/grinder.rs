@@ -1,7 +1,7 @@
 use crate::core::backend::backend::{Backend, BackendGetResult, BackendResult, BackendError};
 use crate::core::configs::node::NodeConfig;
 use crate::core::data::VDiskMapper;
-use crate::core::data::{BobData, BobGetResult, BobKey, BobOptions, ClusterResult, BobPutResult};
+use crate::core::data::{BobData, BobGetResult, BobKey, BobOptions, BobPutResult};
 use crate::core::link_manager::LinkManager;
 use crate::core::cluster::{get_cluster, Cluster};
 
@@ -151,8 +151,8 @@ impl Grinder {
                 .get_clustered(key)
                 .0
                 .await
-                .map(|r| ServeTypeOk::Cluster(r.result))
-                .map_err(|err| BobError::Cluster(err.result))
+                .map(|r| ServeTypeOk::Cluster(r))
+                .map_err(|err| BobError::Cluster(err))
         }
     }
 

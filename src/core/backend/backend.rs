@@ -14,11 +14,17 @@ pub enum BackendError {
     Timeout,
     NotFound,
 
-    VDiskNotFound,
-    StorageError,
-    __Nonexhaustive,
     Failed(String),
     Other,
+}
+impl BackendError {
+    pub fn vdisk_not_found(id: &VDiskId) -> BackendError{
+        BackendError::Failed(format!("vdisk: {} not found", id))
+    }
+
+    pub fn storage_error() -> BackendError{
+        BackendError::Failed("some backend error".to_string()) //TODO make pearl error public
+    }
 }
 
 impl std::fmt::Display for BackendError {
