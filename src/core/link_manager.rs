@@ -1,5 +1,6 @@
 use crate::core::bob_client::{BobClient, BobClientFactory};
-use crate::core::data::{BobError, ClusterResult, Node};
+use crate::core::data::{ClusterResult, Node};
+use crate::core::backend::backend::BackendError;
 use futures::future::Future;
 use futures::stream::Stream;
 use std::collections::HashMap;
@@ -142,7 +143,7 @@ impl LinkManager {
     ) -> Vec<
         Pin<
             Box<
-                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>>
+                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BackendError>>>
                     + 'static
                     + Send,
             >,
@@ -153,7 +154,7 @@ impl LinkManager {
             &mut BobClient,
         ) -> (Pin<
             Box<
-                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>>
+                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BackendError>>>
                     + 'static
                     + Send,
             >,
@@ -167,7 +168,7 @@ impl LinkManager {
                 match &mut nl.conn {
                     Some(conn) => f(conn),
                     None => err(ClusterResult {
-                        result: BobError::Other(format!("No active connection {:?}", node)),
+                        result: BackendError::Failed(format!("No active connection {:?}", node)),
                         node,
                     })
                     .boxed(),

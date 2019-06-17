@@ -4,13 +4,6 @@ use crate::core::configs::node::DiskPath as ConfigDiskPath;
 use crate::core::configs::node::NodeConfig;
 
 #[derive(Debug)]
-pub enum BobError {
-    Timeout,
-    NotFound,
-    Other(String),
-}
-
-#[derive(Debug)]
 pub struct ClusterResult<T> {
     pub node: Node,
     pub result: T,

@@ -1,11 +1,17 @@
 use crate::core::configs::node::NodeConfig;
-use crate::core::data::{print_vec, BobData, BobKey, Node, VDiskMapper};
+use crate::core::data::{print_vec, BobData, BobKey, Node, VDiskMapper, BobPutResult};
 use crate::core::link_manager::LinkManager;
-use crate::core::sprinkler::{Get, Put, SprinklerError, SprinklerResult};
 use std::sync::Arc;
+use crate::core::bob_client::{Get};
+use crate::core::backend::backend::BackendError;
 
 use futures03::future::{err, ok, ready, FutureExt};
 use futures03::stream::{FuturesUnordered, StreamExt};
+use futures03::Future as NewFuture;
+use std::pin::Pin;
+
+pub type PutResult = Result<BobPutResult, BackendError>;
+pub struct Put(pub Pin<Box<dyn NewFuture<Output = PutResult> + Send >>);
 
 pub trait Cluster {
     fn put_clustered(&self, key: BobKey, data: BobData) -> Put;
@@ -87,17 +93,9 @@ impl Cluster for QuorumCluster {
                 );
                 // TODO: send actuall list of vdisk it has been written on
                 if ok_count >= l_quorum as usize {
-                    ok(SprinklerResult {
-                        total_ops: total_ops as u16,
-                        ok_ops: ok_count as u16,
-                        quorum: l_quorum,
-                    })
+                    ok(BobPutResult {})
                 } else {
-                    err(SprinklerError {
-                        total_ops: total_ops as u16,
-                        ok_ops: ok_count as u16,
-                        quorum: l_quorum,
-                    })
+                    err(BackendError::Failed(format!("failed: total: {}, ok: {}, quorum: {}", total_ops, ok_count, l_quorum)))
                 }
             });
 
@@ -124,13 +122,8 @@ impl Cluster for QuorumCluster {
             })
             .skip_while(move |r| ready(!r.is_ok()));
         let q = async move {
-            // t
-            // .then(move |r| {
-            //     ok::<_, ()>(r) // wrap all result kind to process it later
-            // })
-            // .skip_while(move |r| ready(!r.is_ok()))
             w.next()
-                .map(|r| r.unwrap().map(|q| q.map_err(|e| e.result)).unwrap())
+                .map(|r| r.unwrap().unwrap()) // TODO handle errors
                 .await
         };
         Get({ q.boxed() })

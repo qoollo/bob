@@ -1,9 +1,7 @@
 use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRequest};
 
-use crate::core::backend::backend::BackendError;
-
-use crate::core::data::{BobData, BobError, BobKey, BobMeta, BobOptions};
-use crate::core::grinder::{Grinder, ServeTypeError, ServeTypeOk};
+use crate::core::data::{BobData, BobKey, BobMeta, BobOptions};
+use crate::core::grinder::{Grinder, ServeTypeOk, BobError};
 use futures::future::{err, ok};
 use futures::{future, Future};
 use stopwatch::Stopwatch;
@@ -134,9 +132,9 @@ impl server::BobApi for BobSrv {
                         );
                         ok(Response::new(match r_ok {
                             ServeTypeOk::Cluster(r) => Blob {
-                                data: r.result.data.data,
+                                data: r.data.data,
                                 meta: Some(BlobMeta {
-                                    timestamp: r.result.data.meta.timestamp,
+                                    timestamp: r.data.meta.timestamp,
                                 }),
                             },
                             ServeTypeOk::Local(r) => Blob {
@@ -149,33 +147,21 @@ impl server::BobApi for BobSrv {
                     }
                     Err(r_err) => {
                         error!(
-                            "GET[{}]-ERR local:{}  dt: {}ms {:?}",
+                            "GET[{}]-ERR  dt: {}ms {:?}",
                             key,
-                            r_err.is_local(),
+                            // r_err.is_local(),
                             elapsed,
                             r_err
                         );
-                        let err = match r_err {
-                            ServeTypeError::Cluster(cerr) => match cerr {
-                                BobError::NotFound => tower_grpc::Status::new(
+                        let err = match r_err.error() {
+                            BobError::NotFound => tower_grpc::Status::new(
                                     tower_grpc::Code::NotFound,
-                                    format!("[cluster] Can't find blob with key {}", key),
+                                    format!("[bob] Can't find record with key {}", key),
                                 ),
-                                _ => tower_grpc::Status::new(
+                                _ => tower_grpc::Status::new(   //TODO add error description
                                     tower_grpc::Code::Unknown,
-                                    "[cluster]Some error",
+                                    "[bob] Some error",
                                 ),
-                            },
-                            ServeTypeError::Local(lerr) => match lerr {
-                                BackendError::NotFound => tower_grpc::Status::new(
-                                    tower_grpc::Code::NotFound,
-                                    format!("[backend] Can't find blob with key {}", key),
-                                ),
-                                _ => tower_grpc::Status::new(
-                                    tower_grpc::Code::Unknown,
-                                    "[backend] Some error",
-                                ),
-                            },
                         };
                         future::err(err)
                     }

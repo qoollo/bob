@@ -9,6 +9,24 @@ use futures03::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+#[derive(Debug, PartialEq)]
+pub enum BackendError {
+    Timeout,
+    NotFound,
+
+    VDiskNotFound,
+    StorageError,
+    __Nonexhaustive,
+    Failed(String),
+    Other,
+}
+
+impl std::fmt::Display for BackendError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BackendOperation {
     vdisk_id: VDiskId,
@@ -54,20 +72,6 @@ impl BackendOperation {
 
 #[derive(Debug)]
 pub struct BackendResult {}
-
-#[derive(Debug, PartialEq)]
-pub enum BackendError {
-    NotFound,
-    VDiskNotFound,
-    StorageError,
-    Other,
-    __Nonexhaustive,
-}
-impl std::fmt::Display for BackendError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
 
 pub struct BackendGetResult {
     pub data: BobData,
