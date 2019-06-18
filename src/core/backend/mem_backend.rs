@@ -29,7 +29,7 @@ impl VDisk {
                 .then(move |disks_lock_res| match disks_lock_res {
                     Ok(mut repo) => {
                         repo.insert(key, data);
-                        ok(BackendResult {})
+                        ok(BackendPutResult {})
                     }
                     Err(_) => err(BackendError::Other),
                 })

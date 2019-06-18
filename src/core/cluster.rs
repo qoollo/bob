@@ -1,18 +1,18 @@
 use crate::core::configs::node::NodeConfig;
-use crate::core::data::{print_vec, BobData, BobKey, Node, VDiskMapper, BobPutResult, BobGetResult};
+use crate::core::data::{print_vec, BobData, BobKey, Node, VDiskMapper};
 use crate::core::link_manager::LinkManager;
 use std::sync::Arc;
-use crate::core::backend::backend::BackendError;
+use crate::core::backend::backend::{BackendError, BackendGetResult, BackendPutResult};
 
 use futures03::future::{err, ok, ready, FutureExt};
 use futures03::stream::{FuturesUnordered, StreamExt};
 use futures03::Future as NewFuture;
 use std::pin::Pin;
 
-pub type GetResult = Result<BobGetResult, BackendError>;
+pub type GetResult = Result<BackendGetResult, BackendError>;
 pub struct Get(pub Pin<Box<dyn NewFuture<Output = GetResult> + Send >>);
 
-pub type PutResult = Result<BobPutResult, BackendError>;
+pub type PutResult = Result<BackendPutResult, BackendError>;
 pub struct Put(pub Pin<Box<dyn NewFuture<Output = PutResult> + Send >>);
 
 pub trait Cluster {
@@ -95,7 +95,7 @@ impl Cluster for QuorumCluster {
                 );
                 // TODO: send actuall list of vdisk it has been written on
                 if ok_count >= l_quorum as usize {
-                    ok(BobPutResult {})
+                    ok(BackendPutResult {})
                 } else {
                     err(BackendError::Failed(format!("failed: total: {}, ok: {}, quorum: {}", total_ops, ok_count, l_quorum)))
                 }

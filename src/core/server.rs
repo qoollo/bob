@@ -1,7 +1,7 @@
 use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRequest};
 
 use crate::core::data::{BobData, BobKey, BobMeta, BobOptions};
-use crate::core::grinder::{Grinder, ServeTypeOk, BobError};
+use crate::core::grinder::{Grinder, BobError};
 use futures::future::{err, ok};
 use futures::{future, Future};
 use stopwatch::Stopwatch;
@@ -125,25 +125,16 @@ impl server::BobApi for BobSrv {
                 match r {
                     Ok(r_ok) => {
                         debug!(
-                            "GET[{}]-OK local:{} dt: {}ms",
+                            "GET[{}]-OK dt: {}ms",
                             key,
-                            r_ok.is_local(),
                             elapsed
                         );
-                        ok(Response::new(match r_ok {
-                            ServeTypeOk::Cluster(r) => Blob {
-                                data: r.data.data,
+                        ok(Response::new(Blob {
+                                data: r_ok.data.data,
                                 meta: Some(BlobMeta {
-                                    timestamp: r.data.meta.timestamp,
+                                    timestamp: r_ok.data.meta.timestamp,
                                 }),
-                            },
-                            ServeTypeOk::Local(r) => Blob {
-                                data: r.data.data,
-                                meta: Some(BlobMeta {
-                                    timestamp: r.data.meta.timestamp,
-                                }),
-                            },
-                        }))
+                            }))
                     }
                     Err(r_err) => {
                         error!(

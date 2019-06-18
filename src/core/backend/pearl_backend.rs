@@ -164,7 +164,7 @@ impl BackendStorage for PearlBackend {
             if vdisk.is_some() {
                 let storage = vdisk.unwrap().storage.clone();
                 PearlVDisk::write(storage, PearlKey::new(key, &data.meta), data)
-                    .map(|_r| Ok(BackendResult {}))
+                    .map(|_r| Ok(BackendPutResult {}))
                     .map_err(|_e: ()| BackendError::storage_error())
                     .boxed() //TODO - add description for error key or vdisk for example
             } else {
@@ -186,7 +186,7 @@ impl BackendStorage for PearlBackend {
             if vdisk.is_some() {
                 let storage = vdisk.unwrap().storage.clone();
                 PearlVDisk::write(storage, PearlKey::new(key, &data.meta), data)
-                    .map(|_r| Ok(BackendResult {}))
+                    .map(|_r| Ok(BackendPutResult {}))
                     .map_err(|_e: ()| BackendError::storage_error())
                     .boxed() //TODO - add description for error
             } else {

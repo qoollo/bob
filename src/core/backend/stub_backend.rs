@@ -9,12 +9,12 @@ pub struct StubBackend {}
 impl BackendStorage for StubBackend {
     fn put(&self, _disk_name: String, _vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}]: hi from backend, timestamp: {}", key, data.meta);
-        Put(ok(BackendResult {}).boxed())
+        Put(ok(BackendPutResult {}).boxed())
     }
 
     fn put_alien(&self, _vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}]: hi from backend, timestamp: {}", key, data.meta);
-        Put(ok(BackendResult {}).boxed())
+        Put(ok(BackendPutResult {}).boxed())
     }
 
     fn get(&self, _disk_name: String, _vdisk: VDiskId, key: BobKey) -> Get {

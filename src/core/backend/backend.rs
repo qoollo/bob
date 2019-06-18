@@ -77,13 +77,13 @@ impl BackendOperation {
 }
 
 #[derive(Debug)]
-pub struct BackendResult {}
+pub struct BackendPutResult {}
 
 pub struct BackendGetResult {
     pub data: BobData,
 }
 
-pub struct Put(pub Pin<Box<dyn Future<Output = Result<BackendResult, BackendError>> + Send>>);
+pub struct Put(pub Pin<Box<dyn Future<Output = Result<BackendPutResult, BackendError>> + Send>>);
 pub struct Get(pub Pin<Box<dyn Future<Output = Result<BackendGetResult, BackendError>> + Send>>);
 
 pub trait BackendStorage {

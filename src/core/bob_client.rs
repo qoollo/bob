@@ -2,10 +2,9 @@ use crate::api::grpc::{
     Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions, PutRequest,
 };
 use crate::core::data::{
-    BobData, BobGetResult, BobKey, BobMeta, BobPingResult, BobPutResult, ClusterResult,
-    Node,
+    BobData, BobKey, BobMeta, BobPingResult, ClusterResult, Node,
 };
-use crate::core::backend::backend::BackendError;
+use crate::core::backend::backend::{BackendError, BackendGetResult, BackendPutResult};
 
 use tower_grpc::BoxBody;
 
@@ -38,10 +37,10 @@ pub struct BobClient {
     client: Arc<Mutex<BobApi<TowerConnect>>>,
 }
 
-pub type PutResult = Result<ClusterResult<BobPutResult>, ClusterResult<BackendError>>;
+pub type PutResult = Result<ClusterResult<BackendPutResult>, ClusterResult<BackendError>>;
 pub struct Put(pub Pin<Box<dyn NewFuture<Output = PutResult> + Send >>);
 
-pub type GetResult = Result<ClusterResult<BobGetResult>, ClusterResult<BackendError>>;
+pub type GetResult = Result<ClusterResult<BackendGetResult>, ClusterResult<BackendError>>;
 pub struct Get(pub Pin<Box<dyn NewFuture<Output = GetResult> + Send >>);
 
 impl BobClient {
@@ -102,7 +101,7 @@ impl BobClient {
                             .timeout(timeout)
                             .map(|_| ClusterResult {
                                 node: n1,
-                                result: BobPutResult {},
+                                result: BackendPutResult {},
                             })
                             .map_err(move |e| ClusterResult {
                                 result: {
@@ -149,7 +148,7 @@ impl BobClient {
                                 let ans = r.into_inner();
                                 ClusterResult {
                                     node: n1,
-                                    result: BobGetResult {
+                                    result: BackendGetResult {
                                         data: BobData {
                                             data: ans.data,
                                             meta: BobMeta::new(ans.meta.unwrap()),

@@ -1,29 +1,11 @@
-use crate::core::backend::backend::{Backend, BackendGetResult, BackendResult, BackendError};
+use crate::core::backend::backend::{Backend, BackendGetResult, BackendPutResult, BackendError};
 use crate::core::configs::node::NodeConfig;
 use crate::core::data::VDiskMapper;
-use crate::core::data::{BobData, BobGetResult, BobKey, BobOptions, BobPutResult};
+use crate::core::data::{BobData, BobKey, BobOptions};
 use crate::core::link_manager::LinkManager;
 use crate::core::cluster::{get_cluster, Cluster};
 
 use std::sync::Arc;
-
-#[derive(Debug)]
-pub enum ServeTypeOk<CT, BT> {
-    Cluster(CT),
-    Local(BT),
-}
-
-impl<CT, BT> ServeTypeOk<CT, BT> {
-    pub fn is_cluster(&self) -> bool {
-        match *self {
-            ServeTypeOk::Cluster(_) => true,
-            ServeTypeOk::Local(_) => false,
-        }
-    }
-    pub fn is_local(&self) -> bool {
-        !self.is_cluster()
-    }
-}
 
 #[derive(Debug)]
 pub enum BobError {
@@ -85,9 +67,8 @@ impl Grinder {
             config.timeout(),
         ));
 
-        let backend = Backend::new(&mapper, config);
         Grinder {
-            backend,
+            backend: Backend::new(&mapper, config),
             mapper: mapper.clone(),
             link_manager: link.clone(),
             cluster: get_cluster(link, &mapper, config),
@@ -98,10 +79,8 @@ impl Grinder {
         key: BobKey,
         data: BobData,
         opts: BobOptions,
-    ) -> Result<
-        ServeTypeOk<BobPutResult, BackendResult>,
-        BobError,
-    > {
+    ) -> Result<BackendPutResult, BobError> 
+    {
         if opts.contains(BobOptions::FORCE_NODE) {
             let op = self.mapper.get_operation(key);
             debug!(
@@ -112,7 +91,6 @@ impl Grinder {
                 .put(&op, key, data)
                 .0
                 .await
-                .map(|r| ServeTypeOk::Local(r))
                 .map_err(|err| BobError::Local(err))
         } else {
             debug!("PUT[{}] will route to cluster", key);
@@ -120,7 +98,6 @@ impl Grinder {
                 .put_clustered(key, data)
                 .0
                 .await
-                .map(|r| ServeTypeOk::Cluster(r))
                 .map_err(|err| BobError::Cluster(err))
         }
     }
@@ -129,10 +106,8 @@ impl Grinder {
         &self,
         key: BobKey,
         opts: BobOptions,
-    ) -> Result<
-        ServeTypeOk<BobGetResult, BackendGetResult>,
-        BobError,
-    > {
+    ) -> Result<BackendGetResult, BobError> 
+    {
         if opts.contains(BobOptions::FORCE_NODE) {
             let op = self.mapper.get_operation(key);
             debug!(
@@ -143,7 +118,6 @@ impl Grinder {
                 .get(&op, key)
                 .0
                 .await
-                .map(|r| ServeTypeOk::Local(r))
                 .map_err(|err| BobError::Local(err))
         } else {
             debug!("GET[{}] will route to cluster", key);
@@ -151,7 +125,6 @@ impl Grinder {
                 .get_clustered(key)
                 .0
                 .await
-                .map(|r| ServeTypeOk::Cluster(r))
                 .map_err(|err| BobError::Cluster(err))
         }
     }

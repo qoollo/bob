@@ -10,13 +10,6 @@ pub struct ClusterResult<T> {
 }
 
 #[derive(Debug)]
-pub struct BobPutResult {}
-
-pub struct BobGetResult {
-    pub data: BobData,
-}
-
-#[derive(Debug)]
 pub struct BobPingResult {
     pub node: Node,
 }
