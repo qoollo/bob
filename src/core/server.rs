@@ -1,13 +1,19 @@
 use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRequest};
 
-use crate::core::backend::backend::BackendError;
-
-use crate::core::data::{BobData, BobError, BobKey, BobMeta, BobOptions};
-use crate::core::grinder::{Grinder, ServeTypeError, ServeTypeOk};
-use futures::future::{err, ok};
-use futures::{future, Future};
+use crate::core::{
+    backend::backend::BackendError,
+    data::{BobData, BobError, BobKey, BobMeta, BobOptions},
+    grinder::{Grinder, ServeTypeError, ServeTypeOk},
+};
+use futures::{
+    future,
+    future::{err, ok},
+    Future,
+};
 use stopwatch::Stopwatch;
 use tower_grpc::{Request, Response};
+
+use futures03::future::{FutureExt, TryFutureExt};
 
 #[derive(Clone)]
 pub struct BobSrv {
@@ -19,7 +25,9 @@ impl BobSrv {
         &self,
         ex: tokio::runtime::TaskExecutor,
     ) -> Box<impl Future<Item = (), Error = ()> + Send> {
-        self.grinder.get_periodic_tasks(ex)
+        let grinder = self.grinder.clone();
+        let q = async move { grinder.get_periodic_tasks(ex).await };
+        Box::new(q.boxed().compat())
     }
 
     fn put_is_valid(req: &PutRequest) -> bool {
@@ -32,8 +40,8 @@ impl BobSrv {
 }
 
 impl server::BobApi for BobSrv {
-    type PutFuture = Box<Future<Item = Response<OpStatus>, Error = tower_grpc::Status> + Send>;
-    type GetFuture = Box<Future<Item = Response<Blob>, Error = tower_grpc::Status> + Send>;
+    type PutFuture = Box<dyn Future<Item = Response<OpStatus>, Error = tower_grpc::Status> + Send>;
+    type GetFuture = Box<dyn Future<Item = Response<Blob>, Error = tower_grpc::Status> + Send>;
     type PingFuture = future::FutureResult<Response<Null>, tower_grpc::Status>;
 
     fn put(&mut self, req: Request<PutRequest>) -> Self::PutFuture {
@@ -48,17 +56,18 @@ impl server::BobApi for BobSrv {
             )))
         } else {
             let key = BobKey {
-                key: param.key.unwrap().key,
+                key: param.clone().key.unwrap().key,
             };
-            let blob = param.data.unwrap();
+            let blob = param.clone().data.unwrap();
             let data = BobData {
                 data: blob.data,
                 meta: BobMeta::new(blob.meta.unwrap()),
             };
 
             trace!("PUT[{}] data size: {}", key, data.data.len());
-            Box::new(
-                self.grinder
+            let grinder = self.grinder.clone();
+            let q = async move {
+                grinder
                     .put(key, data, {
                         let mut opts: BobOptions = Default::default();
                         if let Some(vopts) = param.options.as_ref() {
@@ -68,23 +77,24 @@ impl server::BobApi for BobSrv {
                         }
                         opts
                     })
-                    .then(move |r| {
-                        let elapsed = sw.elapsed_ms();
-                        match r {
-                            Ok(r_ok) => {
-                                debug!("PUT[{}]-OK local:{:?} ok dt: {}ms", key, r_ok, elapsed);
-                                ok(Response::new(OpStatus { error: None }))
-                            }
-                            Err(r_err) => {
-                                error!("PUT[{}]-ERR dt: {}ms {:?}", key, elapsed, r_err);
-                                err(tower_grpc::Status::new(
-                                    tower_grpc::Code::Internal,
-                                    format!("Failed to write {:?}", r_err),
-                                ))
-                            }
-                        }
-                    }),
-            )
+                    .await
+            };
+            Box::new(q.boxed().compat().then(move |r| {
+                let elapsed = sw.elapsed_ms();
+                match r {
+                    Ok(r_ok) => {
+                        debug!("PUT[{}]-OK local:{:?} ok dt: {}ms", key, r_ok, elapsed);
+                        ok(Response::new(OpStatus { error: None }))
+                    }
+                    Err(r_err) => {
+                        error!("PUT[{}]-ERR dt: {}ms {:?}", key, elapsed, r_err);
+                        err(tower_grpc::Status::new(
+                            tower_grpc::Code::Internal,
+                            format!("Failed to write {:?}", r_err),
+                        ))
+                    }
+                }
+            }))
         }
     }
 
@@ -99,11 +109,12 @@ impl server::BobApi for BobSrv {
             )))
         } else {
             let key = BobKey {
-                key: param.key.unwrap().key,
+                key: param.clone().key.unwrap().key,
             };
 
-            Box::new(
-                self.grinder
+            let grinder = self.grinder.clone();
+            let q = async move {
+                grinder
                     .get(key, {
                         let mut opts: BobOptions = Default::default();
                         if let Some(vopts) = param.options.as_ref() {
@@ -113,66 +124,67 @@ impl server::BobApi for BobSrv {
                         }
                         opts
                     })
-                    .then(move |r| {
-                        let elapsed = sw.elapsed_ms();
-                        match r {
-                            Ok(r_ok) => {
-                                debug!(
-                                    "GET[{}]-OK local:{} dt: {}ms",
-                                    key,
-                                    r_ok.is_local(),
-                                    elapsed
-                                );
-                                ok(Response::new(match r_ok {
-                                    ServeTypeOk::Cluster(r) => Blob {
-                                        data: r.result.data.data,
-                                        meta: Some(BlobMeta {
-                                            timestamp: r.result.data.meta.timestamp,
-                                        }),
-                                    },
-                                    ServeTypeOk::Local(r) => Blob {
-                                        data: r.data.data,
-                                        meta: Some(BlobMeta {
-                                            timestamp: r.data.meta.timestamp,
-                                        }),
-                                    },
-                                }))
-                            }
-                            Err(r_err) => {
-                                error!(
-                                    "GET[{}]-ERR local:{}  dt: {}ms {:?}",
-                                    key,
-                                    r_err.is_local(),
-                                    elapsed,
-                                    r_err
-                                );
-                                let err = match r_err {
-                                    ServeTypeError::Cluster(cerr) => match cerr {
-                                        BobError::NotFound => tower_grpc::Status::new(
-                                            tower_grpc::Code::NotFound,
-                                            format!("[cluster] Can't find blob with key {}", key),
-                                        ),
-                                        _ => tower_grpc::Status::new(
-                                            tower_grpc::Code::Unknown,
-                                            "[cluster]Some error",
-                                        ),
-                                    },
-                                    ServeTypeError::Local(lerr) => match lerr {
-                                        BackendError::NotFound => tower_grpc::Status::new(
-                                            tower_grpc::Code::NotFound,
-                                            format!("[backend] Can't find blob with key {}", key),
-                                        ),
-                                        _ => tower_grpc::Status::new(
-                                            tower_grpc::Code::Unknown,
-                                            "[backend] Some error",
-                                        ),
-                                    },
-                                };
-                                future::err(err)
-                            }
-                        }
-                    }),
-            )
+                    .await
+            };
+            Box::new(q.boxed().compat().then(move |r| {
+                let elapsed = sw.elapsed_ms();
+                match r {
+                    Ok(r_ok) => {
+                        debug!(
+                            "GET[{}]-OK local:{} dt: {}ms",
+                            key,
+                            r_ok.is_local(),
+                            elapsed
+                        );
+                        ok(Response::new(match r_ok {
+                            ServeTypeOk::Cluster(r) => Blob {
+                                data: r.result.data.data,
+                                meta: Some(BlobMeta {
+                                    timestamp: r.result.data.meta.timestamp,
+                                }),
+                            },
+                            ServeTypeOk::Local(r) => Blob {
+                                data: r.data.data,
+                                meta: Some(BlobMeta {
+                                    timestamp: r.data.meta.timestamp,
+                                }),
+                            },
+                        }))
+                    }
+                    Err(r_err) => {
+                        error!(
+                            "GET[{}]-ERR local:{}  dt: {}ms {:?}",
+                            key,
+                            r_err.is_local(),
+                            elapsed,
+                            r_err
+                        );
+                        let err = match r_err {
+                            ServeTypeError::Cluster(cerr) => match cerr {
+                                BobError::NotFound => tower_grpc::Status::new(
+                                    tower_grpc::Code::NotFound,
+                                    format!("[cluster] Can't find blob with key {}", key),
+                                ),
+                                _ => tower_grpc::Status::new(
+                                    tower_grpc::Code::Unknown,
+                                    "[cluster]Some error",
+                                ),
+                            },
+                            ServeTypeError::Local(lerr) => match lerr {
+                                BackendError::NotFound => tower_grpc::Status::new(
+                                    tower_grpc::Code::NotFound,
+                                    format!("[backend] Can't find blob with key {}", key),
+                                ),
+                                _ => tower_grpc::Status::new(
+                                    tower_grpc::Code::Unknown,
+                                    "[backend] Some error",
+                                ),
+                            },
+                        };
+                        future::err(err)
+                    }
+                }
+            }))
         }
     }
 

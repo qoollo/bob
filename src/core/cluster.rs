@@ -1,10 +1,15 @@
-use crate::core::configs::node::NodeConfig;
-use crate::core::data::{print_vec, BobData, BobError, BobKey, Node, VDiskMapper};
-use crate::core::link_manager::LinkManager;
-use crate::core::sprinkler::{Get, Put, SprinklerError, SprinklerResult};
-use futures::future::*;
-use futures::stream::*;
+use crate::core::{
+    configs::node::NodeConfig,
+    data::{print_vec, BobData, BobKey, Node, VDiskMapper},
+    link_manager::LinkManager,
+    sprinkler::{Get, Put, SprinklerError, SprinklerResult},
+};
 use std::sync::Arc;
+
+use futures03::{
+    future::{err, ok, ready, FutureExt},
+    stream::{FuturesUnordered, StreamExt},
+};
 
 pub trait Cluster {
     fn put_clustered(&self, key: BobKey, data: BobData) -> Put;
@@ -52,78 +57,86 @@ impl QuorumCluster {
 
 impl Cluster for QuorumCluster {
     fn put_clustered(&self, key: BobKey, data: BobData) -> Put {
-        Put({
-            let target_nodes = self.calc_target_nodes(key);
+        let target_nodes = self.calc_target_nodes(key);
 
-            debug!(
-                "PUT[{}]: Nodes for fan out: {:?}",
-                key,
-                print_vec(&target_nodes)
-            );
+        debug!(
+            "PUT[{}]: Nodes for fan out: {:?}",
+            key,
+            print_vec(&target_nodes)
+        );
 
-            let reqs = self
-                .link_manager
-                .call_nodes(&target_nodes, |conn| conn.put(key, &data).0);
+        let reqs = self
+            .link_manager
+            .call_nodes(&target_nodes, |conn| conn.put(key, &data).0);
 
-            let l_quorum = self.quorum;
-            Box::new(
-                futures_unordered(reqs)
-                    .then(move |r| {
-                        trace!("PUT[{}] Response from cluster {:?}", key, r);
-                        ok::<_, ()>(r) // wrap all result kind to process it later
+        let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
+
+        let l_quorum = self.quorum;
+        let q = t
+            .then(move |r| {
+                trace!("PUT[{}] Response from cluster {:?}", key, r);
+                ok::<_, ()>(r) // wrap all result kind to process it later
+            })
+            .fold(vec![], |mut acc, r| {
+                acc.push(r);
+                ready(acc)
+            })
+            .then(move |acc| {
+                debug!("PUT[{}] cluster ans: {:?}", key, acc);
+                let total_ops = acc.iter().count();
+                let ok_count = acc.iter().filter(|&r| r.is_ok()).count();
+                debug!(
+                    "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
+                    key, total_ops, ok_count, l_quorum
+                );
+                // TODO: send actuall list of vdisk it has been written on
+                if ok_count >= l_quorum as usize {
+                    ok(SprinklerResult {
+                        total_ops: total_ops as u16,
+                        ok_ops: ok_count as u16,
+                        quorum: l_quorum,
                     })
-                    .fold(vec![], |mut acc, r| {
-                        ok::<_, ()>({
-                            acc.push(r);
-                            acc
-                        })
+                } else {
+                    err(SprinklerError {
+                        total_ops: total_ops as u16,
+                        ok_ops: ok_count as u16,
+                        quorum: l_quorum,
                     })
-                    .then(move |acc| {
-                        let res = acc.unwrap();
-                        debug!("PUT[{}] cluster ans: {:?}", key, res);
-                        let total_ops = res.iter().count();
-                        let ok_count = res.iter().filter(|&r| r.is_ok()).count();
-                        debug!(
-                            "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
-                            key, total_ops, ok_count, l_quorum
-                        );
-                        // TODO: send actuall list of vdisk it has been written on
-                        if ok_count >= l_quorum as usize {
-                            ok(SprinklerResult {
-                                total_ops: total_ops as u16,
-                                ok_ops: ok_count as u16,
-                                quorum: l_quorum,
-                            })
-                        } else {
-                            err(SprinklerError {
-                                total_ops: total_ops as u16,
-                                ok_ops: ok_count as u16,
-                                quorum: l_quorum,
-                            })
-                        }
-                    }),
-            )
-        })
+                }
+            });
+
+        Put(q.boxed())
     }
 
     fn get_clustered(&self, key: BobKey) -> Get {
-        Get({
-            let target_nodes = self.calc_target_nodes(key);
+        let target_nodes = self.calc_target_nodes(key);
 
-            debug!(
-                "GET[{}]: Nodes for fan out: {:?}",
-                key,
-                print_vec(&target_nodes)
-            );
-            let reqs = self
-                .link_manager
-                .call_nodes(&target_nodes, |conn| conn.get(key).0);
+        debug!(
+            "GET[{}]: Nodes for fan out: {:?}",
+            key,
+            print_vec(&target_nodes)
+        );
+        let reqs = self
+            .link_manager
+            .call_nodes(&target_nodes, |conn| conn.get(key).0);
 
-            Box::new(
-                select_ok(reqs) // any result will enought
-                    .map(|(r, _)| r)
-                    .map_err(|_r| BobError::NotFound),
-            )
-        })
+        let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
+
+        let mut w = t
+            .then(move |r| {
+                ok::<_, ()>(r) // wrap all result kind to process it later
+            })
+            .skip_while(move |r| ready(!r.is_ok()));
+        let q = async move {
+            // t
+            // .then(move |r| {
+            //     ok::<_, ()>(r) // wrap all result kind to process it later
+            // })
+            // .skip_while(move |r| ready(!r.is_ok()))
+            w.next()
+                .map(|r| r.unwrap().map(|q| q.map_err(|e| e.result)).unwrap())
+                .await
+        };
+        Get({ q.boxed() })
     }
 }

@@ -1,11 +1,14 @@
-use crate::core::backend::mem_backend::MemBackend;
-use crate::core::backend::pearl_backend::PearlBackend;
-use crate::core::backend::stub_backend::StubBackend;
+use crate::core::backend::{
+    mem_backend::MemBackend, pearl_backend::PearlBackend, stub_backend::StubBackend,
+};
 use crate::core::configs::node::{BackendType, NodeConfig};
-use crate::core::data::VDiskMapper;
-use crate::core::data::{BobData, BobKey, DiskPath, VDiskId};
+use crate::core::data::{BobData, BobKey, DiskPath, VDiskId, VDiskMapper};
+use futures03::{
+    future::{FutureExt, TryFutureExt},
+    Future,
+};
+use std::pin::Pin;
 use std::sync::Arc;
-use tokio::prelude::Future;
 
 #[derive(Debug, Clone)]
 pub struct BackendOperation {
@@ -70,8 +73,9 @@ impl std::fmt::Display for BackendError {
 pub struct BackendGetResult {
     pub data: BobData,
 }
-pub type BackendPutFuture = Box<Future<Item = BackendResult, Error = BackendError> + Send>;
-pub type BackendGetFuture = Box<Future<Item = BackendGetResult, Error = BackendError> + Send>;
+
+pub struct Put(pub Pin<Box<dyn Future<Output = Result<BackendResult, BackendError>> + Send>>);
+pub struct Get(pub Pin<Box<dyn Future<Output = Result<BackendGetResult, BackendError>> + Send>>);
 
 pub trait BackendStorage {
     fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;
@@ -85,12 +89,9 @@ pub struct Backend {
     pub backend: Arc<dyn BackendStorage + Send + Sync>,
 }
 
-pub struct Put(pub Box<dyn Future<Item = BackendResult, Error = BackendError> + Send>);
-pub struct Get(pub Box<dyn Future<Item = BackendGetResult, Error = BackendError> + Send>);
-
 impl Backend {
     pub fn new(mapper: &VDiskMapper, config: &NodeConfig) -> Self {
-        let backend: Arc<BackendStorage + Send + Sync + 'static> = match config.backend_type() {
+        let backend: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
             BackendType::Pearl => {
@@ -117,7 +118,6 @@ impl Backend {
                         data.clone(),
                     )
                     .0;
-
                 let func = move |err| {
                     error!(
                         "PUT[{}][{}] to backend. Error: {}",
@@ -127,7 +127,8 @@ impl Backend {
                     );
                     backend.put_alien(oper.vdisk_id.clone(), key, data).0
                 };
-                Box::new(result.or_else(|err| func(err)))
+
+                result.or_else(|err| func(err)).boxed()
             } else {
                 debug!(
                     "PUT[{}] to backend, alien data for {}",
