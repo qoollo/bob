@@ -545,7 +545,7 @@ backend_type: stub
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_ok());
     }
-  #[test]
+    #[test]
     fn test_node_config_ping_count_invalid() {
         let s = "
 log_level: Debug

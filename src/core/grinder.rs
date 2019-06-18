@@ -1,9 +1,9 @@
 use crate::core::{
-    backend::backend::{Backend, BackendGetResult, BackendPutResult, BackendError},
+    backend::backend::{Backend, BackendError, BackendGetResult, BackendPutResult},
+    cluster::{get_cluster, Cluster},
     configs::node::NodeConfig,
     data::{BobData, BobKey, BobOptions, VDiskMapper},
     link_manager::LinkManager,
-    cluster::{get_cluster, Cluster}
 };
 use futures03::task::Spawn;
 
@@ -47,7 +47,7 @@ impl BobError {
 
 impl std::fmt::Display for BobError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let dest = if self.is_local() {"local"} else {"cluster"};
+        let dest = if self.is_local() { "local" } else { "cluster" };
         write!(f, "dest: {}, error: {}", dest, self)
     }
 }
@@ -58,7 +58,6 @@ pub struct Grinder {
 
     link_manager: Arc<LinkManager>,
     cluster: Arc<dyn Cluster + Send + Sync>,
-
 }
 
 impl Grinder {
@@ -81,8 +80,7 @@ impl Grinder {
         key: BobKey,
         data: BobData,
         opts: BobOptions,
-    ) -> Result<BackendPutResult, BobError> 
-    {
+    ) -> Result<BackendPutResult, BobError> {
         if opts.contains(BobOptions::FORCE_NODE) {
             let op = self.mapper.get_operation(key);
             debug!(
@@ -104,12 +102,7 @@ impl Grinder {
         }
     }
 
-    pub async fn get(
-        &self,
-        key: BobKey,
-        opts: BobOptions,
-    ) -> Result<BackendGetResult, BobError> 
-    {
+    pub async fn get(&self, key: BobKey, opts: BobOptions) -> Result<BackendGetResult, BobError> {
         if opts.contains(BobOptions::FORCE_NODE) {
             let op = self.mapper.get_operation(key);
             debug!(
@@ -131,8 +124,13 @@ impl Grinder {
         }
     }
 
-    pub async fn get_periodic_tasks<S>(&self, ex: tokio::runtime::TaskExecutor, spawner: S) -> Result<(), ()> 
-        where S: Spawn + Clone + Send + 'static + Unpin + Sync,
+    pub async fn get_periodic_tasks<S>(
+        &self,
+        ex: tokio::runtime::TaskExecutor,
+        spawner: S,
+    ) -> Result<(), ()>
+    where
+        S: Spawn + Clone + Send + 'static + Unpin + Sync,
     {
         self.link_manager.get_checker_future(ex, spawner).await
     }

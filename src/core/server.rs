@@ -2,7 +2,7 @@ use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRe
 
 use crate::core::{
     data::{BobData, BobKey, BobMeta, BobOptions},
-    grinder::{Grinder, BobError},
+    grinder::{BobError, Grinder},
 };
 use futures::{
     future,
@@ -26,7 +26,8 @@ impl BobSrv {
         ex: tokio::runtime::TaskExecutor,
         spawner: S,
     ) -> Result<(), ()>
-        where S: Spawn + Clone + Send + 'static + Unpin + Sync,
+    where
+        S: Spawn + Clone + Send + 'static + Unpin + Sync,
     {
         // let grinder = self.grinder.clone();
         // let q = async move { grinder.get_periodic_tasks(ex, spawner).await };
@@ -134,17 +135,13 @@ impl server::BobApi for BobSrv {
                 let elapsed = sw.elapsed_ms();
                 match r {
                     Ok(r_ok) => {
-                        debug!(
-                            "GET[{}]-OK dt: {}ms",
-                            key,
-                            elapsed
-                        );
+                        debug!("GET[{}]-OK dt: {}ms", key, elapsed);
                         ok(Response::new(Blob {
-                                data: r_ok.data.data,
-                                meta: Some(BlobMeta {
-                                    timestamp: r_ok.data.meta.timestamp,
-                                }),
-                            }))
+                            data: r_ok.data.data,
+                            meta: Some(BlobMeta {
+                                timestamp: r_ok.data.meta.timestamp,
+                            }),
+                        }))
                     }
                     Err(r_err) => {
                         error!(
@@ -156,13 +153,14 @@ impl server::BobApi for BobSrv {
                         );
                         let err = match r_err.error() {
                             BobError::NotFound => tower_grpc::Status::new(
-                                    tower_grpc::Code::NotFound,
-                                    format!("[bob] Can't find record with key {}", key),
-                                ),
-                                _ => tower_grpc::Status::new(   //TODO add error description
-                                    tower_grpc::Code::Unknown,
-                                    "[bob] Some error",
-                                ),
+                                tower_grpc::Code::NotFound,
+                                format!("[bob] Can't find record with key {}", key),
+                            ),
+                            _ => tower_grpc::Status::new(
+                                //TODO add error description
+                                tower_grpc::Code::Unknown,
+                                "[bob] Some error",
+                            ),
                         };
                         future::err(err)
                     }

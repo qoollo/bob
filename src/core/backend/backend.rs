@@ -1,8 +1,8 @@
-use crate::core::{configs::node::{BackendType, NodeConfig},
-data::{BobData, BobKey, DiskPath, VDiskId, VDiskMapper},
-backend::{
-    mem_backend::MemBackend, pearl_backend::PearlBackend, stub_backend::StubBackend,
-}};
+use crate::core::{
+    backend::{mem_backend::MemBackend, pearl_backend::PearlBackend, stub_backend::StubBackend},
+    configs::node::{BackendType, NodeConfig},
+    data::{BobData, BobKey, DiskPath, VDiskId, VDiskMapper},
+};
 use futures03::{
     future::{FutureExt, TryFutureExt},
     Future,
@@ -18,11 +18,11 @@ pub enum BackendError {
     Other,
 }
 impl BackendError {
-    pub fn vdisk_not_found(id: &VDiskId) -> BackendError{
+    pub fn vdisk_not_found(id: &VDiskId) -> BackendError {
         BackendError::Failed(format!("vdisk: {} not found", id))
     }
 
-    pub fn storage_error() -> BackendError{
+    pub fn storage_error() -> BackendError {
         BackendError::Failed("some backend error".to_string()) //TODO make pearl error public
     }
 }
@@ -87,10 +87,10 @@ pub struct BackendGetResult {
 pub struct BackendPingResult {}
 
 pub type GetResult = Result<BackendGetResult, BackendError>;
-pub struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send >>);
+pub struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send>>);
 
 pub type PutResult = Result<BackendPutResult, BackendError>;
-pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send >>);
+pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
 pub trait BackendStorage {
     fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;

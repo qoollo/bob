@@ -86,17 +86,15 @@ fn main() {
     };
 
     let pool = ThreadPoolBuilder::new()
-            .pool_size(node.ping_threads_count() as usize)
-            .create()
-            .unwrap();
+        .pool_size(node.ping_threads_count() as usize)
+        .create()
+        .unwrap();
 
     let mut rt = Runtime::new().unwrap();
     let executor = rt.executor();
 
     let b = bob.clone();
-    let q = async move {
-        b.get_periodic_tasks(executor, pool).await
-    };
+    let q = async move { b.get_periodic_tasks(executor, pool).await };
     rt.spawn(q.boxed().compat());
 
     let new_service = server::BobApiServer::new(bob);

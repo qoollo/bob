@@ -1,8 +1,8 @@
 use crate::core::{
+    backend::backend::{BackendError, BackendPutResult, Get, Put},
     configs::node::NodeConfig,
     data::{print_vec, BobData, BobKey, Node, VDiskMapper},
     link_manager::LinkManager,
-    backend::backend::{BackendError, BackendPutResult, Put, Get},
 };
 use std::sync::Arc;
 
@@ -93,7 +93,10 @@ impl Cluster for QuorumCluster {
                 if ok_count >= l_quorum as usize {
                     ok(BackendPutResult {})
                 } else {
-                    err(BackendError::Failed(format!("failed: total: {}, ok: {}, quorum: {}", total_ops, ok_count, l_quorum)))
+                    err(BackendError::Failed(format!(
+                        "failed: total: {}, ok: {}, quorum: {}",
+                        total_ops, ok_count, l_quorum
+                    )))
                 }
             });
 
@@ -114,13 +117,15 @@ impl Cluster for QuorumCluster {
 
         let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
 
-        let mut w = t
-            .skip_while(move |r| ready(!r.is_ok()));
+        let mut w = t.skip_while(move |r| ready(!r.is_ok()));
         let q = async move {
             w.next()
-                .map(|r| r.map(|res|res.map(|ok|ok.result).map_err(|err|err.result)).unwrap()) // TODO handle errors
+                .map(|r| {
+                    r.map(|res| res.map(|ok| ok.result).map_err(|err| err.result))
+                        .unwrap()
+                }) // TODO handle errors
                 .await
         };
-        Get( q.boxed() )
+        Get(q.boxed())
     }
 }

@@ -165,8 +165,8 @@ impl BackendStorage for PearlBackend {
         Put({
             let vdisk = t.iter().find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
 
-            if vdisk.is_some() {
-                let storage = vdisk.unwrap().storage.clone();
+            if let Some(disk) = vdisk {
+                let storage = disk.storage.clone();
                 PearlVDisk::write(storage, PearlKey::new(key, &data.meta), data)
                     .map(|_r| Ok(BackendPutResult {}))
                     .map_err(|_e: ()| BackendError::storage_error())
@@ -187,8 +187,8 @@ impl BackendStorage for PearlBackend {
         //TODO remove clone for vdisk_id
         let vdisk = self.alien_dir.as_ref().clone();
         Put({
-            if vdisk.is_some() {
-                let storage = vdisk.unwrap().storage.clone();
+            if let Some(disk) = vdisk {
+                let storage = disk.storage.clone();
                 PearlVDisk::write(storage, PearlKey::new(key, &data.meta), data)
                     .map(|_r| Ok(BackendPutResult {}))
                     .map_err(|_e: ()| BackendError::storage_error())
@@ -211,8 +211,8 @@ impl BackendStorage for PearlBackend {
         Get({
             let vdisk = t.iter().find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
 
-            if vdisk.is_some() {
-                let storage = vdisk.unwrap().storage.clone();
+            if let Some(disk) = vdisk {
+                let storage = disk.storage.clone();
                 PearlVDisk::read(storage, PearlKey::new_read(key))
                     .map(|r| {
                         Ok(BackendGetResult {
@@ -238,8 +238,8 @@ impl BackendStorage for PearlBackend {
         debug!("Get[alien][{}] from pearl backend", key);
         let vdisk = self.alien_dir.as_ref().clone();
         Get({
-            if vdisk.is_some() {
-                let storage = vdisk.unwrap().storage.clone();
+            if let Some(disk) = vdisk {
+                let storage = disk.storage.clone();
                 PearlVDisk::read(storage, PearlKey::new_read(key))
                     .map(|r| {
                         Ok(BackendGetResult {

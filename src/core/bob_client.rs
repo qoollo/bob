@@ -2,10 +2,9 @@ use crate::api::grpc::{
     client::BobApi, Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions, PutRequest,
 };
 use crate::core::{
-    backend::backend::{BackendError, BackendGetResult, BackendPutResult, BackendPingResult},
-    data::{
-    BobData, BobKey, BobMeta, ClusterResult, Node,
-}};
+    backend::backend::{BackendError, BackendGetResult, BackendPingResult, BackendPutResult},
+    data::{BobData, BobKey, BobMeta, ClusterResult, Node},
+};
 use tower_grpc::{BoxBody, Code, Request, Status};
 
 use std::{pin::Pin, sync::Arc, time::Duration};
@@ -32,10 +31,10 @@ pub struct BobClient {
 }
 
 pub type PutResult = Result<ClusterResult<BackendPutResult>, ClusterResult<BackendError>>;
-pub struct Put(pub Pin<Box<dyn NewFuture<Output = PutResult> + Send >>);
+pub struct Put(pub Pin<Box<dyn NewFuture<Output = PutResult> + Send>>);
 
 pub type GetResult = Result<ClusterResult<BackendGetResult>, ClusterResult<BackendError>>;
-pub struct Get(pub Pin<Box<dyn NewFuture<Output = GetResult> + Send >>);
+pub struct Get(pub Pin<Box<dyn NewFuture<Output = GetResult> + Send>>);
 
 pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<BackendError>>;
 
@@ -162,7 +161,9 @@ impl BobClient {
                                         let err = e.into_inner();
                                         match err {
                                             Some(status) => match status.code() {
-                                                tower_grpc::Code::NotFound => BackendError::NotFound,
+                                                tower_grpc::Code::NotFound => {
+                                                    BackendError::NotFound
+                                                }
                                                 _ => BackendError::Failed(format!(
                                                     "Get operation for {} failed: {:?}",
                                                     n2, status
@@ -195,17 +196,26 @@ impl BobClient {
                 Ok(mut cl) => cl
                     .ping(Request::new(Null {}))
                     .timeout(to)
-                    .map(move |_| ClusterResult{ node: n1, result: BackendPingResult{}} )
-                    .map_err(move |e| ClusterResult {node:n2.clone(), result: {
-                        if e.is_elapsed() {
-                            BackendError::Timeout
-                        } else if e.is_timer() {
-                            panic!("Timeout can't failed in core - can't continue")
-                        } else {
-                            let err = e.into_inner();
-                            BackendError::Failed(format!("Ping operation for {} failed: {:?}", n2, err))
-                        }
-                    }}),
+                    .map(move |_| ClusterResult {
+                        node: n1,
+                        result: BackendPingResult {},
+                    })
+                    .map_err(move |e| ClusterResult {
+                        node: n2.clone(),
+                        result: {
+                            if e.is_elapsed() {
+                                BackendError::Timeout
+                            } else if e.is_timer() {
+                                panic!("Timeout can't failed in core - can't continue")
+                            } else {
+                                let err = e.into_inner();
+                                BackendError::Failed(format!(
+                                    "Ping operation for {} failed: {:?}",
+                                    n2, err
+                                ))
+                            }
+                        },
+                    }),
                 Err(_) => panic!("Timeout failed in core - can't continue"), //TODO
             })
             .compat()

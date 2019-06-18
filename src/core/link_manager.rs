@@ -1,7 +1,7 @@
 use crate::core::{
+    backend::backend::BackendError,
     bob_client::{BobClient, BobClientFactory},
     data::{ClusterResult, Node},
-    backend::backend::BackendError,
 };
 use futures::{future::Future, stream::Stream};
 use std::{
@@ -15,8 +15,8 @@ use tokio::timer::Interval;
 use futures03::{
     compat::Future01CompatExt,
     future::{err, FutureExt as OtherFutureExt},
+    task::{Spawn, SpawnExt},
     Future as NewFuture,
-    task::{Spawn, SpawnExt}
 };
 
 pub struct NodeLink {
@@ -101,8 +101,13 @@ impl LinkManager {
         }
     }
 
-    pub async fn get_checker_future<S>(&self, ex: tokio::runtime::TaskExecutor, mut spawner: S) -> Result<(), ()> 
-        where S: Spawn + Clone + Send + 'static + Unpin + Sync,
+    pub async fn get_checker_future<S>(
+        &self,
+        ex: tokio::runtime::TaskExecutor,
+        mut spawner: S,
+    ) -> Result<(), ()>
+    where
+        S: Spawn + Clone + Send + 'static + Unpin + Sync,
     {
         let local_repo = self.repo.clone();
         let client_factory = BobClientFactory {
@@ -114,7 +119,8 @@ impl LinkManager {
             .for_each(move |_| {
                 local_repo.values().for_each(|v| {
                     let q = v.clone().check(client_factory.clone());
-                    let _ = spawner.spawn(q.map(|_r| {}))
+                    let _ = spawner
+                        .spawn(q.map(|_r| {}))
                         .map_err(|e| panic!("can't run timer task {:?}", e));
                 });
 

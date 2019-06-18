@@ -13,9 +13,9 @@ use bob::core::configs::cluster::{ClusterConfig, ClusterConfigYaml};
 use bob::core::configs::node::{DiskPath, NodeConfig, NodeConfigYaml};
 use bob::core::server::BobSrv;
 
-use tower_hyper::server::Server;
 use futures03::executor::ThreadPoolBuilder;
 use futures03::future::{FutureExt, TryFutureExt};
+use tower_hyper::server::Server;
 
 #[macro_use]
 extern crate log;
@@ -86,9 +86,7 @@ fn main() {
         let executor = rt.executor();
 
         let bob = b.clone();
-        let q = async move {
-            bob.get_periodic_tasks(executor, pool).await
-        };
+        let q = async move { bob.get_periodic_tasks(executor, pool).await };
         rt.spawn(q.boxed().compat());
 
         let new_service = server::BobApiServer::new(b.clone());

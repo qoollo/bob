@@ -22,12 +22,13 @@ impl VDisk {
             trace!("PUT[{}] to vdisk", key);
             self.repo
                 .write()
-                .then(move |disks_lock_res| match disks_lock_res {
-                    Ok(mut repo) => {
-                        repo.insert(key, data);
-                        ok(BackendPutResult {})
-                    }
-                    Err(_) => err(BackendError::Other),
+                .map(move |mut repo| {
+                    repo.insert(key, data);
+                    BackendPutResult {}
+                })
+                .map_err(|e| {
+                    trace!("lock error: {:?}", e);
+                    BackendError::Other
                 })
                 .compat()
                 .boxed()
