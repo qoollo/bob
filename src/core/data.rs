@@ -1,7 +1,8 @@
 use crate::api::grpc::BlobMeta;
-use crate::core::backend::backend::BackendOperation;
-use crate::core::configs::node::DiskPath as ConfigDiskPath;
-use crate::core::configs::node::NodeConfig;
+use crate::core::{
+    backend::backend::BackendOperation,
+    configs::node::{DiskPath as ConfigDiskPath, NodeConfig},
+};
 
 #[derive(Debug)]
 pub enum BobError {

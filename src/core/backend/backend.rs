@@ -1,11 +1,12 @@
-use crate::core::backend::mem_backend::MemBackend;
-use crate::core::backend::pearl_backend::PearlBackend;
-use crate::core::backend::stub_backend::StubBackend;
+use crate::core::backend::{
+    mem_backend::MemBackend, pearl_backend::PearlBackend, stub_backend::StubBackend,
+};
 use crate::core::configs::node::{BackendType, NodeConfig};
-use crate::core::data::VDiskMapper;
-use crate::core::data::{BobData, BobKey, DiskPath, VDiskId};
-use futures03::future::{FutureExt, TryFutureExt};
-use futures03::Future;
+use crate::core::data::{BobData, BobKey, DiskPath, VDiskId, VDiskMapper};
+use futures03::{
+    future::{FutureExt, TryFutureExt},
+    Future,
+};
 use std::pin::Pin;
 use std::sync::Arc;
 

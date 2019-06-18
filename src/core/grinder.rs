@@ -1,8 +1,9 @@
-use crate::core::backend::backend::{Backend, BackendError, BackendGetResult, BackendResult};
-use crate::core::configs::node::NodeConfig;
-use crate::core::data::VDiskMapper;
-use crate::core::data::{BobData, BobError, BobGetResult, BobKey, BobOptions, ClusterResult};
-use crate::core::sprinkler::{Sprinkler, SprinklerError, SprinklerResult};
+use crate::core::{
+    backend::backend::{Backend, BackendError, BackendGetResult, BackendResult},
+    configs::node::NodeConfig,
+    data::{BobData, BobError, BobGetResult, BobKey, BobOptions, ClusterResult, VDiskMapper},
+    sprinkler::{Sprinkler, SprinklerError, SprinklerResult},
+};
 
 #[derive(Debug)]
 pub enum ServeTypeOk<CT, BT> {

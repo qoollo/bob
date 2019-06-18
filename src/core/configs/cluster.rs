@@ -1,14 +1,14 @@
 use itertools::Itertools;
-use std::cell::Cell;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    net::SocketAddr,
+};
 
-use crate::core::configs::reader::{Validatable, YamlBobConfigReader};
-use crate::core::data::Node as DataNode;
-use crate::core::data::NodeDisk as DataNodeDisk;
-use crate::core::data::VDisk as DataVDisk;
-use crate::core::data::VDiskId;
+use crate::core::{
+    configs::reader::{Validatable, YamlBobConfigReader},
+    data::{Node as DataNode, NodeDisk as DataNodeDisk, VDisk as DataVDisk, VDiskId},
+};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeDisk {

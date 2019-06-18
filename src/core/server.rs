@@ -1,11 +1,15 @@
 use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRequest};
 
-use crate::core::backend::backend::BackendError;
-
-use crate::core::data::{BobData, BobError, BobKey, BobMeta, BobOptions};
-use crate::core::grinder::{Grinder, ServeTypeError, ServeTypeOk};
-use futures::future::{err, ok};
-use futures::{future, Future};
+use crate::core::{
+    backend::backend::BackendError,
+    data::{BobData, BobError, BobKey, BobMeta, BobOptions},
+    grinder::{Grinder, ServeTypeError, ServeTypeOk},
+};
+use futures::{
+    future,
+    future::{err, ok},
+    Future,
+};
 use stopwatch::Stopwatch;
 use tower_grpc::{Request, Response};
 

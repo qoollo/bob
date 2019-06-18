@@ -1,12 +1,13 @@
-use crate::core::cluster::{get_cluster, Cluster};
-use crate::core::configs::node::NodeConfig;
-use crate::core::data::{BobData, BobError, BobGetResult, BobKey, ClusterResult, VDiskMapper};
-use crate::core::link_manager::LinkManager;
+use crate::core::{
+    cluster::{get_cluster, Cluster},
+    configs::node::NodeConfig,
+    data::{BobData, BobError, BobGetResult, BobKey, ClusterResult, VDiskMapper},
+    link_manager::LinkManager,
+};
 
-use std::sync::Arc;
+use std::{pin::Pin, sync::Arc};
 
 use futures03::Future as NewFuture;
-use std::pin::Pin;
 
 pub struct SprinklerGetResult {
     pub data: Vec<u8>,

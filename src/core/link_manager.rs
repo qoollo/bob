@@ -1,18 +1,22 @@
-use crate::core::bob_client::{BobClient, BobClientFactory};
-use crate::core::data::{BobError, ClusterResult, Node};
-use futures::future::Future;
-use futures::stream::Stream;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use crate::core::{
+    bob_client::{BobClient, BobClientFactory},
+    data::{BobError, ClusterResult, Node},
+};
+use futures::{future::Future, stream::Stream};
+use std::{
+    collections::HashMap,
+    pin::Pin,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tokio::timer::Interval;
 
-use futures03::compat::Future01CompatExt;
-use futures03::executor::ThreadPoolBuilder;
-use futures03::future::err;
-use futures03::future::FutureExt as OtherFutureExt;
-use futures03::Future as NewFuture;
-use std::pin::Pin;
+use futures03::{
+    compat::Future01CompatExt,
+    executor::ThreadPoolBuilder,
+    future::{err, FutureExt as OtherFutureExt},
+    Future as NewFuture,
+};
 
 pub struct NodeLink {
     pub node: Node,

@@ -3,13 +3,17 @@ use crate::core::configs::node::{NodeConfig, PearlConfig};
 use crate::core::data::{BobData, BobKey, BobMeta, VDiskId, VDiskMapper};
 use pearl::{Builder, Key, Storage};
 
-use futures03::executor::{ThreadPool, ThreadPoolBuilder};
-use futures03::{FutureExt, TryFutureExt};
+use futures03::{
+    executor::{ThreadPool, ThreadPoolBuilder},
+    future::err,
+    FutureExt, TryFutureExt,
+};
 
-use futures03::future::err;
-use std::fs::create_dir_all;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::{
+    fs::create_dir_all,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 pub type PearlStorage = Storage<PearlKey>;
 
