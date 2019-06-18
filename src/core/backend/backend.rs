@@ -83,8 +83,14 @@ pub struct BackendGetResult {
     pub data: BobData,
 }
 
-pub struct Put(pub Pin<Box<dyn Future<Output = Result<BackendPutResult, BackendError>> + Send>>);
-pub struct Get(pub Pin<Box<dyn Future<Output = Result<BackendGetResult, BackendError>> + Send>>);
+#[derive(Debug)]
+pub struct BackendPingResult {}
+
+pub type GetResult = Result<BackendGetResult, BackendError>;
+pub struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send >>);
+
+pub type PutResult = Result<BackendPutResult, BackendError>;
+pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send >>);
 
 pub trait BackendStorage {
     fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;

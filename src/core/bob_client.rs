@@ -2,9 +2,9 @@ use crate::api::grpc::{
     Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions, PutRequest,
 };
 use crate::core::data::{
-    BobData, BobKey, BobMeta, BobPingResult, ClusterResult, Node,
+    BobData, BobKey, BobMeta, ClusterResult, Node,
 };
-use crate::core::backend::backend::{BackendError, BackendGetResult, BackendPutResult};
+use crate::core::backend::backend::{BackendError, BackendGetResult, BackendPutResult, BackendPingResult};
 
 use tower_grpc::BoxBody;
 
@@ -42,6 +42,8 @@ pub struct Put(pub Pin<Box<dyn NewFuture<Output = PutResult> + Send >>);
 
 pub type GetResult = Result<ClusterResult<BackendGetResult>, ClusterResult<BackendError>>;
 pub struct Get(pub Pin<Box<dyn NewFuture<Output = GetResult> + Send >>);
+
+pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<BackendError>>;
 
 impl BobClient {
     pub async fn new(node: Node, executor: TaskExecutor, timeout: Duration) -> Result<Self, ()> {
@@ -189,7 +191,7 @@ impl BobClient {
         })
     }
 
-    pub async fn ping(&mut self) -> Result<BobPingResult, BackendError> {
+    pub async fn ping(&mut self) -> PingResult {
         let n1 = self.node.clone();
         let n2 = self.node.clone();
         let to = self.timeout;
@@ -199,8 +201,8 @@ impl BobClient {
                 Ok(mut cl) => cl
                     .ping(Request::new(Null {}))
                     .timeout(to)
-                    .map(move |_| BobPingResult { node: n1 })
-                    .map_err(move |e| {
+                    .map(move |_| ClusterResult{ node: n1, result: BackendPingResult{}} )
+                    .map_err(move |e| ClusterResult {node:n2.clone(), result: {
                         if e.is_elapsed() {
                             BackendError::Timeout
                         } else if e.is_timer() {
@@ -209,7 +211,7 @@ impl BobClient {
                             let err = e.into_inner();
                             BackendError::Failed(format!("Ping operation for {} failed: {:?}", n2, err))
                         }
-                    }),
+                    }}),
                 Err(_) => panic!("Timeout failed in core - can't continue"), //TODO
             })
             .compat()

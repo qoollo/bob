@@ -9,11 +9,6 @@ pub struct ClusterResult<T> {
     pub result: T,
 }
 
-#[derive(Debug)]
-pub struct BobPingResult {
-    pub node: Node,
-}
-
 #[derive(Clone)]
 pub struct BobData {
     pub data: Vec<u8>,
