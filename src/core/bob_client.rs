@@ -144,10 +144,10 @@ impl BobClient {
                                 ClusterResult {
                                     node: n1,
                                     result: BackendGetResult {
-                                        data: BobData {
-                                            data: ans.data,
-                                            meta: BobMeta::new(ans.meta.unwrap()),
-                                        },
+                                        data: BobData::new(
+                                            ans.data,
+                                            BobMeta::new(ans.meta.unwrap()),
+                                        ),
                                     },
                                 }
                             })

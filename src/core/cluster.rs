@@ -73,9 +73,9 @@ impl Cluster for QuorumCluster {
 
         let l_quorum = self.quorum;
         let q = t
-            .then(move |r| {
+            .map(move |r| {
                 trace!("PUT[{}] Response from cluster {:?}", key, r);
-                ok::<_, ()>(r) // wrap all result kind to process it later
+                r // wrap all result kind to process it later
             })
             .fold(vec![], |mut acc, r| {
                 acc.push(r);

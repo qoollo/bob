@@ -57,13 +57,14 @@ impl NodeLinkHolder {
         match self.get_connection().conn {
             Some(mut conn) => {
                 let nlh = self.clone();
-                match conn.ping().await {
-                    Ok(_) => debug!("All good with pinging node {:?}", nlh.node),
-                    Err(_) => {
+                let _ = conn
+                    .ping()
+                    .await
+                    .map(|_| debug!("All good with pinging node {:?}", nlh.node))
+                    .map_err(|_| {
                         debug!("Got broken connection to node {:?}", nlh.node);
                         nlh.clear_connection();
-                    }
-                };
+                    });
                 Ok(())
             }
             None => {

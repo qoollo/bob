@@ -64,10 +64,7 @@ impl server::BobApi for BobSrv {
                 key: param.clone().key.unwrap().key,
             };
             let blob = param.clone().data.unwrap();
-            let data = BobData {
-                data: blob.data,
-                meta: BobMeta::new(blob.meta.unwrap()),
-            };
+            let data = BobData::new(blob.data, BobMeta::new(blob.meta.unwrap()));
 
             trace!("PUT[{}] data size: {}", key, data.data.len());
             let grinder = self.grinder.clone();

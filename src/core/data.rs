@@ -16,6 +16,12 @@ pub struct BobData {
     pub meta: BobMeta,
 }
 
+impl BobData {
+    pub fn new(data: Vec<u8>, meta: BobMeta) -> Self {
+        BobData { data, meta }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BobMeta {
     pub timestamp: u32,

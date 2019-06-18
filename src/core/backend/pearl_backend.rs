@@ -216,10 +216,10 @@ impl BackendStorage for PearlBackend {
                 PearlVDisk::read(storage, PearlKey::new_read(key))
                     .map(|r| {
                         Ok(BackendGetResult {
-                            data: BobData {
-                                data: r.unwrap(),               //TODO check
-                                meta: BobMeta { timestamp: 0 }, //TODO
-                            },
+                            data: BobData::new(
+                                r.unwrap(),               //TODO check
+                                BobMeta { timestamp: 0 }, //TODO
+                            ),
                         })
                     })
                     .map_err(|_e: ()| BackendError::storage_error())
@@ -243,10 +243,10 @@ impl BackendStorage for PearlBackend {
                 PearlVDisk::read(storage, PearlKey::new_read(key))
                     .map(|r| {
                         Ok(BackendGetResult {
-                            data: BobData {
-                                data: r.unwrap(),               //TODO check
-                                meta: BobMeta { timestamp: 0 }, //TODO
-                            },
+                            data: BobData::new(
+                                r.unwrap(),               //TODO check
+                                BobMeta { timestamp: 0 }, //TODO
+                            ),
                         })
                     })
                     .map_err(|_e: ()| BackendError::storage_error())
