@@ -87,6 +87,7 @@ pub struct NodeConfig {
     pub timeout: Option<String>,
     pub check_interval: Option<String>,
     pub cluster_policy: Option<String>,
+    pub ping_threads_count: Option<u8>,
 
     pub backend_type: Option<String>,
     pub pearl: Option<PearlConfig>,
@@ -102,6 +103,9 @@ pub struct NodeConfig {
 }
 
 impl NodeConfig {
+    pub fn ping_threads_count(&self) -> u8 {
+        self.ping_threads_count.unwrap()
+    }
     pub fn name(&self) -> String {
         self.name.as_ref().unwrap().clone()
     }
@@ -182,6 +186,13 @@ impl NodeConfig {
 }
 impl Validatable for NodeConfig {
     fn validate(&self) -> Result<(), String> {
+        match self.ping_threads_count {
+            None => {
+                debug!("field 'ping_threads_count' for 'config' is not set");
+                return Err("field 'ping_threads_count' for 'config' is not set".to_string());
+            }
+            _ => {}
+        };
         match &self.backend_type {
             None => {
                 debug!("field 'backend_type' for 'config' is not set");

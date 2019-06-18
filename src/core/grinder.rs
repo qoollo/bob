@@ -4,6 +4,7 @@ use crate::core::data::VDiskMapper;
 use crate::core::data::{BobData, BobKey, BobOptions};
 use crate::core::link_manager::LinkManager;
 use crate::core::cluster::{get_cluster, Cluster};
+use futures03::task::Spawn;
 
 use std::sync::Arc;
 
@@ -129,7 +130,9 @@ impl Grinder {
         }
     }
 
-    pub async fn get_periodic_tasks(&self, ex: tokio::runtime::TaskExecutor) -> Result<(), ()> {
-        self.link_manager.get_checker_future(ex).await
+    pub async fn get_periodic_tasks<S>(&self, ex: tokio::runtime::TaskExecutor, spawner: S) -> Result<(), ()> 
+        where S: Spawn + Clone + Send + 'static + Unpin + Sync,
+    {
+        self.link_manager.get_checker_future(ex, spawner).await
     }
 }

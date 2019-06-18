@@ -8,6 +8,7 @@ use stopwatch::Stopwatch;
 use tower_grpc::{Request, Response};
 
 use futures03::future::{FutureExt, TryFutureExt};
+use futures03::task::Spawn;
 
 #[derive(Clone)]
 pub struct BobSrv {
@@ -15,13 +16,17 @@ pub struct BobSrv {
 }
 
 impl BobSrv {
-    pub fn get_periodic_tasks(
+    pub async fn get_periodic_tasks<S>(
         &self,
         ex: tokio::runtime::TaskExecutor,
-    ) -> Box<impl Future<Item = (), Error = ()> + Send> {
-        let grinder = self.grinder.clone();
-        let q = async move { grinder.get_periodic_tasks(ex).await };
-        Box::new(q.boxed().compat())
+        spawner: S,
+    ) -> Result<(), ()>
+        where S: Spawn + Clone + Send + 'static + Unpin + Sync,
+    {
+        // let grinder = self.grinder.clone();
+        // let q = async move { grinder.get_periodic_tasks(ex, spawner).await };
+        // Box::new(q.boxed().compat())
+        self.grinder.get_periodic_tasks(ex, spawner).await
     }
 
     fn put_is_valid(req: &PutRequest) -> bool {

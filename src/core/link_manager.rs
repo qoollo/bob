@@ -9,11 +9,11 @@ use std::time::Duration;
 use tokio::timer::Interval;
 
 use futures03::compat::Future01CompatExt;
-use futures03::executor::ThreadPoolBuilder;
 use futures03::future::err;
 use futures03::future::FutureExt as OtherFutureExt;
 use futures03::Future as NewFuture;
 use std::pin::Pin;
+use futures03::task::{Spawn, SpawnExt};
 
 pub struct NodeLink {
     pub node: Node,
@@ -49,7 +49,7 @@ impl NodeLinkHolder {
         *self.conn.lock().unwrap() = None;
     }
 
-    async fn check(&self, client_fatory: BobClientFactory) -> Result<(), ()> {
+    async fn check(self, client_fatory: BobClientFactory) -> Result<(), ()> {
         match self.get_connection().conn {
             Some(mut conn) => {
                 let nlh = self.clone();
@@ -97,7 +97,9 @@ impl LinkManager {
         }
     }
 
-    pub async fn get_checker_future(&self, ex: tokio::runtime::TaskExecutor) -> Result<(), ()> {
+    pub async fn get_checker_future<S>(&self, ex: tokio::runtime::TaskExecutor, mut spawner: S) -> Result<(), ()> 
+        where S: Spawn + Clone + Send + 'static + Unpin + Sync,
+    {
         let local_repo = self.repo.clone();
         let client_factory = BobClientFactory {
             executor: ex,
@@ -107,13 +109,8 @@ impl LinkManager {
         Interval::new_interval(self.check_interval)
             .for_each(move |_| {
                 local_repo.values().for_each(|v| {
-                    let mut pool = ThreadPoolBuilder::new() //TODO use external spawner
-                        .pool_size(1)
-                        .create()
-                        .unwrap();
-                    // tokio::spawn(v.check(client_factory.clone()).boxed().compat());
-                    let _ = pool
-                        .run(v.check(client_factory.clone()))
+                    let q = v.clone().check(client_factory.clone());
+                    let _ = spawner.spawn(q.map(|_r| {}))
                         .map_err(|e| panic!("can't run timer task {:?}", e));
                 });
 
