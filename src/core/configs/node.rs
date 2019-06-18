@@ -1,9 +1,12 @@
-use crate::core::configs::cluster::{ClusterConfig, Node};
-use crate::core::configs::reader::{Validatable, YamlBobConfigReader};
+use crate::core::configs::{
+    cluster::{ClusterConfig, Node},
+    reader::{Validatable, YamlBobConfigReader},
+};
 use log::LevelFilter;
-use std::cell::Cell;
-use std::cell::RefCell;
-use std::time::Duration;
+use std::{
+    cell::{Cell, RefCell},
+    time::Duration,
+};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PearlConfig {

@@ -1,32 +1,26 @@
 use crate::api::grpc::{
-    Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions, PutRequest,
+    client::BobApi, Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions, PutRequest,
 };
-use crate::core::data::{
+use crate::core::{
+    backend::backend::{BackendError, BackendGetResult, BackendPutResult, BackendPingResult},
+    data::{
     BobData, BobKey, BobMeta, ClusterResult, Node,
-};
-use crate::core::backend::backend::{BackendError, BackendGetResult, BackendPutResult, BackendPingResult};
+}};
+use tower_grpc::{BoxBody, Code, Request, Status};
 
-use tower_grpc::BoxBody;
-
-use crate::api::grpc::client::BobApi;
-use std::time::Duration;
-use tokio::prelude::FutureExt;
-use tokio::runtime::TaskExecutor;
+use std::{pin::Pin, sync::Arc, time::Duration};
+use tokio::{prelude::FutureExt, runtime::TaskExecutor};
 use tower::MakeService;
-use tower_grpc::Request;
 
 use futures::Future;
 use hyper::client::connect::{Destination, HttpConnector};
 use tower_hyper::{client, util};
 
 use futures_locks::Mutex;
-use std::sync::Arc;
-use tower_grpc::{Code, Status};
 
-use futures03::compat::Future01CompatExt;
-use futures03::future::FutureExt as OtherFutureExt;
-use futures03::Future as NewFuture;
-use std::pin::Pin;
+use futures03::{
+    compat::Future01CompatExt, future::FutureExt as OtherFutureExt, Future as NewFuture,
+};
 
 type TowerConnect =
     tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>;

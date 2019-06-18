@@ -1,9 +1,10 @@
-use crate::core::backend::backend::{Backend, BackendGetResult, BackendPutResult, BackendError};
-use crate::core::configs::node::NodeConfig;
-use crate::core::data::VDiskMapper;
-use crate::core::data::{BobData, BobKey, BobOptions};
-use crate::core::link_manager::LinkManager;
-use crate::core::cluster::{get_cluster, Cluster};
+use crate::core::{
+    backend::backend::{Backend, BackendGetResult, BackendPutResult, BackendError},
+    configs::node::NodeConfig,
+    data::{BobData, BobKey, BobOptions, VDiskMapper},
+    link_manager::LinkManager,
+    cluster::{get_cluster, Cluster}
+};
 use futures03::task::Spawn;
 
 use std::sync::Arc;

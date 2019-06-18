@@ -1,7 +1,6 @@
 use crate::core::backend::backend::*;
 use crate::core::data::{BobData, BobKey, BobMeta, VDiskId};
-use futures03::future::ok;
-use futures03::FutureExt;
+use futures03::{future::ok, FutureExt};
 
 #[derive(Clone)]
 pub struct StubBackend {}

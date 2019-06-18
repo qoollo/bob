@@ -1,9 +1,14 @@
 use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRequest};
 
-use crate::core::data::{BobData, BobKey, BobMeta, BobOptions};
-use crate::core::grinder::{Grinder, BobError};
-use futures::future::{err, ok};
-use futures::{future, Future};
+use crate::core::{
+    data::{BobData, BobKey, BobMeta, BobOptions},
+    grinder::{Grinder, BobError},
+};
+use futures::{
+    future,
+    future::{err, ok},
+    Future,
+};
 use stopwatch::Stopwatch;
 use tower_grpc::{Request, Response};
 

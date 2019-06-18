@@ -1,13 +1,9 @@
 use crate::core::backend::backend::*;
 use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
-use futures::future::Future;
-use futures::future::{err, ok};
-use futures03::compat::Future01CompatExt;
-use futures03::future::err as err2;
-use futures03::FutureExt;
+use futures::future::{err, ok, Future};
+use futures03::{compat::Future01CompatExt, future::err as err2, FutureExt};
 use futures_locks::RwLock;
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Clone)]
 struct VDisk {

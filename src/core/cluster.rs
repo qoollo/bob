@@ -1,11 +1,15 @@
-use crate::core::configs::node::NodeConfig;
-use crate::core::data::{print_vec, BobData, BobKey, Node, VDiskMapper};
-use crate::core::link_manager::LinkManager;
+use crate::core::{
+    configs::node::NodeConfig,
+    data::{print_vec, BobData, BobKey, Node, VDiskMapper},
+    link_manager::LinkManager,
+    backend::backend::{BackendError, BackendPutResult, Put, Get},
+};
 use std::sync::Arc;
-use crate::core::backend::backend::{BackendError, BackendPutResult, Put, Get};
 
-use futures03::future::{err, ok, ready, FutureExt};
-use futures03::stream::{FuturesUnordered, StreamExt};
+use futures03::{
+    future::{err, ok, ready, FutureExt},
+    stream::{FuturesUnordered, StreamExt},
+};
 
 pub trait Cluster {
     fn put_clustered(&self, key: BobKey, data: BobData) -> Put;
