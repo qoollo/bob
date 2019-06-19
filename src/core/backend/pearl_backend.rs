@@ -10,6 +10,7 @@ use futures03::{
 };
 
 use std::{
+    convert::TryInto,
     fs::create_dir_all,
     path::{Path, PathBuf},
     sync::Arc,
@@ -19,20 +20,11 @@ pub type PearlStorage = Storage<PearlKey>;
 
 pub struct PearlKey {
     pub key: Vec<u8>,
-    pub timestamp: u32,
 }
 impl PearlKey {
-    pub fn new(key: BobKey, meta: &BobMeta) -> Self {
+    pub fn new(key: BobKey) -> Self {
         PearlKey {
             key: key.key.clone().to_be_bytes().to_vec(),
-            timestamp: meta.timestamp,
-        }
-    }
-
-    pub fn new_read(key: BobKey) -> Self {
-        PearlKey {
-            key: key.key.clone().to_be_bytes().to_vec(),
-            timestamp: 0, // TODO
         }
     }
 }
@@ -42,6 +34,33 @@ impl Key for PearlKey {
 impl AsRef<[u8]> for PearlKey {
     fn as_ref(&self) -> &[u8] {
         &self.key
+    }
+}
+
+struct PearlData {
+    data: Vec<u8>,
+    timestamp: u32,
+}
+impl PearlData {
+    const TIMESTAMP_LEN: usize = 4;
+
+    pub fn new(data: BobData) -> Self {
+        PearlData {
+            data: data.data,
+            timestamp: data.meta.timestamp,
+        }
+    }
+
+    pub fn bytes(&mut self) -> Vec<u8> {
+        let mut result = self.timestamp.to_be_bytes().to_vec();
+        result.append(&mut self.data);
+        result
+    }
+
+    pub fn parse(data: Vec<u8>) -> BobData {
+        let (tmp, bob_data) = data.split_at(PearlData::TIMESTAMP_LEN);
+        let timestamp = u32::from_be_bytes(tmp.try_into().unwrap()); //TODO check error
+        BobData::new(bob_data.to_vec(), BobMeta::new_value(timestamp))
     }
 }
 
@@ -167,7 +186,7 @@ impl BackendStorage for PearlBackend {
 
             if let Some(disk) = vdisk {
                 let storage = disk.storage.clone();
-                PearlVDisk::write(storage, PearlKey::new(key, &data.meta), data)
+                PearlVDisk::write(storage, PearlKey::new(key), data)
                     .map(|_r| Ok(BackendPutResult {}))
                     .map_err(|_e: ()| BackendError::storage_error())
                     .boxed() //TODO - add description for error key or vdisk for example
@@ -189,7 +208,7 @@ impl BackendStorage for PearlBackend {
         Put({
             if let Some(disk) = vdisk {
                 let storage = disk.storage.clone();
-                PearlVDisk::write(storage, PearlKey::new(key, &data.meta), data)
+                PearlVDisk::write(storage, PearlKey::new(key), data)
                     .map(|_r| Ok(BackendPutResult {}))
                     .map_err(|_e: ()| BackendError::storage_error())
                     .boxed() //TODO - add description for error
@@ -213,16 +232,11 @@ impl BackendStorage for PearlBackend {
 
             if let Some(disk) = vdisk {
                 let storage = disk.storage.clone();
-                PearlVDisk::read(storage, PearlKey::new_read(key))
+                PearlVDisk::read(storage, PearlKey::new(key))
                     .map(|r| {
-                        Ok(BackendGetResult {
-                            data: BobData::new(
-                                r.unwrap(),               //TODO check
-                                BobMeta { timestamp: 0 }, //TODO
-                            ),
-                        })
+                        r.map(|data| BackendGetResult { data })
+                            .map_err(|_e: ()| BackendError::storage_error())
                     })
-                    .map_err(|_e: ()| BackendError::storage_error())
                     .boxed() //TODO - add description for error
             } else {
                 debug!(
@@ -240,16 +254,11 @@ impl BackendStorage for PearlBackend {
         Get({
             if let Some(disk) = vdisk {
                 let storage = disk.storage.clone();
-                PearlVDisk::read(storage, PearlKey::new_read(key))
+                PearlVDisk::read(storage, PearlKey::new(key))
                     .map(|r| {
-                        Ok(BackendGetResult {
-                            data: BobData::new(
-                                r.unwrap(),               //TODO check
-                                BobMeta { timestamp: 0 }, //TODO
-                            ),
-                        })
+                        r.map(|data| BackendGetResult { data })
+                            .map_err(|_e: ()| BackendError::storage_error())
                     })
-                    .map_err(|_e: ()| BackendError::storage_error())
                     .boxed() //TODO - add description for error
             } else {
                 debug!("Get[alien][{}] to pearl backend. Cannot find storage", key);
@@ -291,10 +300,17 @@ impl PearlVDisk {
     }
 
     pub async fn write(storage: PearlStorage, key: PearlKey, data: BobData) -> Result<(), ()> {
-        storage.write(key, data.data).await.map_err(|_e| ()) // TODO make error public
+        storage
+            .write(key, PearlData::new(data).bytes())
+            .await
+            .map_err(|_e| ()) // TODO make error public, check bytes
     }
 
-    pub async fn read(storage: PearlStorage, key: PearlKey) -> Result<Vec<u8>, ()> {
-        storage.read(key).await.map_err(|_e| ()) // TODO make error public
+    pub async fn read(storage: PearlStorage, key: PearlKey) -> Result<BobData, ()> {
+        storage
+            .read(key)
+            .await
+            .map(|r| PearlData::parse(r))
+            .map_err(|_e| ()) // TODO make error public, check bytes
     }
 }

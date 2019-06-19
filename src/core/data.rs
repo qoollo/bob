@@ -33,6 +33,10 @@ impl BobMeta {
         }
     }
 
+    pub fn new_value(timestamp: u32) -> Self {
+        BobMeta { timestamp }
+    }
+
     pub fn new_stub() -> Self {
         BobMeta { timestamp: 1 }
     }
