@@ -9,27 +9,26 @@ use futures03::{
 };
 use std::{pin::Pin, sync::Arc};
 
-#[derive(Debug, PartialEq)]
-pub enum BackendError {
+#[derive(PartialEq)]
+pub enum Error {
     Timeout,
     NotFound,
+
+    //Pearl
+    VDiskNoFound(VDiskId),
+    StorageError,
 
     Failed(String),
     Other,
 }
-impl BackendError {
-    pub fn vdisk_not_found(id: &VDiskId) -> BackendError {
-        BackendError::Failed(format!("vdisk: {} not found", id))
-    }
 
-    pub fn storage_error() -> BackendError {
-        BackendError::Failed("some backend error".to_string()) //TODO make pearl error public
-    }
-}
-
-impl std::fmt::Display for BackendError {
+impl std::fmt::Debug for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self)
+        match self {
+            Error::VDiskNoFound(id) => write!(f, "vdisk: {:?} not found", id),
+            Error::StorageError => write!(f, "some backend error"),
+            _ => write!(f, "{:?}", self),
+        }
     }
 }
 
@@ -86,10 +85,10 @@ pub struct BackendGetResult {
 #[derive(Debug)]
 pub struct BackendPingResult {}
 
-pub type GetResult = Result<BackendGetResult, BackendError>;
+pub type GetResult = Result<BackendGetResult, Error>;
 pub struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send>>);
 
-pub type PutResult = Result<BackendPutResult, BackendError>;
+pub type PutResult = Result<BackendPutResult, Error>;
 pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
 pub trait BackendStorage {
@@ -135,7 +134,7 @@ impl Backend {
                     .0;
                 let func = move |err| {
                     error!(
-                        "PUT[{}][{}] to backend. Error: {}",
+                        "PUT[{}][{}] to backend. Error: {:?}",
                         key,
                         oper.disk_name_local(),
                         err

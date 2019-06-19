@@ -76,7 +76,7 @@ fn main() {
 
     let rt = Runtime::new().unwrap();
     let bobs = build_bobs(&disks, &cluster, &node);
-    for (b, address) in bobs.iter() {
+    for (b, address) in bobs.into_iter() {
         let pool = ThreadPoolBuilder::new()
             .pool_size(node.ping_threads_count() as usize)
             .create()

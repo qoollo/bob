@@ -28,7 +28,7 @@ impl VDisk {
                 })
                 .map_err(|e| {
                     trace!("lock error: {:?}", e);
-                    BackendError::Other
+                    Error::Other
                 })
                 .compat()
                 .boxed()
@@ -47,10 +47,10 @@ impl VDisk {
                     }
                     None => {
                         trace!("GET[{}] from vdisk failed. Cannot find key", key);
-                        err(BackendError::NotFound)
+                        err(Error::NotFound)
                     }
                 },
-                Err(_) => err(BackendError::Other),
+                Err(_) => err(Error::Other),
             })
             .compat()
             .boxed())
@@ -105,7 +105,7 @@ impl MemDisk {
                     vdisk_id,
                     self.name
                 );
-                err2(BackendError::Other).boxed()
+                err2(Error::Other).boxed()
             }
         })
     }
@@ -129,7 +129,7 @@ impl MemDisk {
                         vdisk_id,
                         self.name
                     );
-                    err2(BackendError::Other).boxed()
+                    err2(Error::Other).boxed()
                 }
             }
         })
@@ -180,7 +180,7 @@ impl BackendStorage for MemBackend {
             Some(mem_disk) => mem_disk.put(vdisk, key, data).0,
             None => {
                 error!("PUT[{}][{}] Can't find disk {}", key, disk_name, disk_name);
-                err2(BackendError::Other).boxed()
+                err2(Error::Other).boxed()
             }
         })
     }
@@ -196,7 +196,7 @@ impl BackendStorage for MemBackend {
             Some(mem_disk) => mem_disk.get(vdisk, key).0,
             None => {
                 error!("GET[{}][{}] Can't find disk {}", key, disk_name, disk_name);
-                err2(BackendError::Other).boxed()
+                err2(Error::Other).boxed()
             }
         })
     }

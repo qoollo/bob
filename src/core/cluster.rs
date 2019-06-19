@@ -1,5 +1,6 @@
 use crate::core::{
-    backend::backend::{BackendError, BackendPutResult, Get, Put},
+    backend::backend::{BackendPutResult, Get, Put},
+    backend::backend,
     configs::node::NodeConfig,
     data::{print_vec, BobData, BobKey, Node, VDiskMapper},
     link_manager::LinkManager,
@@ -7,7 +8,7 @@ use crate::core::{
 use std::sync::Arc;
 
 use futures03::{
-    future::{err, ok, ready, FutureExt},
+    future::{ready, FutureExt},
     stream::{FuturesUnordered, StreamExt},
 };
 
@@ -81,7 +82,7 @@ impl Cluster for QuorumCluster {
                 acc.push(r);
                 ready(acc)
             })
-            .then(move |acc| {
+            .map(move |acc| {
                 debug!("PUT[{}] cluster ans: {:?}", key, acc);
                 let total_ops = acc.iter().count();
                 let ok_count = acc.iter().filter(|&r| r.is_ok()).count();
@@ -91,15 +92,14 @@ impl Cluster for QuorumCluster {
                 );
                 // TODO: send actuall list of vdisk it has been written on
                 if ok_count >= l_quorum as usize {
-                    ok(BackendPutResult {})
+                    Ok(BackendPutResult {})
                 } else {
-                    err(BackendError::Failed(format!(
+                    Err(backend::Error::Failed(format!(
                         "failed: total: {}, ok: {}, quorum: {}",
                         total_ops, ok_count, l_quorum
                     )))
                 }
             });
-
         Put(q.boxed())
     }
 

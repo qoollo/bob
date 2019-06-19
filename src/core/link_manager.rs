@@ -1,5 +1,5 @@
 use crate::core::{
-    backend::backend::BackendError,
+    backend::backend::Error,
     bob_client::{BobClient, BobClientFactory},
     data::{ClusterResult, Node},
 };
@@ -57,14 +57,13 @@ impl NodeLinkHolder {
         match self.get_connection().conn {
             Some(mut conn) => {
                 let nlh = self.clone();
-                let _ = conn
-                    .ping()
+                conn.ping()
                     .await
                     .map(|_| debug!("All good with pinging node {:?}", nlh.node))
                     .map_err(|_| {
                         debug!("Got broken connection to node {:?}", nlh.node);
                         nlh.clear_connection();
-                    });
+                    })?;
                 Ok(())
             }
             None => {
@@ -151,7 +150,7 @@ impl LinkManager {
     ) -> Vec<
         Pin<
             Box<
-                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BackendError>>>
+                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<Error>>>
                     + 'static
                     + Send,
             >,
@@ -162,7 +161,7 @@ impl LinkManager {
             &mut BobClient,
         ) -> (Pin<
             Box<
-                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BackendError>>>
+                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<Error>>>
                     + 'static
                     + Send,
             >,
@@ -176,7 +175,7 @@ impl LinkManager {
                 match &mut nl.conn {
                     Some(conn) => f(conn),
                     None => err(ClusterResult {
-                        result: BackendError::Failed(format!("No active connection {:?}", node)),
+                        result: Error::Failed(format!("No active connection {:?}", node)),
                         node,
                     })
                     .boxed(),
