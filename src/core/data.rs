@@ -117,6 +117,12 @@ impl DiskPath {
         }
     }
 }
+
+impl std::fmt::Display for DiskPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter) ->std::fmt::Result {
+        write!(f, "#{}-{}", self.name, self.path)
+    }
+}
 #[derive(Debug, Clone)]
 pub struct VDiskMapper {
     local_node_name: String,

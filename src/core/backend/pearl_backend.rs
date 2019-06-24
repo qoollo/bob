@@ -1,19 +1,24 @@
-use crate::core::backend::backend::*;
 use crate::core::backend::backend;
+use crate::core::backend::backend::*;
 use crate::core::configs::node::{NodeConfig, PearlConfig};
-use crate::core::data::{BobData, BobKey, BobMeta, VDiskId, VDiskMapper};
+use crate::core::data::{BobData, BobKey, BobMeta, VDiskId, VDiskMapper, DiskPath};
+use futures_locks::RwLock;
 use pearl::{Builder, Key, Storage};
 
+use futures::future::{err, ok, Future};
 use futures03::{
+    compat::Future01CompatExt,
     executor::{ThreadPool, ThreadPoolBuilder},
-    future::err,
-    FutureExt, TryFutureExt,
+    future::err as err03,
+    task::Spawn,
+    Future as Future03, FutureExt, TryFutureExt,
 };
 
 use std::{
     convert::TryInto,
     fs::create_dir_all,
     path::{Path, PathBuf},
+    pin::Pin,
     sync::Arc,
 };
 
@@ -65,6 +70,7 @@ impl PearlData {
     }
 }
 
+#[allow(dead_code)]
 pub struct PearlBackend {
     config: PearlConfig,
     pool: ThreadPool,
@@ -86,6 +92,132 @@ impl PearlBackend {
             vdisks: Arc::new(vec![]),
             alien_dir: Arc::new(None),
         }
+    }
+
+    pub async fn init2<S>(&mut self, mapper: VDiskMapper, mut _spawner: S) -> Result<(), String>
+    where
+        S: Spawn + Clone + Send + 'static + Unpin + Sync,
+    {
+        let mut result = Vec::new();
+
+        //init pearl storages for each vdisk
+        for disk in mapper.local_disks().iter() {
+            let base_path = PathBuf::from(format!("{}/bob/", disk.path));
+            Self::check_or_create_directory2(&base_path).unwrap(); //TODO handle fail and try restart. Part2: we should panic because base path is invalid?
+
+            let mut vdisks: Vec<PearlVDisk> = mapper
+                .get_vdisks_by_disk(&disk.name)
+                .iter()
+                .map(|vdisk_id| {
+                    let mut vdisk_path = base_path.clone();
+                    vdisk_path.push(format!("{}/", vdisk_id.clone()));
+                    Self::check_or_create_directory(&vdisk_path).unwrap(); //TODO handle fail and try restart
+
+                    let mut storage = Self::init_pearl_by_path(vdisk_path, &self.config);
+                    self.run_storage(&mut storage);
+
+                    PearlVDisk::new(&disk.path, &disk.name, vdisk_id.clone(), storage)
+                })
+                .collect();
+            result.append(&mut vdisks);
+        }
+        self.vdisks = Arc::new(result);
+
+        unimplemented!();
+    }
+#[allow(dead_code)]
+    async fn init_disk<S>(&self, disk: DiskPath, pearl_vdisks: Arc<Vec<Arc<PearlVDiskGuard>>>, spawner: S) -> Result<(), ()>
+    where
+        S: Spawn + Clone + Send + 'static + Unpin + Sync,
+    {
+        let base_path = PathBuf::from(format!("{}/bob/", disk.path));
+        while let Err(e) = Self::check_or_create_directory2(&base_path){
+            error!("disk: {}, cannot check path: {:?}, error: {}", disk, base_path, e);
+            //TODO sleep. use config params
+        }
+        
+        for i in 0..pearl_vdisks.len() {
+            let mut vdisk_path = base_path.clone();
+            let vdisk_id = pearl_vdisks[i].get(|vd| vd.vdisk.clone()).await?; //TODO
+            vdisk_path.push(format!("{}/", vdisk_id));
+
+            let storage = Self::prepare_storage(vdisk_path, spawner.clone(), self.config.clone()).await;
+            match storage {
+                Ok(st) =>  {
+                    pearl_vdisks[i].update(st).await; // TODO log
+                },
+                _ => {}, //TODO log
+            }
+        }
+        unimplemented!();
+    }
+
+    pub async fn prepare_storage<S>(path: PathBuf, spawner: S, config: PearlConfig) -> Result<PearlStorage, ()>
+    where
+        S: Spawn + Clone + Send + 'static + Unpin + Sync,
+    {
+        let repeat = true;
+        while repeat {
+            if let Err(e) = PearlBackend::check_or_create_directory2(&path){
+                error!("cannot check path: {:?}, error: {}", path, e);
+                //TODO sleep. use config params
+                continue;
+            }
+
+            let storage = PearlBackend::init_pearl_by_path2(path.clone(), &config.clone());
+            match storage {
+                Err(e) => {
+                    error!("cannot build pearl by path: {:?}, error: {}", path, e);
+                    //TODO sleep. use config params
+                    continue;
+                }
+                Ok(mut st) => {
+                    if let Err(e) = st.init(spawner.clone()).await {
+                        error!("cannot init pearl by path: {:?}, error: {:?}", path, e);
+                        //TODO sleep. use config params
+                        continue;
+                    }
+                    return Ok(st)
+                }
+            }
+        }
+        Err(())
+    }
+
+    fn check_or_create_directory2(path: &Path) -> Result<(), String> {
+        if !path.exists() {
+            return match path.to_str() {
+                Some(dir) =>  create_dir_all(path)
+                                .map(|_r| {
+                                    info!("created directory: {}", dir);
+                                    ()
+                                })
+                                .map_err(|e| {
+                                    format!("cannot create directory: {}, error: {}", dir, e.to_string())
+                                }),
+                _ => Err("invalid some path, check vdisk or disk names".to_string()),
+                }
+        }
+        Ok(())
+    }
+    fn init_pearl_by_path2(path: PathBuf, config: &PearlConfig) -> Result<PearlStorage, String> {
+        let mut builder = Builder::new().work_dir(path);
+
+        builder = match &config.blob_file_name_prefix {
+            Some(blob_file_name_prefix) => builder.blob_file_name_prefix(blob_file_name_prefix),
+            _ => builder.blob_file_name_prefix("bob"),
+        };
+        builder = match config.max_data_in_blob {
+            Some(max_data_in_blob) => builder.max_data_in_blob(max_data_in_blob),
+            _ => builder,
+        };
+        builder = match config.max_blob_size {
+            Some(max_blob_size) => builder.max_blob_size(max_blob_size),
+            _ => panic!("'max_blob_size' is not set in pearl config"),
+        };
+
+        builder.build()
+            .map_err(|e| format!("Pearl build error: {:?}", e))
     }
 
     pub fn init(&mut self, mapper: &VDiskMapper) -> Result<(), String> {
@@ -196,7 +328,7 @@ impl BackendStorage for PearlBackend {
                     "PUT[{}][{}][{}] to pearl backend. Cannot find storage",
                     disk_name, vdisk_id, key
                 );
-                err(backend::Error::VDiskNoFound(vdisk_id)).boxed()
+                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
             }
         })
     }
@@ -215,7 +347,7 @@ impl BackendStorage for PearlBackend {
                     .boxed() //TODO - add description for error
             } else {
                 debug!("PUT[alien][{}] to pearl backend. Cannot find storage", key);
-                err(backend::Error::VDiskNoFound(vdisk_id)).boxed()
+                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
             }
         })
     }
@@ -244,7 +376,7 @@ impl BackendStorage for PearlBackend {
                     "Get[{}][{}][{}] to pearl backend. Cannot find storage",
                     disk_name, vdisk_id, key
                 );
-                err(backend::Error::VDiskNoFound(vdisk_id)).boxed()
+                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
             }
         })
     }
@@ -263,9 +395,79 @@ impl BackendStorage for PearlBackend {
                     .boxed() //TODO - add description for error
             } else {
                 debug!("Get[alien][{}] to pearl backend. Cannot find storage", key);
-                err(backend::Error::VDiskNoFound(vdisk_id)).boxed()
+                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
             }
         })
+    }
+}
+
+#[allow(dead_code)]
+struct PearlVDiskGuard {
+    storage: Arc<RwLock<PearlVDisk>>,
+}
+
+#[allow(dead_code)]
+impl PearlVDiskGuard {
+    #[allow(dead_code)]
+    pub async fn read<F, Ret>(&self, f:F) -> Result<Ret, ()>
+        where F: Fn(PearlStorage) -> Pin<Box<dyn Future03<Output = Result<Ret, ()>>+Send>> + Send+Sync,
+     {
+        self.storage
+            .read()
+            .map(move |st| {
+                let storage = st.storage.clone();
+                f(storage)
+                    .map_err(|_e| ())
+            })
+            .map_err(|_e| {}) //TODO log
+            .compat()
+            .boxed()
+            .await
+            .unwrap()
+            .await
+    }
+
+    #[allow(dead_code)]
+    pub async fn write<F, Ret>(&self, f:F) -> Result<Ret, ()>
+        where F: Fn(PearlStorage) -> Pin<Box<dyn Future03<Output = Result<Ret, ()>>+Send>> + Send+Sync,
+     {
+        self.storage
+            .write()
+            .map(move |st| {
+                let storage = st.storage.clone();
+                f(storage)
+                    .map_err(|_e| ())
+            })
+            .map_err(|_e| {}) //TODO log
+            .compat()
+            .boxed()
+            .await
+            .unwrap()
+            .await
+    }
+
+    pub async fn update(&self, pearl: PearlStorage) -> Result<(), ()>
+     {
+        let mut storage = self.storage
+            .write().compat().await
+            .map_err(|_e| {}).unwrap(); //TODO log
+
+        storage.storage = pearl;
+        Ok(())
+    }
+
+    pub async fn get<F, Ret>(&self, f:F) -> Result<Ret, ()>
+        where F: Fn(&PearlVDisk) -> Ret + Send+Sync,
+     {
+        self.storage
+            .read()
+            .map(move |st| {
+                f(&*st)
+            })
+            .map_err(|_e| {}) //TODO log
+            .compat()
+            .boxed()
+            .await
     }
 }
 
@@ -313,5 +515,106 @@ impl PearlVDisk {
             .await
             .map(|r| PearlData::parse(r))
             .map_err(|_e| ()) // TODO make error public, check bytes
+    }
+
+#[allow(dead_code)]
+    pub async fn init_vdisk<'a, S>(&'a mut self, path: PathBuf, spawner: S, config: Arc<PearlConfig>) -> Result<(), ()>
+    where
+        S: Spawn + Clone + Send + 'static + Unpin + Sync,
+    {
+        let mut repeat = true;
+        while repeat {
+            if let Err(e) = PearlBackend::check_or_create_directory2(&path){
+                error!("cannot check path: {:?}, error: {}", path, e);
+                //TODO sleep. use config params
+                continue;
+            }
+
+            let storage = PearlBackend::init_pearl_by_path2(path.clone(), &config.clone());
+            match storage {
+                Err(e) => {
+                    error!("cannot build pearl by path: {:?}, error: {}", path, e);
+                    //TODO sleep. use config params
+                    continue;
+                }
+                Ok(mut st) => {
+                    if let Err(e) = st.init(spawner.clone()).await {
+                        error!("cannot init pearl by path: {:?}, error: {:?}", path, e);
+                        //TODO sleep. use config params
+                        continue;
+                    }
+                    //TODO set storage to pearl
+                    self.storage = st;
+                    repeat = false;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+#[allow(dead_code)]
+enum State {
+    Ready,
+    Initializing,
+}
+
+impl State {
+    #[allow(dead_code)]
+    fn is_ready(&self) -> bool {
+        match self {
+            State::Ready => true,
+            _ => false,
+        }
+    }
+}
+
+#[allow(dead_code)]
+struct PearlState {
+    state: Arc<RwLock<State>>,
+}
+
+impl PearlState {
+    #[allow(dead_code)]
+    fn new() -> Self {
+        PearlState {
+            state: Arc::new(RwLock::new(State::Initializing)),
+        }
+    }
+
+#[allow(dead_code)]
+    fn is_ready(&self) -> Pin<Box<dyn Future03<Output = Result<bool, ()>> + Send>> {
+        self.state
+            .read()
+            .then(move |state_lock| match state_lock {
+                Ok(state) => ok(state.is_ready()),
+                Err(_) => err({}),
+            })
+            .compat()
+            .boxed()
+    }
+#[allow(dead_code)]
+    fn lock(&self) -> Pin<Box<dyn Future03<Output = Result<(), ()>> + Send>> {
+        self.state
+            .write()
+            .map(move |mut state| {
+                *state = State::Initializing;
+                ()
+            })
+            .map_err(|_e| {}) //TODO log
+            .compat()
+            .boxed()
+    }
+#[allow(dead_code)]
+    fn ready(&self) -> Pin<Box<dyn Future03<Output = Result<(), ()>> + Send>> {
+        self.state
+            .write()
+            .map(move |mut state| {
+                *state = State::Ready;
+                ()
+            })
+            .map_err(|_e| {})//TODO log
+            .compat()
+            .boxed()
     }
 }

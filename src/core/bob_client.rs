@@ -2,7 +2,7 @@ use crate::api::grpc::{
     client::BobApi, Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions, PutRequest,
 };
 use crate::core::{
-    backend::backend::{Error, BackendGetResult, BackendPingResult, BackendPutResult},
+    backend::backend::{BackendGetResult, BackendPingResult, BackendPutResult, Error},
     data::{BobData, BobKey, BobMeta, ClusterResult, Node},
 };
 use tower_grpc::{BoxBody, Code, Request, Status};
@@ -161,9 +161,7 @@ impl BobClient {
                                         let err = e.into_inner();
                                         match err {
                                             Some(status) => match status.code() {
-                                                tower_grpc::Code::NotFound => {
-                                                    Error::NotFound
-                                                }
+                                                tower_grpc::Code::NotFound => Error::NotFound,
                                                 _ => Error::Failed(format!(
                                                     "Get operation for {} failed: {:?}",
                                                     n2, status
