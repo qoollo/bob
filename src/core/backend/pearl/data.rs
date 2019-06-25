@@ -4,11 +4,13 @@ use pearl::{Key, Storage};
 
 use std::{
     convert::TryInto,
+    boxed::Box,
 };
 
 pub(crate) type BackendResult<T> = Result<T, String>;
 pub(crate) type PearlStorage = Storage<PearlKey>;
 
+#[derive(Clone)]
 pub(crate) struct PearlKey {
     pub key: Vec<u8>,
 }
@@ -35,7 +37,7 @@ pub(crate) struct PearlData {
 impl PearlData {
     const TIMESTAMP_LEN: usize = 4;
 
-    pub(crate) fn new(data: BobData) -> Self {
+    pub(crate) fn new(data: Box<BobData>) -> Self {
         PearlData {
             data: data.data,
             timestamp: data.meta.timestamp,

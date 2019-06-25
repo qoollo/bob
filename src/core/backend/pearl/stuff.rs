@@ -1,7 +1,4 @@
-use crate::core::backend::pearl::{
-    core::*,
-    data::*,
-    };
+use crate::core::backend::pearl::data::*;
 use futures_locks::RwLock;
 
 use futures::future::Future;
@@ -15,28 +12,29 @@ use std::{
     sync::Arc,
 };
 
-pub(crate) struct PearlVDiskGuard {
-    storage: Arc<RwLock<PearlVDisk>>,
+pub(crate) struct LockGuard<TGuard> {
+    storage: Arc<RwLock<TGuard>>,
 }
 
-impl PearlVDiskGuard {
-    pub(crate) fn new(pearl_vdisk: PearlVDisk) -> Self {
-        PearlVDiskGuard {
-            storage: Arc::new(RwLock::new(pearl_vdisk))
+impl<TGuard: Send + Clone> LockGuard<TGuard> 
+{
+    pub(crate) fn new(data: TGuard) -> Self {
+        LockGuard {
+            storage: Arc::new(RwLock::new(data))
         }
     }
 
     pub(crate) async fn read<F, Ret>(&self, f:F) -> BackendResult<Ret>
-        where F: Fn(PearlStorage) -> Pin<Box<dyn Future03<Output = BackendResult<Ret>>+Send>> + Send+Sync,
+        where F: Fn(TGuard) -> Pin<Box<dyn Future03<Output = BackendResult<Ret>>+Send>> + Send+Sync,
     {
         self.storage
             .read()
             .map(move |st| {
-                let storage = st.storage.clone();
-                f(storage)
+                let clone = st.clone();
+                f(clone)
             })
             .map_err(|e| {
-                error!("lock error on pearl vdisk: {:?}", e);
+                error!("lock error: {:?}", e);
                 e
             })
             .compat()
@@ -46,35 +44,35 @@ impl PearlVDiskGuard {
             .await
     }
 
-    pub(crate) async fn update(&self, pearl: PearlStorage) -> BackendResult<()>
-     {
-        let mut storage = self.storage
-            .write()
-            .compat()
-            .await
-            .map_err(|e| {
-                error!("lock error on pearl vdisk: {:?}", e);
-                format!("lock error on pearl vdisk: {:?}", e)
-            })?;
+    // pub(crate) async fn update(&self, pearl: PearlStorage) -> BackendResult<()>
+    //  {
+    //     let mut storage = self.storage
+    //         .write()
+    //         .compat()
+    //         .await
+    //         .map_err(|e| {
+    //             error!("lock error on pearl vdisk: {:?}", e);
+    //             format!("lock error on pearl vdisk: {:?}", e)
+    //         })?;
 
-        storage.storage = pearl;
-        Ok(())
-    }
+    //     storage.storage = pearl;
+    //     Ok(())
+    // }
 
-    pub(crate) async fn get<F, Ret>(&self, f:F) -> BackendResult<Ret>
-        where F: Fn(&PearlVDisk) -> Ret + Send+Sync,
-     {
-        self.storage
-            .read()
-            .map(move |st| {
-                f(&*st)
-            })
-            .map_err(|e| {
-                error!("lock error on pearl vdisk: {:?}", e);
-                format!("lock error on pearl vdisk: {:?}", e)
-            })
-            .compat()
-            .boxed()
-            .await
-    }
+    // pub(crate) async fn get<F, Ret>(&self, f:F) -> BackendResult<Ret>
+    //     where F: Fn(&PearlVDisk) -> Ret + Send+Sync,
+    //  {
+    //     self.storage
+    //         .read()
+    //         .map(move |st| {
+    //             f(&*st)
+    //         })
+    //         .map_err(|e| {
+    //             error!("lock error on pearl vdisk: {:?}", e);
+    //             format!("lock error on pearl vdisk: {:?}", e)
+    //         })
+    //         .compat()
+    //         .boxed()
+    //         .await
+    // }
 }
