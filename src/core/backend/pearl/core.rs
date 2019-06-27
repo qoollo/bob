@@ -6,7 +6,7 @@ use crate::core::configs::node::{NodeConfig, PearlConfig};
 use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
 use pearl::{Builder, Storage};
 
-use futures03::{future::err as err03, future::ready, task::Spawn, FutureExt};
+use futures03::{future::err as err03, future::ready, task::Spawn, FutureExt, TryFutureExt};
 
 use std::{cell::RefCell, fs::create_dir_all, path::PathBuf, sync::Arc};
 
@@ -329,6 +329,7 @@ impl PearlVDisk {
         self.storage
             .write(|st| {
                 st.set(storage.clone());
+                st.ready(); // current pearl disk is ready
                 ready(Ok(())).boxed()
             })
             .await
@@ -341,6 +342,10 @@ impl PearlVDisk {
     pub async fn write(&self, key: PearlKey, data: Box<BobData>) -> BackendResult<()> {
         self.storage
             .read(|st| {
+                if !st.is_ready()
+                {
+                    return err03("".to_string()).boxed() // TODO mark that typical error
+                }
                 let storage = st.get();
                 Self::write_disk(storage, key.clone(), data.clone()).boxed()
             })
@@ -355,16 +360,32 @@ impl PearlVDisk {
         storage
             .write(key, PearlData::new(data).bytes())
             .await
-            .map_err(|e| format!("error on read: {:?}", e)) // TODO make error public, check bytes
+            .map_err(|e| format!("error on read: {:?}", e))
     }
 
     pub async fn read(&self, key: PearlKey) -> BackendResult<BobData> {
         self.storage
-            .read(|st| {
+            .read::<_, _, Result<String, ()>>(|st| {
+                if !st.is_ready()
+                {
+                    return err03(Err(())).boxed();
+                }
                 let storage = st.get();
-                Self::read_disk(storage, key.clone()).boxed()
+                Self::read_disk(storage, key.clone())
+                    .map_err(|e| Ok(e))
+                    .boxed()
             })
             .await
+            .map_err(|e|
+            {
+                match e {
+                    Ok(error) => {
+                        // TODO start reconnect
+                        error
+                    },
+                    _=> "vdisk is not ready".to_string(),
+                }
+            })
     }
 
     async fn read_disk(storage: PearlStorage, key: PearlKey) -> BackendResult<BobData> {
@@ -372,26 +393,46 @@ impl PearlVDisk {
             .read(key)
             .await
             .map(|r| PearlData::parse(r))
-            .map_err(|e| format!("error on write: {:?}", e)) // TODO make error public, check bytes
+            .map_err(|e| format!("error on write: {:?}", e))
+            ?
     }
+}
+
+#[derive(Clone, PartialEq)]
+enum PearlState {
+    Normal,
+    Initializing,
 }
 
 #[derive(Clone)]
 struct PearlSync {
     storage: RefCell<Option<PearlStorage>>,
-    //TODO add state with arc
+    state: RefCell<PearlState>,
 }
 impl PearlSync {
     pub(crate) fn new() -> Self {
         PearlSync {
             storage: RefCell::new(None),
+            state: RefCell::new(PearlState::Initializing),
         }
+    }
+    pub(crate) fn ready(&self) {
+        self.set_state(PearlState::Normal);
+    }
+    pub(crate) fn is_ready(&self) -> bool {
+        self.get_state() == PearlState::Normal
+    }
+
+    pub(crate) fn set_state(&self, state: PearlState) {
+        self.state.replace(state);
+    }
+    pub(crate) fn get_state(&self) -> PearlState {
+        self.state.borrow().clone()
     }
 
     pub(crate) fn set(&self, storage: PearlStorage) {
         self.storage.replace(Some(storage));
     }
-
     pub(crate) fn get(&self) -> PearlStorage {
         self.storage.borrow().clone().unwrap()
     }

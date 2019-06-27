@@ -17,9 +17,9 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
         }
     }
 
-    pub(crate) async fn read<F, Ret>(&self, f: F) -> BackendResult<Ret>
+    pub(crate) async fn read<F, TRet, TErr>(&self, f: F) -> Result<TRet, TErr>
     where
-        F: Fn(TGuard) -> Pin<Box<dyn Future03<Output = BackendResult<Ret>> + Send>> + Send + Sync,
+        F: Fn(TGuard) -> Pin<Box<dyn Future03<Output = Result<TRet, TErr>> + Send>> + Send + Sync,
     {
         self.storage
             .read()

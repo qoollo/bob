@@ -46,9 +46,15 @@ impl PearlData {
         result
     }
 
-    pub(crate) fn parse(data: Vec<u8>) -> BobData {
+    pub(crate) fn parse(data: Vec<u8>) -> BackendResult<BobData> {
         let (tmp, bob_data) = data.split_at(PearlData::TIMESTAMP_LEN);
-        let timestamp = u32::from_be_bytes(tmp.try_into().unwrap()); //TODO check error
-        BobData::new(bob_data.to_vec(), BobMeta::new_value(timestamp))
+        match tmp.try_into() {
+            Ok(bytes) => {
+                let timestamp = u32::from_be_bytes(bytes);
+                Ok(BobData::new(bob_data.to_vec(), BobMeta::new_value(timestamp)))
+            },
+            Err(e) => Err(format!("parse error: {}", e)),
+        }
+        
     }
 }
