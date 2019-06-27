@@ -2,30 +2,24 @@ use crate::core::backend::pearl::data::*;
 use futures_locks::RwLock;
 
 use futures::future::Future;
-use futures03::{
-    compat::Future01CompatExt,
-    Future as Future03, FutureExt,
-};
+use futures03::{compat::Future01CompatExt, Future as Future03, FutureExt};
 
-use std::{
-    pin::Pin,
-    sync::Arc,
-};
+use std::{pin::Pin, sync::Arc};
 
 pub(crate) struct LockGuard<TGuard> {
     storage: Arc<RwLock<TGuard>>,
 }
 
-impl<TGuard: Send + Clone> LockGuard<TGuard> 
-{
+impl<TGuard: Send + Clone> LockGuard<TGuard> {
     pub(crate) fn new(data: TGuard) -> Self {
         LockGuard {
-            storage: Arc::new(RwLock::new(data))
+            storage: Arc::new(RwLock::new(data)),
         }
     }
 
-    pub(crate) async fn read<F, Ret>(&self, f:F) -> BackendResult<Ret>
-        where F: Fn(TGuard) -> Pin<Box<dyn Future03<Output = BackendResult<Ret>>+Send>> + Send+Sync,
+    pub(crate) async fn read<F, Ret>(&self, f: F) -> BackendResult<Ret>
+    where
+        F: Fn(TGuard) -> Pin<Box<dyn Future03<Output = BackendResult<Ret>> + Send>> + Send + Sync,
     {
         self.storage
             .read()
@@ -44,8 +38,9 @@ impl<TGuard: Send + Clone> LockGuard<TGuard>
             .await
     }
 
-    pub(crate) async fn write<F, Ret>(&self, f:F) -> BackendResult<Ret>
-        where F: Fn(TGuard) -> Pin<Box<dyn Future03<Output = BackendResult<Ret>>+Send>> + Send+Sync,
+    pub(crate) async fn write<F, Ret>(&self, f: F) -> BackendResult<Ret>
+    where
+        F: Fn(TGuard) -> Pin<Box<dyn Future03<Output = BackendResult<Ret>> + Send>> + Send + Sync,
     {
         self.storage
             .write()

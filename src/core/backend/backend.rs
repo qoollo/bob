@@ -16,7 +16,7 @@ pub enum Error {
 
     //Pearl
     VDiskNoFound(VDiskId),
-    StorageError,
+    StorageError(String),
 
     Failed(String),
     Other,
@@ -26,7 +26,7 @@ impl std::fmt::Debug for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Error::VDiskNoFound(id) => write!(f, "vdisk: {:?} not found", id),
-            Error::StorageError => write!(f, "some backend error"),
+            Error::StorageError(description) => write!(f, "backend error: {}", description),
             _ => write!(f, "{:?}", self),
         }
     }

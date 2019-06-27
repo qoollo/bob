@@ -1,11 +1,7 @@
 use crate::core::data::{BobData, BobKey, BobMeta};
 use pearl::{Key, Storage};
 
-
-use std::{
-    convert::TryInto,
-    boxed::Box,
-};
+use std::{boxed::Box, convert::TryInto};
 
 pub(crate) type BackendResult<T> = Result<T, String>;
 pub(crate) type PearlStorage = Storage<PearlKey>;

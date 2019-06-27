@@ -109,7 +109,13 @@ impl PearlBackend {
                     let mut storage = Self::init_pearl_by_path(vdisk_path.clone(), &self.config);
                     self.run_storage(&mut storage);
 
-                    PearlVDisk::new(&disk.path, &disk.name, vdisk_id.clone(), vdisk_path, storage)
+                    PearlVDisk::new(
+                        &disk.path,
+                        &disk.name,
+                        vdisk_id.clone(),
+                        vdisk_path,
+                        storage,
+                    )
                 })
                 .collect();
             result.append(&mut vdisks);
@@ -192,7 +198,7 @@ impl BackendStorage for PearlBackend {
                 let storage = disk.storage.clone();
                 PearlVDisk::write(storage, PearlKey::new(key), data)
                     .map(|_r| Ok(BackendPutResult {}))
-                    .map_err(|_e: ()| backend::Error::StorageError)
+                    .map_err(|_e: ()| backend::Error::StorageError("".to_string()))
                     .boxed() //TODO - add description for error key or vdisk for example
             } else {
                 debug!(
@@ -214,7 +220,7 @@ impl BackendStorage for PearlBackend {
                 let storage = disk.storage.clone();
                 PearlVDisk::write(storage, PearlKey::new(key), data)
                     .map(|_r| Ok(BackendPutResult {}))
-                    .map_err(|_e: ()| backend::Error::StorageError)
+                    .map_err(|_e: ()| backend::Error::StorageError("".to_string()))
                     .boxed() //TODO - add description for error
             } else {
                 debug!("PUT[alien][{}] to pearl backend. Cannot find storage", key);
@@ -239,7 +245,7 @@ impl BackendStorage for PearlBackend {
                 PearlVDisk::read(storage, PearlKey::new(key))
                     .map(|r| {
                         r.map(|data| BackendGetResult { data })
-                            .map_err(|_e: ()| backend::Error::StorageError)
+                            .map_err(|_e: ()| backend::Error::StorageError("".to_string()))
                     })
                     .boxed() //TODO - add description for error
             } else {
@@ -261,7 +267,7 @@ impl BackendStorage for PearlBackend {
                 PearlVDisk::read(storage, PearlKey::new(key))
                     .map(|r| {
                         r.map(|data| BackendGetResult { data })
-                            .map_err(|_e: ()| backend::Error::StorageError)
+                            .map_err(|_e: ()| backend::Error::StorageError("".to_string()))
                     })
                     .boxed() //TODO - add description for error
             } else {
@@ -283,7 +289,13 @@ struct PearlVDisk {
 }
 
 impl PearlVDisk {
-    pub fn new(path: &str, name: &str, vdisk: VDiskId, disk_path: PathBuf, storage: Storage<PearlKey>) -> Self {
+    pub fn new(
+        path: &str,
+        name: &str,
+        vdisk: VDiskId,
+        disk_path: PathBuf,
+        storage: Storage<PearlKey>,
+    ) -> Self {
         PearlVDisk {
             path: path.to_string(),
             name: name.to_string(),
@@ -292,7 +304,12 @@ impl PearlVDisk {
             storage,
         }
     }
-    pub fn new_alien(path: &str, name: &str, disk_path: PathBuf, storage: Storage<PearlKey>) -> Self {
+    pub fn new_alien(
+        path: &str,
+        name: &str,
+        disk_path: PathBuf,
+        storage: Storage<PearlKey>,
+    ) -> Self {
         PearlVDisk {
             path: path.to_string(),
             name: name.to_string(),
@@ -320,6 +337,4 @@ impl PearlVDisk {
             .map(|r| PearlData::parse(r))
             .map_err(|_e| ()) // TODO make error public, check bytes
     }
-
-
 }
