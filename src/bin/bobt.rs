@@ -1,3 +1,4 @@
+#![feature(async_await)]
 use bob::api::grpc::server;
 
 use bob::core::data::{VDisk, VDiskMapper};
@@ -12,6 +13,8 @@ use bob::core::configs::cluster::{ClusterConfig, ClusterConfigYaml};
 use bob::core::configs::node::{DiskPath, NodeConfig, NodeConfigYaml};
 use bob::core::server::BobSrv;
 
+use futures03::executor::ThreadPoolBuilder;
+use futures03::future::{FutureExt, TryFutureExt};
 use tower_hyper::server::Server;
 
 #[macro_use]
@@ -71,10 +74,21 @@ fn main() {
         .filter_module("bob", node.log_level())
         .init();
 
-    let mut rt = Runtime::new().unwrap();
+    let rt = Runtime::new().unwrap();
     let bobs = build_bobs(&disks, &cluster, &node);
     for (b, address) in bobs.iter() {
-        rt.spawn(b.get_periodic_tasks(rt.executor()));
+        let pool = ThreadPoolBuilder::new()
+            .pool_size(node.ping_threads_count() as usize)
+            .create()
+            .unwrap();
+
+        let mut rt = Runtime::new().unwrap();
+        let executor = rt.executor();
+
+        let bob = b.clone();
+        let q = async move { bob.get_periodic_tasks(executor, pool).await };
+        rt.spawn(q.boxed().compat());
+
         let new_service = server::BobApiServer::new(b.clone());
         let mut server = Server::new(new_service);
 

@@ -1,9 +1,9 @@
 use crate::api::grpc::{
     client::BobApi, Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions, PutRequest,
 };
-use crate::core::data::{
-    BobData, BobError, BobGetResult, BobKey, BobMeta, BobPingResult, BobPutResult, ClusterResult,
-    Node,
+use crate::core::{
+    backend::backend::{BackendError, BackendGetResult, BackendPingResult, BackendPutResult},
+    data::{BobData, BobKey, BobMeta, ClusterResult, Node},
 };
 use tower_grpc::{BoxBody, Code, Request, Status};
 
@@ -30,22 +30,13 @@ pub struct BobClient {
     client: Arc<Mutex<BobApi<TowerConnect>>>,
 }
 
-pub struct Put(
-    pub  Pin<
-        Box<
-            dyn NewFuture<Output = Result<ClusterResult<BobPutResult>, ClusterResult<BobError>>>
-                + Send,
-        >,
-    >,
-);
-pub struct Get(
-    pub  Pin<
-        Box<
-            dyn NewFuture<Output = Result<ClusterResult<BobGetResult>, ClusterResult<BobError>>>
-                + Send,
-        >,
-    >,
-);
+pub type PutResult = Result<ClusterResult<BackendPutResult>, ClusterResult<BackendError>>;
+pub struct Put(pub Pin<Box<dyn NewFuture<Output = PutResult> + Send>>);
+
+pub type GetResult = Result<ClusterResult<BackendGetResult>, ClusterResult<BackendError>>;
+pub struct Get(pub Pin<Box<dyn NewFuture<Output = GetResult> + Send>>);
+
+pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<BackendError>>;
 
 impl BobClient {
     pub async fn new(node: Node, executor: TaskExecutor, timeout: Duration) -> Result<Self, ()> {
@@ -105,17 +96,17 @@ impl BobClient {
                             .timeout(timeout)
                             .map(|_| ClusterResult {
                                 node: n1,
-                                result: BobPutResult {},
+                                result: BackendPutResult {},
                             })
                             .map_err(move |e| ClusterResult {
                                 result: {
                                     if e.is_elapsed() {
-                                        BobError::Timeout
+                                        BackendError::Timeout
                                     } else if e.is_timer() {
                                         panic!("Timeout failed in core - can't continue")
                                     } else {
                                         let err = e.into_inner();
-                                        BobError::Other(format!(
+                                        BackendError::Failed(format!(
                                             "Put operation for {} failed: {:?}",
                                             n2, err
                                         ))
@@ -152,31 +143,33 @@ impl BobClient {
                                 let ans = r.into_inner();
                                 ClusterResult {
                                     node: n1,
-                                    result: BobGetResult {
-                                        data: BobData {
-                                            data: ans.data,
-                                            meta: BobMeta::new(ans.meta.unwrap()),
-                                        },
+                                    result: BackendGetResult {
+                                        data: BobData::new(
+                                            ans.data,
+                                            BobMeta::new(ans.meta.unwrap()),
+                                        ),
                                     },
                                 }
                             })
                             .map_err(move |e| ClusterResult {
                                 result: {
                                     if e.is_elapsed() {
-                                        BobError::Timeout
+                                        BackendError::Timeout
                                     } else if e.is_timer() {
                                         panic!("Timeout failed in core - can't continue")
                                     } else {
                                         let err = e.into_inner();
                                         match err {
                                             Some(status) => match status.code() {
-                                                tower_grpc::Code::NotFound => BobError::NotFound,
-                                                _ => BobError::Other(format!(
+                                                tower_grpc::Code::NotFound => {
+                                                    BackendError::NotFound
+                                                }
+                                                _ => BackendError::Failed(format!(
                                                     "Get operation for {} failed: {:?}",
                                                     n2, status
                                                 )),
                                             },
-                                            None => BobError::Other(format!(
+                                            None => BackendError::Failed(format!(
                                                 "Get operation for {} failed: {:?}",
                                                 n2, err
                                             )),
@@ -193,7 +186,7 @@ impl BobClient {
         })
     }
 
-    pub async fn ping(&mut self) -> Result<BobPingResult, BobError> {
+    pub async fn ping(&mut self) -> PingResult {
         let n1 = self.node.clone();
         let n2 = self.node.clone();
         let to = self.timeout;
@@ -203,16 +196,25 @@ impl BobClient {
                 Ok(mut cl) => cl
                     .ping(Request::new(Null {}))
                     .timeout(to)
-                    .map(move |_| BobPingResult { node: n1 })
-                    .map_err(move |e| {
-                        if e.is_elapsed() {
-                            BobError::Timeout
-                        } else if e.is_timer() {
-                            panic!("Timeout can't failed in core - can't continue")
-                        } else {
-                            let err = e.into_inner();
-                            BobError::Other(format!("Ping operation for {} failed: {:?}", n2, err))
-                        }
+                    .map(move |_| ClusterResult {
+                        node: n1,
+                        result: BackendPingResult {},
+                    })
+                    .map_err(move |e| ClusterResult {
+                        node: n2.clone(),
+                        result: {
+                            if e.is_elapsed() {
+                                BackendError::Timeout
+                            } else if e.is_timer() {
+                                panic!("Timeout can't failed in core - can't continue")
+                            } else {
+                                let err = e.into_inner();
+                                BackendError::Failed(format!(
+                                    "Ping operation for {} failed: {:?}",
+                                    n2, err
+                                ))
+                            }
+                        },
                     }),
                 Err(_) => panic!("Timeout failed in core - can't continue"), //TODO
             })

@@ -3,8 +3,7 @@ use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
 use futures::future::{err, ok, Future};
 use futures03::{compat::Future01CompatExt, future::err as err2, FutureExt};
 use futures_locks::RwLock;
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Clone)]
 struct VDisk {
@@ -25,7 +24,7 @@ impl VDisk {
                 .write()
                 .map(move |mut repo| {
                     repo.insert(key, data);
-                    BackendResult {}
+                    BackendPutResult {}
                 })
                 .map_err(|e| {
                     trace!("lock error: {:?}", e);

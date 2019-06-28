@@ -1,6 +1,7 @@
 use crate::core::{
+    backend::backend::BackendError,
     bob_client::{BobClient, BobClientFactory},
-    data::{BobError, ClusterResult, Node},
+    data::{ClusterResult, Node},
 };
 use futures::{future::Future, stream::Stream};
 use std::{
@@ -13,8 +14,8 @@ use tokio::timer::Interval;
 
 use futures03::{
     compat::Future01CompatExt,
-    executor::ThreadPoolBuilder,
     future::{err, FutureExt as OtherFutureExt},
+    task::{Spawn, SpawnExt},
     Future as NewFuture,
 };
 
@@ -52,17 +53,18 @@ impl NodeLinkHolder {
         *self.conn.lock().unwrap() = None;
     }
 
-    async fn check(&self, client_fatory: BobClientFactory) -> Result<(), ()> {
+    async fn check(self, client_fatory: BobClientFactory) -> Result<(), ()> {
         match self.get_connection().conn {
             Some(mut conn) => {
                 let nlh = self.clone();
-                match conn.ping().await {
-                    Ok(_) => debug!("All good with pinging node {:?}", nlh.node),
-                    Err(_) => {
+                let _ = conn
+                    .ping()
+                    .await
+                    .map(|_| debug!("All good with pinging node {:?}", nlh.node))
+                    .map_err(|_| {
                         debug!("Got broken connection to node {:?}", nlh.node);
                         nlh.clear_connection();
-                    }
-                };
+                    });
                 Ok(())
             }
             None => {
@@ -100,7 +102,14 @@ impl LinkManager {
         }
     }
 
-    pub async fn get_checker_future(&self, ex: tokio::runtime::TaskExecutor) -> Result<(), ()> {
+    pub async fn get_checker_future<S>(
+        &self,
+        ex: tokio::runtime::TaskExecutor,
+        mut spawner: S,
+    ) -> Result<(), ()>
+    where
+        S: Spawn + Clone + Send + 'static + Unpin + Sync,
+    {
         let local_repo = self.repo.clone();
         let client_factory = BobClientFactory {
             executor: ex,
@@ -110,13 +119,9 @@ impl LinkManager {
         Interval::new_interval(self.check_interval)
             .for_each(move |_| {
                 local_repo.values().for_each(|v| {
-                    let mut pool = ThreadPoolBuilder::new() //TODO use external spawner
-                        .pool_size(1)
-                        .create()
-                        .unwrap();
-                    // tokio::spawn(v.check(client_factory.clone()).boxed().compat());
-                    let _ = pool
-                        .run(v.check(client_factory.clone()))
+                    let q = v.clone().check(client_factory.clone());
+                    let _ = spawner
+                        .spawn(q.map(|_r| {}))
                         .map_err(|e| panic!("can't run timer task {:?}", e));
                 });
 
@@ -146,7 +151,7 @@ impl LinkManager {
     ) -> Vec<
         Pin<
             Box<
-                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>>
+                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BackendError>>>
                     + 'static
                     + Send,
             >,
@@ -157,7 +162,7 @@ impl LinkManager {
             &mut BobClient,
         ) -> (Pin<
             Box<
-                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BobError>>>
+                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<BackendError>>>
                     + 'static
                     + Send,
             >,
@@ -171,7 +176,7 @@ impl LinkManager {
                 match &mut nl.conn {
                     Some(conn) => f(conn),
                     None => err(ClusterResult {
-                        result: BobError::Other(format!("No active connection {:?}", node)),
+                        result: BackendError::Failed(format!("No active connection {:?}", node)),
                         node,
                     })
                     .boxed(),

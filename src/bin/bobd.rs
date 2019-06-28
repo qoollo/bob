@@ -1,3 +1,4 @@
+#![feature(async_await)]
 use bob::api::grpc::server;
 
 use bob::core::data::VDiskMapper;
@@ -14,6 +15,9 @@ use bob::core::server::BobSrv;
 
 use futures::{Future, Stream};
 use tower_hyper::server::{Http, Server};
+
+use futures03::executor::ThreadPoolBuilder;
+use futures03::future::{FutureExt, TryFutureExt};
 
 #[macro_use]
 extern crate log;
@@ -81,8 +85,17 @@ fn main() {
         grinder: std::sync::Arc::new(Grinder::new(mapper, &node)),
     };
 
+    let pool = ThreadPoolBuilder::new()
+        .pool_size(node.ping_threads_count() as usize)
+        .create()
+        .unwrap();
+
     let mut rt = Runtime::new().unwrap();
-    rt.spawn(bob.get_periodic_tasks(rt.executor()));
+    let executor = rt.executor();
+
+    let b = bob.clone();
+    let q = async move { b.get_periodic_tasks(executor, pool).await };
+    rt.spawn(q.boxed().compat());
 
     let new_service = server::BobApiServer::new(bob);
 

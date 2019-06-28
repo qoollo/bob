@@ -5,34 +5,21 @@ use crate::core::{
 };
 
 #[derive(Debug)]
-pub enum BobError {
-    Timeout,
-    NotFound,
-    Other(String),
-}
-
-#[derive(Debug)]
 pub struct ClusterResult<T> {
     pub node: Node,
     pub result: T,
-}
-
-#[derive(Debug)]
-pub struct BobPutResult {}
-
-pub struct BobGetResult {
-    pub data: BobData,
-}
-
-#[derive(Debug)]
-pub struct BobPingResult {
-    pub node: Node,
 }
 
 #[derive(Clone)]
 pub struct BobData {
     pub data: Vec<u8>,
     pub meta: BobMeta,
+}
+
+impl BobData {
+    pub fn new(data: Vec<u8>, meta: BobMeta) -> Self {
+        BobData { data, meta }
+    }
 }
 
 #[derive(Debug, Clone)]

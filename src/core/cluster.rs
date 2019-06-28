@@ -1,8 +1,8 @@
 use crate::core::{
+    backend::backend::{BackendError, BackendPutResult, Get, Put},
     configs::node::NodeConfig,
     data::{print_vec, BobData, BobKey, Node, VDiskMapper},
     link_manager::LinkManager,
-    sprinkler::{Get, Put, SprinklerError, SprinklerResult},
 };
 use std::sync::Arc;
 
@@ -73,9 +73,9 @@ impl Cluster for QuorumCluster {
 
         let l_quorum = self.quorum;
         let q = t
-            .then(move |r| {
+            .map(move |r| {
                 trace!("PUT[{}] Response from cluster {:?}", key, r);
-                ok::<_, ()>(r) // wrap all result kind to process it later
+                r // wrap all result kind to process it later
             })
             .fold(vec![], |mut acc, r| {
                 acc.push(r);
@@ -91,17 +91,12 @@ impl Cluster for QuorumCluster {
                 );
                 // TODO: send actuall list of vdisk it has been written on
                 if ok_count >= l_quorum as usize {
-                    ok(SprinklerResult {
-                        total_ops: total_ops as u16,
-                        ok_ops: ok_count as u16,
-                        quorum: l_quorum,
-                    })
+                    ok(BackendPutResult {})
                 } else {
-                    err(SprinklerError {
-                        total_ops: total_ops as u16,
-                        ok_ops: ok_count as u16,
-                        quorum: l_quorum,
-                    })
+                    err(BackendError::Failed(format!(
+                        "failed: total: {}, ok: {}, quorum: {}",
+                        total_ops, ok_count, l_quorum
+                    )))
                 }
             });
 
@@ -122,21 +117,15 @@ impl Cluster for QuorumCluster {
 
         let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
 
-        let mut w = t
-            .then(move |r| {
-                ok::<_, ()>(r) // wrap all result kind to process it later
-            })
-            .skip_while(move |r| ready(!r.is_ok()));
+        let mut w = t.skip_while(move |r| ready(!r.is_ok()));
         let q = async move {
-            // t
-            // .then(move |r| {
-            //     ok::<_, ()>(r) // wrap all result kind to process it later
-            // })
-            // .skip_while(move |r| ready(!r.is_ok()))
             w.next()
-                .map(|r| r.unwrap().map(|q| q.map_err(|e| e.result)).unwrap())
+                .map(|r| {
+                    r.map(|res| res.map(|ok| ok.result).map_err(|err| err.result))
+                        .unwrap()
+                }) // TODO handle errors
                 .await
         };
-        Get({ q.boxed() })
+        Get(q.boxed())
     }
 }
