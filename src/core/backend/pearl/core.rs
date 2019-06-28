@@ -1,6 +1,6 @@
 use crate::core::backend::backend;
 use crate::core::backend::backend::*;
-use crate::core::backend::pearl::{data::*, stuff::LockGuard};
+use crate::core::backend::pearl::{data::*, stuff::{LockGuard, Stuff}};
 use crate::core::configs::node::{NodeConfig, PearlConfig};
 use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
 use pearl::{Builder, Storage};
@@ -12,7 +12,7 @@ use futures03::{
     FutureExt,
 };
 
-use std::{cell::RefCell, fs::create_dir_all, path::PathBuf, sync::Arc};
+use std::{cell::RefCell, path::PathBuf, sync::Arc};
 
 pub struct PearlBackend<TSpawner> {
     vdisks: Arc<Vec<PearlVDisk<TSpawner>>>,
@@ -28,7 +28,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
         //init pearl storages for each vdisk
         for disk in mapper.local_disks().iter() {
             let base_path = PathBuf::from(format!("{}/bob/", disk.path));
-            while let Err(e) = PearlVDisk::<TSpawner>::check_or_create_directory(&base_path) {
+            while let Err(e) = Stuff::check_or_create_directory(&base_path) {
                 error!(
                     "disk: {}, cannot check path: {:?}, error: {}",
                     disk, base_path, e
@@ -238,10 +238,10 @@ const ALIEN_VDISKID: u32 = 1500512323; //TODO
 
 #[derive(Clone)]
 struct PearlVDisk<TSpawner> {
-    pub path: String,
-    pub name: String,
-    pub vdisk: VDiskId,
-    pub disk_path: PathBuf,
+    path: String,
+    name: String,
+    vdisk: VDiskId,
+    disk_path: PathBuf,
 
     config: PearlConfig,
     spawner: TSpawner,
@@ -382,7 +382,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         let spawner = self.spawner.clone();
 
         while repeat {
-            if let Err(e) = Self::check_or_create_directory(path) {
+            if let Err(e) = Stuff::check_or_create_directory(path) {
                 error!("cannot check path: {:?}, error: {}", path, e);
                 //TODO sleep. use config params
                 continue;
@@ -409,23 +409,6 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
             return Ok(());
         }
         Err("stub".to_string())
-    }
-
-    fn check_or_create_directory(path: &PathBuf) -> BackendResult<()> {
-        if !path.exists() {
-            return match path.to_str() {
-                Some(dir) => create_dir_all(&path)
-                    .map(|_r| {
-                        info!("create directory: {}", dir);
-                        ()
-                    })
-                    .map_err(|e| {
-                        format!("cannot create directory: {}, error: {}", dir, e.to_string())
-                    }),
-                _ => Err("invalid some path, check vdisk or disk names".to_string()),
-            };
-        }
-        Ok(())
     }
 
     fn init_pearl_by_path(path: &PathBuf, config: &PearlConfig) -> BackendResult<PearlStorage> {

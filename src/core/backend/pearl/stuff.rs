@@ -4,7 +4,7 @@ use futures_locks::RwLock;
 use futures::future::Future;
 use futures03::{compat::Future01CompatExt, Future as Future03, FutureExt};
 
-use std::{pin::Pin, sync::Arc};
+use std::{pin::Pin, sync::Arc, fs::create_dir_all, path::PathBuf};
 
 pub(crate) struct LockGuard<TGuard> {
     storage: Arc<RwLock<TGuard>>,
@@ -76,5 +76,26 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
             .compat()
             .boxed()
             .await
+    }
+}
+
+pub(crate) struct Stuff {}
+
+impl Stuff {
+    pub(crate) fn check_or_create_directory(path: &PathBuf) -> BackendResult<()> {
+        if !path.exists() {
+            return match path.to_str() {
+                Some(dir) => create_dir_all(&path)
+                    .map(|_r| {
+                        info!("create directory: {}", dir);
+                        ()
+                    })
+                    .map_err(|e| {
+                        format!("cannot create directory: {}, error: {}", dir, e.to_string())
+                    }),
+                _ => Err("invalid some path, check vdisk or disk names".to_string()),
+            };
+        }
+        Ok(())
     }
 }
