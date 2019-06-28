@@ -59,35 +59,22 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
             .await
     }
 
-    // pub(crate) async fn update(&self, pearl: PearlStorage) -> BackendResult<()>
-    //  {
-    //     let mut storage = self.storage
-    //         .write()
-    //         .compat()
-    //         .await
-    //         .map_err(|e| {
-    //             error!("lock error on pearl vdisk: {:?}", e);
-    //             format!("lock error on pearl vdisk: {:?}", e)
-    //         })?;
-
-    //     storage.storage = pearl;
-    //     Ok(())
-    // }
-
-    // pub(crate) async fn get<F, Ret>(&self, f:F) -> BackendResult<Ret>
-    //     where F: Fn(&PearlVDisk) -> Ret + Send+Sync,
-    //  {
-    //     self.storage
-    //         .read()
-    //         .map(move |st| {
-    //             f(&*st)
-    //         })
-    //         .map_err(|e| {
-    //             error!("lock error on pearl vdisk: {:?}", e);
-    //             format!("lock error on pearl vdisk: {:?}", e)
-    //         })
-    //         .compat()
-    //         .boxed()
-    //         .await
-    // }
+    pub(crate) async fn write_sync<F, Ret>(&self, f: F) -> BackendResult<Ret>
+    where
+        F: Fn(TGuard) -> Ret + Send + Sync,
+    {
+        self.storage
+            .write()
+            .map(move |st| {
+                let clone = st.clone();
+                f(clone)
+            })
+            .map_err(|e| {
+                error!("lock error: {:?}", e);
+                format!("lock error: {:?}", e)
+            })
+            .compat()
+            .boxed()
+            .await
+    }
 }

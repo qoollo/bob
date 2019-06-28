@@ -51,10 +51,12 @@ impl PearlData {
         match tmp.try_into() {
             Ok(bytes) => {
                 let timestamp = u32::from_be_bytes(bytes);
-                Ok(BobData::new(bob_data.to_vec(), BobMeta::new_value(timestamp)))
-            },
+                Ok(BobData::new(
+                    bob_data.to_vec(),
+                    BobMeta::new_value(timestamp),
+                ))
+            }
             Err(e) => Err(format!("parse error: {}", e)),
         }
-        
     }
 }
