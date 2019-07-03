@@ -6,7 +6,7 @@ use crate::core::{
 use futures03::{
     future::{FutureExt, TryFutureExt},
     Future,
-    task::{Spawn, SpawnExt},
+    task::Spawn,
 
 };
 use std::{pin::Pin, sync::Arc};
