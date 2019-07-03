@@ -7,12 +7,11 @@ use pearl::{Builder, Storage};
 
 use futures03::{
     future::err as err03,
-    future::ready,
     task::{Spawn, SpawnExt},
     FutureExt,
 };
 
-use std::{cell::RefCell, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 pub struct PearlBackend<TSpawner> {
     vdisks: Arc<Vec<PearlVDisk<TSpawner>>>,
@@ -111,36 +110,35 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         let vdisks = self.vdisks.clone();
         Put({
             let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
-            match vdisk {
-                Some(disk) => {
-                    let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
-                    async move {
-                        let result = d_clone
-                            .write(key, Box::new(data))
-                            .map(|r| {
-                                r.map(|_ok| BackendPutResult {}).map_err(|e| {
-                                    backend::Error::StorageError(format!(
-                                        "PUT[{}][{}][{}], error: {}",
-                                        disk_name, vdisk_id, key, e
-                                    ))
-                                })
+            if let Some(disk) = vdisk {
+                let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
+                async move {
+                    let result = d_clone
+                        .write(key, Box::new(data))
+                        .map(|r| {
+                            r.map(|_ok| BackendPutResult {}).map_err(|e| {
+                                debug!(
+                                    "PUT[{}][{}][{}], error: {:?}",
+                                    disk_name, vdisk_id, key, e
+                                );
+                                e
                             })
-                            .await;
-                        if result.is_err() && d_clone.try_reinit().await.unwrap() {
-                            //TODO panic if failed lock?
-                            let _ = d_clone.reinit_storage().await;
-                        }
-                        result
+                        })
+                        .await;
+                    if result.is_err() && d_clone.try_reinit().await.unwrap() { //TODO check err type
+                        //TODO panic if failed lock?
+                        let _ = d_clone.reinit_storage().await;
                     }
-                        .boxed()
+                    result
                 }
-                _ => {
-                    debug!(
-                        "PUT[{}][{}][{}] to pearl backend. Cannot find storage",
-                        disk_name, vdisk_id, key
-                    );
-                    err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
-                }
+                    .boxed()
+            }
+            else {
+                debug!(
+                    "PUT[{}][{}][{}] to pearl backend. Cannot find storage",
+                    disk_name, vdisk_id, key
+                );
+                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
             }
         })
     }
@@ -155,14 +153,16 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
                     .write(key, Box::new(data))
                     .map(|r| {
                         r.map(|_ok| BackendPutResult {}).map_err(|e| {
-                            backend::Error::StorageError(format!(
-                                "PUT[alien][{}], error: {}",
+                            debug!(
+                                "PUT[alien][{}], error: {:?}",
                                 key, e
-                            ))
+                            );
+                            e
                         })
                     })
                     .await;
-                if result.is_err() && alien_dir.try_reinit().await.unwrap() {
+                if result.as_ref().err() ==  Some(&backend::Error::VDiskIsNotReady)
+                    && alien_dir.try_reinit().await.unwrap() {
                     //TODO panic if failed lock?
                     let _ = alien_dir.reinit_storage().await;
                 }
@@ -181,36 +181,35 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         let vdisks = self.vdisks.clone();
         Get({
             let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
-            match vdisk {
-                Some(disk) => {
-                    let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
-                    async move {
-                        let result = d_clone
-                            .read(key)
-                            .map(|r| {
-                                r.map(|data| BackendGetResult { data }).map_err(|e| {
-                                    backend::Error::StorageError(format!(
-                                        "GET[{}][{}][{}], error: {}",
-                                        disk_name, vdisk_id, key, e
-                                    ))
-                                })
+            if let Some(disk) = vdisk {
+                let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
+                async move {
+                    let result = d_clone
+                        .read(key)
+                        .map(|r| {
+                            r.map(|data| BackendGetResult { data }).map_err(|e| {
+                                debug!(
+                                    "GET[{}][{}][{}], error: {:?}",
+                                    disk_name, vdisk_id, key, e
+                                );
+                                e
                             })
-                            .await;
-                        if result.is_err() && d_clone.try_reinit().await.unwrap() {
-                            //TODO panic if failed lock?
-                            let _ = d_clone.reinit_storage().await;
-                        }
-                        result
+                        })
+                        .await;
+                    if result.is_err() && d_clone.try_reinit().await.unwrap() {
+                        //TODO panic if failed lock?
+                        let _ = d_clone.reinit_storage().await;
                     }
-                        .boxed()
+                    result
                 }
-                _ => {
-                    debug!(
-                        "GET[{}][{}][{}] to pearl backend. Cannot find storage",
-                        disk_name, vdisk_id, key
-                    );
-                    err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
-                }
+                    .boxed()
+            }
+            else {
+                debug!(
+                    "GET[{}][{}][{}] to pearl backend. Cannot find storage",
+                    disk_name, vdisk_id, key
+                );
+                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
             }
         })
     }
@@ -225,14 +224,16 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
                     .read(key)
                     .map(|r| {
                         r.map(|data| BackendGetResult { data }).map_err(|e| {
-                            backend::Error::StorageError(format!(
-                                "PUT[alien][{}], error: {}",
+                            debug!(
+                                "PUT[alien][{}], error: {:?}",
                                 key, e
-                            ))
+                            );
+                            e
                         })
                     })
                     .await;
-                if result.is_err() && alien_dir.try_reinit().await.unwrap() {
+                if result.as_ref().err() ==  Some(&backend::Error::VDiskIsNotReady)
+                    && alien_dir.try_reinit().await.unwrap() {
                     //TODO panic if failed lock?
                     let _ = alien_dir.reinit_storage().await;
                 }
@@ -298,28 +299,32 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
     pub async fn update(&self, storage: Storage<PearlKey>) -> BackendResult<()> {
         trace!("try update Pearl id: {}", self.vdisk);
 
-        self.storage
-            .write(|st| {
+        let _ = self.storage
+            .write_sync_mut(|st| {
                 st.set(storage.clone());
                 st.ready(); // current pearl disk is ready
 
-                debug!("update Pearl id: {}, mark as ready", self.vdisk);
+                debug!("update Pearl id: {}, mark as ready, state: {}", self.vdisk, st);
 
-                ready(Ok(())).boxed()
+                return true;
             })
-            .await
+            .await;
+
+        async move {
+            Ok(())
+        }.await
     }
 
     pub fn equal(&self, name: &str, vdisk: &VDiskId) -> bool {
         return self.name == name && self.vdisk == *vdisk;
     }
 
-    pub async fn write(&self, key: BobKey, data: Box<BobData>) -> BackendResult<()> {
+    pub async fn write(&self, key: BobKey, data: Box<BobData>) -> Result<(), backend::Error> {
         self.storage
             .read(|st| {
                 if !st.is_ready() {
-                    trace!("Vdisk: {} is not ready for writing, ", self.vdisk);
-                    return err03("".to_string()).boxed(); // TODO mark that typical error
+                    trace!("Vdisk: {} is not ready for writing, state: {}", self.vdisk, st);
+                    return err03(backend::Error::VDiskIsNotReady).boxed(); // TODO mark that typical error
                 }
                 let storage = st.get();
                 trace!("Vdisk: {}, write key: {}", self.vdisk, key);
@@ -332,19 +337,23 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         storage: PearlStorage,
         key: PearlKey,
         data: Box<BobData>,
-    ) -> BackendResult<()> {
+    ) -> Result<(), backend::Error> {
         storage
             .write(key, PearlData::new(data).bytes())
             .await
-            .map_err(|e| format!("error on write: {:?}", e))
+            .map_err(|e| {
+                trace!("error on write: {:?}", e);
+                //TODO check duplicate
+                backend::Error::StorageError(format!("{:?}", e))
+            })
     }
 
-    pub async fn read(&self, key: BobKey) -> BackendResult<BobData> {
+    pub async fn read(&self, key: BobKey) -> Result<BobData, backend::Error> {
         self.storage
             .read(|st| {
                 if !st.is_ready() {
-                    trace!("Vdisk: {} is not ready for reading, ", self.vdisk);
-                    return err03("vdisk is not ready".to_string()).boxed();
+                    trace!("Vdisk: {} is not ready for reading, state: {}", self.vdisk, st);
+                    return err03(backend::Error::VDiskIsNotReady).boxed();
                 }
                 let storage = st.get();
                 trace!("Vdisk: {}, read key: {}", self.vdisk, key);
@@ -353,29 +362,33 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
             .await
     }
 
-    async fn read_disk(storage: PearlStorage, key: PearlKey) -> BackendResult<BobData> {
+    async fn read_disk(storage: PearlStorage, key: PearlKey) -> Result<BobData, backend::Error> {
         storage
             .read(key)
             .await
             .map(|r| PearlData::parse(r))
-            .map_err(|e| format!("error on read: {:?}", e))?
+            .map_err(|e| {
+                trace!("error on read: {:?}", e);
+                
+                backend::Error::StorageError(format!("{:?}", e))
+            })?
     }
 
     pub async fn try_reinit(&self) -> BackendResult<bool> {
         self.storage
-            .write_sync(|st| {
+            .write_sync_mut(|st| {
                 if st.is_reinit() {
-                    trace!("Vdisk: {} is currently reinitializing", self.vdisk);
+                    trace!("Vdisk: {} is currently reinitializing, state: {}", self.vdisk, st);
                     return false;
                 }
-                trace!("Vdisk: {} set as reinit", self.vdisk);
                 st.init();
+                trace!("Vdisk: {} set as reinit, state: {}", self.vdisk, st);
                 let storage = st.get();
                 trace!("Vdisk: {} close old Pearl", self.vdisk);
-                let result = storage.close();
-                if let Err(e) = result {
-                    error!("can't close pearl storage: {:?}", e);
-                }
+                // let result = storage.close();//TODO
+                // if let Err(e) = result {
+                //     error!("can't close pearl storage: {:?}", e);
+                // }
                 return true;
             })
             .await
@@ -468,7 +481,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 enum PearlState {
     Normal,
     Initializing,
@@ -476,20 +489,20 @@ enum PearlState {
 
 #[derive(Clone)]
 struct PearlSync {
-    storage: RefCell<Option<PearlStorage>>,
-    state: RefCell<PearlState>,
+    storage: Option<PearlStorage>,
+    state: PearlState,
 }
 impl PearlSync {
     pub(crate) fn new() -> Self {
         PearlSync {
-            storage: RefCell::new(None),
-            state: RefCell::new(PearlState::Initializing),
+            storage: None,
+            state: PearlState::Initializing,
         }
     }
-    pub(crate) fn ready(&self) {
+    pub(crate) fn ready(&mut self) {
         self.set_state(PearlState::Normal);
     }
-    pub(crate) fn init(&self) {
+    pub(crate) fn init(&mut self) {
         self.set_state(PearlState::Initializing);
     }
     pub(crate) fn is_ready(&self) -> bool {
@@ -499,17 +512,24 @@ impl PearlSync {
         self.get_state() == PearlState::Initializing
     }
 
-    pub(crate) fn set_state(&self, state: PearlState) {
-        self.state.replace(state);
-    }
-    pub(crate) fn get_state(&self) -> PearlState {
-        self.state.borrow().clone()
+    pub(crate) fn set_state(&mut self, state: PearlState) {
+        self.state = state;
     }
 
-    pub(crate) fn set(&self, storage: PearlStorage) {
-        self.storage.replace(Some(storage));
+    pub(crate) fn get_state(&self) -> PearlState {
+        self.state.clone()
+    }
+
+    pub(crate) fn set(&mut self, storage: PearlStorage) {
+        self.storage = Some(storage);
     }
     pub(crate) fn get(&self) -> PearlStorage {
-        self.storage.borrow().clone().unwrap()
+        self.storage.clone().unwrap()
+    }
+}
+
+impl std::fmt::Display for PearlSync {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "#{:?}", self.state)
     }
 }

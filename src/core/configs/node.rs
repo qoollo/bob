@@ -332,4 +332,18 @@ impl NodeConfigYaml {
             }
         }
     }
+
+    pub fn get_from_string(&self, file: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
+        let config: NodeConfig = YamlBobConfigReader {}.parse(file)?;
+        match config.validate() {
+            Ok(_) => {
+                self.check_cluster(cluster, &config)?;
+                Ok(config)
+            }
+            Err(e) => {
+                debug!("config is not valid: {}", e);
+                Err(format!("config is not valid: {}", e))
+            }
+        }
+    }
 }

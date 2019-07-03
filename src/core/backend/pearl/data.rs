@@ -1,4 +1,5 @@
 use crate::core::data::{BobData, BobKey, BobMeta};
+use crate::core::backend;
 use pearl::{Key, Storage};
 
 use std::{boxed::Box, convert::TryInto};
@@ -46,7 +47,7 @@ impl PearlData {
         result
     }
 
-    pub(crate) fn parse(data: Vec<u8>) -> BackendResult<BobData> {
+    pub(crate) fn parse(data: Vec<u8>) -> Result<BobData, backend::Error> {
         let (tmp, bob_data) = data.split_at(PearlData::TIMESTAMP_LEN);
         match tmp.try_into() {
             Ok(bytes) => {
@@ -56,7 +57,7 @@ impl PearlData {
                     BobMeta::new_value(timestamp),
                 ))
             }
-            Err(e) => Err(format!("parse error: {}", e)),
+            Err(e) => Err(backend::Error::StorageError(format!("parse error: {}", e))),
         }
     }
 }

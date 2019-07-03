@@ -4,10 +4,9 @@ use crate::core::{
     data::{BobData, BobKey, DiskPath, VDiskId, VDiskMapper},
 };
 use futures03::{
-    future::{FutureExt, TryFutureExt},
+    future::{FutureExt, TryFutureExt, ready},
     Future,
     task::Spawn,
-
 };
 use std::{pin::Pin, sync::Arc};
 
@@ -125,7 +124,14 @@ impl Backend {
                     backend.put_alien(oper.vdisk_id.clone(), key, data).0
                 };
 
-                result.or_else(|err| func(err)).boxed()
+                result.or_else(|err| {
+                    if err != Error::DuplicateKey{
+                        func(err)
+                    }
+                    else {
+                        ready(Err(err)).boxed()
+                    }
+                }).boxed()
             } else {
                 debug!(
                     "PUT[{}] to backend, alien data for {}",

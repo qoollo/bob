@@ -38,36 +38,14 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
             .await
     }
 
-    pub(crate) async fn write<F, Ret>(&self, f: F) -> BackendResult<Ret>
+    pub(crate) async fn write_sync_mut<F, Ret>(&self, f: F) -> BackendResult<Ret>
     where
-        F: Fn(TGuard) -> Pin<Box<dyn Future03<Output = BackendResult<Ret>> + Send>> + Send + Sync,
+        F: Fn(&mut TGuard) -> Ret + Send + Sync,
     {
         self.storage
             .write()
-            .map(move |st| {
-                let clone = st.clone();
-                f(clone)
-            })
-            .map_err(|e| {
-                error!("lock error: {:?}", e);
-                e
-            })
-            .compat()
-            .boxed()
-            .await
-            .unwrap()
-            .await
-    }
-
-    pub(crate) async fn write_sync<F, Ret>(&self, f: F) -> BackendResult<Ret>
-    where
-        F: Fn(TGuard) -> Ret + Send + Sync,
-    {
-        self.storage
-            .write()
-            .map(move |st| {
-                let clone = st.clone();
-                f(clone)
+            .map(move |mut st| {
+                f(&mut *st)
             })
             .map_err(|e| {
                 error!("lock error: {:?}", e);
@@ -96,6 +74,7 @@ impl Stuff {
                 _ => Err("invalid some path, check vdisk or disk names".to_string()),
             };
         }
+        trace!("directory: {:?} exists", path);
         Ok(())
     }
 }

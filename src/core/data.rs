@@ -53,6 +53,14 @@ pub struct BobKey {
     pub key: u64,
 }
 
+impl BobKey {
+    pub fn new(key: u64) -> Self {
+        BobKey{
+            key
+        }
+    }
+}
+
 impl std::fmt::Display for BobKey {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.key)

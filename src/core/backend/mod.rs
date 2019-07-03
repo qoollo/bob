@@ -14,6 +14,9 @@ pub enum Error {
 
     VDiskNoFound(VDiskId),
     StorageError(String),
+    DuplicateKey,
+    KeyNotFound,
+    VDiskIsNotReady,
 
     Failed(String),
     Other,
