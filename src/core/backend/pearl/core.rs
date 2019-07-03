@@ -79,26 +79,32 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
             alien_dir: alien_dir,
         }
     }
-
-    pub async fn run_backend(&self) -> BackendResult<()> {
-        debug!("run pearl backend");
-
-        for i in 0..self.vdisks.len() {
-            let _ = self.vdisks[i]
-                .clone()
-                .prepare_storage() //TODO add Box?
-                .await;
-        }
-
-        let _ = self.alien_dir.clone().prepare_storage().await;
-
-        Ok(())
-    }
 }
 
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
     for PearlBackend<TSpawner>
 {
+    fn run_backend(&self) -> RunResult {
+        debug!("run pearl backend");
+
+        let vdisks = self.vdisks.clone();
+        let alien_dir = self.alien_dir.clone();
+        let q = async move {
+            for i in 0..vdisks.len() {
+                let _ = vdisks[i]
+                    .clone()
+                    .prepare_storage() //TODO add Box?
+                    .await;
+            }
+
+            let _ = alien_dir.prepare_storage().await;
+            Ok(())
+        };
+        
+
+        q.boxed()
+    }
+
     fn put(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}][{}][{}] to pearl backend", disk_name, vdisk_id, key);
 

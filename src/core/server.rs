@@ -21,6 +21,10 @@ pub struct BobSrv {
 }
 
 impl BobSrv {
+    pub async fn run_backend(&self) -> Result<(), String> {
+        self.grinder.run_backend().await
+    }
+
     pub async fn get_periodic_tasks<S>(
         &self,
         ex: tokio::runtime::TaskExecutor,

@@ -173,6 +173,12 @@ impl MemBackend {
 }
 
 impl BackendStorage for MemBackend {
+    fn run_backend(&self) -> RunResult {
+        async move {
+            Ok(())
+        }.boxed()
+    }
+
     fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}][{}] to backend", key, disk_name);
         let disk = self.disks.get(&disk_name).clone();

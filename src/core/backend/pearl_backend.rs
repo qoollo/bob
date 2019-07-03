@@ -185,98 +185,98 @@ impl PearlBackend {
     }
 }
 
-impl BackendStorage for PearlBackend {
-    fn put(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
-        debug!("PUT[{}][{}][{}] to pearl backend", disk_name, vdisk_id, key);
+// impl BackendStorage for PearlBackend {
+//     fn put(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
+//         debug!("PUT[{}][{}][{}] to pearl backend", disk_name, vdisk_id, key);
 
-        //TODO remove clone for vdisk_id
-        let t = self.vdisks.clone();
-        Put({
-            let vdisk = t.iter().find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
+//         //TODO remove clone for vdisk_id
+//         let t = self.vdisks.clone();
+//         Put({
+//             let vdisk = t.iter().find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
 
-            if let Some(disk) = vdisk {
-                let storage = disk.storage.clone();
-                PearlVDisk::write(storage, PearlKey::new(key), data)
-                    .map(|_r| Ok(BackendPutResult {}))
-                    .map_err(|_e: ()| backend::Error::StorageError("".to_string()))
-                    .boxed() //TODO - add description for error key or vdisk for example
-            } else {
-                debug!(
-                    "PUT[{}][{}][{}] to pearl backend. Cannot find storage",
-                    disk_name, vdisk_id, key
-                );
-                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
-            }
-        })
-    }
+//             if let Some(disk) = vdisk {
+//                 let storage = disk.storage.clone();
+//                 PearlVDisk::write(storage, PearlKey::new(key), data)
+//                     .map(|_r| Ok(BackendPutResult {}))
+//                     .map_err(|_e: ()| backend::Error::StorageError("".to_string()))
+//                     .boxed() //TODO - add description for error key or vdisk for example
+//             } else {
+//                 debug!(
+//                     "PUT[{}][{}][{}] to pearl backend. Cannot find storage",
+//                     disk_name, vdisk_id, key
+//                 );
+//                 err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
+//             }
+//         })
+//     }
 
-    fn put_alien(&self, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
-        debug!("PUT[alien][{}] to pearl backend", key);
+//     fn put_alien(&self, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
+//         debug!("PUT[alien][{}] to pearl backend", key);
 
-        //TODO remove clone for vdisk_id
-        let vdisk = self.alien_dir.as_ref().clone();
-        Put({
-            if let Some(disk) = vdisk {
-                let storage = disk.storage.clone();
-                PearlVDisk::write(storage, PearlKey::new(key), data)
-                    .map(|_r| Ok(BackendPutResult {}))
-                    .map_err(|_e: ()| backend::Error::StorageError("".to_string()))
-                    .boxed() //TODO - add description for error
-            } else {
-                debug!("PUT[alien][{}] to pearl backend. Cannot find storage", key);
-                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
-            }
-        })
-    }
+//         //TODO remove clone for vdisk_id
+//         let vdisk = self.alien_dir.as_ref().clone();
+//         Put({
+//             if let Some(disk) = vdisk {
+//                 let storage = disk.storage.clone();
+//                 PearlVDisk::write(storage, PearlKey::new(key), data)
+//                     .map(|_r| Ok(BackendPutResult {}))
+//                     .map_err(|_e: ()| backend::Error::StorageError("".to_string()))
+//                     .boxed() //TODO - add description for error
+//             } else {
+//                 debug!("PUT[alien][{}] to pearl backend. Cannot find storage", key);
+//                 err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
+//             }
+//         })
+//     }
 
-    fn get(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey) -> Get {
-        debug!(
-            "Get[{}][{}][{}] from pearl backend",
-            disk_name, vdisk_id, key
-        );
+//     fn get(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey) -> Get {
+//         debug!(
+//             "Get[{}][{}][{}] from pearl backend",
+//             disk_name, vdisk_id, key
+//         );
 
-        //TODO remove clone for vdisk_id
-        let t = self.vdisks.clone();
-        Get({
-            let vdisk = t.iter().find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
+//         //TODO remove clone for vdisk_id
+//         let t = self.vdisks.clone();
+//         Get({
+//             let vdisk = t.iter().find(|vd| vd.equal(&disk_name, vdisk_id.clone()));
 
-            if let Some(disk) = vdisk {
-                let storage = disk.storage.clone();
-                PearlVDisk::read(storage, PearlKey::new(key))
-                    .map(|r| {
-                        r.map(|data| BackendGetResult { data })
-                            .map_err(|_e: ()| backend::Error::StorageError("".to_string()))
-                    })
-                    .boxed() //TODO - add description for error
-            } else {
-                debug!(
-                    "Get[{}][{}][{}] to pearl backend. Cannot find storage",
-                    disk_name, vdisk_id, key
-                );
-                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
-            }
-        })
-    }
+//             if let Some(disk) = vdisk {
+//                 let storage = disk.storage.clone();
+//                 PearlVDisk::read(storage, PearlKey::new(key))
+//                     .map(|r| {
+//                         r.map(|data| BackendGetResult { data })
+//                             .map_err(|_e: ()| backend::Error::StorageError("".to_string()))
+//                     })
+//                     .boxed() //TODO - add description for error
+//             } else {
+//                 debug!(
+//                     "Get[{}][{}][{}] to pearl backend. Cannot find storage",
+//                     disk_name, vdisk_id, key
+//                 );
+//                 err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
+//             }
+//         })
+//     }
 
-    fn get_alien(&self, vdisk_id: VDiskId, key: BobKey) -> Get {
-        debug!("Get[alien][{}] from pearl backend", key);
-        let vdisk = self.alien_dir.as_ref().clone();
-        Get({
-            if let Some(disk) = vdisk {
-                let storage = disk.storage.clone();
-                PearlVDisk::read(storage, PearlKey::new(key))
-                    .map(|r| {
-                        r.map(|data| BackendGetResult { data })
-                            .map_err(|_e: ()| backend::Error::StorageError("".to_string()))
-                    })
-                    .boxed() //TODO - add description for error
-            } else {
-                debug!("Get[alien][{}] to pearl backend. Cannot find storage", key);
-                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
-            }
-        })
-    }
-}
+//     fn get_alien(&self, vdisk_id: VDiskId, key: BobKey) -> Get {
+//         debug!("Get[alien][{}] from pearl backend", key);
+//         let vdisk = self.alien_dir.as_ref().clone();
+//         Get({
+//             if let Some(disk) = vdisk {
+//                 let storage = disk.storage.clone();
+//                 PearlVDisk::read(storage, PearlKey::new(key))
+//                     .map(|r| {
+//                         r.map(|data| BackendGetResult { data })
+//                             .map_err(|_e: ()| backend::Error::StorageError("".to_string()))
+//                     })
+//                     .boxed() //TODO - add description for error
+//             } else {
+//                 debug!("Get[alien][{}] to pearl backend. Cannot find storage", key);
+//                 err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
+//             }
+//         })
+//     }
+// }
 
 const ALIEN_VDISKID: u32 = 1500512323; //TODO
 #[derive(Clone)]
