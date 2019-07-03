@@ -21,6 +21,7 @@ pub struct PearlBackend<TSpawner> {
 
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpawner> {
     pub fn new(mapper: VDiskMapper, config: &NodeConfig, spawner: TSpawner) -> Self {
+        debug!("initializing pearl backend");
         let pearl_config = config.pearl.clone().unwrap();
 
         let mut result = Vec::new();
@@ -41,7 +42,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
                 .map(|vdisk_id| {
                     let mut vdisk_path = base_path.clone();
                     vdisk_path.push(format!("{}/", vdisk_id));
-
+                    
                     PearlVDisk::new(
                         &disk.path,
                         &disk.name,
@@ -80,6 +81,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
     }
 
     pub async fn run_backend(&self) -> BackendResult<()> {
+        debug!("run pearl backend");
+
         for i in 0..self.vdisks.len() {
             let _ = self.vdisks[i]
                 .clone()
@@ -177,7 +180,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
                     let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
                     async move {
                         let result = d_clone
-                            .read(PearlKey::new(key))
+                            .read(key)
                             .map(|r| {
                                 r.map(|data| BackendGetResult { data }).map_err(|e| {
                                     backend::Error::StorageError(format!(
@@ -213,7 +216,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         Get({
             async move {
                 let result = alien_dir
-                    .read(PearlKey::new(key))
+                    .read(key)
                     .map(|r| {
                         r.map(|data| BackendGetResult { data }).map_err(|e| {
                             backend::Error::StorageError(format!(
@@ -287,10 +290,15 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
     }
 
     pub async fn update(&self, storage: Storage<PearlKey>) -> BackendResult<()> {
+        trace!("try update Pearl id: {}", self.vdisk);
+
         self.storage
             .write(|st| {
                 st.set(storage.clone());
                 st.ready(); // current pearl disk is ready
+
+                debug!("update Pearl id: {}, mark as ready", self.vdisk);
+
                 ready(Ok(())).boxed()
             })
             .await
@@ -304,9 +312,11 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         self.storage
             .read(|st| {
                 if !st.is_ready() {
+                    trace!("Vdisk: {} is not ready for writing, ", self.vdisk);
                     return err03("".to_string()).boxed(); // TODO mark that typical error
                 }
                 let storage = st.get();
+                trace!("Vdisk: {}, write key: {}", self.vdisk, key);
                 Self::write_disk(storage, PearlKey::new(key), data.clone()).boxed()
             })
             .await
@@ -323,14 +333,16 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
             .map_err(|e| format!("error on write: {:?}", e))
     }
 
-    pub async fn read(&self, key: PearlKey) -> BackendResult<BobData> {
+    pub async fn read(&self, key: BobKey) -> BackendResult<BobData> {
         self.storage
             .read(|st| {
                 if !st.is_ready() {
+                    trace!("Vdisk: {} is not ready for reading, ", self.vdisk);
                     return err03("vdisk is not ready".to_string()).boxed();
                 }
                 let storage = st.get();
-                Self::read_disk(storage, key.clone()).boxed()
+                trace!("Vdisk: {}, read key: {}", self.vdisk, key);
+                Self::read_disk(storage, PearlKey::new(key)).boxed()
             })
             .await
     }
@@ -347,10 +359,13 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         self.storage
             .write_sync(|st| {
                 if st.is_reinit() {
+                    trace!("Vdisk: {} is currently reinitializing", self.vdisk);
                     return false;
                 }
+                trace!("Vdisk: {} set as reinit", self.vdisk);
                 st.init();
                 let storage = st.get();
+                trace!("Vdisk: {} close old Pearl", self.vdisk);
                 let result = storage.close();
                 if let Err(e) = result {
                     error!("can't close pearl storage: {:?}", e);
@@ -361,8 +376,10 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
     }
 
     async fn reinit_storage(self) -> BackendResult<()> {
+        debug!("Vdisk: {} try reinit Pearl", self.vdisk);
         let mut spawner = self.spawner.clone();
         let _ = async move {
+            debug!("Vdisk: {} start reinit Pearl", self.vdisk);
             let _ = spawner
                 .spawn(self.prepare_storage().map(|_r| ()))
                 .map_err(|e| {
@@ -406,6 +423,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
                 //TODO sleep. use config params
                 continue;
             }
+            debug!("Vdisk: {} Pearl is ready for work", self.vdisk);
             return Ok(());
         }
         Err("stub".to_string())
@@ -437,6 +455,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
                 //TODO sleep. use config params
                 continue;
             }
+            trace!("Pearl is created by path: {:?}", path);
             return storage;
         }
         Err("stub".to_string())
