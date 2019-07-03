@@ -1,5 +1,5 @@
 use crate::core::{
-    backend::{mem_backend::MemBackend, stub_backend::StubBackend, pearl::core::PearlBackend},
+    backend::{mem_backend::MemBackend, stub_backend::StubBackend, pearl::core::PearlBackend, Error},
     configs::node::{BackendType, NodeConfig},
     data::{BobData, BobKey, DiskPath, VDiskId, VDiskMapper},
 };
@@ -10,28 +10,6 @@ use futures03::{
 
 };
 use std::{pin::Pin, sync::Arc};
-
-#[derive(PartialEq)]
-pub enum Error {
-    Timeout,
-    NotFound,
-
-    VDiskNoFound(VDiskId),
-    StorageError(String),
-
-    Failed(String),
-    Other,
-}
-
-impl std::fmt::Debug for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Error::VDiskNoFound(id) => write!(f, "vdisk: {:?} not found", id),
-            Error::StorageError(description) => write!(f, "backend error: {}", description),
-            _ => write!(f, "{:?}", self),
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct BackendOperation {

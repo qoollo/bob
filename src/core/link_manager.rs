@@ -1,5 +1,5 @@
 use crate::core::{
-    backend::backend::Error,
+    backend::Error,
     bob_client::{BobClient, BobClientFactory},
     data::{ClusterResult, Node},
 };

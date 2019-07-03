@@ -1,4 +1,4 @@
-use crate::core::backend::backend::*;
+use crate::core::backend::core::*;
 use crate::core::data::{BobData, BobKey, BobMeta, VDiskId};
 use futures03::{future::ok, FutureExt};
 

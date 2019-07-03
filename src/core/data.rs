@@ -1,6 +1,6 @@
 use crate::api::grpc::BlobMeta;
 use crate::core::{
-    backend::backend::BackendOperation,
+    backend::core::BackendOperation,
     configs::node::{DiskPath as ConfigDiskPath, NodeConfig},
 };
 

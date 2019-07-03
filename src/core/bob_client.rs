@@ -2,7 +2,8 @@ use crate::api::grpc::{
     client::BobApi, Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions, PutRequest,
 };
 use crate::core::{
-    backend::backend::{BackendGetResult, BackendPingResult, BackendPutResult, Error},
+    backend::core::{BackendGetResult, BackendPingResult, BackendPutResult},
+    backend::Error,
     data::{BobData, BobKey, BobMeta, ClusterResult, Node},
 };
 use tower_grpc::{BoxBody, Code, Request, Status};

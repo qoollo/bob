@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::core::backend::backend::*;
+    use crate::core::backend::core::*;
+    use crate::core::backend::*;
     use crate::core::backend::mem_backend::*;
     use crate::core::data::*;
     use futures03::executor::{ThreadPool, ThreadPoolBuilder};
