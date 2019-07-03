@@ -4,7 +4,7 @@ use futures_locks::RwLock;
 use futures::future::Future;
 use futures03::{compat::Future01CompatExt, Future as Future03, FutureExt};
 
-use std::{pin::Pin, sync::Arc, fs::create_dir_all, path::PathBuf};
+use std::{pin::Pin, sync::Arc, fs::{create_dir_all, remove_file}, path::PathBuf};
 
 pub(crate) struct LockGuard<TGuard> {
     storage: Arc<RwLock<TGuard>>,
@@ -55,6 +55,26 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
             .boxed()
             .await
     }
+
+    pub(crate) async fn write_mut<F, TRet>(&self, f: F) -> BackendResult<TRet>
+    where
+        F: Fn(&mut TGuard) -> Pin<Box<dyn Future03<Output = BackendResult<TRet>> + Send>> + Send + Sync,
+    {
+        self.storage
+            .write()
+            .map(move |mut st| {
+                f(&mut *st)
+            })
+            .map_err(|e| {
+                error!("lock error: {:?}", e);
+                format!("lock error: {:?}", e)
+            })
+            .compat()
+            .boxed()
+            .await
+            .unwrap()
+            .await
+    }
 }
 
 pub(crate) struct Stuff {}
@@ -75,6 +95,21 @@ impl Stuff {
             };
         }
         trace!("directory: {:?} exists", path);
+        Ok(())
+    }
+
+    pub(crate) fn drop_pearl_lock_file(path: &PathBuf) -> BackendResult<()> {
+        let mut file = path.clone();
+        file.push("pearl.lock");
+        if file.exists() {
+            return remove_file(&file).map(|_r| {
+                        info!("delete lock file from directory: {:?}", file);
+                        ()
+                    })
+                    .map_err(|e| {
+                        format!("cannot delete lock file from directory: {:?}, error: {}", file, e.to_string())
+                    })
+        }
         Ok(())
     }
 }

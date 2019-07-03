@@ -3,7 +3,7 @@ use crate::core::backend;
 use crate::core::backend::pearl::{data::*, stuff::{LockGuard, Stuff}};
 use crate::core::configs::node::{NodeConfig, PearlConfig};
 use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
-use pearl::{Builder, Storage};
+use pearl::{Builder, Storage, ErrorKind};
 
 use futures03::{
     future::err as err03,
@@ -369,27 +369,34 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
             .map(|r| PearlData::parse(r))
             .map_err(|e| {
                 trace!("error on read: {:?}", e);
-                
-                backend::Error::StorageError(format!("{:?}", e))
+                match e.kind() {
+                    ErrorKind::RecordNotFound => backend::Error::KeyNotFound,
+                    _ => backend::Error::StorageError(format!("{:?}", e)),
+                }
             })?
     }
 
     pub async fn try_reinit(&self) -> BackendResult<bool> {
         self.storage
-            .write_sync_mut(|st| {
+            .write_mut(|st| {
                 if st.is_reinit() {
                     trace!("Vdisk: {} is currently reinitializing, state: {}", self.vdisk, st);
-                    return false;
+                    return err03("false".to_string()).boxed();
                 }
                 st.init();
                 trace!("Vdisk: {} set as reinit, state: {}", self.vdisk, st);
                 let storage = st.get();
                 trace!("Vdisk: {} close old Pearl", self.vdisk);
-                // let result = storage.close();//TODO
-                // if let Err(e) = result {
-                //     error!("can't close pearl storage: {:?}", e);
-                // }
-                return true;
+                let q = async move {
+                    let result = storage.close().await;
+                    if let Err(e) = result {
+                        error!("can't close pearl storage: {:?}", e);
+                        return Err(format!("can't close pearl storage: {:?}", e));
+                    }
+                    Ok(true)
+                };
+                
+                q.boxed()
             })
             .await
     }
@@ -420,6 +427,12 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         while repeat {
             if let Err(e) = Stuff::check_or_create_directory(path) {
                 error!("cannot check path: {:?}, error: {}", path, e);
+                //TODO sleep. use config params
+                continue;
+            }
+            
+            if let Err(e) = Stuff::drop_pearl_lock_file(path) {
+                error!("cannot delete lock file: {:?}, error: {}", path, e);
                 //TODO sleep. use config params
                 continue;
             }
