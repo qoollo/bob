@@ -56,6 +56,7 @@ impl BackendOperation {
 #[derive(Debug)]
 pub struct BackendPutResult {}
 
+#[derive(Debug)]
 pub struct BackendGetResult {
     pub data: BobData,
 }

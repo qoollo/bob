@@ -7,7 +7,7 @@ pub mod pearl;
 
 use crate::core::data::VDiskId;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum Error {
     Timeout,
     NotFound,
@@ -22,12 +22,12 @@ pub enum Error {
     Other,
 }
 
-impl std::fmt::Debug for Error {
+impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Error::VDiskNoFound(id) => write!(f, "vdisk: {:?} not found", id),
             Error::StorageError(description) => write!(f, "backend error: {}", description),
-            _ => write!(f, "{:?}", self),
+            err => write!(f, "{:?}", err),
         }
     }
 }

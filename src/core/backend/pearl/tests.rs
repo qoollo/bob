@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use futures03::executor::{ThreadPool, ThreadPoolBuilder};
     use crate::core::backend::pearl::core::*;
     use crate::core::backend;
 
@@ -8,14 +7,29 @@ mod tests {
     use crate::core::configs::node::NodeConfigYaml;
     use crate::core::data::{VDiskMapper, VDiskId, BobData, BobKey, BobMeta};
     use crate::core::backend::core::BackendStorage;
+    use futures03::{
+      FutureExt,
+      executor::{ThreadPool, ThreadPoolBuilder},
+    };
+    use std::{
+      fs::{remove_dir_all},
+      path::PathBuf,
+    };
 
     static DISK_NAME :&'static str = "disk1";
+    static PEARL_PATH :&'static str = "/tmp/d1/";
     const KEY_ID: u64 = 1;
     const TIMESTAMP: u32 = 1;
-    const TIMESTAMP2: u32 = 2;
+
+    fn drop_pearl() {
+      let path = PathBuf::from(PEARL_PATH);
+      if path.exists() {
+        let _ = remove_dir_all(path);
+      }
+    }
 
     fn get_pool() -> ThreadPool {
-        ThreadPoolBuilder::new().pool_size(1).create().unwrap()
+        ThreadPoolBuilder::new().pool_size(4).create().unwrap()
     }
 
     fn create_backend(node_config: &str, cluster_config: &str, pool: ThreadPool) -> PearlBackend<ThreadPool> {
@@ -61,30 +75,95 @@ vdisks:
 
     #[test]
     fn test_write_multiple_read() {
-        let vdisk_id = VDiskId::new(0);
-        let backend = backend();
-        let mut reactor = get_pool();
-        let _ = reactor.run(backend.run_backend());
-        
-        let write = reactor.run(backend.put(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID), BobData::new(vec![], BobMeta::new_value(TIMESTAMP))).0);
-        assert!(write.is_ok());
-        
-        let mut read = reactor.run(backend.get(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID)).0);
-        assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
-        read = reactor.run(backend.get(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID)).0);
-        assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
+      drop_pearl();
+      let vdisk_id = VDiskId::new(0);
+      let backend = backend();
+      let mut reactor = get_pool();
+      let _ = reactor.run(backend.run_backend());
+      
+      let write = reactor.run(backend.put(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID), BobData::new(vec![], BobMeta::new_value(TIMESTAMP))).0);
+      assert!(write.is_ok());
+      
+      let mut read = reactor.run(backend.get(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID)).0);
+      assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
+      read = reactor.run(backend.get(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID)).0);
+      assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
+
+      let q = async move {
+        let result1 = backend.get(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID)).0.await;
+        let result2 = backend.get(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID)).0.await;
+        assert_eq!(TIMESTAMP, result1.unwrap().data.meta.timestamp);
+        assert_eq!(TIMESTAMP, result2.unwrap().data.meta.timestamp);
+      };
+      let _ =reactor.run(q);
+      drop_pearl();
     }
 
     #[test]
     fn test_read_no_data() {
-        let vdisk_id = VDiskId::new(0);
-        let backend = backend();
-        let mut reactor = get_pool();
-        let _ = reactor.run(backend.run_backend());
-        
-        let read = reactor.run(backend.get(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID)).0);
-        assert_eq!(backend::Error::KeyNotFound, read.err().unwrap());
+      drop_pearl();
+      let vdisk_id = VDiskId::new(0);
+      let backend = backend();
+      let mut reactor = get_pool();
+      let _ = reactor.run(backend.run_backend());
+      
+      let timestamp1 = reactor.run(backend.test(DISK_NAME.clone().to_string(), vdisk_id.clone(), |st| {st.start_time_test} ));
+
+      let read = reactor.run(backend.get(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID)).0);
+      assert_eq!(backend::Error::KeyNotFound, read.err().unwrap());
+
+      let timestamp2 = reactor.run(backend.test(DISK_NAME.clone().to_string(), vdisk_id.clone(), |st| {st.start_time_test} ));
+      assert_eq!(timestamp1, timestamp2); // check no restart vdisk-pearl
+      drop_pearl();
     }
+
+    // #[test]
+    // fn test_write_duplicate() {
+    //   drop_pearl();
+    //   let vdisk_id = VDiskId::new(0);
+    //   let backend = backend();
+    //   let mut reactor = get_pool();
+    //   let _ = reactor.run(backend.run_backend());
+      
+    //   let timestamp1 = reactor.run(backend.test(DISK_NAME.clone().to_string(), vdisk_id.clone(), |st| {st.start_time_test} ));
+
+    //   let mut write = reactor.run(backend.put(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID), BobData::new(vec![], BobMeta::new_value(TIMESTAMP))).0);
+    //   assert!(write.is_ok());
+
+    //   write = reactor.run(backend.put(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID), BobData::new(vec![], BobMeta::new_value(TIMESTAMP))).0);
+    //   assert_eq!(backend::Error::DuplicateKey, write.err().unwrap());
+
+    //   let read = reactor.run(backend.get(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID)).0);
+    //   assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
+
+    //   let timestamp2 = reactor.run(backend.test(DISK_NAME.clone().to_string(), vdisk_id.clone(), |st| {st.start_time_test} ));
+    //   assert_eq!(timestamp1, timestamp2); // check no restart vdisk-pearl
+    //   drop_pearl();
+    // }
+
+    // #[test]
+    // fn test_write_restart_read() {
+    //   drop_pearl();
+    //   let vdisk_id = VDiskId::new(0);
+    //   let backend = backend();
+    //   let mut reactor = get_pool();
+    //   let _ = reactor.run(backend.run_backend());
+      
+    //   let write = reactor.run(backend.put(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID), BobData::new(vec![], BobMeta::new_value(TIMESTAMP))).0);
+    //   assert!(write.is_ok());
+
+    //   let _ = reactor.run(backend.test_vdisk(DISK_NAME.clone().to_string(), vdisk_id.clone(), |st| {
+    //     let q = async move {
+    //       let result = st.try_reinit().await;
+    //       assert!(result.unwrap());
+    //       let _ = st.prepare_storage().await;
+    //       Ok(())
+    //     };
+    //     q.boxed()
+    //   }));
+    //   let read = reactor.run(backend.get(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID)).0);
+    //   assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
+    // }
 
     // #[test]
     // fn test_write_key_with_2_timestamps_read_last() {

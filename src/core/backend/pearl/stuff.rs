@@ -21,9 +21,13 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
     where
         F: Fn(TGuard) -> Pin<Box<dyn Future03<Output = Result<TRet, TErr>> + Send>> + Send + Sync,
     {
-        self.storage
+        let lock = self.storage
             .read()
-            .map(move |st| {
+            .compat()
+            .boxed()
+            .await;
+
+        lock.map(move |st| {
                 let clone = st.clone();
                 f(clone)
             })
@@ -31,9 +35,6 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
                 error!("lock error: {:?}", e);
                 e
             })
-            .compat()
-            .boxed()
-            .await
             .unwrap()
             .await
     }

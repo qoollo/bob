@@ -10,7 +10,7 @@ pub struct ClusterResult<T> {
     pub result: T,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BobData {
     pub data: Vec<u8>,
     pub meta: BobMeta,
