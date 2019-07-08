@@ -25,7 +25,11 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
             .read()
             .compat()
             .boxed()
-            .await;
+            .await
+            .map_err(|_e|{
+                error!("cannot take lock");
+                panic!("cannot take lock");
+            });
 
         lock.map(move |st| {
                 let clone = st.clone();
@@ -47,7 +51,11 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
             .write()
             .compat()
             .boxed()
-            .await;
+            .await
+            .map_err(|_e|{
+                error!("cannot take lock");
+                panic!("cannot take lock");
+            });
 
         lock
             .map(move |mut st| {
@@ -67,7 +75,11 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
             .write()
             .compat()
             .boxed()
-            .await;
+            .await
+            .map_err(|_e|{
+                error!("cannot take lock");
+                panic!("cannot take lock");
+            });
 
         lock
             .map(move |mut st| {

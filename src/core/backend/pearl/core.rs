@@ -109,7 +109,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
         }
     }
 
-    fn check_write_error(err: Option<&backend::Error>) -> bool {
+    fn is_write_error(err: Option<&backend::Error>) -> bool {
         match err {
             Some(backend::Error::DuplicateKey) | Some(backend::Error::VDiskIsNotReady) => false,
             Some(_) => true,
@@ -117,12 +117,40 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
         }
     }
 
-    fn check_read_error(err: Option<&backend::Error>) -> bool {
+    fn is_read_error(err: Option<&backend::Error>) -> bool {
         match err {
             Some(backend::Error::KeyNotFound) |Some(backend::Error::VDiskIsNotReady) => false,
             Some(_) => true,
             _ => false,
         }
+    }
+
+    async fn put_common(pearl: PearlVDisk<TSpawner>, key: BobKey, data: BobData) -> PutResult {
+        let result = pearl
+            .write(key, Box::new(data))
+            .map(|r| {
+                r.map(|_ok| BackendPutResult {})
+            })
+            .await;
+        if Self::is_write_error(result.as_ref().err())
+            && pearl.try_reinit().await.unwrap() {
+            let _ = pearl.reinit_storage().await;
+        }
+        result
+    }
+
+    async fn get_common(pearl: PearlVDisk<TSpawner>, key: BobKey) -> GetResult {
+        let result = pearl
+            .read(key)
+            .map(|r| {
+                r.map(|data| BackendGetResult { data })
+            })
+            .await;
+        if Self::is_read_error(result.as_ref().err())
+            && pearl.try_reinit().await.unwrap() {
+            let _ = pearl.reinit_storage().await;
+        }
+        result
     }
 }
 
@@ -157,26 +185,17 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         Put({
             let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
             if let Some(disk) = vdisk {
-                let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
+                let d_clone = disk.clone();
                 async move {
-                    let result = d_clone
-                        .write(key, Box::new(data))
-                        .map(|r| {
-                            r.map(|_ok| BackendPutResult {}).map_err(|e| {
-                                debug!(
-                                    "PUT[{}][{}][{}], error: {:?}",
-                                    disk_name, vdisk_id, key, e
-                                );
-                                e
-                            })
+                    Self::put_common(d_clone, key, data) // TODO remove copy of disk. add Box?
+                        .await
+                        .map_err(|e| {
+                            debug!(
+                                "PUT[{}][{}][{}], error: {:?}",
+                                disk_name, vdisk_id, key, e
+                            );
+                            e
                         })
-                        .await;
-                    if Self::check_write_error(result.as_ref().err())
-                        && d_clone.try_reinit().await.unwrap() {
-                        //TODO panic if failed lock?
-                        let _ = d_clone.reinit_storage().await;
-                    }
-                    result
                 }
                     .boxed()
             }
@@ -196,26 +215,18 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         let alien_dir = self.alien_dir.clone();
         Put({
             async move {
-                let result = alien_dir
-                    .write(key, Box::new(data))
-                    .map(|r| {
-                        r.map(|_ok| BackendPutResult {}).map_err(|e| {
-                            debug!(
-                                "PUT[alien][{}], error: {:?}",
-                                key, e
-                            );
-                            e
-                        })
+                Self::put_common(alien_dir.clone(), key, data) // TODO remove copy of disk. add Box?
+                    .await
+                    .map_err(|e| {
+                        debug!(
+                            "PUT[alien][{}], error: {:?}",
+                            key, e
+                        );
+                        e
                     })
-                    .await;
-                if Self::check_write_error(result.as_ref().err())
-                    && alien_dir.try_reinit().await.unwrap() {
-                    //TODO panic if failed lock?
-                    let _ = alien_dir.reinit_storage().await;
-                }
-                result
             }
                 .boxed()
+                
         })
     }
 
@@ -229,26 +240,17 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         Get({
             let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
             if let Some(disk) = vdisk {
-                let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
+                let d_clone = disk.clone();
                 async move {
-                    let result = d_clone
-                        .read(key)
-                        .map(|r| {
-                            r.map(|data| BackendGetResult { data }).map_err(|e| {
-                                debug!(
+                    Self::get_common(d_clone, key) // TODO remove copy of disk. add Box?
+                        .await
+                        .map_err(|e| {
+                            debug!(
                                     "GET[{}][{}][{}], error: {:?}",
                                     disk_name, vdisk_id, key, e
                                 );
-                                e
-                            })
+                            e
                         })
-                        .await;
-                    if Self::check_read_error(result.as_ref().err())
-                        && d_clone.try_reinit().await.unwrap() {
-                        //TODO panic if failed lock?
-                        let _ = d_clone.reinit_storage().await;
-                    }
-                    result
                 }
                     .boxed()
             }
@@ -268,24 +270,15 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         let alien_dir = self.alien_dir.clone();
         Get({
             async move {
-                let result = alien_dir
-                    .read(key)
-                    .map(|r| {
-                        r.map(|data| BackendGetResult { data }).map_err(|e| {
-                            debug!(
-                                "PUT[alien][{}], error: {:?}",
-                                key, e
-                            );
-                            e
-                        })
+                Self::get_common(alien_dir.clone(), key) // TODO remove copy of disk. add Box?
+                    .await
+                    .map_err(|e| {
+                        debug!(
+                            "PUT[alien][{}], error: {:?}",
+                            key, e
+                        );
+                        e
                     })
-                    .await;
-                if Self::check_read_error(result.as_ref().err())
-                    && alien_dir.try_reinit().await.unwrap() {
-                    //TODO panic if failed lock?
-                    let _ = alien_dir.reinit_storage().await;
-                }
-                result
             }
                 .boxed()
         })
