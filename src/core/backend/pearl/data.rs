@@ -2,9 +2,12 @@ use crate::core::data::{BobData, BobKey, BobMeta};
 use crate::core::backend;
 use pearl::{Key, Storage};
 
-use std::{boxed::Box, convert::TryInto};
+use std::{boxed::Box, convert::TryInto, pin::Pin};
+use futures03::Future as Future03;  
 
 pub(crate) type BackendResult<T> = Result<T, backend::Error>;
+pub(crate) type Future03Result<TRet> = Pin<Box<dyn Future03<Output = BackendResult<TRet>> + Send>>;
+
 pub(crate) type PearlStorage = Storage<PearlKey>;
 
 #[derive(Clone)]

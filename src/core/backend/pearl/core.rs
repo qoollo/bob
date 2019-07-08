@@ -9,10 +9,9 @@ use futures03::{
     future::err as err03,
     task::{Spawn, SpawnExt},
     FutureExt,
-    Future as Future03,
 };
 
-use std::{path::PathBuf, sync::Arc, pin::Pin, thread, time};
+use std::{path::PathBuf, sync::Arc, thread, time};
 
 pub struct PearlBackend<TSpawner> {
     vdisks: Arc<Vec<PearlVDisk<TSpawner>>>,
@@ -94,7 +93,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
     #[allow(dead_code)]
     pub(crate) async fn test_vdisk<TRet, F>(&self, disk_name: String, vdisk_id: VDiskId, f: F) -> BackendResult<TRet> 
     where
-        F: Fn(PearlVDisk<TSpawner>) -> Pin<Box<dyn Future03<Output = BackendResult<TRet> > + Send>> + Send + Sync,
+        F: Fn(PearlVDisk<TSpawner>) -> Future03Result<TRet> + Send + Sync,
     {
         let vdisks = self.vdisks.clone();
         let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));

@@ -2,11 +2,9 @@ use crate::core::backend::pearl::data::*;
 use crate::core::backend;
 
 use futures_locks::RwLock;
+use futures03::{compat::Future01CompatExt, FutureExt};
 
-use futures::future::Future;
-use futures03::{compat::Future01CompatExt, Future as Future03, FutureExt};
-
-use std::{pin::Pin, sync::Arc, fs::{create_dir_all, remove_file}, path::PathBuf};
+use std::{sync::Arc, fs::{create_dir_all, remove_file}, path::PathBuf};
 
 pub(crate) struct LockGuard<TGuard> {
     storage: Arc<RwLock<TGuard>>,
@@ -21,7 +19,7 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
 
     pub(crate) async fn read<F, TRet>(&self, f: F) -> BackendResult<TRet>
     where
-        F: Fn(TGuard) -> Pin<Box<dyn Future03<Output = BackendResult<TRet>> + Send>> + Send + Sync,
+        F: Fn(TGuard) -> Future03Result<TRet> + Send + Sync,
     {
         let lock = self.storage
             .read()
@@ -63,7 +61,7 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
 
     pub(crate) async fn write_mut<F, TRet>(&self, f: F) -> BackendResult<TRet>
     where
-        F: Fn(&mut TGuard) -> Pin<Box<dyn Future03<Output = BackendResult<TRet>> + Send>> + Send + Sync,
+        F: Fn(&mut TGuard) -> Future03Result<TRet>  + Send + Sync,
     {
         let lock = self.storage
             .write()
