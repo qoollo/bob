@@ -45,8 +45,13 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
     where
         F: Fn(&mut TGuard) -> Ret + Send + Sync,
     {
-        self.storage
+        let lock = self.storage
             .write()
+            .compat()
+            .boxed()
+            .await;
+
+        lock
             .map(move |mut st| {
                 f(&mut *st)
             })
@@ -54,17 +59,19 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
                 error!("lock error: {:?}", e);
                 backend::Error::StorageError(format!("lock error: {:?}", e))
             })
-            .compat()
-            .boxed()
-            .await
     }
 
     pub(crate) async fn write_mut<F, TRet>(&self, f: F) -> BackendResult<TRet>
     where
         F: Fn(&mut TGuard) -> Pin<Box<dyn Future03<Output = BackendResult<TRet>> + Send>> + Send + Sync,
     {
-        self.storage
+        let lock = self.storage
             .write()
+            .compat()
+            .boxed()
+            .await;
+
+        lock
             .map(move |mut st| {
                 f(&mut *st)
             })
@@ -72,10 +79,7 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
                 error!("lock error: {:?}", e);
                 backend::Error::StorageError(format!("lock error: {:?}", e))
             })
-            .compat()
-            .boxed()
-            .await
-            .unwrap()
+            ?
             .await
     }
 }
@@ -106,7 +110,7 @@ impl Stuff {
         file.push("pearl.lock");
         if file.exists() {
             return remove_file(&file).map(|_r| {
-                        info!("delete lock file from directory: {:?}", file);
+                        debug!("deleted lock file from directory: {:?}", file);
                         ()
                     })
                     .map_err(|e| {
