@@ -1,4 +1,6 @@
 use crate::core::backend::pearl::data::*;
+use crate::core::backend;
+
 use futures_locks::RwLock;
 
 use futures::future::Future;
@@ -17,9 +19,9 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
         }
     }
 
-    pub(crate) async fn read<F, TRet, TErr>(&self, f: F) -> Result<TRet, TErr>
+    pub(crate) async fn read<F, TRet>(&self, f: F) -> BackendResult<TRet>
     where
-        F: Fn(TGuard) -> Pin<Box<dyn Future03<Output = Result<TRet, TErr>> + Send>> + Send + Sync,
+        F: Fn(TGuard) -> Pin<Box<dyn Future03<Output = BackendResult<TRet>> + Send>> + Send + Sync,
     {
         let lock = self.storage
             .read()
@@ -33,9 +35,9 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
             })
             .map_err(|e| {
                 error!("lock error: {:?}", e);
-                e
+                backend::Error::StorageError(format!("lock error: {:?}", e))
             })
-            .unwrap()
+            ?
             .await
     }
 
@@ -50,7 +52,7 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
             })
             .map_err(|e| {
                 error!("lock error: {:?}", e);
-                format!("lock error: {:?}", e)
+                backend::Error::StorageError(format!("lock error: {:?}", e))
             })
             .compat()
             .boxed()
@@ -68,7 +70,7 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
             })
             .map_err(|e| {
                 error!("lock error: {:?}", e);
-                format!("lock error: {:?}", e)
+                backend::Error::StorageError(format!("lock error: {:?}", e))
             })
             .compat()
             .boxed()
@@ -90,9 +92,9 @@ impl Stuff {
                         ()
                     })
                     .map_err(|e| {
-                        format!("cannot create directory: {}, error: {}", dir, e.to_string())
+                        backend::Error::StorageError(format!("cannot create directory: {}, error: {}", dir, e.to_string()))
                     }),
-                _ => Err("invalid some path, check vdisk or disk names".to_string()),
+                _ => Err(backend::Error::StorageError("invalid some path, check vdisk or disk names".to_string())),
             };
         }
         trace!("directory: {:?} exists", path);
@@ -108,7 +110,7 @@ impl Stuff {
                         ()
                     })
                     .map_err(|e| {
-                        format!("cannot delete lock file from directory: {:?}, error: {}", file, e.to_string())
+                        backend::Error::StorageError(format!("cannot delete lock file from directory: {:?}, error: {}", file, e.to_string()))
                     })
         }
         Ok(())

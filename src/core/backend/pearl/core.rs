@@ -74,7 +74,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
     }
     
     #[allow(dead_code)]
-    pub(crate) async fn test<TRet, F>(&self, disk_name: String, vdisk_id: VDiskId, f: F) -> Result<TRet, String> 
+    pub(crate) async fn test<TRet, F>(&self, disk_name: String, vdisk_id: VDiskId, f: F) -> BackendResult<TRet> 
     where
         F: Fn(&mut PearlSync) -> TRet + Send + Sync,
     {
@@ -87,14 +87,14 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
                 .await
         }
         else {
-            Err("".to_string())
+            Err(backend::Error::StorageError("".to_string()))
         }
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn test_vdisk<TRet, F>(&self, disk_name: String, vdisk_id: VDiskId, f: F) -> Result<TRet, String> 
+    pub(crate) async fn test_vdisk<TRet, F>(&self, disk_name: String, vdisk_id: VDiskId, f: F) -> BackendResult<TRet> 
     where
-        F: Fn(PearlVDisk<TSpawner>) -> Pin<Box<dyn Future03<Output = Result<TRet, String>> + Send>> + Send + Sync,
+        F: Fn(PearlVDisk<TSpawner>) -> Pin<Box<dyn Future03<Output = BackendResult<TRet> > + Send>> + Send + Sync,
     {
         let vdisks = self.vdisks.clone();
         let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
@@ -105,7 +105,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
         }
         else {
             async move{
-                Err("".to_string())
+                Err(backend::Error::StorageError("".to_string()))
             }.await
         }
     }
@@ -372,7 +372,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         return self.name == name && self.vdisk.as_ref().unwrap() == vdisk;
     }
 
-    pub async fn write(&self, key: BobKey, data: Box<BobData>) -> Result<(), backend::Error> {
+    pub async fn write(&self, key: BobKey, data: Box<BobData>) -> BackendResult<()> {
         self.storage
             .read(|st| {
                 if !st.is_ready() {
@@ -390,7 +390,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         storage: PearlStorage,
         key: PearlKey,
         data: Box<BobData>,
-    ) -> Result<(), backend::Error> {
+    ) -> BackendResult<()> {
         storage
             .write(key, PearlData::new(data).bytes())
             .await
@@ -415,7 +415,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
             .await
     }
 
-    async fn read_disk(storage: PearlStorage, key: PearlKey) -> Result<BobData, backend::Error> {
+    async fn read_disk(storage: PearlStorage, key: PearlKey) -> BackendResult<BobData> {
         storage
             .read(key)
             .await
@@ -434,7 +434,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
             .write_mut(|st| {
                 if st.is_reinit() {
                     trace!("Vdisk: {} is currently reinitializing, state: {}", self.vdisk_print(), st);
-                    return err03("false".to_string()).boxed();
+                    return err03(backend::Error::VDiskIsNotReady).boxed();
                 }
                 st.init();
                 trace!("Vdisk: {} set as reinit, state: {}", self.vdisk_print(), st);
@@ -513,7 +513,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
             debug!("Vdisk: {} Pearl is ready for work", self.vdisk_print());
             return Ok(());
         }
-        Err("stub".to_string())
+        Err(backend::Error::StorageError("stub".to_string()))
     }
 
     fn init_pearl_by_path(path: &PathBuf, config: &PearlConfig) -> BackendResult<PearlStorage> {
@@ -534,17 +534,17 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
 
         let storage = builder
             .build()
-            .map_err(|e| format!("{:?}", e));
+            .map_err(|e| backend::Error::StorageError(format!("{:?}", e)));
         if let Err(e) = storage {
             error!("cannot build pearl by path: {:?}, error: {}", path, e);
-            return Err(format!("cannot build pearl by path: {:?}, error: {}", path, e));
+            return Err(backend::Error::StorageError(format!("cannot build pearl by path: {:?}, error: {}", path, e)));
         }
         trace!("Pearl is created by path: {:?}", path);
         return storage;
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn test<TRet, F>(&self, f: F) -> Result<TRet, String> 
+    pub(crate) async fn test<TRet, F>(&self, f: F) -> BackendResult<TRet> 
     where
         F: Fn(&mut PearlSync) -> TRet + Send + Sync,
     {

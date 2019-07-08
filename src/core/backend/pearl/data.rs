@@ -4,7 +4,7 @@ use pearl::{Key, Storage};
 
 use std::{boxed::Box, convert::TryInto};
 
-pub(crate) type BackendResult<T> = Result<T, String>;
+pub(crate) type BackendResult<T> = Result<T, backend::Error>;
 pub(crate) type PearlStorage = Storage<PearlKey>;
 
 #[derive(Clone)]
