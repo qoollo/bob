@@ -11,7 +11,7 @@ use futures03::{
     FutureExt,
 };
 
-use std::{path::PathBuf, sync::Arc, thread, time};
+use std::{path::PathBuf, sync::Arc, thread};
 
 pub struct PearlBackend<TSpawner> {
     vdisks: Arc<Vec<PearlVDisk<TSpawner>>>,
@@ -476,37 +476,38 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         let config = self.config.clone();
         let spawner = self.spawner.clone();
 
-        let delay = time::Duration::from_millis(10);       //TODO get value from config
+        let delay = config.fail_retry_timeout();
 
+        let mut need_delay = false;
         while repeat {
+            if need_delay {
+                thread::sleep(delay);
+            }
+            need_delay = true;
+
             if let Err(e) = Stuff::check_or_create_directory(path) {
                 error!("cannot check path: {:?}, error: {}", path, e);
-                thread::sleep(delay);
                 continue;
             }
             
             if let Err(e) = Stuff::drop_pearl_lock_file(path) {
                 error!("cannot delete lock file: {:?}, error: {}", path, e);
-                thread::sleep(delay);
                 continue;
             }
 
             let storage = Self::init_pearl_by_path(path, &config);
             if let Err(e) = storage {
                 error!("cannot build pearl by path: {:?}, error: {:?}", path, e);
-                thread::sleep(delay);
                 continue;
             }
             let mut st = storage.unwrap();
             if let Err(e) = st.init(spawner.clone()).await {
                 error!("cannot init pearl by path: {:?}, error: {:?}", path, e);
-                thread::sleep(delay);
                 continue;
             }
             if let Err(e) = self.update(st).await {
                 error!("cannot update storage by path: {:?}, error: {:?}", path, e);
                 //TODO drop storage  .Part 2: i think we should panic here
-                thread::sleep(delay);
                 continue;
             }
             debug!("Vdisk: {} Pearl is ready for work", self.vdisk_print());

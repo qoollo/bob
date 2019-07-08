@@ -8,7 +8,6 @@ mod tests {
     use crate::core::data::{VDiskMapper, VDiskId, BobData, BobKey, BobMeta};
     use crate::core::backend::core::BackendStorage;
     use futures03::{
-      FutureExt,
       executor::{ThreadPool, ThreadPoolBuilder},
     };
     use std::{
@@ -55,6 +54,7 @@ pearl:                        # used only for 'backend_type: pearl'
   max_data_in_blob: 10000     # optional
   blob_file_name_prefix: bob  # optional
   pool_count_threads: 4       # required for 'pearl'
+  fail_retry_timeout: 100ms
   alien_disk: disk1           # required for 'pearl'
 ";
         let s1 = "

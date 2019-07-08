@@ -14,6 +14,7 @@ pub struct PearlConfig {
     pub max_data_in_blob: Option<u64>,
     pub blob_file_name_prefix: Option<String>,
     pub pool_count_threads: Option<u16>,
+    pub fail_retry_timeout: Option<String>,
     pub alien_disk: Option<String>,
 }
 
@@ -23,6 +24,23 @@ impl PearlConfig {
     }
     pub fn alien_disk(&self) -> String {
         self.alien_disk.as_ref().unwrap().clone()
+    }
+    pub fn fail_retry_timeout(&self) -> Duration {
+        let t: Duration = self
+            .fail_retry_timeout
+            .as_ref()
+            .unwrap()
+            .clone()
+            .parse::<humantime::Duration>()
+            .unwrap()
+            .into();
+        t
+    }
+
+    pub fn prepare(&self) -> Result<(), String> {
+        let _ = self.fail_retry_timeout(); // TODO check unwrap
+
+        Ok(())
     }
 }
 
@@ -54,7 +72,18 @@ impl Validatable for PearlConfig {
                 }
             }
         };
-
+        match &self.fail_retry_timeout {
+            None => {
+                debug!("field 'fail_retry_timeout' for 'config' is not set");
+                return Err("field 'fail_retry_timeout' for 'config' is not set".to_string());
+            }
+            Some(timeout) => {
+                if timeout.parse::<humantime::Duration>().is_err() {
+                    debug!("field 'fail_retry_timeout' for 'config' is not valid");
+                    return Err("field 'fail_retry_timeout' for 'config' is not valid".to_string());
+                }
+            }
+        };
         Ok(())
     }
 }
@@ -184,6 +213,14 @@ impl NodeConfig {
         );
 
         self.backend_result()?;
+
+        if self.backend_type() == BackendType::Pearl {
+            match &self.pearl {
+                Some(pearl) => pearl.prepare()?,
+                _ => panic!("cannot match pearl"),
+                
+            };
+        };
         Ok(())
     }
 }
