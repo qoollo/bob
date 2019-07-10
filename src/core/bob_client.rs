@@ -20,8 +20,9 @@ use futures_locks::Mutex;
 
 use futures03::{
     compat::Future01CompatExt, future::FutureExt as OtherFutureExt, Future as NewFuture,
+    TryFutureExt
 };
-
+use futures_timer::ext::FutureExt as TimerExt;
 type TowerConnect =
     tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>;
 #[derive(Clone)]
@@ -189,37 +190,46 @@ impl BobClient {
         let n1 = self.node.clone();
         let n2 = self.node.clone();
         let to = self.timeout;
-        self.client
+        let q= self.client
             .lock()
             .then(move |client_res| match client_res {
                 Ok(mut cl) => cl
                     .ping(Request::new(Null {}))
-                    .timeout(to)
                     .map(move |_| ClusterResult {
                         node: n1,
                         result: BackendPingResult {},
                     })
-                    .map_err(move |e| ClusterResult {
-                        node: n2.clone(),
-                        result: {
-                            if e.is_elapsed() {
-                                Error::Timeout
-                            } else if e.is_timer() {
-                                panic!("Timeout can't failed in core - can't continue")
-                            } else {
-                                let err = e.into_inner();
-                                Error::Failed(format!(
-                                    "Ping operation for {} failed: {:?}",
-                                    n2, err
-                                ))
-                            }
-                        },
+                    .map_err(|_e|{
+                        Error::Timeout
                     }),
+                    // .map_err(move |e| ClusterResult {
+                    //     node: n2.clone(),
+                    //     result: {
+                    //         if e.is_elapsed() {
+                    //             Error::Timeout
+                    //         } else if e.is_timer() {
+                    //             panic!("Timeout can't failed in core - can't continue: {:?}", e)
+                    //         } else {
+                    //             let err = e.into_inner();
+                    //             Error::Failed(format!(
+                    //                 "Ping operation for {} failed: {:?}",
+                    //                 n2, err
+                    //             ))
+                    //         }
+                    //     },
+                    // }),
                 Err(_) => panic!("Timeout failed in core - can't continue"), //TODO
             })
             .compat()
-            .boxed()
-            .await
+            .boxed();
+
+            let w = q.timeout(to)
+                .map_err(move |e| ClusterResult {
+                            node: n2.clone(),
+                            result: e,
+                        })
+                .await;
+            panic!("Timeout failed in core - can't continue");
     }
 }
 

@@ -31,7 +31,9 @@ serde_yaml = "0.8"
 itertools = "0.8"
 humantime = "1.2.0"
 futures-locks = "0.3"
-tokio-core = "0.1"
+tokio-core = "~0.1"
+tokio-timer = "~0.2"
+futures-timer = "~0.2"
 pearl = { git = "https://github.com/qoollo/pearl", branch = "develop" }
 
 [build-dependencies]
