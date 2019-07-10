@@ -82,10 +82,7 @@ fn main() {
         addr = finded.address().parse().unwrap();
     }
 
-    let backend_pool = ThreadPoolBuilder::new()
-        .pool_size(2)
-        .create()
-        .unwrap();//TODO
+    let backend_pool = ThreadPoolBuilder::new().pool_size(2).create().unwrap(); //TODO
 
     let bob = BobSrv {
         grinder: std::sync::Arc::new(Grinder::new(mapper, &node, backend_pool)),
@@ -104,7 +101,7 @@ fn main() {
     rt.spawn(q.boxed().compat());
 
     let b1 = bob.clone();
-    let q1 = async move { b1.run_backend().await.map(|_r| {} ).map_err(|_e| {} ) };
+    let q1 = async move { b1.run_backend().await.map(|_r| {}).map_err(|_e| {}) };
     rt.spawn(q1.boxed().compat());
 
     let new_service = server::BobApiServer::new(bob);

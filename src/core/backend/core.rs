@@ -1,12 +1,14 @@
 use crate::core::{
-    backend::{mem_backend::MemBackend, stub_backend::StubBackend, pearl::core::PearlBackend, Error},
+    backend::{
+        mem_backend::MemBackend, pearl::core::PearlBackend, stub_backend::StubBackend, Error,
+    },
     configs::node::{BackendType, NodeConfig},
     data::{BobData, BobKey, DiskPath, VDiskId, VDiskMapper},
 };
 use futures03::{
-    future::{FutureExt, TryFutureExt, ready},
-    Future,
+    future::{ready, FutureExt, TryFutureExt},
     task::Spawn,
+    Future,
 };
 use std::{pin::Pin, sync::Arc};
 
@@ -87,7 +89,11 @@ pub struct Backend {
 }
 
 impl Backend {
-    pub fn new<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync>(mapper: &VDiskMapper, config: &NodeConfig, spawner: TSpawner) -> Self {
+    pub fn new<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync>(
+        mapper: &VDiskMapper,
+        config: &NodeConfig,
+        spawner: TSpawner,
+    ) -> Self {
         let backend: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
@@ -125,14 +131,15 @@ impl Backend {
                     backend.put_alien(oper.vdisk_id.clone(), key, data).0
                 };
 
-                result.or_else(|err| {
-                    if err != Error::DuplicateKey{
-                        func(err)
-                    }
-                    else {
-                        ready(Err(err)).boxed()
-                    }
-                }).boxed()
+                result
+                    .or_else(|err| {
+                        if err != Error::DuplicateKey {
+                            func(err)
+                        } else {
+                            ready(Err(err)).boxed()
+                        }
+                    })
+                    .boxed()
             } else {
                 debug!(
                     "PUT[{}] to backend, alien data for {}",

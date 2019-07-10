@@ -62,7 +62,11 @@ pub struct Grinder {
 }
 
 impl Grinder {
-    pub fn new<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync>(mapper: VDiskMapper, config: &NodeConfig, spawner: TSpawner) -> Grinder {
+    pub fn new<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync>(
+        mapper: VDiskMapper,
+        config: &NodeConfig,
+        spawner: TSpawner,
+    ) -> Grinder {
         let link = Arc::new(LinkManager::new(
             mapper.nodes(),
             config.check_interval(),

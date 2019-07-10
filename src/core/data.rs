@@ -55,9 +55,7 @@ pub struct BobKey {
 
 impl BobKey {
     pub fn new(key: u64) -> Self {
-        BobKey{
-            key
-        }
+        BobKey { key }
     }
 }
 
