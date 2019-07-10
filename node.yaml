@@ -1,7 +1,7 @@
 log_level: Trace
 name: local_node
 quorum: 1
-timeout: 30sec
+timeout: 3sec
 check_interval: 5000ms
 cluster_policy: quorum        # quorum
 ping_threads_count: 2

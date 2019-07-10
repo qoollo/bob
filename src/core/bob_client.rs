@@ -190,7 +190,7 @@ impl BobClient {
         let n1 = self.node.clone();
         let n2 = self.node.clone();
         let to = self.timeout;
-        let q= self.client
+        self.client
             .lock()
             .then(move |client_res| match client_res {
                 Ok(mut cl) => cl
@@ -199,37 +199,19 @@ impl BobClient {
                         node: n1,
                         result: BackendPingResult {},
                     })
-                    .map_err(|_e|{
-                        Error::Timeout
+                    .map_err(|e|{
+                        Error::StorageError(format!("ping operation error: {}", e))
                     }),
-                    // .map_err(move |e| ClusterResult {
-                    //     node: n2.clone(),
-                    //     result: {
-                    //         if e.is_elapsed() {
-                    //             Error::Timeout
-                    //         } else if e.is_timer() {
-                    //             panic!("Timeout can't failed in core - can't continue: {:?}", e)
-                    //         } else {
-                    //             let err = e.into_inner();
-                    //             Error::Failed(format!(
-                    //                 "Ping operation for {} failed: {:?}",
-                    //                 n2, err
-                    //             ))
-                    //         }
-                    //     },
-                    // }),
                 Err(_) => panic!("Timeout failed in core - can't continue"), //TODO
             })
             .compat()
-            .boxed();
-
-            let w = q.timeout(to)
+            .boxed()
+            .timeout(to)
                 .map_err(move |e| ClusterResult {
                             node: n2.clone(),
                             result: e,
                         })
-                .await;
-            panic!("Timeout failed in core - can't continue");
+                .await
     }
 }
 

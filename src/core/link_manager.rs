@@ -60,7 +60,6 @@ impl NodeLinkHolder {
         match self.get_connection().conn {
             Some(mut conn) => {
                 let nlh = self.clone();
-                debug!("-------------------------test 1");
                 conn.ping()
                     .await
                     .map(|_| debug!("All good with pinging node {:?}", nlh.node))
@@ -68,7 +67,6 @@ impl NodeLinkHolder {
                         debug!("Got broken connection to node {:?}", nlh.node);
                         nlh.clear_connection();
                     })?;
-                debug!("-------------------------test 2");
                 Ok(())
             }
             None => {
@@ -119,35 +117,15 @@ impl LinkManager {
             executor: ex,
             timeout: self.timeout,
         };
-        thread::sleep(Duration::from_secs(5));
-        // let q = local_repo.values().next().clone().unwrap().clone().check(client_factory.clone());
-        // let _ = q.await;
-        local_repo.values().for_each(|v| {
-            let q = v.clone().check(client_factory.clone());
-            let _ = spawner
-                .clone()
-                .spawn(q.map(|_r| {}))
-                .map_err(|e| panic!("can't run timer task {:?}", e));
-        });
-        thread::sleep(Duration::from_secs(5));
-        // let q1 = local_repo.values().next().clone().unwrap().clone().check(client_factory.clone());
-        // let _ = q1.await;
-        local_repo.values().for_each(|v| {
-            let q = v.clone().check(client_factory.clone());
-            let _ = spawner
-                .clone()
-                .spawn(q.map(|_r| {}))
-                .map_err(|e| panic!("can't run timer task {:?}", e));
-        });
         Interval::new_interval(self.check_interval)
             .for_each(move |_| {
-                // local_repo.values().for_each(|v| {
-                //     let q = v.clone().check(client_factory.clone());
-                //     let _ = spawner
-                //         .clone()
-                //         .spawn(q.map(|_r| {}))
-                //         .map_err(|e| panic!("can't run timer task {:?}", e));
-                // });
+                local_repo.values().for_each(|v| {
+                    let q = v.clone().check(client_factory.clone());
+                    let _ = spawner
+                        .clone()
+                        .spawn(q.map(|_r| {}))
+                        .map_err(|e| panic!("can't run timer task {:?}", e));
+                });
 
                 Ok(())
             })
