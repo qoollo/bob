@@ -215,11 +215,7 @@ impl NodeConfig {
         self.backend_result()?;
 
         if self.backend_type() == BackendType::Pearl {
-            match &self.pearl {
-                Some(pearl) => pearl.prepare()?,
-                _ => panic!("cannot match pearl"),
-                
-            };
+            self.pearl.as_ref().unwrap().prepare()?;
         };
         Ok(())
     }
