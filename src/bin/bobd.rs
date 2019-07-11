@@ -81,8 +81,11 @@ fn main() {
         mapper = VDiskMapper::new2(vdisks.to_vec(), name, &disks);
         addr = finded.address().parse().unwrap();
     }
+
+    let backend_pool = ThreadPoolBuilder::new().pool_size(2).create().unwrap(); //TODO
+
     let bob = BobSrv {
-        grinder: std::sync::Arc::new(Grinder::new(mapper, &node)),
+        grinder: std::sync::Arc::new(Grinder::new(mapper, &node, backend_pool)),
     };
 
     let pool = ThreadPoolBuilder::new()
@@ -96,6 +99,10 @@ fn main() {
     let b = bob.clone();
     let q = async move { b.get_periodic_tasks(executor, pool).await };
     rt.spawn(q.boxed().compat());
+
+    let b1 = bob.clone();
+    let q1 = async move { b1.run_backend().await.map(|_r| {}).map_err(|_e| {}) };
+    rt.spawn(q1.boxed().compat());
 
     let new_service = server::BobApiServer::new(bob);
 

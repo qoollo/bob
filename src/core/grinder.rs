@@ -1,5 +1,6 @@
 use crate::core::{
-    backend::backend::{Backend, BackendError, BackendGetResult, BackendPutResult},
+    backend,
+    backend::core::{Backend, BackendGetResult, BackendPutResult},
     cluster::{get_cluster, Cluster},
     configs::node::NodeConfig,
     data::{BobData, BobKey, BobOptions, VDiskMapper},
@@ -9,35 +10,35 @@ use futures03::task::Spawn;
 
 use std::sync::Arc;
 
-#[derive(Debug)]
-pub enum BobError {
-    Cluster(BackendError),
-    Local(BackendError),
-
+pub enum Error {
     NotFound,
     Other,
 }
 
+#[derive(Debug)]
+pub enum BobError {
+    Cluster(backend::Error),
+    Local(backend::Error),
+}
+
 impl BobError {
-    pub fn error(&self) -> BobError {
+    pub fn error(&self) -> Error {
         match self {
             BobError::Cluster(err) => self.match_error(err, false),
             BobError::Local(err) => self.match_error(err, true),
-            _ => panic!("dont use anything except Local and Cluster types"),
         }
     }
 
-    fn match_error(&self, err: &BackendError, _is_local: bool) -> BobError {
+    fn match_error(&self, err: &backend::Error, _is_local: bool) -> Error {
         match err {
-            BackendError::NotFound => BobError::NotFound,
-            _ => BobError::Other,
+            backend::Error::NotFound => Error::NotFound,
+            _ => Error::Other,
         }
     }
     fn is_cluster(&self) -> bool {
         match *self {
             BobError::Cluster(_) => true,
             BobError::Local(_) => false,
-            _ => panic!("dont use anything except Local and Cluster types"),
         }
     }
     fn is_local(&self) -> bool {
@@ -61,7 +62,11 @@ pub struct Grinder {
 }
 
 impl Grinder {
-    pub fn new(mapper: VDiskMapper, config: &NodeConfig) -> Grinder {
+    pub fn new<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync>(
+        mapper: VDiskMapper,
+        config: &NodeConfig,
+        spawner: TSpawner,
+    ) -> Grinder {
         let link = Arc::new(LinkManager::new(
             mapper.nodes(),
             config.check_interval(),
@@ -69,11 +74,14 @@ impl Grinder {
         ));
 
         Grinder {
-            backend: Backend::new(&mapper, config),
+            backend: Backend::new(&mapper, config, spawner),
             mapper: mapper.clone(),
             link_manager: link.clone(),
             cluster: get_cluster(link, &mapper, config),
         }
+    }
+    pub async fn run_backend(&self) -> Result<(), String> {
+        self.backend.run_backend().await
     }
     pub async fn put(
         &self,

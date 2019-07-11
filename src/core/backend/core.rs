@@ -1,37 +1,16 @@
 use crate::core::{
-    backend::{mem_backend::MemBackend, pearl_backend::PearlBackend, stub_backend::StubBackend},
+    backend::{
+        mem_backend::MemBackend, pearl::core::PearlBackend, stub_backend::StubBackend, Error,
+    },
     configs::node::{BackendType, NodeConfig},
     data::{BobData, BobKey, DiskPath, VDiskId, VDiskMapper},
 };
 use futures03::{
-    future::{FutureExt, TryFutureExt},
+    future::{ready, FutureExt, TryFutureExt},
+    task::Spawn,
     Future,
 };
 use std::{pin::Pin, sync::Arc};
-
-#[derive(Debug, PartialEq)]
-pub enum BackendError {
-    Timeout,
-    NotFound,
-
-    Failed(String),
-    Other,
-}
-impl BackendError {
-    pub fn vdisk_not_found(id: &VDiskId) -> BackendError {
-        BackendError::Failed(format!("vdisk: {} not found", id))
-    }
-
-    pub fn storage_error() -> BackendError {
-        BackendError::Failed("some backend error".to_string()) //TODO make pearl error public
-    }
-}
-
-impl std::fmt::Display for BackendError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct BackendOperation {
@@ -79,6 +58,7 @@ impl BackendOperation {
 #[derive(Debug)]
 pub struct BackendPutResult {}
 
+#[derive(Debug)]
 pub struct BackendGetResult {
     pub data: BobData,
 }
@@ -86,13 +66,17 @@ pub struct BackendGetResult {
 #[derive(Debug)]
 pub struct BackendPingResult {}
 
-pub type GetResult = Result<BackendGetResult, BackendError>;
+pub type GetResult = Result<BackendGetResult, Error>;
 pub struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send>>);
 
-pub type PutResult = Result<BackendPutResult, BackendError>;
+pub type PutResult = Result<BackendPutResult, Error>;
 pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
+pub type RunResult = Pin<Box<dyn Future<Output = Result<(), String>> + Send>>;
+
 pub trait BackendStorage {
+    fn run_backend(&self) -> RunResult;
+
     fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;
     fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;
 
@@ -105,17 +89,21 @@ pub struct Backend {
 }
 
 impl Backend {
-    pub fn new(mapper: &VDiskMapper, config: &NodeConfig) -> Self {
+    pub fn new<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync>(
+        mapper: &VDiskMapper,
+        config: &NodeConfig,
+        spawner: TSpawner,
+    ) -> Self {
         let backend: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
-            BackendType::Pearl => {
-                let mut pearl = PearlBackend::new(config);
-                pearl.init(mapper).unwrap();
-                Arc::new(pearl)
-            }
+            BackendType::Pearl => Arc::new(PearlBackend::new(mapper.clone(), config, spawner)),
         };
         Backend { backend }
+    }
+
+    pub async fn run_backend(&self) -> Result<(), String> {
+        self.backend.run_backend().boxed().await
     }
 
     pub fn put(&self, op: &BackendOperation, key: BobKey, data: BobData) -> Put {
@@ -135,7 +123,7 @@ impl Backend {
                     .0;
                 let func = move |err| {
                     error!(
-                        "PUT[{}][{}] to backend. Error: {}",
+                        "PUT[{}][{}] to backend. Error: {:?}",
                         key,
                         oper.disk_name_local(),
                         err
@@ -143,7 +131,15 @@ impl Backend {
                     backend.put_alien(oper.vdisk_id.clone(), key, data).0
                 };
 
-                result.or_else(|err| func(err)).boxed()
+                result
+                    .or_else(|err| {
+                        if err != Error::DuplicateKey {
+                            func(err)
+                        } else {
+                            ready(Err(err)).boxed()
+                        }
+                    })
+                    .boxed()
             } else {
                 debug!(
                     "PUT[{}] to backend, alien data for {}",

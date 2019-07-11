@@ -389,4 +389,15 @@ impl ClusterConfigYaml {
             }
         }
     }
+
+    pub fn get_from_string(&self, file: &str) -> Result<(Vec<DataVDisk>, ClusterConfig), String> {
+        let config: ClusterConfig = YamlBobConfigReader {}.parse(file)?;
+        match config.validate() {
+            Ok(_) => Ok((self.convert_to_data(&config).unwrap(), config)),
+            Err(e) => {
+                debug!("config is not valid: {}", e);
+                Err(format!("config is not valid: {}", e))
+            }
+        }
+    }
 }

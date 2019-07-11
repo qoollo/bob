@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use crate::core::backend::backend::*;
+    use crate::core::backend::core::*;
     use crate::core::backend::mem_backend::*;
+    use crate::core::backend::*;
     use crate::core::data::*;
     use futures03::executor::{ThreadPool, ThreadPoolBuilder};
 
@@ -29,7 +30,7 @@ mod tests {
                 )
                 .0,
         );
-        assert_eq!(retval.err().unwrap(), BackendError::Other)
+        assert_eq!(retval.err().unwrap(), Error::Other)
     }
 
     #[test]
@@ -91,7 +92,7 @@ mod tests {
                 )
                 .0,
         );
-        assert_eq!(retval.err().unwrap(), BackendError::Other)
+        assert_eq!(retval.err().unwrap(), Error::Other)
     }
 
     #[test]
@@ -104,6 +105,6 @@ mod tests {
                 .get("name".to_string(), VDiskId::new(0), BobKey { key: 1 })
                 .0,
         );
-        assert_eq!(retval.err().unwrap(), BackendError::NotFound)
+        assert_eq!(retval.err().unwrap(), Error::NotFound)
     }
 }

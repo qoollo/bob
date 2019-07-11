@@ -36,8 +36,9 @@ fn build_bobs(
             })
             .collect();
         let mapper = VDiskMapper::new2(vdisks.to_vec(), &node.name(), &disks);
+        let backend_pool = ThreadPoolBuilder::new().pool_size(2).create().unwrap(); //TODO
         let bob = BobSrv {
-            grinder: std::sync::Arc::new(Grinder::new(mapper, node_config)),
+            grinder: std::sync::Arc::new(Grinder::new(mapper, node_config, backend_pool)),
         };
         bobs.push((bob, node.address()));
     }
@@ -76,7 +77,7 @@ fn main() {
 
     let rt = Runtime::new().unwrap();
     let bobs = build_bobs(&disks, &cluster, &node);
-    for (b, address) in bobs.iter() {
+    for (b, address) in bobs.into_iter() {
         let pool = ThreadPoolBuilder::new()
             .pool_size(node.ping_threads_count() as usize)
             .create()
@@ -88,6 +89,10 @@ fn main() {
         let bob = b.clone();
         let q = async move { bob.get_periodic_tasks(executor, pool).await };
         rt.spawn(q.boxed().compat());
+
+        let b1 = b.clone();
+        let q1 = async move { b1.run_backend().await.map(|_r| {}).map_err(|_e| {}) };
+        rt.spawn(q1.boxed().compat());
 
         let new_service = server::BobApiServer::new(b.clone());
         let mut server = Server::new(new_service);

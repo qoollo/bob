@@ -1,6 +1,6 @@
 use crate::api::grpc::BlobMeta;
 use crate::core::{
-    backend::backend::BackendOperation,
+    backend::core::BackendOperation,
     configs::node::{DiskPath as ConfigDiskPath, NodeConfig},
 };
 
@@ -10,7 +10,7 @@ pub struct ClusterResult<T> {
     pub result: T,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BobData {
     pub data: Vec<u8>,
     pub meta: BobMeta,
@@ -33,6 +33,10 @@ impl BobMeta {
         }
     }
 
+    pub fn new_value(timestamp: u32) -> Self {
+        BobMeta { timestamp }
+    }
+
     pub fn new_stub() -> Self {
         BobMeta { timestamp: 1 }
     }
@@ -47,6 +51,12 @@ impl std::fmt::Display for BobMeta {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct BobKey {
     pub key: u64,
+}
+
+impl BobKey {
+    pub fn new(key: u64) -> Self {
+        BobKey { key }
+    }
 }
 
 impl std::fmt::Display for BobKey {
@@ -111,6 +121,12 @@ impl DiskPath {
             name: name.to_string().clone(),
             path: path.to_string().clone(),
         }
+    }
+}
+
+impl std::fmt::Display for DiskPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "#{}-{}", self.name, self.path)
     }
 }
 #[derive(Debug, Clone)]

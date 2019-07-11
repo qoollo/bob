@@ -1,4 +1,4 @@
-use crate::core::backend::backend::*;
+use crate::core::backend::core::*;
 use crate::core::data::{BobData, BobKey, BobMeta, VDiskId};
 use futures03::{future::ok, FutureExt};
 
@@ -6,6 +6,10 @@ use futures03::{future::ok, FutureExt};
 pub struct StubBackend {}
 
 impl BackendStorage for StubBackend {
+    fn run_backend(&self) -> RunResult {
+        async move { Ok(()) }.boxed()
+    }
+
     fn put(&self, _disk_name: String, _vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}]: hi from backend, timestamp: {}", key, data.meta);
         Put(ok(BackendPutResult {}).boxed())

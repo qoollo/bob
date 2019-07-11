@@ -2,7 +2,7 @@ use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRe
 
 use crate::core::{
     data::{BobData, BobKey, BobMeta, BobOptions},
-    grinder::{BobError, Grinder},
+    grinder::{Error, Grinder},
 };
 use futures::{
     future,
@@ -21,6 +21,10 @@ pub struct BobSrv {
 }
 
 impl BobSrv {
+    pub async fn run_backend(&self) -> Result<(), String> {
+        self.grinder.run_backend().await
+    }
+
     pub async fn get_periodic_tasks<S>(
         &self,
         ex: tokio::runtime::TaskExecutor,
@@ -29,9 +33,6 @@ impl BobSrv {
     where
         S: Spawn + Clone + Send + 'static + Unpin + Sync,
     {
-        // let grinder = self.grinder.clone();
-        // let q = async move { grinder.get_periodic_tasks(ex, spawner).await };
-        // Box::new(q.boxed().compat())
         self.grinder.get_periodic_tasks(ex, spawner).await
     }
 
@@ -149,7 +150,7 @@ impl server::BobApi for BobSrv {
                             r_err
                         );
                         let err = match r_err.error() {
-                            BobError::NotFound => tower_grpc::Status::new(
+                            Error::NotFound => tower_grpc::Status::new(
                                 tower_grpc::Code::NotFound,
                                 format!("[bob] Can't find record with key {}", key),
                             ),

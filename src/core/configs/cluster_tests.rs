@@ -593,6 +593,7 @@ pearl:
   max_data_in_blob: 1
   blob_file_name_prefix: bob
   pool_count_threads: 4
+  fail_retry_timeout: 100ms
   alien_disk: disk1
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -615,6 +616,7 @@ pearl:
 #  max_data_in_blob: 1
 #  blob_file_name_prefix: bob
   pool_count_threads: 4
+  fail_retry_timeout: 100ms
   alien_disk: disk1  
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -636,6 +638,51 @@ pearl:
 #  max_blob_size: 1
   max_data_in_blob: 1
 #  blob_file_name_prefix: bob
+  fail_retry_timeout: 100ms
+  alien_disk: disk1
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_err());
+    }
+
+    #[test]
+    fn test_node_pearl_config_invalid_retry_time() {
+        let s = "
+log_level: Debug
+name: no
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100ms
+cluster_policy: quorum # quorum
+ping_threads_count: 2
+backend_type: pearl
+pearl:
+  max_blob_size: 1
+  max_data_in_blob: 1
+#  blob_file_name_prefix: bob
+  fail_retry_timeout: 100
+  alien_disk: disk1
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_err());
+    }
+
+    #[test]
+    fn test_node_pearl_config_no_retry_time() {
+        let s = "
+log_level: Debug
+name: no
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100ms
+cluster_policy: quorum # quorum
+ping_threads_count: 2
+backend_type: pearl
+pearl:
+  max_blob_size: 1
+  max_data_in_blob: 1
+#  blob_file_name_prefix: bob
+#  fail_retry_timeout: 100
   alien_disk: disk1
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -773,6 +820,7 @@ pearl:
 #  max_blob_size: 1
   max_data_in_blob: 1
 #  blob_file_name_prefix: bob
+  fail_retry_timeout: 100ms
   alien_disk: disk1
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -811,6 +859,7 @@ pearl:
 #  max_blob_size: 1
   max_data_in_blob: 1
 #  blob_file_name_prefix: bob
+  fail_retry_timeout: 100ms
   alien_disk: disk112312312312321
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
