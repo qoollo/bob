@@ -104,7 +104,7 @@ fn main() {
     rt.spawn(q.boxed().compat());
 
     let b1 = bob.clone();
-    let q1 = async move { b1.run_backend().await.map(|_r| {} ).map_err(|_e| {} ) };
+    let q1 = async move { b1.run_backend().await.map(|_r| {} ).map_err(|e| {panic!("init failed: {:?}", e)} ) };
     rt.spawn(q1.boxed().compat());
 
     let new_service = server::BobApiServer::new(bob);

@@ -104,9 +104,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
                 .await
         }
         else {
-            async move{
-                Err(backend::Error::StorageError("".to_string()))
-            }.await
+            Err(backend::Error::StorageError("".to_string()))
         }
     }
 
