@@ -11,7 +11,8 @@ use futures03::{
     FutureExt,
 };
 
-use std::{path::PathBuf, sync::Arc, thread};
+use futures_timer::Delay;
+use std::{path::PathBuf, sync::Arc};
 
 pub struct PearlBackend<TSpawner> {
     vdisks: Arc<Vec<PearlVDisk<TSpawner>>>,
@@ -474,7 +475,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         let mut need_delay = false;
         while repeat {
             if need_delay {
-                thread::sleep(delay);
+                let _ = Delay::new(delay).await;
             }
             need_delay = true;
 

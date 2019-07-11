@@ -100,7 +100,7 @@ fn main() {
     let executor = rt.executor();
 
     let b = bob.clone();
-    let q = async move { b.get_periodic_tasks(executor, backend_pool.clone()).await };
+    let q = async move { b.get_periodic_tasks(executor, pool).await };
     rt.spawn(q.boxed().compat());
 
     let b1 = bob.clone();

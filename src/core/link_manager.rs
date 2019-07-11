@@ -10,8 +10,6 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-//use tokio::timer::Interval;
-use std::{thread};
 
 use futures03::{
     compat::Future01CompatExt,
