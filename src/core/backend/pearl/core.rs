@@ -92,7 +92,10 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
             let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
             d_clone.test(f).await
         } else {
-            Err(backend::Error::StorageError("".to_string()))
+            Err(backend::Error::StorageError(format!(
+                "vdisk not found: {}",
+                vdisk_id
+            )))
         }
     }
 
@@ -112,7 +115,13 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
             let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
             f(d_clone).await
         } else {
-            Err(backend::Error::StorageError("".to_string()))
+            async move {
+                Err(backend::Error::StorageError(format!(
+                    "vdisk not found: {}",
+                    vdisk_id
+                )))
+            }
+                .await
         }
     }
 
@@ -329,8 +338,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
     pub async fn update(&self, storage: Storage<PearlKey>) -> BackendResult<()> {
         trace!("try update Pearl id: {}", self.vdisk_print());
 
-        let _ = self
-            .storage
+        self.storage
             .write_sync_mut(|st| {
                 st.set(storage.clone());
                 st.ready(); // current pearl disk is ready
@@ -340,12 +348,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
                     self.vdisk_print(),
                     st
                 );
-
-                return true;
             })
-            .await;
-
-        async move { Ok(()) }.await
+            .await
     }
 
     pub fn equal(&self, name: &str, vdisk: &VDiskId) -> bool {
