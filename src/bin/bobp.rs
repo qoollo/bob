@@ -5,8 +5,8 @@ use futures::future::{loop_fn, Loop};
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::{thread, time};
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::{thread, time};
 
 use tokio::runtime::current_thread::Runtime;
 
@@ -88,7 +88,12 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
                 key: Some(BlobKey { key: i }),
                 data: Some(Blob {
                     data: vec![0; task_conf.payload_size as usize],
-                    meta: Some(BlobMeta { timestamp: SystemTime::now().duration_since(UNIX_EPOCH).expect("msg: &str").as_secs() as u32 }), // TODO
+                    meta: Some(BlobMeta {
+                        timestamp: SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .expect("msg: &str")
+                            .as_secs() as u32,
+                    }), // TODO
                 }),
                 options: None,
             }))

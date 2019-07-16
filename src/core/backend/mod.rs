@@ -34,13 +34,10 @@ impl std::fmt::Display for Error {
 }
 
 impl From<std::io::Error> for Error {
-    fn from(error: std::io::Error)-> Self {
+    fn from(error: std::io::Error) -> Self {
         match error.kind() {
             ErrorKind::TimedOut => Error::Timeout,
-            _ => Error::Failed(format!(
-                                    "Ping operation failed: {:?}",
-                                    error
-                                )),
+            _ => Error::Failed(format!("Ping operation failed: {:?}", error)),
         }
     }
 }

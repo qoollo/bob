@@ -20,7 +20,7 @@ use futures_locks::Mutex;
 
 use futures03::{
     compat::Future01CompatExt, future::FutureExt as OtherFutureExt, Future as NewFuture,
-    TryFutureExt
+    TryFutureExt,
 };
 use futures_timer::ext::FutureExt as TimerExt;
 type TowerConnect =
@@ -199,19 +199,17 @@ impl BobClient {
                         node: n1,
                         result: BackendPingResult {},
                     })
-                    .map_err(|e|{
-                        Error::StorageError(format!("ping operation error: {}", e))
-                    }),
+                    .map_err(|e| Error::StorageError(format!("ping operation error: {}", e))),
                 Err(_) => panic!("Timeout failed in core - can't continue"), //TODO
             })
             .compat()
             .boxed()
             .timeout(to)
-                .map_err(move |e| ClusterResult {
-                            node: n2.clone(),
-                            result: e,
-                        })
-                .await
+            .map_err(move |e| ClusterResult {
+                node: n2.clone(),
+                result: e,
+            })
+            .await
     }
 }
 
