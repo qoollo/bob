@@ -94,7 +94,7 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
             }))
             .and_then(move |_| {
                 lstat.clone().put_total.fetch_add(1, Ordering::SeqCst);
-                if i == task_conf.high_idx {
+                if i + 1 == task_conf.high_idx {
                     Ok(Loop::Break((lstat, i)))
                 } else {
                     Ok(Loop::Continue((lstat, i + 1)))
@@ -111,7 +111,7 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
             }))
             .and_then(move |_| {
                 lstat.clone().get_total.fetch_add(1, Ordering::SeqCst);
-                if i == task_conf.high_idx {
+                if i + 1 == task_conf.high_idx {
                     Ok(Loop::Break((lstat, i)))
                 } else {
                     Ok(Loop::Continue((lstat, i + 1)))
@@ -181,7 +181,7 @@ fn main() {
     };
 
     let task_conf = TaskConfig {
-        low_idx: 1,
+        low_idx: 0,
         high_idx: matches
             .value_of("count")
             .unwrap_or_default()
@@ -207,7 +207,7 @@ fn main() {
         net_conf.port,
         workers_count,
         task_conf.payload_size,
-        task_conf.high_idx - task_conf.low_idx + 1
+        task_conf.high_idx - task_conf.low_idx
     );
 
     let stat = Arc::new(Stat {
