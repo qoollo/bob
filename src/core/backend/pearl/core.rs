@@ -497,16 +497,16 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
                 error!("cannot build pearl by path: {:?}, error: {:?}", path, e);
                 continue;
             }
-            let mut st = storage.unwrap();
-            if let Err(e) = st.init(spawner.clone()).await {
-                error!("cannot init pearl by path: {:?}, error: {:?}", path, e);
-                continue;
-            }
-            if let Err(e) = self.update(st).await {
-                error!("cannot update storage by path: {:?}, error: {:?}", path, e);
-                //TODO drop storage  .Part 2: i think we should panic here
-                continue;
-            }
+            // let mut st = storage.unwrap();
+            // if let Err(e) = st.init(spawner.clone()).await {
+            //     error!("cannot init pearl by path: {:?}, error: {:?}", path, e);
+            //     continue;
+            // }
+            // if let Err(e) = self.update(st).await {
+            //     error!("cannot update storage by path: {:?}, error: {:?}", path, e);
+            //     //TODO drop storage  .Part 2: i think we should panic here
+            //     continue;
+            // }
             debug!("Vdisk: {} Pearl is ready for work", self.vdisk_print());
             return Ok(());
         }

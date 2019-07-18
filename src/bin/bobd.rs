@@ -21,6 +21,19 @@ use futures03::future::{FutureExt, TryFutureExt};
 
 #[macro_use]
 extern crate log;
+extern crate dipstick;
+
+use dipstick::*;
+use std::time::Duration;
+
+metrics! {
+    // create counter "some_counter"
+    pub ROOT_COUNTER: Counter = "root_counter";
+    // create counter "root_counter"
+    pub ROOT_GAUGE: Gauge = "root_gauge";
+    // create counter "root_timer"
+    pub ROOT_TIMER: Timer = "root_timer";
+}
 
 fn main() {
     let matches = App::new("Bob")
@@ -46,6 +59,14 @@ fn main() {
                 .long("name"),
         )
         .get_matches();
+
+    let m = Graphite::send_to("localhost:2003")
+            .expect("Socket")
+            .named("machine1")
+            .add_name("application")
+            .metrics();
+
+    dipstick::Proxy::default_target(m);
 
     let cluster_config = matches.value_of("cluster").expect("expect cluster config");
     println!("Cluster config: {:?}", cluster_config);

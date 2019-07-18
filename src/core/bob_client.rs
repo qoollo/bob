@@ -187,6 +187,7 @@ impl BobClient {
     }
 
     pub async fn ping(&mut self) -> PingResult {
+        ROOT_COUNTER.count(1);
         let n1 = self.node.clone();
         let n2 = self.node.clone();
         let to = self.timeout;
