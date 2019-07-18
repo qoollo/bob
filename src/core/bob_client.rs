@@ -24,11 +24,10 @@ use futures_timer::ext::FutureExt as TimerExt;
 
 use tower::buffer::Buffer;
 
-type TowerConnect = 
-    Buffer<
-        tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>,
-        http::request::Request<BoxBody>,
-        >;
+type TowerConnect = Buffer<
+    tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>,
+    http::request::Request<BoxBody>,
+>;
 
 #[derive(Clone)]
 pub struct BobClient {
@@ -111,10 +110,7 @@ impl BobClient {
                             panic!("Timeout failed in core - can't continue")
                         } else {
                             let err = e.into_inner();
-                            Error::Failed(format!(
-                                "Put operation for {} failed: {:?}",
-                                n2, err
-                            ))
+                            Error::Failed(format!("Put operation for {} failed: {:?}", n2, err))
                         }
                     },
                     node: n2,
@@ -133,47 +129,44 @@ impl BobClient {
 
             client
                 .get(Request::new(GetRequest {
-                        key: Some(BlobKey { key: key.key }),
-                        options: Some(GetOptions { force_node: true }),
-                    }))
-                    .timeout(timeout)
-                    .map(|r| {
-                        let ans = r.into_inner();
-                        ClusterResult {
-                            node: n1,
-                            result: BackendGetResult {
-                                data: BobData::new(
-                                    ans.data,
-                                    BobMeta::new(ans.meta.unwrap()),
-                                ),
-                            },
-                        }
-                    })
-                    .map_err(move |e| ClusterResult {
-                        result: {
-                            if e.is_elapsed() {
-                                Error::Timeout
-                            } else if e.is_timer() {
-                                panic!("Timeout failed in core - can't continue")
-                            } else {
-                                let err = e.into_inner();
-                                match err {
-                                    Some(status) => match status.code() {
-                                        tower_grpc::Code::NotFound => Error::NotFound,
-                                        _ => Error::Failed(format!(
-                                            "Get operation for {} failed: {:?}",
-                                            n2, status
-                                        )),
-                                    },
-                                    None => Error::Failed(format!(
-                                        "Get operation for {} failed: {:?}",
-                                        n2, err
-                                    )),
-                                }
-                            }
+                    key: Some(BlobKey { key: key.key }),
+                    options: Some(GetOptions { force_node: true }),
+                }))
+                .timeout(timeout)
+                .map(|r| {
+                    let ans = r.into_inner();
+                    ClusterResult {
+                        node: n1,
+                        result: BackendGetResult {
+                            data: BobData::new(ans.data, BobMeta::new(ans.meta.unwrap())),
                         },
-                        node: n2,
-                    })
+                    }
+                })
+                .map_err(move |e| ClusterResult {
+                    result: {
+                        if e.is_elapsed() {
+                            Error::Timeout
+                        } else if e.is_timer() {
+                            panic!("Timeout failed in core - can't continue")
+                        } else {
+                            let err = e.into_inner();
+                            match err {
+                                Some(status) => match status.code() {
+                                    tower_grpc::Code::NotFound => Error::NotFound,
+                                    _ => Error::Failed(format!(
+                                        "Get operation for {} failed: {:?}",
+                                        n2, status
+                                    )),
+                                },
+                                None => Error::Failed(format!(
+                                    "Get operation for {} failed: {:?}",
+                                    n2, err
+                                )),
+                            }
+                        }
+                    },
+                    node: n2,
+                })
                 .compat()
                 .boxed()
         })
@@ -186,11 +179,11 @@ impl BobClient {
         self.client
             .clone()
             .ping(Request::new(Null {}))
-                .map(move |_| ClusterResult {
-                    node: n1,
-                    result: BackendPingResult {},
-                })
-                .map_err(|e| Error::StorageError(format!("ping operation error: {}", e)))
+            .map(move |_| ClusterResult {
+                node: n1,
+                result: BackendPingResult {},
+            })
+            .map_err(|e| Error::StorageError(format!("ping operation error: {}", e)))
             .compat()
             .boxed()
             .timeout(to)
