@@ -6,6 +6,7 @@ pub mod stub_backend;
 pub mod pearl;
 
 use crate::core::data::VDiskId;
+use std::io::ErrorKind;
 
 #[derive(PartialEq, Debug)]
 pub enum Error {
@@ -28,6 +29,15 @@ impl std::fmt::Display for Error {
             Error::VDiskNoFound(id) => write!(f, "vdisk: {:?} not found", id),
             Error::StorageError(description) => write!(f, "backend error: {}", description),
             err => write!(f, "{:?}", err),
+        }
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Self {
+        match error.kind() {
+            ErrorKind::TimedOut => Error::Timeout,
+            _ => Error::Failed(format!("Ping operation failed: {:?}", error)),
         }
     }
 }

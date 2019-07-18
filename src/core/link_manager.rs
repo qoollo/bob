@@ -10,7 +10,6 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::timer::Interval;
 
 use futures03::{
     compat::Future01CompatExt,
@@ -18,6 +17,8 @@ use futures03::{
     task::{Spawn, SpawnExt},
     Future as NewFuture,
 };
+
+use tokio_timer::Interval;
 
 pub struct NodeLink {
     pub node: Node,
@@ -104,7 +105,7 @@ impl LinkManager {
     pub async fn get_checker_future<S>(
         &self,
         ex: tokio::runtime::TaskExecutor,
-        mut spawner: S,
+        spawner: S,
     ) -> Result<(), ()>
     where
         S: Spawn + Clone + Send + 'static + Unpin + Sync,
@@ -114,12 +115,12 @@ impl LinkManager {
             executor: ex,
             timeout: self.timeout,
         };
-
         Interval::new_interval(self.check_interval)
             .for_each(move |_| {
                 local_repo.values().for_each(|v| {
                     let q = v.clone().check(client_factory.clone());
                     let _ = spawner
+                        .clone()
                         .spawn(q.map(|_r| {}))
                         .map_err(|e| panic!("can't run timer task {:?}", e));
                 });
