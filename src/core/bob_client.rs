@@ -8,7 +8,7 @@ use crate::core::{
 };
 use tower_grpc::{BoxBody, Code, Request, Status};
 
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::{pin::Pin, time::Duration};
 use tokio::{prelude::FutureExt, runtime::TaskExecutor};
 use tower::MakeService;
 
@@ -16,20 +16,25 @@ use futures::Future;
 use hyper::client::connect::{Destination, HttpConnector};
 use tower_hyper::{client, util};
 
-use futures_locks::Mutex;
-
 use futures03::{
     compat::Future01CompatExt, future::FutureExt as OtherFutureExt, Future as NewFuture,
     TryFutureExt,
 };
 use futures_timer::ext::FutureExt as TimerExt;
-type TowerConnect =
-    tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>;
+
+use tower::buffer::Buffer;
+
+type TowerConnect = 
+    Buffer<
+        tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>,
+        http::request::Request<BoxBody>,
+        >;
+
 #[derive(Clone)]
 pub struct BobClient {
     node: Node,
     timeout: Duration,
-    client: Arc<Mutex<BobApi<TowerConnect>>>,
+    client: BobApi<TowerConnect>,
 }
 
 pub type PutResult = Result<ClusterResult<BackendPutResult>, ClusterResult<Error>>;
@@ -45,8 +50,9 @@ impl BobClient {
         let dst = Destination::try_from_uri(node.get_uri()).unwrap();
         let connector = util::Connector::new(HttpConnector::new(4));
         let settings = client::Builder::new().http2_only(true).clone();
-        let mut make_client = client::Connect::with_executor(connector, settings, executor);
+        let mut make_client = client::Connect::with_executor(connector, settings, executor.clone());
         let n1 = node.clone();
+
         make_client
             .make_service(dst)
             .map_err(|e| Status::new(Code::Unavailable, format!("Connection error: {}", e)))
@@ -56,11 +62,12 @@ impl BobClient {
                     .set_origin(n1.get_uri())
                     .build(conn_l)
                     .unwrap();
-                BobApi::new(conn).ready()
+
+                BobApi::new(Buffer::with_executor(conn, 5, &mut executor.clone())).ready() //TODO add count treads
             })
             .map(move |client| BobClient {
                 node,
-                client: Arc::new(Mutex::new(client)),
+                client,
                 timeout,
             })
             .map_err(|e| debug!("BobClient: ERR = {:?}", e))
@@ -74,50 +81,43 @@ impl BobClient {
             let n1 = self.node.clone();
             let n2 = self.node.clone();
             let data = d.clone(); // TODO: find way to eliminate data copying
-            let client = self.client.clone();
+            let mut client = self.client.clone();
             let timeout = self.timeout;
 
             client
-                .lock()
-                .then(move |client_res| {
-                    match client_res {
-                        Ok(mut cl) => cl
-                            .put(Request::new(PutRequest {
-                                key: Some(BlobKey { key: key.key }),
-                                data: Some(Blob {
-                                    data: data.data,
-                                    meta: Some(BlobMeta {
-                                        timestamp: data.meta.timestamp,
-                                    }),
-                                }),
-                                options: Some(PutOptions {
-                                    force_node: true,
-                                    overwrite: false,
-                                }),
-                            }))
-                            .timeout(timeout)
-                            .map(|_| ClusterResult {
-                                node: n1,
-                                result: BackendPutResult {},
-                            })
-                            .map_err(move |e| ClusterResult {
-                                result: {
-                                    if e.is_elapsed() {
-                                        Error::Timeout
-                                    } else if e.is_timer() {
-                                        panic!("Timeout failed in core - can't continue")
-                                    } else {
-                                        let err = e.into_inner();
-                                        Error::Failed(format!(
-                                            "Put operation for {} failed: {:?}",
-                                            n2, err
-                                        ))
-                                    }
-                                },
-                                node: n2,
-                            }),
-                        Err(_) => panic!("Timeout failed in core - can't continue"), //TODO
-                    }
+                .put(Request::new(PutRequest {
+                    key: Some(BlobKey { key: key.key }),
+                    data: Some(Blob {
+                        data: data.data,
+                        meta: Some(BlobMeta {
+                            timestamp: data.meta.timestamp,
+                        }),
+                    }),
+                    options: Some(PutOptions {
+                        force_node: true,
+                        overwrite: false,
+                    }),
+                }))
+                .timeout(timeout)
+                .map(|_| ClusterResult {
+                    node: n1,
+                    result: BackendPutResult {},
+                })
+                .map_err(move |e| ClusterResult {
+                    result: {
+                        if e.is_elapsed() {
+                            Error::Timeout
+                        } else if e.is_timer() {
+                            panic!("Timeout failed in core - can't continue")
+                        } else {
+                            let err = e.into_inner();
+                            Error::Failed(format!(
+                                "Put operation for {} failed: {:?}",
+                                n2, err
+                            ))
+                        }
+                    },
+                    node: n2,
                 })
                 .compat()
                 .boxed()
@@ -128,59 +128,52 @@ impl BobClient {
         Get({
             let n1 = self.node.clone();
             let n2 = self.node.clone();
-            let client = self.client.clone();
+            let mut client = self.client.clone();
             let timeout = self.timeout;
 
             client
-                .lock()
-                .then(move |client_res| {
-                    match client_res {
-                        Ok(mut cl) => cl
-                            .get(Request::new(GetRequest {
-                                key: Some(BlobKey { key: key.key }),
-                                options: Some(GetOptions { force_node: true }),
-                            }))
-                            .timeout(timeout)
-                            .map(|r| {
-                                let ans = r.into_inner();
-                                ClusterResult {
-                                    node: n1,
-                                    result: BackendGetResult {
-                                        data: BobData::new(
-                                            ans.data,
-                                            BobMeta::new(ans.meta.unwrap()),
-                                        ),
+                .get(Request::new(GetRequest {
+                        key: Some(BlobKey { key: key.key }),
+                        options: Some(GetOptions { force_node: true }),
+                    }))
+                    .timeout(timeout)
+                    .map(|r| {
+                        let ans = r.into_inner();
+                        ClusterResult {
+                            node: n1,
+                            result: BackendGetResult {
+                                data: BobData::new(
+                                    ans.data,
+                                    BobMeta::new(ans.meta.unwrap()),
+                                ),
+                            },
+                        }
+                    })
+                    .map_err(move |e| ClusterResult {
+                        result: {
+                            if e.is_elapsed() {
+                                Error::Timeout
+                            } else if e.is_timer() {
+                                panic!("Timeout failed in core - can't continue")
+                            } else {
+                                let err = e.into_inner();
+                                match err {
+                                    Some(status) => match status.code() {
+                                        tower_grpc::Code::NotFound => Error::NotFound,
+                                        _ => Error::Failed(format!(
+                                            "Get operation for {} failed: {:?}",
+                                            n2, status
+                                        )),
                                     },
+                                    None => Error::Failed(format!(
+                                        "Get operation for {} failed: {:?}",
+                                        n2, err
+                                    )),
                                 }
-                            })
-                            .map_err(move |e| ClusterResult {
-                                result: {
-                                    if e.is_elapsed() {
-                                        Error::Timeout
-                                    } else if e.is_timer() {
-                                        panic!("Timeout failed in core - can't continue")
-                                    } else {
-                                        let err = e.into_inner();
-                                        match err {
-                                            Some(status) => match status.code() {
-                                                tower_grpc::Code::NotFound => Error::NotFound,
-                                                _ => Error::Failed(format!(
-                                                    "Get operation for {} failed: {:?}",
-                                                    n2, status
-                                                )),
-                                            },
-                                            None => Error::Failed(format!(
-                                                "Get operation for {} failed: {:?}",
-                                                n2, err
-                                            )),
-                                        }
-                                    }
-                                },
-                                node: n2,
-                            }),
-                        Err(_) => panic!("Timeout failed in core - can't continue"), //TODO
-                    }
-                })
+                            }
+                        },
+                        node: n2,
+                    })
                 .compat()
                 .boxed()
         })
@@ -191,17 +184,13 @@ impl BobClient {
         let n2 = self.node.clone();
         let to = self.timeout;
         self.client
-            .lock()
-            .then(move |client_res| match client_res {
-                Ok(mut cl) => cl
-                    .ping(Request::new(Null {}))
-                    .map(move |_| ClusterResult {
-                        node: n1,
-                        result: BackendPingResult {},
-                    })
-                    .map_err(|e| Error::StorageError(format!("ping operation error: {}", e))),
-                Err(_) => panic!("Timeout failed in core - can't continue"), //TODO
-            })
+            .clone()
+            .ping(Request::new(Null {}))
+                .map(move |_| ClusterResult {
+                    node: n1,
+                    result: BackendPingResult {},
+                })
+                .map_err(|e| Error::StorageError(format!("ping operation error: {}", e)))
             .compat()
             .boxed()
             .timeout(to)
