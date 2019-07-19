@@ -10,6 +10,7 @@ use std::{thread, time};
 
 use tokio::runtime::current_thread::Runtime;
 
+use futures::future::ok;
 use futures::Future;
 use tower::MakeService;
 use tower_grpc::Request;
@@ -82,7 +83,8 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
         .build(conn)
         .unwrap();
     let mut client = BobApi::new(p_conn);
-    rt.block_on(loop_fn((stat.clone(), task_conf.low_idx), |(lstat, i)| {
+
+    let put = loop_fn((stat.clone(), task_conf.low_idx), |(lstat, i)| {
         client
             .put(Request::new(PutRequest {
                 key: Some(BlobKey { key: i }),
@@ -97,16 +99,16 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
                 }),
                 options: None,
             }))
-            .and_then(move |_| {
+            .then(move |_| {
                 lstat.clone().put_total.fetch_add(1, Ordering::SeqCst);
                 if i + 1 == task_conf.high_idx {
-                    Ok(Loop::Break((lstat, i)))
+                    ok::<_, ()>(Loop::Break((lstat, i)))
                 } else {
-                    Ok(Loop::Continue((lstat, i + 1)))
+                    ok::<_, ()>(Loop::Continue((lstat, i + 1)))
                 }
             })
-    }))
-    .unwrap();
+    });
+    rt.block_on(put).unwrap();
 
     rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
         client

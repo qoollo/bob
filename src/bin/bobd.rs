@@ -21,8 +21,9 @@ use futures03::future::{FutureExt, TryFutureExt};
 
 #[macro_use]
 extern crate log;
-extern crate dipstick;
 
+extern crate dipstick;
+use bob::core::metrics::init_counters;
 use dipstick::*;
 use std::time::Duration;
 
@@ -60,13 +61,20 @@ fn main() {
         )
         .get_matches();
 
-    let m = Graphite::send_to("localhost:2003")
+    
+    
+    
+    let bucket = AtomicBucket::new().named("test");
+    let gr = Graphite::send_to("localhost:2003")
             .expect("Socket")
-            .named("machine1")
-            .add_name("application")
-            .metrics();
+            .named("machine9");
+    bucket.drain(gr.clone());
 
-    dipstick::Proxy::default_target(m);
+    let d = Duration::from_secs(1);
+    bucket.flush_every(d.clone());
+    dipstick::Proxy::default_target(bucket.clone());
+
+    init_counters("test.", gr, d);
 
     let cluster_config = matches.value_of("cluster").expect("expect cluster config");
     println!("Cluster config: {:?}", cluster_config);

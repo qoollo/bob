@@ -23,6 +23,7 @@ use futures03::{
     TryFutureExt,
 };
 use futures_timer::ext::FutureExt as TimerExt;
+
 type TowerConnect =
     tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>;
 #[derive(Clone)]
@@ -187,7 +188,6 @@ impl BobClient {
     }
 
     pub async fn ping(&mut self) -> PingResult {
-        ROOT_COUNTER.count(1);
         let n1 = self.node.clone();
         let n2 = self.node.clone();
         let to = self.timeout;

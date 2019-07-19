@@ -9,6 +9,7 @@ use crate::core::{
 use futures03::task::Spawn;
 
 use std::sync::Arc;
+use crate::core::metrics::*;
 
 pub enum Error {
     NotFound,
@@ -72,7 +73,6 @@ impl Grinder {
             config.check_interval(),
             config.timeout(),
         ));
-
         Grinder {
             backend: Backend::new(&mapper, config, spawner),
             mapper: mapper.clone(),
@@ -95,23 +95,38 @@ impl Grinder {
                 "PUT[{}] flag FORCE_NODE is on - will handle it by local node. Put params: {}",
                 key, op
             );
-            self.backend
+            CLIENT_PUT_COUNTER.count(1);
+            let time = CLIENT_PUT_TIMER.start();
+            
+            let result =  self.backend
                 .put(&op, key, data)
                 .0
                 .await
-                .map_err(|err| BobError::Local(err))
+                .map_err(|err| BobError::Local(err));
+            
+            CLIENT_PUT_TIMER.stop(time);
+            return result;
         } else {
             debug!("PUT[{}] will route to cluster", key);
-            self.cluster
+            GRINDER_PUT_COUNTER.count(1);
+            let time = GRINDER_PUT_TIMER.start();
+
+            let result = self.cluster
                 .put_clustered(key, data)
                 .0
                 .await
-                .map_err(|err| BobError::Cluster(err))
-        }
+                .map_err(|err| BobError::Cluster(err));
+
+            GRINDER_PUT_TIMER.stop(time);
+            return result;
+        };
     }
 
     pub async fn get(&self, key: BobKey, opts: BobOptions) -> Result<BackendGetResult, BobError> {
-        if opts.contains(BobOptions::FORCE_NODE) {
+        GRINDER_GET_COUNTER.count(1);
+        let time = GRINDER_GET_TIMER.start();
+
+        let result = if opts.contains(BobOptions::FORCE_NODE) {
             let op = self.mapper.get_operation(key);
             debug!(
                 "GET[{}] flag FORCE_NODE is on - will handle it by local node. Get params: {}",
@@ -129,7 +144,10 @@ impl Grinder {
                 .0
                 .await
                 .map_err(|err| BobError::Cluster(err))
-        }
+        };
+
+        GRINDER_GET_TIMER.stop(time);
+        result
     }
 
     pub async fn get_periodic_tasks<S>(
