@@ -3,6 +3,7 @@ use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRe
 use crate::core::{
     data::{BobData, BobKey, BobMeta, BobOptions},
     grinder::{Error, Grinder},
+    bob_client::BobClientFactory,
 };
 use futures::{
     future,
@@ -27,13 +28,13 @@ impl BobSrv {
 
     pub async fn get_periodic_tasks<S>(
         &self,
-        ex: tokio::runtime::TaskExecutor,
+        client_factory: BobClientFactory,
         spawner: S,
     ) -> Result<(), ()>
     where
         S: Spawn + Clone + Send + 'static + Unpin + Sync,
     {
-        self.grinder.get_periodic_tasks(ex, spawner).await
+        self.grinder.get_periodic_tasks(client_factory, spawner).await
     }
 
     fn put_is_valid(req: &PutRequest) -> bool {

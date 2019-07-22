@@ -84,11 +84,10 @@ impl NodeLinkHolder {
 pub struct LinkManager {
     repo: Arc<HashMap<Node, NodeLinkHolder>>,
     check_interval: Duration,
-    timeout: Duration,
 }
 
 impl LinkManager {
-    pub fn new(nodes: Vec<Node>, check_interval: Duration, timeout: Duration) -> LinkManager {
+    pub fn new(nodes: Vec<Node>, check_interval: Duration) -> LinkManager {
         LinkManager {
             repo: {
                 let mut hm = HashMap::new();
@@ -98,23 +97,22 @@ impl LinkManager {
                 Arc::new(hm)
             },
             check_interval,
-            timeout,
         }
     }
 
     pub async fn get_checker_future<S>(
         &self,
-        ex: tokio::runtime::TaskExecutor,
+        client_factory: BobClientFactory,
         spawner: S,
     ) -> Result<(), ()>
     where
         S: Spawn + Clone + Send + 'static + Unpin + Sync,
     {
         let local_repo = self.repo.clone();
-        let client_factory = BobClientFactory {
-            executor: ex,
-            timeout: self.timeout,
-        };
+        // let client_factory = BobClientFactory {
+        //     executor: ex,
+        //     timeout: self.timeout,
+        // };
         Interval::new_interval(self.check_interval)
             .for_each(move |_| {
                 local_repo.values().for_each(|v| {

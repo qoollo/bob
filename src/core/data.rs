@@ -231,6 +231,10 @@ impl Node {
             .parse()
             .unwrap()
     }
+
+    pub(crate) fn counter_display(&self) -> String {
+        format!("{}:{}", self.host.replace(".", "_"), self.port)
+    }
 }
 
 impl std::fmt::Display for Node {

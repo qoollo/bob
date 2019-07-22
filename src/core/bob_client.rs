@@ -5,10 +5,11 @@ use crate::core::{
     backend::core::{BackendGetResult, BackendPingResult, BackendPutResult},
     backend::Error,
     data::{BobData, BobKey, BobMeta, ClusterResult, Node},
+    metrics::*,
 };
 use tower_grpc::{BoxBody, Code, Request, Status};
 
-use std::{pin::Pin, time::Duration};
+use std::{pin::Pin, time::Duration, sync::Arc};
 use tokio::{prelude::FutureExt, runtime::TaskExecutor};
 use tower::MakeService;
 
@@ -21,7 +22,6 @@ use futures03::{
     TryFutureExt,
 };
 use futures_timer::ext::FutureExt as TimerExt;
-
 use tower::buffer::Buffer;
 
 type TowerConnect = Buffer<
@@ -34,6 +34,7 @@ pub struct BobClient {
     node: Node,
     timeout: Duration,
     client: BobApi<TowerConnect>,
+    metrics: BobClientMetrics,
 }
 
 pub type PutResult = Result<ClusterResult<BackendPutResult>, ClusterResult<Error>>;
@@ -45,7 +46,7 @@ pub struct Get(pub Pin<Box<dyn NewFuture<Output = GetResult> + Send>>);
 pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<Error>>;
 
 impl BobClient {
-    pub async fn new(node: Node, executor: TaskExecutor, timeout: Duration) -> Result<Self, ()> {
+    pub async fn new(node: Node, executor: TaskExecutor, timeout: Duration, metrics: BobClientMetrics) -> Result<Self, ()> {
         let dst = Destination::try_from_uri(node.get_uri()).unwrap();
         let connector = util::Connector::new(HttpConnector::new(4));
         let settings = client::Builder::new().http2_only(true).clone();
@@ -68,6 +69,7 @@ impl BobClient {
                 node,
                 client,
                 timeout,
+                metrics,
             })
             .map_err(|e| debug!("BobClient: ERR = {:?}", e))
             .compat()
@@ -82,6 +84,12 @@ impl BobClient {
             let data = d.clone(); // TODO: find way to eliminate data copying
             let mut client = self.client.clone();
             let timeout = self.timeout;
+
+            let metrics = self.metrics.clone();
+            let metrics2 = self.metrics.clone();
+            metrics.put_count();
+            let timer = metrics.put_timer();
+            let timer2 = timer.clone();
 
             client
                 .put(Request::new(PutRequest {
@@ -98,11 +106,17 @@ impl BobClient {
                     }),
                 }))
                 .timeout(timeout)
-                .map(|_| ClusterResult {
+                .map(move |_| {
+                    metrics.put_timer_stop(timer);
+                    ClusterResult {
                     node: n1,
                     result: BackendPutResult {},
-                })
-                .map_err(move |e| ClusterResult {
+                }})
+                .map_err(move |e| {
+                    metrics2.put_error_count();
+                    metrics2.put_timer_stop(timer2);
+
+                    ClusterResult {
                     result: {
                         if e.is_elapsed() {
                             Error::Timeout
@@ -114,7 +128,7 @@ impl BobClient {
                         }
                     },
                     node: n2,
-                })
+                }})
                 .compat()
                 .boxed()
         })
@@ -126,6 +140,13 @@ impl BobClient {
             let n2 = self.node.clone();
             let mut client = self.client.clone();
             let timeout = self.timeout;
+            
+            let metrics = self.metrics.clone();
+            let metrics2 = self.metrics.clone();
+            
+            metrics.get_count();
+            let timer = metrics.get_timer();
+            let timer2 = timer.clone();
 
             client
                 .get(Request::new(GetRequest {
@@ -133,7 +154,8 @@ impl BobClient {
                     options: Some(GetOptions { force_node: true }),
                 }))
                 .timeout(timeout)
-                .map(|r| {
+                .map(move |r| {
+                    metrics.get_timer_stop(timer);
                     let ans = r.into_inner();
                     ClusterResult {
                         node: n1,
@@ -142,7 +164,10 @@ impl BobClient {
                         },
                     }
                 })
-                .map_err(move |e| ClusterResult {
+                .map_err(move |e| {
+                    metrics2.get_error_count();
+                    metrics2.get_timer_stop(timer2);
+                    ClusterResult {
                     result: {
                         if e.is_elapsed() {
                             Error::Timeout
@@ -166,7 +191,7 @@ impl BobClient {
                         }
                     },
                     node: n2,
-                })
+                }})
                 .compat()
                 .boxed()
         })
@@ -193,16 +218,27 @@ impl BobClient {
             })
             .await
     }
+
 }
 
 #[derive(Clone)]
 pub struct BobClientFactory {
-    pub executor: TaskExecutor,
-    pub timeout: Duration,
+    executor: TaskExecutor,
+    timeout: Duration,
+    f: Arc<dyn Fn(String)-> BobClientMetrics+Send+Sync>,
 }
 
 impl BobClientFactory {
-    pub async fn produce(&self, node: Node) -> Result<BobClient, ()> {
-        BobClient::new(node, self.executor.clone(), self.timeout).await
+    pub fn new<F>(executor: TaskExecutor, timeout: Duration, f: F) -> Self 
+    where
+        F: Fn(String)-> BobClientMetrics+Send+Sync +'static
+    {
+        BobClientFactory {
+            executor, timeout, f: Arc::new(f)
+        }
+    }
+    pub(crate) async fn produce(&self, node: Node) -> Result<BobClient, ()> {
+        let metrics = (self.f)(node.counter_display());
+        BobClient::new(node, self.executor.clone(), self.timeout, metrics).await
     }
 }

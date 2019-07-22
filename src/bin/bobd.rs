@@ -3,6 +3,7 @@ use bob::api::grpc::server;
 
 use bob::core::data::VDiskMapper;
 use bob::core::grinder::Grinder;
+use bob::core::bob_client::BobClientFactory;
 use clap::{App, Arg};
 use env_logger;
 use tokio::net::TcpListener;
@@ -23,7 +24,7 @@ use futures03::future::{FutureExt, TryFutureExt};
 extern crate log;
 
 extern crate dipstick;
-use bob::core::metrics::init_counters;
+use bob::core::metrics::*;
 use dipstick::*;
 use std::time::Duration;
 
@@ -60,21 +61,19 @@ fn main() {
                 .long("name"),
         )
         .get_matches();
-
     
-    
-    
-    let bucket = AtomicBucket::new().named("test");
     let gr = Graphite::send_to("localhost:2003")
             .expect("Socket")
             .named("machine9");
-    bucket.drain(gr.clone());
-
     let d = Duration::from_secs(1);
-    bucket.flush_every(d.clone());
-    dipstick::Proxy::default_target(bucket.clone());
 
-    init_counters("test.", gr, d);
+    let metrics = MetricsContainer::new(gr, d);
+    init_counters("test.", metrics.clone());
+
+    let f = move |name: String| {
+        let m = metrics.clone();
+        m.get_bucket(&name)
+    };
 
     let cluster_config = matches.value_of("cluster").expect("expect cluster config");
     println!("Cluster config: {:?}", cluster_config);
@@ -125,8 +124,9 @@ fn main() {
     let mut rt = Runtime::new().unwrap();
     let executor = rt.executor();
 
+    let factory = BobClientFactory::new(executor, node.timeout(), f);
     let b = bob.clone();
-    let q = async move { b.get_periodic_tasks(executor, pool).await };
+    let q = async move { b.get_periodic_tasks(factory, pool).await };
     rt.spawn(q.boxed().compat());
 
     let b1 = bob.clone();

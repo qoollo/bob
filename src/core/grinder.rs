@@ -5,7 +5,9 @@ use crate::core::{
     configs::node::NodeConfig,
     data::{BobData, BobKey, BobOptions, VDiskMapper},
     link_manager::LinkManager,
+    bob_client::BobClientFactory,
 };
+
 use futures03::task::Spawn;
 
 use std::sync::Arc;
@@ -70,8 +72,7 @@ impl Grinder {
     ) -> Grinder {
         let link = Arc::new(LinkManager::new(
             mapper.nodes(),
-            config.check_interval(),
-            config.timeout(),
+            config.check_interval()
         ));
         Grinder {
             backend: Backend::new(&mapper, config, spawner),
@@ -102,7 +103,10 @@ impl Grinder {
                 .put(&op, key, data)
                 .0
                 .await
-                .map_err(|err| BobError::Local(err));
+                .map_err(|err| {
+                    GRINDER_PUT_ERROR_COUNT_COUNTER.count(1);
+                    BobError::Local(err)
+                });
             
             CLIENT_PUT_TIMER.stop(time);
             return result;
@@ -115,7 +119,10 @@ impl Grinder {
                 .put_clustered(key, data)
                 .0
                 .await
-                .map_err(|err| BobError::Cluster(err));
+                .map_err(|err| {
+                    CLINET_PUT_ERROR_COUNT_COUNTER.count(1);
+                    BobError::Cluster(err)
+                });
 
             GRINDER_PUT_TIMER.stop(time);
             return result;
@@ -136,14 +143,20 @@ impl Grinder {
                 .get(&op, key)
                 .0
                 .await
-                .map_err(|err| BobError::Local(err))
+                .map_err(|err| {
+                    GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
+                    BobError::Local(err)
+                })
         } else {
             debug!("GET[{}] will route to cluster", key);
             self.cluster
                 .get_clustered(key)
                 .0
                 .await
-                .map_err(|err| BobError::Cluster(err))
+                .map_err(|err| {
+                    CLIENT_GET_ERROR_COUNT_COUNTER.count(1);
+                    BobError::Cluster(err)
+                })
         };
 
         GRINDER_GET_TIMER.stop(time);
@@ -152,12 +165,12 @@ impl Grinder {
 
     pub async fn get_periodic_tasks<S>(
         &self,
-        ex: tokio::runtime::TaskExecutor,
+        client_factory: BobClientFactory,
         spawner: S,
     ) -> Result<(), ()>
     where
         S: Spawn + Clone + Send + 'static + Unpin + Sync,
     {
-        self.link_manager.get_checker_future(ex, spawner).await
+        self.link_manager.get_checker_future(client_factory, spawner).await
     }
 }
