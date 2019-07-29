@@ -85,6 +85,8 @@ impl BobClientMetrics {
 pub struct MetricsContainer<TOutput> {
     output: TOutput,
     duration: Duration,
+
+    prefix: String,
 }
 
 impl<TOutput: Output + Send + Sync + Clone + 'static> MetricsContainer<TOutput> {
@@ -92,35 +94,43 @@ impl<TOutput: Output + Send + Sync + Clone + 'static> MetricsContainer<TOutput> 
         MetricsContainer{
             output,
             duration,
+            prefix: "".to_string(),
         }
     }
 
     pub fn get_bucket(self, name: &str) -> BobClientMetrics {
-        BobClientMetrics::new(init_bucket(name, self.clone()))
+        let prefix = self.prefix.clone() + ".to." + name;
+        BobClientMetrics::new(init_bucket(&prefix, &self))
+    }
+
+    pub(crate) fn set_prefix(&mut self, prefix: &str) {
+        self.prefix = prefix.to_string();
     }
 }
 
-pub fn init_counters<TOutput: Output + Send + Sync + Clone + 'static>(prefix: &str, metrics: MetricsContainer<TOutput>) {
-    init_grinder(&(prefix.to_owned() + "cluster"), metrics.clone());
-    init_bob_client(&(prefix.to_owned() + "backend"), metrics.clone());
+pub fn init_counters<TOutput: Output + Send + Sync + Clone + 'static>(prefix: &str, metrics: &mut MetricsContainer<TOutput>) {
+    init_grinder(&(prefix.to_owned() + "cluster"), metrics);
+    init_bob_client(&(prefix.to_owned() + "backend"), metrics);
 }
 
-pub fn init_grinder<TOutput: Output + Send + Sync + Clone + 'static>(prefix: &str, metrics: MetricsContainer<TOutput>) {
+pub fn init_grinder<TOutput: Output + Send + Sync + Clone + 'static>(prefix: &str, metrics: &mut MetricsContainer<TOutput>) {
     let bucket = init_bucket(prefix, metrics);
     GRINDER.target(bucket.clone());
+
+    metrics.set_prefix(prefix);
 }
 
-pub fn init_bob_client<TOutput: Output + Send + Sync + Clone + 'static>(prefix: &str, metrics: MetricsContainer<TOutput>) {
+pub fn init_bob_client<TOutput: Output + Send + Sync + Clone + 'static>(prefix: &str, metrics: &MetricsContainer<TOutput>) {
     let bucket = init_bucket(prefix, metrics);
     CLIENT.target(bucket);
 }
 
-pub fn init_bucket<TOutput: Output + Send + Sync + Clone + 'static>(prefix: &str, metrics: MetricsContainer<TOutput>) -> AtomicBucket
+pub fn init_bucket<TOutput: Output + Send + Sync + Clone + 'static>(prefix: &str, metrics: &MetricsContainer<TOutput>) -> AtomicBucket
 {
     let bucket = AtomicBucket::new().named(prefix.to_string());
     
     bucket.stats(stats_all_bob);
-    bucket.drain(metrics.output);
+    bucket.drain(metrics.output.clone());
 
     bucket.flush_every(metrics.duration);
     bucket

@@ -10,7 +10,7 @@ use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 
 use bob::core::configs::cluster::ClusterConfigYaml;
-use bob::core::configs::node::{DiskPath, NodeConfigYaml};
+use bob::core::configs::node::{DiskPath, NodeConfigYaml, NodeConfig};
 
 use bob::core::server::BobSrv;
 
@@ -24,17 +24,24 @@ use futures03::future::{FutureExt, TryFutureExt};
 extern crate log;
 
 extern crate dipstick;
-use bob::core::metrics::*;
+use bob::core::metrics;
+use bob::core::metrics::MetricsContainer;
 use dipstick::*;
 use std::time::Duration;
 
-metrics! {
-    // create counter "some_counter"
-    pub ROOT_COUNTER: Counter = "root_counter";
-    // create counter "root_counter"
-    pub ROOT_GAUGE: Gauge = "root_gauge";
-    // create counter "root_timer"
-    pub ROOT_TIMER: Timer = "root_timer";
+fn prepare_metrics_addres(address: String) -> String {
+    address.replace(".", "_") + "."
+}
+
+fn init_counters(config: &NodeConfig) -> MetricsContainer<Graphite>
+{
+    let gr = Graphite::send_to("localhost:2003")
+            .expect("Socket")
+            .named("machine10");
+    let d = Duration::from_secs(1);
+    let mut metrics = MetricsContainer::new(gr, d);
+    metrics::init_counters(&prepare_metrics_addres(config.bind()), &mut metrics);
+    metrics
 }
 
 fn main() {
@@ -62,19 +69,6 @@ fn main() {
         )
         .get_matches();
     
-    let gr = Graphite::send_to("localhost:2003")
-            .expect("Socket")
-            .named("machine9");
-    let d = Duration::from_secs(1);
-
-    let metrics = MetricsContainer::new(gr, d);
-    init_counters("test.", metrics.clone());
-
-    let f = move |name: String| {
-        let m = metrics.clone();
-        m.get_bucket(&name)
-    };
-
     let cluster_config = matches.value_of("cluster").expect("expect cluster config");
     println!("Cluster config: {:?}", cluster_config);
     let (vdisks, cluster) = ClusterConfigYaml {}.get(cluster_config).unwrap();
@@ -82,6 +76,12 @@ fn main() {
     let node_config = matches.value_of("node").expect("expect node config");
     println!("Node config: {:?}", node_config);
     let node = NodeConfigYaml {}.get(node_config, &cluster).unwrap();
+    
+    let metrics = init_counters(&node);
+    let f = move |name: String| {
+        let m = metrics.clone();
+        m.get_bucket(&name)
+    };
 
     env_logger::builder()
         .filter_module("bob", node.log_level())
