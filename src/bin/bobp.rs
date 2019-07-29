@@ -13,7 +13,7 @@ use tokio::runtime::current_thread::Runtime;
 use futures::future::ok;
 use futures::Future;
 use tower::MakeService;
-use tower_grpc::Request;
+use tower_grpc::{BoxBody, Request};
 
 use bob::api::grpc::client::BobApi;
 use bob::api::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
@@ -38,7 +38,7 @@ impl NetConfig {
 #[derive(Debug, Clone, Copy)]
 struct TaskConfig {
     low_idx: u64,
-    high_idx: u64,
+    count: u64,
     payload_size: u64,
 }
 
@@ -66,9 +66,11 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
     }
 }
 
-fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
+fn build_client(
+    rt: &mut Runtime,
+    net_conf: NetConfig,
+) -> BobApi<tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>> {
     let uri = std::sync::Arc::new(net_conf.get_uri());
-    let mut rt = Runtime::new().unwrap();
 
     // let h2_settings = Default::default();
     // let mut make_client = client::Connect::new(net_conf.get_connector(), h2_settings, rt.handle());
@@ -82,7 +84,34 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
         .set_origin(uri.as_ref())
         .build(conn)
         .unwrap();
-    let mut client = BobApi::new(p_conn);
+    BobApi::new(p_conn)
+}
+
+fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
+    let mut rt = Runtime::new().unwrap();
+    let mut client = build_client(&mut rt, net_conf);
+
+    rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
+        client
+            .get(Request::new(GetRequest {
+                key: Some(BlobKey { key: i }),
+                options: None,
+            }))
+            .then(move |_| {
+                lstat.clone().get_total.fetch_add(1, Ordering::SeqCst);
+                if i + 1 == task_conf.low_idx + task_conf.count {
+                    ok::<_, ()>(Loop::Break((lstat, i)))
+                } else {
+                    ok::<_, ()>(Loop::Continue((lstat, i + 1)))
+                }
+            })
+    }))
+    .unwrap();
+}
+
+fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
+    let mut rt = Runtime::new().unwrap();
+    let mut client = build_client(&mut rt, net_conf);
 
     let put = loop_fn((stat.clone(), task_conf.low_idx), |(lstat, i)| {
         client
@@ -95,13 +124,13 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
                             .duration_since(UNIX_EPOCH)
                             .expect("msg: &str")
                             .as_secs() as u32,
-                    }), // TODO
+                    }),
                 }),
                 options: None,
             }))
             .then(move |_| {
                 lstat.clone().put_total.fetch_add(1, Ordering::SeqCst);
-                if i + 1 == task_conf.high_idx {
+                if i + 1 == task_conf.low_idx + task_conf.count {
                     ok::<_, ()>(Loop::Break((lstat, i)))
                 } else {
                     ok::<_, ()>(Loop::Continue((lstat, i + 1)))
@@ -109,29 +138,6 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
             })
     });
     rt.block_on(put).unwrap();
-
-    rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
-        client
-            .get(Request::new(GetRequest {
-                key: Some(BlobKey { key: i }),
-                options: None,
-            }))
-            .and_then(move |_| {
-                lstat.clone().get_total.fetch_add(1, Ordering::SeqCst);
-                if i + 1 == task_conf.high_idx {
-                    Ok(Loop::Break((lstat, i)))
-                } else {
-                    Ok(Loop::Continue((lstat, i + 1)))
-                }
-            })
-    }))
-    .unwrap();
-
-    //     //let sw = Stopwatch::start_new();
-    //     rt.block_on(pur_req).unwrap();
-    //     stat.put_total.fetch_add(1, Ordering::SeqCst);
-    //     //println!("Thing took {}ms", sw.elapsed_ms());
-    // }
 }
 
 fn main() {
@@ -176,6 +182,22 @@ fn main() {
                 .long("count")
                 .default_value("1000000"),
         )
+        .arg(
+            Arg::with_name("first")
+                .help("first index of records to proceed")
+                .takes_value(true)
+                .short("f")
+                .long("first")
+                .default_value("0"),
+        )
+        .arg(
+            Arg::with_name("behavior")
+                .help("put / get")
+                .takes_value(true)
+                .short("b")
+                .long("behavior")
+                .default_value("put"),
+        )
         .get_matches();
 
     let net_conf = NetConfig {
@@ -188,8 +210,12 @@ fn main() {
     };
 
     let task_conf = TaskConfig {
-        low_idx: 0,
-        high_idx: matches
+        low_idx: matches
+            .value_of("first")
+            .unwrap_or_default()
+            .parse()
+            .unwrap(),
+        count: matches
             .value_of("count")
             .unwrap_or_default()
             .parse()
@@ -207,14 +233,16 @@ fn main() {
         .parse()
         .unwrap();
 
+    let behavior = match matches.value_of("behavior").unwrap_or_default() {
+        "put" => true,
+        "get" => false,
+        value => panic!("invalid value for behavior: {}", value),
+    };
+
     println!("Bob will be benchmarked now");
     println!(
         "target: {}:{} workers_count: {} payload size: {} total records: {}",
-        net_conf.target,
-        net_conf.port,
-        workers_count,
-        task_conf.payload_size,
-        task_conf.high_idx - task_conf.low_idx
+        net_conf.target, net_conf.port, workers_count, task_conf.payload_size, task_conf.count,
     );
 
     let stat = Arc::new(Stat {
@@ -231,19 +259,26 @@ fn main() {
             stat_worker(stop_token, 1000, stat_cln);
         })
     };
+
     let mut workers = vec![];
-    let task_size = (task_conf.high_idx - task_conf.low_idx) / workers_count;
+    let task_size = task_conf.count / workers_count;
     for i in 0..workers_count {
         let nc = net_conf.clone();
         let stat_inner = stat.clone();
         let tc = TaskConfig {
             low_idx: task_conf.low_idx + task_size * i,
-            high_idx: task_conf.low_idx + task_size * (i + 1),
+            count: task_size,
             payload_size: task_conf.payload_size,
         };
-        workers.push(thread::spawn(move || {
-            bench_worker(nc, tc, stat_inner);
-        }));
+        if behavior {
+            workers.push(thread::spawn(move || {
+                put_worker(nc, tc, stat_inner);
+            }));
+        } else {
+            workers.push(thread::spawn(move || {
+                get_worker(nc, tc, stat_inner);
+            }));
+        }
     }
 
     workers.drain(..).for_each(|w| w.join().unwrap());

@@ -9,7 +9,7 @@ use crate::core::{
 };
 use tower_grpc::{BoxBody, Code, Request, Status};
 
-use std::{pin::Pin, time::Duration, sync::Arc};
+use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio::{prelude::FutureExt, runtime::TaskExecutor};
 use tower::MakeService;
 
@@ -46,7 +46,12 @@ pub struct Get(pub Pin<Box<dyn NewFuture<Output = GetResult> + Send>>);
 pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<Error>>;
 
 impl BobClient {
-    pub async fn new(node: Node, executor: TaskExecutor, timeout: Duration, metrics: BobClientMetrics) -> Result<Self, ()> {
+    pub async fn new(
+        node: Node,
+        executor: TaskExecutor,
+        timeout: Duration,
+        metrics: BobClientMetrics,
+    ) -> Result<Self, ()> {
         let dst = Destination::try_from_uri(node.get_uri()).unwrap();
         let connector = util::Connector::new(HttpConnector::new(4));
         let settings = client::Builder::new().http2_only(true).clone();
@@ -89,7 +94,7 @@ impl BobClient {
             let metrics2 = self.metrics.clone();
             metrics.put_count();
             let timer = metrics.put_timer();
-            let timer2 = timer.clone();
+            let timer2 = timer;
 
             client
                 .put(Request::new(PutRequest {
@@ -109,26 +114,28 @@ impl BobClient {
                 .map(move |_| {
                     metrics.put_timer_stop(timer);
                     ClusterResult {
-                    node: n1,
-                    result: BackendPutResult {},
-                }})
+                        node: n1,
+                        result: BackendPutResult {},
+                    }
+                })
                 .map_err(move |e| {
                     metrics2.put_error_count();
                     metrics2.put_timer_stop(timer2);
 
                     ClusterResult {
-                    result: {
-                        if e.is_elapsed() {
-                            Error::Timeout
-                        } else if e.is_timer() {
-                            panic!("Timeout failed in core - can't continue")
-                        } else {
-                            let err = e.into_inner();
-                            Error::Failed(format!("Put operation for {} failed: {:?}", n2, err))
-                        }
-                    },
-                    node: n2,
-                }})
+                        result: {
+                            if e.is_elapsed() {
+                                Error::Timeout
+                            } else if e.is_timer() {
+                                panic!("Timeout failed in core - can't continue")
+                            } else {
+                                let err = e.into_inner();
+                                Error::Failed(format!("Put operation for {} failed: {:?}", n2, err))
+                            }
+                        },
+                        node: n2,
+                    }
+                })
                 .compat()
                 .boxed()
         })
@@ -140,13 +147,13 @@ impl BobClient {
             let n2 = self.node.clone();
             let mut client = self.client.clone();
             let timeout = self.timeout;
-            
+
             let metrics = self.metrics.clone();
             let metrics2 = self.metrics.clone();
-            
+
             metrics.get_count();
             let timer = metrics.get_timer();
-            let timer2 = timer.clone();
+            let timer2 = timer;
 
             client
                 .get(Request::new(GetRequest {
@@ -168,30 +175,31 @@ impl BobClient {
                     metrics2.get_error_count();
                     metrics2.get_timer_stop(timer2);
                     ClusterResult {
-                    result: {
-                        if e.is_elapsed() {
-                            Error::Timeout
-                        } else if e.is_timer() {
-                            panic!("Timeout failed in core - can't continue")
-                        } else {
-                            let err = e.into_inner();
-                            match err {
-                                Some(status) => match status.code() {
-                                    tower_grpc::Code::NotFound => Error::NotFound,
-                                    _ => Error::Failed(format!(
+                        result: {
+                            if e.is_elapsed() {
+                                Error::Timeout
+                            } else if e.is_timer() {
+                                panic!("Timeout failed in core - can't continue")
+                            } else {
+                                let err = e.into_inner();
+                                match err {
+                                    Some(status) => match status.code() {
+                                        tower_grpc::Code::NotFound => Error::NotFound,
+                                        _ => Error::Failed(format!(
+                                            "Get operation for {} failed: {:?}",
+                                            n2, status
+                                        )),
+                                    },
+                                    None => Error::Failed(format!(
                                         "Get operation for {} failed: {:?}",
-                                        n2, status
+                                        n2, err
                                     )),
-                                },
-                                None => Error::Failed(format!(
-                                    "Get operation for {} failed: {:?}",
-                                    n2, err
-                                )),
+                                }
                             }
-                        }
-                    },
-                    node: n2,
-                }})
+                        },
+                        node: n2,
+                    }
+                })
                 .compat()
                 .boxed()
         })
@@ -218,21 +226,25 @@ impl BobClient {
             })
             .await
     }
-
 }
 
 #[derive(Clone)]
 pub struct BobClientFactory {
     executor: TaskExecutor,
     timeout: Duration,
-    metrics:Arc<dyn MetricsContainerBuilder + Send + Sync>,
+    metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
 }
 
 impl BobClientFactory {
-    pub fn new(executor: TaskExecutor, timeout: Duration, metrics:Arc<dyn MetricsContainerBuilder + Send + Sync>) -> Self 
-    {
+    pub fn new(
+        executor: TaskExecutor,
+        timeout: Duration,
+        metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
+    ) -> Self {
         BobClientFactory {
-            executor, timeout, metrics,
+            executor,
+            timeout,
+            metrics,
         }
     }
     pub(crate) async fn produce(&self, node: Node) -> Result<BobClient, ()> {

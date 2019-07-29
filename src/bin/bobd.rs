@@ -1,9 +1,9 @@
 #![feature(async_await)]
 use bob::api::grpc::server;
 
+use bob::core::bob_client::BobClientFactory;
 use bob::core::data::VDiskMapper;
 use bob::core::grinder::Grinder;
-use bob::core::bob_client::BobClientFactory;
 use clap::{App, Arg};
 use env_logger;
 use tokio::net::TcpListener;
@@ -50,7 +50,7 @@ fn main() {
                 .long("name"),
         )
         .get_matches();
-    
+
     let cluster_config = matches.value_of("cluster").expect("expect cluster config");
     println!("Cluster config: {:?}", cluster_config);
     let (vdisks, cluster) = ClusterConfigYaml {}.get(cluster_config).unwrap();
@@ -58,7 +58,7 @@ fn main() {
     let node_config = matches.value_of("node").expect("expect node config");
     println!("Node config: {:?}", node_config);
     let node = NodeConfigYaml {}.get(node_config, &cluster).unwrap();
-    
+
     let metrics = metrics::init_counters(&node);
 
     env_logger::builder()

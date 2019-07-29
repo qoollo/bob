@@ -1,9 +1,9 @@
 use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRequest};
 
 use crate::core::{
+    bob_client::BobClientFactory,
     data::{BobData, BobKey, BobMeta, BobOptions},
     grinder::{Error, Grinder},
-    bob_client::BobClientFactory,
 };
 use futures::{
     future,
@@ -34,7 +34,9 @@ impl BobSrv {
     where
         S: Spawn + Clone + Send + 'static + Unpin + Sync,
     {
-        self.grinder.get_periodic_tasks(client_factory, spawner).await
+        self.grinder
+            .get_periodic_tasks(client_factory, spawner)
+            .await
     }
 
     fn put_is_valid(req: &PutRequest) -> bool {

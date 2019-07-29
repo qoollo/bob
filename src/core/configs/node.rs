@@ -5,8 +5,8 @@ use crate::core::configs::{
 use log::LevelFilter;
 use std::{
     cell::{Cell, RefCell},
-    time::Duration,
     net::SocketAddr,
+    time::Duration,
 };
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -17,22 +17,23 @@ pub struct MetricsConfig {
 
 impl Validatable for MetricsConfig {
     fn validate(&self) -> Result<(), String> {
-        if let Some(name) = &self.name
-        {
+        if let Some(name) = &self.name {
             if name.is_empty() {
                 debug!("field 'name' for 'metrics config' is empty");
                 return Err("field 'name' for 'metrics config' is empty".to_string());
             }
         }
 
-        if let Some(value) = self.graphite.as_ref().clone() {
+        if let Some(value) = self.graphite.as_ref() {
             let addr: Result<SocketAddr, _> = value.clone().parse();
             if addr.is_err() {
                 debug!(
-                    "field 'graphite': {} for 'metrics config' is invalid", value
+                    "field 'graphite': {} for 'metrics config' is invalid",
+                    value
                 );
                 return Err(format!(
-                    "field 'graphite': {} for 'metrics config' is invalid", value
+                    "field 'graphite': {} for 'metrics config' is invalid",
+                    value
                 ));
             }
         }

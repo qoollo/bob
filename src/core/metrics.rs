@@ -1,7 +1,7 @@
 extern crate dipstick;
-use dipstick::*;
-use std::{time::Duration, sync::Arc};
 use crate::core::configs::node::NodeConfig;
+use dipstick::*;
+use std::{sync::Arc, time::Duration};
 
 metrics! {
     GRINDER: Proxy = "grinder" => {
@@ -39,8 +39,8 @@ pub struct BobClientMetrics {
 }
 
 impl BobClientMetrics {
-    fn new (bucket: AtomicBucket) -> Self {
-        BobClientMetrics{ 
+    fn new(bucket: AtomicBucket) -> Self {
+        BobClientMetrics {
             put_count: bucket.clone().counter("put_count"),
             put_timer: bucket.clone().timer("put_timer"),
             put_error_count: bucket.clone().counter("put_error_count"),
@@ -54,7 +54,7 @@ impl BobClientMetrics {
     pub(crate) fn put_count(&self) {
         self.put_count.count(1);
     }
-    pub(crate) fn put_timer(&self) -> TimeHandle{
+    pub(crate) fn put_timer(&self) -> TimeHandle {
         self.put_timer.start()
     }
     pub(crate) fn put_timer_stop(&self, timer: TimeHandle) {
@@ -63,11 +63,11 @@ impl BobClientMetrics {
     pub(crate) fn put_error_count(&self) {
         self.put_error_count.count(1);
     }
-    
+
     pub(crate) fn get_count(&self) {
         self.get_count.count(1);
     }
-    pub(crate) fn get_timer(&self) -> TimeHandle{
+    pub(crate) fn get_timer(&self) -> TimeHandle {
         self.get_timer.start()
     }
     pub(crate) fn get_timer_stop(&self, timer: TimeHandle) {
@@ -87,7 +87,7 @@ struct MetricsContainer<TOutput> {
 }
 impl<TOutput: Output + Send + Sync + Clone + 'static> MetricsContainer<TOutput> {
     pub fn new(output: TOutput, duration: Duration, prefix: &str) -> Self {
-        MetricsContainer{
+        MetricsContainer {
             output,
             duration,
             prefix: prefix.to_string(),
@@ -99,16 +99,17 @@ pub trait MetricsContainerBuilder {
     fn get_metrics(&self, name: &str) -> BobClientMetrics;
     fn init_bucket(&self, prefix: &str) -> AtomicBucket;
 }
-impl<TOutput: Output + Send + Sync + Clone + 'static> MetricsContainerBuilder for MetricsContainer<TOutput> {
+impl<TOutput: Output + Send + Sync + Clone + 'static> MetricsContainerBuilder
+    for MetricsContainer<TOutput>
+{
     fn get_metrics(&self, name: &str) -> BobClientMetrics {
         let prefix = self.prefix.clone() + ".to." + name;
         BobClientMetrics::new(self.init_bucket(&prefix))
     }
 
-    fn init_bucket(&self, prefix: &str) -> AtomicBucket
-    {
+    fn init_bucket(&self, prefix: &str) -> AtomicBucket {
         let bucket = AtomicBucket::new().named(prefix.to_string());
-        
+
         bucket.stats(stats_all_bob);
         bucket.drain(self.output.clone());
 
@@ -124,31 +125,32 @@ fn prepare_metrics_addres(address: String) -> String {
 }
 
 fn default_metrics() -> Arc<dyn MetricsContainerBuilder + Send + Sync> {
-    Arc::new(MetricsContainer::new(Void::new(), Duration::from_secs(100000), &""))
+    Arc::new(MetricsContainer::new(
+        Void::new(),
+        Duration::from_secs(100000),
+        &"",
+    ))
 }
 
-pub fn init_counters(node_config: &NodeConfig) -> Arc<dyn MetricsContainerBuilder + Send + Sync>
-{
+pub fn init_counters(node_config: &NodeConfig) -> Arc<dyn MetricsContainerBuilder + Send + Sync> {
     let prefix = prepare_metrics_addres(node_config.bind());
 
-    let mut metrics: Arc<dyn MetricsContainerBuilder + Send + Sync> = default_metrics(); 
+    let mut metrics: Arc<dyn MetricsContainerBuilder + Send + Sync> = default_metrics();
     if let Some(config) = &node_config.metrics {
         if let Some(graphite) = &config.graphite {
-            let mut gr = Graphite::send_to(graphite)
-                .expect("cannot init metrics for Graphite");;
+            let mut gr = Graphite::send_to(graphite).expect("cannot init metrics for Graphite");;
             if let Some(name) = &config.name {
                 gr = gr.named(name);
             }
             metrics = Arc::new(MetricsContainer::new(gr, Duration::from_secs(1), &prefix));
         }
     }
-    
+
     init_grinder(&(prefix.to_owned() + "cluster"), &metrics);
     init_bob_client(&(prefix.to_owned() + "backend"), &metrics);
 
     metrics
 }
-
 
 fn init_grinder(prefix: &str, metrics: &Arc<dyn MetricsContainerBuilder + Send + Sync>) {
     let bucket = metrics.init_bucket(prefix);

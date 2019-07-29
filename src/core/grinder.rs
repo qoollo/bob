@@ -1,17 +1,17 @@
 use crate::core::{
     backend,
     backend::core::{Backend, BackendGetResult, BackendPutResult},
+    bob_client::BobClientFactory,
     cluster::{get_cluster, Cluster},
     configs::node::NodeConfig,
     data::{BobData, BobKey, BobOptions, VDiskMapper},
     link_manager::LinkManager,
-    bob_client::BobClientFactory,
 };
 
 use futures03::task::Spawn;
 
-use std::sync::Arc;
 use crate::core::metrics::*;
+use std::sync::Arc;
 
 pub enum Error {
     NotFound,
@@ -70,10 +70,7 @@ impl Grinder {
         config: &NodeConfig,
         spawner: TSpawner,
     ) -> Grinder {
-        let link = Arc::new(LinkManager::new(
-            mapper.nodes(),
-            config.check_interval()
-        ));
+        let link = Arc::new(LinkManager::new(mapper.nodes(), config.check_interval()));
         Grinder {
             backend: Backend::new(&mapper, config, spawner),
             mapper: mapper.clone(),
@@ -98,16 +95,12 @@ impl Grinder {
             );
             CLIENT_PUT_COUNTER.count(1);
             let time = CLIENT_PUT_TIMER.start();
-            
-            let result =  self.backend
-                .put(&op, key, data)
-                .0
-                .await
-                .map_err(|err| {
-                    GRINDER_PUT_ERROR_COUNT_COUNTER.count(1);
-                    BobError::Local(err)
-                });
-            
+
+            let result = self.backend.put(&op, key, data).0.await.map_err(|err| {
+                GRINDER_PUT_ERROR_COUNT_COUNTER.count(1);
+                BobError::Local(err)
+            });
+
             CLIENT_PUT_TIMER.stop(time);
             return result;
         } else {
@@ -115,7 +108,8 @@ impl Grinder {
             GRINDER_PUT_COUNTER.count(1);
             let time = GRINDER_PUT_TIMER.start();
 
-            let result = self.cluster
+            let result = self
+                .cluster
                 .put_clustered(key, data)
                 .0
                 .await
@@ -139,24 +133,16 @@ impl Grinder {
                 "GET[{}] flag FORCE_NODE is on - will handle it by local node. Get params: {}",
                 key, op
             );
-            self.backend
-                .get(&op, key)
-                .0
-                .await
-                .map_err(|err| {
-                    GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
-                    BobError::Local(err)
-                })
+            self.backend.get(&op, key).0.await.map_err(|err| {
+                GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
+                BobError::Local(err)
+            })
         } else {
             debug!("GET[{}] will route to cluster", key);
-            self.cluster
-                .get_clustered(key)
-                .0
-                .await
-                .map_err(|err| {
-                    CLIENT_GET_ERROR_COUNT_COUNTER.count(1);
-                    BobError::Cluster(err)
-                })
+            self.cluster.get_clustered(key).0.await.map_err(|err| {
+                CLIENT_GET_ERROR_COUNT_COUNTER.count(1);
+                BobError::Cluster(err)
+            })
         };
 
         GRINDER_GET_TIMER.stop(time);
@@ -171,6 +157,8 @@ impl Grinder {
     where
         S: Spawn + Clone + Send + 'static + Unpin + Sync,
     {
-        self.link_manager.get_checker_future(client_factory, spawner).await
+        self.link_manager
+            .get_checker_future(client_factory, spawner)
+            .await
     }
 }
