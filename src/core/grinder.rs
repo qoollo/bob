@@ -124,29 +124,35 @@ impl Grinder {
     }
 
     pub async fn get(&self, key: BobKey, opts: BobOptions) -> Result<BackendGetResult, BobError> {
-        GRINDER_GET_COUNTER.count(1);
-        let time = GRINDER_GET_TIMER.start();
+        if opts.contains(BobOptions::FORCE_NODE) {
+            CLIENT_GET_COUNTER.count(1);
+            let time = CLIENT_GET_TIMER.start();
 
-        let result = if opts.contains(BobOptions::FORCE_NODE) {
             let op = self.mapper.get_operation(key);
             debug!(
                 "GET[{}] flag FORCE_NODE is on - will handle it by local node. Get params: {}",
                 key, op
             );
-            self.backend.get(&op, key).0.await.map_err(|err| {
-                GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
-                BobError::Local(err)
-            })
-        } else {
-            debug!("GET[{}] will route to cluster", key);
-            self.cluster.get_clustered(key).0.await.map_err(|err| {
+            let result = self.backend.get(&op, key).0.await.map_err(|err| {
                 CLIENT_GET_ERROR_COUNT_COUNTER.count(1);
-                BobError::Cluster(err)
-            })
-        };
+                BobError::Local(err)
+            });
 
-        GRINDER_GET_TIMER.stop(time);
-        result
+            CLIENT_GET_TIMER.stop(time);
+            return result;
+        } else {
+            GRINDER_GET_COUNTER.count(1);
+            let time = GRINDER_GET_TIMER.start();
+
+            debug!("GET[{}] will route to cluster", key);
+            let result = self.cluster.get_clustered(key).0.await.map_err(|err| {
+                GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
+                BobError::Cluster(err)
+            });
+
+            GRINDER_GET_TIMER.stop(time);
+            return result;
+        }
     }
 
     pub async fn get_periodic_tasks<S>(
