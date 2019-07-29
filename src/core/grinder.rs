@@ -13,6 +13,7 @@ use futures03::task::Spawn;
 use crate::core::metrics::*;
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub enum Error {
     NotFound,
     Other,
@@ -34,7 +35,7 @@ impl BobError {
 
     fn match_error(&self, err: &backend::Error, _is_local: bool) -> Error {
         match err {
-            backend::Error::NotFound => Error::NotFound,
+            backend::Error::KeyNotFound => Error::NotFound,
             _ => Error::Other,
         }
     }

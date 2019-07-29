@@ -184,7 +184,7 @@ impl BobClient {
                                 let err = e.into_inner();
                                 match err {
                                     Some(status) => match status.code() {
-                                        tower_grpc::Code::NotFound => Error::NotFound,
+                                        tower_grpc::Code::NotFound => Error::KeyNotFound,
                                         _ => Error::Failed(format!(
                                             "Get operation for {} failed: {:?}",
                                             n2, status

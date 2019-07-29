@@ -11,7 +11,6 @@ use std::io::ErrorKind;
 #[derive(PartialEq, Debug)]
 pub enum Error {
     Timeout,
-    NotFound,
 
     VDiskNoFound(VDiskId),
     StorageError(String),

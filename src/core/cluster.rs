@@ -121,6 +121,9 @@ impl Cluster for QuorumCluster {
         let q = async move {
             w.next()
                 .map(|r| {
+                    if r.is_none() {
+                        return Err(backend::Error::KeyNotFound);
+                    }
                     r.map(|res| res.map(|ok| ok.result).map_err(|err| err.result))
                         .unwrap()
                 }) // TODO handle errors
