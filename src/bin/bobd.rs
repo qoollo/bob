@@ -10,7 +10,7 @@ use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 
 use bob::core::configs::cluster::ClusterConfigYaml;
-use bob::core::configs::node::{DiskPath, NodeConfigYaml, NodeConfig};
+use bob::core::configs::node::{DiskPath, NodeConfigYaml};
 
 use bob::core::server::BobSrv;
 
@@ -22,27 +22,9 @@ use futures03::future::{FutureExt, TryFutureExt};
 
 #[macro_use]
 extern crate log;
-
 extern crate dipstick;
+
 use bob::core::metrics;
-use bob::core::metrics::MetricsContainer;
-use dipstick::*;
-use std::time::Duration;
-
-fn prepare_metrics_addres(address: String) -> String {
-    address.replace(".", "_") + "."
-}
-
-fn init_counters(config: &NodeConfig) -> MetricsContainer<Graphite>
-{
-    let gr = Graphite::send_to("localhost:2003")
-            .expect("Socket")
-            .named("machine10");
-    let d = Duration::from_secs(1);
-    let mut metrics = MetricsContainer::new(gr, d);
-    metrics::init_counters(&prepare_metrics_addres(config.bind()), &mut metrics);
-    metrics
-}
 
 fn main() {
     let matches = App::new("Bob")
@@ -77,11 +59,7 @@ fn main() {
     println!("Node config: {:?}", node_config);
     let node = NodeConfigYaml {}.get(node_config, &cluster).unwrap();
     
-    let metrics = init_counters(&node);
-    let f = move |name: String| {
-        let m = metrics.clone();
-        m.get_bucket(&name)
-    };
+    let metrics = metrics::init_counters(&node);
 
     env_logger::builder()
         .filter_module("bob", node.log_level())
@@ -124,7 +102,7 @@ fn main() {
     let mut rt = Runtime::new().unwrap();
     let executor = rt.executor();
 
-    let factory = BobClientFactory::new(executor, node.timeout(), f);
+    let factory = BobClientFactory::new(executor, node.timeout(), metrics);
     let b = bob.clone();
     let q = async move { b.get_periodic_tasks(factory, pool).await };
     rt.spawn(q.boxed().compat());

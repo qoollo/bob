@@ -6,7 +6,40 @@ use log::LevelFilter;
 use std::{
     cell::{Cell, RefCell},
     time::Duration,
+    net::SocketAddr,
 };
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct MetricsConfig {
+    pub name: Option<String>,
+    pub graphite: Option<String>,
+}
+
+impl Validatable for MetricsConfig {
+    fn validate(&self) -> Result<(), String> {
+        if let Some(name) = &self.name
+        {
+            if name.is_empty() {
+                debug!("field 'name' for 'metrics config' is empty");
+                return Err("field 'name' for 'metrics config' is empty".to_string());
+            }
+        }
+
+        if let Some(value) = self.graphite.as_ref().clone() {
+            let addr: Result<SocketAddr, _> = value.clone().parse();
+            if addr.is_err() {
+                debug!(
+                    "field 'graphite': {} for 'metrics config' is invalid", value
+                );
+                return Err(format!(
+                    "field 'graphite': {} for 'metrics config' is invalid", value
+                ));
+            }
+        }
+
+        Ok(())
+    }
+}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PearlConfig {
@@ -123,6 +156,7 @@ pub struct NodeConfig {
 
     pub backend_type: Option<String>,
     pub pearl: Option<PearlConfig>,
+    pub metrics: Option<MetricsConfig>,
 
     #[serde(skip)]
     pub bind_ref: RefCell<String>,
@@ -313,7 +347,9 @@ impl Validatable for NodeConfig {
                 }
             }
         };
-
+        if let Some(metrics) = &self.metrics {
+            metrics.validate()?;
+        }
         Ok(())
     }
 }

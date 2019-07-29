@@ -6,6 +6,7 @@ check_interval: 5000ms        # t/0 between pings
 cluster_policy: quorum        # quorum
 ping_threads_count: 2
 backend_type: pearl            # in_memory, stub, pearl
+
 pearl:                        # used only for 'backend_type: pearl'
   max_blob_size: 10000000      # size in bytes. required for 'pearl'
   max_data_in_blob: 10000     # optional
@@ -13,3 +14,7 @@ pearl:                        # used only for 'backend_type: pearl'
   pool_count_threads: 4       # required for 'pearl'
   fail_retry_timeout: 1s      # mls, retry to reinit pearl backend after fail. required for 'pearl'
   alien_disk: disk1           # required for 'pearl'
+
+metrics:                      # optional, send metrics
+  name: bob_test1             # optional, add base name for metrics
+  graphite: 127.0.0.1:2003    # optional, send metrics to graphite

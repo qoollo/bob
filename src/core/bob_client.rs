@@ -225,20 +225,18 @@ impl BobClient {
 pub struct BobClientFactory {
     executor: TaskExecutor,
     timeout: Duration,
-    f: Arc<dyn Fn(String)-> BobClientMetrics+Send+Sync>,
+    metrics:Arc<dyn MetricsContainerBuilder + Send + Sync>,
 }
 
 impl BobClientFactory {
-    pub fn new<F>(executor: TaskExecutor, timeout: Duration, f: F) -> Self 
-    where
-        F: Fn(String)-> BobClientMetrics+Send+Sync +'static
+    pub fn new(executor: TaskExecutor, timeout: Duration, metrics:Arc<dyn MetricsContainerBuilder + Send + Sync>) -> Self 
     {
         BobClientFactory {
-            executor, timeout, f: Arc::new(f)
+            executor, timeout, metrics,
         }
     }
     pub(crate) async fn produce(&self, node: Node) -> Result<BobClient, ()> {
-        let metrics = (self.f)(node.counter_display());
+        let metrics = self.metrics.clone().get_metrics(&node.counter_display());
         BobClient::new(node, self.executor.clone(), self.timeout, metrics).await
     }
 }
