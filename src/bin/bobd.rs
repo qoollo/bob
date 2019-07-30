@@ -7,7 +7,7 @@ use bob::core::grinder::Grinder;
 use clap::{App, Arg};
 use env_logger;
 use tokio::net::TcpListener;
-use tokio::runtime::Runtime;
+use tokio::runtime::Builder;
 
 use bob::core::configs::cluster::ClusterConfigYaml;
 use bob::core::configs::node::{DiskPath, NodeConfigYaml};
@@ -48,6 +48,14 @@ fn main() {
                 .takes_value(true)
                 .short("a")
                 .long("name"),
+        )
+        .arg(
+            Arg::with_name("threads")
+                .help("count threads")
+                .takes_value(true)
+                .short("t")
+                .long("threads")
+                .default_value("4"),
         )
         .get_matches();
 
@@ -99,7 +107,12 @@ fn main() {
         .create()
         .unwrap();
 
-    let mut rt = Runtime::new().unwrap();
+    let mut rt = Builder::new().core_threads(matches
+            .value_of("threads")
+            .unwrap_or_default()
+            .parse()
+            .unwrap()).build().unwrap();
+    // let mut rt = Runtime::new().unwrap();
     let executor = rt.executor();
 
     let factory = BobClientFactory::new(executor, node.timeout(), metrics);

@@ -16,7 +16,7 @@ use tower::MakeService;
 use tower_grpc::{BoxBody, Request};
 
 use bob::api::grpc::client::BobApi;
-use bob::api::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
+use bob::api::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest, PutOptions, GetOptions};
 
 use hyper::client::connect::{Destination, HttpConnector};
 use tower_hyper::{client, util};
@@ -40,6 +40,7 @@ struct TaskConfig {
     low_idx: u64,
     count: u64,
     payload_size: u64,
+    direct: bool,
 }
 
 struct Stat {
@@ -74,10 +75,12 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
     }
 }
 
+type TowerConnect = tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>;
+
 fn build_client(
     rt: &mut Runtime,
     net_conf: NetConfig,
-) -> BobApi<tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>> {
+) -> BobApi<TowerConnect> {
     let uri = std::sync::Arc::new(net_conf.get_uri());
 
     // let h2_settings = Default::default();
@@ -92,6 +95,7 @@ fn build_client(
         .set_origin(uri.as_ref())
         .build(conn)
         .unwrap();
+
     BobApi::new(p_conn)
 }
 
@@ -99,11 +103,18 @@ fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
     let mut rt = Runtime::new().unwrap();
     let mut client = build_client(&mut rt, net_conf);
 
+    let mut options: Option<GetOptions> = None;
+    if task_conf.direct {
+        options = Some(GetOptions {
+                            force_node: true,
+                        });
+    }
+
     rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
         client
             .get(Request::new(GetRequest {
                 key: Some(BlobKey { key: i }),
-                options: None,
+                options: options.clone(),
             }))
             .then(move |e| {
                 if e.is_err() {
@@ -125,6 +136,13 @@ fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
     let mut rt = Runtime::new().unwrap();
     let mut client = build_client(&mut rt, net_conf);
 
+    let mut options: Option<PutOptions> = None;
+    if task_conf.direct {
+        options = Some(PutOptions {
+                            force_node: true,
+                            overwrite: false,
+                        });
+    }
     let put = loop_fn((stat.clone(), task_conf.low_idx), |(lstat, i)| {
         client
             .put(Request::new(PutRequest {
@@ -138,7 +156,7 @@ fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
                             .as_secs() as u32,
                     }),
                 }),
-                options: None,
+                options: options.clone(),
             }))
             .then(move |e| {
                 if e.is_err() {
@@ -214,6 +232,12 @@ fn main() {
                 .long("behavior")
                 .default_value("put"),
         )
+        .arg(
+            Arg::with_name("direct")
+                .help("direct command to node")
+                .short("d")
+                .long("direct"),
+        )
         .get_matches();
 
     let net_conf = NetConfig {
@@ -241,6 +265,8 @@ fn main() {
             .unwrap_or_default()
             .parse()
             .unwrap(),
+        direct: matches
+            .is_present("direct"),
     };
 
     let workers_count: u64 = matches
@@ -288,6 +314,7 @@ fn main() {
             low_idx: task_conf.low_idx + task_size * i,
             count: task_size,
             payload_size: task_conf.payload_size,
+            direct: task_conf.direct,
         };
         if behavior {
             workers.push(thread::spawn(move || {
