@@ -67,7 +67,10 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
 
         let put_error = stat.put_error.load(Ordering::Relaxed);
         let get_error = stat.get_error.load(Ordering::Relaxed);
-        println!("put: {:5} rps | get {:5} rps | put err: {:5} | get err: {:5}", put_count_spd, get_count_spd, put_error, get_error);
+        println!(
+            "put: {:5} rps | get {:5} rps | put err: {:5} | get err: {:5}",
+            put_count_spd, get_count_spd, put_error, get_error
+        );
     }
 }
 
@@ -104,8 +107,8 @@ fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
             }))
             .then(move |e| {
                 if e.is_err() {
-                    lstat.clone().get_error.fetch_add(1, Ordering::SeqCst);    
-                } 
+                    lstat.clone().get_error.fetch_add(1, Ordering::SeqCst);
+                }
                 lstat.clone().get_total.fetch_add(1, Ordering::SeqCst);
 
                 if i + 1 == task_conf.low_idx + task_conf.count {
@@ -139,10 +142,10 @@ fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
             }))
             .then(move |e| {
                 if e.is_err() {
-                    lstat.clone().put_error.fetch_add(1, Ordering::SeqCst);    
-                } 
+                    lstat.clone().put_error.fetch_add(1, Ordering::SeqCst);
+                }
                 lstat.clone().put_total.fetch_add(1, Ordering::SeqCst);
-                
+
                 if i + 1 == task_conf.low_idx + task_conf.count {
                     ok::<_, ()>(Loop::Break((lstat, i)))
                 } else {
@@ -261,7 +264,7 @@ fn main() {
     let stat = Arc::new(Stat {
         put_total: AtomicU64::new(0),
         put_error: AtomicU64::new(0),
-        
+
         get_total: AtomicU64::new(0),
         get_error: AtomicU64::new(0),
     });
