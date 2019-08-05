@@ -2,8 +2,8 @@ use crate::core::backend;
 use crate::core::backend::core::*;
 use crate::core::backend::pearl::{
     data::*,
-    stuff::{LockGuard, Stuff},
     metrics::*,
+    stuff::{LockGuard, Stuff},
 };
 use crate::core::configs::node::{NodeConfig, PearlConfig};
 use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
@@ -385,7 +385,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         storage
             .write(key, PearlData::new(data).bytes())
             .await
-            .map(|r|{
+            .map(|r| {
                 PEARL_PUT_TIMER.stop(timer);
                 r
             })

@@ -1,6 +1,6 @@
 use crate::core::metrics::MetricsContainerBuilder;
-use std::sync::Arc;
 use dipstick::*;
+use std::sync::Arc;
 
 metrics! {
     PEARL: Proxy = "pearl" => {

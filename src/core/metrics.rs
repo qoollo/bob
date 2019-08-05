@@ -1,6 +1,6 @@
 extern crate dipstick;
-use crate::core::configs::node::NodeConfig;
 use crate::core::backend::pearl::metrics::init_pearl;
+use crate::core::configs::node::NodeConfig;
 
 use dipstick::*;
 use std::{sync::Arc, time::Duration};
@@ -134,7 +134,10 @@ fn default_metrics() -> Arc<dyn MetricsContainerBuilder + Send + Sync> {
     ))
 }
 
-pub fn init_counters(node_config: &NodeConfig, local_address: String) -> Arc<dyn MetricsContainerBuilder + Send + Sync> {
+pub fn init_counters(
+    node_config: &NodeConfig,
+    local_address: String,
+) -> Arc<dyn MetricsContainerBuilder + Send + Sync> {
     let prefix = prepare_metrics_addres(local_address);
 
     let mut metrics: Arc<dyn MetricsContainerBuilder + Send + Sync> = default_metrics();

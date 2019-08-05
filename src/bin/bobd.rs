@@ -74,7 +74,7 @@ fn main() {
         .init();
 
     let mut mapper = VDiskMapper::new(vdisks.to_vec(), &node);
-    let mut addr:SocketAddr = node.bind().parse().unwrap();
+    let mut addr: SocketAddr = node.bind().parse().unwrap();
 
     let node_name = matches.value_of("name");
     if node_name.is_some() {
@@ -109,11 +109,16 @@ fn main() {
         .create()
         .unwrap();
 
-    let mut rt = Builder::new().core_threads(matches
-            .value_of("threads")
-            .unwrap_or_default()
-            .parse()
-            .unwrap()).build().unwrap();
+    let mut rt = Builder::new()
+        .core_threads(
+            matches
+                .value_of("threads")
+                .unwrap_or_default()
+                .parse()
+                .unwrap(),
+        )
+        .build()
+        .unwrap();
 
     let executor = rt.executor();
 
@@ -126,12 +131,13 @@ fn main() {
     };
     rt.block_on(q1.boxed().compat()).unwrap();
     info!("Start backend");
-    
-    let factory = BobClientFactory::new(executor, node.timeout(), node.grpc_buffer_bound(), metrics);
+
+    let factory =
+        BobClientFactory::new(executor, node.timeout(), node.grpc_buffer_bound(), metrics);
     let b = bob.clone();
     let q = async move { b.get_periodic_tasks(factory, pool).await };
     rt.spawn(q.boxed().compat());
-    
+
     let new_service = server::BobApiServer::new(bob);
 
     let mut server = Server::new(new_service);

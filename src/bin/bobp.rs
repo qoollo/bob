@@ -16,7 +16,7 @@ use tower::MakeService;
 use tower_grpc::{BoxBody, Request};
 
 use bob::api::grpc::client::BobApi;
-use bob::api::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest, PutOptions, GetOptions};
+use bob::api::grpc::{Blob, BlobKey, BlobMeta, GetOptions, GetRequest, PutOptions, PutRequest};
 
 use hyper::client::connect::{Destination, HttpConnector};
 use tower_hyper::{client, util};
@@ -75,12 +75,10 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
     }
 }
 
-type TowerConnect = tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>;
+type TowerConnect =
+    tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>;
 
-fn build_client(
-    rt: &mut Runtime,
-    net_conf: NetConfig,
-) -> BobApi<TowerConnect> {
+fn build_client(rt: &mut Runtime, net_conf: NetConfig) -> BobApi<TowerConnect> {
     let uri = std::sync::Arc::new(net_conf.get_uri());
 
     // let h2_settings = Default::default();
@@ -107,9 +105,7 @@ fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
 
     let mut options: Option<GetOptions> = None;
     if task_conf.direct {
-        options = Some(GetOptions {
-                            force_node: true,
-                        });
+        options = Some(GetOptions { force_node: true });
     }
 
     rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
@@ -141,9 +137,9 @@ fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
     let mut options: Option<PutOptions> = None;
     if task_conf.direct {
         options = Some(PutOptions {
-                            force_node: true,
-                            overwrite: false,
-                        });
+            force_node: true,
+            overwrite: false,
+        });
     }
     let put = loop_fn((stat.clone(), task_conf.low_idx), |(lstat, i)| {
         client
@@ -267,8 +263,7 @@ fn main() {
             .unwrap_or_default()
             .parse()
             .unwrap(),
-        direct: matches
-            .is_present("direct"),
+        direct: matches.is_present("direct"),
     };
 
     let workers_count: u64 = matches

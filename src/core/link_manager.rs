@@ -87,7 +87,8 @@ pub struct LinkManager {
 }
 
 pub type ClusterCallType<T> = Result<ClusterResult<T>, ClusterResult<Error>>;
-pub type ClusterCallFuture<T> = Pin<Box<dyn Future03<Output = ClusterCallType<T>> + 'static + Send>>;
+pub type ClusterCallFuture<T> =
+    Pin<Box<dyn Future03<Output = ClusterCallType<T>> + 'static + Send>>;
 
 impl LinkManager {
     pub fn new(nodes: Vec<Node>, check_interval: Duration) -> LinkManager {
@@ -156,16 +157,15 @@ impl LinkManager {
                 let node = nl.node.clone();
                 let nl_clone = nl.clone();
                 match &mut nl.get_connection().conn {
-                    Some(conn) => {
-                        f(conn)
-                            .boxed().map_err(move |e|{
-                                if e.result.is_service(){
-                                    nl_clone.clear_connection();
-                                }
-                                e
-                            })
-                            .boxed()
-                    },
+                    Some(conn) => f(conn)
+                        .boxed()
+                        .map_err(move |e| {
+                            if e.result.is_service() {
+                                nl_clone.clear_connection();
+                            }
+                            e
+                        })
+                        .boxed(),
                     None => err(ClusterResult {
                         result: Error::Failed(format!("No active connection {:?}", node)),
                         node,

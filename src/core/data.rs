@@ -10,7 +10,7 @@ pub struct ClusterResult<T> {
     pub result: T,
 }
 
-impl<T:std::fmt::Display> std::fmt::Display for ClusterResult<T> {
+impl<T: std::fmt::Display> std::fmt::Display for ClusterResult<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "node: {}, result: {}", self.node, self.result)
     }

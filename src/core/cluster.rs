@@ -1,8 +1,8 @@
 use crate::core::{
     backend,
-    backend::core::{BackendPutResult, Get, Put, BackendGetResult},
+    backend::core::{BackendGetResult, BackendPutResult, Get, Put},
     configs::node::NodeConfig,
-    data::{print_vec, BobData, BobKey, Node, VDiskMapper, ClusterResult},
+    data::{print_vec, BobData, BobKey, ClusterResult, Node, VDiskMapper},
     link_manager::LinkManager,
 };
 use std::sync::Arc;
@@ -86,12 +86,15 @@ impl Cluster for QuorumCluster {
                 debug!("PUT[{}] cluster ans: {:?}", key, acc);
                 let total_ops = acc.iter().count();
                 let mut sup = String::default();
-                let ok_count = acc.iter().filter(|&r| {
-                    if let Err(e) = r {
-                        sup = format!("{}, {:?}", sup.clone(), e)
-                    }
-                    r.is_ok()
-                }).count();
+                let ok_count = acc
+                    .iter()
+                    .filter(|&r| {
+                        if let Err(e) = r {
+                            sup = format!("{}, {:?}", sup.clone(), e)
+                        }
+                        r.is_ok()
+                    })
+                    .count();
                 debug!(
                     "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
                     key, total_ops, ok_count, l_quorum
@@ -130,26 +133,22 @@ impl Cluster for QuorumCluster {
             })
             .map(move |acc| {
                 let mut sup = String::default();
-                acc.iter().for_each(|r|{
+                acc.iter().for_each(|r| {
                     if let Err(e) = r {
                         trace!("GET[{}] failed result: {:?}", key, e);
                         sup = format!("{}, {:?}", sup.clone(), e)
-                    }
-                    else if let Ok(e) = r
-                    {
+                    } else if let Ok(e) = r {
                         trace!("GET[{}] success result from: {:?}", key, e.node);
                     }
                 });
 
-                let r = acc.into_iter().find(|r|r.is_ok());
-                if let Some(answer) = r
-                {
+                let r = acc.into_iter().find(|r| r.is_ok());
+                if let Some(answer) = r {
                     match answer {
-                        Ok(ClusterResult{result: i, ..}) => { Ok::<BackendGetResult, _>(i)},
-                        Err(ClusterResult{result: i, ..}) => {Err::<_, backend::Error>(i)},
+                        Ok(ClusterResult { result: i, .. }) => Ok::<BackendGetResult, _>(i),
+                        Err(ClusterResult { result: i, .. }) => Err::<_, backend::Error>(i),
                     }
-                }
-                else {
+                } else {
                     debug!("GET[{}] no success result", key);
                     Err::<_, backend::Error>(backend::Error::Failed(sup))
                 }

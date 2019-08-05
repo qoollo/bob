@@ -72,7 +72,12 @@ impl BobClient {
                     .build(conn_l)
                     .unwrap();
 
-                BobApi::new(Buffer::with_executor(conn, buffer_bound as usize, &mut executor.clone())).ready() //TODO add count treads
+                BobApi::new(Buffer::with_executor(
+                    conn,
+                    buffer_bound as usize,
+                    &mut executor.clone(),
+                ))
+                .ready() //TODO add count treads
             })
             .map(move |client| BobClient {
                 node,
@@ -110,7 +115,7 @@ impl BobClient {
             let metrics = self.metrics.clone();
             let metrics2 = self.metrics.clone();
             metrics.put_count();
-        
+
             let timer = metrics.put_timer();
 
             let t = client.poll_ready();
@@ -121,8 +126,7 @@ impl BobClient {
                     result: Error::Failed(format!("buffer inner error: {}", err)),
                 };
                 ready(Err(result)).boxed()
-            }
-            else if t.unwrap().is_not_ready() {
+            } else if t.unwrap().is_not_ready() {
                 debug!("service connection is not ready");
                 let result = ClusterResult {
                     node: self.node.clone(),
@@ -305,6 +309,13 @@ impl BobClientFactory {
     }
     pub(crate) async fn produce(&self, node: Node) -> Result<BobClient, ()> {
         let metrics = self.metrics.clone().get_metrics(&node.counter_display());
-        BobClient::new(node, self.executor.clone(), self.timeout, self.buffer_bound, metrics).await
+        BobClient::new(
+            node,
+            self.executor.clone(),
+            self.timeout,
+            self.buffer_bound,
+            metrics,
+        )
+        .await
     }
 }
