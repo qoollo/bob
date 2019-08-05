@@ -115,11 +115,6 @@ fn main() {
     // let mut rt = Runtime::new().unwrap();
     let executor = rt.executor();
 
-    let factory = BobClientFactory::new(executor, node.timeout(), metrics);
-    let b = bob.clone();
-    let q = async move { b.get_periodic_tasks(factory, pool).await };
-    rt.spawn(q.boxed().compat());
-
     let b1 = bob.clone();
     let q1 = async move {
         b1.run_backend()
@@ -127,8 +122,14 @@ fn main() {
             .map(|_r| {})
             .map_err(|e| panic!("init failed: {:?}", e))
     };
-    rt.spawn(q1.boxed().compat());
-
+    rt.block_on(q1.boxed().compat()).unwrap();
+    info!("Start backend");
+    
+    let factory = BobClientFactory::new(executor, node.timeout(), metrics);
+    let b = bob.clone();
+    let q = async move { b.get_periodic_tasks(factory, pool).await };
+    rt.spawn(q.boxed().compat());
+    
     let new_service = server::BobApiServer::new(bob);
 
     let mut server = Server::new(new_service);
