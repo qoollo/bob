@@ -1,5 +1,7 @@
 extern crate dipstick;
 use crate::core::configs::node::NodeConfig;
+use crate::core::backend::pearl::metrics::init_pearl;
+
 use dipstick::*;
 use std::{sync::Arc, time::Duration};
 
@@ -148,6 +150,7 @@ pub fn init_counters(node_config: &NodeConfig) -> Arc<dyn MetricsContainerBuilde
 
     init_grinder(&(prefix.to_owned() + "cluster"), &metrics);
     init_bob_client(&(prefix.to_owned() + "backend"), &metrics);
+    init_pearl(&(prefix.to_owned() + "pearl"), &metrics);
 
     metrics
 }

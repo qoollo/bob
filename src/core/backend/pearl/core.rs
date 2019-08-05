@@ -3,6 +3,7 @@ use crate::core::backend::core::*;
 use crate::core::backend::pearl::{
     data::*,
     stuff::{LockGuard, Stuff},
+    metrics::*,
 };
 use crate::core::configs::node::{NodeConfig, PearlConfig};
 use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
@@ -379,10 +380,17 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         key: PearlKey,
         data: Box<BobData>,
     ) -> BackendResult<()> {
+        PEARL_PUT_COUNTER.count(1);
+        let timer = PEARL_PUT_TIMER.start();
         storage
             .write(key, PearlData::new(data).bytes())
             .await
+            .map(|r|{
+                PEARL_PUT_TIMER.stop(timer);
+                r
+            })
             .map_err(|e| {
+                PEARL_PUT_ERROR_COUNTER.count(1);
                 trace!("error on write: {:?}", e);
                 //TODO check duplicate
                 backend::Error::StorageError(format!("{:?}", e))
@@ -408,11 +416,17 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
     }
 
     async fn read_disk(storage: PearlStorage, key: PearlKey) -> BackendResult<BobData> {
+        PEARL_GET_COUNTER.count(1);
+        let timer = PEARL_GET_TIMER.start();
         storage
             .read(key)
             .await
-            .map(|r| PearlData::parse(r))
+            .map(|r| {
+                PEARL_GET_TIMER.stop(timer);
+                PearlData::parse(r)
+            })
             .map_err(|e| {
+                PEARL_GET_ERROR_COUNTER.count(1);
                 trace!("error on read: {:?}", e);
                 match e.kind() {
                     ErrorKind::RecordNotFound => backend::Error::KeyNotFound,

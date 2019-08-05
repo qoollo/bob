@@ -115,7 +115,7 @@ impl Grinder {
                 .0
                 .await
                 .map_err(|err| {
-                    CLINET_PUT_ERROR_COUNT_COUNTER.count(1);
+                    GRINDER_PUT_ERROR_COUNT_COUNTER.count(1);
                     BobError::Cluster(err)
                 });
 
