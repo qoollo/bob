@@ -154,6 +154,7 @@ pub struct NodeConfig {
     pub check_interval: Option<String>,
     pub cluster_policy: Option<String>,
     pub ping_threads_count: Option<u8>,
+    pub grpc_buffer_bound: Option<u16>,
 
     pub backend_type: Option<String>,
     pub pearl: Option<PearlConfig>,
@@ -170,6 +171,9 @@ pub struct NodeConfig {
 }
 
 impl NodeConfig {
+    pub fn grpc_buffer_bound(&self) -> u16 {
+        self.grpc_buffer_bound.unwrap()
+    }
     pub fn ping_threads_count(&self) -> u8 {
         self.ping_threads_count.unwrap()
     }
@@ -261,6 +265,13 @@ impl Validatable for NodeConfig {
             None => {
                 debug!("field 'ping_threads_count' for 'config' is not set");
                 return Err("field 'ping_threads_count' for 'config' is not set".to_string());
+            }
+            _ => {}
+        };
+        match self.grpc_buffer_bound {
+            None => {
+                debug!("field 'grpc_buffer_bound' for 'config' is not set");
+                return Err("field 'grpc_buffer_bound' for 'config' is not set".to_string());
             }
             _ => {}
         };

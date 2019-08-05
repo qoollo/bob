@@ -540,6 +540,7 @@ timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -555,6 +556,7 @@ timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 ping_threads_count: -2
+grpc_buffer_bound: 100
 backend_type: stub
 ";
         let d: Result<NodeConfig, _> = YamlBobConfigReader {}.parse(s);
@@ -571,6 +573,7 @@ timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: pearl
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -587,6 +590,7 @@ timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
   max_blob_size: 1
@@ -610,6 +614,7 @@ timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
   max_blob_size: 1
@@ -633,6 +638,7 @@ timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
 #  max_blob_size: 1
@@ -655,6 +661,7 @@ timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
   max_blob_size: 1
@@ -677,6 +684,7 @@ timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
   max_blob_size: 1
@@ -699,6 +707,7 @@ timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: InvalidType
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -733,6 +742,7 @@ timeout: 12h 5min 2ns
 check_interval: 100mms
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -749,6 +759,7 @@ timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -782,6 +793,7 @@ timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
@@ -815,6 +827,7 @@ timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
 #  max_blob_size: 1
@@ -854,6 +867,7 @@ timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
 #  max_blob_size: 1
@@ -893,6 +907,7 @@ timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: stub
 
 metrics:                      # optional, send metrics
@@ -912,6 +927,7 @@ timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: stub
 
 metrics:                      # optional, send metrics
@@ -931,6 +947,7 @@ timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100
 backend_type: stub
 
 metrics:                      # optional, send metrics

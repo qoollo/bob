@@ -20,7 +20,6 @@ use tower_hyper::{client, util};
 use futures03::{
     compat::Future01CompatExt, future::ready, future::FutureExt as OtherFutureExt,
     Future as NewFuture, TryFutureExt,
-    future::ok,
 };
 use futures_timer::ext::FutureExt as TimerExt;
 use tower::buffer::Buffer;
@@ -51,6 +50,7 @@ impl BobClient {
         node: Node,
         executor: TaskExecutor,
         timeout: Duration,
+        buffer_bound: u16,
         metrics: BobClientMetrics,
     ) -> Result<Self, ()> {
         let dst = Destination::try_from_uri(node.get_uri()).unwrap();
@@ -72,7 +72,7 @@ impl BobClient {
                     .build(conn_l)
                     .unwrap();
 
-                BobApi::new(Buffer::with_executor(conn, 5, &mut executor.clone())).ready() //TODO add count treads
+                BobApi::new(Buffer::with_executor(conn, buffer_bound as usize, &mut executor.clone())).ready() //TODO add count treads
             })
             .map(move |client| BobClient {
                 node,
@@ -280,6 +280,7 @@ impl BobClient {
 pub struct BobClientFactory {
     executor: TaskExecutor,
     timeout: Duration,
+    buffer_bound: u16,
     metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
 }
 
@@ -287,16 +288,18 @@ impl BobClientFactory {
     pub fn new(
         executor: TaskExecutor,
         timeout: Duration,
+        buffer_bound: u16,
         metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
     ) -> Self {
         BobClientFactory {
             executor,
             timeout,
+            buffer_bound,
             metrics,
         }
     }
     pub(crate) async fn produce(&self, node: Node) -> Result<BobClient, ()> {
         let metrics = self.metrics.clone().get_metrics(&node.counter_display());
-        BobClient::new(node, self.executor.clone(), self.timeout, metrics).await
+        BobClient::new(node, self.executor.clone(), self.timeout, self.buffer_bound, metrics).await
     }
 }

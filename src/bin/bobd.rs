@@ -125,7 +125,7 @@ fn main() {
     rt.block_on(q1.boxed().compat()).unwrap();
     info!("Start backend");
     
-    let factory = BobClientFactory::new(executor, node.timeout(), metrics);
+    let factory = BobClientFactory::new(executor, node.timeout(), node.grpc_buffer_bound(), metrics);
     let b = bob.clone();
     let q = async move { b.get_periodic_tasks(factory, pool).await };
     rt.spawn(q.boxed().compat());

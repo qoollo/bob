@@ -5,6 +5,7 @@ timeout: 3sec                 # ping t/o
 check_interval: 5000ms        # t/0 between pings
 cluster_policy: quorum        # quorum
 ping_threads_count: 2
+grpc_buffer_bound: 100        # grpc client buffer bound. used for multi-thread
 backend_type: pearl            # in_memory, stub, pearl
 
 pearl:                        # used only for 'backend_type: pearl'
