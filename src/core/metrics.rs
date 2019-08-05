@@ -134,8 +134,8 @@ fn default_metrics() -> Arc<dyn MetricsContainerBuilder + Send + Sync> {
     ))
 }
 
-pub fn init_counters(node_config: &NodeConfig) -> Arc<dyn MetricsContainerBuilder + Send + Sync> {
-    let prefix = prepare_metrics_addres(node_config.bind());
+pub fn init_counters(node_config: &NodeConfig, local_address: String) -> Arc<dyn MetricsContainerBuilder + Send + Sync> {
+    let prefix = prepare_metrics_addres(local_address);
 
     let mut metrics: Arc<dyn MetricsContainerBuilder + Send + Sync> = default_metrics();
     if let Some(config) = &node_config.metrics {

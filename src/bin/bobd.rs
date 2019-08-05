@@ -20,6 +20,8 @@ use tower_hyper::server::{Http, Server};
 use futures03::executor::ThreadPoolBuilder;
 use futures03::future::{FutureExt, TryFutureExt};
 
+use std::net::SocketAddr;
+
 #[macro_use]
 extern crate log;
 extern crate dipstick;
@@ -67,14 +69,12 @@ fn main() {
     println!("Node config: {:?}", node_config);
     let node = NodeConfigYaml {}.get(node_config, &cluster).unwrap();
 
-    let metrics = metrics::init_counters(&node);
-
     env_logger::builder()
         .filter_module("bob", node.log_level())
         .init();
 
     let mut mapper = VDiskMapper::new(vdisks.to_vec(), &node);
-    let mut addr = node.bind().parse().unwrap();
+    let mut addr:SocketAddr = node.bind().parse().unwrap();
 
     let node_name = matches.value_of("name");
     if node_name.is_some() {
@@ -96,6 +96,8 @@ fn main() {
         addr = finded.address().parse().unwrap();
     }
 
+    let metrics = metrics::init_counters(&node, addr.to_string());
+
     let backend_pool = ThreadPoolBuilder::new().pool_size(2).create().unwrap(); //TODO
 
     let bob = BobSrv {
@@ -112,7 +114,7 @@ fn main() {
             .unwrap_or_default()
             .parse()
             .unwrap()).build().unwrap();
-    // let mut rt = Runtime::new().unwrap();
+
     let executor = rt.executor();
 
     let b1 = bob.clone();
