@@ -115,9 +115,14 @@ impl BobClient {
 
             let t = client.poll_ready();
             if let Err(err) = t {
-                panic!("buffer inner error: {}", err);
+                debug!("buffer inner error: {}", err);
+                let result = ClusterResult {
+                    node: self.node.clone(),
+                    result: Error::Failed(format!("buffer inner error: {}", err)),
+                };
+                ready(Err(result)).boxed()
             }
-            if t.unwrap().is_not_ready() {
+            else if t.unwrap().is_not_ready() {
                 debug!("service connection is not ready");
                 let result = ClusterResult {
                     node: self.node.clone(),

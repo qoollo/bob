@@ -22,6 +22,15 @@ pub enum Error {
     Other,
 }
 
+impl Error {
+    pub fn is_service(&self) -> bool {
+        match &self {
+            Error::Timeout | Error::Other | Error::Failed(_) => true,
+            _ => false,
+        }
+    }
+}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
