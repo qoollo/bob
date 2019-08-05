@@ -20,6 +20,7 @@ use tower_hyper::{client, util};
 use futures03::{
     compat::Future01CompatExt, future::ready, future::FutureExt as OtherFutureExt,
     Future as NewFuture, TryFutureExt,
+    future::ok,
 };
 use futures_timer::ext::FutureExt as TimerExt;
 use tower::buffer::Buffer;
@@ -53,7 +54,10 @@ impl BobClient {
         metrics: BobClientMetrics,
     ) -> Result<Self, ()> {
         let dst = Destination::try_from_uri(node.get_uri()).unwrap();
-        let connector = util::Connector::new(HttpConnector::new(4));
+        let mut http_connector = HttpConnector::new(4);
+        http_connector.set_nodelay(true);
+
+        let connector = util::Connector::new(http_connector);
         let settings = client::Builder::new().http2_only(true).clone();
         let mut make_client = client::Connect::with_executor(connector, settings, executor.clone());
         let n1 = node.clone();
@@ -86,15 +90,28 @@ impl BobClient {
         Put({
             let n1 = self.node.clone();
             let n2 = self.node.clone();
-            let data = d.clone(); // TODO: find way to eliminate data copying
             let mut client = self.client.clone();
             let timeout = self.timeout;
+
+            let request = Request::new(PutRequest {
+                key: Some(BlobKey { key: key.key }),
+                data: Some(Blob {
+                    data: d.data.clone(),
+                    meta: Some(BlobMeta {
+                        timestamp: d.meta.timestamp,
+                    }),
+                }),
+                options: Some(PutOptions {
+                    force_node: true,
+                    overwrite: false,
+                }),
+            });
 
             let metrics = self.metrics.clone();
             let metrics2 = self.metrics.clone();
             metrics.put_count();
+        
             let timer = metrics.put_timer();
-            let timer2 = timer;
 
             let t = client.poll_ready();
             if let Err(err) = t {
@@ -109,19 +126,7 @@ impl BobClient {
                 ready(Err(result)).boxed()
             } else {
                 client
-                    .put(Request::new(PutRequest {
-                        key: Some(BlobKey { key: key.key }),
-                        data: Some(Blob {
-                            data: data.data,
-                            meta: Some(BlobMeta {
-                                timestamp: data.meta.timestamp,
-                            }),
-                        }),
-                        options: Some(PutOptions {
-                            force_node: true,
-                            overwrite: false,
-                        }),
-                    }))
+                    .put(request)
                     .timeout(timeout)
                     .map(move |_| {
                         metrics.put_timer_stop(timer);
@@ -132,7 +137,7 @@ impl BobClient {
                     })
                     .map_err(move |e| {
                         metrics2.put_error_count();
-                        metrics2.put_timer_stop(timer2);
+                        metrics2.put_timer_stop(timer);
 
                         ClusterResult {
                             result: {
@@ -169,7 +174,6 @@ impl BobClient {
 
             metrics.get_count();
             let timer = metrics.get_timer();
-            let timer2 = timer;
 
             let t = client.poll_ready();
             if let Err(err) = t {
@@ -201,7 +205,7 @@ impl BobClient {
                     })
                     .map_err(move |e| {
                         metrics2.get_error_count();
-                        metrics2.get_timer_stop(timer2);
+                        metrics2.get_timer_stop(timer);
                         ClusterResult {
                             result: {
                                 if e.is_elapsed() {

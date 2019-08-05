@@ -86,7 +86,9 @@ fn build_client(
     // let h2_settings = Default::default();
     // let mut make_client = client::Connect::new(net_conf.get_connector(), h2_settings, rt.handle());
     let dst = Destination::try_from_uri(net_conf.get_uri()).unwrap();
-    let connector = util::Connector::new(HttpConnector::new(4));
+    let mut http_connector = HttpConnector::new(4);
+    http_connector.set_nodelay(true);
+    let connector = util::Connector::new(http_connector);
     let settings = client::Builder::new().http2_only(true).clone();
     let mut make_client = client::Connect::with_builder(connector, settings);
 
