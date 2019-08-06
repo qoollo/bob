@@ -342,8 +342,7 @@ pub struct ClusterConfigYaml {}
 
 impl ClusterConfigYaml {
     pub fn convert_to_data(&self, cluster: &ClusterConfig) -> Result<Vec<DataVDisk>, String> {
-        let mut node_map: HashMap<&Option<String>, (&Node, HashMap<&Option<String>, String>)> =
-            HashMap::new();
+        let mut node_map = HashMap::new();
         for node in cluster.nodes.iter() {
             let disk_map = node
                 .disks

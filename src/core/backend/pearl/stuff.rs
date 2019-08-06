@@ -81,10 +81,7 @@ impl Stuff {
         if !path.exists() {
             return match path.to_str() {
                 Some(dir) => create_dir_all(&path)
-                    .map(|_r| {
-                        info!("create directory: {}", dir);
-                        ()
-                    })
+                    .map(|_r| info!("create directory: {}", dir))
                     .map_err(|e| {
                         backend::Error::StorageError(format!(
                             "cannot create directory: {}, error: {}",
@@ -106,10 +103,7 @@ impl Stuff {
         file.push("pearl.lock");
         if file.exists() {
             return remove_file(&file)
-                .map(|_r| {
-                    debug!("deleted lock file from directory: {:?}", file);
-                    ()
-                })
+                .map(|_r| debug!("deleted lock file from directory: {:?}", file))
                 .map_err(|e| {
                     backend::Error::StorageError(format!(
                         "cannot delete lock file from directory: {:?}, error: {}",

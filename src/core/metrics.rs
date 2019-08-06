@@ -129,7 +129,7 @@ fn prepare_metrics_addres(address: String) -> String {
 fn default_metrics() -> Arc<dyn MetricsContainerBuilder + Send + Sync> {
     Arc::new(MetricsContainer::new(
         Void::new(),
-        Duration::from_secs(100000),
+        Duration::from_secs(100_000),
         &"",
     ))
 }

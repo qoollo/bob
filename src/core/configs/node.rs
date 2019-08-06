@@ -79,19 +79,13 @@ impl PearlConfig {
 
 impl Validatable for PearlConfig {
     fn validate(&self) -> Result<(), String> {
-        match self.max_blob_size {
-            None => {
-                debug!("field 'max_blob_size' for 'config' is not set");
-                return Err("field 'max_blob_size' for 'config' is not set".to_string());
-            }
-            _ => {}
+        if self.max_blob_size.is_none() {
+            debug!("field 'max_blob_size' for 'config' is not set");
+            return Err("field 'max_blob_size' for 'config' is not set".to_string());
         };
-        match self.pool_count_threads {
-            None => {
-                debug!("field 'pool_count_threads' for 'config' is not set");
-                return Err("field 'pool_count_threads' for 'config' is not set".to_string());
-            }
-            _ => {}
+        if self.pool_count_threads.is_none() {
+            debug!("field 'pool_count_threads' for 'config' is not set");
+            return Err("field 'pool_count_threads' for 'config' is not set".to_string());
         };
         match &self.alien_disk {
             None => {
@@ -242,19 +236,13 @@ impl NodeConfig {
 }
 impl Validatable for NodeConfig {
     fn validate(&self) -> Result<(), String> {
-        match self.ping_threads_count {
-            None => {
-                debug!("field 'ping_threads_count' for 'config' is not set");
-                return Err("field 'ping_threads_count' for 'config' is not set".to_string());
-            }
-            _ => {}
+        if self.ping_threads_count.is_none() {
+            debug!("field 'ping_threads_count' for 'config' is not set");
+            return Err("field 'ping_threads_count' for 'config' is not set".to_string());
         };
-        match self.grpc_buffer_bound {
-            None => {
-                debug!("field 'grpc_buffer_bound' for 'config' is not set");
-                return Err("field 'grpc_buffer_bound' for 'config' is not set".to_string());
-            }
-            _ => {}
+        if self.grpc_buffer_bound.is_none() {
+            debug!("field 'grpc_buffer_bound' for 'config' is not set");
+            return Err("field 'grpc_buffer_bound' for 'config' is not set".to_string());
         };
         match &self.backend_type {
             None => {

@@ -46,7 +46,7 @@ pub struct Get(pub Pin<Box<dyn NewFuture<Output = GetResult> + Send>>);
 pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<Error>>;
 
 impl BobClient {
-    pub async fn new(
+    pub async fn create(
         node: Node,
         executor: TaskExecutor,
         timeout: Duration,
@@ -309,7 +309,7 @@ impl BobClientFactory {
     }
     pub(crate) async fn produce(&self, node: Node) -> Result<BobClient, ()> {
         let metrics = self.metrics.clone().get_metrics(&node.counter_display());
-        BobClient::new(
+        BobClient::create(
             node,
             self.executor.clone(),
             self.timeout,

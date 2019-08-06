@@ -33,8 +33,7 @@ impl YamlBobConfigReader {
 
     pub fn parse<T>(&self, config: &str) -> Result<T, String>
     where
-        T: for<'de> Deserialize<'de>,
-        T: Validatable,
+        T: for<'de> Deserialize<'de> + Validatable,
     {
         let result: Result<T, _> = serde_yaml::from_str(config);
         match result {
@@ -48,8 +47,7 @@ impl YamlBobConfigReader {
 
     pub fn get<T>(&self, filename: &str) -> Result<T, String>
     where
-        T: for<'de> Deserialize<'de>,
-        T: Validatable,
+        T: for<'de> Deserialize<'de> + Validatable,
     {
         let file = self.read(filename)?;
         let config: T = self.parse(&file)?;

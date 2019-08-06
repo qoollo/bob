@@ -103,7 +103,7 @@ impl Grinder {
             });
 
             CLIENT_PUT_TIMER.stop(time);
-            return result;
+            result
         } else {
             debug!("PUT[{}] will route to cluster", key);
             GRINDER_PUT_COUNTER.count(1);
@@ -120,8 +120,8 @@ impl Grinder {
                 });
 
             GRINDER_PUT_TIMER.stop(time);
-            return result;
-        };
+            result
+        }
     }
 
     pub async fn get(&self, key: BobKey, opts: BobOptions) -> Result<BackendGetResult, BobError> {
@@ -140,7 +140,7 @@ impl Grinder {
             });
 
             CLIENT_GET_TIMER.stop(time);
-            return result;
+            result
         } else {
             GRINDER_GET_COUNTER.count(1);
             let time = GRINDER_GET_TIMER.start();
@@ -152,7 +152,7 @@ impl Grinder {
             });
 
             GRINDER_GET_TIMER.stop(time);
-            return result;
+            result
         }
     }
 

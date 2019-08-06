@@ -73,7 +73,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
 
         PearlBackend {
             vdisks: Arc::new(result),
-            alien_dir: alien_dir,
+            alien_dir,
         }
     }
 
@@ -354,7 +354,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
     }
 
     pub fn equal(&self, name: &str, vdisk: &VDiskId) -> bool {
-        return self.name == name && self.vdisk.as_ref().unwrap() == vdisk;
+        self.name == name && self.vdisk.as_ref().unwrap() == vdisk
     }
 
     pub async fn write(&self, key: BobKey, data: Box<BobData>) -> BackendResult<()> {
@@ -467,7 +467,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
     pub async fn reinit_storage(self) -> BackendResult<()> {
         debug!("Vdisk: {} try reinit Pearl", self.vdisk_print());
         let mut spawner = self.spawner.clone();
-        let _ = async move {
+        async move {
             debug!("Vdisk: {} start reinit Pearl", self.vdisk_print());
             let _ = spawner
                 .spawn(self.prepare_storage().map(|_r| ()))
@@ -554,7 +554,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
             )));
         }
         trace!("Pearl is created by path: {:?}", path);
-        return storage;
+        storage
     }
 
     #[allow(dead_code)]

@@ -180,7 +180,7 @@ impl BackendStorage for MemBackend {
 
     fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}][{}] to backend", key, disk_name);
-        let disk = self.disks.get(&disk_name).clone();
+        let disk = self.disks.get(&disk_name);
         Put(match disk {
             Some(mem_disk) => mem_disk.put(vdisk, key, data).0,
             None => {
