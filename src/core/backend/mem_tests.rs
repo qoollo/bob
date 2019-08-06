@@ -105,6 +105,6 @@ mod tests {
                 .get("name".to_string(), VDiskId::new(0), BobKey { key: 1 })
                 .0,
         );
-        assert_eq!(retval.err().unwrap(), Error::NotFound)
+        assert_eq!(retval.err().unwrap(), Error::KeyNotFound)
     }
 }

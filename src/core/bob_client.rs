@@ -5,10 +5,11 @@ use crate::core::{
     backend::core::{BackendGetResult, BackendPingResult, BackendPutResult},
     backend::Error,
     data::{BobData, BobKey, BobMeta, ClusterResult, Node},
+    metrics::*,
 };
 use tower_grpc::{BoxBody, Code, Request, Status};
 
-use std::{pin::Pin, time::Duration};
+use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio::{prelude::FutureExt, runtime::TaskExecutor};
 use tower::MakeService;
 
@@ -17,11 +18,10 @@ use hyper::client::connect::{Destination, HttpConnector};
 use tower_hyper::{client, util};
 
 use futures03::{
-    compat::Future01CompatExt, future::FutureExt as OtherFutureExt, Future as NewFuture,
-    TryFutureExt,
+    compat::Future01CompatExt, future::ready, future::FutureExt as OtherFutureExt,
+    Future as NewFuture, TryFutureExt,
 };
 use futures_timer::ext::FutureExt as TimerExt;
-
 use tower::buffer::Buffer;
 
 type TowerConnect = Buffer<
@@ -34,6 +34,7 @@ pub struct BobClient {
     node: Node,
     timeout: Duration,
     client: BobApi<TowerConnect>,
+    metrics: BobClientMetrics,
 }
 
 pub type PutResult = Result<ClusterResult<BackendPutResult>, ClusterResult<Error>>;
@@ -45,9 +46,18 @@ pub struct Get(pub Pin<Box<dyn NewFuture<Output = GetResult> + Send>>);
 pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<Error>>;
 
 impl BobClient {
-    pub async fn new(node: Node, executor: TaskExecutor, timeout: Duration) -> Result<Self, ()> {
+    pub async fn new(
+        node: Node,
+        executor: TaskExecutor,
+        timeout: Duration,
+        buffer_bound: u16,
+        metrics: BobClientMetrics,
+    ) -> Result<Self, ()> {
         let dst = Destination::try_from_uri(node.get_uri()).unwrap();
-        let connector = util::Connector::new(HttpConnector::new(4));
+        let mut http_connector = HttpConnector::new(4);
+        http_connector.set_nodelay(true);
+
+        let connector = util::Connector::new(http_connector);
         let settings = client::Builder::new().http2_only(true).clone();
         let mut make_client = client::Connect::with_executor(connector, settings, executor.clone());
         let n1 = node.clone();
@@ -62,12 +72,18 @@ impl BobClient {
                     .build(conn_l)
                     .unwrap();
 
-                BobApi::new(Buffer::with_executor(conn, 5, &mut executor.clone())).ready() //TODO add count treads
+                BobApi::new(Buffer::with_executor(
+                    conn,
+                    buffer_bound as usize,
+                    &mut executor.clone(),
+                ))
+                .ready() //TODO add count treads
             })
             .map(move |client| BobClient {
                 node,
                 client,
                 timeout,
+                metrics,
             })
             .map_err(|e| debug!("BobClient: ERR = {:?}", e))
             .compat()
@@ -79,44 +95,79 @@ impl BobClient {
         Put({
             let n1 = self.node.clone();
             let n2 = self.node.clone();
-            let data = d.clone(); // TODO: find way to eliminate data copying
             let mut client = self.client.clone();
             let timeout = self.timeout;
 
-            client
-                .put(Request::new(PutRequest {
-                    key: Some(BlobKey { key: key.key }),
-                    data: Some(Blob {
-                        data: data.data,
-                        meta: Some(BlobMeta {
-                            timestamp: data.meta.timestamp,
-                        }),
+            let request = Request::new(PutRequest {
+                key: Some(BlobKey { key: key.key }),
+                data: Some(Blob {
+                    data: d.data.clone(),
+                    meta: Some(BlobMeta {
+                        timestamp: d.meta.timestamp,
                     }),
-                    options: Some(PutOptions {
-                        force_node: true,
-                        overwrite: false,
-                    }),
-                }))
-                .timeout(timeout)
-                .map(|_| ClusterResult {
-                    node: n1,
-                    result: BackendPutResult {},
-                })
-                .map_err(move |e| ClusterResult {
-                    result: {
-                        if e.is_elapsed() {
-                            Error::Timeout
-                        } else if e.is_timer() {
-                            panic!("Timeout failed in core - can't continue")
-                        } else {
-                            let err = e.into_inner();
-                            Error::Failed(format!("Put operation for {} failed: {:?}", n2, err))
+                }),
+                options: Some(PutOptions {
+                    force_node: true,
+                    overwrite: false,
+                }),
+            });
+
+            let metrics = self.metrics.clone();
+            let metrics2 = self.metrics.clone();
+            metrics.put_count();
+
+            let timer = metrics.put_timer();
+
+            let t = client.poll_ready();
+            if let Err(err) = t {
+                debug!("buffer inner error: {}", err);
+                let result = ClusterResult {
+                    node: self.node.clone(),
+                    result: Error::Failed(format!("buffer inner error: {}", err)),
+                };
+                ready(Err(result)).boxed()
+            } else if t.unwrap().is_not_ready() {
+                debug!("service connection is not ready");
+                let result = ClusterResult {
+                    node: self.node.clone(),
+                    result: Error::Failed("service connection is not ready".to_string()),
+                };
+                ready(Err(result)).boxed()
+            } else {
+                client
+                    .put(request)
+                    .timeout(timeout)
+                    .map(move |_| {
+                        metrics.put_timer_stop(timer);
+                        ClusterResult {
+                            node: n1,
+                            result: BackendPutResult {},
                         }
-                    },
-                    node: n2,
-                })
-                .compat()
-                .boxed()
+                    })
+                    .map_err(move |e| {
+                        metrics2.put_error_count();
+                        metrics2.put_timer_stop(timer);
+
+                        ClusterResult {
+                            result: {
+                                if e.is_elapsed() {
+                                    Error::Timeout
+                                } else if e.is_timer() {
+                                    panic!("Timeout failed in core - can't continue")
+                                } else {
+                                    let err = e.into_inner();
+                                    Error::Failed(format!(
+                                        "Put operation for {} failed: {:?}",
+                                        n2, err
+                                    ))
+                                }
+                            },
+                            node: n2,
+                        }
+                    })
+                    .compat()
+                    .boxed()
+            }
         })
     }
 
@@ -127,48 +178,72 @@ impl BobClient {
             let mut client = self.client.clone();
             let timeout = self.timeout;
 
-            client
-                .get(Request::new(GetRequest {
-                    key: Some(BlobKey { key: key.key }),
-                    options: Some(GetOptions { force_node: true }),
-                }))
-                .timeout(timeout)
-                .map(|r| {
-                    let ans = r.into_inner();
-                    ClusterResult {
-                        node: n1,
-                        result: BackendGetResult {
-                            data: BobData::new(ans.data, BobMeta::new(ans.meta.unwrap())),
-                        },
-                    }
-                })
-                .map_err(move |e| ClusterResult {
-                    result: {
-                        if e.is_elapsed() {
-                            Error::Timeout
-                        } else if e.is_timer() {
-                            panic!("Timeout failed in core - can't continue")
-                        } else {
-                            let err = e.into_inner();
-                            match err {
-                                Some(status) => match status.code() {
-                                    tower_grpc::Code::NotFound => Error::NotFound,
-                                    _ => Error::Failed(format!(
-                                        "Get operation for {} failed: {:?}",
-                                        n2, status
-                                    )),
-                                },
-                                None => Error::Failed(format!(
-                                    "Get operation for {} failed: {:?}",
-                                    n2, err
-                                )),
-                            }
+            let metrics = self.metrics.clone();
+            let metrics2 = self.metrics.clone();
+
+            metrics.get_count();
+            let timer = metrics.get_timer();
+
+            let t = client.poll_ready();
+            if let Err(err) = t {
+                panic!("buffer inner error: {}", err);
+            }
+            if t.unwrap().is_not_ready() {
+                debug!("service connection is not ready");
+                let result = ClusterResult {
+                    node: self.node.clone(),
+                    result: Error::Failed("service connection is not ready".to_string()),
+                };
+                ready(Err(result)).boxed()
+            } else {
+                client
+                    .get(Request::new(GetRequest {
+                        key: Some(BlobKey { key: key.key }),
+                        options: Some(GetOptions { force_node: true }),
+                    }))
+                    .timeout(timeout)
+                    .map(move |r| {
+                        metrics.get_timer_stop(timer);
+                        let ans = r.into_inner();
+                        ClusterResult {
+                            node: n1,
+                            result: BackendGetResult {
+                                data: BobData::new(ans.data, BobMeta::new(ans.meta.unwrap())),
+                            },
                         }
-                    },
-                    node: n2,
-                })
-                .compat()
-                .boxed()
+                    })
+                    .map_err(move |e| {
+                        metrics2.get_error_count();
+                        metrics2.get_timer_stop(timer);
+                        ClusterResult {
+                            result: {
+                                if e.is_elapsed() {
+                                    Error::Timeout
+                                } else if e.is_timer() {
+                                    panic!("Timeout failed in core - can't continue")
+                                } else {
+                                    let err = e.into_inner();
+                                    match err {
+                                        Some(status) => match status.code() {
+                                            tower_grpc::Code::NotFound => Error::KeyNotFound,
+                                            _ => Error::Failed(format!(
+                                                "Get operation for {} failed: {:?}",
+                                                n2, status
+                                            )),
+                                        },
+                                        None => Error::Failed(format!(
+                                            "Get operation for {} failed: {:?}",
+                                            n2, err
+                                        )),
+                                    }
+                                }
+                            },
+                            node: n2,
+                        }
+                    })
+                    .compat()
+                    .boxed()
+            }
         })
     }
 
@@ -176,33 +251,71 @@ impl BobClient {
         let n1 = self.node.clone();
         let n2 = self.node.clone();
         let to = self.timeout;
-        self.client
-            .clone()
-            .ping(Request::new(Null {}))
-            .map(move |_| ClusterResult {
-                node: n1,
-                result: BackendPingResult {},
-            })
-            .map_err(|e| Error::StorageError(format!("ping operation error: {}", e)))
-            .compat()
-            .boxed()
-            .timeout(to)
-            .map_err(move |e| ClusterResult {
-                node: n2.clone(),
-                result: e,
-            })
-            .await
+
+        let mut client = self.client.clone();
+
+        let t = client.poll_ready();
+        if let Err(err) = t {
+            panic!("buffer inner error: {}", err);
+        }
+        if t.unwrap().is_not_ready() {
+            debug!("service connection is not ready");
+            let result = ClusterResult {
+                node: self.node.clone(),
+                result: Error::Failed("service connection is not ready".to_string()),
+            };
+            Err(result)
+        } else {
+            client
+                .ping(Request::new(Null {}))
+                .map(move |_| ClusterResult {
+                    node: n1,
+                    result: BackendPingResult {},
+                })
+                .map_err(|e| Error::StorageError(format!("ping operation error: {}", e)))
+                .compat()
+                .boxed()
+                .timeout(to)
+                .map_err(move |e| ClusterResult {
+                    node: n2.clone(),
+                    result: e,
+                })
+                .await
+        }
     }
 }
 
 #[derive(Clone)]
 pub struct BobClientFactory {
-    pub executor: TaskExecutor,
-    pub timeout: Duration,
+    executor: TaskExecutor,
+    timeout: Duration,
+    buffer_bound: u16,
+    metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
 }
 
 impl BobClientFactory {
-    pub async fn produce(&self, node: Node) -> Result<BobClient, ()> {
-        BobClient::new(node, self.executor.clone(), self.timeout).await
+    pub fn new(
+        executor: TaskExecutor,
+        timeout: Duration,
+        buffer_bound: u16,
+        metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
+    ) -> Self {
+        BobClientFactory {
+            executor,
+            timeout,
+            buffer_bound,
+            metrics,
+        }
+    }
+    pub(crate) async fn produce(&self, node: Node) -> Result<BobClient, ()> {
+        let metrics = self.metrics.clone().get_metrics(&node.counter_display());
+        BobClient::new(
+            node,
+            self.executor.clone(),
+            self.timeout,
+            self.buffer_bound,
+            metrics,
+        )
+        .await
     }
 }

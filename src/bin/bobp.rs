@@ -10,12 +10,13 @@ use std::{thread, time};
 
 use tokio::runtime::current_thread::Runtime;
 
+use futures::future::ok;
 use futures::Future;
 use tower::MakeService;
-use tower_grpc::Request;
+use tower_grpc::{BoxBody, Request};
 
 use bob::api::grpc::client::BobApi;
-use bob::api::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
+use bob::api::grpc::{Blob, BlobKey, BlobMeta, GetOptions, GetRequest, PutOptions, PutRequest};
 
 use hyper::client::connect::{Destination, HttpConnector};
 use tower_hyper::{client, util};
@@ -37,13 +38,17 @@ impl NetConfig {
 #[derive(Debug, Clone, Copy)]
 struct TaskConfig {
     low_idx: u64,
-    high_idx: u64,
+    count: u64,
     payload_size: u64,
+    direct: bool,
 }
 
 struct Stat {
     put_total: AtomicU64,
+    put_error: AtomicU64,
+
     get_total: AtomicU64,
+    get_error: AtomicU64,
 }
 
 fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
@@ -61,18 +66,27 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
         let get_count_spd = (cur_get_count - last_get_count) * 1000 / period_ms;
         last_get_count = cur_get_count;
 
-        println!("put: {:5} rps | get {:5} rps", put_count_spd, get_count_spd);
+        let put_error = stat.put_error.load(Ordering::Relaxed);
+        let get_error = stat.get_error.load(Ordering::Relaxed);
+        println!(
+            "put: {:5} rps | get {:5} rps | put err: {:5} | get err: {:5}",
+            put_count_spd, get_count_spd, put_error, get_error
+        );
     }
 }
 
-fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
+type TowerConnect =
+    tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>;
+
+fn build_client(rt: &mut Runtime, net_conf: NetConfig) -> BobApi<TowerConnect> {
     let uri = std::sync::Arc::new(net_conf.get_uri());
-    let mut rt = Runtime::new().unwrap();
 
     // let h2_settings = Default::default();
     // let mut make_client = client::Connect::new(net_conf.get_connector(), h2_settings, rt.handle());
     let dst = Destination::try_from_uri(net_conf.get_uri()).unwrap();
-    let connector = util::Connector::new(HttpConnector::new(4));
+    let mut http_connector = HttpConnector::new(4);
+    http_connector.set_nodelay(true);
+    let connector = util::Connector::new(http_connector);
     let settings = client::Builder::new().http2_only(true).clone();
     let mut make_client = client::Connect::with_builder(connector, settings);
 
@@ -81,8 +95,53 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
         .set_origin(uri.as_ref())
         .build(conn)
         .unwrap();
-    let mut client = BobApi::new(p_conn);
-    rt.block_on(loop_fn((stat.clone(), task_conf.low_idx), |(lstat, i)| {
+
+    BobApi::new(p_conn)
+}
+
+fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
+    let mut rt = Runtime::new().unwrap();
+    let mut client = build_client(&mut rt, net_conf);
+
+    let mut options: Option<GetOptions> = None;
+    if task_conf.direct {
+        options = Some(GetOptions { force_node: true });
+    }
+
+    rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
+        client
+            .get(Request::new(GetRequest {
+                key: Some(BlobKey { key: i }),
+                options: options.clone(),
+            }))
+            .then(move |e| {
+                if e.is_err() {
+                    lstat.clone().get_error.fetch_add(1, Ordering::SeqCst);
+                }
+                lstat.clone().get_total.fetch_add(1, Ordering::SeqCst);
+
+                if i + 1 == task_conf.low_idx + task_conf.count {
+                    ok::<_, ()>(Loop::Break((lstat, i)))
+                } else {
+                    ok::<_, ()>(Loop::Continue((lstat, i + 1)))
+                }
+            })
+    }))
+    .unwrap();
+}
+
+fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
+    let mut rt = Runtime::new().unwrap();
+    let mut client = build_client(&mut rt, net_conf);
+
+    let mut options: Option<PutOptions> = None;
+    if task_conf.direct {
+        options = Some(PutOptions {
+            force_node: true,
+            overwrite: false,
+        });
+    }
+    let put = loop_fn((stat.clone(), task_conf.low_idx), |(lstat, i)| {
         client
             .put(Request::new(PutRequest {
                 key: Some(BlobKey { key: i }),
@@ -93,43 +152,24 @@ fn bench_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
                             .duration_since(UNIX_EPOCH)
                             .expect("msg: &str")
                             .as_secs() as u32,
-                    }), // TODO
+                    }),
                 }),
-                options: None,
+                options: options.clone(),
             }))
-            .and_then(move |_| {
+            .then(move |e| {
+                if e.is_err() {
+                    lstat.clone().put_error.fetch_add(1, Ordering::SeqCst);
+                }
                 lstat.clone().put_total.fetch_add(1, Ordering::SeqCst);
-                if i + 1 == task_conf.high_idx {
-                    Ok(Loop::Break((lstat, i)))
+
+                if i + 1 == task_conf.low_idx + task_conf.count {
+                    ok::<_, ()>(Loop::Break((lstat, i)))
                 } else {
-                    Ok(Loop::Continue((lstat, i + 1)))
+                    ok::<_, ()>(Loop::Continue((lstat, i + 1)))
                 }
             })
-    }))
-    .unwrap();
-
-    rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
-        client
-            .get(Request::new(GetRequest {
-                key: Some(BlobKey { key: i }),
-                options: None,
-            }))
-            .and_then(move |_| {
-                lstat.clone().get_total.fetch_add(1, Ordering::SeqCst);
-                if i + 1 == task_conf.high_idx {
-                    Ok(Loop::Break((lstat, i)))
-                } else {
-                    Ok(Loop::Continue((lstat, i + 1)))
-                }
-            })
-    }))
-    .unwrap();
-
-    //     //let sw = Stopwatch::start_new();
-    //     rt.block_on(pur_req).unwrap();
-    //     stat.put_total.fetch_add(1, Ordering::SeqCst);
-    //     //println!("Thing took {}ms", sw.elapsed_ms());
-    // }
+    });
+    rt.block_on(put).unwrap();
 }
 
 fn main() {
@@ -174,6 +214,28 @@ fn main() {
                 .long("count")
                 .default_value("1000000"),
         )
+        .arg(
+            Arg::with_name("first")
+                .help("first index of records to proceed")
+                .takes_value(true)
+                .short("f")
+                .long("first")
+                .default_value("0"),
+        )
+        .arg(
+            Arg::with_name("behavior")
+                .help("put / get")
+                .takes_value(true)
+                .short("b")
+                .long("behavior")
+                .default_value("put"),
+        )
+        .arg(
+            Arg::with_name("direct")
+                .help("direct command to node")
+                .short("d")
+                .long("direct"),
+        )
         .get_matches();
 
     let net_conf = NetConfig {
@@ -186,8 +248,12 @@ fn main() {
     };
 
     let task_conf = TaskConfig {
-        low_idx: 0,
-        high_idx: matches
+        low_idx: matches
+            .value_of("first")
+            .unwrap_or_default()
+            .parse()
+            .unwrap(),
+        count: matches
             .value_of("count")
             .unwrap_or_default()
             .parse()
@@ -197,6 +263,7 @@ fn main() {
             .unwrap_or_default()
             .parse()
             .unwrap(),
+        direct: matches.is_present("direct"),
     };
 
     let workers_count: u64 = matches
@@ -205,19 +272,24 @@ fn main() {
         .parse()
         .unwrap();
 
+    let behavior = match matches.value_of("behavior").unwrap_or_default() {
+        "put" => true,
+        "get" => false,
+        value => panic!("invalid value for behavior: {}", value),
+    };
+
     println!("Bob will be benchmarked now");
     println!(
         "target: {}:{} workers_count: {} payload size: {} total records: {}",
-        net_conf.target,
-        net_conf.port,
-        workers_count,
-        task_conf.payload_size,
-        task_conf.high_idx - task_conf.low_idx
+        net_conf.target, net_conf.port, workers_count, task_conf.payload_size, task_conf.count,
     );
 
     let stat = Arc::new(Stat {
         put_total: AtomicU64::new(0),
+        put_error: AtomicU64::new(0),
+
         get_total: AtomicU64::new(0),
+        get_error: AtomicU64::new(0),
     });
 
     let stop_token: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
@@ -229,19 +301,27 @@ fn main() {
             stat_worker(stop_token, 1000, stat_cln);
         })
     };
+
     let mut workers = vec![];
-    let task_size = (task_conf.high_idx - task_conf.low_idx) / workers_count;
+    let task_size = task_conf.count / workers_count;
     for i in 0..workers_count {
         let nc = net_conf.clone();
         let stat_inner = stat.clone();
         let tc = TaskConfig {
             low_idx: task_conf.low_idx + task_size * i,
-            high_idx: task_conf.low_idx + task_size * (i + 1),
+            count: task_size,
             payload_size: task_conf.payload_size,
+            direct: task_conf.direct,
         };
-        workers.push(thread::spawn(move || {
-            bench_worker(nc, tc, stat_inner);
-        }));
+        if behavior {
+            workers.push(thread::spawn(move || {
+                put_worker(nc, tc, stat_inner);
+            }));
+        } else {
+            workers.push(thread::spawn(move || {
+                get_worker(nc, tc, stat_inner);
+            }));
+        }
     }
 
     workers.drain(..).for_each(|w| w.join().unwrap());

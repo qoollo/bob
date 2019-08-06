@@ -1,8 +1,8 @@
 use crate::core::{
     backend,
-    backend::core::{BackendPutResult, Get, Put},
+    backend::core::{BackendGetResult, BackendPutResult, Get, Put},
     configs::node::NodeConfig,
-    data::{print_vec, BobData, BobKey, Node, VDiskMapper},
+    data::{print_vec, BobData, BobKey, ClusterResult, Node, VDiskMapper},
     link_manager::LinkManager,
 };
 use std::sync::Arc;
@@ -85,7 +85,16 @@ impl Cluster for QuorumCluster {
             .map(move |acc| {
                 debug!("PUT[{}] cluster ans: {:?}", key, acc);
                 let total_ops = acc.iter().count();
-                let ok_count = acc.iter().filter(|&r| r.is_ok()).count();
+                let mut sup = String::default();
+                let ok_count = acc
+                    .iter()
+                    .filter(|&r| {
+                        if let Err(e) = r {
+                            sup = format!("{}, {:?}", sup.clone(), e)
+                        }
+                        r.is_ok()
+                    })
+                    .count();
                 debug!(
                     "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
                     key, total_ops, ok_count, l_quorum
@@ -95,8 +104,8 @@ impl Cluster for QuorumCluster {
                     Ok(BackendPutResult {})
                 } else {
                     Err(backend::Error::Failed(format!(
-                        "failed: total: {}, ok: {}, quorum: {}",
-                        total_ops, ok_count, l_quorum
+                        "failed: total: {}, ok: {}, quorum: {}, sup: {}",
+                        total_ops, ok_count, l_quorum, sup
                     )))
                 }
             });
@@ -117,15 +126,33 @@ impl Cluster for QuorumCluster {
 
         let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
 
-        let mut w = t.skip_while(move |r| ready(!r.is_ok()));
-        let q = async move {
-            w.next()
-                .map(|r| {
-                    r.map(|res| res.map(|ok| ok.result).map_err(|err| err.result))
-                        .unwrap()
-                }) // TODO handle errors
-                .await
-        };
-        Get(q.boxed())
+        let w = t
+            .fold(vec![], |mut acc, r| {
+                acc.push(r);
+                ready(acc)
+            })
+            .map(move |acc| {
+                let mut sup = String::default();
+                acc.iter().for_each(|r| {
+                    if let Err(e) = r {
+                        trace!("GET[{}] failed result: {:?}", key, e);
+                        sup = format!("{}, {:?}", sup.clone(), e)
+                    } else if let Ok(e) = r {
+                        trace!("GET[{}] success result from: {:?}", key, e.node);
+                    }
+                });
+
+                let r = acc.into_iter().find(|r| r.is_ok());
+                if let Some(answer) = r {
+                    match answer {
+                        Ok(ClusterResult { result: i, .. }) => Ok::<BackendGetResult, _>(i),
+                        Err(ClusterResult { result: i, .. }) => Err::<_, backend::Error>(i),
+                    }
+                } else {
+                    debug!("GET[{}] no success result", key);
+                    Err::<_, backend::Error>(backend::Error::Failed(sup))
+                }
+            });
+        Get(w.boxed())
     }
 }

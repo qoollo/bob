@@ -6,4 +6,5 @@ mod link_manager;
 
 pub mod cluster;
 pub mod configs;
+pub mod metrics;
 pub mod server;

@@ -1,12 +1,13 @@
 #![feature(async_await)]
 use bob::api::grpc::server;
 
+use bob::core::bob_client::BobClientFactory;
 use bob::core::data::VDiskMapper;
 use bob::core::grinder::Grinder;
 use clap::{App, Arg};
 use env_logger;
 use tokio::net::TcpListener;
-use tokio::runtime::Runtime;
+use tokio::runtime::Builder;
 
 use bob::core::configs::cluster::ClusterConfigYaml;
 use bob::core::configs::node::{DiskPath, NodeConfigYaml};
@@ -19,8 +20,13 @@ use tower_hyper::server::{Http, Server};
 use futures03::executor::ThreadPoolBuilder;
 use futures03::future::{FutureExt, TryFutureExt};
 
+use std::net::SocketAddr;
+
 #[macro_use]
 extern crate log;
+extern crate dipstick;
+
+use bob::core::metrics;
 
 fn main() {
     let matches = App::new("Bob")
@@ -45,6 +51,14 @@ fn main() {
                 .short("a")
                 .long("name"),
         )
+        .arg(
+            Arg::with_name("threads")
+                .help("count threads")
+                .takes_value(true)
+                .short("t")
+                .long("threads")
+                .default_value("4"),
+        )
         .get_matches();
 
     let cluster_config = matches.value_of("cluster").expect("expect cluster config");
@@ -60,7 +74,7 @@ fn main() {
         .init();
 
     let mut mapper = VDiskMapper::new(vdisks.to_vec(), &node);
-    let mut addr = node.bind().parse().unwrap();
+    let mut addr: SocketAddr = node.bind().parse().unwrap();
 
     let node_name = matches.value_of("name");
     if node_name.is_some() {
@@ -82,6 +96,8 @@ fn main() {
         addr = finded.address().parse().unwrap();
     }
 
+    let metrics = metrics::init_counters(&node, addr.to_string());
+
     let backend_pool = ThreadPoolBuilder::new().pool_size(2).create().unwrap(); //TODO
 
     let bob = BobSrv {
@@ -93,12 +109,18 @@ fn main() {
         .create()
         .unwrap();
 
-    let mut rt = Runtime::new().unwrap();
-    let executor = rt.executor();
+    let mut rt = Builder::new()
+        .core_threads(
+            matches
+                .value_of("threads")
+                .unwrap_or_default()
+                .parse()
+                .unwrap(),
+        )
+        .build()
+        .unwrap();
 
-    let b = bob.clone();
-    let q = async move { b.get_periodic_tasks(executor, pool).await };
-    rt.spawn(q.boxed().compat());
+    let executor = rt.executor();
 
     let b1 = bob.clone();
     let q1 = async move {
@@ -107,7 +129,14 @@ fn main() {
             .map(|_r| {})
             .map_err(|e| panic!("init failed: {:?}", e))
     };
-    rt.spawn(q1.boxed().compat());
+    rt.block_on(q1.boxed().compat()).unwrap();
+    info!("Start backend");
+
+    let factory =
+        BobClientFactory::new(executor, node.timeout(), node.grpc_buffer_bound(), metrics);
+    let b = bob.clone();
+    let q = async move { b.get_periodic_tasks(factory, pool).await };
+    rt.spawn(q.boxed().compat());
 
     let new_service = server::BobApiServer::new(bob);
 

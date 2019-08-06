@@ -48,7 +48,7 @@ impl VDisk {
                     }
                     None => {
                         trace!("GET[{}] from vdisk failed. Cannot find key", key);
-                        err(Error::NotFound)
+                        err(Error::KeyNotFound)
                     }
                 },
                 Err(_) => err(Error::Other),

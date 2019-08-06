@@ -17,7 +17,7 @@ pub(crate) struct PearlKey {
 impl PearlKey {
     pub fn new(key: BobKey) -> Self {
         PearlKey {
-            key: key.key.clone().to_be_bytes().to_vec(),
+            key: key.key.to_be_bytes().to_vec(),
         }
     }
 }

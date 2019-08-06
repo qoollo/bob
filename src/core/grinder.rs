@@ -1,15 +1,19 @@
 use crate::core::{
     backend,
     backend::core::{Backend, BackendGetResult, BackendPutResult},
+    bob_client::BobClientFactory,
     cluster::{get_cluster, Cluster},
     configs::node::NodeConfig,
     data::{BobData, BobKey, BobOptions, VDiskMapper},
     link_manager::LinkManager,
 };
+
 use futures03::task::Spawn;
 
+use crate::core::metrics::*;
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub enum Error {
     NotFound,
     Other,
@@ -31,7 +35,7 @@ impl BobError {
 
     fn match_error(&self, err: &backend::Error, _is_local: bool) -> Error {
         match err {
-            backend::Error::NotFound => Error::NotFound,
+            backend::Error::KeyNotFound => Error::NotFound,
             _ => Error::Other,
         }
     }
@@ -67,12 +71,7 @@ impl Grinder {
         config: &NodeConfig,
         spawner: TSpawner,
     ) -> Grinder {
-        let link = Arc::new(LinkManager::new(
-            mapper.nodes(),
-            config.check_interval(),
-            config.timeout(),
-        ));
-
+        let link = Arc::new(LinkManager::new(mapper.nodes(), config.check_interval()));
         Grinder {
             backend: Backend::new(&mapper, config, spawner),
             mapper: mapper.clone(),
@@ -95,51 +94,78 @@ impl Grinder {
                 "PUT[{}] flag FORCE_NODE is on - will handle it by local node. Put params: {}",
                 key, op
             );
-            self.backend
-                .put(&op, key, data)
-                .0
-                .await
-                .map_err(|err| BobError::Local(err))
+            CLIENT_PUT_COUNTER.count(1);
+            let time = CLIENT_PUT_TIMER.start();
+
+            let result = self.backend.put(&op, key, data).0.await.map_err(|err| {
+                GRINDER_PUT_ERROR_COUNT_COUNTER.count(1);
+                BobError::Local(err)
+            });
+
+            CLIENT_PUT_TIMER.stop(time);
+            return result;
         } else {
             debug!("PUT[{}] will route to cluster", key);
-            self.cluster
+            GRINDER_PUT_COUNTER.count(1);
+            let time = GRINDER_PUT_TIMER.start();
+
+            let result = self
+                .cluster
                 .put_clustered(key, data)
                 .0
                 .await
-                .map_err(|err| BobError::Cluster(err))
-        }
+                .map_err(|err| {
+                    GRINDER_PUT_ERROR_COUNT_COUNTER.count(1);
+                    BobError::Cluster(err)
+                });
+
+            GRINDER_PUT_TIMER.stop(time);
+            return result;
+        };
     }
 
     pub async fn get(&self, key: BobKey, opts: BobOptions) -> Result<BackendGetResult, BobError> {
         if opts.contains(BobOptions::FORCE_NODE) {
+            CLIENT_GET_COUNTER.count(1);
+            let time = CLIENT_GET_TIMER.start();
+
             let op = self.mapper.get_operation(key);
             debug!(
                 "GET[{}] flag FORCE_NODE is on - will handle it by local node. Get params: {}",
                 key, op
             );
-            self.backend
-                .get(&op, key)
-                .0
-                .await
-                .map_err(|err| BobError::Local(err))
+            let result = self.backend.get(&op, key).0.await.map_err(|err| {
+                CLIENT_GET_ERROR_COUNT_COUNTER.count(1);
+                BobError::Local(err)
+            });
+
+            CLIENT_GET_TIMER.stop(time);
+            return result;
         } else {
+            GRINDER_GET_COUNTER.count(1);
+            let time = GRINDER_GET_TIMER.start();
+
             debug!("GET[{}] will route to cluster", key);
-            self.cluster
-                .get_clustered(key)
-                .0
-                .await
-                .map_err(|err| BobError::Cluster(err))
+            let result = self.cluster.get_clustered(key).0.await.map_err(|err| {
+                GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
+                BobError::Cluster(err)
+            });
+
+            GRINDER_GET_TIMER.stop(time);
+            return result;
         }
     }
 
     pub async fn get_periodic_tasks<S>(
         &self,
-        ex: tokio::runtime::TaskExecutor,
+        client_factory: BobClientFactory,
         spawner: S,
     ) -> Result<(), ()>
     where
         S: Spawn + Clone + Send + 'static + Unpin + Sync,
     {
-        self.link_manager.get_checker_future(ex, spawner).await
+        self.link_manager
+            .get_checker_future(client_factory, spawner)
+            .await
     }
 }

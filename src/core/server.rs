@@ -1,6 +1,7 @@
 use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRequest};
 
 use crate::core::{
+    bob_client::BobClientFactory,
     data::{BobData, BobKey, BobMeta, BobOptions},
     grinder::{Error, Grinder},
 };
@@ -27,13 +28,15 @@ impl BobSrv {
 
     pub async fn get_periodic_tasks<S>(
         &self,
-        ex: tokio::runtime::TaskExecutor,
+        client_factory: BobClientFactory,
         spawner: S,
     ) -> Result<(), ()>
     where
         S: Spawn + Clone + Send + 'static + Unpin + Sync,
     {
-        self.grinder.get_periodic_tasks(ex, spawner).await
+        self.grinder
+            .get_periodic_tasks(client_factory, spawner)
+            .await
     }
 
     fn put_is_valid(req: &PutRequest) -> bool {
@@ -142,23 +145,26 @@ impl server::BobApi for BobSrv {
                         }))
                     }
                     Err(r_err) => {
-                        error!(
-                            "GET[{}]-ERR  dt: {}ms {:?}",
-                            key,
-                            // r_err.is_local(),
-                            elapsed,
-                            r_err
-                        );
                         let err = match r_err.error() {
                             Error::NotFound => tower_grpc::Status::new(
                                 tower_grpc::Code::NotFound,
                                 format!("[bob] Can't find record with key {}", key),
                             ),
-                            _ => tower_grpc::Status::new(
-                                //TODO add error description
-                                tower_grpc::Code::Unknown,
-                                "[bob] Some error",
-                            ),
+                            ww => {
+                                error!(
+                                    "GET[{}]-ERR  dt: {}ms {:?}, {:?}",
+                                    key,
+                                    // r_err.is_local(),
+                                    elapsed,
+                                    r_err,
+                                    ww,
+                                );
+                                tower_grpc::Status::new(
+                                    //TODO add error description
+                                    tower_grpc::Code::Unknown,
+                                    "[bob] Some error",
+                                )
+                            }
                         };
                         future::err(err)
                     }

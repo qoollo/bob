@@ -13,9 +13,9 @@ use std::{
 
 use futures03::{
     compat::Future01CompatExt,
-    future::{err, FutureExt as OtherFutureExt},
+    future::{err, FutureExt as OtherFutureExt, TryFutureExt},
     task::{Spawn, SpawnExt},
-    Future as NewFuture,
+    Future as Future03,
 };
 
 use tokio_timer::Interval;
@@ -84,11 +84,14 @@ impl NodeLinkHolder {
 pub struct LinkManager {
     repo: Arc<HashMap<Node, NodeLinkHolder>>,
     check_interval: Duration,
-    timeout: Duration,
 }
 
+pub type ClusterCallType<T> = Result<ClusterResult<T>, ClusterResult<Error>>;
+pub type ClusterCallFuture<T> =
+    Pin<Box<dyn Future03<Output = ClusterCallType<T>> + 'static + Send>>;
+
 impl LinkManager {
-    pub fn new(nodes: Vec<Node>, check_interval: Duration, timeout: Duration) -> LinkManager {
+    pub fn new(nodes: Vec<Node>, check_interval: Duration) -> LinkManager {
         LinkManager {
             repo: {
                 let mut hm = HashMap::new();
@@ -98,23 +101,18 @@ impl LinkManager {
                 Arc::new(hm)
             },
             check_interval,
-            timeout,
         }
     }
 
     pub async fn get_checker_future<S>(
         &self,
-        ex: tokio::runtime::TaskExecutor,
+        client_factory: BobClientFactory,
         spawner: S,
     ) -> Result<(), ()>
     where
         S: Spawn + Clone + Send + 'static + Unpin + Sync,
     {
         let local_repo = self.repo.clone();
-        let client_factory = BobClientFactory {
-            executor: ex,
-            timeout: self.timeout,
-        };
         Interval::new_interval(self.check_interval)
             .for_each(move |_| {
                 local_repo.values().for_each(|v| {
@@ -133,48 +131,41 @@ impl LinkManager {
             .await
     }
 
-    pub fn get_link(&self, node: &Node) -> NodeLink {
+    pub fn get_link(&self, node: &Node) -> NodeLinkHolder {
         self.repo
             .get(node)
             .expect("No such node in repo. Check config and cluster setup")
-            .get_connection()
+            .clone()
     }
 
-    pub fn get_connections(&self, nodes: &[Node]) -> Vec<NodeLink> {
+    pub fn get_connections(&self, nodes: &[Node]) -> Vec<NodeLinkHolder> {
         nodes.iter().map(|n| self.get_link(n)).collect()
     }
 
-    pub fn call_nodes<F, T: 'static + Send>(
+    pub fn call_nodes<F: Send, T: 'static + Send>(
         &self,
         nodes: &[Node],
         mut f: F,
-    ) -> Vec<
-        Pin<
-            Box<
-                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<Error>>>
-                    + 'static
-                    + Send,
-            >,
-        >,
-    >
+    ) -> Vec<ClusterCallFuture<T>>
     where
-        F: FnMut(
-            &mut BobClient,
-        ) -> (Pin<
-            Box<
-                dyn NewFuture<Output = Result<ClusterResult<T>, ClusterResult<Error>>>
-                    + 'static
-                    + Send,
-            >,
-        >),
+        F: FnMut(&mut BobClient) -> ClusterCallFuture<T>,
     {
         let links = &mut self.get_connections(nodes);
         let t: Vec<_> = links
             .iter_mut()
             .map(move |nl| {
                 let node = nl.node.clone();
-                match &mut nl.conn {
-                    Some(conn) => f(conn),
+                let nl_clone = nl.clone();
+                match &mut nl.get_connection().conn {
+                    Some(conn) => f(conn)
+                        .boxed()
+                        .map_err(move |e| {
+                            if e.result.is_service() {
+                                nl_clone.clear_connection();
+                            }
+                            e
+                        })
+                        .boxed(),
                     None => err(ClusterResult {
                         result: Error::Failed(format!("No active connection {:?}", node)),
                         node,

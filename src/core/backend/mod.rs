@@ -11,7 +11,6 @@ use std::io::ErrorKind;
 #[derive(PartialEq, Debug)]
 pub enum Error {
     Timeout,
-    NotFound,
 
     VDiskNoFound(VDiskId),
     StorageError(String),
@@ -21,6 +20,15 @@ pub enum Error {
 
     Failed(String),
     Other,
+}
+
+impl Error {
+    pub fn is_service(&self) -> bool {
+        match &self {
+            Error::Timeout | Error::Other | Error::Failed(_) => true,
+            _ => false,
+        }
+    }
 }
 
 impl std::fmt::Display for Error {

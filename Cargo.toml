@@ -35,6 +35,7 @@ tokio-core = "~0.1"
 tokio-timer = "~0.2"
 futures-timer = "~0.2"
 pearl = { git = "https://github.com/qoollo/pearl", branch = "develop" }
+dipstick = "~0.7"
 
 [build-dependencies]
 tower-grpc-build = { git = "https://github.com/tower-rs/tower-grpc", features = ["tower-hyper"] }
