@@ -5,40 +5,40 @@ authors = ["Kirill Bushminkin <kb@qoollo.com>"]
 edition = "2018"
 
 [dependencies]
+pearl = { git = "https://github.com/qoollo/pearl", branch = "develop" }
 futures         = "~0.1"
 futures03       = { package = "futures-preview", version = "0.3.0-alpha.16", features = ["compat"] }
 futures-cpupool = "~0.1"
+futures-locks = "0.3"
+futures-timer = "~0.2"
+tower-hyper = "~0.1.0"
+tower-request-modifier = "~0.1.0"
+tower-grpc = { version = "~0.1.0", features = ["tower-hyper"] }
+tower-service = "0.2"
+tower = "~0.1"
+tower-util = "0.1"
+tokio = "~0.1"
+tokio-core = "~0.1"
+tokio-timer = "~0.2"
+tokio-periodic = "~0.1"
+serde = "1.0"
+serde_derive = "1.0"
+serde_yaml = "0.8"
+log = "~0.4"
+env_logger = "~0.6"
 clap            = "~2.31"
 bitflags        = "~1.0"
 http = "~0.1"
 prost = "~0.5"
 bytes = "~0.4"
-tokio = "~0.1"
 stopwatch = "0.0.7"
-tower-hyper = { git = "https://github.com/tower-rs/tower-hyper" }
 hyper = "0.12"
-tower-request-modifier = { git = "https://github.com/tower-rs/tower-http" }
-tower-grpc = { git = "https://github.com/tower-rs/tower-grpc", features = ["tower-hyper"] }
-tower-service = "0.2"
-tower = { git = "https://github.com/tower-rs/tower"}
-tower-util = "0.1"
-tokio-periodic = "~0.1"
-log = "~0.4"
-env_logger = "~0.6"
-serde = "1.0"
-serde_derive = "1.0"
-serde_yaml = "0.8"
 itertools = "0.8"
 humantime = "1.2.0"
-futures-locks = "0.3"
-tokio-core = "~0.1"
-tokio-timer = "~0.2"
-futures-timer = "~0.2"
-pearl = { git = "https://github.com/qoollo/pearl", branch = "develop" }
 dipstick = "~0.7"
 
 [build-dependencies]
-tower-grpc-build = { git = "https://github.com/tower-rs/tower-grpc", features = ["tower-hyper"] }
+tower-grpc-build = { version = "~0.1.0", features = ["tower-hyper"] }
 
 [lib]
 name = "bob"
