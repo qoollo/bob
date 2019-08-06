@@ -533,7 +533,7 @@ vdisks:
     #[test]
     fn test_node_config() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: no
 quorum: 1
 timeout: 12h 5min 2ns
@@ -549,7 +549,7 @@ backend_type: stub
     #[test]
     fn test_node_config_ping_count_invalid() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: no
 quorum: 1
 timeout: 12h 5min 2ns
@@ -566,7 +566,7 @@ backend_type: stub
     #[test]
     fn test_node_pearl_config_no_pearl_config() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: no
 quorum: 1
 timeout: 12h 5min 2ns
@@ -583,7 +583,7 @@ backend_type: pearl
     #[test]
     fn test_node_pearl_config() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: no
 quorum: 1
 timeout: 12h 5min 2ns
@@ -607,7 +607,7 @@ pearl:
     #[test]
     fn test_node_pearl_config2() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: no
 quorum: 1
 timeout: 12h 5min 2ns
@@ -631,7 +631,7 @@ pearl:
     #[test]
     fn test_node_pearl_config_no_field() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: no
 quorum: 1
 timeout: 12h 5min 2ns
@@ -654,7 +654,7 @@ pearl:
     #[test]
     fn test_node_pearl_config_invalid_retry_time() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: no
 quorum: 1
 timeout: 12h 5min 2ns
@@ -677,7 +677,7 @@ pearl:
     #[test]
     fn test_node_pearl_config_no_retry_time() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: no
 quorum: 1
 timeout: 12h 5min 2ns
@@ -700,7 +700,7 @@ pearl:
     #[test]
     fn test_node_config_invalid_backend_type() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: n1
 quorum: 1
 timeout: 12h 5min 2ns
@@ -735,7 +735,7 @@ vdisks:
     #[test]
     fn test_node_config_invalid_time() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: no
 quorum: 1
 timeout: 12h 5min 2ns
@@ -752,7 +752,7 @@ backend_type: stub
     #[test]
     fn test_node_config_valid() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: n1
 quorum: 1
 timeout: 12h 5min 2ns
@@ -786,7 +786,7 @@ vdisks:
     #[test]
     fn test_node_config_invalid() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: 1n2112321321321321
 quorum: 1
 timeout: 12h 5min 2ns
@@ -820,7 +820,7 @@ vdisks:
     #[test]
     fn test_node_config_check_valid_pearl_disk() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: n1
 quorum: 1
 timeout: 12h 5min 2ns
@@ -860,7 +860,7 @@ vdisks:
     #[test]
     fn test_node_config_check_invalid_pearl_disk() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: n1
 quorum: 1
 timeout: 12h 5min 2ns
@@ -900,7 +900,7 @@ vdisks:
     #[test]
     fn test_node_config_with_metrics() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: no
 quorum: 1
 timeout: 12h 5min 2ns
@@ -920,7 +920,7 @@ metrics:                      # optional, send metrics
     #[test]
     fn test_node_config_with_metrics_invalid_graphite() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: no
 quorum: 1
 timeout: 12h 5min 2ns
@@ -940,7 +940,7 @@ metrics:                      # optional, send metrics
     #[test]
     fn test_node_config_with_metrics_no_fields() {
         let s = "
-log_level: Debug
+log_config: logger.yaml
 name: no
 quorum: 1
 timeout: 12h 5min 2ns

@@ -5,7 +5,6 @@ use bob::core::bob_client::BobClientFactory;
 use bob::core::data::VDiskMapper;
 use bob::core::grinder::Grinder;
 use clap::{App, Arg};
-use env_logger;
 use tokio::net::TcpListener;
 use tokio::runtime::Builder;
 
@@ -27,6 +26,7 @@ extern crate log;
 extern crate dipstick;
 
 use bob::core::metrics;
+use log4rs;
 
 fn main() {
     let matches = App::new("Bob")
@@ -69,9 +69,7 @@ fn main() {
     println!("Node config: {:?}", node_config);
     let node = NodeConfigYaml {}.get(node_config, &cluster).unwrap();
 
-    env_logger::builder()
-        .filter_module("bob", node.log_level())
-        .init();
+    log4rs::init_file(node.log_config(), Default::default()).unwrap();
 
     let mut mapper = VDiskMapper::new(vdisks.to_vec(), &node);
     let mut addr: SocketAddr = node.bind().parse().unwrap();

@@ -44,7 +44,7 @@ mod tests {
 
     fn backend() -> PearlBackend<ThreadPool> {
         let s = "
-log_level: Trace
+log_config: logger.yaml
 name: local_node
 quorum: 1
 timeout: 3sec

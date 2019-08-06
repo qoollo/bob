@@ -1,4 +1,4 @@
-log_level: Info
+log_config: logger.yaml       # logger config file
 name: node1
 quorum: 1
 timeout: 3sec

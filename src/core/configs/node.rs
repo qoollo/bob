@@ -2,7 +2,6 @@ use crate::core::configs::{
     cluster::{ClusterConfig, Node},
     reader::{Validatable, YamlBobConfigReader},
 };
-use log::LevelFilter;
 use std::{
     cell::{Cell, RefCell},
     net::SocketAddr,
@@ -122,16 +121,6 @@ impl Validatable for PearlConfig {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub enum LogLevel {
-    Off = 0,
-    Error,
-    Warn,
-    Info,
-    Debug,
-    Trace,
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct DiskPath {
     pub name: String,
@@ -147,7 +136,7 @@ pub enum BackendType {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeConfig {
-    pub log_level: Option<LogLevel>,
+    pub log_config: Option<String>,
     pub name: Option<String>,
     pub quorum: Option<u8>,
     pub timeout: Option<String>,
@@ -180,6 +169,9 @@ impl NodeConfig {
     pub fn name(&self) -> String {
         self.name.as_ref().unwrap().clone()
     }
+    pub fn log_config(&self) -> String {
+        self.log_config.as_ref().unwrap().clone()
+    }
     pub fn cluster_policy(&self) -> String {
         self.cluster_policy.as_ref().unwrap().clone()
     }
@@ -194,17 +186,6 @@ impl NodeConfig {
     }
     pub fn disks(&self) -> Vec<DiskPath> {
         self.disks_ref.borrow().clone()
-    }
-    pub fn log_level(&self) -> LevelFilter {
-        match self.log_level {
-            Some(LogLevel::Debug) => LevelFilter::Debug,
-            Some(LogLevel::Error) => LevelFilter::Error,
-            Some(LogLevel::Warn) => LevelFilter::Warn,
-            Some(LogLevel::Info) => LevelFilter::Info,
-            Some(LogLevel::Trace) => LevelFilter::Trace,
-            Some(LogLevel::Off) => LevelFilter::Off,
-            None => LevelFilter::Off,
-        }
     }
     pub fn backend_type(&self) -> BackendType {
         self.backend_result().unwrap()
@@ -340,12 +321,17 @@ impl Validatable for NodeConfig {
                 }
             }
         };
-        match self.log_level {
+        match &self.log_config {
             None => {
-                debug!("field 'log_level' for 'config' is not set");
-                return Err("field 'log_level' for 'config' is not set".to_string());
+                debug!("field 'log_config' for 'config' is not set");
+                return Err("field 'log_config' for 'config' is not set".to_string());
             }
-            _ => {}
+            Some(log_config) => {
+                if log_config.is_empty() {
+                    debug!("field 'log_config' for 'config' is empty");
+                    return Err("field 'log_config' for 'config' is empty".to_string());
+                }
+            }
         };
         match self.quorum {
             None => {
