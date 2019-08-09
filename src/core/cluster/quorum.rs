@@ -1,6 +1,6 @@
 use crate::core::{
     backend,
-    backend::core::{BackendGetResult, BackendPutResult, Get, Put, Backend},
+    backend::core::{BackendGetResult, BackendPutResult, Get, Put, PutResult, Backend, BackendOperation},
     configs::node::NodeConfig,
     data::{print_vec, BobData, BobKey, ClusterResult, Node, VDiskMapper},
     link_manager::LinkManager,
@@ -41,11 +41,17 @@ impl QuorumCluster {
         target_nodes.dedup();
         target_nodes
     }
+
+    async fn put_local(backend: Arc<Backend>, key: BobKey, data: BobData, op: BackendOperation) -> PutResult {
+        backend.put(&op, key, data).0.boxed().await
+    }
 }
 
 impl Cluster for QuorumCluster {
     fn put_clustered(&self, key: BobKey, data: BobData) -> Put {
         let l_quorum = self.quorum as usize;
+        let vdisk_id = self.mapper.get_vdisk(key).id.clone(); // remove search vdisk (not vdisk id)
+        let backend = self.backend.clone();
 
         let target_nodes = self.calc_target_nodes(key);
 
@@ -58,7 +64,7 @@ impl Cluster for QuorumCluster {
         let reqs = self
             .link_manager
             .call_nodes(&target_nodes, |conn| conn.put(key, &data).0);
-        let t = reqs.into_iter().collect::<FuturesUnordered<_>>();        
+        let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
         let q = t
             .map(move |r| {
                 trace!("PUT[{}] Response from cluster {:?}", key, r);
@@ -67,45 +73,54 @@ impl Cluster for QuorumCluster {
             .fold(vec![], |mut acc, r| {
                 acc.push(r);
                 ready(acc)
-            })
-            .map(move |acc| {
-                debug!("PUT[{}] cluster ans: {:?}", key, acc);
-                let total_ops = acc.iter().count();
-                let mut failed = vec![];
-
-                let ok_count = acc
-                    .iter()
-                    .filter(|&r| {
-                        if let Err(e) = r {
-                            failed.push(e);
-                        }
-                        r.is_ok()
-                    })
-                    .count();
-                debug!(
-                    "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
-                    key, total_ops, ok_count, l_quorum
-                );
-
-                if ok_count == total_ops {
-                    Ok(BackendPutResult {})
-                }
-                else if ok_count >= l_quorum {
-                {                    
-                    for _failed_node in failed {
-                        // TODO write data locally in alien
-                    }
-                    Ok(BackendPutResult {})
-                }
-                } else {
-                    // TODO write data locally and some other nodes
-                    Err(backend::Error::Failed(format!(
-                        "failed: total: {}, ok: {}, quorum: {}",
-                        total_ops, ok_count, l_quorum
-                    )))
-                }
             });
-        Put(q.boxed())
+        
+        let p = async move {
+            let acc = q.boxed().await;
+            debug!("PUT[{}] cluster ans: {:?}", key, acc);
+            let total_ops = acc.iter().count();
+            let failed: Vec<_>= acc
+                .into_iter()
+                .filter(|r| r.is_err())
+                .map(|e|e.err().unwrap())
+                .collect();
+            let ok_count = total_ops - failed.len();
+            
+            debug!(
+                "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
+                key, total_ops, ok_count, l_quorum
+            );
+            if ok_count == total_ops {
+                Ok(BackendPutResult {})
+            }
+             else {
+                let mut additionl_remote_writes = 0;
+                for _failed_node in failed {
+                    let mut op = BackendOperation::new_alien(vdisk_id.clone());
+                    op.set_remote_folder(&_failed_node.node.name);
+                    
+                    let t = Self::put_local(backend.clone(), key, data.clone(), op).await;
+                    if t.is_err()
+                    {
+                        additionl_remote_writes +=1;
+                    }
+                    //TODO if err = > write remote
+                }
+                if ok_count >= l_quorum
+                {                    
+                    
+                }
+
+                Ok(BackendPutResult {})
+
+                // TODO write data locally and some other nodes
+                // Err(backend::Error::Failed(format!(
+                //     "failed: total: {}, ok: {}, quorum: {}",
+                //     total_ops, ok_count, l_quorum
+                // )))
+            }
+        };
+        Put(p.boxed())
     }
 
     fn get_clustered(&self, key: BobKey) -> Get {
