@@ -4,6 +4,7 @@ use crate::core::{
     configs::node::NodeConfig,
     data::{print_vec, BobData, BobKey, ClusterResult, Node, VDiskMapper},
     link_manager::LinkManager,
+    cluster::Cluster,
 };
 use std::sync::Arc;
 
@@ -12,31 +13,15 @@ use futures03::{
     stream::{FuturesUnordered, StreamExt},
 };
 
-pub trait Cluster {
-    fn put_clustered(&self, key: BobKey, data: BobData) -> Put;
-    fn get_clustered(&self, key: BobKey) -> Get;
-}
-
-pub fn get_cluster(
-    link: Arc<LinkManager>,
-    mapper: &VDiskMapper,
-    config: &NodeConfig,
-) -> Arc<dyn Cluster + Send + Sync> {
-    if config.cluster_policy() == "quorum" {
-        return Arc::new(QuorumCluster::new(link.clone(), mapper, config));
-    }
-    panic!("unknown cluster policy: {}", config.cluster_policy())
-}
-
-pub struct QuorumCluster {
+pub struct SimpleQuorumCluster {
     link_manager: Arc<LinkManager>,
     mapper: VDiskMapper,
     quorum: u8,
 }
 
-impl QuorumCluster {
+impl SimpleQuorumCluster {
     pub fn new(link_manager: Arc<LinkManager>, mapper: &VDiskMapper, config: &NodeConfig) -> Self {
-        QuorumCluster {
+        SimpleQuorumCluster {
             quorum: config.quorum.unwrap(),
             link_manager,
             mapper: mapper.clone(),
@@ -56,7 +41,7 @@ impl QuorumCluster {
     }
 }
 
-impl Cluster for QuorumCluster {
+impl Cluster for SimpleQuorumCluster {
     fn put_clustered(&self, key: BobKey, data: BobData) -> Put {
         let target_nodes = self.calc_target_nodes(key);
 
