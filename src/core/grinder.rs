@@ -6,11 +6,10 @@ use crate::core::{
     configs::node::NodeConfig,
     data::{BobData, BobKey, BobOptions, VDiskMapper},
     link_manager::LinkManager,
+    metrics::*,
 };
 
 use futures03::task::Spawn;
-
-use crate::core::metrics::*;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -58,7 +57,7 @@ impl std::fmt::Display for BobError {
 }
 
 pub struct Grinder {
-    pub backend: Backend,
+    pub backend: Arc<Backend>,
     mapper: VDiskMapper,
 
     link_manager: Arc<LinkManager>,
@@ -72,11 +71,13 @@ impl Grinder {
         spawner: TSpawner,
     ) -> Grinder {
         let link = Arc::new(LinkManager::new(mapper.nodes(), config.check_interval()));
+        let backend = Arc::new(Backend::new(&mapper, config, spawner));
+
         Grinder {
-            backend: Backend::new(&mapper, config, spawner),
+            backend: backend.clone(),
             mapper: mapper.clone(),
             link_manager: link.clone(),
-            cluster: get_cluster(link, &mapper, config),
+            cluster: get_cluster(link, &mapper, config, backend),
         }
     }
     pub async fn run_backend(&self) -> Result<(), String> {
