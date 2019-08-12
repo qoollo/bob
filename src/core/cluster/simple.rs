@@ -7,6 +7,7 @@ use crate::core::{
     cluster::Cluster,
 };
 use std::sync::Arc;
+use crate::api::grpc::PutOptions;
 
 use futures03::{
     future::{ready, FutureExt},
@@ -53,7 +54,11 @@ impl Cluster for SimpleQuorumCluster {
 
         let reqs = self
             .link_manager
-            .call_nodes(&target_nodes, |conn| conn.put(key, &data).0);
+            .call_nodes(&target_nodes, |conn| conn.put(key, &data, PutOptions {
+                    remote_nodes:vec![],//TODO check
+                    force_node: true,
+                    overwrite: false,
+                }).0);
 
         let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
 

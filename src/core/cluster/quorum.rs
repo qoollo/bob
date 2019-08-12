@@ -6,6 +6,7 @@ use crate::core::{
     link_manager::LinkManager,
     cluster::Cluster,
 };
+use crate::api::grpc::PutOptions;
 use std::sync::Arc;
 
 use futures03::{
@@ -63,9 +64,13 @@ impl Cluster for QuorumCluster {
 
         let reqs = self
             .link_manager
-            .call_nodes(&target_nodes, |conn| conn.put(key, &data).0);
-        let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
-        let q = t
+            .call_nodes(&target_nodes, |conn| conn.put(key, &data,  PutOptions {
+                    remote_nodes:vec![],//TODO check
+                    force_node: true,
+                    overwrite: false,
+                }).0)
+            .into_iter()
+            .collect::<FuturesUnordered<_>>()
             .map(move |r| {
                 trace!("PUT[{}] Response from cluster {:?}", key, r);
                 r
@@ -76,8 +81,9 @@ impl Cluster for QuorumCluster {
             });
         
         let p = async move {
-            let acc = q.boxed().await;
+            let acc = reqs.boxed().await;
             debug!("PUT[{}] cluster ans: {:?}", key, acc);
+
             let total_ops = acc.iter().count();
             let failed: Vec<_>= acc
                 .into_iter()
@@ -94,21 +100,26 @@ impl Cluster for QuorumCluster {
                 Ok(BackendPutResult {})
             }
              else {
-                let mut additionl_remote_writes = 0;
-                for _failed_node in failed {
+                let mut additionl_remote_writes = match ok_count {
+                    0 => l_quorum,                      //TODO take value from config
+                    value if value < l_quorum => 1,
+                    _ => 0,
+
+                };
+                
+                let mut local_fail = false;
+                for failed_node in failed {
                     let mut op = BackendOperation::new_alien(vdisk_id.clone());
-                    op.set_remote_folder(&_failed_node.node.name);
+                    op.set_remote_folder(&failed_node.node.name);
                     
                     let t = Self::put_local(backend.clone(), key, data.clone(), op).await;
                     if t.is_err()
                     {
-                        additionl_remote_writes +=1;
+                        local_fail = true; // TODO write only this data
                     }
-                    //TODO if err = > write remote
                 }
-                if ok_count >= l_quorum
-                {                    
-                    
+                if local_fail {
+                    additionl_remote_writes += 1;
                 }
 
                 Ok(BackendPutResult {})

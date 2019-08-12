@@ -91,7 +91,7 @@ impl BobClient {
             .await
     }
 
-    pub fn put(&mut self, key: BobKey, d: &BobData) -> Put {
+    pub fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put {
         Put({
             let n1 = self.node.clone();
             let n2 = self.node.clone();
@@ -106,10 +106,12 @@ impl BobClient {
                         timestamp: d.meta.timestamp,
                     }),
                 }),
-                options: Some(PutOptions {
-                    force_node: true,
-                    overwrite: false,
-                }),
+                options: Some(options),
+                // options: Some(PutOptions {
+                //     remote_nodes:vec![],//TODO check
+                //     force_node: true,
+                //     overwrite: false,
+                // }),
             });
 
             let metrics = self.metrics.clone();

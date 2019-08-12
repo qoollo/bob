@@ -137,6 +137,7 @@ fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
     let mut options: Option<PutOptions> = None;
     if task_conf.direct {
         options = Some(PutOptions {
+            remote_nodes: vec![],
             force_node: true,
             overwrite: false,
         });
