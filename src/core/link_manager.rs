@@ -97,34 +97,33 @@ impl LinkManager {
 
     pub fn call_nodes_direct<F: Send, T: 'static + Send>(
         &self,
-        requests: (&Node, F)
+        requests: Vec<(Node, F)>
     ) -> Vec<ClusterCallFuture<T>>
     where
         F: FnMut(&mut BobClient) -> ClusterCallFuture<T>,
     {
-        unimplemented!();
-        // let t: Vec<_> = nodes
-        //     .iter()
-        //     .map(move |nl| {
-        //         let nl_clone = nl.clone();
-        //         match &mut nl.get_connection() {
-        //             Some(conn) => f(conn)
-        //                 .boxed()
-        //                 .map_err(move |e| {
-        //                     if e.result.is_service() {
-        //                         nl_clone.clear_connection();
-        //                     }
-        //                     e
-        //                 })
-        //                 .boxed(),
-        //             None => err(ClusterResult {
-        //                 result: Error::Failed(format!("No active connection {:?}", nl)),
-        //                 node: nl.clone(),
-        //             })
-        //             .boxed(),
-        //         }
-        //     })
-        //     .collect();
-        // t
+
+        requests
+            .into_iter()
+            .map(move |(nl, mut f)| {
+                let nl_clone = nl.clone();
+                match &mut nl.get_connection() {
+                    Some(conn) => f(conn)
+                        .boxed()
+                        .map_err(move |e| {
+                            if e.result.is_service() {
+                                nl_clone.clear_connection();
+                            }
+                            e
+                        })
+                        .boxed(),
+                    None => err(ClusterResult {
+                        result: Error::Failed(format!("No active connection {:?}", nl)),
+                        node: nl.clone(),
+                    })
+                    .boxed(),
+                }
+            })
+            .collect()
     }
 }

@@ -13,6 +13,14 @@ impl PutOptions {
             overwrite: false,
         }
     }
+
+    pub(crate) fn new_alien(nodes: &[String]) -> Self {
+        PutOptions {
+            remote_nodes: nodes.to_vec(),
+            force_node: true,
+            overwrite: false,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -214,6 +222,9 @@ pub struct Node {
 }
 
 impl Node {
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
     pub fn new(name: &str, host: &str, port: u16) -> Self {
         Node {
             name: name.to_string(),

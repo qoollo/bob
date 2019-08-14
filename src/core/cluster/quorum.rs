@@ -2,6 +2,7 @@ use crate::core::{
     backend,
     backend::core::{BackendGetResult, BackendPutResult, Get, Put, PutResult, Backend, BackendOperation},
     configs::node::NodeConfig,
+    bob_client::BobClient,
     data::{print_vec, BobData, BobKey, ClusterResult, Node},
     mapper::VDiskMapper,
     link_manager::LinkManager,
@@ -78,6 +79,7 @@ impl Cluster for QuorumCluster {
         let mapper = self.mapper.clone();
         let vdisk_id = self.mapper.get_vdisk(key).id.clone(); // remove search vdisk (not vdisk id)
         let backend = self.backend.clone();
+        let link = self.link_manager.clone();
 
         let target_nodes = self.calc_target_nodes(key);
 
@@ -129,28 +131,43 @@ impl Cluster for QuorumCluster {
                 };
                 
                 let mut add_nodes = vec![];
-                for failed_node in failed {
+                for failed_node in &failed {
                     let mut op = BackendOperation::new_alien(vdisk_id.clone());
-                    op.set_remote_folder(&failed_node.node.name);
+                    op.set_remote_folder(&failed_node.node.name());
                     
                     let t = Self::put_local(backend.clone(), key, data.clone(), op).await;
                     if t.is_err()
                     {
-                        add_nodes.push(failed_node.node.name);
+                        add_nodes.push(failed_node.node.name());
                     }
                 }
                 if add_nodes.len()>0 {
                     additionl_remote_writes += 1;
                 }
 
-                // let mut sup_nodes = Self::calc_sup_nodes(mapper, &target_nodes, additionl_remote_writes);
-                // let queries = vec![];
+                let mut sup_nodes = Self::calc_sup_nodes(mapper, &target_nodes, additionl_remote_writes);
+                let mut queries = vec![];
 
-                // if add_nodes.len()>0 {
-                //     let item = sup_nodes.remove_item(sup_nodes.len() - 1).unwrap();
-                //     queries.push(|conn| conn.put(key, &data,  PutOptions::new_client()).0);
-                // }
+                if add_nodes.len()>0 {
+                    let item = sup_nodes.remove(sup_nodes.len() - 1);
 
+                    queries.push((item, |conn: &mut BobClient| conn.put(key, &data, PutOptions::new_alien(&add_nodes)).0));
+                }
+
+                if additionl_remote_writes > 0 {
+                    let nodes : Vec<String>= failed.iter().map(|node| node.node.name()).collect();
+                    let put_options = PutOptions::new_alien(&nodes);
+                    
+                    // for node in sup_nodes {
+                    //     queries.push((node, |conn: &mut BobClient| conn.put(key, &data, PutOptions::new_alien(&add_nodes)).0));
+                    // }
+                    // let mut tt: Vec<_> = sup_nodes
+                    //     .iter()
+                    //     .map(|node| (node.clone(), |conn: &mut BobClient| conn.put(key, &data, put_options.clone()).0))
+                    //     .collect();
+                    // queries.append(&mut tt);
+                }
+                let call = link.call_nodes_direct(queries);
                 Ok(BackendPutResult {})
 
                 // TODO write data locally and some other nodes
