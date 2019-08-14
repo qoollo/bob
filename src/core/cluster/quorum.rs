@@ -40,36 +40,32 @@ impl QuorumCluster {
             .clone()
     }
 
-    // #[allow(dead_code)]
-    // fn calc_sup_nodes(target_nodes: &[Node], count: u8) -> Result<Vec<Node>, String>{
-    //     let mut node = target_nodes[target_nodes.len()-1].get_next_node();
+    fn calc_sup_nodes(mapper: VDiskMapper, target_nodes: &[Node], count: usize) -> Vec<Node>{
+        let nodes = mapper.nodes();
+        if nodes.len() > target_nodes.len() + count {
+            error!("cannot find enough nodes for write"); //TODO check in mapper
+            return vec![];
+        }
+        
+        let indexes: Vec<u16> = target_nodes.iter().map(|n| n.index).collect();
+        let index_max = *indexes.iter().max().unwrap() as usize;
 
-    //     let mut retry = target_nodes.len();
-    //     while target_nodes.iter().find(|n| n.name == node.name).is_some() && retry > 0 {
-    //         node = node.get_next_node();
-    //         retry -= 1;
-    //     }
-    //     if retry == 0 {
-    //         debug!("replics count == count nodes. cannot take sup nodes"); // TODO make this check after start
-    //         return Err("replics count == count nodes. cannot take sup nodes".to_string());
-    //     }
+        let mut ret = vec![];
+        let mut cur_index = index_max;
+        let mut count_look = 0;
+        while count_look < nodes.len() || ret.len() < count {
+            cur_index = (cur_index + 1) % nodes.len();
+            count_look += 1;
 
-    //     let mut result = vec![];
-    //     for _ in 0..count {
-    //         //TODO check nodes are alive
-    //         if  target_nodes.iter().find(|n| n.name == node.name).is_none() {
-    //             result.push(node.clone());
-    //         }
-    //         else {
-    //             error!("cannot find {} sup node", count);
-    //             return Err(format!("cannot find {} sup node", count));
-    //         }
-    //         node = node.get_next_node();
-    //     }
-
-    //     // Ok(result)
-    //     unimplemented!();
-    // }
+            //TODO check node is available
+            if indexes.iter().find(|&&i|i == cur_index as u16).is_some() {
+                trace!("node: {} is alrady target", nodes[cur_index]);
+                continue;
+            }
+            ret.push(nodes[cur_index].clone());
+        }
+        ret
+    }
 
     async fn put_local(backend: Arc<Backend>, key: BobKey, data: BobData, op: BackendOperation) -> PutResult {
         backend.put(&op, key, data).0.boxed().await
@@ -79,6 +75,7 @@ impl QuorumCluster {
 impl Cluster for QuorumCluster {
     fn put_clustered(&self, key: BobKey, data: BobData) -> Put {
         let l_quorum = self.quorum as usize;
+        let mapper = self.mapper.clone();
         let vdisk_id = self.mapper.get_vdisk(key).id.clone(); // remove search vdisk (not vdisk id)
         let backend = self.backend.clone();
 
@@ -124,26 +121,34 @@ impl Cluster for QuorumCluster {
                 Ok(BackendPutResult {})
             }
              else {
-                // let mut additionl_remote_writes = match ok_count {
-                //     0 => l_quorum,                      //TODO take value from config
-                //     value if value < l_quorum => 1,
-                //     _ => 0,
+                let mut additionl_remote_writes = match ok_count {
+                    0 => l_quorum,                      //TODO take value from config
+                    value if value < l_quorum => 1,
+                    _ => 0,
 
-                // };
+                };
                 
-                // let mut local_fail = false;
+                let mut add_nodes = vec![];
                 for failed_node in failed {
                     let mut op = BackendOperation::new_alien(vdisk_id.clone());
                     op.set_remote_folder(&failed_node.node.name);
                     
                     let t = Self::put_local(backend.clone(), key, data.clone(), op).await;
-                    // if t.is_err()
-                    // {
-                    //     local_fail = true; // TODO write only this data
-                    // }
+                    if t.is_err()
+                    {
+                        add_nodes.push(failed_node.node.name);
+                    }
                 }
-                // if local_fail {
-                //     additionl_remote_writes += 1;
+                if add_nodes.len()>0 {
+                    additionl_remote_writes += 1;
+                }
+
+                // let mut sup_nodes = Self::calc_sup_nodes(mapper, &target_nodes, additionl_remote_writes);
+                // let queries = vec![];
+
+                // if add_nodes.len()>0 {
+                //     let item = sup_nodes.remove_item(sup_nodes.len() - 1).unwrap();
+                //     queries.push(|conn| conn.put(key, &data,  PutOptions::new_client()).0);
                 // }
 
                 Ok(BackendPutResult {})

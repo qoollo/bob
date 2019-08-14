@@ -209,6 +209,7 @@ pub struct Node {
     pub host: String,
     pub port: u16,
 
+    pub index: u16,
     conn: Arc<Mutex<Option<BobClient>>>,
 }
 
@@ -218,6 +219,7 @@ impl Node {
             name: name.to_string(),
             host: host.to_string(),
             port,
+            index: 0,
             conn: Arc::new(Mutex::new(None)),
         }
     }

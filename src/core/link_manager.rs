@@ -29,9 +29,9 @@ pub type ClusterCallFuture<T> =
     Pin<Box<dyn Future03<Output = ClusterCallType<T>> + 'static + Send>>;
 
 impl LinkManager {
-    pub fn new(nodes: Vec<Node>, check_interval: Duration) -> LinkManager {
+    pub fn new(nodes: &Vec<Node>, check_interval: Duration) -> LinkManager {
         LinkManager {
-            repo: Arc::new(nodes),
+            repo: Arc::new(nodes.to_vec()),
             check_interval,
         }
     }
@@ -71,7 +71,7 @@ impl LinkManager {
     where
         F: FnMut(&mut BobClient) -> ClusterCallFuture<T>,
     {
-        let t: Vec<_> = nodes
+        nodes
             .iter()
             .map(move |nl| {
                 let nl_clone = nl.clone();
@@ -92,7 +92,39 @@ impl LinkManager {
                     .boxed(),
                 }
             })
-            .collect();
-        t
+            .collect()
+    }
+
+    pub fn call_nodes_direct<F: Send, T: 'static + Send>(
+        &self,
+        requests: (&Node, F)
+    ) -> Vec<ClusterCallFuture<T>>
+    where
+        F: FnMut(&mut BobClient) -> ClusterCallFuture<T>,
+    {
+        unimplemented!();
+        // let t: Vec<_> = nodes
+        //     .iter()
+        //     .map(move |nl| {
+        //         let nl_clone = nl.clone();
+        //         match &mut nl.get_connection() {
+        //             Some(conn) => f(conn)
+        //                 .boxed()
+        //                 .map_err(move |e| {
+        //                     if e.result.is_service() {
+        //                         nl_clone.clear_connection();
+        //                     }
+        //                     e
+        //                 })
+        //                 .boxed(),
+        //             None => err(ClusterResult {
+        //                 result: Error::Failed(format!("No active connection {:?}", nl)),
+        //                 node: nl.clone(),
+        //             })
+        //             .boxed(),
+        //         }
+        //     })
+        //     .collect();
+        // t
     }
 }
