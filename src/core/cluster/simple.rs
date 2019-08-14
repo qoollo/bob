@@ -2,7 +2,8 @@ use crate::core::{
     backend,
     backend::core::{BackendGetResult, BackendPutResult, Get, Put},
     configs::node::NodeConfig,
-    data::{print_vec, BobData, BobKey, ClusterResult, Node, VDiskMapper},
+    data::{print_vec, BobData, BobKey, ClusterResult, Node},
+    mapper::VDiskMapper,
     link_manager::LinkManager,
     cluster::Cluster,
 };

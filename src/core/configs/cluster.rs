@@ -365,11 +365,11 @@ impl ClusterConfigYaml {
                 let node_disk = DataNodeDisk {
                     path: path.to_string(),
                     name: replica.disk(),
-                    node: DataNode {
-                        name: replica.node(),
-                        host: finded_node.0.host.borrow().to_string(),
-                        port: finded_node.0.port.get(),
-                    },
+                    node: DataNode ::new(
+                        &replica.node(),
+                        &finded_node.0.host.borrow(),
+                        finded_node.0.port.get(),
+                    ),
                 };
                 disk.replicas.push(node_disk);
             }

@@ -6,7 +6,8 @@ use crate::core::backend::pearl::{
     stuff::{LockGuard, Stuff},
 };
 use crate::core::configs::node::{NodeConfig, PearlConfig};
-use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
+use crate::core::data::{BobData, BobKey, VDiskId};
+use crate::core::mapper::VDiskMapper;
 use pearl::{Builder, ErrorKind, Storage};
 
 use futures03::{

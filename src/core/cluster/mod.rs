@@ -4,7 +4,8 @@ mod quorum;
 use crate::core::{
     backend::core::{Get, Put, Backend},
     configs::node::NodeConfig,
-    data::{BobData, BobKey, VDiskMapper},
+    data::{BobData, BobKey},
+    mapper::VDiskMapper,
     link_manager::LinkManager,
 };
 use std::sync::Arc;

@@ -4,7 +4,8 @@ use crate::core::{
     bob_client::BobClientFactory,
     cluster::{get_cluster, Cluster},
     configs::node::NodeConfig,
-    data::{BobData, BobKey, BobOptions, VDiskMapper},
+    data::{BobData, BobKey, BobOptions},
+    mapper::VDiskMapper,
     link_manager::LinkManager,
     metrics::*,
 };

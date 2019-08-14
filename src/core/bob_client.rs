@@ -107,11 +107,6 @@ impl BobClient {
                     }),
                 }),
                 options: Some(options),
-                // options: Some(PutOptions {
-                //     remote_nodes:vec![],//TODO check
-                //     force_node: true,
-                //     overwrite: false,
-                // }),
             });
 
             let metrics = self.metrics.clone();

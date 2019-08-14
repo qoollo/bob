@@ -3,7 +3,8 @@ use crate::core::{
         mem_backend::MemBackend, pearl::core::PearlBackend, stub_backend::StubBackend, Error,
     },
     configs::node::{BackendType, NodeConfig},
-    data::{BobData, BobKey, DiskPath, VDiskId, VDiskMapper},
+    data::{BobData, BobKey, DiskPath, VDiskId},
+    mapper::VDiskMapper,
 };
 use futures03::{
     future::{ready, FutureExt, TryFutureExt},

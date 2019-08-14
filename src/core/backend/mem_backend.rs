@@ -1,6 +1,7 @@
 use crate::core::backend::core::*;
 use crate::core::backend::*;
-use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
+use crate::core::data::{BobData, BobKey, VDiskId};
+use crate::core::mapper::VDiskMapper;
 use futures::future::{err, ok, Future};
 use futures03::{compat::Future01CompatExt, future::err as err2, FutureExt};
 use futures_locks::RwLock;

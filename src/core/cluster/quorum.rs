@@ -2,7 +2,8 @@ use crate::core::{
     backend,
     backend::core::{BackendGetResult, BackendPutResult, Get, Put, PutResult, Backend, BackendOperation},
     configs::node::NodeConfig,
-    data::{print_vec, BobData, BobKey, ClusterResult, Node, VDiskMapper},
+    data::{print_vec, BobData, BobKey, ClusterResult, Node},
+    mapper::VDiskMapper,
     link_manager::LinkManager,
     cluster::Cluster,
 };
@@ -43,6 +44,37 @@ impl QuorumCluster {
         target_nodes
     }
 
+    // #[allow(dead_code)]
+    // fn calc_sup_nodes(target_nodes: &[Node], count: u8) -> Result<Vec<Node>, String>{
+    //     let mut node = target_nodes[target_nodes.len()-1].get_next_node();
+
+    //     let mut retry = target_nodes.len();
+    //     while target_nodes.iter().find(|n| n.name == node.name).is_some() && retry > 0 {
+    //         node = node.get_next_node();
+    //         retry -= 1;
+    //     }
+    //     if retry == 0 {
+    //         debug!("replics count == count nodes. cannot take sup nodes"); // TODO make this check after start
+    //         return Err("replics count == count nodes. cannot take sup nodes".to_string());
+    //     }
+
+    //     let mut result = vec![];
+    //     for _ in 0..count {
+    //         //TODO check nodes are alive
+    //         if  target_nodes.iter().find(|n| n.name == node.name).is_none() {
+    //             result.push(node.clone());
+    //         }
+    //         else {
+    //             error!("cannot find {} sup node", count);
+    //             return Err(format!("cannot find {} sup node", count));
+    //         }
+    //         node = node.get_next_node();
+    //     }
+
+    //     // Ok(result)
+    //     unimplemented!();
+    // }
+
     async fn put_local(backend: Arc<Backend>, key: BobKey, data: BobData, op: BackendOperation) -> PutResult {
         backend.put(&op, key, data).0.boxed().await
     }
@@ -64,11 +96,7 @@ impl Cluster for QuorumCluster {
 
         let reqs = self
             .link_manager
-            .call_nodes(&target_nodes, |conn| conn.put(key, &data,  PutOptions {
-                    remote_nodes:vec![],//TODO check
-                    force_node: true,
-                    overwrite: false,
-                }).0)
+            .call_nodes(&target_nodes, |conn| conn.put(key, &data,  PutOptions::new_client()).0)
             .into_iter()
             .collect::<FuturesUnordered<_>>()
             .map(move |r| {
@@ -100,27 +128,27 @@ impl Cluster for QuorumCluster {
                 Ok(BackendPutResult {})
             }
              else {
-                let mut additionl_remote_writes = match ok_count {
-                    0 => l_quorum,                      //TODO take value from config
-                    value if value < l_quorum => 1,
-                    _ => 0,
+                // let mut additionl_remote_writes = match ok_count {
+                //     0 => l_quorum,                      //TODO take value from config
+                //     value if value < l_quorum => 1,
+                //     _ => 0,
 
-                };
+                // };
                 
-                let mut local_fail = false;
+                // let mut local_fail = false;
                 for failed_node in failed {
                     let mut op = BackendOperation::new_alien(vdisk_id.clone());
                     op.set_remote_folder(&failed_node.node.name);
                     
                     let t = Self::put_local(backend.clone(), key, data.clone(), op).await;
-                    if t.is_err()
-                    {
-                        local_fail = true; // TODO write only this data
-                    }
+                    // if t.is_err()
+                    // {
+                    //     local_fail = true; // TODO write only this data
+                    // }
                 }
-                if local_fail {
-                    additionl_remote_writes += 1;
-                }
+                // if local_fail {
+                //     additionl_remote_writes += 1;
+                // }
 
                 Ok(BackendPutResult {})
 

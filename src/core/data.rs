@@ -1,8 +1,22 @@
-use crate::api::grpc::BlobMeta;
-use crate::core::{
-    backend::core::BackendOperation,
-    configs::node::{DiskPath as ConfigDiskPath, NodeConfig},
-};
+use crate::api::grpc::{BlobMeta, PutOptions};
+
+impl PutOptions {
+    pub(crate) fn new_client() -> Self {
+        PutOptions {
+            remote_nodes: vec![],
+            force_node: true,
+            overwrite: false,
+        }
+    }
+
+    // pub(crate) fn new_client_failed(nodes: &[String]) -> Self {
+    //     PutOptions {
+    //         remote_nodes: nodes.to_vec(),
+    //         force_node: true,
+    //         overwrite: false,
+    //     }
+    // }
+}
 
 #[derive(Debug)]
 pub struct ClusterResult<T> {
@@ -135,103 +149,25 @@ impl std::fmt::Display for DiskPath {
         write!(f, "#{}-{}", self.name, self.path)
     }
 }
-#[derive(Debug, Clone)]
-pub struct VDiskMapper {
-    local_node_name: String,
-    disks: Vec<DiskPath>,
-    vdisks: Vec<VDisk>,
-}
-
-impl VDiskMapper {
-    pub fn new(vdisks: Vec<VDisk>, config: &NodeConfig) -> VDiskMapper {
-        VDiskMapper {
-            vdisks,
-            local_node_name: config.name.as_ref().unwrap().to_string(),
-            disks: config
-                .disks()
-                .iter()
-                .map(|d| DiskPath::new(&d.name.clone(), &d.path.clone()))
-                .collect(),
-        }
-    }
-    pub fn new2(vdisks: Vec<VDisk>, node_name: &str, disks: &[ConfigDiskPath]) -> VDiskMapper {
-        VDiskMapper {
-            vdisks,
-            local_node_name: node_name.to_string(),
-            disks: disks
-                .iter()
-                .map(|d| DiskPath::new(&d.name.clone(), &d.path.clone()))
-                .collect(),
-        }
-    }
-    pub fn vdisks_count(&self) -> u32 {
-        self.vdisks.len() as u32
-    }
-
-    pub fn local_disks(&self) -> &Vec<DiskPath> {
-        &self.disks
-    }
-    pub fn get_disk_by_name(&self, name: &str) -> Option<&DiskPath> {
-        self.disks.iter().find(|d| d.name == name)
-    }
-    pub fn nodes(&self) -> Vec<Node> {
-        let mut nodes: Vec<Node> = self
-            .vdisks
-            .to_vec()
-            .iter()
-            .flat_map(|vdisk| vdisk.replicas.iter().map(|nd| nd.node.clone()))
-            .collect();
-        nodes.dedup();
-        nodes
-    }
-
-    pub fn get_vdisk(&self, key: BobKey) -> &VDisk {
-        let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
-        self.vdisks.iter().find(|disk| disk.id == vdisk_id).unwrap()
-    }
-
-    pub fn get_vdisks_by_disk(&self, disk: &str) -> Vec<VDiskId> {
-        self.vdisks
-            .iter()
-            .filter(|vdisk| {
-                vdisk.replicas.iter().any(|replica| {
-                    replica.node.name == self.local_node_name && replica.name == disk
-                })
-            })
-            .map(|vdisk| vdisk.id.clone())
-            .collect()
-    }
-
-    pub fn get_operation(&self, key: BobKey) -> BackendOperation {
-        let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
-        let vdisk = self.vdisks.iter().find(|disk| disk.id == vdisk_id).unwrap();
-        let disk = vdisk
-            .replicas
-            .iter()
-            .find(|disk| disk.node.name == self.local_node_name);
-        if disk.is_none() {
-            trace!(
-                "cannot find node: {} for vdisk: {}",
-                self.local_node_name,
-                vdisk_id
-            );
-            return BackendOperation::new_alien(vdisk_id);
-        }
-        BackendOperation::new_local(
-            vdisk_id,
-            DiskPath::new(&disk.unwrap().name, &disk.unwrap().path),
-        )
-    }
-}
 
 #[derive(Clone, Eq)]
 pub struct Node {
     pub name: String,
     pub host: String,
     pub port: u16,
+
+    // next_node: Option<Box<Node>>,
 }
 
 impl Node {
+    pub fn new(name: &str, host: &str, port: u16) -> Self {
+        Node {
+            name: name.to_string(),
+            host: host.to_string(),
+            port,
+            // next_node: None,
+        }
+    }
     pub fn get_uri(&self) -> http::Uri {
         format!("http://{}:{}", self.host, self.port)
             .parse()
@@ -241,11 +177,23 @@ impl Node {
     pub(crate) fn counter_display(&self) -> String {
         format!("{}:{}", self.host.replace(".", "_"), self.port)
     }
+
+    // pub(crate) fn set_next_node(&mut self, next: Box<Node>) {
+    //     println!("1.1 next: {:p}", next);
+    //     std::mem::replace(&mut self.next_node, Some(next));
+
+    //     println!("1.2 next: {:p}", self.get_next_node());
+    // }
+
+    // pub(crate) fn get_next_node(&self) -> Box<Node> {
+    //     self.next_node.clone().unwrap()
+    // }
 }
 
 impl std::fmt::Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}={}:{}", self.name, self.host, self.port)
+        // write!(f, "{}={}:{} next: {:?}", self.name, self.host, self.port, self.next_node)
     }
 }
 

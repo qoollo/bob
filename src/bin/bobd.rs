@@ -2,7 +2,7 @@
 use bob::api::grpc::server;
 
 use bob::core::bob_client::BobClientFactory;
-use bob::core::data::VDiskMapper;
+use bob::core::mapper::VDiskMapper;
 use bob::core::grinder::Grinder;
 use clap::{App, Arg};
 use tokio::net::TcpListener;
@@ -71,7 +71,7 @@ fn main() {
 
     log4rs::init_file(node.log_config(), Default::default()).unwrap();
 
-    let mut mapper = VDiskMapper::new(vdisks.to_vec(), &node);
+    let mut mapper = VDiskMapper::new(vdisks.to_vec(), &node, &cluster);
     let mut addr: SocketAddr = node.bind().parse().unwrap();
 
     let node_name = matches.value_of("name");
