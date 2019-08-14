@@ -1,4 +1,9 @@
 use crate::api::grpc::{BlobMeta, PutOptions};
+use crate::core::{
+    backend::Error,
+    bob_client::{BobClient, BobClientFactory},
+};
+use std::sync::{Arc, Mutex};
 
 impl PutOptions {
     pub(crate) fn new_client() -> Self {
@@ -8,14 +13,6 @@ impl PutOptions {
             overwrite: false,
         }
     }
-
-    // pub(crate) fn new_client_failed(nodes: &[String]) -> Self {
-    //     PutOptions {
-    //         remote_nodes: nodes.to_vec(),
-    //         force_node: true,
-    //         overwrite: false,
-    //     }
-    // }
 }
 
 #[derive(Debug)]
@@ -150,72 +147,6 @@ impl std::fmt::Display for DiskPath {
     }
 }
 
-#[derive(Clone, Eq)]
-pub struct Node {
-    pub name: String,
-    pub host: String,
-    pub port: u16,
-
-    // next_node: Option<Box<Node>>,
-}
-
-impl Node {
-    pub fn new(name: &str, host: &str, port: u16) -> Self {
-        Node {
-            name: name.to_string(),
-            host: host.to_string(),
-            port,
-            // next_node: None,
-        }
-    }
-    pub fn get_uri(&self) -> http::Uri {
-        format!("http://{}:{}", self.host, self.port)
-            .parse()
-            .unwrap()
-    }
-
-    pub(crate) fn counter_display(&self) -> String {
-        format!("{}:{}", self.host.replace(".", "_"), self.port)
-    }
-
-    // pub(crate) fn set_next_node(&mut self, next: Box<Node>) {
-    //     println!("1.1 next: {:p}", next);
-    //     std::mem::replace(&mut self.next_node, Some(next));
-
-    //     println!("1.2 next: {:p}", self.get_next_node());
-    // }
-
-    // pub(crate) fn get_next_node(&self) -> Box<Node> {
-    //     self.next_node.clone().unwrap()
-    // }
-}
-
-impl std::fmt::Display for Node {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}={}:{}", self.name, self.host, self.port)
-        // write!(f, "{}={}:{} next: {:?}", self.name, self.host, self.port, self.next_node)
-    }
-}
-
-impl std::hash::Hash for Node {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.host.hash(state);
-        self.port.hash(state);
-    }
-}
-
-impl std::fmt::Debug for Node {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}={}:{}", self.name, self.host, self.port)
-    }
-}
-
-impl PartialEq for Node {
-    fn eq(&self, other: &Node) -> bool {
-        self.host == other.host && self.port == other.port
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct NodeDisk {
     pub node: Node,
@@ -241,3 +172,96 @@ pub fn print_vec<T: std::fmt::Display>(coll: &[T]) -> String {
         .collect::<Vec<_>>()
         .join(",")
 }
+
+
+#[derive(Clone)]
+pub struct Node {
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+
+    conn: Arc<Mutex<Option<BobClient>>>,
+}
+
+impl Node {
+    pub fn new(name: &str, host: &str, port: u16) -> Self {
+        Node {
+            name: name.to_string(),
+            host: host.to_string(),
+            port,
+            conn: Arc::new(Mutex::new(None)),
+        }
+    }
+    pub fn get_uri(&self) -> http::Uri {
+        format!("http://{}:{}", self.host, self.port)
+            .parse()
+            .unwrap()
+    }
+
+    pub(crate) fn counter_display(&self) -> String {
+        format!("{}:{}", self.host.replace(".", "_"), self.port)
+    }
+
+    pub(crate) fn set_connection(&self, client: BobClient) {
+        *self.conn.lock().unwrap() = Some(client);
+    }
+
+    pub(crate) fn clear_connection(&self) {
+        *self.conn.lock().unwrap() = None;
+    }
+
+    pub(crate) fn get_connection(&self) -> Option<BobClient> {
+        self.conn.lock().unwrap().clone()
+    }
+
+    pub(crate) async fn check(self, client_fatory: BobClientFactory) -> Result<(), ()> {
+        match self.get_connection() {
+            Some(mut conn) => {
+                conn.ping()
+                    .await
+                    .map(|_| debug!("All good with pinging node {:?}", self))
+                    .map_err(|_| {
+                        debug!("Got broken connection to node {:?}", self);
+                        self.clear_connection();
+                    })?;
+                Ok(())
+            }
+            None => {
+                debug!("will connect to {:?}", self);
+                client_fatory
+                    .produce(self.clone())
+                    .await
+                    .map(move |client| {
+                        self.set_connection(client);
+                    })
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}={}:{}", self.name, self.host, self.port)
+    }
+}
+
+impl std::hash::Hash for Node {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.host.hash(state);
+        self.port.hash(state);
+    }
+}
+
+impl std::fmt::Debug for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}={}:{}", self.name, self.host, self.port)
+    }
+}
+
+impl PartialEq for Node {
+    fn eq(&self, other: &Node) -> bool {
+        self.host == other.host && self.port == other.port
+    }
+}
+
+impl Eq for Node {}
