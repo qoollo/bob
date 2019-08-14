@@ -1,7 +1,7 @@
 use crate::api::grpc::{BlobMeta, PutOptions};
 use crate::core::{
-    backend::Error,
     bob_client::{BobClient, BobClientFactory},
+    configs::cluster::Node as ConfigNode,
 };
 use std::sync::{Arc, Mutex};
 
@@ -110,7 +110,28 @@ impl std::fmt::Display for VDiskId {
 pub struct VDisk {
     pub id: VDiskId,
     pub replicas: Vec<NodeDisk>,
+    pub nodes: Vec<Node>,
 }
+
+impl VDisk {
+    pub(crate) fn new (id: VDiskId, capacity: usize) -> Self {
+        VDisk {
+            id,
+            replicas: Vec::with_capacity(capacity),
+            nodes: vec![],
+        }
+    }
+
+    pub(crate) fn set_nodes(&mut self, nodes: &[Node]) {
+        nodes.iter()
+            .for_each(|node|{
+                if self.replicas.iter().find(|r|r.node_name == node.name).is_some(){  //TODO check if some duplicates
+                    self.nodes.push(node.clone());
+                }
+            })
+    }
+}
+
 impl std::fmt::Display for VDisk {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
@@ -146,23 +167,31 @@ impl std::fmt::Display for DiskPath {
         write!(f, "#{}-{}", self.name, self.path)
     }
 }
+impl From<&NodeDisk> for DiskPath {
+    fn from(node: &NodeDisk) -> Self {
+        DiskPath {
+            name: node.disk_name.clone(),
+            path: node.disk_path.clone(),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct NodeDisk {
-    pub node: Node,
-    pub path: String,
-    pub name: String,
+    pub disk_path: String,
+    pub disk_name: String,
+    pub node_name: String,
 }
 
 impl std::fmt::Display for NodeDisk {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}/{}-{}", self.node, self.name, self.path)
+        write!(f, "{}-{}:{}", self.node_name, self.disk_name, self.disk_path)
     }
 }
 
 impl PartialEq for NodeDisk {
     fn eq(&self, other: &NodeDisk) -> bool {
-        self.node == other.node && self.path == other.path && self.name == other.name
+        self.node_name == other.node_name && self.disk_name == other.disk_name
     }
 }
 
@@ -239,6 +268,11 @@ impl Node {
     }
 }
 
+impl From<&ConfigNode> for Node {
+    fn from(node: &ConfigNode) -> Self {
+        Node::new(&node.name(), &node.host(), node.port())
+    }
+}
 impl std::fmt::Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}={}:{}", self.name, self.host, self.port)

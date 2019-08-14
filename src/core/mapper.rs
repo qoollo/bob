@@ -15,8 +15,7 @@ pub struct VDiskMapper {
 
 impl VDiskMapper {
     pub fn new(vdisks: Vec<VDisk>, config: &NodeConfig, cluster: &ClusterConfig) -> VDiskMapper {
-        let nodes = Self::prepare_nodes_config(&vdisks, &cluster);
-        // nodes = Self::link_nodes(nodes);
+        let (nodes, vdisks) = Self::prepare_nodes(vdisks, &cluster);
 
         VDiskMapper {
             vdisks,
@@ -29,9 +28,8 @@ impl VDiskMapper {
             nodes,
         }
     }
-    pub fn new2(vdisks: Vec<VDisk>, node_name: &str, disks: &[ConfigDiskPath]) -> VDiskMapper {
-        let nodes = Self::prepare_nodes(&vdisks, disks);
-        // nodes = Self::link_nodes(nodes);
+    pub fn new2(vdisks: Vec<VDisk>, node_name: &str, disks: &[ConfigDiskPath], cluster: &ClusterConfig) -> VDiskMapper {
+        let (nodes, vdisks) = Self::prepare_nodes(vdisks, &cluster);
 
         VDiskMapper {
             vdisks,
@@ -43,29 +41,14 @@ impl VDiskMapper {
             nodes,
         }
     }
-    fn prepare_nodes_config(vdisks: &Vec<VDisk>, cluster: &ClusterConfig) -> Vec<Node> {
-        let mut saved_nodes: Vec<Node> = vdisks
+    fn prepare_nodes(mut vdisks: Vec<VDisk>, cluster: &ClusterConfig) -> (Vec<Node>, Vec<VDisk>) {
+        let nodes: Vec<_> = cluster.nodes
             .iter()
-            .flat_map(|vdisk| vdisk.replicas.iter().map(|nd| nd.node.clone()))
+            .map(|node| Node::from(node))
             .collect();
-        saved_nodes.dedup();
 
-        cluster.nodes
-            .iter()
-            .map(|n| saved_nodes.iter().find(|node| node.name == n.name()).unwrap().clone())
-            .collect()
-    }
-    fn prepare_nodes(vdisks: &Vec<VDisk>, disks: &[ConfigDiskPath]) -> Vec<Node> {
-        let mut saved_nodes: Vec<Node> = vdisks
-            .iter()
-            .flat_map(|vdisk| vdisk.replicas.iter().map(|nd| nd.node.clone()))
-            .collect();
-        saved_nodes.dedup();
-
-        disks
-            .iter()
-            .map(|n| saved_nodes.iter().find(|node| node.name == n.name).unwrap().clone())
-            .collect()
+        vdisks.iter_mut().for_each(|vdisk| vdisk.set_nodes(&nodes));
+        (nodes, vdisks.to_vec())
     }
 
     pub fn vdisks_count(&self) -> u32 {
@@ -92,7 +75,7 @@ impl VDiskMapper {
             .iter()
             .filter(|vdisk| {
                 vdisk.replicas.iter().any(|replica| {
-                    replica.node.name == self.local_node_name && replica.name == disk
+                    replica.node_name == self.local_node_name && replica.disk_name == disk
                 })
             })
             .map(|vdisk| vdisk.id.clone())
@@ -105,7 +88,7 @@ impl VDiskMapper {
         let disk = vdisk
             .replicas
             .iter()
-            .find(|disk| disk.node.name == self.local_node_name);
+            .find(|disk| disk.node_name == self.local_node_name);
         if disk.is_none() {
             trace!(
                 "cannot find node: {} for vdisk: {}",
@@ -116,7 +99,7 @@ impl VDiskMapper {
         }
         BackendOperation::new_local(
             vdisk_id,
-            DiskPath::new(&disk.unwrap().name, &disk.unwrap().path),
+            DiskPath::from(disk.unwrap()),
         )
     }
 }

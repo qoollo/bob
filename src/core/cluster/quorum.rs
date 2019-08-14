@@ -35,13 +35,9 @@ impl QuorumCluster {
     fn calc_target_nodes(&self, key: BobKey) -> Vec<Node> {
         let target_vdisk = self.mapper.get_vdisk(key);
 
-        let mut target_nodes: Vec<_> = target_vdisk
-            .replicas
-            .iter()
-            .map(|nd| nd.node.clone())
-            .collect();
-        target_nodes.dedup();
-        target_nodes
+        target_vdisk
+            .nodes
+            .clone()
     }
 
     // #[allow(dead_code)]

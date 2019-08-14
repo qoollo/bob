@@ -7,7 +7,7 @@ use std::{
 
 use crate::core::{
     configs::reader::{Validatable, YamlBobConfigReader},
-    data::{Node as DataNode, NodeDisk as DataNodeDisk, VDisk as DataVDisk, VDiskId},
+    data::{NodeDisk as DataNodeDisk, VDisk as DataVDisk, VDiskId},
 };
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -74,7 +74,12 @@ impl Node {
     pub fn address(&self) -> String {
         self.address.as_ref().unwrap().clone()
     }
-
+    pub fn host(&self) -> String {
+        self.host.borrow().clone()
+    }
+    pub fn port(&self) -> u16 {
+        self.port.get()
+    }
     fn prepare(&self) -> Option<String> {
         let addr: Result<SocketAddr, _> = self.address().parse();
         if addr.is_err() {
@@ -354,22 +359,18 @@ impl ClusterConfigYaml {
 
         let mut result: Vec<DataVDisk> = Vec::with_capacity(cluster.vdisks.len());
         for vdisk in cluster.vdisks.iter() {
-            let mut disk = DataVDisk {
-                id: VDiskId::new(vdisk.id() as u32),
-                replicas: Vec::with_capacity(vdisk.replicas.len()),
-            };
+            let mut disk = DataVDisk::new(
+                VDiskId::new(vdisk.id() as u32),
+                vdisk.replicas.len());
+                
             for replica in vdisk.replicas.iter() {
                 let finded_node = node_map.get(&replica.node).unwrap();
                 let path = finded_node.1.get(&replica.disk).unwrap();
 
                 let node_disk = DataNodeDisk {
-                    path: path.to_string(),
-                    name: replica.disk(),
-                    node: DataNode ::new(
-                        &replica.node(),
-                        &finded_node.0.host.borrow(),
-                        finded_node.0.port.get(),
-                    ),
+                    disk_path: path.to_string(),
+                    disk_name: replica.disk(),
+                    node_name: finded_node.0.name(),
                 };
                 disk.replicas.push(node_disk);
             }
