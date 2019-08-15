@@ -48,9 +48,8 @@ impl Cluster for SimpleQuorumCluster {
             print_vec(&target_nodes)
         );
 
-        let reqs = self
-            .link_manager
-            .call_nodes(&target_nodes, |conn| conn.put(key, &data, PutOptions {
+        let reqs = LinkManager::
+            call_nodes(&target_nodes, |conn| conn.put(key, &data, PutOptions {
                     remote_nodes:vec![],//TODO check
                     force_node: true,
                     overwrite: false,
@@ -106,9 +105,8 @@ impl Cluster for SimpleQuorumCluster {
             key,
             print_vec(&target_nodes)
         );
-        let reqs = self
-            .link_manager
-            .call_nodes(&target_nodes, |conn| conn.get(key).0);
+        let reqs = LinkManager::
+            call_nodes(&target_nodes, |conn| conn.get(key).0);
 
         let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
 

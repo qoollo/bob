@@ -1,8 +1,7 @@
 use crate::core::{
     backend,
-    backend::core::{BackendGetResult, BackendPutResult, Get, Put, PutResult, Backend, BackendOperation},
+    backend::core::{BackendGetResult, BackendPutResult, Get, Put, Backend, BackendOperation},
     configs::node::NodeConfig,
-    bob_client::BobClient,
     data::{print_vec, BobData, BobKey, ClusterResult, Node},
     mapper::VDiskMapper,
     link_manager::LinkManager,
@@ -68,8 +67,40 @@ impl QuorumCluster {
         ret
     }
 
-    async fn put_local(backend: Arc<Backend>, key: BobKey, data: BobData, op: BackendOperation) -> PutResult {
-        backend.put(&op, key, data).0.boxed().await
+    async fn put_local_all(backend: Arc<Backend>, failed_nodes: Vec<Node>, key: BobKey, data: BobData, operation: BackendOperation) -> Result<(), PutOptions> {
+        let mut add_nodes = vec![];
+        for failed_node in failed_nodes.iter() {
+            let mut op = operation.clone();
+            op.set_remote_folder(&failed_node.name());
+            
+            let t= backend.put(&op, key, data.clone()).0.boxed().await;
+            trace!("local support put result: {:?}", t);
+            if t.is_err()
+            {
+                add_nodes.push(failed_node.name());
+            }
+        }
+
+        if add_nodes.len()>0 {
+            return Err(PutOptions::new_alien(&add_nodes))
+        }
+        Ok(())
+    }
+
+    async fn put_sup_nodes(key: BobKey, data: BobData, requests: &[(Node, PutOptions)]) -> Result<(), (usize, String)>{
+        let mut ret = vec![];
+        for (node, options) in requests {
+            let result = LinkManager::call_node(&node, |conn| conn.put(key, &data, options.clone()).0).await;
+            trace!("sup put to node: {}, result: {:?}", node, result);
+            if let Err(e) = result {
+                ret.push(e);
+            }
+        }
+
+        if ret.len() > 0 {
+            return Err((requests.len()-ret.len(), ret.iter().fold("".to_string(), |acc, x| format!("{}, {:?}", acc, x))));
+        }
+        Ok(())
     }
 }
 
@@ -79,7 +110,6 @@ impl Cluster for QuorumCluster {
         let mapper = self.mapper.clone();
         let vdisk_id = self.mapper.get_vdisk(key).id.clone(); // remove search vdisk (not vdisk id)
         let backend = self.backend.clone();
-        let link = self.link_manager.clone();
 
         let target_nodes = self.calc_target_nodes(key);
 
@@ -89,9 +119,7 @@ impl Cluster for QuorumCluster {
             print_vec(&target_nodes)
         );
 
-        let reqs = self
-            .link_manager
-            .call_nodes(&target_nodes, |conn| conn.put(key, &data,  PutOptions::new_client()).0)
+        let reqs = LinkManager::call_nodes(&target_nodes, |conn| conn.put(key, &data,  PutOptions::new_client()).0)
             .into_iter()
             .collect::<FuturesUnordered<_>>()
             .map(move |r| {
@@ -130,51 +158,48 @@ impl Cluster for QuorumCluster {
 
                 };
                 
-                let mut add_nodes = vec![];
-                for failed_node in &failed {
-                    let mut op = BackendOperation::new_alien(vdisk_id.clone());
-                    op.set_remote_folder(&failed_node.node.name());
-                    
-                    let t = Self::put_local(backend.clone(), key, data.clone(), op).await;
-                    if t.is_err()
-                    {
-                        add_nodes.push(failed_node.node.name());
-                    }
-                }
-                if add_nodes.len()>0 {
+                let local_put = Self::put_local_all(backend, failed.iter().map(|n|n.node.clone()).collect(), key, data.clone(), 
+                    BackendOperation::new_alien(vdisk_id.clone()))
+                    .await;
+
+                if local_put.is_err() {
                     additionl_remote_writes += 1;
                 }
 
                 let mut sup_nodes = Self::calc_sup_nodes(mapper, &target_nodes, additionl_remote_writes);
+                debug!("sup put nodes: {}", print_vec(&sup_nodes));
+
                 let mut queries = vec![];
 
-                if add_nodes.len()>0 {
+                if let Err(op) = local_put {
                     let item = sup_nodes.remove(sup_nodes.len() - 1);
-
-                    queries.push((item, |conn: &mut BobClient| conn.put(key, &data, PutOptions::new_alien(&add_nodes)).0));
+                    queries.push((item, op));
                 }
 
                 if additionl_remote_writes > 0 {
-                    let nodes : Vec<String>= failed.iter().map(|node| node.node.name()).collect();
+                    let nodes : Vec<String> = failed.iter().map(|node| node.node.name()).collect();
                     let put_options = PutOptions::new_alien(&nodes);
                     
-                    // for node in sup_nodes {
-                    //     queries.push((node, |conn: &mut BobClient| conn.put(key, &data, PutOptions::new_alien(&add_nodes)).0));
-                    // }
-                    // let mut tt: Vec<_> = sup_nodes
-                    //     .iter()
-                    //     .map(|node| (node.clone(), |conn: &mut BobClient| conn.put(key, &data, put_options.clone()).0))
-                    //     .collect();
-                    // queries.append(&mut tt);
+                    let mut tt: Vec<_> = sup_nodes
+                        .iter()
+                        .map(|node| (node.clone(), put_options.clone()))
+                        .collect();
+                    queries.append(&mut tt);
                 }
-                let call = link.call_nodes_direct(queries);
-                Ok(BackendPutResult {})
 
-                // TODO write data locally and some other nodes
-                // Err(backend::Error::Failed(format!(
-                //     "failed: total: {}, ok: {}, quorum: {}",
-                //     total_ops, ok_count, l_quorum
-                // )))
+                if let Err((sup_ok_count, err)) = Self::put_sup_nodes(key, data, &queries).await {
+
+                    return if sup_ok_count + ok_count >= l_quorum {
+                        Ok(BackendPutResult {})
+                    }
+                    else {
+                        Err(backend::Error::Failed(format!(
+                            "failed: total: {}, ok: {}, quorum: {}, sup: {}",
+                                total_ops, ok_count+sup_ok_count, l_quorum, err
+                        )))
+                    };
+                }
+                Ok(BackendPutResult {})
             }
         };
         Put(p.boxed())
@@ -188,9 +213,7 @@ impl Cluster for QuorumCluster {
             key,
             print_vec(&target_nodes)
         );
-        let reqs = self
-            .link_manager
-            .call_nodes(&target_nodes, |conn| conn.get(key).0);
+        let reqs = LinkManager::call_nodes(&target_nodes, |conn| conn.get(key).0);
 
         let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
 
