@@ -343,7 +343,7 @@ impl Validatable for NodeConfig {
 pub struct NodeConfigYaml {}
 
 impl NodeConfigYaml {
-    pub fn check_cluster(&self, cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
+    pub fn check(cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
         let finded = cluster.nodes.iter().find(|n| n.name == node.name);
         if finded.is_none() {
             debug!("cannot find node: {} in cluster config", node.name());
@@ -372,6 +372,10 @@ impl NodeConfigYaml {
         }
         node.prepare(finded.unwrap())?;
         Ok(())
+    }
+
+    pub fn check_cluster(&self, cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
+        Self::check(cluster, node)   //TODO
     }
 
     pub fn get(&self, filename: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {

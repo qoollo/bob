@@ -346,7 +346,7 @@ impl Validatable for ClusterConfig {
 pub struct ClusterConfigYaml {}
 
 impl ClusterConfigYaml {
-    pub fn convert_to_data(&self, cluster: &ClusterConfig) -> Result<Vec<DataVDisk>, String> {
+    pub fn convert(cluster: &ClusterConfig) -> Result<Vec<DataVDisk>, String> {
         let mut node_map = HashMap::new();
         for node in cluster.nodes.iter() {
             let disk_map = node
@@ -375,6 +375,10 @@ impl ClusterConfigYaml {
             result.push(disk);
         }
         Ok(result)
+    }
+
+    pub fn convert_to_data(&self, cluster: &ClusterConfig) -> Result<Vec<DataVDisk>, String> {
+        Self::convert(cluster)
     }
 
     pub fn get(&self, filename: &str) -> Result<(Vec<DataVDisk>, ClusterConfig), String> {

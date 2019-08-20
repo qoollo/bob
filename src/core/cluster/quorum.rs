@@ -295,15 +295,94 @@ cfg_if! {
 pub mod tests {
     use super::*;
     use crate::core::{
-        data::{BobKey, Node},
+        data::{BobKey, Node, VDisk},
+        mapper::VDiskMapper,
+        configs::{
+            node::{NodeConfig, NodeConfigYaml},
+            cluster::{ClusterConfig, Node as ConfigNode, NodeDisk, VDisk as VDiskConfig, Replica, ClusterConfigYaml},
+        },
     };
 
+    use std::cell::{RefCell, Cell};
+
+    fn node_config(quorum: u8) -> NodeConfig {
+        let config = NodeConfig{
+            log_config: Some("".to_string()),
+            name: Some("1".to_string()),
+            quorum: Some(quorum),
+            timeout: Some("3sec".to_string()),
+            check_interval: Some("3sec".to_string()),
+            cluster_policy: Some("quorum".to_string()),
+            ping_threads_count: Some(4),
+            grpc_buffer_bound: Some(4),
+            backend_type: Some("stub".to_string()),
+            pearl: None,
+            metrics: None,
+            bind_ref: RefCell::default(),
+            timeout_ref: Cell::default(),
+            check_ref: Cell::default(),
+            disks_ref: RefCell::default(),
+        };
+        config
+    }
+
+    fn cluster_config(count_nodes: u8, count_vdisks: u8, count_replicas:u8) -> ClusterConfig {
+        let nodes = (1..count_nodes).map(|id|{
+            let name = id.to_string();
+            ConfigNode{
+                name: Some(name.clone()),
+                address: Some("1".to_string()),
+                disks: vec![NodeDisk{
+                    name: Some(name.clone()),
+                    path: Some(name.clone()),
+                }],
+                host: RefCell::default(),
+                port: Cell::default(),
+            }
+        }).collect();
+
+        let vdisks = (1..count_vdisks).map( |id|{
+            let replicas = (0..count_replicas-1).map(|r|{
+                let n = ((id+r)%count_nodes).to_string();
+                Replica{
+                    node: Some(n.clone()),
+                    disk: Some(n.clone()),
+                }
+            }).collect();
+            VDiskConfig{
+                id: Some(id as i32),
+                replicas,
+            }
+        }).collect();
+
+        let config = ClusterConfig{
+            nodes,
+            vdisks,
+        };
+        config
+    }
+
+    fn prepare_configs(count_nodes: u8, count_vdisks: u8, count_replicas:u8, quorum: u8) -> (Vec<VDisk>, NodeConfig, ClusterConfig ){
+        let node = node_config(quorum);
+        let cluster = cluster_config(count_nodes, count_vdisks, count_replicas);
+        NodeConfigYaml::check(&cluster, &node).unwrap();
+        let vdisks = ClusterConfigYaml::convert(&cluster).unwrap();
+        (vdisks, node, cluster)
+    }
+
+    fn create_cluster(vdisks: Vec<VDisk>, node: NodeConfig, cluster: ClusterConfig) {
+        let mapper = VDiskMapper::new(vdisks, &node, &cluster);
+
+    }
     fn do_stuff(thing: QuorumCluster, key: BobKey) -> Vec<Node> {
         thing.calc_target_nodes(key)
     }
 
     #[test]
     fn some_test() {
+        let (vdisks, node, cluster) = prepare_configs(3, 3, 1, 2);
+        create_cluster(vdisks, node, cluster);
+        
         let mut mock = QuorumCluster::default();
         mock.expect_calc_target_nodes().returning(|key| vec![]);
 
