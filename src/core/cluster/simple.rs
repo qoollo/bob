@@ -1,14 +1,13 @@
+use crate::api::grpc::PutOptions;
 use crate::core::{
     backend,
     backend::core::{BackendGetResult, BackendPutResult, Get, Put},
+    cluster::Cluster,
     configs::node::NodeConfig,
     data::{print_vec, BobData, BobKey, ClusterResult, Node},
-    mapper::VDiskMapper,
     link_manager::LinkManager,
-    cluster::Cluster,
+    mapper::VDiskMapper,
 };
-use std::sync::Arc;
-use crate::api::grpc::PutOptions;
 
 use futures03::{
     future::{ready, FutureExt},
@@ -16,25 +15,21 @@ use futures03::{
 };
 
 pub struct SimpleQuorumCluster {
-    link_manager: Arc<LinkManager>,
     mapper: VDiskMapper,
     quorum: u8,
 }
 
 impl SimpleQuorumCluster {
-    pub fn new(link_manager: Arc<LinkManager>, mapper: &VDiskMapper, config: &NodeConfig) -> Self {
+    pub fn new(mapper: &VDiskMapper, config: &NodeConfig) -> Self {
         SimpleQuorumCluster {
             quorum: config.quorum.unwrap(),
-            link_manager,
             mapper: mapper.clone(),
         }
     }
 
     fn calc_target_nodes(&self, key: BobKey) -> Vec<Node> {
         let target_vdisk = self.mapper.get_vdisk(key);
-        target_vdisk
-            .nodes
-            .clone()
+        target_vdisk.nodes.clone()
     }
 }
 
@@ -48,12 +43,18 @@ impl Cluster for SimpleQuorumCluster {
             print_vec(&target_nodes)
         );
 
-        let reqs = LinkManager::
-            call_nodes(&target_nodes, |conn| conn.put(key, &data, PutOptions {
-                    remote_nodes:vec![],//TODO check
+        let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
+            conn.put(
+                key,
+                &data,
+                PutOptions {
+                    remote_nodes: vec![], //TODO check
                     force_node: true,
                     overwrite: false,
-                }).0);
+                },
+            )
+            .0
+        });
 
         let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
 
@@ -105,8 +106,7 @@ impl Cluster for SimpleQuorumCluster {
             key,
             print_vec(&target_nodes)
         );
-        let reqs = LinkManager::
-            call_nodes(&target_nodes, |conn| conn.get(key).0);
+        let reqs = LinkManager::call_nodes(&target_nodes, |conn| conn.get(key).0);
 
         let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
 

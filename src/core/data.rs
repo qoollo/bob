@@ -122,7 +122,7 @@ pub struct VDisk {
 }
 
 impl VDisk {
-    pub(crate) fn new (id: VDiskId, capacity: usize) -> Self {
+    pub(crate) fn new(id: VDiskId, capacity: usize) -> Self {
         VDisk {
             id,
             replicas: Vec::with_capacity(capacity),
@@ -131,12 +131,17 @@ impl VDisk {
     }
 
     pub(crate) fn set_nodes(&mut self, nodes: &[Node]) {
-        nodes.iter()
-            .for_each(|node|{
-                if self.replicas.iter().find(|r|r.node_name == node.name).is_some(){  //TODO check if some duplicates
-                    self.nodes.push(node.clone());
-                }
-            })
+        nodes.iter().for_each(|node| {
+            if self
+                .replicas
+                .iter()
+                .find(|r| r.node_name == node.name)
+                .is_some()
+            {
+                //TODO check if some duplicates
+                self.nodes.push(node.clone());
+            }
+        })
     }
 }
 
@@ -193,7 +198,11 @@ pub struct NodeDisk {
 
 impl std::fmt::Display for NodeDisk {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}-{}:{}", self.node_name, self.disk_name, self.disk_path)
+        write!(
+            f,
+            "{}-{}:{}",
+            self.node_name, self.disk_name, self.disk_path
+        )
     }
 }
 
@@ -209,7 +218,6 @@ pub fn print_vec<T: std::fmt::Display>(coll: &[T]) -> String {
         .collect::<Vec<_>>()
         .join(",")
 }
-
 
 #[derive(Clone)]
 pub struct Node {

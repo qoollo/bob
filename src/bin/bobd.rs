@@ -2,8 +2,8 @@
 use bob::api::grpc::server;
 
 use bob::core::bob_client::BobClientFactory;
-use bob::core::mapper::VDiskMapper;
 use bob::core::grinder::Grinder;
+use bob::core::mapper::VDiskMapper;
 use clap::{App, Arg};
 use tokio::net::TcpListener;
 use tokio::runtime::Builder;

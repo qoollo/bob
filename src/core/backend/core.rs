@@ -17,8 +17,8 @@ use std::{pin::Pin, sync::Arc};
 pub struct BackendOperation {
     vdisk_id: VDiskId,
     disk_path: Option<DiskPath>,
-    remote_node_name: Option<String>,       // save data to alien/<remote_node_name>
-    alien: bool,                            // flag marks data belonging for different node
+    remote_node_name: Option<String>, // save data to alien/<remote_node_name>
+    alien: bool,                      // flag marks data belonging for different node
 }
 
 impl std::fmt::Display for BackendOperation {
@@ -52,7 +52,8 @@ impl BackendOperation {
         }
     }
 
-    pub fn set_remote_folder(&mut self, name: &str) {   //TODO fix
+    pub fn set_remote_folder(&mut self, name: &str) {
+        //TODO fix
         self.remote_node_name = Some(name.to_string())
     }
     pub fn is_data_alien(&self) -> bool {

@@ -8,6 +8,9 @@ extern crate bitflags;
 extern crate log;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate cfg_if;
+extern crate mockall;
 
 pub mod api;
 pub mod core;

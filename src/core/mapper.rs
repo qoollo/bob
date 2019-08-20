@@ -1,7 +1,7 @@
 use crate::core::{
     backend::core::BackendOperation,
-    configs::node::{DiskPath as ConfigDiskPath, NodeConfig},
     configs::cluster::ClusterConfig,
+    configs::node::{DiskPath as ConfigDiskPath, NodeConfig},
     data::*,
 };
 
@@ -28,7 +28,12 @@ impl VDiskMapper {
             nodes,
         }
     }
-    pub fn new2(vdisks: Vec<VDisk>, node_name: &str, disks: &[ConfigDiskPath], cluster: &ClusterConfig) -> VDiskMapper {
+    pub fn new2(
+        vdisks: Vec<VDisk>,
+        node_name: &str,
+        disks: &[ConfigDiskPath],
+        cluster: &ClusterConfig,
+    ) -> VDiskMapper {
         let (nodes, vdisks) = Self::prepare_nodes(vdisks, &cluster);
 
         VDiskMapper {
@@ -43,7 +48,8 @@ impl VDiskMapper {
     }
     fn prepare_nodes(mut vdisks: Vec<VDisk>, cluster: &ClusterConfig) -> (Vec<Node>, Vec<VDisk>) {
         let mut index = 0;
-        let nodes: Vec<_> = cluster.nodes
+        let nodes: Vec<_> = cluster
+            .nodes
             .iter()
             .map(|node| {
                 let mut n = Node::from(node);
@@ -68,7 +74,7 @@ impl VDiskMapper {
         self.disks.iter().find(|d| d.name == name)
     }
     pub fn nodes(&self) -> &Vec<Node> {
-        &self.nodes        //TODO
+        &self.nodes //TODO
     }
 
     pub fn get_vdisk(&self, key: BobKey) -> &VDisk {
@@ -103,9 +109,6 @@ impl VDiskMapper {
             );
             return BackendOperation::new_alien(vdisk_id);
         }
-        BackendOperation::new_local(
-            vdisk_id,
-            DiskPath::from(disk.unwrap()),
-        )
+        BackendOperation::new_local(vdisk_id, DiskPath::from(disk.unwrap()))
     }
 }

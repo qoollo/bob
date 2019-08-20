@@ -359,10 +359,8 @@ impl ClusterConfigYaml {
 
         let mut result: Vec<DataVDisk> = Vec::with_capacity(cluster.vdisks.len());
         for vdisk in cluster.vdisks.iter() {
-            let mut disk = DataVDisk::new(
-                VDiskId::new(vdisk.id() as u32),
-                vdisk.replicas.len());
-                
+            let mut disk = DataVDisk::new(VDiskId::new(vdisk.id() as u32), vdisk.replicas.len());
+
             for replica in vdisk.replicas.iter() {
                 let finded_node = node_map.get(&replica.node).unwrap();
                 let path = finded_node.1.get(&replica.disk).unwrap();

@@ -36,6 +36,8 @@ hyper = "0.12"
 itertools = "0.8"
 humantime = "1.2.0"
 dipstick = "~0.7"
+mockall = "~0.3"
+cfg-if = "~0.1"
 
 [build-dependencies]
 tower-grpc-build = { version = "~0.1.0", features = ["tower-hyper"] }

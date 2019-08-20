@@ -4,11 +4,7 @@ use crate::core::{
     data::{ClusterResult, Node},
 };
 use futures::{future::Future, stream::Stream};
-use std::{
-    pin::Pin,
-    sync::Arc,
-    time::Duration,
-};
+use std::{pin::Pin, sync::Arc, time::Duration};
 
 use futures03::{
     compat::Future01CompatExt,
@@ -94,10 +90,7 @@ impl LinkManager {
             .collect()
     }
 
-    pub fn call_node<F: Send, T: 'static + Send>(
-        node: &Node,
-        mut f: F,
-    ) -> ClusterCallFuture<T>
+    pub fn call_node<F: Send, T: 'static + Send>(node: &Node, mut f: F) -> ClusterCallFuture<T>
     where
         F: FnMut(&mut BobClient) -> ClusterCallFuture<T>,
     {
@@ -105,15 +98,15 @@ impl LinkManager {
             Some(conn) => {
                 let nl_node = node.clone();
                 f(conn)
-                .boxed()
-                .map_err(move |e| {
-                    if e.result.is_service() {
-                        nl_node.clear_connection();
-                    }
-                    e
-                })
-                .boxed()
-            },
+                    .boxed()
+                    .map_err(move |e| {
+                        if e.result.is_service() {
+                            nl_node.clear_connection();
+                        }
+                        e
+                    })
+                    .boxed()
+            }
             None => err(ClusterResult {
                 result: Error::Failed(format!("No active connection {:?}", node)),
                 node: node.clone(),

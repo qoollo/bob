@@ -1,19 +1,16 @@
-mod simple;
 mod quorum;
+mod simple;
 
 use crate::core::{
-    backend::core::{Get, Put, Backend},
+    backend::core::{Backend, Get, Put},
     configs::node::NodeConfig,
     data::{BobData, BobKey},
-    mapper::VDiskMapper,
     link_manager::LinkManager,
+    mapper::VDiskMapper,
 };
 use std::sync::Arc;
 
-use crate::core::cluster::{
-    simple::*,
-    quorum::*,
-};
+use crate::core::cluster::{quorum::*, simple::*};
 
 pub trait Cluster {
     fn put_clustered(&self, key: BobKey, data: BobData) -> Put;
@@ -21,16 +18,16 @@ pub trait Cluster {
 }
 
 pub fn get_cluster(
-    link: Arc<LinkManager>,
+    _link: Arc<LinkManager>,
     mapper: &VDiskMapper,
     config: &NodeConfig,
     backend: Arc<Backend>,
 ) -> Arc<dyn Cluster + Send + Sync> {
     if config.cluster_policy() == "simple" {
-        return Arc::new(SimpleQuorumCluster::new(link.clone(), mapper, config));
+        return Arc::new(SimpleQuorumCluster::new(mapper, config));
     }
     if config.cluster_policy() == "quorum" {
-        return Arc::new(QuorumCluster::new(link.clone(), mapper, config, backend));
+        return Arc::new(QuorumCluster::new(mapper, config, backend));
     }
     panic!("unknown cluster policy: {}", config.cluster_policy())
 }

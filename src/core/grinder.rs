@@ -5,8 +5,8 @@ use crate::core::{
     cluster::{get_cluster, Cluster},
     configs::node::NodeConfig,
     data::{BobData, BobKey, BobOptions},
-    mapper::VDiskMapper,
     link_manager::LinkManager,
+    mapper::VDiskMapper,
     metrics::*,
 };
 
