@@ -1,314 +1,326 @@
-mod q_cluster {
-    use crate::api::grpc::PutOptions;
-    use crate::core::{
-        backend,
-        backend::core::{Backend, BackendGetResult, BackendOperation, BackendPutResult, Get, Put},
-        cluster::Cluster,
-        configs::node::NodeConfig,
-        data::{print_vec, BobData, BobKey, ClusterResult, Node},
-        link_manager::LinkManager,
-        mapper::VDiskMapper,
-    };
-    use std::sync::Arc;
+use crate::api::grpc::PutOptions;
+use crate::core::{
+    backend,
+    backend::core::{Backend, BackendGetResult, BackendOperation, BackendPutResult, Get, Put},
+    cluster::Cluster,
+    configs::node::NodeConfig,
+    data::{print_vec, BobData, BobKey, ClusterResult, Node},
+    link_manager::LinkManager,
+    mapper::VDiskMapper,
+};
+use std::sync::Arc;
 
-    use futures03::{
-        future::{ready, FutureExt},
-        stream::{FuturesUnordered, StreamExt},
-    };
+use futures03::{
+    future::{ready, FutureExt},
+    stream::{FuturesUnordered, StreamExt},
+};
 
-    use mockall::*;
+pub struct QuorumCluster {
+    backend: Arc<Backend>,
+    mapper: VDiskMapper,
+    quorum: u8,
+}
 
-    pub struct QuorumCluster {
+impl QuorumCluster {
+    pub fn new(mapper: &VDiskMapper, config: &NodeConfig, backend: Arc<Backend>) -> Self {
+        QuorumCluster {
+            quorum: config.quorum.unwrap(),
+            mapper: mapper.clone(),
+            backend,
+        }
+    }
+
+    pub(crate) fn calc_target_nodes(&self, key: BobKey) -> Vec<Node> {
+        let target_vdisk = self.mapper.get_vdisk(key);
+
+        target_vdisk.nodes.clone()
+    }
+
+    pub(crate) fn calc_sup_nodes(mapper: VDiskMapper, target_nodes: &[Node], count: usize) -> Vec<Node> {
+        let nodes = mapper.nodes();
+        if nodes.len() > target_nodes.len() + count {
+            error!("cannot find enough nodes for write"); //TODO check in mapper
+            return vec![];
+        }
+
+        let indexes: Vec<u16> = target_nodes.iter().map(|n| n.index).collect();
+        let index_max = *indexes.iter().max().unwrap() as usize;
+
+        let mut ret = vec![];
+        let mut cur_index = index_max;
+        let mut count_look = 0;
+        while count_look < nodes.len() || ret.len() < count {
+            cur_index = (cur_index + 1) % nodes.len();
+            count_look += 1;
+
+            //TODO check node is available
+            if indexes.iter().find(|&&i| i == cur_index as u16).is_some() {
+                trace!("node: {} is alrady target", nodes[cur_index]);
+                continue;
+            }
+            ret.push(nodes[cur_index].clone());
+        }
+        ret
+    }
+
+    async fn put_local_all(
         backend: Arc<Backend>,
-        mapper: VDiskMapper,
-        quorum: u8,
+        failed_nodes: Vec<Node>,
+        key: BobKey,
+        data: BobData,
+        operation: BackendOperation,
+    ) -> Result<(), PutOptions> {
+        let mut add_nodes = vec![];
+        for failed_node in failed_nodes.iter() {
+            let mut op = operation.clone();
+            op.set_remote_folder(&failed_node.name());
+
+            let t = backend.put(&op, key, data.clone()).0.boxed().await;
+            trace!("local support put result: {:?}", t);
+            if t.is_err() {
+                add_nodes.push(failed_node.name());
+            }
+        }
+
+        if add_nodes.len() > 0 {
+            return Err(PutOptions::new_alien(&add_nodes));
+        }
+        Ok(())
     }
 
-    impl QuorumCluster {
-        pub fn new(mapper: &VDiskMapper, config: &NodeConfig, backend: Arc<Backend>) -> Self {
-            QuorumCluster {
-                quorum: config.quorum.unwrap(),
-                mapper: mapper.clone(),
-                backend,
-            }
-        }
-
-        pub(crate) fn calc_target_nodes(&self, key: BobKey) -> Vec<Node> {
-            let target_vdisk = self.mapper.get_vdisk(key);
-
-            target_vdisk.nodes.clone()
-        }
-
-        pub(crate) fn calc_sup_nodes(mapper: VDiskMapper, target_nodes: &[Node], count: usize) -> Vec<Node> {
-            let nodes = mapper.nodes();
-            if nodes.len() > target_nodes.len() + count {
-                error!("cannot find enough nodes for write"); //TODO check in mapper
-                return vec![];
-            }
-
-            let indexes: Vec<u16> = target_nodes.iter().map(|n| n.index).collect();
-            let index_max = *indexes.iter().max().unwrap() as usize;
-
-            let mut ret = vec![];
-            let mut cur_index = index_max;
-            let mut count_look = 0;
-            while count_look < nodes.len() || ret.len() < count {
-                cur_index = (cur_index + 1) % nodes.len();
-                count_look += 1;
-
-                //TODO check node is available
-                if indexes.iter().find(|&&i| i == cur_index as u16).is_some() {
-                    trace!("node: {} is alrady target", nodes[cur_index]);
-                    continue;
-                }
-                ret.push(nodes[cur_index].clone());
-            }
-            ret
-        }
-
-        async fn put_local_all(
-            backend: Arc<Backend>,
-            failed_nodes: Vec<Node>,
-            key: BobKey,
-            data: BobData,
-            operation: BackendOperation,
-        ) -> Result<(), PutOptions> {
-            let mut add_nodes = vec![];
-            for failed_node in failed_nodes.iter() {
-                let mut op = operation.clone();
-                op.set_remote_folder(&failed_node.name());
-
-                let t = backend.put(&op, key, data.clone()).0.boxed().await;
-                trace!("local support put result: {:?}", t);
-                if t.is_err() {
-                    add_nodes.push(failed_node.name());
-                }
-            }
-
-            if add_nodes.len() > 0 {
-                return Err(PutOptions::new_alien(&add_nodes));
-            }
-            Ok(())
-        }
-
-        async fn put_sup_nodes(
-            key: BobKey,
-            data: BobData,
-            requests: &[(Node, PutOptions)],
-        ) -> Result<(), (usize, String)> {
-            let mut ret = vec![];
-            for (node, options) in requests {
-                let result =
-                    LinkManager::call_node(&node, |conn| conn.put(key, &data, options.clone()).0)
-                        .await;
-                trace!("sup put to node: {}, result: {:?}", node, result);
-                if let Err(e) = result {
-                    ret.push(e);
-                }
-            }
-
-            if ret.len() > 0 {
-                return Err((
-                    requests.len() - ret.len(),
-                    ret.iter()
-                        .fold("".to_string(), |acc, x| format!("{}, {:?}", acc, x)),
-                ));
-            }
-            Ok(())
-        }
-    }
-
-    impl Cluster for QuorumCluster {
-        fn put_clustered(&self, key: BobKey, data: BobData) -> Put {
-            let l_quorum = self.quorum as usize;
-            let mapper = self.mapper.clone();
-            let vdisk_id = self.mapper.get_vdisk(key).id.clone(); // remove search vdisk (not vdisk id)
-            let backend = self.backend.clone();
-
-            let target_nodes = self.calc_target_nodes(key);
-
-            debug!(
-                "PUT[{}]: Nodes for fan out: {:?}",
-                key,
-                print_vec(&target_nodes)
-            );
-
-            let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
-                conn.put(key, &data, PutOptions::new_client()).0
-            })
-            .into_iter()
-            .collect::<FuturesUnordered<_>>()
-            .map(move |r| {
-                trace!("PUT[{}] Response from cluster {:?}", key, r);
-                r
-            })
-            .fold(vec![], |mut acc, r| {
-                acc.push(r);
-                ready(acc)
-            });
-
-            let p = async move {
-                let acc = reqs.boxed().await;
-                debug!("PUT[{}] cluster ans: {:?}", key, acc);
-
-                let total_ops = acc.iter().count();
-                let failed: Vec<_> = acc
-                    .into_iter()
-                    .filter(|r| r.is_err())
-                    .map(|e| e.err().unwrap())
-                    .collect();
-                let ok_count = total_ops - failed.len();
-
-                debug!(
-                    "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
-                    key, total_ops, ok_count, l_quorum
-                );
-                if ok_count == total_ops {
-                    Ok(BackendPutResult {})
-                } else {
-                    let mut additionl_remote_writes = match ok_count {
-                        0 => l_quorum, //TODO take value from config
-                        value if value < l_quorum => 1,
-                        _ => 0,
-                    };
-
-                    let local_put = Self::put_local_all(
-                        backend,
-                        failed.iter().map(|n| n.node.clone()).collect(),
-                        key,
-                        data.clone(),
-                        BackendOperation::new_alien(vdisk_id.clone()),
-                    )
+    async fn put_sup_nodes(
+        key: BobKey,
+        data: BobData,
+        requests: &[(Node, PutOptions)],
+    ) -> Result<(), (usize, String)> {
+        let mut ret = vec![];
+        for (node, options) in requests {
+            let result =
+                LinkManager::call_node(&node, |conn| conn.put(key, &data, options.clone()).0)
                     .await;
-
-                    if local_put.is_err() {
-                        additionl_remote_writes += 1;
-                    }
-
-                    let mut sup_nodes =
-                        Self::calc_sup_nodes(mapper, &target_nodes, additionl_remote_writes);
-                    debug!("sup put nodes: {}", print_vec(&sup_nodes));
-
-                    let mut queries = vec![];
-
-                    if let Err(op) = local_put {
-                        let item = sup_nodes.remove(sup_nodes.len() - 1);
-                        queries.push((item, op));
-                    }
-
-                    if additionl_remote_writes > 0 {
-                        let nodes: Vec<String> =
-                            failed.iter().map(|node| node.node.name()).collect();
-                        let put_options = PutOptions::new_alien(&nodes);
-
-                        let mut tt: Vec<_> = sup_nodes
-                            .iter()
-                            .map(|node| (node.clone(), put_options.clone()))
-                            .collect();
-                        queries.append(&mut tt);
-                    }
-
-                    if let Err((sup_ok_count, err)) = Self::put_sup_nodes(key, data, &queries).await
-                    {
-                        return if sup_ok_count + ok_count >= l_quorum {
-                            Ok(BackendPutResult {})
-                        } else {
-                            Err(backend::Error::Failed(format!(
-                                "failed: total: {}, ok: {}, quorum: {}, sup: {}",
-                                total_ops,
-                                ok_count + sup_ok_count,
-                                l_quorum,
-                                err
-                            )))
-                        };
-                    }
-                    Ok(BackendPutResult {})
-                }
-            };
-            Put(p.boxed())
+            trace!("sup put to node: {}, result: {:?}", node, result);
+            if let Err(e) = result {
+                ret.push(e);
+            }
         }
 
-        fn get_clustered(&self, key: BobKey) -> Get {
-            let target_nodes = self.calc_target_nodes(key);
-
-            debug!(
-                "GET[{}]: Nodes for fan out: {:?}",
-                key,
-                print_vec(&target_nodes)
-            );
-            let reqs = LinkManager::call_nodes(&target_nodes, |conn| conn.get(key).0);
-
-            let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
-
-            let w = t
-                .fold(vec![], |mut acc, r| {
-                    acc.push(r);
-                    ready(acc)
-                })
-                .map(move |acc| {
-                    let mut sup = String::default();
-                    acc.iter().for_each(|r| {
-                        if let Err(e) = r {
-                            trace!("GET[{}] failed result: {:?}", key, e);
-                            sup = format!("{}, {:?}", sup.clone(), e)
-                        } else if let Ok(e) = r {
-                            trace!("GET[{}] success result from: {:?}", key, e.node);
-                        }
-                    });
-
-                    let r = acc.into_iter().find(|r| r.is_ok());
-                    if let Some(answer) = r {
-                        match answer {
-                            Ok(ClusterResult { result: i, .. }) => Ok::<BackendGetResult, _>(i),
-                            Err(ClusterResult { result: i, .. }) => Err::<_, backend::Error>(i),
-                        }
-                    } else {
-                        debug!("GET[{}] no success result", key);
-                        Err::<_, backend::Error>(backend::Error::Failed(sup))
-                    }
-                });
-            Get(w.boxed())
+        if ret.len() > 0 {
+            return Err((
+                requests.len() - ret.len(),
+                ret.iter()
+                    .fold("".to_string(), |acc, x| format!("{}, {:?}", acc, x)),
+            ));
         }
-    }
-
-    mock!{
-        pub QuorumCluster{
-            fn new(mapper: &VDiskMapper, config: &NodeConfig, backend: Arc<Backend>) -> Self;
-            fn calc_target_nodes(&self, key: BobKey) -> Vec<Node>;
-        }
-        pub trait Cluster {
-            fn put_clustered(&self, key: BobKey, data: BobData) -> Put;
-            fn get_clustered(&self, key: BobKey) -> Get;
-        }
+        Ok(())
     }
 }
 
-cfg_if! {
-    if #[cfg(test)] {
-        pub use self::q_cluster::MockQuorumCluster as QuorumCluster;
-    } else {
-        pub use self::q_cluster::QuorumCluster;
+impl Cluster for QuorumCluster {
+    fn put_clustered(&self, key: BobKey, data: BobData) -> Put {
+        let l_quorum = self.quorum as usize;
+        let mapper = self.mapper.clone();
+        let vdisk_id = self.mapper.get_vdisk(key).id.clone(); // remove search vdisk (not vdisk id)
+        let backend = self.backend.clone();
+
+        let target_nodes = self.calc_target_nodes(key);
+
+        debug!(
+            "PUT[{}]: Nodes for fan out: {:?}",
+            key,
+            print_vec(&target_nodes)
+        );
+
+        let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
+            conn.put(key, &data, PutOptions::new_client()).0
+        })
+        .into_iter()
+        .collect::<FuturesUnordered<_>>()
+        .map(move |r| {
+            trace!("PUT[{}] Response from cluster {:?}", key, r);
+            r
+        })
+        .fold(vec![], |mut acc, r| {
+            acc.push(r);
+            ready(acc)
+        });
+
+        let p = async move {
+            let acc = reqs.boxed().await;
+            debug!("PUT[{}] cluster ans: {:?}", key, acc);
+
+            let total_ops = acc.iter().count();
+            let failed: Vec<_> = acc
+                .into_iter()
+                .filter(|r| r.is_err())
+                .map(|e| e.err().unwrap())
+                .collect();
+            let ok_count = total_ops - failed.len();
+
+            debug!(
+                "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
+                key, total_ops, ok_count, l_quorum
+            );
+            if ok_count == total_ops {
+                Ok(BackendPutResult {})
+            } else {
+                let mut additionl_remote_writes = match ok_count {
+                    0 => l_quorum, //TODO take value from config
+                    value if value < l_quorum => 1,
+                    _ => 0,
+                };
+
+                let local_put = Self::put_local_all(
+                    backend,
+                    failed.iter().map(|n| n.node.clone()).collect(),
+                    key,
+                    data.clone(),
+                    BackendOperation::new_alien(vdisk_id.clone()),
+                )
+                .await;
+
+                if local_put.is_err() {
+                    additionl_remote_writes += 1;
+                }
+
+                let mut sup_nodes =
+                    Self::calc_sup_nodes(mapper, &target_nodes, additionl_remote_writes);
+                debug!("sup put nodes: {}", print_vec(&sup_nodes));
+
+                let mut queries = vec![];
+
+                if let Err(op) = local_put {
+                    let item = sup_nodes.remove(sup_nodes.len() - 1);
+                    queries.push((item, op));
+                }
+
+                if additionl_remote_writes > 0 {
+                    let nodes: Vec<String> =
+                        failed.iter().map(|node| node.node.name()).collect();
+                    let put_options = PutOptions::new_alien(&nodes);
+
+                    let mut tt: Vec<_> = sup_nodes
+                        .iter()
+                        .map(|node| (node.clone(), put_options.clone()))
+                        .collect();
+                    queries.append(&mut tt);
+                }
+
+                if let Err((sup_ok_count, err)) = Self::put_sup_nodes(key, data, &queries).await
+                {
+                    return if sup_ok_count + ok_count >= l_quorum {
+                        Ok(BackendPutResult {})
+                    } else {
+                        Err(backend::Error::Failed(format!(
+                            "failed: total: {}, ok: {}, quorum: {}, sup: {}",
+                            total_ops,
+                            ok_count + sup_ok_count,
+                            l_quorum,
+                            err
+                        )))
+                    };
+                }
+                Ok(BackendPutResult {})
+            }
+        };
+        Put(p.boxed())
+    }
+
+    fn get_clustered(&self, key: BobKey) -> Get {
+        let target_nodes = self.calc_target_nodes(key);
+
+        debug!(
+            "GET[{}]: Nodes for fan out: {:?}",
+            key,
+            print_vec(&target_nodes)
+        );
+        let reqs = LinkManager::call_nodes(&target_nodes, |conn| conn.get(key).0);
+
+        let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
+
+        let w = t
+            .fold(vec![], |mut acc, r| {
+                acc.push(r);
+                ready(acc)
+            })
+            .map(move |acc| {
+                let mut sup = String::default();
+                acc.iter().for_each(|r| {
+                    if let Err(e) = r {
+                        trace!("GET[{}] failed result: {:?}", key, e);
+                        sup = format!("{}, {:?}", sup.clone(), e)
+                    } else if let Ok(e) = r {
+                        trace!("GET[{}] success result from: {:?}", key, e.node);
+                    }
+                });
+
+                let r = acc.into_iter().find(|r| r.is_ok());
+                if let Some(answer) = r {
+                    match answer {
+                        Ok(ClusterResult { result: i, .. }) => Ok::<BackendGetResult, _>(i),
+                        Err(ClusterResult { result: i, .. }) => Err::<_, backend::Error>(i),
+                    }
+                } else {
+                    debug!("GET[{}] no success result", key);
+                    Err::<_, backend::Error>(backend::Error::Failed(sup))
+                }
+            });
+        Get(w.boxed())
     }
 }
 
 #[cfg(test)]
 pub mod tests {
+    use log4rs;
     use super::*;
     use crate::core::{
-        data::{BobKey, Node, VDisk},
+        data::{BobKey, BobData, BobMeta, Node, VDisk},
         mapper::VDiskMapper,
         configs::{
             node::{NodeConfig, NodeConfigYaml},
             cluster::{ClusterConfig, Node as ConfigNode, NodeDisk, VDisk as VDiskConfig, Replica, ClusterConfigYaml},
         },
+        bob_client::BobClient,
+        backend::core::Backend,
     };
+    use crate::core::cluster::Cluster;
 
+    use sup::*;
     use std::cell::{RefCell, Cell};
+    use std::sync::Arc;
+    use futures03::executor::{ThreadPool, ThreadPoolBuilder};
+
+    mod sup {
+        use crate::core::{
+            data::{Node, BobData},
+            bob_client::BobClient,
+            bob_client::tests,
+        };
+
+        pub fn ping_ok(client: &mut BobClient, node: Node) {
+            let cl = node.clone();
+
+            client.expect_ping().returning(move ||{
+                tests::ping_ok(cl.clone())
+            });            
+        }
+
+        pub fn put_ok(client: &mut BobClient, node: Node) {
+            let cl = node.clone();
+
+            client.expect_put().returning(move |_key, _data, _options|{
+                tests::put_ok(cl.clone())
+            });
+        }
+    }
+
+    fn get_pool() -> ThreadPool {
+        ThreadPoolBuilder::new().pool_size(1).create().unwrap()
+    }
 
     fn node_config(quorum: u8) -> NodeConfig {
         let config = NodeConfig{
             log_config: Some("".to_string()),
-            name: Some("1".to_string()),
+            name: Some("0".to_string()),
             quorum: Some(quorum),
             timeout: Some("3sec".to_string()),
             check_interval: Some("3sec".to_string()),
@@ -327,7 +339,7 @@ pub mod tests {
     }
 
     fn cluster_config(count_nodes: u8, count_vdisks: u8, count_replicas:u8) -> ClusterConfig {
-        let nodes = (1..count_nodes).map(|id|{
+        let nodes = (0..count_nodes).map(|id|{
             let name = id.to_string();
             ConfigNode{
                 name: Some(name.clone()),
@@ -341,8 +353,8 @@ pub mod tests {
             }
         }).collect();
 
-        let vdisks = (1..count_vdisks).map( |id|{
-            let replicas = (0..count_replicas-1).map(|r|{
+        let vdisks = (0..count_vdisks).map( |id|{
+            let replicas = (0..count_replicas).map(|r|{
                 let n = ((id+r)%count_nodes).to_string();
                 Replica{
                     node: Some(n.clone()),
@@ -370,24 +382,48 @@ pub mod tests {
         (vdisks, node, cluster)
     }
 
-    fn create_cluster(vdisks: Vec<VDisk>, node: NodeConfig, cluster: ClusterConfig) {
+    fn create_cluster<F>(pool: &ThreadPool, vdisks: Vec<VDisk>, node: NodeConfig, cluster: ClusterConfig,
+       map: Vec<(&str, F)> ) -> QuorumCluster
+        where F: Fn(&mut BobClient, Node),
+    {
         let mapper = VDiskMapper::new(vdisks, &node, &cluster);
+        mapper.nodes().iter().for_each(|n|{
+            let mut client = BobClient::default();
+            let (_, func) = map.iter().find(|(name, _)| name.to_string() == n.name).unwrap();
+            func(&mut client, n.clone());
 
-    }
-    fn do_stuff(thing: QuorumCluster, key: BobKey) -> Vec<Node> {
-        thing.calc_target_nodes(key)
+            n.set_connection(client);
+        });
+
+        let backend = Backend::new(&mapper, &node, pool.clone());
+        QuorumCluster::new(&mapper, &node, Arc::new(backend))
     }
 
     #[test]
-    fn some_test() {
-        let (vdisks, node, cluster) = prepare_configs(3, 3, 1, 2);
-        create_cluster(vdisks, node, cluster);
+    fn simple_one_node_cluster_put_ok() {
+        // log4rs::init_file("./logger.yaml", Default::default()).unwrap();
+        let mut pool = get_pool();
+        let (vdisks, node, cluster) = prepare_configs(1, 1, 1, 1);        
         
-        let mut mock = QuorumCluster::default();
-        mock.expect_calc_target_nodes().returning(|key| vec![]);
+        let actions= vec![("0", |client: &mut BobClient, n: Node| {
+            let f = |client: &mut BobClient, n: Node|{
+                ping_ok(client, n.clone());
+                put_ok(client, n.clone());
+            };
+            f(client, n.clone());
+            client.expect_clone().returning(move || {
+                let mut cl = BobClient::default();
+                f(&mut cl, n.clone());
+                cl
+            });
+        })];
 
-        let key = BobKey::new(1);
-        let t = do_stuff(mock, key);
-        assert_eq!(0, t.len())
+        let quorum = create_cluster(&pool, vdisks, node, cluster, actions);
+
+        let call = quorum.put_clustered(BobKey::new(1), BobData::new(vec![], BobMeta::new_value(11)));
+
+        let result = pool.run(call.0);
+
+        assert!(result.is_ok());
     }
 }
