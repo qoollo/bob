@@ -834,4 +834,46 @@ pub mod tests {
         );
         assert!(get.is_err());
     }
+
+    /// 3 node, 1 vdisk, 3 replics in vdisk, quorum = 2
+    /// one node failed => local write => quorum => put ok
+    #[test]
+    fn three_node_one_vdisk_cluster_one_node_failed_put_ok() {
+        // log4rs::init_file("./logger.yaml", Default::default()).unwrap();
+        let mut pool = get_pool();
+        let (vdisks, node, cluster) = prepare_configs(3, 1, 3, 2);
+        // debug!("cluster: {:?}", cluster);
+        let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
+            create_ok_node("0", (true, true)),
+            create_ok_node("1", (true, true)),
+            create_ok_node("2", (false, true)),
+        ];
+
+        let calls: Vec<_> = actions
+            .iter()
+            .map(|(name, _, call)| (name.clone(), call.clone()))
+            .collect();
+        let (quorum, backend) = create_cluster(&pool, vdisks, node, cluster, actions);
+
+        let result = pool.run(
+            quorum
+                .put_clustered(BobKey::new(0), BobData::new(vec![], BobMeta::new_value(11)))
+                .0,
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(1, calls[0].1.put_count());
+        assert_eq!(1, calls[1].1.put_count());
+        assert_eq!(1, calls[2].1.put_count());
+
+        let get = pool.run(
+            backend
+                .get(
+                    &BackendOperation::new_alien(VDiskId::new(0)),
+                    BobKey::new(0),
+                )
+                .0,
+        );
+        assert!(get.is_ok());
+    }
 }
