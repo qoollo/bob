@@ -1,7 +1,8 @@
 mod b_client {
-    use super::{PingResult, Put, Get};
+    use super::{Get, PingResult, Put};
     use crate::api::grpc::{
-        client::BobApi, Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions, PutRequest,
+        client::BobApi, Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions,
+        PutRequest,
     };
     use crate::core::{
         backend::core::{BackendGetResult, BackendPingResult, BackendPutResult},
@@ -20,12 +21,11 @@ mod b_client {
     use tower_hyper::{client, util};
 
     use futures03::{
-        compat::Future01CompatExt, future::ready, future::FutureExt as OtherFutureExt,
-        TryFutureExt,
+        compat::Future01CompatExt, future::ready, future::FutureExt as OtherFutureExt, TryFutureExt,
     };
     use futures_timer::ext::FutureExt as TimerExt;
-    use tower::buffer::Buffer;
     use mockall::*;
+    use tower::buffer::Buffer;
 
     type TowerConnect = Buffer<
         tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>,
@@ -54,7 +54,8 @@ mod b_client {
 
             let connector = util::Connector::new(http_connector);
             let settings = client::Builder::new().http2_only(true).clone();
-            let mut make_client = client::Connect::with_executor(connector, settings, executor.clone());
+            let mut make_client =
+                client::Connect::with_executor(connector, settings, executor.clone());
             let n1 = node.clone();
 
             make_client
@@ -277,7 +278,7 @@ mod b_client {
         }
     }
 
-    mock!{
+    mock! {
         pub BobClient {
             async fn create(node: Node, executor: TaskExecutor, timeout: Duration, buffer_bound: u16, metrics: BobClientMetrics,
                     ) -> Result<Self, ()>;
@@ -287,7 +288,7 @@ mod b_client {
         }
         trait Clone {
             fn clone(&self) -> Self;
-        }    
+        }
     }
 }
 
@@ -300,15 +301,14 @@ cfg_if! {
 }
 
 use crate::core::{
-        backend::core::{BackendGetResult, BackendPingResult, BackendPutResult},
-        backend::Error,
-        data::{ClusterResult, Node},
-        metrics::*,
-    };
-use std::{sync::Arc, pin::Pin, time::Duration};
-use tokio::runtime::TaskExecutor;
+    backend::core::{BackendGetResult, BackendPingResult, BackendPutResult},
+    backend::Error,
+    data::{ClusterResult, Node},
+    metrics::*,
+};
 use futures03::Future as Future03;
-
+use std::{pin::Pin, sync::Arc, time::Duration};
+use tokio::runtime::TaskExecutor;
 
 pub type PutResult = Result<ClusterResult<BackendPutResult>, ClusterResult<Error>>;
 pub struct Put(pub Pin<Box<dyn Future03<Output = PutResult> + Send>>);
@@ -353,25 +353,23 @@ impl BobClientFactory {
     }
 }
 
-pub mod tests{
+pub mod tests {
     use super::*;
     use crate::core::{
-        backend::core::{BackendGetResult, BackendPingResult, BackendPutResult},
+        backend::core::{BackendPingResult, BackendPutResult},
         backend::Error,
         data::{ClusterResult, Node},
     };
-    use futures03::{
-        future::ready, future::FutureExt as OtherFutureExt,
-    };
+    use futures03::{future::ready, future::FutureExt as OtherFutureExt};
 
-    pub fn ping_ok(node:Node) -> PingResult {
-        Ok(ClusterResult{
+    pub fn ping_ok(node: Node) -> PingResult {
+        Ok(ClusterResult {
             node,
-            result: BackendPingResult{},
+            result: BackendPingResult {},
         })
     }
-    pub fn ping_err(node:Node) -> PingResult {
-        Err(ClusterResult{
+    pub fn ping_err(node: Node) -> PingResult {
+        Err(ClusterResult {
             node,
             result: Error::Other,
         })
@@ -379,10 +377,21 @@ pub mod tests{
 
     pub fn put_ok(node: Node) -> Put {
         Put({
-            ready(Ok(ClusterResult{
+            ready(Ok(ClusterResult {
                 node,
-                result: BackendPutResult{},
-            })).boxed()
+                result: BackendPutResult {},
+            }))
+            .boxed()
+        })
+    }
+
+    pub fn put_err(node: Node) -> Put {
+        Put({
+            ready(Err(ClusterResult {
+                node,
+                result: Error::Other,
+            }))
+            .boxed()
         })
     }
 }

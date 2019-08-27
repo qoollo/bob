@@ -375,7 +375,7 @@ impl NodeConfigYaml {
     }
 
     pub fn check_cluster(&self, cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
-        Self::check(cluster, node)   //TODO
+        Self::check(cluster, node) //TODO
     }
 
     pub fn get(&self, filename: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
