@@ -358,7 +358,7 @@ pub mod tests {
     use crate::core::{
         backend::core::{BackendPingResult, BackendPutResult},
         backend::Error,
-        data::{ClusterResult, Node},
+        data::{ClusterResult, Node, BobData, BobMeta},
     };
     use futures03::{future::ready, future::FutureExt as OtherFutureExt};
 
@@ -387,6 +387,28 @@ pub mod tests {
 
     pub fn put_err(node: Node) -> Put {
         Put({
+            ready(Err(ClusterResult {
+                node,
+                result: Error::Other,
+            }))
+            .boxed()
+        })
+    }
+
+    pub fn get_ok(node: Node) -> Get {
+        Get({
+            ready(Ok(ClusterResult {
+                node,
+                result: BackendGetResult {
+                    data: BobData::new(vec![], BobMeta::new_stub()),
+                },
+            }))
+            .boxed()
+        })
+    }
+
+    pub fn get_err(node: Node) -> Get {
+        Get({
             ready(Err(ClusterResult {
                 node,
                 result: Error::Other,

@@ -410,3 +410,28 @@ impl NodeConfigYaml {
         }
     }
 }
+
+
+pub mod tests{
+    use super::*;
+    pub fn node_config(name: &str, quorum: u8) -> NodeConfig {
+        let config = NodeConfig {
+            log_config: Some("".to_string()),
+            name: Some(name.to_string()),
+            quorum: Some(quorum),
+            timeout: Some("3sec".to_string()),
+            check_interval: Some("3sec".to_string()),
+            cluster_policy: Some("quorum".to_string()),
+            ping_threads_count: Some(4),
+            grpc_buffer_bound: Some(4),
+            backend_type: Some("in_memory".to_string()),
+            pearl: None,
+            metrics: None,
+            bind_ref: RefCell::default(),
+            timeout_ref: Cell::default(),
+            check_ref: Cell::default(),
+            disks_ref: RefCell::default(),
+        };
+        config
+    }
+}

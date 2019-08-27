@@ -403,3 +403,47 @@ impl ClusterConfigYaml {
         }
     }
 }
+
+
+pub mod tests{
+    use super::*;
+
+    pub fn cluster_config(count_nodes: u8, count_vdisks: u8, count_replicas: u8) -> ClusterConfig {
+        let nodes = (0..count_nodes)
+            .map(|id| {
+                let name = id.to_string();
+                Node {
+                    name: Some(name.clone()),
+                    address: Some("1".to_string()),
+                    disks: vec![NodeDisk {
+                        name: Some(name.clone()),
+                        path: Some(name.clone()),
+                    }],
+                    host: RefCell::default(),
+                    port: Cell::default(),
+                }
+            })
+            .collect();
+
+        let vdisks = (0..count_vdisks)
+            .map(|id| {
+                let replicas = (0..count_replicas)
+                    .map(|r| {
+                        let n = ((id + r) % count_nodes).to_string();
+                        Replica {
+                            node: Some(n.clone()),
+                            disk: Some(n.clone()),
+                        }
+                    })
+                    .collect();
+                VDisk {
+                    id: Some(id as i32),
+                    replicas,
+                }
+            })
+            .collect();
+
+        let config = ClusterConfig { nodes, vdisks };
+        config
+    }
+}

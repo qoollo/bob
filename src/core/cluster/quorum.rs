@@ -152,6 +152,8 @@ impl QuorumCluster {
 }
 
 impl Cluster for QuorumCluster {
+
+//todo check duplicate data = > return error???
     fn put_clustered(&self, key: BobKey, data: BobData) -> Put {
         let l_quorum = self.quorum as usize;
         let mapper = self.mapper.clone();
@@ -272,6 +274,7 @@ impl Cluster for QuorumCluster {
         Put(p.boxed())
     }
 
+//todo check no data (no error)
     fn get_clustered(&self, key: BobKey) -> Get {
         let mapper = self.mapper.clone();
         let l_quorim = self.quorum as usize;
@@ -333,11 +336,8 @@ pub mod tests {
         backend::core::Backend,
         bob_client::BobClient,
         configs::{
-            cluster::{
-                ClusterConfig, ClusterConfigYaml, Node as ConfigNode, NodeDisk, Replica,
-                VDisk as VDiskConfig,
-            },
-            node::{NodeConfig, NodeConfigYaml},
+            cluster::{ClusterConfig, ClusterConfigYaml,tests::cluster_config},
+            node::{NodeConfig, NodeConfigYaml, tests::node_config},
         },
         data::{BobData, BobKey, BobMeta, Node, VDisk, VDiskId},
         mapper::VDiskMapper,
@@ -345,7 +345,6 @@ pub mod tests {
     use log4rs;
 
     use futures03::executor::{ThreadPool, ThreadPoolBuilder};
-    use std::cell::{Cell, RefCell};
     use std::sync::Arc;
     use sup::*;
 
@@ -380,13 +379,30 @@ pub mod tests {
             });
         }
 
+        pub fn get_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
+            let cl = node.clone();
+            client.expect_get().returning(move |_key| {
+                call.get_inc();
+                tests::get_ok(cl.clone())
+            });
+        }
+
+        pub fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
+            let cl = node.clone();
+            client.expect_get().returning(move |_key| {
+                call.get_inc();
+                tests::get_err(cl.clone())
+            });
+        }
         pub struct CountCall {
             put_count: AtomicU64,
+            get_count: AtomicU64,
         }
         impl CountCall {
             pub fn new() -> Self {
                 CountCall {
                     put_count: AtomicU64::new(0),
+                    get_count: AtomicU64::new(0),
                 }
             }
             pub fn put_inc(&self) {
@@ -395,71 +411,17 @@ pub mod tests {
             pub fn put_count(&self) -> u32 {
                 self.put_count.load(Ordering::Relaxed) as u32
             }
+            pub fn get_inc(&self) {
+                self.get_count.fetch_add(1, Ordering::SeqCst);
+            }
+            pub fn get_count(&self) -> u32 {
+                self.get_count.load(Ordering::Relaxed) as u32
+            }
         }
     }
 
     fn get_pool() -> ThreadPool {
         ThreadPoolBuilder::new().pool_size(1).create().unwrap()
-    }
-
-    fn node_config(quorum: u8) -> NodeConfig {
-        let config = NodeConfig {
-            log_config: Some("".to_string()),
-            name: Some("0".to_string()),
-            quorum: Some(quorum),
-            timeout: Some("3sec".to_string()),
-            check_interval: Some("3sec".to_string()),
-            cluster_policy: Some("quorum".to_string()),
-            ping_threads_count: Some(4),
-            grpc_buffer_bound: Some(4),
-            backend_type: Some("in_memory".to_string()),
-            pearl: None,
-            metrics: None,
-            bind_ref: RefCell::default(),
-            timeout_ref: Cell::default(),
-            check_ref: Cell::default(),
-            disks_ref: RefCell::default(),
-        };
-        config
-    }
-
-    fn cluster_config(count_nodes: u8, count_vdisks: u8, count_replicas: u8) -> ClusterConfig {
-        let nodes = (0..count_nodes)
-            .map(|id| {
-                let name = id.to_string();
-                ConfigNode {
-                    name: Some(name.clone()),
-                    address: Some("1".to_string()),
-                    disks: vec![NodeDisk {
-                        name: Some(name.clone()),
-                        path: Some(name.clone()),
-                    }],
-                    host: RefCell::default(),
-                    port: Cell::default(),
-                }
-            })
-            .collect();
-
-        let vdisks = (0..count_vdisks)
-            .map(|id| {
-                let replicas = (0..count_replicas)
-                    .map(|r| {
-                        let n = ((id + r) % count_nodes).to_string();
-                        Replica {
-                            node: Some(n.clone()),
-                            disk: Some(n.clone()),
-                        }
-                    })
-                    .collect();
-                VDiskConfig {
-                    id: Some(id as i32),
-                    replicas,
-                }
-            })
-            .collect();
-
-        let config = ClusterConfig { nodes, vdisks };
-        config
     }
 
     fn prepare_configs(
@@ -468,7 +430,7 @@ pub mod tests {
         count_replicas: u8,
         quorum: u8,
     ) -> (Vec<VDisk>, NodeConfig, ClusterConfig) {
-        let node = node_config(quorum);
+        let node = node_config("0", quorum);
         let cluster = cluster_config(count_nodes, count_vdisks, count_replicas);
         NodeConfigYaml::check(&cluster, &node).unwrap();
         let vdisks = ClusterConfigYaml::convert(&cluster).unwrap();
@@ -510,9 +472,14 @@ pub mod tests {
                         |client: &mut BobClient, n: Node, c: Arc<CountCall>, op: (bool, bool)| {
                             ping_ok(client, n.clone());
                             if op.0 {
-                                put_ok(client, n.clone(), c);
+                                put_ok(client, n.clone(), c.clone());
                             } else {
-                                put_err(client, n.clone(), c);
+                                put_err(client, n.clone(), c.clone());
+                            }
+                            if op.1 {
+                                get_ok(client, n.clone(), c);
+                            } else {
+                                get_err(client, n.clone(), c);
                             }
                         };
                     f(client, n.clone(), call.clone(), op.clone());
@@ -528,6 +495,10 @@ pub mod tests {
     }
 
     type Call = Box<dyn Fn(&mut BobClient, Node, Arc<CountCall>)>;
+
+    //////////////////////////////////////////////////
+    ////////////////////////////////////////////////// put
+    //////////////////////////////////////////////////
 
     /// 1 node, 1 vdisk, 1 replics in vdisk, quorum = 1
     /// put data on node
@@ -913,5 +884,61 @@ pub mod tests {
                 .0,
         );
         assert!(get.is_ok());
+    }
+
+    //////////////////////////////////////////////////
+    ////////////////////////////////////////////////// get
+    //////////////////////////////////////////////////
+
+    /// 1 node, 1 vdisk, 1 replics in vdisk, quorum = 1
+    /// get data => ok
+    #[test]
+    fn simple_one_node_get_ok() {
+        // log4rs::init_file("./logger.yaml", Default::default()).unwrap();
+        let mut pool = get_pool();
+        let (vdisks, node, cluster) = prepare_configs(1, 1, 1, 1);
+
+        let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![create_ok_node("0", (true, true))];
+
+        let calls: Vec<_> = actions
+            .iter()
+            .map(|(name, _, call)| (name.clone(), call.clone()))
+            .collect();
+        let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
+
+        let result = pool.run(
+            quorum
+                .get_clustered(BobKey::new(101))
+                .0,
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(1, calls[0].1.get_count());
+    }
+
+    /// 1 node, 1 vdisk, 1 replics in vdisk, quorum = 1
+    /// get no data => err
+    #[test]
+    fn simple_one_node_get_err() {
+        log4rs::init_file("./logger.yaml", Default::default()).unwrap();
+        let mut pool = get_pool();
+        let (vdisks, node, cluster) = prepare_configs(1, 1, 1, 1);
+
+        let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![create_ok_node("0", (true, false))];
+
+        let calls: Vec<_> = actions
+            .iter()
+            .map(|(name, _, call)| (name.clone(), call.clone()))
+            .collect();
+        let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
+
+        let result = pool.run(
+            quorum
+                .get_clustered(BobKey::new(102))
+                .0,
+        );
+
+        assert!(result.is_err());
+        assert_eq!(1, calls[0].1.get_count());
     }
 }
