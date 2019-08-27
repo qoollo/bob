@@ -7,6 +7,7 @@ use crate::core::{
     data::{print_vec, BobData, BobKey, ClusterResult, Node},
     link_manager::LinkManager,
     mapper::VDiskMapper,
+    bob_client::GetResult,
 };
 use std::sync::Arc;
 
@@ -32,7 +33,6 @@ impl QuorumCluster {
 
     pub(crate) fn calc_target_nodes(&self, key: BobKey) -> Vec<Node> {
         let target_vdisk = self.mapper.get_vdisk(key);
-
         target_vdisk.nodes.clone()
     }
 
@@ -120,6 +120,34 @@ impl QuorumCluster {
             ));
         }
         Ok(())
+    }
+
+    fn get_filter_result(key: BobKey, results: Vec<GetResult>)
+        -> (Option<ClusterResult<BackendGetResult>>, String)
+    {
+        let mut sup = String::default();
+        results.iter().for_each(|r| {
+            if let Err(e) = r {
+                trace!("GET[{}] failed result: {:?}", key, e);
+                sup = format!("{}, {:?}", sup.clone(), e)
+            } else if let Ok(e) = r {
+                trace!("GET[{}] success result from: {:?}", key, e.node);
+            }
+        });
+
+        (results.into_iter().filter_map(|r| r.ok()).max_by_key(|r|r.result.data.meta.timestamp), sup)
+    }
+
+    async fn get_all(key: BobKey, target_nodes: Vec<Node>) -> Vec<GetResult> {
+        LinkManager::call_nodes(&target_nodes, |conn| conn.get(key).0)
+            .into_iter()
+            .collect::<FuturesUnordered<_>>()
+            .fold(vec![], |mut acc, r| {
+                acc.push(r);
+                ready(acc)
+            })
+            .boxed()
+            .await
     }
 }
 
@@ -245,45 +273,55 @@ impl Cluster for QuorumCluster {
     }
 
     fn get_clustered(&self, key: BobKey) -> Get {
-        let target_nodes = self.calc_target_nodes(key);
+        let mapper = self.mapper.clone();
+        let l_quorim = self.quorum as usize;
 
+        let all_nodes: Vec<_> = self.calc_target_nodes(key);
+
+        let target_nodes: Vec<_> = all_nodes
+            .iter()
+            .take(l_quorim)
+            .map(|n| n.clone())
+            .collect();
+        
         debug!(
             "GET[{}]: Nodes for fan out: {:?}",
             key,
             print_vec(&target_nodes)
         );
-        let reqs = LinkManager::call_nodes(&target_nodes, |conn| conn.get(key).0);
 
-        let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
+        let g = async move{
+            let acc = Self::get_all(key, target_nodes).await;
+            debug!("GET[{}] cluster ans: {:?}", key, acc);
 
-        let w = t
-            .fold(vec![], |mut acc, r| {
-                acc.push(r);
-                ready(acc)
-            })
-            .map(move |acc| {
-                let mut sup = String::default();
-                acc.iter().for_each(|r| {
-                    if let Err(e) = r {
-                        trace!("GET[{}] failed result: {:?}", key, e);
-                        sup = format!("{}, {:?}", sup.clone(), e)
-                    } else if let Ok(e) = r {
-                        trace!("GET[{}] success result from: {:?}", key, e.node);
-                    }
-                });
+            let (result, err) = Self::get_filter_result(key, acc);
+            if let Some(answer) = result {
+                debug!("GET[{}] take data from node: {}, timestamp: {}", key, answer.node, answer.result.data.meta.timestamp); // TODO move meta
+                return Ok(answer.result);
+            }
+            debug!("GET[{}] no success result", key);
 
-                let r = acc.into_iter().find(|r| r.is_ok());
-                if let Some(answer) = r {
-                    match answer {
-                        Ok(ClusterResult { result: i, .. }) => Ok::<BackendGetResult, _>(i),
-                        Err(ClusterResult { result: i, .. }) => Err::<_, backend::Error>(i),
-                    }
-                } else {
-                    debug!("GET[{}] no success result", key);
-                    Err::<_, backend::Error>(backend::Error::Failed(sup))
-                }
-            });
-        Get(w.boxed())
+            let mut sup_nodes = Self::calc_sup_nodes(mapper, &all_nodes, 1); // TODO take from config
+            sup_nodes.append(&mut all_nodes.into_iter().skip(l_quorim).collect());
+
+            debug!(
+                "GET[{}]: Sup nodes for fan out: {:?}",
+                key,
+                print_vec(&sup_nodes)
+            );
+
+            let second_attemp = Self::get_all(key, sup_nodes).await;
+            debug!("GET[{}] cluster ans sup: {:?}", key, second_attemp);
+
+            let (result_sup, err_sup) = Self::get_filter_result(key, second_attemp);
+            if let Some(answer) = result_sup {
+                debug!("GET[{}] take data from node: {}, timestamp: {}", key, answer.node, answer.result.data.meta.timestamp); // TODO move meta
+                return Ok(answer.result);
+            }
+
+            Err::<_, backend::Error>(backend::Error::Failed(err + &err_sup))
+        };
+        Get(g.boxed())
     }
 }
 
