@@ -379,11 +379,11 @@ pub mod tests {
             });
         }
 
-        pub fn get_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
+        pub fn get_ok_timestamp(client: &mut BobClient, node: Node, call: Arc<CountCall>, timestamp: u32) {
             let cl = node.clone();
             client.expect_get().returning(move |_key| {
                 call.get_inc();
-                tests::get_ok(cl.clone())
+                tests::get_ok(cl.clone(), timestamp)
             });
         }
 
@@ -464,12 +464,16 @@ pub mod tests {
     }
 
     fn create_ok_node(name: &str, op: (bool, bool)) -> (&str, Call, Arc<CountCall>) {
+        create_node(name, (op.0, op.1, 0))
+    }
+
+    fn create_node(name: &str, op: (bool, bool, u32)) -> (&str, Call, Arc<CountCall>) {
         (
             name,
             Box::new(
                 move |client: &mut BobClient, n: Node, call: Arc<CountCall>| {
                     let f =
-                        |client: &mut BobClient, n: Node, c: Arc<CountCall>, op: (bool, bool)| {
+                        |client: &mut BobClient, n: Node, c: Arc<CountCall>, op: (bool, bool, u32)| {
                             ping_ok(client, n.clone());
                             if op.0 {
                                 put_ok(client, n.clone(), c.clone());
@@ -477,7 +481,7 @@ pub mod tests {
                                 put_err(client, n.clone(), c.clone());
                             }
                             if op.1 {
-                                get_ok(client, n.clone(), c);
+                                get_ok_timestamp(client, n.clone(), c, op.2);
                             } else {
                                 get_err(client, n.clone(), c);
                             }
@@ -939,6 +943,64 @@ pub mod tests {
         );
 
         assert!(result.is_err());
+        assert_eq!(1, calls[0].1.get_count());
+    }
+
+    /// 2 nodes, 1 vdisk, 2 replics in vdisk, quorum = 2
+    /// get data from 2 nodes => get differ timetsmps => get max => ok
+    #[test]
+    fn simple_two_node_get_ok() {
+        // log4rs::init_file("./logger.yaml", Default::default()).unwrap();
+        let mut pool = get_pool();
+        let (vdisks, node, cluster) = prepare_configs(2, 1, 2, 2);
+
+        let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
+            create_node("0", (true, true, 0)),
+            create_node("1", (true, true, 1))];
+
+        let calls: Vec<_> = actions
+            .iter()
+            .map(|(name, _, call)| (name.clone(), call.clone()))
+            .collect();
+        let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
+
+        let result = pool.run(
+            quorum
+                .get_clustered(BobKey::new(110))
+                .0,
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(1, result.unwrap().data.meta.timestamp);
+        assert_eq!(1, calls[0].1.get_count());
+    }
+
+    /// 2 nodes, 2 vdisk, 1 replics in vdisk, quorum = 1
+    /// get data from 1 nodes => fail => read from sup node => ok
+    #[test]
+    fn simple_two_node_read_sup_get_ok() {
+        // log4rs::init_file("./logger.yaml", Default::default()).unwrap();
+        let mut pool = get_pool();
+        let (vdisks, node, cluster) = prepare_configs(2, 2, 1, 1);
+
+        let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
+            create_node("0", (true, false, 0)),
+            create_node("1", (true, true, 1))];
+
+        let calls: Vec<_> = actions
+            .iter()
+            .map(|(name, _, call)| (name.clone(), call.clone()))
+            .collect();
+        let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
+
+        let result = pool.run(
+            quorum
+                .get_clustered(BobKey::new(110))
+                .0,
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(1, result.unwrap().data.meta.timestamp);
         assert_eq!(1, calls[0].1.get_count());
     }
 }

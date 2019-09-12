@@ -395,12 +395,12 @@ pub mod tests {
         })
     }
 
-    pub fn get_ok(node: Node) -> Get {
+    pub fn get_ok(node: Node, timestamp: u32) -> Get {
         Get({
             ready(Ok(ClusterResult {
                 node,
                 result: BackendGetResult {
-                    data: BobData::new(vec![], BobMeta::new_stub()),
+                    data: BobData::new(vec![], BobMeta::new_value(timestamp)),
                 },
             }))
             .boxed()
