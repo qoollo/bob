@@ -1,4 +1,3 @@
-#![feature(async_await)]
 use bob::api::grpc::server;
 
 use bob::core::bob_client::BobClientFactory;

@@ -411,8 +411,7 @@ impl NodeConfigYaml {
     }
 }
 
-
-pub mod tests{
+pub mod tests {
     use super::*;
     pub fn node_config(name: &str, quorum: u8) -> NodeConfig {
         let config = NodeConfig {

@@ -21,9 +21,8 @@ mod b_client {
     use tower_hyper::{client, util};
 
     use futures03::{
-        compat::Future01CompatExt, future::ready, future::FutureExt as OtherFutureExt, TryFutureExt,
+        compat::Future01CompatExt, future::ready, future::FutureExt as OtherFutureExt,
     };
-    use futures_timer::ext::FutureExt as TimerExt;
     use mockall::*;
     use tower::buffer::Buffer;
 
@@ -261,18 +260,17 @@ mod b_client {
             } else {
                 client
                     .ping(Request::new(Null {}))
+                    .timeout(to)
                     .map(move |_| ClusterResult {
                         node: n1,
                         result: BackendPingResult {},
                     })
-                    .map_err(|e| Error::StorageError(format!("ping operation error: {}", e)))
-                    .compat()
-                    .boxed()
-                    .timeout(to)
                     .map_err(move |e| ClusterResult {
                         node: n2.clone(),
-                        result: e,
+                        result: Error::StorageError(format!("ping operation error: {}", e)),
                     })
+                    .compat()
+                    .boxed()
                     .await
             }
         }
@@ -358,7 +356,7 @@ pub mod tests {
     use crate::core::{
         backend::core::{BackendPingResult, BackendPutResult},
         backend::Error,
-        data::{ClusterResult, Node, BobData, BobMeta},
+        data::{BobData, BobMeta, ClusterResult, Node},
     };
     use futures03::{future::ready, future::FutureExt as OtherFutureExt};
 

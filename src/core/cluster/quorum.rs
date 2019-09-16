@@ -2,12 +2,12 @@ use crate::api::grpc::PutOptions;
 use crate::core::{
     backend,
     backend::core::{Backend, BackendGetResult, BackendOperation, BackendPutResult, Get, Put},
+    bob_client::GetResult,
     cluster::Cluster,
     configs::node::NodeConfig,
     data::{print_vec, BobData, BobKey, ClusterResult, Node},
     link_manager::LinkManager,
     mapper::VDiskMapper,
-    bob_client::GetResult,
 };
 use std::sync::Arc;
 
@@ -122,9 +122,10 @@ impl QuorumCluster {
         Ok(())
     }
 
-    fn get_filter_result(key: BobKey, results: Vec<GetResult>)
-        -> (Option<ClusterResult<BackendGetResult>>, String)
-    {
+    fn get_filter_result(
+        key: BobKey,
+        results: Vec<GetResult>,
+    ) -> (Option<ClusterResult<BackendGetResult>>, String) {
         let mut sup = String::default();
         results.iter().for_each(|r| {
             if let Err(e) = r {
@@ -135,7 +136,13 @@ impl QuorumCluster {
             }
         });
 
-        (results.into_iter().filter_map(|r| r.ok()).max_by_key(|r|r.result.data.meta.timestamp), sup)
+        (
+            results
+                .into_iter()
+                .filter_map(|r| r.ok())
+                .max_by_key(|r| r.result.data.meta.timestamp),
+            sup,
+        )
     }
 
     async fn get_all(key: BobKey, target_nodes: Vec<Node>) -> Vec<GetResult> {
@@ -152,8 +159,7 @@ impl QuorumCluster {
 }
 
 impl Cluster for QuorumCluster {
-
-//todo check duplicate data = > return error???
+    //todo check duplicate data = > return error???
     fn put_clustered(&self, key: BobKey, data: BobData) -> Put {
         let l_quorum = self.quorum as usize;
         let mapper = self.mapper.clone();
@@ -274,32 +280,31 @@ impl Cluster for QuorumCluster {
         Put(p.boxed())
     }
 
-//todo check no data (no error)
+    //todo check no data (no error)
     fn get_clustered(&self, key: BobKey) -> Get {
         let mapper = self.mapper.clone();
         let l_quorim = self.quorum as usize;
 
         let all_nodes: Vec<_> = self.calc_target_nodes(key);
 
-        let target_nodes: Vec<_> = all_nodes
-            .iter()
-            .take(l_quorim)
-            .map(|n| n.clone())
-            .collect();
-        
+        let target_nodes: Vec<_> = all_nodes.iter().take(l_quorim).map(|n| n.clone()).collect();
+
         debug!(
             "GET[{}]: Nodes for fan out: {:?}",
             key,
             print_vec(&target_nodes)
         );
 
-        let g = async move{
+        let g = async move {
             let acc = Self::get_all(key, target_nodes).await;
             debug!("GET[{}] cluster ans: {:?}", key, acc);
 
             let (result, err) = Self::get_filter_result(key, acc);
             if let Some(answer) = result {
-                debug!("GET[{}] take data from node: {}, timestamp: {}", key, answer.node, answer.result.data.meta.timestamp); // TODO move meta
+                debug!(
+                    "GET[{}] take data from node: {}, timestamp: {}",
+                    key, answer.node, answer.result.data.meta.timestamp
+                ); // TODO move meta
                 return Ok(answer.result);
             }
             debug!("GET[{}] no success result", key);
@@ -318,7 +323,10 @@ impl Cluster for QuorumCluster {
 
             let (result_sup, err_sup) = Self::get_filter_result(key, second_attemp);
             if let Some(answer) = result_sup {
-                debug!("GET[{}] take data from node: {}, timestamp: {}", key, answer.node, answer.result.data.meta.timestamp); // TODO move meta
+                debug!(
+                    "GET[{}] take data from node: {}, timestamp: {}",
+                    key, answer.node, answer.result.data.meta.timestamp
+                ); // TODO move meta
                 return Ok(answer.result);
             }
 
@@ -336,8 +344,8 @@ pub mod tests {
         backend::core::Backend,
         bob_client::BobClient,
         configs::{
-            cluster::{ClusterConfig, ClusterConfigYaml,tests::cluster_config},
-            node::{NodeConfig, NodeConfigYaml, tests::node_config},
+            cluster::{tests::cluster_config, ClusterConfig, ClusterConfigYaml},
+            node::{tests::node_config, NodeConfig, NodeConfigYaml},
         },
         data::{BobData, BobKey, BobMeta, Node, VDisk, VDiskId},
         mapper::VDiskMapper,
@@ -379,7 +387,12 @@ pub mod tests {
             });
         }
 
-        pub fn get_ok_timestamp(client: &mut BobClient, node: Node, call: Arc<CountCall>, timestamp: u32) {
+        pub fn get_ok_timestamp(
+            client: &mut BobClient,
+            node: Node,
+            call: Arc<CountCall>,
+            timestamp: u32,
+        ) {
             let cl = node.clone();
             client.expect_get().returning(move |_key| {
                 call.get_inc();
@@ -472,20 +485,22 @@ pub mod tests {
             name,
             Box::new(
                 move |client: &mut BobClient, n: Node, call: Arc<CountCall>| {
-                    let f =
-                        |client: &mut BobClient, n: Node, c: Arc<CountCall>, op: (bool, bool, u32)| {
-                            ping_ok(client, n.clone());
-                            if op.0 {
-                                put_ok(client, n.clone(), c.clone());
-                            } else {
-                                put_err(client, n.clone(), c.clone());
-                            }
-                            if op.1 {
-                                get_ok_timestamp(client, n.clone(), c, op.2);
-                            } else {
-                                get_err(client, n.clone(), c);
-                            }
-                        };
+                    let f = |client: &mut BobClient,
+                             n: Node,
+                             c: Arc<CountCall>,
+                             op: (bool, bool, u32)| {
+                        ping_ok(client, n.clone());
+                        if op.0 {
+                            put_ok(client, n.clone(), c.clone());
+                        } else {
+                            put_err(client, n.clone(), c.clone());
+                        }
+                        if op.1 {
+                            get_ok_timestamp(client, n.clone(), c, op.2);
+                        } else {
+                            get_err(client, n.clone(), c);
+                        }
+                    };
                     f(client, n.clone(), call.clone(), op.clone());
                     client.expect_clone().returning(move || {
                         let mut cl = BobClient::default();
@@ -910,11 +925,7 @@ pub mod tests {
             .collect();
         let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
 
-        let result = pool.run(
-            quorum
-                .get_clustered(BobKey::new(101))
-                .0,
-        );
+        let result = pool.run(quorum.get_clustered(BobKey::new(101)).0);
 
         assert!(result.is_ok());
         assert_eq!(1, calls[0].1.get_count());
@@ -936,11 +947,7 @@ pub mod tests {
             .collect();
         let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
 
-        let result = pool.run(
-            quorum
-                .get_clustered(BobKey::new(102))
-                .0,
-        );
+        let result = pool.run(quorum.get_clustered(BobKey::new(102)).0);
 
         assert!(result.is_err());
         assert_eq!(1, calls[0].1.get_count());
@@ -956,7 +963,8 @@ pub mod tests {
 
         let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
             create_node("0", (true, true, 0)),
-            create_node("1", (true, true, 1))];
+            create_node("1", (true, true, 1)),
+        ];
 
         let calls: Vec<_> = actions
             .iter()
@@ -964,11 +972,7 @@ pub mod tests {
             .collect();
         let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
 
-        let result = pool.run(
-            quorum
-                .get_clustered(BobKey::new(110))
-                .0,
-        );
+        let result = pool.run(quorum.get_clustered(BobKey::new(110)).0);
 
         assert!(result.is_ok());
         assert_eq!(1, result.unwrap().data.meta.timestamp);
@@ -985,7 +989,8 @@ pub mod tests {
 
         let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
             create_node("0", (true, false, 0)),
-            create_node("1", (true, true, 1))];
+            create_node("1", (true, true, 1)),
+        ];
 
         let calls: Vec<_> = actions
             .iter()
@@ -993,11 +998,7 @@ pub mod tests {
             .collect();
         let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
 
-        let result = pool.run(
-            quorum
-                .get_clustered(BobKey::new(110))
-                .0,
-        );
+        let result = pool.run(quorum.get_clustered(BobKey::new(110)).0);
 
         assert!(result.is_ok());
         assert_eq!(1, result.unwrap().data.meta.timestamp);

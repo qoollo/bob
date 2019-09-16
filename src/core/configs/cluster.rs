@@ -404,8 +404,7 @@ impl ClusterConfigYaml {
     }
 }
 
-
-pub mod tests{
+pub mod tests {
     use super::*;
 
     pub fn cluster_config(count_nodes: u8, count_vdisks: u8, count_replicas: u8) -> ClusterConfig {
