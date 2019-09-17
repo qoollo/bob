@@ -1,4 +1,4 @@
-use crate::api::grpc::{BlobMeta, PutOptions};
+use crate::api::grpc::{BlobMeta, PutOptions, GetOptions};
 use crate::core::{
     bob_client::{BobClient, BobClientFactory},
     configs::cluster::Node as ConfigNode,
@@ -92,8 +92,42 @@ impl std::fmt::Display for BobKey {
 
 bitflags! {
     #[derive(Default)]
-    pub struct BobOptions: u8 {
+    pub struct BobFlags: u8 {
         const FORCE_NODE = 0x01;
+    }
+}
+
+#[derive(Debug)]
+pub struct BobOptions {
+    pub flags: BobFlags,
+    pub remote_nodes: Vec<String>,
+}
+
+impl BobOptions {
+    pub(crate) fn new_put(options: Option<PutOptions>) -> Self {
+        let mut flags: BobFlags = Default::default();
+        let mut remote_nodes = vec![];
+        if let Some(vopts) = options {
+            if vopts.force_node {
+                flags |= BobFlags::FORCE_NODE;
+            }
+            remote_nodes = vopts.remote_nodes;
+        }
+        BobOptions {flags, remote_nodes}
+    }
+
+    pub(crate) fn new_get(options: Option<GetOptions>) -> Self {
+        let mut flags: BobFlags = Default::default();
+        if let Some(vopts) = options {
+            if vopts.force_node {
+                flags |= BobFlags::FORCE_NODE;
+            }
+        }
+        BobOptions {flags, remote_nodes: vec![]}
+    }
+
+    pub(crate) fn have_remote_node(&self) -> bool {
+        self.remote_nodes.len() > 0 
     }
 }
 

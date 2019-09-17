@@ -4,7 +4,7 @@ use crate::core::{
     bob_client::BobClientFactory,
     cluster::{get_cluster, Cluster},
     configs::node::NodeConfig,
-    data::{BobData, BobKey, BobOptions},
+    data::{BobData, BobKey, BobOptions, BobFlags},
     link_manager::LinkManager,
     mapper::VDiskMapper,
     metrics::*,
@@ -89,7 +89,7 @@ impl Grinder {
         data: BobData,
         opts: BobOptions,
     ) -> Result<BackendPutResult, BobError> {
-        if opts.contains(BobOptions::FORCE_NODE) {
+        if opts.flags.contains(BobFlags::FORCE_NODE) {
             debug!(
                 "PUT[{}] flag FORCE_NODE is on - will handle it by local node. Put params: {:?}",
                 key, opts
@@ -97,7 +97,7 @@ impl Grinder {
             CLIENT_PUT_COUNTER.count(1);
             let time = CLIENT_PUT_TIMER.start();
 
-            let result = self.backend.put(key, data, opts).0.await.map_err(|err| {
+            let result = self.backend.put(key, data, opts).await.map_err(|err| {
                 GRINDER_PUT_ERROR_COUNT_COUNTER.count(1);
                 BobError::Local(err)
             });
@@ -125,7 +125,7 @@ impl Grinder {
     }
 
     pub async fn get(&self, key: BobKey, opts: BobOptions) -> Result<BackendGetResult, BobError> {
-        if opts.contains(BobOptions::FORCE_NODE) {
+        if opts.flags.contains(BobFlags::FORCE_NODE) {
             CLIENT_GET_COUNTER.count(1);
             let time = CLIENT_GET_TIMER.start();
 
@@ -133,7 +133,7 @@ impl Grinder {
                 "GET[{}] flag FORCE_NODE is on - will handle it by local node. Get params: {:?}",
                 key, opts
             );
-            let result = self.backend.get(key, opts).0.await.map_err(|err| {
+            let result = self.backend.get(key, opts).await.map_err(|err| {
                 CLIENT_GET_ERROR_COUNT_COUNTER.count(1);
                 BobError::Local(err)
             });
