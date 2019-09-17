@@ -89,7 +89,7 @@ fn main() {
                 path: d.path(),
             })
             .collect();
-        mapper = VDiskMapper::new2(vdisks.to_vec(), name, &disks, &cluster);
+        mapper = VDiskMapper::new_direct(vdisks.to_vec(), name, &disks, &cluster);
         addr = finded.address().parse().unwrap();
     }
 

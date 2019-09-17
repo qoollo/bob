@@ -13,8 +13,8 @@ use std::sync::Arc;
 use crate::core::cluster::{quorum::*, simple::*};
 
 pub trait Cluster {
-    fn put_clustered(&self, key: BobKey, data: BobData) -> Put;
-    fn get_clustered(&self, key: BobKey) -> Get;
+    fn put_clustered_async(&self, key: BobKey, data: BobData) -> Put;
+    fn get_clustered_async(&self, key: BobKey) -> Get;
 }
 
 pub fn get_cluster(

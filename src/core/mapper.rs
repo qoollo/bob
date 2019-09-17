@@ -15,20 +15,14 @@ pub struct VDiskMapper {
 
 impl VDiskMapper {
     pub fn new(vdisks: Vec<VDisk>, config: &NodeConfig, cluster: &ClusterConfig) -> VDiskMapper {
-        let (nodes, vdisks) = Self::prepare_nodes(vdisks, &cluster);
-
-        VDiskMapper {
+        VDiskMapper::new_direct(
             vdisks,
-            local_node_name: config.name.as_ref().unwrap().to_string(),
-            disks: config
-                .disks()
-                .iter()
-                .map(|d| DiskPath::new(&d.name.clone(), &d.path.clone()))
-                .collect(),
-            nodes,
-        }
+            &config.name.as_ref().unwrap().to_string(),
+            &config.disks(),
+            cluster,
+        )
     }
-    pub fn new2(
+    pub fn new_direct(
         vdisks: Vec<VDisk>,
         node_name: &str,
         disks: &[ConfigDiskPath],

@@ -160,7 +160,7 @@ impl QuorumCluster {
 
 impl Cluster for QuorumCluster {
     //todo check duplicate data = > return error???
-    fn put_clustered(&self, key: BobKey, data: BobData) -> Put {
+    fn put_clustered_async(&self, key: BobKey, data: BobData) -> Put {
         let l_quorum = self.quorum as usize;
         let mapper = self.mapper.clone();
         let vdisk_id = self.mapper.get_vdisk(key).id.clone(); // remove search vdisk (not vdisk id)
@@ -281,7 +281,7 @@ impl Cluster for QuorumCluster {
     }
 
     //todo check no data (no error)
-    fn get_clustered(&self, key: BobKey) -> Get {
+    fn get_clustered_async(&self, key: BobKey) -> Get {
         let mapper = self.mapper.clone();
         let l_quorim = self.quorum as usize;
 
@@ -538,7 +538,7 @@ pub mod tests {
 
         let result = pool.run(
             quorum
-                .put_clustered(BobKey::new(1), BobData::new(vec![], BobMeta::new_value(11)))
+                .put_clustered_async(BobKey::new(1), BobData::new(vec![], BobMeta::new_value(11)))
                 .0,
         );
 
@@ -577,7 +577,7 @@ pub mod tests {
 
         let result = pool.run(
             quorum
-                .put_clustered(BobKey::new(2), BobData::new(vec![], BobMeta::new_value(11)))
+                .put_clustered_async(BobKey::new(2), BobData::new(vec![], BobMeta::new_value(11)))
                 .0,
         );
 
@@ -619,7 +619,7 @@ pub mod tests {
 
         let mut result = pool.run(
             quorum
-                .put_clustered(BobKey::new(3), BobData::new(vec![], BobMeta::new_value(11)))
+                .put_clustered_async(BobKey::new(3), BobData::new(vec![], BobMeta::new_value(11)))
                 .0,
         );
 
@@ -629,7 +629,7 @@ pub mod tests {
 
         result = pool.run(
             quorum
-                .put_clustered(BobKey::new(4), BobData::new(vec![], BobMeta::new_value(11)))
+                .put_clustered_async(BobKey::new(4), BobData::new(vec![], BobMeta::new_value(11)))
                 .0,
         );
 
@@ -678,7 +678,7 @@ pub mod tests {
 
         let result = pool.run(
             quorum
-                .put_clustered(BobKey::new(5), BobData::new(vec![], BobMeta::new_value(11)))
+                .put_clustered_async(BobKey::new(5), BobData::new(vec![], BobMeta::new_value(11)))
                 .0,
         );
 
@@ -718,7 +718,7 @@ pub mod tests {
 
         let result = pool.run(
             quorum
-                .put_clustered(BobKey::new(5), BobData::new(vec![], BobMeta::new_value(11)))
+                .put_clustered_async(BobKey::new(5), BobData::new(vec![], BobMeta::new_value(11)))
                 .0,
         );
 
@@ -759,7 +759,7 @@ pub mod tests {
 
         let result = pool.run(
             quorum
-                .put_clustered(BobKey::new(0), BobData::new(vec![], BobMeta::new_value(11)))
+                .put_clustered_async(BobKey::new(0), BobData::new(vec![], BobMeta::new_value(11)))
                 .0,
         );
 
@@ -801,7 +801,7 @@ pub mod tests {
 
         let result = pool.run(
             quorum
-                .put_clustered(BobKey::new(0), BobData::new(vec![], BobMeta::new_value(11)))
+                .put_clustered_async(BobKey::new(0), BobData::new(vec![], BobMeta::new_value(11)))
                 .0,
         );
 
@@ -843,7 +843,7 @@ pub mod tests {
 
         let result = pool.run(
             quorum
-                .put_clustered(BobKey::new(0), BobData::new(vec![], BobMeta::new_value(11)))
+                .put_clustered_async(BobKey::new(0), BobData::new(vec![], BobMeta::new_value(11)))
                 .0,
         );
 
@@ -885,7 +885,7 @@ pub mod tests {
 
         let result = pool.run(
             quorum
-                .put_clustered(BobKey::new(0), BobData::new(vec![], BobMeta::new_value(11)))
+                .put_clustered_async(BobKey::new(0), BobData::new(vec![], BobMeta::new_value(11)))
                 .0,
         );
 
@@ -925,7 +925,7 @@ pub mod tests {
             .collect();
         let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
 
-        let result = pool.run(quorum.get_clustered(BobKey::new(101)).0);
+        let result = pool.run(quorum.get_clustered_async(BobKey::new(101)).0);
 
         assert!(result.is_ok());
         assert_eq!(1, calls[0].1.get_count());
@@ -947,7 +947,7 @@ pub mod tests {
             .collect();
         let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
 
-        let result = pool.run(quorum.get_clustered(BobKey::new(102)).0);
+        let result = pool.run(quorum.get_clustered_async(BobKey::new(102)).0);
 
         assert!(result.is_err());
         assert_eq!(1, calls[0].1.get_count());
@@ -972,7 +972,7 @@ pub mod tests {
             .collect();
         let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
 
-        let result = pool.run(quorum.get_clustered(BobKey::new(110)).0);
+        let result = pool.run(quorum.get_clustered_async(BobKey::new(110)).0);
 
         assert!(result.is_ok());
         assert_eq!(1, result.unwrap().data.meta.timestamp);
@@ -998,7 +998,7 @@ pub mod tests {
             .collect();
         let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
 
-        let result = pool.run(quorum.get_clustered(BobKey::new(110)).0);
+        let result = pool.run(quorum.get_clustered_async(BobKey::new(110)).0);
 
         assert!(result.is_ok());
         assert_eq!(1, result.unwrap().data.meta.timestamp);

@@ -34,7 +34,7 @@ impl SimpleQuorumCluster {
 }
 
 impl Cluster for SimpleQuorumCluster {
-    fn put_clustered(&self, key: BobKey, data: BobData) -> Put {
+    fn put_clustered_async(&self, key: BobKey, data: BobData) -> Put {
         let target_nodes = self.calc_target_nodes(key);
 
         debug!(
@@ -98,7 +98,7 @@ impl Cluster for SimpleQuorumCluster {
         Put(q.boxed())
     }
 
-    fn get_clustered(&self, key: BobKey) -> Get {
+    fn get_clustered_async(&self, key: BobKey) -> Get {
         let target_nodes = self.calc_target_nodes(key);
 
         debug!(

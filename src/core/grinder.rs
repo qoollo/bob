@@ -113,7 +113,7 @@ impl Grinder {
 
             let result = self
                 .cluster
-                .put_clustered(key, data)
+                .put_clustered_async(key, data)
                 .0
                 .await
                 .map_err(|err| {
@@ -148,10 +148,15 @@ impl Grinder {
             let time = GRINDER_GET_TIMER.start();
 
             debug!("GET[{}] will route to cluster", key);
-            let result = self.cluster.get_clustered(key).0.await.map_err(|err| {
-                GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
-                BobError::Cluster(err)
-            });
+            let result = self
+                .cluster
+                .get_clustered_async(key)
+                .0
+                .await
+                .map_err(|err| {
+                    GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
+                    BobError::Cluster(err)
+                });
 
             GRINDER_GET_TIMER.stop(time);
             result
