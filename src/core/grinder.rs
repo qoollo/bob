@@ -4,13 +4,13 @@ use crate::core::{
     bob_client::BobClientFactory,
     cluster::{get_cluster, Cluster},
     configs::node::NodeConfig,
-    data::{BobData, BobKey, BobOptions, VDiskMapper},
+    data::{BobData, BobKey, BobOptions},
     link_manager::LinkManager,
+    mapper::VDiskMapper,
+    metrics::*,
 };
 
 use futures03::task::Spawn;
-
-use crate::core::metrics::*;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -58,7 +58,7 @@ impl std::fmt::Display for BobError {
 }
 
 pub struct Grinder {
-    pub backend: Backend,
+    pub backend: Arc<Backend>,
     mapper: VDiskMapper,
 
     link_manager: Arc<LinkManager>,
@@ -72,11 +72,13 @@ impl Grinder {
         spawner: TSpawner,
     ) -> Grinder {
         let link = Arc::new(LinkManager::new(mapper.nodes(), config.check_interval()));
+        let backend = Arc::new(Backend::new(&mapper, config, spawner));
+
         Grinder {
-            backend: Backend::new(&mapper, config, spawner),
+            backend: backend.clone(),
             mapper: mapper.clone(),
             link_manager: link.clone(),
-            cluster: get_cluster(link, &mapper, config),
+            cluster: get_cluster(link, &mapper, config, backend),
         }
     }
     pub async fn run_backend(&self) -> Result<(), String> {
@@ -111,7 +113,7 @@ impl Grinder {
 
             let result = self
                 .cluster
-                .put_clustered(key, data)
+                .put_clustered_async(key, data)
                 .0
                 .await
                 .map_err(|err| {
@@ -146,10 +148,15 @@ impl Grinder {
             let time = GRINDER_GET_TIMER.start();
 
             debug!("GET[{}] will route to cluster", key);
-            let result = self.cluster.get_clustered(key).0.await.map_err(|err| {
-                GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
-                BobError::Cluster(err)
-            });
+            let result = self
+                .cluster
+                .get_clustered_async(key)
+                .0
+                .await
+                .map_err(|err| {
+                    GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
+                    BobError::Cluster(err)
+                });
 
             GRINDER_GET_TIMER.stop(time);
             result

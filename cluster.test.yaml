@@ -3,17 +3,17 @@ nodes:
       address: 127.0.0.1:20000
       disks:
         - name: disk1
-          path: /tmp/d1
+          path: /tmp/d1/d1
     - name: node2
       address: 127.0.0.1:20001
       disks:
         - name: disk1
-          path: /tmp/d2
+          path: /tmp/d1/d2
     - name: node3
       address: 127.0.0.1:20002
       disks:
         - name: disk1
-          path: /tmp/d3
+          path: /tmp/d1/d3
 vdisks:
     - id: 0
       replicas:

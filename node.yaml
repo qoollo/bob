@@ -3,7 +3,7 @@ name: local_node
 quorum: 1
 timeout: 3sec                 # ping t/o
 check_interval: 5000ms        # t/0 between pings
-cluster_policy: quorum        # quorum
+cluster_policy: simple        # simple, quorum
 ping_threads_count: 2
 grpc_buffer_bound: 100        # grpc client buffer bound. used for multi-thread
 backend_type: pearl            # in_memory, stub, pearl

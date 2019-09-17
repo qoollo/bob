@@ -6,7 +6,8 @@ mod tests {
     use crate::core::backend::core::BackendStorage;
     use crate::core::configs::cluster::ClusterConfigYaml;
     use crate::core::configs::node::NodeConfigYaml;
-    use crate::core::data::{BobData, BobKey, BobMeta, VDiskId, VDiskMapper};
+    use crate::core::data::{BobData, BobKey, BobMeta, VDiskId};
+    use crate::core::mapper::VDiskMapper;
     use futures03::executor::{ThreadPool, ThreadPoolBuilder};
     use std::{fs::remove_dir_all, path::PathBuf};
 
@@ -38,7 +39,7 @@ mod tests {
             .get_from_string(node_config, &cluster)
             .unwrap();
 
-        let mapper = VDiskMapper::new(vdisks.to_vec(), &node);
+        let mapper = VDiskMapper::new(vdisks.to_vec(), &node, &cluster);
         PearlBackend::new(mapper, &node, pool)
     }
 

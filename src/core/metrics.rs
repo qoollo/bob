@@ -143,7 +143,7 @@ pub fn init_counters(
     let mut metrics: Arc<dyn MetricsContainerBuilder + Send + Sync> = default_metrics();
     if let Some(config) = &node_config.metrics {
         if let Some(graphite) = &config.graphite {
-            let mut gr = Graphite::send_to(graphite).expect("cannot init metrics for Graphite");;
+            let mut gr = Graphite::send_to(graphite).expect("cannot init metrics for Graphite");
             if let Some(name) = &config.name {
                 gr = gr.named(name);
             }

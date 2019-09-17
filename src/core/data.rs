@@ -1,8 +1,27 @@
-use crate::api::grpc::BlobMeta;
+use crate::api::grpc::{BlobMeta, PutOptions};
 use crate::core::{
-    backend::core::BackendOperation,
-    configs::node::{DiskPath as ConfigDiskPath, NodeConfig},
+    bob_client::{BobClient, BobClientFactory},
+    configs::cluster::Node as ConfigNode,
 };
+use std::sync::{Arc, Mutex};
+
+impl PutOptions {
+    pub(crate) fn new_client() -> Self {
+        PutOptions {
+            remote_nodes: vec![],
+            force_node: true,
+            overwrite: false,
+        }
+    }
+
+    pub(crate) fn new_alien(nodes: &[String]) -> Self {
+        PutOptions {
+            remote_nodes: nodes.to_vec(),
+            force_node: true,
+            overwrite: false,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct ClusterResult<T> {
@@ -99,7 +118,33 @@ impl std::fmt::Display for VDiskId {
 pub struct VDisk {
     pub id: VDiskId,
     pub replicas: Vec<NodeDisk>,
+    pub nodes: Vec<Node>,
 }
+
+impl VDisk {
+    pub(crate) fn new(id: VDiskId, capacity: usize) -> Self {
+        VDisk {
+            id,
+            replicas: Vec::with_capacity(capacity),
+            nodes: vec![],
+        }
+    }
+
+    pub(crate) fn set_nodes(&mut self, nodes: &[Node]) {
+        nodes.iter().for_each(|node| {
+            if self
+                .replicas
+                .iter()
+                .find(|r| r.node_name == node.name)
+                .is_some()
+            {
+                //TODO check if some duplicates
+                self.nodes.push(node.clone());
+            }
+        })
+    }
+}
+
 impl std::fmt::Display for VDisk {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
@@ -135,103 +180,68 @@ impl std::fmt::Display for DiskPath {
         write!(f, "#{}-{}", self.name, self.path)
     }
 }
-#[derive(Debug, Clone)]
-pub struct VDiskMapper {
-    local_node_name: String,
-    disks: Vec<DiskPath>,
-    vdisks: Vec<VDisk>,
+impl From<&NodeDisk> for DiskPath {
+    fn from(node: &NodeDisk) -> Self {
+        DiskPath {
+            name: node.disk_name.clone(),
+            path: node.disk_path.clone(),
+        }
+    }
 }
 
-impl VDiskMapper {
-    pub fn new(vdisks: Vec<VDisk>, config: &NodeConfig) -> VDiskMapper {
-        VDiskMapper {
-            vdisks,
-            local_node_name: config.name.as_ref().unwrap().to_string(),
-            disks: config
-                .disks()
-                .iter()
-                .map(|d| DiskPath::new(&d.name.clone(), &d.path.clone()))
-                .collect(),
-        }
-    }
-    pub fn new2(vdisks: Vec<VDisk>, node_name: &str, disks: &[ConfigDiskPath]) -> VDiskMapper {
-        VDiskMapper {
-            vdisks,
-            local_node_name: node_name.to_string(),
-            disks: disks
-                .iter()
-                .map(|d| DiskPath::new(&d.name.clone(), &d.path.clone()))
-                .collect(),
-        }
-    }
-    pub fn vdisks_count(&self) -> u32 {
-        self.vdisks.len() as u32
-    }
+#[derive(Debug, Clone)]
+pub struct NodeDisk {
+    pub disk_path: String,
+    pub disk_name: String,
+    pub node_name: String,
+}
 
-    pub fn local_disks(&self) -> &Vec<DiskPath> {
-        &self.disks
-    }
-    pub fn get_disk_by_name(&self, name: &str) -> Option<&DiskPath> {
-        self.disks.iter().find(|d| d.name == name)
-    }
-    pub fn nodes(&self) -> Vec<Node> {
-        let mut nodes: Vec<Node> = self
-            .vdisks
-            .to_vec()
-            .iter()
-            .flat_map(|vdisk| vdisk.replicas.iter().map(|nd| nd.node.clone()))
-            .collect();
-        nodes.dedup();
-        nodes
-    }
-
-    pub fn get_vdisk(&self, key: BobKey) -> &VDisk {
-        let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
-        self.vdisks.iter().find(|disk| disk.id == vdisk_id).unwrap()
-    }
-
-    pub fn get_vdisks_by_disk(&self, disk: &str) -> Vec<VDiskId> {
-        self.vdisks
-            .iter()
-            .filter(|vdisk| {
-                vdisk.replicas.iter().any(|replica| {
-                    replica.node.name == self.local_node_name && replica.name == disk
-                })
-            })
-            .map(|vdisk| vdisk.id.clone())
-            .collect()
-    }
-
-    pub fn get_operation(&self, key: BobKey) -> BackendOperation {
-        let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
-        let vdisk = self.vdisks.iter().find(|disk| disk.id == vdisk_id).unwrap();
-        let disk = vdisk
-            .replicas
-            .iter()
-            .find(|disk| disk.node.name == self.local_node_name);
-        if disk.is_none() {
-            trace!(
-                "cannot find node: {} for vdisk: {}",
-                self.local_node_name,
-                vdisk_id
-            );
-            return BackendOperation::new_alien(vdisk_id);
-        }
-        BackendOperation::new_local(
-            vdisk_id,
-            DiskPath::new(&disk.unwrap().name, &disk.unwrap().path),
+impl std::fmt::Display for NodeDisk {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "{}-{}:{}",
+            self.node_name, self.disk_name, self.disk_path
         )
     }
 }
 
-#[derive(Clone, Eq)]
+impl PartialEq for NodeDisk {
+    fn eq(&self, other: &NodeDisk) -> bool {
+        self.node_name == other.node_name && self.disk_name == other.disk_name
+    }
+}
+
+pub fn print_vec<T: std::fmt::Display>(coll: &[T]) -> String {
+    coll.iter()
+        .map(|vd| vd.to_string())
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+#[derive(Clone)]
 pub struct Node {
     pub name: String,
     pub host: String,
     pub port: u16,
+
+    pub index: u16,
+    conn: Arc<Mutex<Option<BobClient>>>,
 }
 
 impl Node {
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+    pub fn new(name: &str, host: &str, port: u16) -> Self {
+        Node {
+            name: name.to_string(),
+            host: host.to_string(),
+            port,
+            index: 0,
+            conn: Arc::new(Mutex::new(None)),
+        }
+    }
     pub fn get_uri(&self) -> http::Uri {
         format!("http://{}:{}", self.host, self.port)
             .parse()
@@ -241,8 +251,49 @@ impl Node {
     pub(crate) fn counter_display(&self) -> String {
         format!("{}:{}", self.host.replace(".", "_"), self.port)
     }
+
+    pub(crate) fn set_connection(&self, client: BobClient) {
+        *self.conn.lock().unwrap() = Some(client);
+    }
+
+    pub(crate) fn clear_connection(&self) {
+        *self.conn.lock().unwrap() = None;
+    }
+
+    pub(crate) fn get_connection(&self) -> Option<BobClient> {
+        self.conn.lock().unwrap().clone()
+    }
+
+    pub(crate) async fn check(self, client_fatory: BobClientFactory) -> Result<(), ()> {
+        match self.get_connection() {
+            Some(mut conn) => {
+                conn.ping()
+                    .await
+                    .map(|_| debug!("All good with pinging node {:?}", self))
+                    .map_err(|_| {
+                        debug!("Got broken connection to node {:?}", self);
+                        self.clear_connection();
+                    })?;
+                Ok(())
+            }
+            None => {
+                debug!("will connect to {:?}", self);
+                client_fatory
+                    .produce(self.clone())
+                    .await
+                    .map(move |client| {
+                        self.set_connection(client);
+                    })
+            }
+        }
+    }
 }
 
+impl From<&ConfigNode> for Node {
+    fn from(node: &ConfigNode) -> Self {
+        Node::new(&node.name(), &node.host(), node.port())
+    }
+}
 impl std::fmt::Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}={}:{}", self.name, self.host, self.port)
@@ -268,28 +319,4 @@ impl PartialEq for Node {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct NodeDisk {
-    pub node: Node,
-    pub path: String,
-    pub name: String,
-}
-
-impl std::fmt::Display for NodeDisk {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}/{}-{}", self.node, self.name, self.path)
-    }
-}
-
-impl PartialEq for NodeDisk {
-    fn eq(&self, other: &NodeDisk) -> bool {
-        self.node == other.node && self.path == other.path && self.name == other.name
-    }
-}
-
-pub fn print_vec<T: std::fmt::Display>(coll: &[T]) -> String {
-    coll.iter()
-        .map(|vd| vd.to_string())
-        .collect::<Vec<_>>()
-        .join(",")
-}
+impl Eq for Node {}

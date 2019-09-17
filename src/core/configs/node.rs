@@ -343,7 +343,7 @@ impl Validatable for NodeConfig {
 pub struct NodeConfigYaml {}
 
 impl NodeConfigYaml {
-    pub fn check_cluster(&self, cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
+    pub fn check(cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
         let finded = cluster.nodes.iter().find(|n| n.name == node.name);
         if finded.is_none() {
             debug!("cannot find node: {} in cluster config", node.name());
@@ -372,6 +372,10 @@ impl NodeConfigYaml {
         }
         node.prepare(finded.unwrap())?;
         Ok(())
+    }
+
+    pub fn check_cluster(&self, cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
+        Self::check(cluster, node) //TODO
     }
 
     pub fn get(&self, filename: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
@@ -404,5 +408,29 @@ impl NodeConfigYaml {
                 Err(format!("config is not valid: {}", e))
             }
         }
+    }
+}
+
+pub mod tests {
+    use super::*;
+    pub fn node_config(name: &str, quorum: u8) -> NodeConfig {
+        let config = NodeConfig {
+            log_config: Some("".to_string()),
+            name: Some(name.to_string()),
+            quorum: Some(quorum),
+            timeout: Some("3sec".to_string()),
+            check_interval: Some("3sec".to_string()),
+            cluster_policy: Some("quorum".to_string()),
+            ping_threads_count: Some(4),
+            grpc_buffer_bound: Some(4),
+            backend_type: Some("in_memory".to_string()),
+            pearl: None,
+            metrics: None,
+            bind_ref: RefCell::default(),
+            timeout_ref: Cell::default(),
+            check_ref: Cell::default(),
+            disks_ref: RefCell::default(),
+        };
+        config
     }
 }

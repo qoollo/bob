@@ -46,8 +46,9 @@ message OpStatus {
 
 // Put operation options
 message PutOptions {
-   bool force_node = 1; // Force operation to be served by node to which it comes
-   bool overwrite = 2; // Overwrite data in case of id existens
+    repeated string remote_nodes = 1;
+    bool force_node = 2; // Force operation to be served by node to which it comes
+    bool overwrite = 3; // Overwrite data in case of id existens
 }
 
 // Get operation options

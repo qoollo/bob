@@ -7,7 +7,7 @@ use std::{
 
 use crate::core::{
     configs::reader::{Validatable, YamlBobConfigReader},
-    data::{Node as DataNode, NodeDisk as DataNodeDisk, VDisk as DataVDisk, VDiskId},
+    data::{NodeDisk as DataNodeDisk, VDisk as DataVDisk, VDiskId},
 };
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -74,7 +74,12 @@ impl Node {
     pub fn address(&self) -> String {
         self.address.as_ref().unwrap().clone()
     }
-
+    pub fn host(&self) -> String {
+        self.host.borrow().clone()
+    }
+    pub fn port(&self) -> u16 {
+        self.port.get()
+    }
     fn prepare(&self) -> Option<String> {
         let addr: Result<SocketAddr, _> = self.address().parse();
         if addr.is_err() {
@@ -341,7 +346,7 @@ impl Validatable for ClusterConfig {
 pub struct ClusterConfigYaml {}
 
 impl ClusterConfigYaml {
-    pub fn convert_to_data(&self, cluster: &ClusterConfig) -> Result<Vec<DataVDisk>, String> {
+    pub fn convert(cluster: &ClusterConfig) -> Result<Vec<DataVDisk>, String> {
         let mut node_map = HashMap::new();
         for node in cluster.nodes.iter() {
             let disk_map = node
@@ -354,28 +359,26 @@ impl ClusterConfigYaml {
 
         let mut result: Vec<DataVDisk> = Vec::with_capacity(cluster.vdisks.len());
         for vdisk in cluster.vdisks.iter() {
-            let mut disk = DataVDisk {
-                id: VDiskId::new(vdisk.id() as u32),
-                replicas: Vec::with_capacity(vdisk.replicas.len()),
-            };
+            let mut disk = DataVDisk::new(VDiskId::new(vdisk.id() as u32), vdisk.replicas.len());
+
             for replica in vdisk.replicas.iter() {
                 let finded_node = node_map.get(&replica.node).unwrap();
                 let path = finded_node.1.get(&replica.disk).unwrap();
 
                 let node_disk = DataNodeDisk {
-                    path: path.to_string(),
-                    name: replica.disk(),
-                    node: DataNode {
-                        name: replica.node(),
-                        host: finded_node.0.host.borrow().to_string(),
-                        port: finded_node.0.port.get(),
-                    },
+                    disk_path: path.to_string(),
+                    disk_name: replica.disk(),
+                    node_name: finded_node.0.name(),
                 };
                 disk.replicas.push(node_disk);
             }
             result.push(disk);
         }
         Ok(result)
+    }
+
+    pub fn convert_to_data(&self, cluster: &ClusterConfig) -> Result<Vec<DataVDisk>, String> {
+        Self::convert(cluster)
     }
 
     pub fn get(&self, filename: &str) -> Result<(Vec<DataVDisk>, ClusterConfig), String> {
@@ -398,5 +401,48 @@ impl ClusterConfigYaml {
                 Err(format!("config is not valid: {}", e))
             }
         }
+    }
+}
+
+pub mod tests {
+    use super::*;
+
+    pub fn cluster_config(count_nodes: u8, count_vdisks: u8, count_replicas: u8) -> ClusterConfig {
+        let nodes = (0..count_nodes)
+            .map(|id| {
+                let name = id.to_string();
+                Node {
+                    name: Some(name.clone()),
+                    address: Some("1".to_string()),
+                    disks: vec![NodeDisk {
+                        name: Some(name.clone()),
+                        path: Some(name.clone()),
+                    }],
+                    host: RefCell::default(),
+                    port: Cell::default(),
+                }
+            })
+            .collect();
+
+        let vdisks = (0..count_vdisks)
+            .map(|id| {
+                let replicas = (0..count_replicas)
+                    .map(|r| {
+                        let n = ((id + r) % count_nodes).to_string();
+                        Replica {
+                            node: Some(n.clone()),
+                            disk: Some(n.clone()),
+                        }
+                    })
+                    .collect();
+                VDisk {
+                    id: Some(id as i32),
+                    replicas,
+                }
+            })
+            .collect();
+
+        let config = ClusterConfig { nodes, vdisks };
+        config
     }
 }

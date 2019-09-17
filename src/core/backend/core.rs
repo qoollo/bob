@@ -3,7 +3,8 @@ use crate::core::{
         mem_backend::MemBackend, pearl::core::PearlBackend, stub_backend::StubBackend, Error,
     },
     configs::node::{BackendType, NodeConfig},
-    data::{BobData, BobKey, DiskPath, VDiskId, VDiskMapper},
+    data::{BobData, BobKey, DiskPath, VDiskId},
+    mapper::VDiskMapper,
 };
 use futures03::{
     future::{ready, FutureExt, TryFutureExt},
@@ -16,7 +17,8 @@ use std::{pin::Pin, sync::Arc};
 pub struct BackendOperation {
     vdisk_id: VDiskId,
     disk_path: Option<DiskPath>,
-    alien: bool, // flag marks data belonging for different node
+    remote_node_name: Option<String>, // save data to alien/<remote_node_name>
+    alien: bool,                      // flag marks data belonging for different node
 }
 
 impl std::fmt::Display for BackendOperation {
@@ -37,6 +39,7 @@ impl BackendOperation {
         BackendOperation {
             vdisk_id,
             disk_path: None,
+            remote_node_name: None,
             alien: true,
         }
     }
@@ -44,8 +47,14 @@ impl BackendOperation {
         BackendOperation {
             vdisk_id,
             disk_path: Some(path),
+            remote_node_name: None,
             alien: false,
         }
+    }
+
+    pub fn set_remote_folder(&mut self, name: &str) {
+        //TODO fix
+        self.remote_node_name = Some(name.to_string())
     }
     pub fn is_data_alien(&self) -> bool {
         self.alien

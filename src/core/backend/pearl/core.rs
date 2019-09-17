@@ -6,17 +6,19 @@ use crate::core::backend::pearl::{
     stuff::{LockGuard, Stuff},
 };
 use crate::core::configs::node::{NodeConfig, PearlConfig};
-use crate::core::data::{BobData, BobKey, VDiskId, VDiskMapper};
+use crate::core::data::{BobData, BobKey, VDiskId};
+use crate::core::mapper::VDiskMapper;
 use pearl::{Builder, ErrorKind, Storage};
 
 use futures03::{
+    compat::Future01CompatExt,
     future::err as err03,
     task::{Spawn, SpawnExt},
     FutureExt,
 };
 
-use futures_timer::Delay;
 use std::{path::PathBuf, sync::Arc};
+use tokio_timer::sleep;
 
 pub struct PearlBackend<TSpawner> {
     vdisks: Arc<Vec<PearlVDisk<TSpawner>>>,
@@ -91,7 +93,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
         let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
         if let Some(disk) = vdisk {
             let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
-            d_clone.test(f).await
+            let q = async move { d_clone.test(f).await };
+            q.await
         } else {
             Err(backend::Error::StorageError(format!(
                 "vdisk not found: {}",
@@ -410,12 +413,33 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
                 }
                 let storage = st.get();
                 trace!("Vdisk: {}, read key: {}", self.vdisk_print(), key);
-                Self::read_disk(storage, PearlKey::new(key)).boxed()
+
+                let q = async move {
+                    PEARL_GET_COUNTER.count(1);
+                    let timer = PEARL_GET_TIMER.start();
+                    storage
+                        .read(PearlKey::new(key))
+                        .await
+                        .map(|r| {
+                            PEARL_GET_TIMER.stop(timer);
+                            PearlData::parse(r)
+                        })
+                        .map_err(|e| {
+                            PEARL_GET_ERROR_COUNTER.count(1);
+                            trace!("error on read: {:?}", e);
+                            match e.kind() {
+                                ErrorKind::RecordNotFound => backend::Error::KeyNotFound,
+                                _ => backend::Error::StorageError(format!("{:?}", e)),
+                            }
+                        })?
+                };
+                q.boxed()
             })
             .await
     }
 
-    async fn read_disk(storage: PearlStorage, key: PearlKey) -> BackendResult<BobData> {
+    #[allow(dead_code)]
+    async fn read_disk(storage: &PearlStorage, key: PearlKey) -> BackendResult<BobData> {
         PEARL_GET_COUNTER.count(1);
         let timer = PEARL_GET_TIMER.start();
         storage
@@ -485,14 +509,14 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         let repeat = true;
         let path = &self.disk_path;
         let config = self.config.clone();
-        let spawner = self.spawner.clone();
+        // let spawner = self.spawner.clone();
 
         let delay = config.fail_retry_timeout();
 
         let mut need_delay = false;
         while repeat {
             if need_delay {
-                let _ = Delay::new(delay).await;
+                let _ = sleep(delay).compat().boxed().await;
             }
             need_delay = true;
 
@@ -512,7 +536,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
                 continue;
             }
             let mut st = storage.unwrap();
-            if let Err(e) = st.init(spawner.clone()).await {
+            if let Err(e) = st.init().await {
                 error!("cannot init pearl by path: {:?}, error: {:?}", path, e);
                 continue;
             }
