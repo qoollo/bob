@@ -18,15 +18,15 @@ use futures03::{
 
 pub struct QuorumCluster {
     backend: Arc<Backend>,
-    mapper: VDiskMapper,
+    mapper: Arc<VDiskMapper>,
     quorum: u8,
 }
 
 impl QuorumCluster {
-    pub fn new(mapper: &VDiskMapper, config: &NodeConfig, backend: Arc<Backend>) -> Self {
+    pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig, backend: Arc<Backend>) -> Self {
         QuorumCluster {
             quorum: config.quorum.unwrap(),
-            mapper: mapper.clone(),
+            mapper,
             backend,
         }
     }
@@ -37,7 +37,7 @@ impl QuorumCluster {
     }
 
     pub(crate) fn calc_sup_nodes(
-        mapper: VDiskMapper,
+        mapper: Arc<VDiskMapper>,
         target_nodes: &[Node],
         count: usize,
     ) -> Vec<Node> {
@@ -79,7 +79,7 @@ impl QuorumCluster {
             let mut op = operation.clone();
             op.set_remote_folder(&failed_node.name());
 
-            let t = backend.put(&op, key, data.clone()).0.boxed().await;
+            let t = backend.put_local(key, data.clone(), op).0.boxed().await;
             trace!("PUT[{}] local support put result: {:?}", key, t);
             if t.is_err() {
                 add_nodes.push(failed_node.name());
@@ -350,10 +350,10 @@ pub mod tests {
         data::{BobData, BobKey, BobMeta, Node, VDisk, VDiskId},
         mapper::VDiskMapper,
     };
+    use std::sync::Arc;
     use log4rs;
 
     use futures03::executor::{ThreadPool, ThreadPoolBuilder};
-    use std::sync::Arc;
     use sup::*;
 
     mod sup {
@@ -457,7 +457,7 @@ pub mod tests {
         cluster: ClusterConfig,
         map: Vec<(&str, Call, Arc<CountCall>)>,
     ) -> (QuorumCluster, Arc<Backend>) {
-        let mapper = VDiskMapper::new(vdisks, &node, &cluster);
+        let mapper = Arc::new(VDiskMapper::new(vdisks, &node, &cluster));
         mapper.nodes().iter().for_each(|n| {
             let mut client = BobClient::default();
             let (_, func, call) = map
@@ -469,9 +469,9 @@ pub mod tests {
             n.set_connection(client);
         });
 
-        let backend = Arc::new(Backend::new(&mapper, &node, pool.clone()));
+        let backend = Arc::new(Backend::new(mapper.clone(), &node, pool.clone()));
         (
-            QuorumCluster::new(&mapper, &node, backend.clone()),
+            QuorumCluster::new(mapper, &node, backend.clone()),
             backend.clone(),
         )
     }

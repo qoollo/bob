@@ -26,7 +26,7 @@ pub struct PearlBackend<TSpawner> {
 }
 
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpawner> {
-    pub fn new(mapper: VDiskMapper, config: &NodeConfig, spawner: TSpawner) -> Self {
+    pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig, spawner: TSpawner) -> Self {
         debug!("initializing pearl backend");
         let pearl_config = config.pearl.clone().unwrap();
 

@@ -14,16 +14,18 @@ use futures03::{
     stream::{FuturesUnordered, StreamExt},
 };
 
+use std::sync::Arc;
+
 pub struct SimpleQuorumCluster {
-    mapper: VDiskMapper,
+    mapper: Arc<VDiskMapper>,
     quorum: u8,
 }
 
 impl SimpleQuorumCluster {
-    pub fn new(mapper: &VDiskMapper, config: &NodeConfig) -> Self {
+    pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
         SimpleQuorumCluster {
             quorum: config.quorum.unwrap(),
-            mapper: mapper.clone(),
+            mapper,
         }
     }
 

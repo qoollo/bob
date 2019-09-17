@@ -77,7 +77,7 @@ impl MemDisk {
         }
     }
 
-    pub fn new(name: String, mapper: &VDiskMapper) -> MemDisk {
+    pub fn new(name: String, mapper: Arc<VDiskMapper>) -> MemDisk {
         let b: HashMap<VDiskId, VDisk> = mapper
             .get_vdisks_by_disk(&name)
             .iter()
@@ -156,14 +156,14 @@ impl MemBackend {
         }
     }
 
-    pub fn new(mapper: &VDiskMapper) -> MemBackend {
+    pub fn new(mapper: Arc<VDiskMapper>) -> MemBackend {
         let b = mapper
             .local_disks()
             .iter()
             .map(|node_disk| {
                 (
                     node_disk.name.clone(),
-                    MemDisk::new(node_disk.name.clone(), mapper),
+                    MemDisk::new(node_disk.name.clone(), mapper.clone()),
                 )
             })
             .collect::<HashMap<String, MemDisk>>();

@@ -3,7 +3,7 @@ use crate::core::{
         mem_backend::MemBackend, pearl::core::PearlBackend, stub_backend::StubBackend, Error,
     },
     configs::node::{BackendType, NodeConfig},
-    data::{BobData, BobKey, DiskPath, VDiskId},
+    data::{BobData, BobKey, DiskPath, VDiskId, BobOptions},
     mapper::VDiskMapper,
 };
 use futures03::{
@@ -94,38 +94,44 @@ pub trait BackendStorage {
 }
 
 pub struct Backend {
-    pub backend: Arc<dyn BackendStorage + Send + Sync>,
+    backend: Arc<dyn BackendStorage + Send + Sync>,
+    mapper: Arc<VDiskMapper>,
 }
 
 impl Backend {
     pub fn new<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync>(
-        mapper: &VDiskMapper,
+        mapper: Arc<VDiskMapper>,
         config: &NodeConfig,
         spawner: TSpawner,
     ) -> Self {
         let backend: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
-            BackendType::InMemory => Arc::new(MemBackend::new(mapper)),
+            BackendType::InMemory => Arc::new(MemBackend::new(mapper.clone())),
             BackendType::Stub => Arc::new(StubBackend {}),
             BackendType::Pearl => Arc::new(PearlBackend::new(mapper.clone(), config, spawner)),
         };
-        Backend { backend }
+        Backend { backend, mapper }
     }
 
     pub async fn run_backend(&self) -> Result<(), String> {
         self.backend.run_backend().boxed().await
     }
 
-    pub fn put(&self, op: &BackendOperation, key: BobKey, data: BobData) -> Put {
+    pub fn put(&self, key: BobKey, data: BobData, _options: BobOptions) -> Put {
+        let operation = self.mapper.get_operation(key);
+        self.put_local(key, data, operation)
+    }
+
+    pub fn put_local(&self, key: BobKey, data: BobData, op: BackendOperation) -> Put {
         Put({
-            let oper = op.clone();
+            let operation = op.clone();
             let backend = self.backend.clone();
 
-            if !oper.is_data_alien() {
-                debug!("PUT[{}][{}] to backend", key, oper.disk_name_local());
+            if !operation.is_data_alien() {
+                debug!("PUT[{}][{}] to backend", key, operation.disk_name_local());
                 let result = backend
                     .put(
-                        oper.disk_name_local(),
-                        oper.vdisk_id.clone(),
+                        operation.disk_name_local(),
+                        operation.vdisk_id.clone(),
                         key,
                         data.clone(),
                     )
@@ -134,10 +140,10 @@ impl Backend {
                     error!(
                         "PUT[{}][{}] to backend. Error: {:?}",
                         key,
-                        oper.disk_name_local(),
+                        operation.disk_name_local(),
                         err
                     );
-                    backend.put_alien(oper.vdisk_id.clone(), key, data).0
+                    backend.put_alien(operation.vdisk_id.clone(), key, data).0
                 };
 
                 result
@@ -153,26 +159,26 @@ impl Backend {
                 debug!(
                     "PUT[{}] to backend, alien data for {}",
                     key,
-                    op.vdisk_id.clone()
+                    operation.vdisk_id.clone()
                 );
-                backend.put_alien(op.vdisk_id.clone(), key, data).0
+                backend.put_alien(operation.vdisk_id.clone(), key, data).0
             }
         })
     }
 
-    pub fn get(&self, op: &BackendOperation, key: BobKey) -> Get {
+    pub fn get(&self, key: BobKey, _options: BobOptions) -> Get {
         Get({
-            let oper = op.clone();
+            let operation = self.mapper.get_operation(key);
             let backend = self.backend.clone();
 
-            if !oper.is_data_alien() {
-                debug!("GET[{}][{}] to backend", key, oper.disk_name_local());
+            if !operation.is_data_alien() {
+                debug!("GET[{}][{}] to backend", key, operation.disk_name_local());
                 backend
-                    .get(oper.disk_name_local(), oper.vdisk_id.clone(), key)
+                    .get(operation.disk_name_local(), operation.vdisk_id.clone(), key)
                     .0
             } else {
                 debug!("GET[{}] to backend, foreign data", key);
-                backend.get_alien(oper.vdisk_id.clone(), key).0
+                backend.get_alien(operation.vdisk_id.clone(), key).0
             }
         })
     }
