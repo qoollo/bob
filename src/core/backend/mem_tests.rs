@@ -54,7 +54,10 @@ mod tests {
         let retval = reactor
             .run(
                 backend
-                    .get(BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "")), BobKey { key: 1 })
+                    .get(
+                        BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "")),
+                        BobKey { key: 1 },
+                    )
                     .0,
             )
             .unwrap();
@@ -98,7 +101,10 @@ mod tests {
 
         let retval = reactor.run(
             backend
-                .get(BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "")), BobKey { key: 1 })
+                .get(
+                    BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "")),
+                    BobKey { key: 1 },
+                )
                 .0,
         );
         assert_eq!(retval.err().unwrap(), Error::KeyNotFound)

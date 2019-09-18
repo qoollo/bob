@@ -1,11 +1,11 @@
 use crate::core::backend;
 use crate::core::backend::core::*;
-use crate::core::backend::policy::BackendPolicy;
 use crate::core::backend::pearl::{
     data::*,
     metrics::*,
     stuff::{LockGuard, Stuff},
 };
+use crate::core::backend::policy::BackendPolicy;
 use crate::core::configs::node::{NodeConfig, PearlConfig};
 use crate::core::data::{BobData, BobKey, VDiskId};
 use crate::core::mapper::VDiskMapper;
@@ -183,7 +183,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
 
         let vdisks = self.vdisks.clone();
         Put({
-            let vdisk = vdisks.iter().find(|vd| vd.equal(&operation.disk_name_local(), &operation.vdisk_id));
+            let vdisk = vdisks
+                .iter()
+                .find(|vd| vd.equal(&operation.disk_name_local(), &operation.vdisk_id));
             if let Some(disk) = vdisk {
                 let d_clone = disk.clone();
                 async move {
@@ -223,14 +225,13 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
     }
 
     fn get(&self, operation: BackendOperation, key: BobKey) -> Get {
-        debug!(
-            "Get[{}] from pearl backend. operation: {}",
-            key, operation
-        );
+        debug!("Get[{}] from pearl backend. operation: {}", key, operation);
 
         let vdisks = self.vdisks.clone();
         Get({
-            let vdisk = vdisks.iter().find(|vd| vd.equal(&operation.disk_name_local(), &operation.vdisk_id));
+            let vdisk = vdisks
+                .iter()
+                .find(|vd| vd.equal(&operation.disk_name_local(), &operation.vdisk_id));
             if let Some(disk) = vdisk {
                 let d_clone = disk.clone();
                 async move {

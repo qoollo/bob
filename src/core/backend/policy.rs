@@ -1,10 +1,5 @@
 // use super::core::BackendOperation;
-use crate::core::{
-    data::VDiskId,
-    configs::node::NodeConfig,
-    mapper::VDiskMapper,
-};
-
+use crate::core::{configs::node::NodeConfig, data::VDiskId, mapper::VDiskMapper};
 
 use std::{path::PathBuf, sync::Arc};
 

@@ -11,7 +11,7 @@ use std::{
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct BackendPolicy {
     pub root_name: Option<String>,
-    pub alien_root_name: Option<String>
+    pub alien_root_name: Option<String>,
 }
 
 impl Validatable for BackendPolicy {
@@ -25,7 +25,9 @@ impl Validatable for BackendPolicy {
         if let Some(alien_root_name) = &self.alien_root_name {
             if alien_root_name.is_empty() {
                 debug!("field 'alien_root_name' for 'backend policy config' is empty");
-                return Err("field 'alien_root_name' for 'backend policy config' is empty".to_string());
+                return Err(
+                    "field 'alien_root_name' for 'backend policy config' is empty".to_string(),
+                );
             }
         }
         Ok(())

@@ -120,16 +120,16 @@ impl Backend {
                 op.set_remote_folder(node_name);
 
                 //TODO make it parallel?
-                if let Err(err) =
-                    self.put_single(key, data.clone(), op).await
-                {
+                if let Err(err) = self.put_single(key, data.clone(), op).await {
                     //TODO stop after first error?
                     return Err(err);
                 }
             }
             return Ok(BackendPutResult {});
         } else if let Some(path) = disk_path {
-            return self.put_local(key, data, BackendOperation::new_local(vdisk_id, path)).await;
+            return self
+                .put_local(key, data, BackendOperation::new_local(vdisk_id, path))
+                .await;
         } else {
             //todo some cluster put mistake ?
             return Err(Error::Other);
@@ -140,19 +140,17 @@ impl Backend {
         self.put_single(key, data, op).await
     }
 
-    async fn put_single(&self,
+    async fn put_single(
+        &self,
         key: BobKey,
         data: BobData,
         operation: BackendOperation,
     ) -> PutResult {
         if !operation.is_data_alien() {
             debug!("PUT[{}][{}] to backend", key, operation.disk_name_local());
-            let result = self.backend
-                .put(
-                    operation.clone(),
-                    key,
-                    data.clone(),
-                )
+            let result = self
+                .backend
+                .put(operation.clone(), key, data.clone())
                 .0
                 .boxed()
                 .await;
@@ -167,25 +165,16 @@ impl Backend {
                     // write to alien/<local name>
                     let mut op = operation.clone();
                     op.set_remote_folder(&self.mapper.local_node_name());
-                    self.backend
-                        .put_alien(op, key, data)
-                        .0
-                        .boxed()
-                        .await
+                    self.backend.put_alien(op, key, data).0.boxed().await
                 }
                 _ => result,
             }
         } else {
             debug!(
                 "PUT[{}] to backend, alien data for {}",
-                key,
-                operation.vdisk_id
+                key, operation.vdisk_id
             );
-            self.backend
-                .put_alien(operation, key, data)
-                .0
-                .boxed()
-                .await
+            self.backend.put_alien(operation, key, data).0.boxed().await
         }
     }
 
@@ -232,18 +221,10 @@ impl Backend {
     ) -> GetResult {
         if !operation.is_data_alien() {
             debug!("GET[{}][{}] to backend", key, operation.disk_name_local());
-            backend
-                .get(operation, key)
-                .0
-                .boxed()
-                .await
+            backend.get(operation, key).0.boxed().await
         } else {
             debug!("GET[{}] to backend, foreign data", key);
-            backend
-                .get_alien(operation, key)
-                .0
-                .boxed()
-                .await
+            backend.get_alien(operation, key).0.boxed().await
         }
     }
 }

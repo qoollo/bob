@@ -3,10 +3,10 @@ mod tests {
     use crate::core::backend;
     use crate::core::backend::pearl::core::*;
 
-    use crate::core::backend::core::{BackendStorage, BackendOperation};
+    use crate::core::backend::core::{BackendOperation, BackendStorage};
     use crate::core::configs::cluster::ClusterConfigYaml;
     use crate::core::configs::node::NodeConfigYaml;
-    use crate::core::data::{BobData, BobKey, BobMeta, VDiskId, DiskPath};
+    use crate::core::data::{BobData, BobKey, BobMeta, DiskPath, VDiskId};
     use crate::core::mapper::VDiskMapper;
     use futures03::executor::{ThreadPool, ThreadPoolBuilder};
     use std::{fs::remove_dir_all, path::PathBuf, sync::Arc};
@@ -92,7 +92,10 @@ vdisks:
         let write = reactor.run(
             backend
                 .put(
-                    BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME.clone(), "")),
+                    BackendOperation::new_local(
+                        vdisk_id.clone(),
+                        DiskPath::new(DISK_NAME.clone(), ""),
+                    ),
                     BobKey::new(KEY_ID),
                     BobData::new(vec![], BobMeta::new_value(TIMESTAMP)),
                 )
@@ -103,7 +106,10 @@ vdisks:
         let mut read = reactor.run(
             backend
                 .get(
-                    BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME.clone(), "")),
+                    BackendOperation::new_local(
+                        vdisk_id.clone(),
+                        DiskPath::new(DISK_NAME.clone(), ""),
+                    ),
                     BobKey::new(KEY_ID),
                 )
                 .0,
@@ -112,7 +118,10 @@ vdisks:
         read = reactor.run(
             backend
                 .get(
-                    BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME.clone(), "")),
+                    BackendOperation::new_local(
+                        vdisk_id.clone(),
+                        DiskPath::new(DISK_NAME.clone(), ""),
+                    ),
                     BobKey::new(KEY_ID),
                 )
                 .0,
@@ -122,14 +131,20 @@ vdisks:
         let q = async move {
             let result1 = backend
                 .get(
-                    BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME.clone(), "")),
+                    BackendOperation::new_local(
+                        vdisk_id.clone(),
+                        DiskPath::new(DISK_NAME.clone(), ""),
+                    ),
                     BobKey::new(KEY_ID),
                 )
                 .0
                 .await;
             let result2 = backend
                 .get(
-                    BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME.clone(), "")),
+                    BackendOperation::new_local(
+                        vdisk_id.clone(),
+                        DiskPath::new(DISK_NAME.clone(), ""),
+                    ),
                     BobKey::new(KEY_ID),
                 )
                 .0
@@ -158,7 +173,10 @@ vdisks:
         let read = reactor.run(
             backend
                 .get(
-                    BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME.clone(), "")),
+                    BackendOperation::new_local(
+                        vdisk_id.clone(),
+                        DiskPath::new(DISK_NAME.clone(), ""),
+                    ),
                     BobKey::new(KEY_ID),
                 )
                 .0,
