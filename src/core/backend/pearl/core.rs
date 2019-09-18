@@ -1,5 +1,6 @@
 use crate::core::backend;
 use crate::core::backend::core::*;
+use crate::core::backend::policy::BackendPolicy;
 use crate::core::backend::pearl::{
     data::*,
     metrics::*,
@@ -32,21 +33,17 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
 
         let mut result = Vec::new();
 
+        let policy = BackendPolicy::new(config, mapper.clone());
         //init pearl storages for each vdisk
         for disk in mapper.local_disks().iter() {
-            let base_path = PathBuf::from(format!("{}/bob/", disk.path));
             let mut vdisks: Vec<PearlVDisk<TSpawner>> = mapper
                 .get_vdisks_by_disk(&disk.name)
                 .iter()
                 .map(|vdisk_id| {
-                    let mut vdisk_path = base_path.clone();
-                    vdisk_path.push(format!("{}/", vdisk_id));
-
                     PearlVDisk::new(
-                        &disk.path,
                         &disk.name,
                         vdisk_id.clone(),
-                        vdisk_path,
+                        policy.normal_directory(&disk.path, vdisk_id),
                         pearl_config.clone(),
                         spawner.clone(),
                     )
@@ -56,19 +53,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
         }
 
         //init alien storage
-        let path = format!(
-            "{}/alien/",
-            mapper
-                .get_disk_by_name(&pearl_config.alien_disk())
-                .unwrap()
-                .path
-        );
-
-        let alien_path = PathBuf::from(path.clone());
         let alien_dir = PearlVDisk::new_alien(
-            &path,
             &pearl_config.alien_disk(),
-            alien_path,
+            policy.alien_directory(),
             pearl_config.clone(),
             spawner.clone(),
         );
@@ -285,7 +272,6 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
 
 #[derive(Clone)]
 pub(crate) struct PearlVDisk<TSpawner> {
-    path: String,
     name: String,
     vdisk: Option<VDiskId>,
     disk_path: PathBuf,
@@ -298,7 +284,6 @@ pub(crate) struct PearlVDisk<TSpawner> {
 
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawner> {
     pub fn new(
-        path: &str,
         name: &str,
         vdisk: VDiskId,
         disk_path: PathBuf,
@@ -306,7 +291,6 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         spawner: TSpawner,
     ) -> Self {
         PearlVDisk {
-            path: path.to_string(),
             name: name.to_string(),
             disk_path,
             vdisk: Some(vdisk),
@@ -316,14 +300,12 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         }
     }
     pub fn new_alien(
-        path: &str,
         name: &str,
         disk_path: PathBuf,
         config: PearlConfig,
         spawner: TSpawner,
     ) -> Self {
         PearlVDisk {
-            path: path.to_string(),
             name: name.to_string(),
             vdisk: None,
             disk_path,
