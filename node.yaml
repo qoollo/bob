@@ -15,6 +15,9 @@ pearl:                        # used only for 'backend_type: pearl'
   pool_count_threads: 4       # required for 'pearl'
   fail_retry_timeout: 1s      # mls, retry to reinit pearl backend after fail. required for 'pearl'
   alien_disk: disk1           # required for 'pearl'
+  policy:                     # describes how create and manage bob directories. required for 'pearl'
+    root_name: bob            # root dir for bob storage. required for 'pearl'
+    alien_root_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
 
 metrics:                      # optional, send metrics
   name: bob_test1             # optional, add base name for metrics

@@ -18,15 +18,16 @@ impl BackendPolicy {
         let pearl_config = config.pearl.clone().unwrap();
 
         let alien_folder = format!(
-            "{}/alien/",
+            "{}/{}/",
             mapper
                 .get_disk_by_name(&pearl_config.alien_disk())
-                .unwrap()
-                .path
+                .expect("cannot find alien disk in config")
+                .path,
+            pearl_config.policy().alien_root_name()
         );
 
         BackendPolicy {
-            bob_prefix_path: "bob".to_string(),
+            bob_prefix_path: pearl_config.policy().root_name(),
             alien_folder: alien_folder,
         }
     }

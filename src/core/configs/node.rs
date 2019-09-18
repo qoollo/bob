@@ -9,6 +9,39 @@ use std::{
 };
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct BackendPolicy {
+    pub root_name: Option<String>,
+    pub alien_root_name: Option<String>
+}
+
+impl Validatable for BackendPolicy {
+    fn validate(&self) -> Result<(), String> {
+        if let Some(root_name) = &self.root_name {
+            if root_name.is_empty() {
+                debug!("field 'root_name' for 'backend policy config' is empty");
+                return Err("field 'root_name' for 'backend policy config' is empty".to_string());
+            }
+        }
+        if let Some(alien_root_name) = &self.alien_root_name {
+            if alien_root_name.is_empty() {
+                debug!("field 'alien_root_name' for 'backend policy config' is empty");
+                return Err("field 'alien_root_name' for 'backend policy config' is empty".to_string());
+            }
+        }
+        Ok(())
+    }
+}
+
+impl BackendPolicy {
+    pub fn root_name(&self) -> String {
+        self.root_name.as_ref().unwrap().clone()
+    }
+    pub fn alien_root_name(&self) -> String {
+        self.alien_root_name.as_ref().unwrap().clone()
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MetricsConfig {
     pub name: Option<String>,
     pub graphite: Option<String>,
@@ -49,6 +82,8 @@ pub struct PearlConfig {
     pub pool_count_threads: Option<u16>,
     pub fail_retry_timeout: Option<String>,
     pub alien_disk: Option<String>,
+
+    pub policy: Option<BackendPolicy>,
 }
 
 impl PearlConfig {
@@ -70,6 +105,9 @@ impl PearlConfig {
         t
     }
 
+    pub fn policy(&self) -> BackendPolicy {
+        self.policy.as_ref().unwrap().clone()
+    }
     pub fn prepare(&self) -> Result<(), String> {
         let _ = self.fail_retry_timeout(); // TODO check unwrap
 
@@ -110,6 +148,14 @@ impl Validatable for PearlConfig {
                     return Err("field 'fail_retry_timeout' for 'config' is not valid".to_string());
                 }
             }
+        };
+
+        match &self.policy {
+            None => {
+                debug!("field 'policy' for 'config' is not set");
+                return Err("field 'policy' for 'config' is not set".to_string());
+            }
+            Some(policy) => policy.validate()?,
         };
         Ok(())
     }
