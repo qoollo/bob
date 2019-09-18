@@ -51,9 +51,16 @@ message PutOptions {
     bool overwrite = 3; // Overwrite data in case of id existens
 }
 
+enum GetSource {
+    ALL = 0;
+    NORMAL = 1;
+    ALIEN = 2;
+}
+
 // Get operation options
 message GetOptions {
     bool force_node = 1; // Force operation to be served by node to which it comes
+    GetSource source = 2; // Set source for data reading
 }
 
 message BobError {

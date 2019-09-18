@@ -177,16 +177,20 @@ impl Backend {
     pub async fn get(&self, key: BobKey, options: BobOptions) -> GetResult {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         //TODO how read from all alien folders?
-        if options.have_remote_node() {  //TODO check is alien? how? add field to grpc
-            
+        if options.get_alien() {  //TODO check is alien? how? add field to grpc
+            trace!("GET[{}] try read alien", key);
             let op = BackendOperation::new_alien(vdisk_id.clone());
             return Self::get_single(self.backend.clone(), key, op).await;
         }
         // we cannot write data to alien if it belong this node
-        else if let Some(path) = disk_path { 
-            return self.get_local(key, BackendOperation::new_local(vdisk_id, path)).await;
-        }        
-        self.get_local(key, BackendOperation::new_local(vdisk_id, disk_path.unwrap())).await
+        else if let Some(path) = disk_path.clone() { 
+            if options.get_normal() {
+                trace!("GET[{}] try read normal", key);
+                return self.get_local(key, BackendOperation::new_local(vdisk_id, path)).await;
+            }
+        }
+        error!("we cannot read data from anywhere. path: {:?}, options: {:?}", disk_path, options);
+        Err(Error::Failed(format!("we cannot read data from anywhere. path: {:?}, options: {:?}", disk_path, options)))
     }
 
     pub async fn get_local(&self, key: BobKey, op: BackendOperation) -> GetResult {

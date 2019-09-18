@@ -1,4 +1,4 @@
-use crate::api::grpc::{BlobMeta, PutOptions, GetOptions};
+use crate::api::grpc::{BlobMeta, PutOptions, GetOptions, GetSource};
 use crate::core::{
     bob_client::{BobClient, BobClientFactory},
     configs::cluster::Node as ConfigNode,
@@ -19,6 +19,29 @@ impl PutOptions {
             remote_nodes: nodes.to_vec(),
             force_node: true,
             overwrite: false,
+        }
+    }
+}
+
+impl GetOptions {
+    pub(crate) fn new_normal() -> Self {
+        GetOptions {force_node: true, source: GetSource::Normal as i32}
+    }
+    pub(crate) fn new_alien() -> Self {
+        GetOptions {force_node: true, source: GetSource::Alien as i32}
+    }
+}
+
+impl From<i32> for GetSource {
+    fn from(value: i32) -> Self {
+        match value {
+            0 => GetSource::All,
+            1 => GetSource::Normal,
+            2 => GetSource::Alien,
+            other => {
+                error!("cannot convert value: {} to 'GetSource' enum", other);
+                panic!("cannot convert value: {} to 'GetSource' enum", other);
+            }
         }
     }
 }
@@ -101,6 +124,7 @@ bitflags! {
 pub struct BobOptions {
     pub flags: BobFlags,
     pub remote_nodes: Vec<String>,
+    get_source: Option<GetSource>,
 }
 
 impl BobOptions {
@@ -113,21 +137,41 @@ impl BobOptions {
             }
             remote_nodes = vopts.remote_nodes;
         }
-        BobOptions {flags, remote_nodes}
+        BobOptions {flags, remote_nodes, get_source: None}
     }
 
     pub(crate) fn new_get(options: Option<GetOptions>) -> Self {
         let mut flags: BobFlags = Default::default();
+        let mut get_source = None;
         if let Some(vopts) = options {
             if vopts.force_node {
                 flags |= BobFlags::FORCE_NODE;
             }
+            get_source = Some(GetSource::from(vopts.source));
         }
-        BobOptions {flags, remote_nodes: vec![]}
+        BobOptions {flags, remote_nodes: vec![], get_source }
     }
 
     pub(crate) fn have_remote_node(&self) -> bool {
         self.remote_nodes.len() > 0 
+    }
+
+    pub(crate) fn get_normal(&self) -> bool {
+        if let Some(value) = self.get_source {
+            if value == GetSource::All || value == GetSource::Normal {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub(crate) fn get_alien(&self) -> bool {
+        if let Some(value) = self.get_source {
+            if value == GetSource::All || value == GetSource::Alien {
+                return true;
+            }
+        }
+        false
     }
 }
 

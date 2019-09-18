@@ -1,4 +1,4 @@
-use crate::api::grpc::PutOptions;
+use crate::api::grpc::{PutOptions, GetOptions};
 use crate::core::{
     backend,
     backend::core::{Backend, BackendGetResult, BackendOperation, BackendPutResult, Get, Put},
@@ -145,8 +145,8 @@ impl QuorumCluster {
         )
     }
 
-    async fn get_all(key: BobKey, target_nodes: Vec<Node>) -> Vec<GetResult> {
-        LinkManager::call_nodes(&target_nodes, |conn| conn.get(key).0)
+    async fn get_all(key: BobKey, target_nodes: Vec<Node>, options: GetOptions) -> Vec<GetResult> {
+        LinkManager::call_nodes(&target_nodes, |conn| conn.get(key, options.clone()).0)
             .into_iter()
             .collect::<FuturesUnordered<_>>()
             .fold(vec![], |mut acc, r| {
@@ -296,7 +296,7 @@ impl Cluster for QuorumCluster {
         );
 
         let g = async move {
-            let acc = Self::get_all(key, target_nodes).await;
+            let acc = Self::get_all(key, target_nodes, GetOptions::new_normal()).await;
             debug!("GET[{}] cluster ans: {:?}", key, acc);
 
             let (result, err) = Self::get_filter_result(key, acc);
@@ -318,7 +318,7 @@ impl Cluster for QuorumCluster {
                 print_vec(&sup_nodes)
             );
 
-            let second_attemp = Self::get_all(key, sup_nodes).await;
+            let second_attemp = Self::get_all(key, sup_nodes, GetOptions::new_alien()).await;
             debug!("GET[{}] cluster ans sup: {:?}", key, second_attemp);
 
             let (result_sup, err_sup) = Self::get_filter_result(key, second_attemp);
