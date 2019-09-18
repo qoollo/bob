@@ -1,4 +1,4 @@
-use crate::api::grpc::PutOptions;
+use crate::api::grpc::{GetOptions, PutOptions};
 use crate::core::{
     backend,
     backend::core::{Backend, BackendGetResult, BackendOperation, BackendPutResult, Get, Put},
@@ -18,15 +18,15 @@ use futures03::{
 
 pub struct QuorumCluster {
     backend: Arc<Backend>,
-    mapper: VDiskMapper,
+    mapper: Arc<VDiskMapper>,
     quorum: u8,
 }
 
 impl QuorumCluster {
-    pub fn new(mapper: &VDiskMapper, config: &NodeConfig, backend: Arc<Backend>) -> Self {
+    pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig, backend: Arc<Backend>) -> Self {
         QuorumCluster {
             quorum: config.quorum.unwrap(),
-            mapper: mapper.clone(),
+            mapper,
             backend,
         }
     }
@@ -37,7 +37,7 @@ impl QuorumCluster {
     }
 
     pub(crate) fn calc_sup_nodes(
-        mapper: VDiskMapper,
+        mapper: Arc<VDiskMapper>,
         target_nodes: &[Node],
         count: usize,
     ) -> Vec<Node> {
@@ -79,7 +79,7 @@ impl QuorumCluster {
             let mut op = operation.clone();
             op.set_remote_folder(&failed_node.name());
 
-            let t = backend.put(&op, key, data.clone()).0.boxed().await;
+            let t = backend.put_local(key, data.clone(), op).boxed().await;
             trace!("PUT[{}] local support put result: {:?}", key, t);
             if t.is_err() {
                 add_nodes.push(failed_node.name());
@@ -145,8 +145,8 @@ impl QuorumCluster {
         )
     }
 
-    async fn get_all(key: BobKey, target_nodes: Vec<Node>) -> Vec<GetResult> {
-        LinkManager::call_nodes(&target_nodes, |conn| conn.get(key).0)
+    async fn get_all(key: BobKey, target_nodes: Vec<Node>, options: GetOptions) -> Vec<GetResult> {
+        LinkManager::call_nodes(&target_nodes, |conn| conn.get(key, options.clone()).0)
             .into_iter()
             .collect::<FuturesUnordered<_>>()
             .fold(vec![], |mut acc, r| {
@@ -296,7 +296,7 @@ impl Cluster for QuorumCluster {
         );
 
         let g = async move {
-            let acc = Self::get_all(key, target_nodes).await;
+            let acc = Self::get_all(key, target_nodes, GetOptions::new_normal()).await;
             debug!("GET[{}] cluster ans: {:?}", key, acc);
 
             let (result, err) = Self::get_filter_result(key, acc);
@@ -318,7 +318,7 @@ impl Cluster for QuorumCluster {
                 print_vec(&sup_nodes)
             );
 
-            let second_attemp = Self::get_all(key, sup_nodes).await;
+            let second_attemp = Self::get_all(key, sup_nodes, GetOptions::new_alien()).await;
             debug!("GET[{}] cluster ans sup: {:?}", key, second_attemp);
 
             let (result_sup, err_sup) = Self::get_filter_result(key, second_attemp);
@@ -351,9 +351,9 @@ pub mod tests {
         mapper::VDiskMapper,
     };
     use log4rs;
+    use std::sync::Arc;
 
     use futures03::executor::{ThreadPool, ThreadPoolBuilder};
-    use std::sync::Arc;
     use sup::*;
 
     mod sup {
@@ -394,7 +394,7 @@ pub mod tests {
             timestamp: u32,
         ) {
             let cl = node.clone();
-            client.expect_get().returning(move |_key| {
+            client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
                 tests::get_ok(cl.clone(), timestamp)
             });
@@ -402,7 +402,7 @@ pub mod tests {
 
         pub fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             let cl = node.clone();
-            client.expect_get().returning(move |_key| {
+            client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
                 tests::get_err(cl.clone())
             });
@@ -457,7 +457,7 @@ pub mod tests {
         cluster: ClusterConfig,
         map: Vec<(&str, Call, Arc<CountCall>)>,
     ) -> (QuorumCluster, Arc<Backend>) {
-        let mapper = VDiskMapper::new(vdisks, &node, &cluster);
+        let mapper = Arc::new(VDiskMapper::new(vdisks, &node, &cluster));
         mapper.nodes().iter().for_each(|n| {
             let mut client = BobClient::default();
             let (_, func, call) = map
@@ -469,9 +469,9 @@ pub mod tests {
             n.set_connection(client);
         });
 
-        let backend = Arc::new(Backend::new(&mapper, &node, pool.clone()));
+        let backend = Arc::new(Backend::new(mapper.clone(), &node, pool.clone()));
         (
-            QuorumCluster::new(&mapper, &node, backend.clone()),
+            QuorumCluster::new(mapper, &node, backend.clone()),
             backend.clone(),
         )
     }
@@ -544,14 +544,8 @@ pub mod tests {
 
         assert!(result.is_ok());
         assert_eq!(1, calls[0].1.put_count());
-        let get = pool.run(
-            backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
-                    BobKey::new(1),
-                )
-                .0,
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(1), BackendOperation::new_alien(VDiskId::new(0))));
         assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
     }
 
@@ -585,14 +579,8 @@ pub mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
-                    BobKey::new(2),
-                )
-                .0,
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(2), BackendOperation::new_alien(VDiskId::new(0))));
         assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
     }
 
@@ -637,23 +625,11 @@ pub mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let mut get = pool.run(
-            backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
-                    BobKey::new(3),
-                )
-                .0,
-        );
+        let mut get = pool
+            .run(backend.get_local(BobKey::new(3), BackendOperation::new_alien(VDiskId::new(0))));
         assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
-        get = pool.run(
-            backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
-                    BobKey::new(4),
-                )
-                .0,
-        );
+        get = pool
+            .run(backend.get_local(BobKey::new(4), BackendOperation::new_alien(VDiskId::new(0))));
         assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
     }
 
@@ -686,14 +662,8 @@ pub mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
-                    BobKey::new(5),
-                )
-                .0,
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(5), BackendOperation::new_alien(VDiskId::new(0))));
         assert!(get.is_ok());
     }
 
@@ -726,14 +696,8 @@ pub mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
-                    BobKey::new(5),
-                )
-                .0,
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(5), BackendOperation::new_alien(VDiskId::new(0))));
         assert!(get.is_ok());
     }
 
@@ -768,14 +732,8 @@ pub mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(1, calls[2].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
-                    BobKey::new(0),
-                )
-                .0,
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(0), BackendOperation::new_alien(VDiskId::new(0))));
         assert!(get.is_ok());
     }
 
@@ -810,14 +768,8 @@ pub mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(1, calls[2].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
-                    BobKey::new(0),
-                )
-                .0,
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(0), BackendOperation::new_alien(VDiskId::new(0))));
         assert!(get.is_ok());
     }
 
@@ -852,14 +804,8 @@ pub mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(0, calls[2].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
-                    BobKey::new(0),
-                )
-                .0,
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(0), BackendOperation::new_alien(VDiskId::new(0))));
         assert!(get.is_err());
     }
 
@@ -894,14 +840,8 @@ pub mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(1, calls[2].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
-                    BobKey::new(0),
-                )
-                .0,
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(0), BackendOperation::new_alien(VDiskId::new(0))));
         assert!(get.is_ok());
     }
 
@@ -935,7 +875,7 @@ pub mod tests {
     /// get no data => err
     #[test]
     fn simple_one_node_get_err() {
-        log4rs::init_file("./logger.yaml", Default::default()).unwrap();
+        // log4rs::init_file("./logger.yaml", Default::default()).unwrap();
         let mut pool = get_pool();
         let (vdisks, node, cluster) = prepare_configs(1, 1, 1, 1);
 

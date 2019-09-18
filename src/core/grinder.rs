@@ -4,7 +4,7 @@ use crate::core::{
     bob_client::BobClientFactory,
     cluster::{get_cluster, Cluster},
     configs::node::NodeConfig,
-    data::{BobData, BobKey, BobOptions},
+    data::{BobData, BobFlags, BobKey, BobOptions},
     link_manager::LinkManager,
     mapper::VDiskMapper,
     metrics::*,
@@ -59,7 +59,6 @@ impl std::fmt::Display for BobError {
 
 pub struct Grinder {
     pub backend: Arc<Backend>,
-    mapper: VDiskMapper,
 
     link_manager: Arc<LinkManager>,
     cluster: Arc<dyn Cluster + Send + Sync>,
@@ -72,13 +71,13 @@ impl Grinder {
         spawner: TSpawner,
     ) -> Grinder {
         let link = Arc::new(LinkManager::new(mapper.nodes(), config.check_interval()));
-        let backend = Arc::new(Backend::new(&mapper, config, spawner));
+        let m_link = Arc::new(mapper);
+        let backend = Arc::new(Backend::new(m_link.clone(), config, spawner));
 
         Grinder {
             backend: backend.clone(),
-            mapper: mapper.clone(),
             link_manager: link.clone(),
-            cluster: get_cluster(link, &mapper, config, backend),
+            cluster: get_cluster(link, m_link, config, backend),
         }
     }
     pub async fn run_backend(&self) -> Result<(), String> {
@@ -90,16 +89,15 @@ impl Grinder {
         data: BobData,
         opts: BobOptions,
     ) -> Result<BackendPutResult, BobError> {
-        if opts.contains(BobOptions::FORCE_NODE) {
-            let op = self.mapper.get_operation(key);
+        if opts.flags.contains(BobFlags::FORCE_NODE) {
             debug!(
-                "PUT[{}] flag FORCE_NODE is on - will handle it by local node. Put params: {}",
-                key, op
+                "PUT[{}] flag FORCE_NODE is on - will handle it by local node. Put params: {:?}",
+                key, opts
             );
             CLIENT_PUT_COUNTER.count(1);
             let time = CLIENT_PUT_TIMER.start();
 
-            let result = self.backend.put(&op, key, data).0.await.map_err(|err| {
+            let result = self.backend.put(key, data, opts).await.map_err(|err| {
                 GRINDER_PUT_ERROR_COUNT_COUNTER.count(1);
                 BobError::Local(err)
             });
@@ -127,16 +125,15 @@ impl Grinder {
     }
 
     pub async fn get(&self, key: BobKey, opts: BobOptions) -> Result<BackendGetResult, BobError> {
-        if opts.contains(BobOptions::FORCE_NODE) {
+        if opts.flags.contains(BobFlags::FORCE_NODE) {
             CLIENT_GET_COUNTER.count(1);
             let time = CLIENT_GET_TIMER.start();
 
-            let op = self.mapper.get_operation(key);
             debug!(
-                "GET[{}] flag FORCE_NODE is on - will handle it by local node. Get params: {}",
-                key, op
+                "GET[{}] flag FORCE_NODE is on - will handle it by local node. Get params: {:?}",
+                key, opts
             );
-            let result = self.backend.get(&op, key).0.await.map_err(|err| {
+            let result = self.backend.get(key, opts).await.map_err(|err| {
                 CLIENT_GET_ERROR_COUNT_COUNTER.count(1);
                 BobError::Local(err)
             });

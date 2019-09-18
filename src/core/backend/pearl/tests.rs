@@ -9,7 +9,7 @@ mod tests {
     use crate::core::data::{BobData, BobKey, BobMeta, VDiskId};
     use crate::core::mapper::VDiskMapper;
     use futures03::executor::{ThreadPool, ThreadPoolBuilder};
-    use std::{fs::remove_dir_all, path::PathBuf};
+    use std::{fs::remove_dir_all, path::PathBuf, sync::Arc};
 
     static DISK_NAME: &'static str = "disk1";
     static PEARL_PATH: &'static str = "/tmp/d1/";
@@ -39,7 +39,7 @@ mod tests {
             .get_from_string(node_config, &cluster)
             .unwrap();
 
-        let mapper = VDiskMapper::new(vdisks.to_vec(), &node, &cluster);
+        let mapper = Arc::new(VDiskMapper::new(vdisks.to_vec(), &node, &cluster));
         PearlBackend::new(mapper, &node, pool)
     }
 

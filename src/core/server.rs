@@ -74,15 +74,7 @@ impl server::BobApi for BobSrv {
             let grinder = self.grinder.clone();
             let q = async move {
                 grinder
-                    .put(key, data, {
-                        let mut opts: BobOptions = Default::default();
-                        if let Some(vopts) = param.options.as_ref() {
-                            if vopts.force_node {
-                                opts |= BobOptions::FORCE_NODE;
-                            }
-                        }
-                        opts
-                    })
+                    .put(key, data, BobOptions::new_put(param.options))
                     .await
             };
             Box::new(q.boxed().compat().then(move |r| {
@@ -119,19 +111,7 @@ impl server::BobApi for BobSrv {
             };
 
             let grinder = self.grinder.clone();
-            let q = async move {
-                grinder
-                    .get(key, {
-                        let mut opts: BobOptions = Default::default();
-                        if let Some(vopts) = param.options.as_ref() {
-                            if vopts.force_node {
-                                opts |= BobOptions::FORCE_NODE;
-                            }
-                        }
-                        opts
-                    })
-                    .await
-            };
+            let q = async move { grinder.get(key, BobOptions::new_get(param.options)).await };
             Box::new(q.boxed().compat().then(move |r| {
                 let elapsed = sw.elapsed_ms();
                 match r {

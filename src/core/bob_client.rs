@@ -163,7 +163,7 @@ mod b_client {
             })
         }
 
-        pub fn get(&mut self, key: BobKey) -> Get {
+        pub fn get(&mut self, key: BobKey, options: GetOptions) -> Get {
             Get({
                 let n1 = self.node.clone();
                 let n2 = self.node.clone();
@@ -191,7 +191,7 @@ mod b_client {
                     client
                         .get(Request::new(GetRequest {
                             key: Some(BlobKey { key: key.key }),
-                            options: Some(GetOptions { force_node: true }),
+                            options: Some(options),
                         }))
                         .timeout(timeout)
                         .map(move |r| {
@@ -281,7 +281,7 @@ mod b_client {
             async fn create(node: Node, executor: TaskExecutor, timeout: Duration, buffer_bound: u16, metrics: BobClientMetrics,
                     ) -> Result<Self, ()>;
             fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put;
-            fn get(&mut self, key: BobKey) -> Get;
+            fn get(&mut self, key: BobKey, options: GetOptions) -> Get;
             async fn ping(&mut self) -> PingResult;
         }
         trait Clone {
