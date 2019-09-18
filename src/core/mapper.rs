@@ -93,7 +93,7 @@ impl VDiskMapper {
         let disk = vdisk
             .replicas
             .iter()
-            .find(|disk| disk.node_name == self.local_node_name);       //TODO prepare at start?
+            .find(|disk| disk.node_name == self.local_node_name); //TODO prepare at start?
         if disk.is_none() {
             trace!(
                 "cannot find node: {} for vdisk: {}",

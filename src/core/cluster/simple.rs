@@ -1,4 +1,4 @@
-use crate::api::grpc::{PutOptions, GetOptions};
+use crate::api::grpc::{GetOptions, PutOptions};
 use crate::core::{
     backend,
     backend::core::{BackendGetResult, BackendPutResult, Get, Put},
@@ -108,7 +108,9 @@ impl Cluster for SimpleQuorumCluster {
             key,
             print_vec(&target_nodes)
         );
-        let reqs = LinkManager::call_nodes(&target_nodes, |conn| conn.get(key, GetOptions::new_normal()).0);
+        let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
+            conn.get(key, GetOptions::new_normal()).0
+        });
 
         let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
 

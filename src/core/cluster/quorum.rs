@@ -1,4 +1,4 @@
-use crate::api::grpc::{PutOptions, GetOptions};
+use crate::api::grpc::{GetOptions, PutOptions};
 use crate::core::{
     backend,
     backend::core::{Backend, BackendGetResult, BackendOperation, BackendPutResult, Get, Put},
@@ -350,8 +350,8 @@ pub mod tests {
         data::{BobData, BobKey, BobMeta, Node, VDisk, VDiskId},
         mapper::VDiskMapper,
     };
-    use std::sync::Arc;
     use log4rs;
+    use std::sync::Arc;
 
     use futures03::executor::{ThreadPool, ThreadPoolBuilder};
     use sup::*;
@@ -544,13 +544,8 @@ pub mod tests {
 
         assert!(result.is_ok());
         assert_eq!(1, calls[0].1.put_count());
-        let get = pool.run(
-            backend
-                .get_local(
-                    BobKey::new(1),
-                    BackendOperation::new_alien(VDiskId::new(0)),
-                ),
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(1), BackendOperation::new_alien(VDiskId::new(0))));
         assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
     }
 
@@ -584,13 +579,8 @@ pub mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get_local(
-                    BobKey::new(2),
-                    BackendOperation::new_alien(VDiskId::new(0)),
-                ),
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(2), BackendOperation::new_alien(VDiskId::new(0))));
         assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
     }
 
@@ -635,21 +625,11 @@ pub mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let mut get = pool.run(
-            backend
-                .get_local(
-                    BobKey::new(3),
-                    BackendOperation::new_alien(VDiskId::new(0)),
-                ),
-        );
+        let mut get = pool
+            .run(backend.get_local(BobKey::new(3), BackendOperation::new_alien(VDiskId::new(0))));
         assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
-        get = pool.run(
-            backend
-                .get_local(
-                    BobKey::new(4),
-                    BackendOperation::new_alien(VDiskId::new(0)),
-                ),
-        );
+        get = pool
+            .run(backend.get_local(BobKey::new(4), BackendOperation::new_alien(VDiskId::new(0))));
         assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
     }
 
@@ -682,13 +662,8 @@ pub mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get_local(
-                    BobKey::new(5),
-                    BackendOperation::new_alien(VDiskId::new(0)),
-                ),
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(5), BackendOperation::new_alien(VDiskId::new(0))));
         assert!(get.is_ok());
     }
 
@@ -721,13 +696,8 @@ pub mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get_local(
-                    BobKey::new(5),
-                    BackendOperation::new_alien(VDiskId::new(0)),
-                ),
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(5), BackendOperation::new_alien(VDiskId::new(0))));
         assert!(get.is_ok());
     }
 
@@ -762,13 +732,8 @@ pub mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(1, calls[2].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get_local(
-                    BobKey::new(0),
-                    BackendOperation::new_alien(VDiskId::new(0)),
-                ),
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(0), BackendOperation::new_alien(VDiskId::new(0))));
         assert!(get.is_ok());
     }
 
@@ -803,13 +768,8 @@ pub mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(1, calls[2].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get_local(
-                    BobKey::new(0),
-                    BackendOperation::new_alien(VDiskId::new(0)),
-                ),
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(0), BackendOperation::new_alien(VDiskId::new(0))));
         assert!(get.is_ok());
     }
 
@@ -844,13 +804,8 @@ pub mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(0, calls[2].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get_local(
-                    BobKey::new(0),
-                    BackendOperation::new_alien(VDiskId::new(0)),
-                ),
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(0), BackendOperation::new_alien(VDiskId::new(0))));
         assert!(get.is_err());
     }
 
@@ -885,13 +840,8 @@ pub mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(1, calls[2].1.put_count());
 
-        let get = pool.run(
-            backend
-                .get_local(
-                    BobKey::new(0),
-                    BackendOperation::new_alien(VDiskId::new(0)),
-                ),
-        );
+        let get = pool
+            .run(backend.get_local(BobKey::new(0), BackendOperation::new_alien(VDiskId::new(0))));
         assert!(get.is_ok());
     }
 

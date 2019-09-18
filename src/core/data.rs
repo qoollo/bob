@@ -1,4 +1,4 @@
-use crate::api::grpc::{BlobMeta, PutOptions, GetOptions, GetSource};
+use crate::api::grpc::{BlobMeta, GetOptions, GetSource, PutOptions};
 use crate::core::{
     bob_client::{BobClient, BobClientFactory},
     configs::cluster::Node as ConfigNode,
@@ -25,10 +25,16 @@ impl PutOptions {
 
 impl GetOptions {
     pub(crate) fn new_normal() -> Self {
-        GetOptions {force_node: true, source: GetSource::Normal as i32}
+        GetOptions {
+            force_node: true,
+            source: GetSource::Normal as i32,
+        }
     }
     pub(crate) fn new_alien() -> Self {
-        GetOptions {force_node: true, source: GetSource::Alien as i32}
+        GetOptions {
+            force_node: true,
+            source: GetSource::Alien as i32,
+        }
     }
 }
 
@@ -137,7 +143,11 @@ impl BobOptions {
             }
             remote_nodes = vopts.remote_nodes;
         }
-        BobOptions {flags, remote_nodes, get_source: None}
+        BobOptions {
+            flags,
+            remote_nodes,
+            get_source: None,
+        }
     }
 
     pub(crate) fn new_get(options: Option<GetOptions>) -> Self {
@@ -149,11 +159,15 @@ impl BobOptions {
             }
             get_source = Some(GetSource::from(vopts.source));
         }
-        BobOptions {flags, remote_nodes: vec![], get_source }
+        BobOptions {
+            flags,
+            remote_nodes: vec![],
+            get_source,
+        }
     }
 
     pub(crate) fn have_remote_node(&self) -> bool {
-        self.remote_nodes.len() > 0 
+        self.remote_nodes.len() > 0
     }
 
     pub(crate) fn get_normal(&self) -> bool {

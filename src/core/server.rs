@@ -111,11 +111,7 @@ impl server::BobApi for BobSrv {
             };
 
             let grinder = self.grinder.clone();
-            let q = async move {
-                grinder
-                    .get(key, BobOptions::new_get(param.options))
-                    .await
-            };
+            let q = async move { grinder.get(key, BobOptions::new_get(param.options)).await };
             Box::new(q.boxed().compat().then(move |r| {
                 let elapsed = sw.elapsed_ms();
                 match r {
