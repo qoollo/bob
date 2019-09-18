@@ -179,36 +179,36 @@ impl BackendStorage for MemBackend {
         async move { Ok(()) }.boxed()
     }
 
-    fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
-        debug!("PUT[{}][{}] to backend", key, disk_name);
-        let disk = self.disks.get(&disk_name);
+    fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {
+        debug!("PUT[{}][{}] to backend", key, operation.disk_name_local());
+        let disk = self.disks.get(&operation.disk_name_local());
         Put(match disk {
-            Some(mem_disk) => mem_disk.put(vdisk, key, data).0,
+            Some(mem_disk) => mem_disk.put(operation.vdisk_id, key, data).0,
             None => {
-                error!("PUT[{}][{}] Can't find disk {}", key, disk_name, disk_name);
+                error!("PUT[{}] Can't find disk {}", key, operation.disk_name_local());
                 err2(Error::Other).boxed()
             }
         })
     }
 
-    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put {
+    fn put_alien(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}] to backend, foreign data", key);
-        Put(self.foreign_data.put(vdisk, key, data).0)
+        Put(self.foreign_data.put(operation.vdisk_id, key, data).0)
     }
 
-    fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get {
-        debug!("GET[{}][{}] to backend", key, disk_name);
-        Get(match self.disks.get(&disk_name) {
-            Some(mem_disk) => mem_disk.get(vdisk, key).0,
+    fn get(&self, operation: BackendOperation, key: BobKey) -> Get {
+        debug!("GET[{}][{}] to backend", key, operation.disk_name_local());
+        Get(match self.disks.get(&operation.disk_name_local()) {
+            Some(mem_disk) => mem_disk.get(operation.vdisk_id   , key).0,
             None => {
-                error!("GET[{}][{}] Can't find disk {}", key, disk_name, disk_name);
+                error!("GET[{}] Can't find disk {}", key, operation.disk_name_local());
                 err2(Error::Other).boxed()
             }
         })
     }
 
-    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> Get {
+    fn get_alien(&self, operation: BackendOperation, key: BobKey) -> Get {
         debug!("GET[{}] to backend, foreign data", key);
-        Get(self.foreign_data.get(vdisk, key).0)
+        Get(self.foreign_data.get(operation.vdisk_id, key).0)
     }
 }

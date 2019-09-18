@@ -11,7 +11,7 @@ use std::{pin::Pin, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub struct BackendOperation {
-    vdisk_id: VDiskId,
+    pub vdisk_id: VDiskId,
     disk_path: Option<DiskPath>,
     remote_node_name: Option<String>, // save data to alien/<remote_node_name>
 }
@@ -52,7 +52,7 @@ impl BackendOperation {
         self.remote_node_name = Some(name.to_string())
     }
     pub fn is_data_alien(&self) -> bool {
-        self.disk_path.is_none() || self.remote_node_name.is_some()
+        self.disk_path.is_none()
     }
     pub fn disk_name_local(&self) -> String {
         self.disk_path.clone().unwrap().name.clone()
@@ -81,11 +81,11 @@ pub type RunResult = Pin<Box<dyn Future<Output = Result<(), String>> + Send>>;
 pub trait BackendStorage {
     fn run_backend(&self) -> RunResult;
 
-    fn put(&self, disk_name: String, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;
-    fn put_alien(&self, vdisk: VDiskId, key: BobKey, data: BobData) -> Put;
+    fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put;
+    fn put_alien(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put;
 
-    fn get(&self, disk_name: String, vdisk: VDiskId, key: BobKey) -> Get;
-    fn get_alien(&self, vdisk: VDiskId, key: BobKey) -> Get;
+    fn get(&self, operation: BackendOperation, key: BobKey) -> Get;
+    fn get_alien(&self, operation: BackendOperation, key: BobKey) -> Get;
 }
 
 pub struct Backend {
@@ -121,7 +121,7 @@ impl Backend {
 
                 //TODO make it parallel?
                 if let Err(err) =
-                    Self::put_single(self.backend.clone(), key, data.clone(), op).await
+                    self.put_single(key, data.clone(), op).await
                 {
                     //TODO stop after first error?
                     return Err(err);
@@ -129,10 +129,7 @@ impl Backend {
             }
             return Ok(BackendPutResult {});
         } else if let Some(path) = disk_path {
-            //TODO no case for local and alien write?
-            return self
-                .put_local(key, data, BackendOperation::new_local(vdisk_id, path))
-                .await;
+            return self.put_local(key, data, BackendOperation::new_local(vdisk_id, path)).await;
         } else {
             //todo some cluster put mistake ?
             return Err(Error::Other);
@@ -140,21 +137,19 @@ impl Backend {
     }
 
     pub async fn put_local(&self, key: BobKey, data: BobData, op: BackendOperation) -> PutResult {
-        Self::put_single(self.backend.clone(), key, data, op).await
+        self.put_single(key, data, op).await
     }
 
-    async fn put_single(
-        backend: Arc<dyn BackendStorage + Send + Sync>,
+    async fn put_single(&self,
         key: BobKey,
         data: BobData,
         operation: BackendOperation,
     ) -> PutResult {
         if !operation.is_data_alien() {
             debug!("PUT[{}][{}] to backend", key, operation.disk_name_local());
-            let result = backend
+            let result = self.backend
                 .put(
-                    operation.disk_name_local(),
-                    operation.vdisk_id.clone(),
+                    operation.clone(),
                     key,
                     data.clone(),
                 )
@@ -169,8 +164,11 @@ impl Backend {
                         operation.disk_name_local(),
                         err
                     );
-                    backend
-                        .put_alien(operation.vdisk_id.clone(), key, data)
+                    // write to alien/<local name>
+                    let mut op = operation.clone();
+                    op.set_remote_folder(&self.mapper.local_node_name());
+                    self.backend
+                        .put_alien(op, key, data)
                         .0
                         .boxed()
                         .await
@@ -181,10 +179,10 @@ impl Backend {
             debug!(
                 "PUT[{}] to backend, alien data for {}",
                 key,
-                operation.vdisk_id.clone()
+                operation.vdisk_id
             );
-            backend
-                .put_alien(operation.vdisk_id.clone(), key, data)
+            self.backend
+                .put_alien(operation, key, data)
                 .0
                 .boxed()
                 .await
@@ -193,15 +191,9 @@ impl Backend {
 
     pub async fn get(&self, key: BobKey, options: BobOptions) -> GetResult {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        //TODO how read from all alien folders?
-        if options.get_alien() {
-            //TODO check is alien? how? add field to grpc
-            trace!("GET[{}] try read alien", key);
-            let op = BackendOperation::new_alien(vdisk_id.clone());
-            return Self::get_single(self.backend.clone(), key, op).await;
-        }
+
         // we cannot write data to alien if it belong this node
-        else if let Some(path) = disk_path.clone() {
+        if let Some(path) = disk_path.clone() {
             if options.get_normal() {
                 trace!("GET[{}] try read normal", key);
                 return self
@@ -209,6 +201,16 @@ impl Backend {
                     .await;
             }
         }
+        //TODO how read from all alien folders?
+        else if options.get_alien() {
+            //TODO check is alien? how? add field to grpc
+            trace!("GET[{}] try read alien", key);
+            //TODO read from all vdisk ids
+            let op = BackendOperation::new_alien(vdisk_id.clone());
+
+            return Self::get_single(self.backend.clone(), key, op).await;
+        }
+
         error!(
             "we cannot read data from anywhere. path: {:?}, options: {:?}",
             disk_path, options
@@ -231,14 +233,14 @@ impl Backend {
         if !operation.is_data_alien() {
             debug!("GET[{}][{}] to backend", key, operation.disk_name_local());
             backend
-                .get(operation.disk_name_local(), operation.vdisk_id.clone(), key)
+                .get(operation, key)
                 .0
                 .boxed()
                 .await
         } else {
             debug!("GET[{}] to backend, foreign data", key);
             backend
-                .get_alien(operation.vdisk_id.clone(), key)
+                .get_alien(operation, key)
                 .0
                 .boxed()
                 .await

@@ -56,6 +56,9 @@ impl VDiskMapper {
         (nodes, vdisks.to_vec())
     }
 
+    pub fn local_node_name(&self) -> String {
+        self.local_node_name.clone()
+    }
     pub fn vdisks_count(&self) -> u32 {
         self.vdisks.len() as u32
     }

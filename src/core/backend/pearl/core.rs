@@ -178,34 +178,34 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         q.boxed()
     }
 
-    fn put(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
-        debug!("PUT[{}][{}][{}] to pearl backend", disk_name, vdisk_id, key);
+    fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {
+        debug!("PUT[{}] to pearl backend. opeartion: {}", key, operation);
 
         let vdisks = self.vdisks.clone();
         Put({
-            let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
+            let vdisk = vdisks.iter().find(|vd| vd.equal(&operation.disk_name_local(), &operation.vdisk_id));
             if let Some(disk) = vdisk {
                 let d_clone = disk.clone();
                 async move {
                     Self::put_common(d_clone, key, data) // TODO remove copy of disk. add Box?
                         .await
                         .map_err(|e| {
-                            debug!("PUT[{}][{}][{}], error: {:?}", disk_name, vdisk_id, key, e);
+                            debug!("PUT[{}], error: {:?}", key, e);
                             e
                         })
                 }
                     .boxed()
             } else {
                 debug!(
-                    "PUT[{}][{}][{}] to pearl backend. Cannot find storage",
-                    disk_name, vdisk_id, key
+                    "PUT[{}] to pearl backend. Cannot find storage, operation: {}",
+                    key, operation
                 );
-                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
+                err03(backend::Error::VDiskNoFound(operation.vdisk_id)).boxed()
             }
         })
     }
 
-    fn put_alien(&self, _vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
+    fn put_alien(&self, _operation: BackendOperation, key: BobKey, data: BobData) -> Put {
         debug!("PUT[alien][{}] to pearl backend", key);
 
         let alien_dir = self.alien_dir.clone();
@@ -222,37 +222,37 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         })
     }
 
-    fn get(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey) -> Get {
+    fn get(&self, operation: BackendOperation, key: BobKey) -> Get {
         debug!(
-            "Get[{}][{}][{}] from pearl backend",
-            disk_name, vdisk_id, key
+            "Get[{}] from pearl backend. operation: {}",
+            key, operation
         );
 
         let vdisks = self.vdisks.clone();
         Get({
-            let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
+            let vdisk = vdisks.iter().find(|vd| vd.equal(&operation.disk_name_local(), &operation.vdisk_id));
             if let Some(disk) = vdisk {
                 let d_clone = disk.clone();
                 async move {
                     Self::get_common(d_clone, key) // TODO remove copy of disk. add Box?
                         .await
                         .map_err(|e| {
-                            debug!("GET[{}][{}][{}], error: {:?}", disk_name, vdisk_id, key, e);
+                            debug!("GET[{}], error: {:?}", key, e);
                             e
                         })
                 }
                     .boxed()
             } else {
                 debug!(
-                    "GET[{}][{}][{}] to pearl backend. Cannot find storage",
-                    disk_name, vdisk_id, key
+                    "GET[{}] to pearl backend. Cannot find storage, operation: {}",
+                    key, operation
                 );
-                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
+                err03(backend::Error::VDiskNoFound(operation.vdisk_id)).boxed()
             }
         })
     }
 
-    fn get_alien(&self, _vdisk_id: VDiskId, key: BobKey) -> Get {
+    fn get_alien(&self, _operation: BackendOperation, key: BobKey) -> Get {
         debug!("Get[alien][{}] from pearl backend", key);
 
         let alien_dir = self.alien_dir.clone();

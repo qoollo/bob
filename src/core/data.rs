@@ -36,6 +36,12 @@ impl GetOptions {
             source: GetSource::Alien as i32,
         }
     }
+    pub(crate) fn new_all() -> Self {
+        GetOptions {
+            force_node: true,
+            source: GetSource::All as i32,
+        }
+    }
 }
 
 impl From<i32> for GetSource {
