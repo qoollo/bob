@@ -596,6 +596,9 @@ pearl:
   pool_count_threads: 4
   fail_retry_timeout: 100ms
   alien_disk: disk1
+  policy:                     # describes how create and manage bob directories. required for 'pearl'
+    root_name: bob            # root dir for bob storage. required for 'pearl'
+    alien_root_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_ok());
@@ -620,6 +623,9 @@ pearl:
   pool_count_threads: 4
   fail_retry_timeout: 100ms
   alien_disk: disk1  
+  policy:                     # describes how create and manage bob directories. required for 'pearl'
+    root_name: bob            # root dir for bob storage. required for 'pearl'
+    alien_root_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_ok());
@@ -643,6 +649,9 @@ pearl:
 #  blob_file_name_prefix: bob
   fail_retry_timeout: 100ms
   alien_disk: disk1
+  policy:                     # describes how create and manage bob directories. required for 'pearl'
+    root_name: bob            # root dir for bob storage. required for 'pearl'
+    alien_root_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -666,6 +675,9 @@ pearl:
 #  blob_file_name_prefix: bob
   fail_retry_timeout: 100
   alien_disk: disk1
+  policy:                     # describes how create and manage bob directories. required for 'pearl'
+    root_name: bob            # root dir for bob storage. required for 'pearl'
+    alien_root_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -689,6 +701,9 @@ pearl:
 #  blob_file_name_prefix: bob
 #  fail_retry_timeout: 100
   alien_disk: disk1
+  policy:                     # describes how create and manage bob directories. required for 'pearl'
+    root_name: bob            # root dir for bob storage. required for 'pearl'
+    alien_root_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -832,6 +847,9 @@ pearl:
 #  blob_file_name_prefix: bob
   fail_retry_timeout: 100ms
   alien_disk: disk1
+  policy:                     # describes how create and manage bob directories. required for 'pearl'
+    root_name: bob            # root dir for bob storage. required for 'pearl'
+    alien_root_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -872,6 +890,9 @@ pearl:
 #  blob_file_name_prefix: bob
   fail_retry_timeout: 100ms
   alien_disk: disk112312312312321
+  policy:                     # describes how create and manage bob directories. required for 'pearl'
+    root_name: bob            # root dir for bob storage. required for 'pearl'
+    alien_root_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());

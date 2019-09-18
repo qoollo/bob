@@ -20,8 +20,7 @@ mod tests {
         let retval = reactor.run(
             backend
                 .put(
-                    "invalid name".to_string(),
-                    VDiskId::new(0),
+                    BackendOperation::new_local(VDiskId::new(0), DiskPath::new("invalid name", "")),
                     BobKey { key: 1 },
                     BobData {
                         data: vec![0],
@@ -42,8 +41,7 @@ mod tests {
             .run(
                 backend
                     .put(
-                        "name".to_string(),
-                        VDiskId::new(0),
+                        BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "")),
                         BobKey { key: 1 },
                         BobData {
                             data: vec![1],
@@ -56,7 +54,7 @@ mod tests {
         let retval = reactor
             .run(
                 backend
-                    .get("name".to_string(), VDiskId::new(0), BobKey { key: 1 })
+                    .get(BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "")), BobKey { key: 1 })
                     .0,
             )
             .unwrap();
@@ -72,8 +70,7 @@ mod tests {
             .run(
                 backend
                     .put(
-                        "name".to_string(),
-                        VDiskId::new(0),
+                        BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "")),
                         BobKey { key: 1 },
                         BobData {
                             data: vec![1],
@@ -86,8 +83,7 @@ mod tests {
         let retval = reactor.run(
             backend
                 .get(
-                    "invalid name".to_string(),
-                    VDiskId::new(0),
+                    BackendOperation::new_local(VDiskId::new(0), DiskPath::new("invalid name", "")),
                     BobKey { key: 1 },
                 )
                 .0,
@@ -102,7 +98,7 @@ mod tests {
 
         let retval = reactor.run(
             backend
-                .get("name".to_string(), VDiskId::new(0), BobKey { key: 1 })
+                .get(BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "")), BobKey { key: 1 })
                 .0,
         );
         assert_eq!(retval.err().unwrap(), Error::KeyNotFound)
