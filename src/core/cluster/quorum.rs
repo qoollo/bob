@@ -394,7 +394,7 @@ pub mod tests {
             timestamp: u32,
         ) {
             let cl = node.clone();
-            client.expect_get().returning(move |_key| {
+            client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
                 tests::get_ok(cl.clone(), timestamp)
             });
@@ -402,7 +402,7 @@ pub mod tests {
 
         pub fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             let cl = node.clone();
-            client.expect_get().returning(move |_key| {
+            client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
                 tests::get_err(cl.clone())
             });
@@ -546,11 +546,10 @@ pub mod tests {
         assert_eq!(1, calls[0].1.put_count());
         let get = pool.run(
             backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
+                .get_local(
                     BobKey::new(1),
-                )
-                .0,
+                    BackendOperation::new_alien(VDiskId::new(0)),
+                ),
         );
         assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
     }
@@ -587,11 +586,10 @@ pub mod tests {
 
         let get = pool.run(
             backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
+                .get_local(
                     BobKey::new(2),
-                )
-                .0,
+                    BackendOperation::new_alien(VDiskId::new(0)),
+                ),
         );
         assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
     }
@@ -639,20 +637,18 @@ pub mod tests {
 
         let mut get = pool.run(
             backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
+                .get_local(
                     BobKey::new(3),
-                )
-                .0,
+                    BackendOperation::new_alien(VDiskId::new(0)),
+                ),
         );
         assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
         get = pool.run(
             backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
+                .get_local(
                     BobKey::new(4),
-                )
-                .0,
+                    BackendOperation::new_alien(VDiskId::new(0)),
+                ),
         );
         assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
     }
@@ -688,11 +684,10 @@ pub mod tests {
 
         let get = pool.run(
             backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
+                .get_local(
                     BobKey::new(5),
-                )
-                .0,
+                    BackendOperation::new_alien(VDiskId::new(0)),
+                ),
         );
         assert!(get.is_ok());
     }
@@ -728,11 +723,10 @@ pub mod tests {
 
         let get = pool.run(
             backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
+                .get_local(
                     BobKey::new(5),
-                )
-                .0,
+                    BackendOperation::new_alien(VDiskId::new(0)),
+                ),
         );
         assert!(get.is_ok());
     }
@@ -770,11 +764,10 @@ pub mod tests {
 
         let get = pool.run(
             backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
+                .get_local(
                     BobKey::new(0),
-                )
-                .0,
+                    BackendOperation::new_alien(VDiskId::new(0)),
+                ),
         );
         assert!(get.is_ok());
     }
@@ -812,11 +805,10 @@ pub mod tests {
 
         let get = pool.run(
             backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
+                .get_local(
                     BobKey::new(0),
-                )
-                .0,
+                    BackendOperation::new_alien(VDiskId::new(0)),
+                ),
         );
         assert!(get.is_ok());
     }
@@ -854,11 +846,10 @@ pub mod tests {
 
         let get = pool.run(
             backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
+                .get_local(
                     BobKey::new(0),
-                )
-                .0,
+                    BackendOperation::new_alien(VDiskId::new(0)),
+                ),
         );
         assert!(get.is_err());
     }
@@ -896,11 +887,10 @@ pub mod tests {
 
         let get = pool.run(
             backend
-                .get(
-                    &BackendOperation::new_alien(VDiskId::new(0)),
+                .get_local(
                     BobKey::new(0),
-                )
-                .0,
+                    BackendOperation::new_alien(VDiskId::new(0)),
+                ),
         );
         assert!(get.is_ok());
     }
@@ -935,7 +925,7 @@ pub mod tests {
     /// get no data => err
     #[test]
     fn simple_one_node_get_err() {
-        log4rs::init_file("./logger.yaml", Default::default()).unwrap();
+        // log4rs::init_file("./logger.yaml", Default::default()).unwrap();
         let mut pool = get_pool();
         let (vdisks, node, cluster) = prepare_configs(1, 1, 1, 1);
 
