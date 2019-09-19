@@ -5,7 +5,7 @@ pub mod stub_backend;
 
 pub mod pearl;
 
-mod policy;
+mod settings;
 
 use crate::core::data::VDiskId;
 use std::io::ErrorKind;

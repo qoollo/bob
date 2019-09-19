@@ -5,7 +5,7 @@ use crate::core::backend::pearl::{
     metrics::*,
     stuff::{LockGuard, Stuff},
 };
-use crate::core::backend::policy::BackendPolicy;
+use crate::core::backend::settings::BackendSettings;
 use crate::core::configs::node::{NodeConfig, PearlConfig};
 use crate::core::data::{BobData, BobKey, VDiskId};
 use crate::core::mapper::VDiskMapper;
@@ -33,7 +33,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
 
         let mut result = Vec::new();
 
-        let policy = BackendPolicy::new(config, mapper.clone());
+        let settings = BackendSettings::new(config, mapper.clone());
         //init pearl storages for each vdisk
         for disk in mapper.local_disks().iter() {
             let mut vdisks: Vec<PearlVDisk<TSpawner>> = mapper
@@ -43,7 +43,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
                     PearlVDisk::new(
                         &disk.name,
                         vdisk_id.clone(),
-                        policy.normal_directory(&disk.path, vdisk_id),
+                        settings.normal_directory(&disk.path, vdisk_id),
                         pearl_config.clone(),
                         spawner.clone(),
                     )
@@ -55,7 +55,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
         //init alien storage
         let alien_dir = PearlVDisk::new_alien(
             &pearl_config.alien_disk(),
-            policy.alien_directory(),
+            settings.alien_directory(),
             pearl_config.clone(),
             spawner.clone(),
         );
