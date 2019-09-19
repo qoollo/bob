@@ -3,12 +3,12 @@ use crate::core::{configs::node::NodeConfig, data::VDiskId, mapper::VDiskMapper}
 
 use std::{path::PathBuf, sync::Arc};
 
-pub(crate) struct BackendPolicy {
+pub(crate) struct Settings {
     bob_prefix_path: String,
     alien_folder: String,
 }
 
-impl BackendPolicy {
+impl Settings {
     pub(crate) fn new(config: &NodeConfig, mapper: Arc<VDiskMapper>) -> Self {
         let pearl_config = config.pearl.clone().unwrap();
 
@@ -18,11 +18,11 @@ impl BackendPolicy {
                 .get_disk_by_name(&pearl_config.alien_disk())
                 .expect("cannot find alien disk in config")
                 .path,
-            pearl_config.policy().alien_root_name()
+            pearl_config.settings().alien_root_dir_name()
         );
 
-        BackendPolicy {
-            bob_prefix_path: pearl_config.policy().root_name(),
+        Settings {
+            bob_prefix_path: pearl_config.settings().root_dir_name(),
             alien_folder: alien_folder,
         }
     }
