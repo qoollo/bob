@@ -2,19 +2,22 @@ use super::{
     holder::PearlHolder,
     data::BackendResult,
     settings::Settings,
+    stuff::*
     };
 use crate::core::{
     backend,
     data::{BobData, BobKey, VDiskId},
+    configs::node::PearlConfig,
     backend::core::*,
     };
-use std::sync::Arc;
+use std::{sync::Arc, path::PathBuf, fs::read_dir};
 use futures03::{
     compat::Future01CompatExt,
     task::Spawn,
     FutureExt,
 };
 use futures_locks::RwLock;
+use tokio_timer::sleep;
 
 #[derive(Clone)]
 pub(crate) struct PearlTimestampHolder<TSpawner>{
@@ -41,22 +44,152 @@ impl<TSpawner> std::fmt::Display for PearlTimestampHolder<TSpawner> {
 pub(crate) struct PearlGroup<TSpawner> {
     group: Arc<RwLock<Vec<PearlTimestampHolder<TSpawner>>>>,
     settings: Arc<Settings>,
+    config: PearlConfig, 
+    spawner: TSpawner,
+    
+    vdisk_id: VDiskId,
+    directory_path: PathBuf,
+    disk_name: String,
 }
 
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawner> {
-    pub fn new(settings: Arc<Settings>) -> Self {
+    pub fn new(settings: Arc<Settings>, vdisk_id: VDiskId, disk_name: String,  directory_path: PathBuf, config: PearlConfig, spawner: TSpawner) -> Self {
         PearlGroup {
             group: Arc::new(RwLock::new(vec![])),
             settings,
+            vdisk_id,
+            directory_path,
+            config,
+            spawner,
+            disk_name,
         }
     }
-    pub async fn add(&self, pearl: PearlTimestampHolder<TSpawner>) -> BackendResult<()>{
-        let mut lock = self.group.write().compat().boxed().await.map_err(|e| {
+
+    pub async fn run(&self) {
+        let delay = self.config.fail_retry_timeout();
+        let mut exit = false;
+
+        let mut pearls = vec![];
+        while !exit {
+            let read_pearls = self.read_vdisk_directory();
+            if let Err(err) = read_pearls {
+                error!("can't create pearls: {:?}", err);
+                let _ = sleep(delay).compat().boxed().await;
+                continue;
+            }
+
+            pearls = read_pearls.unwrap();
+            exit = true;
+        }
+
+        exit = false;
+        while !exit {
+            if let Err(err) = self.add_range(pearls.clone()).await {
+                error!("can't add pearls: {:?}", err);
+                let _ = sleep(delay).compat().boxed().await;
+                continue;
+            }
+            exit = true;
+        }
+
+        exit = false;
+        while !exit {
+            if let Err(err) = self.run_pearls().await {
+                error!("can't start pearls: {:?}", err);
+                let _ = sleep(delay).compat().boxed().await;
+                continue;
+            }
+            exit = true;
+        }
+    }
+
+    async fn run_pearls(&self) -> BackendResult<()> {
+        let mut pearls = self.group.write().compat().boxed().await.map_err(|e| {
             error!("cannot take lock: {:?}", e);
             backend::Error::Failed(format!("cannot take lock: {:?}", e))
         })?;
 
-        lock.push(pearl);
+        for i in 0..pearls.len() {
+            let _ = pearls[i]
+                .pearl
+                .clone()
+                .prepare_storage() //TODO add Box?
+                .await;
+        }
+        Ok(())
+    }
+
+    fn read_vdisk_directory(&self) -> BackendResult<(Vec<PearlTimestampHolder<TSpawner>>)>{
+        Stuff::check_or_create_directory(&self.directory_path)?;
+
+        let mut pearls = vec![];
+        match read_dir(self.directory_path.clone()) {
+            Ok(dir)=>{
+                for entry in dir{
+                    if let Ok(entry) = entry {
+                        if let Ok(metadata) = entry.metadata() {
+                            if !metadata.is_dir() {
+                                trace!("ignore: {:?}", entry);
+                                continue;
+                            }
+                            let file_name = entry
+                                .file_name()
+                                .into_string()
+                                .map_err(|_| warn!("cannot parse file name: {:?}", entry));
+                            if file_name.is_err(){
+                                continue;
+                            }
+                            let timestamp:Result<u32, _> = file_name.unwrap().parse()
+                                .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry));
+                            let start_timestamp = timestamp.unwrap();
+                            let end_timestamp = start_timestamp + 100; // TODO get value from config
+                            let pearl = PearlHolder::new(
+                                &self.disk_name,
+                                self.vdisk_id.clone(),
+                                entry.path(),
+                                self.config.clone(),
+                                self.spawner.clone(),
+                            );
+                            let pearl_holder = PearlTimestampHolder::new(pearl, start_timestamp, end_timestamp);
+                            pearls.push(pearl_holder);
+                        } else {
+                            debug!("Couldn't get metadata for {:?}", entry.path());
+                            return Err(backend::Error::Failed(format!("Couldn't get metadata for {:?}", entry.path())));
+                        }
+                    }
+                    else {
+                        debug!("couldn't read entry: {:?} ", entry);
+                        return Err(backend::Error::Failed(format!("couldn't read entry: {:?}", entry)));
+                    }
+                }
+            },
+            Err(err)=>{
+                debug!("couldn't process path: {:?}, error: {:?} ", self.directory_path, err);
+                return Err(backend::Error::Failed(format!("couldn't process path: {:?}, error: {:?} ", self.directory_path, err)));
+            },
+        }
+
+        Ok(pearls)
+    }
+
+    pub async fn add(&self, pearl: PearlTimestampHolder<TSpawner>) -> BackendResult<()>{
+        let mut pearls = self.group.write().compat().boxed().await.map_err(|e| {
+            error!("cannot take lock: {:?}", e);
+            backend::Error::Failed(format!("cannot take lock: {:?}", e))
+        })?;
+
+        pearls.push(pearl);
+    
+        Ok(())
+    }
+
+    pub async fn add_range(&self, mut new_pearls: Vec<PearlTimestampHolder<TSpawner>>) -> BackendResult<()>{
+        let mut pearls = self.group.write().compat().boxed().await.map_err(|e| {
+            error!("cannot take lock: {:?}", e);
+            backend::Error::Failed(format!("cannot take lock: {:?}", e))
+        })?;
+
+        pearls.append(&mut new_pearls);
     
         Ok(())
     }
@@ -73,12 +206,12 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
     }
 
     pub async fn put(&self, key: BobKey, data: BobData) -> PutResult {
-        let folders = self.group.read().compat().boxed().await.map_err(|e| {
+        let pearls = self.group.read().compat().boxed().await.map_err(|e| {
             error!("cannot take lock: {:?}", e);
             backend::Error::Failed(format!("cannot take lock: {:?}", e))
         })?;
 
-        let pearl = self.get_actual(folders.to_vec(), key, data.clone())?;
+        let pearl = self.get_actual(pearls.to_vec(), key, data.clone())?;
 
         Self::put_common(pearl.pearl, key, data).await
     }
@@ -103,14 +236,14 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
     }
 
     pub async fn get(&self, key: BobKey) -> GetResult {
-        let folders = self.group.read().compat().boxed().await.map_err(|e| {
+        let pearls = self.group.read().compat().boxed().await.map_err(|e| {
             error!("cannot take lock: {:?}", e);
             backend::Error::Failed(format!("cannot take lock: {:?}", e))
         })?;
 
         let mut has_error = false;
         let mut results = vec![];
-        for pearl in folders.iter() {
+        for pearl in pearls.iter() {
             let get = Self::get_common(pearl.pearl.clone(), key).await;
             match get {
                 Ok(data) => {
@@ -132,7 +265,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
                 return Err(backend::Error::KeyNotFound);
             }
         }
-        self.settings.choose_data(results)
+        // self.settings.choose_data(results)
+        unimplemented!();
     }
 
     fn is_read_error(err: Option<&backend::Error>) -> bool {

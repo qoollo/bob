@@ -32,6 +32,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
         let mut result = Vec::new();
 
         let settings = Settings::new(config, mapper.clone());
+
         //init pearl storages for each vdisk
         for disk in mapper.local_disks().iter() {
             let mut vdisks: Vec<PearlHolder<TSpawner>> = mapper
