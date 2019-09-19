@@ -4,8 +4,8 @@ use crate::core::backend::pearl::{
     data::*,
     metrics::*,
     stuff::{LockGuard, Stuff},
+    settings::Settings,
 };
-use crate::core::backend::settings::BackendSettings;
 use crate::core::configs::node::{NodeConfig, PearlConfig};
 use crate::core::data::{BobData, BobKey, VDiskId};
 use crate::core::mapper::VDiskMapper;
@@ -33,7 +33,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
 
         let mut result = Vec::new();
 
-        let settings = BackendSettings::new(config, mapper.clone());
+        let settings = Settings::new(config, mapper.clone());
         //init pearl storages for each vdisk
         for disk in mapper.local_disks().iter() {
             let mut vdisks: Vec<PearlVDisk<TSpawner>> = mapper

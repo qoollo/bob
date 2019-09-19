@@ -4,3 +4,5 @@ pub mod metrics;
 mod data;
 mod stuff;
 mod tests;
+mod settings;
+
