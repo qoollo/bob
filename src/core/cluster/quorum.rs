@@ -296,7 +296,7 @@ impl Cluster for QuorumCluster {
         );
 
         let g = async move {
-            let acc = Self::get_all(key, target_nodes, GetOptions::new_normal()).await;
+            let acc = Self::get_all(key, target_nodes, GetOptions::new_all()).await;
             debug!("GET[{}] cluster ans: {:?}", key, acc);
 
             let (result, err) = Self::get_filter_result(key, acc);

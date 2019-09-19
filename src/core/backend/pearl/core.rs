@@ -4,6 +4,7 @@ use crate::core::backend::pearl::{
     data::*,
     metrics::*,
     stuff::{LockGuard, Stuff},
+    settings::Settings,
 };
 use crate::core::configs::node::{NodeConfig, PearlConfig};
 use crate::core::data::{BobData, BobKey, VDiskId};
@@ -32,21 +33,17 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
 
         let mut result = Vec::new();
 
+        let settings = Settings::new(config, mapper.clone());
         //init pearl storages for each vdisk
         for disk in mapper.local_disks().iter() {
-            let base_path = PathBuf::from(format!("{}/bob/", disk.path));
             let mut vdisks: Vec<PearlVDisk<TSpawner>> = mapper
                 .get_vdisks_by_disk(&disk.name)
                 .iter()
                 .map(|vdisk_id| {
-                    let mut vdisk_path = base_path.clone();
-                    vdisk_path.push(format!("{}/", vdisk_id));
-
                     PearlVDisk::new(
-                        &disk.path,
                         &disk.name,
                         vdisk_id.clone(),
-                        vdisk_path,
+                        settings.normal_directory(&disk.path, vdisk_id),
                         pearl_config.clone(),
                         spawner.clone(),
                     )
@@ -56,19 +53,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
         }
 
         //init alien storage
-        let path = format!(
-            "{}/alien/",
-            mapper
-                .get_disk_by_name(&pearl_config.alien_disk())
-                .unwrap()
-                .path
-        );
-
-        let alien_path = PathBuf::from(path.clone());
         let alien_dir = PearlVDisk::new_alien(
-            &path,
             &pearl_config.alien_disk(),
-            alien_path,
+            settings.alien_directory(),
             pearl_config.clone(),
             spawner.clone(),
         );
@@ -191,34 +178,36 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         q.boxed()
     }
 
-    fn put(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
-        debug!("PUT[{}][{}][{}] to pearl backend", disk_name, vdisk_id, key);
+    fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {
+        debug!("PUT[{}] to pearl backend. opeartion: {}", key, operation);
 
         let vdisks = self.vdisks.clone();
         Put({
-            let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
+            let vdisk = vdisks
+                .iter()
+                .find(|vd| vd.equal(&operation.disk_name_local(), &operation.vdisk_id));
             if let Some(disk) = vdisk {
                 let d_clone = disk.clone();
                 async move {
                     Self::put_common(d_clone, key, data) // TODO remove copy of disk. add Box?
                         .await
                         .map_err(|e| {
-                            debug!("PUT[{}][{}][{}], error: {:?}", disk_name, vdisk_id, key, e);
+                            debug!("PUT[{}], error: {:?}", key, e);
                             e
                         })
                 }
                     .boxed()
             } else {
                 debug!(
-                    "PUT[{}][{}][{}] to pearl backend. Cannot find storage",
-                    disk_name, vdisk_id, key
+                    "PUT[{}] to pearl backend. Cannot find storage, operation: {}",
+                    key, operation
                 );
-                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
+                err03(backend::Error::VDiskNoFound(operation.vdisk_id)).boxed()
             }
         })
     }
 
-    fn put_alien(&self, _vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
+    fn put_alien(&self, _operation: BackendOperation, key: BobKey, data: BobData) -> Put {
         debug!("PUT[alien][{}] to pearl backend", key);
 
         let alien_dir = self.alien_dir.clone();
@@ -235,37 +224,36 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         })
     }
 
-    fn get(&self, disk_name: String, vdisk_id: VDiskId, key: BobKey) -> Get {
-        debug!(
-            "Get[{}][{}][{}] from pearl backend",
-            disk_name, vdisk_id, key
-        );
+    fn get(&self, operation: BackendOperation, key: BobKey) -> Get {
+        debug!("Get[{}] from pearl backend. operation: {}", key, operation);
 
         let vdisks = self.vdisks.clone();
         Get({
-            let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
+            let vdisk = vdisks
+                .iter()
+                .find(|vd| vd.equal(&operation.disk_name_local(), &operation.vdisk_id));
             if let Some(disk) = vdisk {
                 let d_clone = disk.clone();
                 async move {
                     Self::get_common(d_clone, key) // TODO remove copy of disk. add Box?
                         .await
                         .map_err(|e| {
-                            debug!("GET[{}][{}][{}], error: {:?}", disk_name, vdisk_id, key, e);
+                            debug!("GET[{}], error: {:?}", key, e);
                             e
                         })
                 }
                     .boxed()
             } else {
                 debug!(
-                    "GET[{}][{}][{}] to pearl backend. Cannot find storage",
-                    disk_name, vdisk_id, key
+                    "GET[{}] to pearl backend. Cannot find storage, operation: {}",
+                    key, operation
                 );
-                err03(backend::Error::VDiskNoFound(vdisk_id)).boxed()
+                err03(backend::Error::VDiskNoFound(operation.vdisk_id)).boxed()
             }
         })
     }
 
-    fn get_alien(&self, _vdisk_id: VDiskId, key: BobKey) -> Get {
+    fn get_alien(&self, _operation: BackendOperation, key: BobKey) -> Get {
         debug!("Get[alien][{}] from pearl backend", key);
 
         let alien_dir = self.alien_dir.clone();
@@ -285,7 +273,6 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
 
 #[derive(Clone)]
 pub(crate) struct PearlVDisk<TSpawner> {
-    path: String,
     name: String,
     vdisk: Option<VDiskId>,
     disk_path: PathBuf,
@@ -298,7 +285,6 @@ pub(crate) struct PearlVDisk<TSpawner> {
 
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawner> {
     pub fn new(
-        path: &str,
         name: &str,
         vdisk: VDiskId,
         disk_path: PathBuf,
@@ -306,7 +292,6 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         spawner: TSpawner,
     ) -> Self {
         PearlVDisk {
-            path: path.to_string(),
             name: name.to_string(),
             disk_path,
             vdisk: Some(vdisk),
@@ -316,14 +301,12 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlVDisk<TSpawne
         }
     }
     pub fn new_alien(
-        path: &str,
         name: &str,
         disk_path: PathBuf,
         config: PearlConfig,
         spawner: TSpawner,
     ) -> Self {
         PearlVDisk {
-            path: path.to_string(),
             name: name.to_string(),
             vdisk: None,
             disk_path,
