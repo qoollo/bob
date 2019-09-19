@@ -5,6 +5,7 @@ use super::{
     metrics::*,
     stuff::{LockGuard, Stuff},
     settings::Settings,
+    holder::{PearlHolder, PearlSync},
 };
 use crate::core::configs::node::{NodeConfig, PearlConfig};
 use crate::core::data::{BobData, BobKey, VDiskId};

@@ -5,5 +5,6 @@ mod data;
 mod holder;
 mod stuff;
 mod tests;
+mod group;
 mod settings;
 

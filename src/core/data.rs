@@ -82,6 +82,12 @@ impl BobData {
     }
 }
 
+impl std::fmt::Display for BobData {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "(len: {}, meta: {})", self.data.len(), self.meta)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BobMeta {
     pub timestamp: u32,

@@ -67,6 +67,12 @@ pub struct BackendGetResult {
     pub data: BobData,
 }
 
+impl std::fmt::Display for BackendGetResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.data)
+    }
+}
+
 #[derive(Debug)]
 pub struct BackendPingResult {}
 
