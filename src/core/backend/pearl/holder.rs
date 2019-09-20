@@ -87,10 +87,6 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
             .await
     }
 
-    pub fn equal(&self, name: &str, vdisk: &VDiskId) -> bool {
-        self.name == name && self.vdisk.as_ref().unwrap() == vdisk
-    }
-
     pub async fn write(&self, key: BobKey, data: Box<BobData>) -> BackendResult<()> {
         self.storage
             .read(|st| {

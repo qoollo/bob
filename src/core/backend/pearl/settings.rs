@@ -37,7 +37,7 @@ impl Settings {
         }
     }
 
-    pub(crate) async fn read_pearl_from_disk<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync>
+    pub(crate) fn read_group_from_disk<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync>
      (&self, settings: Arc<Settings>, config: PearlConfig, spawner: TSpawner) -> Vec<PearlGroup<TSpawner>> {
         let mut result = vec![];
         for disk in self.mapper.local_disks().iter() {
@@ -52,6 +52,60 @@ impl Settings {
             result.append(&mut vdisks);
         }
         result
+    }
+
+    pub(crate) fn read_vdisk_directory<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync>
+        (&self, group: &PearlGroup<TSpawner>) -> BackendResult<(Vec<PearlTimestampHolder<TSpawner>>)>{
+        Stuff::check_or_create_directory(&group.directory_path)?;
+
+        let mut pearls = vec![];
+        match read_dir(group.directory_path.clone()) {
+            Ok(dir)=>{
+                for entry in dir{
+                    if let Ok(entry) = entry {
+                        if let Ok(metadata) = entry.metadata() {
+                            if !metadata.is_dir() {
+                                trace!("ignore: {:?}", entry);
+                                continue;
+                            }
+                            let file_name = entry
+                                .file_name()
+                                .into_string()
+                                .map_err(|_| warn!("cannot parse file name: {:?}", entry));
+                            if file_name.is_err(){
+                                continue;
+                            }
+                            let timestamp:Result<u32, _> = file_name.unwrap().parse()
+                                .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry));
+                            let start_timestamp = timestamp.unwrap();
+                            let end_timestamp = start_timestamp + 100; // TODO get value from config
+                            let pearl = PearlHolder::new(
+                                &group.disk_name,
+                                group.vdisk_id.clone(),
+                                entry.path(),
+                                group.config.clone(),
+                                group.spawner.clone(),
+                            );
+                            let pearl_holder = PearlTimestampHolder::new(pearl, start_timestamp, end_timestamp);
+                            pearls.push(pearl_holder);
+                        } else {
+                            debug!("Couldn't get metadata for {:?}", entry.path());
+                            return Err(backend::Error::Failed(format!("Couldn't get metadata for {:?}", entry.path())));
+                        }
+                    }
+                    else {
+                        debug!("couldn't read entry: {:?} ", entry);
+                        return Err(backend::Error::Failed(format!("couldn't read entry: {:?}", entry)));
+                    }
+                }
+            },
+            Err(err)=>{
+                debug!("couldn't process path: {:?}, error: {:?} ", group.directory_path, err);
+                return Err(backend::Error::Failed(format!("couldn't process path: {:?}, error: {:?} ", group.directory_path, err)));
+            },
+        }
+
+        Ok(pearls)
     }
     pub(crate) fn normal_directory(&self, disk_path: &str, vdisk_id: &VDiskId) -> PathBuf {
         let mut vdisk_path = PathBuf::from(format!("{}/{}/", disk_path, self.bob_prefix_path));
