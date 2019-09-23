@@ -113,6 +113,6 @@ impl VDiskMapper {
     }
 
     pub fn is_node_holds_vdisk(&self, node_name: &str, id: VDiskId) -> bool {
-        self.vdisks.iter().find(|vdisk| vdisk.id == id && vdisk.nodes.iter().find(|node|node.name()== node_name).is_some()).is_some()
+        self.vdisks.iter().any(|vdisk| vdisk.id == id && vdisk.nodes.iter().any(|node|node.name()== node_name))
     }
 }

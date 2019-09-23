@@ -43,13 +43,13 @@ impl<TSpawner> std::fmt::Display for PearlTimestampHolder<TSpawner> {
 pub(crate) struct PearlGroup<TSpawner> {
     group: Arc<RwLock<Vec<PearlTimestampHolder<TSpawner>>>>,
     settings: Arc<Settings<TSpawner>>,
-    pub config: PearlConfig, 
-    pub spawner: TSpawner,
+    config: PearlConfig, 
+    spawner: TSpawner,
     
-    pub vdisk_id: VDiskId,
-    pub node_name: String,
+    vdisk_id: VDiskId,
+    node_name: String,
     pub directory_path: PathBuf,
-    pub disk_name: String,
+    disk_name: String,
 }
 
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawner> {
@@ -130,6 +130,14 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         Ok(())
     }
 
+    pub fn create_pearl_by_path(&self, path: PathBuf) -> PearlHolder<TSpawner> {
+        PearlHolder::new(
+                self.vdisk_id.clone(),
+                path,
+                self.config.clone(),
+                self.spawner.clone(),
+            )
+    }
     pub async fn add(&self, pearl: PearlTimestampHolder<TSpawner>) -> BackendResult<()>{
         let mut pearls = self.group.write().compat().boxed().await.map_err(|e| {
             error!("cannot take lock: {:?}", e);
@@ -214,7 +222,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
                 },
             }
         }
-        if results.len() == 0 {
+        if results.is_empty() {
             if has_error {
                 debug!("cannot read from some pearls");
                 return Err(backend::Error::Failed("cannot read from some pearls".to_string()));

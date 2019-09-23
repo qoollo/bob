@@ -21,8 +21,7 @@ use tokio_timer::sleep;
 
 #[derive(Clone)]
 pub(crate) struct PearlHolder<TSpawner> {
-    name: String,
-    vdisk: Option<VDiskId>,
+    vdisk: VDiskId,
     disk_path: PathBuf,
 
     config: PearlConfig,
@@ -33,31 +32,14 @@ pub(crate) struct PearlHolder<TSpawner> {
 
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawner> {
     pub fn new(
-        name: &str,
         vdisk: VDiskId,
         disk_path: PathBuf,
         config: PearlConfig,
         spawner: TSpawner,
     ) -> Self {
         PearlHolder {
-            name: name.to_string(),
             disk_path,
-            vdisk: Some(vdisk),
-            config,
-            spawner,
-            storage: Arc::new(LockGuard::new(PearlSync::new())),
-        }
-    }
-    pub fn new_alien(
-        name: &str,
-        disk_path: PathBuf,
-        config: PearlConfig,
-        spawner: TSpawner,
-    ) -> Self {
-        PearlHolder {
-            name: name.to_string(),
-            vdisk: None,
-            disk_path,
+            vdisk,
             config,
             spawner,
             storage: Arc::new(LockGuard::new(PearlSync::new())),
@@ -65,10 +47,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
     }
 
     fn vdisk_print(&self) -> String {
-        match &self.vdisk {
-            Some(vdisk) => format!("{}", vdisk),
-            None => "alien".to_string(),
-        }
+        format!("{}", self.vdisk)
     }
     pub async fn update(&self, storage: Storage<PearlKey>) -> BackendResult<()> {
         trace!("try update Pearl id: {}", self.vdisk_print());

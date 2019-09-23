@@ -26,7 +26,6 @@ pub struct PearlBackend<TSpawner> {
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpawner> {
     pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig, spawner: TSpawner) -> Self {
         debug!("initializing pearl backend");
-        let pearl_config = config.pearl.clone().unwrap();
         let settings = Arc::new(Settings::new(config, mapper.clone()));
 
         let vdisks_groups = Arc::new(settings.read_group_from_disk(settings.clone(), config, spawner.clone()));
