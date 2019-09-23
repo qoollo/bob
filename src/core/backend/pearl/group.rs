@@ -42,21 +42,23 @@ impl<TSpawner> std::fmt::Display for PearlTimestampHolder<TSpawner> {
 #[derive(Clone)]
 pub(crate) struct PearlGroup<TSpawner> {
     group: Arc<RwLock<Vec<PearlTimestampHolder<TSpawner>>>>,
-    settings: Arc<Settings>,
+    settings: Arc<Settings<TSpawner>>,
     pub config: PearlConfig, 
     pub spawner: TSpawner,
     
     pub vdisk_id: VDiskId,
+    pub node_name: String,
     pub directory_path: PathBuf,
     pub disk_name: String,
 }
 
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawner> {
-    pub fn new(settings: Arc<Settings>, vdisk_id: VDiskId, disk_name: String,  directory_path: PathBuf, config: PearlConfig, spawner: TSpawner) -> Self {
+    pub fn new(settings: Arc<Settings<TSpawner>>, vdisk_id: VDiskId, node_name: String, disk_name: String,  directory_path: PathBuf, config: PearlConfig, spawner: TSpawner) -> Self {
         PearlGroup {
             group: Arc::new(RwLock::new(vec![])),
             settings,
             vdisk_id,
+            node_name,
             directory_path,
             config,
             spawner,
@@ -64,8 +66,14 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         }
     }
 
-    pub fn equal(&self, name: &str, vdisk: &VDiskId) -> bool {
-        self.disk_name == name && self.vdisk_id == *vdisk
+    pub fn equal(&self, operation: &BackendOperation) -> bool {
+        if operation.is_data_alien() {
+            operation.remote_node_name() == self.node_name && self.vdisk_id == operation.vdisk_id
+        }
+        else
+        {
+            self.disk_name == operation.disk_name_local() && self.vdisk_id == operation.vdisk_id
+        }
     }
 
     pub async fn run(&self) {
@@ -107,7 +115,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
     }
 
     async fn run_pearls(&self) -> BackendResult<()> {
-        let mut pearls = self.group.write().compat().boxed().await.map_err(|e| {
+        let pearls = self.group.write().compat().boxed().await.map_err(|e| {
             error!("cannot take lock: {:?}", e);
             backend::Error::Failed(format!("cannot take lock: {:?}", e))
         })?;

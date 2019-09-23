@@ -63,6 +63,10 @@ impl VDiskMapper {
         self.vdisks.len() as u32
     }
 
+    pub fn get_vdisks_ids(&self) -> Vec<VDiskId> {
+        self.vdisks.iter().map(|vdisk| vdisk.id.clone()).collect()
+    }
+
     pub fn local_disks(&self) -> &Vec<DiskPath> {
         &self.disks
     }
@@ -106,5 +110,9 @@ impl VDiskMapper {
             return (vdisk_id, None);
         }
         (vdisk_id, Some(DiskPath::from(disk.unwrap())))
+    }
+
+    pub fn is_node_holds_vdisk(&self, node_name: &str, id: VDiskId) -> bool {
+        self.vdisks.iter().find(|vdisk| vdisk.id == id && vdisk.nodes.iter().find(|node|node.name()== node_name).is_some()).is_some()
     }
 }
