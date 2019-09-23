@@ -1,12 +1,22 @@
-use crate::core::{configs::node::NodeConfig, data::{BobData, BobKey, VDiskId}, mapper::VDiskMapper, backend, backend::core::*,};
 use super::{
     data::BackendResult,
-    group::{PearlTimestampHolder, PearlGroup},
-    stuff::*};
+    group::{PearlGroup, PearlTimestampHolder},
+    stuff::*,
+};
+use crate::core::{
+    backend,
+    backend::core::*,
+    configs::node::NodeConfig,
+    data::{BobData, BobKey, VDiskId},
+    mapper::VDiskMapper,
+};
 
-use std::{path::PathBuf, sync::Arc, fs::{read_dir, DirEntry, Metadata}, marker::PhantomData};
-use futures03::{
-    task::Spawn,
+use futures03::task::Spawn;
+use std::{
+    fs::{read_dir, DirEntry, Metadata},
+    marker::PhantomData,
+    path::PathBuf,
+    sync::Arc,
 };
 
 pub(crate) struct Settings<TSpawner> {
@@ -38,16 +48,30 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         }
     }
 
-    pub(crate) fn read_group_from_disk(&self, settings: Arc<Settings<TSpawner>>, config: &NodeConfig, spawner: TSpawner) -> Vec<PearlGroup<TSpawner>> {
+    pub(crate) fn read_group_from_disk(
+        &self,
+        settings: Arc<Settings<TSpawner>>,
+        config: &NodeConfig,
+        spawner: TSpawner,
+    ) -> Vec<PearlGroup<TSpawner>> {
         let mut result = vec![];
         for disk in self.mapper.local_disks().iter() {
-            let mut vdisks: Vec<_> = self.mapper
+            let mut vdisks: Vec<_> = self
+                .mapper
                 .get_vdisks_by_disk(&disk.name)
                 .iter()
                 .map(|vdisk_id| {
                     let path = self.normal_path(&disk.path, &vdisk_id);
-                    
-                    PearlGroup::<TSpawner>::new(settings.clone(), vdisk_id.clone(), config.name(), disk.name.clone(), path.clone(), config.pearl(), spawner.clone())
+
+                    PearlGroup::<TSpawner>::new(
+                        settings.clone(),
+                        vdisk_id.clone(),
+                        config.name(),
+                        disk.name.clone(),
+                        path.clone(),
+                        config.pearl(),
+                        spawner.clone(),
+                    )
                 })
                 .collect();
             result.append(&mut vdisks);
@@ -55,36 +79,50 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         result
     }
 
-    pub(crate) fn read_vdisk_directory(&self, group: &PearlGroup<TSpawner>) -> BackendResult<(Vec<PearlTimestampHolder<TSpawner>>)>{
+    pub(crate) fn read_vdisk_directory(
+        &self,
+        group: &PearlGroup<TSpawner>,
+    ) -> BackendResult<(Vec<PearlTimestampHolder<TSpawner>>)> {
         Stuff::check_or_create_directory(&group.directory_path)?;
 
         let mut pearls = vec![];
         let pearl_directories = self.get_all_subdirectories(group.directory_path.clone())?;
-        for entry in pearl_directories.into_iter(){
+        for entry in pearl_directories.into_iter() {
             let file_name = entry
                 .file_name()
                 .into_string()
                 .map_err(|_| warn!("cannot parse file name: {:?}", entry));
-            if file_name.is_err(){
+            if file_name.is_err() {
                 continue;
             }
-            let timestamp:Result<u32, _> = file_name.unwrap().parse()
+            let timestamp: Result<u32, _> = file_name
+                .unwrap()
+                .parse()
                 .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry));
             let start_timestamp = timestamp.unwrap();
             let end_timestamp = start_timestamp + 100; // TODO get value from config
-            let pearl_holder = PearlTimestampHolder::new(group.create_pearl_by_path(entry.path()), start_timestamp, end_timestamp);
+            let pearl_holder = PearlTimestampHolder::new(
+                group.create_pearl_by_path(entry.path()),
+                start_timestamp,
+                end_timestamp,
+            );
             pearls.push(pearl_holder);
         }
         Ok(pearls)
     }
 
-    pub(crate) fn read_alien_directory(&self, settings: Arc<Settings<TSpawner>>, config: &NodeConfig, spawner: TSpawner) -> BackendResult<Vec<PearlGroup<TSpawner>>>{
+    pub(crate) fn read_alien_directory(
+        &self,
+        settings: Arc<Settings<TSpawner>>,
+        config: &NodeConfig,
+        spawner: TSpawner,
+    ) -> BackendResult<Vec<PearlGroup<TSpawner>>> {
         let mut result = vec![];
 
         let node_names = self.get_all_subdirectories(self.alien_folder.clone())?;
-        for node in node_names.into_iter(){
+        for node in node_names.into_iter() {
             let name = self.try_parse_node_name(node);
-            if name.is_err(){
+            if name.is_err() {
                 trace!("ignore: {:?}", name);
                 continue;
             }
@@ -93,18 +131,28 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
 
             for vdisk_id in vdisks.into_iter() {
                 let id = self.try_parse_vdisk_id(vdisk_id);
-                if id.is_err(){
+                if id.is_err() {
                     trace!("ignore: {:?}", id);
                     continue;
                 }
                 let (vdisk_id, id) = id.unwrap();
                 if self.mapper.is_node_holds_vdisk(&name, id.clone()) {
                     let pearl = config.pearl();
-                    let group = PearlGroup::<TSpawner>::new(settings.clone(), id.clone(), name.clone(), pearl.alien_disk(), vdisk_id.path().clone(), pearl, spawner.clone());
+                    let group = PearlGroup::<TSpawner>::new(
+                        settings.clone(),
+                        id.clone(),
+                        name.clone(),
+                        pearl.alien_disk(),
+                        vdisk_id.path().clone(),
+                        pearl,
+                        spawner.clone(),
+                    );
                     result.push(group);
-                }
-                else {
-                    warn!("potentionally invalid state. Node: {} doesnt hold vdisk: {}", name, id);
+                } else {
+                    warn!(
+                        "potentionally invalid state. Node: {} doesnt hold vdisk: {}",
+                        name, id
+                    );
                 }
             }
         }
@@ -116,8 +164,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
 
         let mut directories = vec![];
         match read_dir(path.clone()) {
-            Ok(dir)=>{
-                for entry in dir{
+            Ok(dir) => {
+                for entry in dir {
                     let (entry, metadata) = self.try_read_path(entry)?;
                     if !metadata.is_dir() {
                         trace!("ignore: {:?}", entry);
@@ -125,60 +173,75 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
                     }
                     directories.push(entry);
                 }
-            },
-            Err(err)=>{
+            }
+            Err(err) => {
                 debug!("couldn't process path: {:?}, error: {:?} ", path, err);
-                return Err(backend::Error::Failed(format!("couldn't process path: {:?}, error: {:?} ", path, err)));
-            },
+                return Err(backend::Error::Failed(format!(
+                    "couldn't process path: {:?}, error: {:?} ",
+                    path, err
+                )));
+            }
         }
         Ok(directories)
     }
 
     fn try_parse_node_name(&self, entry: DirEntry) -> BackendResult<(DirEntry, String)> {
-        let file_name = entry
-            .file_name()
-            .into_string()
-            .map_err(|_| {warn!("cannot parse file name: {:?}", entry);
-            backend::Error::Other})?;
-        let node = self.mapper.nodes().iter().find(|node| node.name == file_name);
-        node.map(|n|(entry, n.name().clone()))
-        .ok_or({
+        let file_name = entry.file_name().into_string().map_err(|_| {
+            warn!("cannot parse file name: {:?}", entry);
+            backend::Error::Other
+        })?;
+        let node = self
+            .mapper
+            .nodes()
+            .iter()
+            .find(|node| node.name == file_name);
+        node.map(|n| (entry, n.name().clone())).ok_or({
             debug!("cannot find node with name: {:?}", file_name);
             backend::Error::Failed(format!("cannot find node with name: {:?}", file_name))
         })
     }
 
     fn try_parse_vdisk_id(&self, entry: DirEntry) -> BackendResult<(DirEntry, VDiskId)> {
-        let file_name = entry
-            .file_name()
-            .into_string()
-            .map_err(|_| {warn!("cannot parse file name: {:?}", entry);
-                backend::Error::Other})?;
-        let vdisk_id = VDiskId::new( file_name.parse()
-                    .map_err(|_| {warn!("cannot parse file name: {:?} as vdisk id", entry);
-                    backend::Error::Other})?);
-                    
-        let vdisk = self.mapper.get_vdisks_ids().into_iter().find(|vdisk| *vdisk == vdisk_id);
-        vdisk.map(|id|(entry, id.clone()))
-        .ok_or({
+        let file_name = entry.file_name().into_string().map_err(|_| {
+            warn!("cannot parse file name: {:?}", entry);
+            backend::Error::Other
+        })?;
+        let vdisk_id = VDiskId::new(file_name.parse().map_err(|_| {
+            warn!("cannot parse file name: {:?} as vdisk id", entry);
+            backend::Error::Other
+        })?);
+
+        let vdisk = self
+            .mapper
+            .get_vdisks_ids()
+            .into_iter()
+            .find(|vdisk| *vdisk == vdisk_id);
+        vdisk.map(|id| (entry, id.clone())).ok_or({
             debug!("cannot find vdisk with id: {:?}", vdisk_id);
             backend::Error::Failed(format!("cannot find vdisk with id: {:?}", vdisk_id))
         })
     }
 
-    fn try_read_path(&self, entry: Result<DirEntry, std::io::Error>) -> BackendResult<(DirEntry, Metadata)> {
+    fn try_read_path(
+        &self,
+        entry: Result<DirEntry, std::io::Error>,
+    ) -> BackendResult<(DirEntry, Metadata)> {
         if let Ok(entry) = entry {
             if let Ok(metadata) = entry.metadata() {
                 Ok((entry, metadata))
-            }
-             else {
+            } else {
                 debug!("Couldn't get metadata for {:?}", entry.path());
-                Err(backend::Error::Failed(format!("Couldn't get metadata for {:?}", entry.path())))
+                Err(backend::Error::Failed(format!(
+                    "Couldn't get metadata for {:?}",
+                    entry.path()
+                )))
             }
-        }
-        else {
+        } else {
             debug!("couldn't read entry: {:?} ", entry);
-            Err(backend::Error::Failed(format!("couldn't read entry: {:?}", entry)))
+            Err(backend::Error::Failed(format!(
+                "couldn't read entry: {:?}",
+                entry
+            )))
         }
     }
 
@@ -188,7 +251,12 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         vdisk_path
     }
 
-    pub(crate) fn is_actual(&self, pearl: PearlTimestampHolder<TSpawner>, _key: BobKey, data: BobData) -> bool {
+    pub(crate) fn is_actual(
+        &self,
+        pearl: PearlTimestampHolder<TSpawner>,
+        _key: BobKey,
+        data: BobData,
+    ) -> bool {
         pearl.start_timestamp <= data.meta.timestamp && data.meta.timestamp < pearl.end_timestamp
     }
 
@@ -201,9 +269,11 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         let result = iter.try_fold(first, |max, x| {
             let r = if max.1.data.meta.timestamp > x.1.data.meta.timestamp {
                 max
-            } else { x };
+            } else {
+                x
+            };
             Some(r)
-        }); 
+        });
 
         Ok(result.unwrap().1)
     }

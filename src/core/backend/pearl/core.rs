@@ -1,20 +1,16 @@
-use crate::core::backend;
-use crate::core::backend::core::*;
 use super::{
     data::*,
-    settings::Settings,
-    holder::{PearlHolder, PearlSync},
     group::PearlGroup,
+    holder::{PearlHolder, PearlSync},
+    settings::Settings,
 };
+use crate::core::backend;
+use crate::core::backend::core::*;
 use crate::core::configs::node::NodeConfig;
 use crate::core::data::{BobData, BobKey, VDiskId};
 use crate::core::mapper::VDiskMapper;
 
-use futures03::{
-    future::err as err03,
-    task::Spawn,
-    FutureExt,
-};
+use futures03::{future::err as err03, task::Spawn, FutureExt};
 
 use std::sync::Arc;
 
@@ -28,11 +24,16 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper.clone()));
 
-        let vdisks_groups = Arc::new(settings.read_group_from_disk(settings.clone(), config, spawner.clone()));
-        let alien_vdisks_groups = Arc::new(settings.read_alien_directory(settings.clone(), config, spawner).unwrap());//TODO
+        let vdisks_groups =
+            Arc::new(settings.read_group_from_disk(settings.clone(), config, spawner.clone()));
+        let alien_vdisks_groups = Arc::new(
+            settings
+                .read_alien_directory(settings.clone(), config, spawner)
+                .unwrap(),
+        ); //TODO
         PearlBackend {
             vdisks_groups,
-            alien_vdisks_groups
+            alien_vdisks_groups,
         }
     }
 
@@ -134,9 +135,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         let vdisk_groups = self.vdisks_groups.clone();
 
         Put({
-            let vdisk_group = vdisk_groups
-                .iter()
-                .find(|vd| vd.equal(&operation));
+            let vdisk_group = vdisk_groups.iter().find(|vd| vd.equal(&operation));
             if let Some(group) = vdisk_group {
                 let d_clone = group.clone();
                 async move {
@@ -162,11 +161,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         debug!("PUT[alien][{}] to pearl backend", key);
 
         let alien_vdisks_group = self.alien_vdisks_groups.clone();
-        
+
         Put({
-            let vdisk_group = alien_vdisks_group
-                .iter()
-                .find(|vd| vd.equal(&operation));
+            let vdisk_group = alien_vdisks_group.iter().find(|vd| vd.equal(&operation));
             if let Some(group) = vdisk_group {
                 let d_clone = group.clone();
                 async move {
@@ -183,7 +180,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
                     "PUT[{}] to pearl backend. Cannot find group, operation: {}",
                     key, operation
                 );
-                err03(backend::Error::VDiskNoFound(operation.vdisk_id)).boxed()//TODO change error
+                err03(backend::Error::VDiskNoFound(operation.vdisk_id)).boxed() //TODO change error
             }
         })
     }
@@ -193,9 +190,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
 
         let vdisks_groups = self.vdisks_groups.clone();
         Get({
-            let vdisk_group = vdisks_groups
-                .iter()
-                .find(|vd| vd.equal(&operation));
+            let vdisk_group = vdisks_groups.iter().find(|vd| vd.equal(&operation));
             if let Some(group) = vdisk_group {
                 let d_clone = group.clone();
                 async move {
@@ -222,9 +217,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
 
         let vdisks_groups = self.alien_vdisks_groups.clone();
         Get({
-            let vdisk_group = vdisks_groups
-                .iter()
-                .find(|vd| vd.equal(&operation));
+            let vdisk_group = vdisks_groups.iter().find(|vd| vd.equal(&operation));
             if let Some(group) = vdisk_group {
                 let d_clone = group.clone();
                 async move {

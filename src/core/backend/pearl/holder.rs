@@ -18,7 +18,6 @@ use futures03::{
 use std::{path::PathBuf, sync::Arc};
 use tokio_timer::sleep;
 
-
 #[derive(Clone)]
 pub(crate) struct PearlHolder<TSpawner> {
     vdisk: VDiskId,
@@ -31,12 +30,7 @@ pub(crate) struct PearlHolder<TSpawner> {
 }
 
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawner> {
-    pub fn new(
-        vdisk: VDiskId,
-        disk_path: PathBuf,
-        config: PearlConfig,
-        spawner: TSpawner,
-    ) -> Self {
+    pub fn new(vdisk: VDiskId, disk_path: PathBuf, config: PearlConfig, spawner: TSpawner) -> Self {
         PearlHolder {
             disk_path,
             vdisk,
