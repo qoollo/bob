@@ -150,7 +150,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
                     continue;
                 }
                 let (vdisk_id, id) = id.unwrap();
-                if self.mapper.is_node_holds_vdisk(&name, id.clone()) {
+                if self.mapper.does_node_holds_vdisk(&name, id.clone()) {
                     let pearl = config.pearl();
                     let group = PearlGroup::<TSpawner>::new(
                         settings.clone(),

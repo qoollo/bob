@@ -75,7 +75,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         }
     }
 
-    pub fn equal(&self, operation: &BackendOperation) -> bool {
+    pub fn can_process_operation(&self, operation: &BackendOperation) -> bool {
         if operation.is_data_alien() {
             operation.remote_node_name() == self.node_name && self.vdisk_id == operation.vdisk_id
         } else {
@@ -85,20 +85,19 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
 
     pub async fn run(&self) {
         let delay = self.config.fail_retry_timeout();
-        let mut exit = false;
 
         let mut pearls = vec![];
-        // read all pearls from disk
-        while !exit {
+
+        //read all pearls from disk
+        while pearls.is_empty() {
             let read_pearls = self.settings.read_vdisk_directory(self);
             if let Err(err) = read_pearls {
                 error!("can't create pearls: {:?}", err);
                 let _ = sleep(delay).compat().boxed().await;
-                continue;
             }
-
-            pearls = read_pearls.unwrap();
-            exit = true;
+            else {
+                pearls = read_pearls.unwrap();
+            }
         }
 
         // check current pearl for write
@@ -107,26 +106,16 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             pearls.push(current_pearl);
         }
 
-        exit = false;
-        // save pearls to group
-        while !exit {
-            if let Err(err) = self.add_range(pearls.clone()).await {
-                error!("can't add pearls: {:?}", err);
-                let _ = sleep(delay).compat().boxed().await;
-                continue;
-            }
-            exit = true;
+        //save pearls to group
+        while let Err(err) = self.add_range(pearls.clone()).await {
+            error!("can't add pearls: {:?}", err);
+            let _ = sleep(delay).compat().boxed().await;
         }
 
-        exit = false;
-        // start pearls
-        while !exit {
-            if let Err(err) = self.run_pearls().await {
-                error!("can't start pearls: {:?}", err);
-                let _ = sleep(delay).compat().boxed().await;
-                continue;
-            }
-            exit = true;
+        //start pearls
+        while let Err(err) = self.run_pearls().await {
+            error!("can't start pearls: {:?}", err);
+            let _ = sleep(delay).compat().boxed().await;
         }
     }
 
