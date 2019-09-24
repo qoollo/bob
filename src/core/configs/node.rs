@@ -214,6 +214,9 @@ impl NodeConfig {
     pub fn name(&self) -> String {
         self.name.as_ref().unwrap().clone()
     }
+    pub fn pearl(&self) -> PearlConfig {
+        self.pearl.as_ref().unwrap().clone()
+    }
     pub fn log_config(&self) -> String {
         self.log_config.as_ref().unwrap().clone()
     }

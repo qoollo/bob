@@ -57,6 +57,9 @@ impl BackendOperation {
     pub fn disk_name_local(&self) -> String {
         self.disk_path.clone().unwrap().name.clone()
     }
+    pub fn remote_node_name(&self) -> String {
+        self.remote_node_name.clone().unwrap()
+    }
 }
 
 #[derive(Debug)]
@@ -65,6 +68,12 @@ pub struct BackendPutResult {}
 #[derive(Debug)]
 pub struct BackendGetResult {
     pub data: BobData,
+}
+
+impl std::fmt::Display for BackendGetResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.data)
+    }
 }
 
 #[derive(Debug)]
