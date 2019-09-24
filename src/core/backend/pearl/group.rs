@@ -94,14 +94,16 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             if let Err(err) = read_pearls {
                 error!("can't create pearls: {:?}", err);
                 let _ = sleep(delay).compat().boxed().await;
-            }
-            else {
+            } else {
                 pearls = read_pearls.unwrap();
             }
         }
 
         // check current pearl for write
-        if pearls.iter().any(|pearl|self.settings.is_actual_pearl(pearl)) {
+        if pearls
+            .iter()
+            .any(|pearl| self.settings.is_actual_pearl(pearl))
+        {
             let current_pearl = self.settings.create_current_pearl(self);
             pearls.push(current_pearl);
         }

@@ -37,25 +37,29 @@ impl Validatable for BackendSettings {
         match &self.timestamp_period {
             None => {
                 debug!("field 'timestamp_period' for 'backend settings config' is not set");
-                return Err("field 'timestamp_period' for 'backend settings config' is not set".to_string());
+                return Err(
+                    "field 'timestamp_period' for 'backend settings config' is not set".to_string(),
+                );
             }
-            Some(period) => {
-                match period.parse::<humantime::Duration>() {
-                    Err(_) => {
-                        debug!("field 'timestamp_period' for 'backend settings config' is not valid");
-                        return Err("field 'timestamp_period' for 'backend settings config' is not valid".to_string());
-                    },
-                    Ok(_) => {
-                        let period: chrono::Duration = chrono::Duration::from_std(self.timestamp_period()).map_err(|e| {
+            Some(period) => match period.parse::<humantime::Duration>() {
+                Err(_) => {
+                    debug!("field 'timestamp_period' for 'backend settings config' is not valid");
+                    return Err(
+                        "field 'timestamp_period' for 'backend settings config' is not valid"
+                            .to_string(),
+                    );
+                }
+                Ok(_) => {
+                    let period: chrono::Duration =
+                        chrono::Duration::from_std(self.timestamp_period()).map_err(|e| {
                             trace!("smth wrong with time: {:?}, error: {}", period, e);
                             format!("smth wrong with time: {:?}, error: {}", period, e)
                         })?;
-                        if period > chrono::Duration::weeks(1) {
-                            return Err("field 'timestamp_period' for 'backend settings config' is greater then week".to_string());
-                        }
+                    if period > chrono::Duration::weeks(1) {
+                        return Err("field 'timestamp_period' for 'backend settings config' is greater then week".to_string());
                     }
                 }
-            }
+            },
         };
         Ok(())
     }

@@ -17,7 +17,7 @@ use std::{
     marker::PhantomData,
     path::PathBuf,
     sync::Arc,
-    time::{SystemTime, Duration},
+    time::{Duration, SystemTime},
 };
 
 /// Contains timestamp and fs logic
@@ -52,12 +52,15 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         }
     }
 
-    pub(crate) fn create_current_pearl(&self, group: &PearlGroup<TSpawner>) -> PearlTimestampHolder<TSpawner> {
+    pub(crate) fn create_current_pearl(
+        &self,
+        group: &PearlGroup<TSpawner>,
+    ) -> PearlTimestampHolder<TSpawner> {
         let start_timestamp = self.get_current_timestamp_start();
         let end_timestamp = start_timestamp + self.get_timestamp_period();
         let mut path = group.directory_path.clone();
         path.push(format!("{}/", start_timestamp));
-        
+
         PearlTimestampHolder::new(
             group.create_pearl_by_path(path),
             start_timestamp,
@@ -272,7 +275,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         Stuff::get_period_timestamp(self.timestamp_period).unwrap() as u32 // TODO
     }
     fn get_current_timestamp_start(&self) -> u32 {
-        Stuff::get_start_timestamp(self.timestamp_period, SystemTime::now()).unwrap() as u32 // TODO change timestamp type
+        Stuff::get_start_timestamp(self.timestamp_period, SystemTime::now()).unwrap() as u32
+        // TODO change timestamp type
     }
 
     pub(crate) fn is_actual(
