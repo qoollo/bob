@@ -19,6 +19,7 @@ use std::{
     sync::Arc,
 };
 
+/// Contains timestamp and fs logic
 pub(crate) struct Settings<TSpawner> {
     bob_prefix_path: String,
     alien_folder: PathBuf,
