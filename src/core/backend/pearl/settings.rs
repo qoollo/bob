@@ -115,7 +115,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
             if file_name.is_err() {
                 continue;
             }
-            let timestamp: Result<u32, _> = file_name
+            let timestamp: Result<i64, _> = file_name
                 .unwrap()
                 .parse()
                 .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry));
@@ -271,12 +271,12 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         vdisk_path
     }
 
-    fn get_timestamp_period(&self) -> u32 {
-        Stuff::get_period_timestamp(self.timestamp_period).unwrap() as u32 // TODO
+    fn get_timestamp_period(&self) -> i64 {
+        Stuff::get_period_timestamp(self.timestamp_period).unwrap()// TODO
     }
-    fn get_current_timestamp_start(&self) -> u32 {
-        Stuff::get_start_timestamp(self.timestamp_period, SystemTime::now()).unwrap() as u32
-        // TODO change timestamp type
+    fn get_current_timestamp_start(&self) -> i64 {
+        Stuff::get_start_timestamp(self.timestamp_period, SystemTime::now()).unwrap()
+        // TODO
     }
 
     pub(crate) fn is_actual(

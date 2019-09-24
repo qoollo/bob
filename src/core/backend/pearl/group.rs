@@ -14,15 +14,15 @@ use tokio_timer::sleep;
 #[derive(Clone)]
 pub(crate) struct PearlTimestampHolder<TSpawner> {
     pub pearl: PearlHolder<TSpawner>,
-    pub start_timestamp: u32,
-    pub end_timestamp: u32,
+    pub start_timestamp: i64,
+    pub end_timestamp: i64,
 } //TODO add path and fix Display
 
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlTimestampHolder<TSpawner> {
     pub(crate) fn new(
         pearl: PearlHolder<TSpawner>,
-        start_timestamp: u32,
-        end_timestamp: u32,
+        start_timestamp: i64,
+        end_timestamp: i64,
     ) -> Self {
         PearlTimestampHolder {
             pearl,

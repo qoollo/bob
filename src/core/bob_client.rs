@@ -393,7 +393,7 @@ pub mod tests {
         })
     }
 
-    pub fn get_ok(node: Node, timestamp: u32) -> Get {
+    pub fn get_ok(node: Node, timestamp: i64) -> Get {
         Get({
             ready(Ok(ClusterResult {
                 node,

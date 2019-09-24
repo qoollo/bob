@@ -391,7 +391,7 @@ pub mod tests {
             client: &mut BobClient,
             node: Node,
             call: Arc<CountCall>,
-            timestamp: u32,
+            timestamp: i64,
         ) {
             let cl = node.clone();
             client.expect_get().returning(move |_key, _options| {
@@ -480,7 +480,7 @@ pub mod tests {
         create_node(name, (op.0, op.1, 0))
     }
 
-    fn create_node(name: &str, op: (bool, bool, u32)) -> (&str, Call, Arc<CountCall>) {
+    fn create_node(name: &str, op: (bool, bool, i64)) -> (&str, Call, Arc<CountCall>) {
         (
             name,
             Box::new(
@@ -488,7 +488,7 @@ pub mod tests {
                     let f = |client: &mut BobClient,
                              n: Node,
                              c: Arc<CountCall>,
-                             op: (bool, bool, u32)| {
+                             op: (bool, bool, i64)| {
                         ping_ok(client, n.clone());
                         if op.0 {
                             put_ok(client, n.clone(), c.clone());

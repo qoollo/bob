@@ -14,7 +14,7 @@ mod tests {
     static DISK_NAME: &'static str = "disk1";
     static PEARL_PATH: &'static str = "/tmp/d1/";
     const KEY_ID: u64 = 1;
-    const TIMESTAMP: u32 = 1;
+    const TIMESTAMP: i64 = 1;
 
     fn drop_pearl() {
         let path = PathBuf::from(PEARL_PATH);

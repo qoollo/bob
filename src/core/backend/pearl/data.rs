@@ -32,7 +32,7 @@ impl AsRef<[u8]> for PearlKey {
 
 pub(crate) struct PearlData {
     data: Vec<u8>,
-    timestamp: u32,
+    timestamp: i64,
 }
 impl PearlData {
     const TIMESTAMP_LEN: usize = 4;
@@ -54,7 +54,7 @@ impl PearlData {
         let (tmp, bob_data) = data.split_at(PearlData::TIMESTAMP_LEN);
         match tmp.try_into() {
             Ok(bytes) => {
-                let timestamp = u32::from_be_bytes(bytes);
+                let timestamp = i64::from_be_bytes(bytes);
                 Ok(BobData::new(
                     bob_data.to_vec(),
                     BobMeta::new_value(timestamp),

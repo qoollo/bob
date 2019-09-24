@@ -157,7 +157,7 @@ fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
                         timestamp: SystemTime::now()
                             .duration_since(UNIX_EPOCH)
                             .expect("msg: &str")
-                            .as_secs() as u32,
+                            .as_secs() as i64,
                     }),
                 }),
                 options: options.clone(),
