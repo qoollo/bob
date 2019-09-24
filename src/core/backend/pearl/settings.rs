@@ -48,6 +48,19 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         }
     }
 
+    pub(crate) fn create_current_pearl(&self, group: &PearlGroup<TSpawner>) -> PearlTimestampHolder<TSpawner> {
+        let start_timestamp = self.get_current_timestamp_start();
+        let end_timestamp = start_timestamp + self.get_timestamp_period();
+        let mut path = group.directory_path.clone();
+        path.push(format!("{}/", start_timestamp));
+        
+        PearlTimestampHolder::new(
+            group.create_pearl_by_path(path),
+            start_timestamp,
+            end_timestamp,
+        )
+    }
+
     pub(crate) fn read_group_from_disk(
         &self,
         settings: Arc<Settings<TSpawner>>,
@@ -100,7 +113,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
                 .parse()
                 .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry));
             let start_timestamp = timestamp.unwrap();
-            let end_timestamp = start_timestamp + 100; // TODO get value from config
+            let end_timestamp = start_timestamp + self.get_timestamp_period();
             let pearl_holder = PearlTimestampHolder::new(
                 group.create_pearl_by_path(entry.path()),
                 start_timestamp,
@@ -249,6 +262,13 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         let mut vdisk_path = PathBuf::from(format!("{}/{}/", disk_path, self.bob_prefix_path));
         vdisk_path.push(format!("{}/", vdisk_id));
         vdisk_path
+    }
+
+    fn get_timestamp_period(&self) -> u32 {
+        100 // TODO take value from config
+    }
+    fn get_current_timestamp_start(&self) -> u32 {
+        100 // TODO take value from config
     }
 
     pub(crate) fn is_actual(
