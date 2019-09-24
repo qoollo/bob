@@ -269,7 +269,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         100 // TODO take value from config
     }
     fn get_current_timestamp_start(&self) -> u32 {
-        100 // TODO take value from config
+        use std::time::{SystemTime, Duration};
+        // TODO take value from config
+        Stuff::get_start_timestamp(Duration::new(100, 0), SystemTime::now()).unwrap() as u32 // TODO change timestamp type
     }
 
     pub(crate) fn is_actual(
