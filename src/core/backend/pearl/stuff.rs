@@ -130,7 +130,7 @@ impl Stuff {
                     let time = time.date().and_hms(0 , 0, 0);
                     time - Duration::days((time.weekday().num_days_from_monday()-1) as i64)
                 },
-            _ => panic!("pearid: {} is too large", period) //TODO check in config or too small
+            _ => panic!("pearid: {} is too large", period)
         };
 
         while !(start_time <= time && time < start_time + period)
@@ -138,5 +138,14 @@ impl Stuff {
             start_time = start_time + period;
         }
         Ok(start_time.timestamp())
+    }
+
+    pub(crate) fn get_period_timestamp(period: time::Duration) -> BackendResult<i64>{
+        let period: Duration = Duration::from_std(period).map_err(|e| {
+            trace!("smth wrong with time: {:?}, error: {}", period, e);
+            backend::Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+        })?;
+        
+        Ok(period.num_seconds())
     }
 }

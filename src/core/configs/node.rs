@@ -12,6 +12,7 @@ use std::{
 pub struct BackendSettings {
     pub root_dir_name: Option<String>,
     pub alien_root_dir_name: Option<String>,
+    pub timestamp_period: Option<String>,
 }
 
 impl Validatable for BackendSettings {
@@ -33,6 +34,29 @@ impl Validatable for BackendSettings {
                 );
             }
         }
+        match &self.timestamp_period {
+            None => {
+                debug!("field 'timestamp_period' for 'backend settings config' is not set");
+                return Err("field 'timestamp_period' for 'backend settings config' is not set".to_string());
+            }
+            Some(period) => {
+                match period.parse::<humantime::Duration>() {
+                    Err(_) => {
+                        debug!("field 'timestamp_period' for 'backend settings config' is not valid");
+                        return Err("field 'timestamp_period' for 'backend settings config' is not valid".to_string());
+                    },
+                    Ok(_) => {
+                        let period: chrono::Duration = chrono::Duration::from_std(self.timestamp_period()).map_err(|e| {
+                            trace!("smth wrong with time: {:?}, error: {}", period, e);
+                            format!("smth wrong with time: {:?}, error: {}", period, e)
+                        })?;
+                        if period > chrono::Duration::weeks(1) {
+                            return Err("field 'timestamp_period' for 'backend settings config' is greater then week".to_string());
+                        }
+                    }
+                }
+            }
+        };
         Ok(())
     }
 }
@@ -43,6 +67,17 @@ impl BackendSettings {
     }
     pub fn alien_root_dir_name(&self) -> String {
         self.alien_root_dir_name.as_ref().unwrap().clone()
+    }
+    pub fn timestamp_period(&self) -> Duration {
+        let t: Duration = self
+            .timestamp_period
+            .as_ref()
+            .unwrap()
+            .clone()
+            .parse::<humantime::Duration>()
+            .unwrap()
+            .into();
+        t
     }
 }
 

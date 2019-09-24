@@ -599,9 +599,38 @@ pearl:
   settings:                     # describes how create and manage bob directories. required for 'pearl'
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
+    timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_ok());
+    }
+
+    #[test]
+    fn test_node_pearl_config_big_timestamp() {
+        let s = "
+log_config: logger.yaml
+name: no
+quorum: 1
+timeout: 12h 5min 2ns
+check_interval: 100ms
+cluster_policy: quorum # quorum
+ping_threads_count: 2
+grpc_buffer_bound: 100
+backend_type: pearl
+pearl:
+  max_blob_size: 1
+  max_data_in_blob: 1
+  blob_file_name_prefix: bob
+  pool_count_threads: 4
+  fail_retry_timeout: 100ms
+  alien_disk: disk1
+  settings:                     # describes how create and manage bob directories. required for 'pearl'
+    root_dir_name: bob            # root dir for bob storage. required for 'pearl'
+    alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
+    timestamp_period: 2w      # period when new pearl directory created. required for 'pearl'
+";
+        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+        assert!(d.validate().is_err());
     }
 
     #[test]
@@ -626,6 +655,7 @@ pearl:
   settings:                     # describes how create and manage bob directories. required for 'pearl'
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
+    timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_ok());
@@ -652,6 +682,7 @@ pearl:
   settings:                     # describes how create and manage bob directories. required for 'pearl'
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
+    timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -678,6 +709,7 @@ pearl:
   settings:                     # describes how create and manage bob directories. required for 'pearl'
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
+    timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -704,6 +736,7 @@ pearl:
   settings:                     # describes how create and manage bob directories. required for 'pearl'
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
+    timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -850,6 +883,7 @@ pearl:
   settings:                     # describes how create and manage bob directories. required for 'pearl'
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
+    timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -893,6 +927,7 @@ pearl:
   settings:                     # describes how create and manage bob directories. required for 'pearl'
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
+    timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());

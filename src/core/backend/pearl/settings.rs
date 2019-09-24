@@ -17,12 +17,14 @@ use std::{
     marker::PhantomData,
     path::PathBuf,
     sync::Arc,
+    time::{SystemTime, Duration},
 };
 
 /// Contains timestamp and fs logic
 pub(crate) struct Settings<TSpawner> {
     bob_prefix_path: String,
     alien_folder: PathBuf,
+    timestamp_period: Duration,
     mapper: Arc<VDiskMapper>,
 
     phantom: PhantomData<TSpawner>,
@@ -44,6 +46,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         Settings {
             bob_prefix_path: pearl_config.settings().root_dir_name(),
             alien_folder: PathBuf::from(alien_folder),
+            timestamp_period: pearl_config.settings().timestamp_period(),
             mapper,
             phantom: PhantomData,
         }
@@ -266,12 +269,10 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
     }
 
     fn get_timestamp_period(&self) -> u32 {
-        100 // TODO take value from config
+        Stuff::get_period_timestamp(self.timestamp_period).unwrap() as u32 // TODO
     }
     fn get_current_timestamp_start(&self) -> u32 {
-        use std::time::{SystemTime, Duration};
-        // TODO take value from config
-        Stuff::get_start_timestamp(Duration::new(100, 0), SystemTime::now()).unwrap() as u32 // TODO change timestamp type
+        Stuff::get_start_timestamp(self.timestamp_period, SystemTime::now()).unwrap() as u32 // TODO change timestamp type
     }
 
     pub(crate) fn is_actual(
