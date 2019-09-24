@@ -85,6 +85,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         let mut exit = false;
 
         let mut pearls = vec![];
+        // read all pearls from disk
         while !exit {
             let read_pearls = self.settings.read_vdisk_directory(self);
             if let Err(err) = read_pearls {
@@ -97,7 +98,14 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             exit = true;
         }
 
+        // check current pearl for write
+        if pearls.iter().any(|pearl|self.settings.is_actual_pearl(pearl)) {
+            let current_pearl = self.settings.create_current_pearl(self);
+            pearls.push(current_pearl);
+        }
+        
         exit = false;
+        // save pearls to group
         while !exit {
             if let Err(err) = self.add_range(pearls.clone()).await {
                 error!("can't add pearls: {:?}", err);
@@ -108,6 +116,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         }
 
         exit = false;
+        // start pearls
         while !exit {
             if let Err(err) = self.run_pearls().await {
                 error!("can't start pearls: {:?}", err);

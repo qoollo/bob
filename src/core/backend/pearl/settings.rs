@@ -297,4 +297,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
 
         Ok(result.unwrap().1)
     }
+
+    pub(crate) fn is_actual_pearl(&self, pearl: &PearlTimestampHolder<TSpawner>) -> bool {
+        pearl.start_timestamp == self.get_current_timestamp_start()
+    }
 }
