@@ -1,11 +1,16 @@
-use super::{data::BackendResult, holder::PearlHolder, settings::Settings, stuff::{LockGuard, Stuff}};
+use super::{
+    data::BackendResult,
+    holder::PearlHolder,
+    settings::Settings,
+    stuff::{LockGuard, Stuff},
+};
 use crate::core::{
     backend,
     backend::core::*,
     configs::node::PearlConfig,
     data::{BobData, BobKey, VDiskId},
 };
-use futures03::{compat::Future01CompatExt, task::Spawn, FutureExt, future::ok as ok03};
+use futures03::{compat::Future01CompatExt, future::ok as ok03, task::Spawn, FutureExt};
 
 use futures_locks::RwLock;
 use std::{path::PathBuf, sync::Arc};
@@ -180,17 +185,22 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         key: BobKey,
         data: BobData,
     ) -> BackendResult<PearlTimestampHolder<TSpawner>> {
-        let pearl = self.find_current_pearl(key, data.clone()).await.map_err(|e|{
-            debug!("cannot find pearl: {}", e);
-            e
-        });
+        let pearl = self
+            .find_current_pearl(key, data.clone())
+            .await
+            .map_err(|e| {
+                debug!("cannot find pearl: {}", e);
+                e
+            });
         if pearl.is_err() {
             match self.create_current_pearl(key, data.clone()).await {
-                Ok(_) => return self.find_current_pearl(key, data).await.map_err(|e|{
-                            error!("cannot find pearl after creation: {}", e);
-                            e
-                        }),
-                Err(e) =>{
+                Ok(_) => {
+                    return self.find_current_pearl(key, data).await.map_err(|e| {
+                        error!("cannot find pearl after creation: {}", e);
+                        e
+                    })
+                }
+                Err(e) => {
                     error!("cannot create pearl: {}", e);
                     return Err(e);
                 }
@@ -211,14 +221,14 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         })?;
 
         for pearl in pearls.iter().rev() {
-            if self.settings.is_actual(pearl.clone(), key, data.clone())
-            {
+            if self.settings.is_actual(pearl.clone(), key, data.clone()) {
                 return Ok(pearl.clone());
             }
         }
         trace!(
             "cannot find actual pearl folder. key: {}, meta: {}",
-            key, data.meta
+            key,
+            data.meta
         );
         return Err(backend::Error::Failed(format!(
             "cannot find actual pearl folder. key: {}, meta: {}",
@@ -226,16 +236,16 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         )));
     }
     /// create pearl for current write
-    async fn create_current_pearl(&self, key: BobKey, data: BobData) -> BackendResult<()>{
+    async fn create_current_pearl(&self, key: BobKey, data: BobData) -> BackendResult<()> {
         // check if pearl is currently creating
         if self.try_init_pearl().await? {
             // check if pearl created
             if self.find_current_pearl(key, data).await.is_ok() {
                 let _ = self.mark_pearl_as_created().await;
-                return Ok(());    
+                return Ok(());
             }
             let pearl = self.settings.create_current_pearl(self);
-            
+
             let _ = self.save_pearl(pearl.clone()).await;
             let _ = self.mark_pearl_as_created().await?;
         } else {
@@ -245,14 +255,11 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         Ok(())
     }
 
-    async fn try_init_pearl(&self) ->BackendResult<bool> {
+    async fn try_init_pearl(&self) -> BackendResult<bool> {
         self.pearl_sync
             .write_mut(|st| {
                 if st.is_creating() {
-                    trace!(
-                        "New pearl is currently creating, state: {}",
-                        st
-                    );
+                    trace!("New pearl is currently creating, state: {}", st);
                     return ok03(false).boxed();
                 }
                 st.start();
@@ -260,7 +267,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             })
             .await
     }
-    async fn mark_pearl_as_created(&self) ->BackendResult<()> {
+    async fn mark_pearl_as_created(&self) -> BackendResult<()> {
         self.pearl_sync
             .write_mut(|st| {
                 st.created();
@@ -268,12 +275,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             })
             .await
     }
-    async fn save_pearl(&self, pearl: PearlTimestampHolder<TSpawner>)->BackendResult<()>{
+    async fn save_pearl(&self, pearl: PearlTimestampHolder<TSpawner>) -> BackendResult<()> {
         let _ = self.add(pearl.clone()).await?; // TODO while retry?
-        let _ = pearl
-            .pearl
-            .prepare_storage()
-            .await;
+        let _ = pearl.pearl.prepare_storage().await;
         Ok(())
     }
 
@@ -358,7 +362,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
 
 #[derive(Clone, PartialEq, Debug)]
 enum CreatorState {
-    No,       
+    No,
     Creating,
 }
 
@@ -369,7 +373,7 @@ struct PearlSyncCreator {
 
 impl PearlSyncCreator {
     pub fn new() -> Self {
-        PearlSyncCreator{
+        PearlSyncCreator {
             state: CreatorState::No,
         }
     }
@@ -382,7 +386,7 @@ impl PearlSyncCreator {
         self.state = CreatorState::Creating;
     }
 
-    pub fn created(& mut self) {
+    pub fn created(&mut self) {
         self.state = CreatorState::No;
     }
 }

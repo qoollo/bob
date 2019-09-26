@@ -66,7 +66,8 @@ impl Validatable for BackendSettings {
             None => {
                 debug!("field 'create_pearl_wait_delay' for 'backend settings config' is not set");
                 return Err(
-                    "field 'create_pearl_wait_delay' for 'backend settings config' is not set".to_string(),
+                    "field 'create_pearl_wait_delay' for 'backend settings config' is not set"
+                        .to_string(),
                 );
             }
             Some(timeout) => {
@@ -74,7 +75,7 @@ impl Validatable for BackendSettings {
                     debug!("field 'create_pearl_wait_delay' for 'backend settings config' is not valid");
                     return Err("field 'create_pearl_wait_delay' for 'backend settings config' is not valid".to_string());
                 }
-            },
+            }
         };
         Ok(())
     }
