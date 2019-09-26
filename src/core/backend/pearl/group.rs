@@ -1,11 +1,12 @@
-use super::{data::BackendResult, holder::PearlHolder, settings::Settings};
+use super::{data::BackendResult, holder::PearlHolder, settings::Settings, stuff::LockGuard};
 use crate::core::{
     backend,
     backend::core::*,
     configs::node::PearlConfig,
     data::{BobData, BobKey, VDiskId},
 };
-use futures03::{compat::Future01CompatExt, task::Spawn, FutureExt};
+use futures03::{compat::Future01CompatExt, task::Spawn, FutureExt, future::ok as ok03};
+
 use futures_locks::RwLock;
 use std::{path::PathBuf, sync::Arc};
 use tokio_timer::sleep;
@@ -43,6 +44,9 @@ impl<TSpawner> std::fmt::Display for PearlTimestampHolder<TSpawner> {
 pub(crate) struct PearlGroup<TSpawner> {
     /// all pearls
     pearls: Arc<RwLock<Vec<PearlTimestampHolder<TSpawner>>>>,
+    // holds state when we create new pearl
+    pearl_sync: Arc<LockGuard<PearlSyncCreator>>,
+
     settings: Arc<Settings<TSpawner>>,
     config: PearlConfig,
     spawner: TSpawner,
@@ -65,6 +69,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
     ) -> Self {
         PearlGroup {
             pearls: Arc::new(RwLock::new(vec![])),
+            pearl_sync: Arc::new(LockGuard::new(PearlSyncCreator::new())),
             settings,
             vdisk_id,
             node_name,
@@ -170,23 +175,49 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         Ok(())
     }
 
-    /// find in all pearls actual pearl
-    fn get_actual(
+    /// find in all pearls actual pearl and try create new
+    async fn try_get_current_pearl(
         &self,
-        list: Vec<PearlTimestampHolder<TSpawner>>,
         key: BobKey,
         data: BobData,
     ) -> BackendResult<PearlTimestampHolder<TSpawner>> {
-        let mut i = list.len() - 1;
-        while i >= 0 {
-            if self.settings.is_actual(list[i].clone(), key, data.clone())
-            //TODO add pointer to remove clonning
-            {
-                return Ok(list[i].clone());
+        let pearl = self.find_current_pearl(key, data.clone()).await.map_err(|e|{
+            debug!("cannot find pearl: {}", e);
+            e
+        });
+        if pearl.is_err() {
+            match self.create_current_pearl().await {
+                Ok(_) => return self.find_current_pearl(key, data).await.map_err(|e|{
+                            error!("cannot find pearl after creation: {}", e);
+                            e
+                        }),
+                Err(e) =>{
+                    error!("cannot create pearl: {}", e);
+                    return Err(e);
+                }
             }
-            i -= 1;
         }
-        error!(
+        pearl
+    }
+
+    /// find in all pearls actual pearl
+    async fn find_current_pearl(
+        &self,
+        key: BobKey,
+        data: BobData,
+    ) -> BackendResult<PearlTimestampHolder<TSpawner>> {
+        let pearls = self.pearls.read().compat().boxed().await.map_err(|e| {
+            error!("cannot take lock: {:?}", e);
+            backend::Error::Failed(format!("cannot take lock: {:?}", e))
+        })?;
+
+        for pearl in pearls.iter().rev() {
+            if self.settings.is_actual(pearl.clone(), key, data.clone())
+            {
+                return Ok(pearl.clone());
+            }
+        }
+        trace!(
             "cannot find actual pearl folder. key: {}, meta: {}",
             key, data.meta
         );
@@ -195,14 +226,53 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             key, data.meta
         )));
     }
+    /// create pearl for current write
+    async fn create_current_pearl(&self) -> BackendResult<()>{
+        if self.try_init_pearl().await? {
+            let pearl = self.settings.create_current_pearl(self);
+            
+            let _ = self.save_pearl(pearl.clone()).await;
+            let _ = self.mark_pearl_as_created().await?;
+        } else {
+            //TODO delay 
+        }
+        Ok(())
+    }
+
+    async fn try_init_pearl(&self) ->BackendResult<bool> {
+        self.pearl_sync
+            .write_mut(|st| {
+                if st.is_creating() {
+                    trace!(
+                        "New pearl is currently creating, state: {}",
+                        st
+                    );
+                    return ok03(false).boxed();
+                }
+                st.start();
+                ok03(true).boxed()
+            })
+            .await
+    }
+    async fn mark_pearl_as_created(&self) ->BackendResult<()> {
+        self.pearl_sync
+            .write_mut(|st| {
+                st.created();
+                ok03(()).boxed()
+            })
+            .await
+    }
+    async fn save_pearl(&self, pearl: PearlTimestampHolder<TSpawner>)->BackendResult<()>{
+        let _ = self.add(pearl.clone()).await?; // TODO while retry?
+        let _ = pearl
+            .pearl
+            .prepare_storage()
+            .await;
+        Ok(())
+    }
 
     pub async fn put(&self, key: BobKey, data: BobData) -> PutResult {
-        let pearls = self.pearls.read().compat().boxed().await.map_err(|e| {
-            error!("cannot take lock: {:?}", e);
-            backend::Error::Failed(format!("cannot take lock: {:?}", e))
-        })?;
-
-        let pearl = self.get_actual(pearls.to_vec(), key, data.clone())?;
+        let pearl = self.try_get_current_pearl(key, data.clone()).await?;
 
         Self::put_common(pearl.pearl, key, data).await
     }
@@ -277,5 +347,42 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             let _ = pearl.reinit_storage().await;
         }
         result
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+enum CreatorState {
+    No,       
+    Creating,
+}
+
+#[derive(Clone)]
+struct PearlSyncCreator {
+    state: CreatorState,
+}
+
+impl PearlSyncCreator {
+    pub fn new() -> Self {
+        PearlSyncCreator{
+            state: CreatorState::No,
+        }
+    }
+
+    pub fn is_creating(&self) -> bool {
+        self.state == CreatorState::Creating
+    }
+
+    pub fn start(&mut self) {
+        self.state = CreatorState::Creating;
+    }
+
+    pub fn created(& mut self) {
+        self.state = CreatorState::No;
+    }
+}
+
+impl std::fmt::Display for PearlSyncCreator {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[{:?}]", self.state)
     }
 }
