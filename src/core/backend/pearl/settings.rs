@@ -272,7 +272,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
     }
 
     fn get_timestamp_period(&self) -> i64 {
-        Stuff::get_period_timestamp(self.timestamp_period).unwrap()// TODO
+        Stuff::get_period_timestamp(self.timestamp_period).unwrap() // TODO
     }
     fn get_current_timestamp_start(&self) -> i64 {
         Stuff::get_start_timestamp(self.timestamp_period, SystemTime::now()).unwrap()
