@@ -185,7 +185,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             e
         });
         if pearl.is_err() {
-            match self.create_current_pearl().await {
+            match self.create_current_pearl(key, data.clone()).await {
                 Ok(_) => return self.find_current_pearl(key, data).await.map_err(|e|{
                             error!("cannot find pearl after creation: {}", e);
                             e
@@ -226,9 +226,14 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         )));
     }
     /// create pearl for current write
-    async fn create_current_pearl(&self) -> BackendResult<()>{
+    async fn create_current_pearl(&self, key: BobKey, data: BobData) -> BackendResult<()>{
+        // check if pearl is currently creating
         if self.try_init_pearl().await? {
-            //TODO checkif created
+            // check if pearl created
+            if self.find_current_pearl(key, data).await.is_ok() {
+                let _ = self.mark_pearl_as_created().await;
+                return Ok(());    
+            }
             let pearl = self.settings.create_current_pearl(self);
             
             let _ = self.save_pearl(pearl.clone()).await;
