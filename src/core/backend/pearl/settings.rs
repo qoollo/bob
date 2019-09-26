@@ -126,6 +126,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
                 start_timestamp,
                 end_timestamp,
             );
+            trace!("read pearl: {}", pearl_holder);
             pearls.push(pearl_holder);
         }
         Ok(pearls)

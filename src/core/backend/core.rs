@@ -21,13 +21,13 @@ impl std::fmt::Display for BackendOperation {
         match self.disk_path.clone() {
             Some(path) => write!(
                 f,
-                "#{}-{}-{}-{}",
+                "[id: {}, name: {}, path: {}, alien: {}]",
                 self.vdisk_id,
                 path.name,
                 path.path,
                 self.is_data_alien()
             ),
-            None => write!(f, "#{}-{}", self.vdisk_id, self.is_data_alien()),
+            None => write!(f, "[id: {}, alien: {}]", self.vdisk_id, self.is_data_alien()),
         }
     }
 }

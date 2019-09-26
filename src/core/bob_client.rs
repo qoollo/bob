@@ -128,7 +128,7 @@ mod b_client {
                 } else {
                     client
                         .put(request)
-                        .timeout(timeout)
+                        // .timeout(timeout)   //TODO
                         .map(move |_| {
                             metrics.put_timer_stop(timer);
                             ClusterResult {
@@ -142,17 +142,17 @@ mod b_client {
 
                             ClusterResult {
                                 result: {
-                                    if e.is_elapsed() {
-                                        Error::Timeout
-                                    } else if e.is_timer() {
-                                        panic!("Timeout failed in core - can't continue")
-                                    } else {
-                                        let err = e.into_inner();
+                                    // if e.is_elapsed() {
+                                    //     Error::Timeout
+                                    // } else if e.is_timer() {
+                                    //     panic!("Timeout failed in core - can't continue")
+                                    // } else {
+                                    //     let err = e.into_inner();
                                         Error::Failed(format!(
                                             "Put operation for {} failed: {:?}",
-                                            n2, err
+                                            n2, e
                                         ))
-                                    }
+                                    // }
                                 },
                                 node: n2,
                             }
@@ -193,7 +193,7 @@ mod b_client {
                             key: Some(BlobKey { key: key.key }),
                             options: Some(options),
                         }))
-                        .timeout(timeout)
+                        // .timeout(timeout)   //TODO
                         .map(move |r| {
                             metrics.get_timer_stop(timer);
                             let ans = r.into_inner();
@@ -209,26 +209,30 @@ mod b_client {
                             metrics2.get_timer_stop(timer);
                             ClusterResult {
                                 result: {
-                                    if e.is_elapsed() {
-                                        Error::Timeout
-                                    } else if e.is_timer() {
-                                        panic!("Timeout failed in core - can't continue")
-                                    } else {
-                                        let err = e.into_inner();
-                                        match err {
-                                            Some(status) => match status.code() {
-                                                tower_grpc::Code::NotFound => Error::KeyNotFound,
-                                                _ => Error::Failed(format!(
-                                                    "Get operation for {} failed: {:?}",
-                                                    n2, status
-                                                )),
-                                            },
-                                            None => Error::Failed(format!(
+                                    // if e.is_elapsed() {
+                                    //     Error::Timeout
+                                    // } else if e.is_timer() {
+                                    //     panic!("Timeout failed in core - can't continue")
+                                    // } else {
+                                    //     let err = e.into_inner();
+                                    //     match err {
+                                    //         Some(status) => match status.code() {
+                                    //             tower_grpc::Code::NotFound => Error::KeyNotFound,
+                                    //             _ => Error::Failed(format!(
+                                    //                 "Get operation for {} failed: {:?}",
+                                    //                 n2, status
+                                    //             )),
+                                    //         },
+                                    //         None => Error::Failed(format!(
+                                    //             "Get operation for {} failed: {:?}",
+                                    //             n2, err
+                                    //         )),
+                                    //     }
+                                    // }
+                                    Error::Failed(format!(
                                                 "Get operation for {} failed: {:?}",
-                                                n2, err
-                                            )),
-                                        }
-                                    }
+                                                n2, e
+                                            ))
                                 },
                                 node: n2,
                             }
@@ -260,7 +264,7 @@ mod b_client {
             } else {
                 client
                     .ping(Request::new(Null {}))
-                    .timeout(to)
+                    // .timeout(to) //TODO
                     .map(move |_| ClusterResult {
                         node: n1,
                         result: BackendPingResult {},

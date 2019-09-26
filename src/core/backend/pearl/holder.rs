@@ -95,7 +95,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
                 PEARL_PUT_ERROR_COUNTER.count(1);
                 trace!("error on write: {:?}", e);
                 //TODO check duplicate
-                backend::Error::StorageError(format!("{:?}", e))
+                // backend::Error::StorageError(format!("{:?}", e))
+                backend::Error::DuplicateKey // TODO
             })
     }
 
