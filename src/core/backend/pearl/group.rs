@@ -1,4 +1,4 @@
-use super::{data::BackendResult, holder::PearlHolder, settings::Settings, stuff::LockGuard};
+use super::{data::BackendResult, holder::PearlHolder, settings::Settings, stuff::{LockGuard, Stuff}};
 use crate::core::{
     backend,
     backend::core::*,
@@ -9,7 +9,6 @@ use futures03::{compat::Future01CompatExt, task::Spawn, FutureExt, future::ok as
 
 use futures_locks::RwLock;
 use std::{path::PathBuf, sync::Arc};
-use tokio_timer::sleep;
 
 /// Wrap pearl holder and add timestamp info
 #[derive(Clone)]
@@ -98,7 +97,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             let read_pearls = self.settings.read_vdisk_directory(self);
             if let Err(err) = read_pearls {
                 error!("can't create pearls: {:?}", err);
-                let _ = sleep(delay).compat().boxed().await;
+                let _ = Stuff::wait(delay).await;
             } else {
                 pearls = read_pearls.unwrap();
             }
@@ -116,13 +115,13 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         //save pearls to group
         while let Err(err) = self.add_range(pearls.clone()).await {
             error!("can't add pearls: {:?}", err);
-            let _ = sleep(delay).compat().boxed().await;
+            let _ = Stuff::wait(delay).await;
         }
 
         //start pearls
         while let Err(err) = self.run_pearls().await {
             error!("can't start pearls: {:?}", err);
-            let _ = sleep(delay).compat().boxed().await;
+            let _ = Stuff::wait(delay).await;
         }
     }
 
@@ -229,12 +228,14 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
     /// create pearl for current write
     async fn create_current_pearl(&self) -> BackendResult<()>{
         if self.try_init_pearl().await? {
+            //TODO checkif created
             let pearl = self.settings.create_current_pearl(self);
             
             let _ = self.save_pearl(pearl.clone()).await;
             let _ = self.mark_pearl_as_created().await?;
         } else {
-            //TODO delay 
+            let delay = self.config.settings().create_pearl_wait_delay();
+            let _ = Stuff::wait(delay).await;
         }
         Ok(())
     }

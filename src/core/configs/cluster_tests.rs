@@ -600,6 +600,7 @@ pearl:
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
+    create_pearl_wait_delay: 100ms
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_ok());
@@ -628,6 +629,7 @@ pearl:
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
     timestamp_period: 2w      # period when new pearl directory created. required for 'pearl'
+    create_pearl_wait_delay: 100ms
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -656,6 +658,7 @@ pearl:
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
+    create_pearl_wait_delay: 100ms
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_ok());
@@ -683,6 +686,7 @@ pearl:
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
+    create_pearl_wait_delay: 100ms
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -710,6 +714,7 @@ pearl:
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
+    create_pearl_wait_delay: 100ms
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -737,6 +742,7 @@ pearl:
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
+    create_pearl_wait_delay: 100ms
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -884,6 +890,7 @@ pearl:
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
+    create_pearl_wait_delay: 100ms
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -928,6 +935,7 @@ pearl:
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
+    create_pearl_wait_delay: 100ms
 ";
         let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
         assert!(d.validate().is_err());
