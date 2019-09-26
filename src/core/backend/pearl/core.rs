@@ -135,7 +135,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         let vdisk_groups = self.vdisks_groups.clone();
 
         Put({
-            let vdisk_group = vdisk_groups.iter().find(|vd| vd.can_process_operation(&operation));
+            let vdisk_group = vdisk_groups
+                .iter()
+                .find(|vd| vd.can_process_operation(&operation));
             if let Some(group) = vdisk_group {
                 let d_clone = group.clone();
                 async move {
@@ -163,7 +165,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         let alien_vdisks_group = self.alien_vdisks_groups.clone();
 
         Put({
-            let vdisk_group = alien_vdisks_group.iter().find(|vd| vd.can_process_operation(&operation));
+            let vdisk_group = alien_vdisks_group
+                .iter()
+                .find(|vd| vd.can_process_operation(&operation));
             if let Some(group) = vdisk_group {
                 let d_clone = group.clone();
                 async move {
@@ -190,7 +194,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
 
         let vdisks_groups = self.vdisks_groups.clone();
         Get({
-            let vdisk_group = vdisks_groups.iter().find(|vd| vd.can_process_operation(&operation));
+            let vdisk_group = vdisks_groups
+                .iter()
+                .find(|vd| vd.can_process_operation(&operation));
             if let Some(group) = vdisk_group {
                 let d_clone = group.clone();
                 async move {
@@ -217,7 +223,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
 
         let vdisks_groups = self.alien_vdisks_groups.clone();
         Get({
-            let vdisk_group = vdisks_groups.iter().find(|vd| vd.can_process_operation(&operation));
+            let vdisk_group = vdisks_groups
+                .iter()
+                .find(|vd| vd.can_process_operation(&operation));
             if let Some(group) = vdisk_group {
                 let d_clone = group.clone();
                 async move {

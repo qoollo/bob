@@ -18,6 +18,7 @@ use futures03::{
 use std::{path::PathBuf, sync::Arc};
 use tokio_timer::sleep;
 
+/// Struct hold pearl and add put/get/restart api
 #[derive(Clone)]
 pub(crate) struct PearlHolder<TSpawner> {
     vdisk: VDiskId,

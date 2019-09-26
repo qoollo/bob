@@ -90,7 +90,7 @@ impl std::fmt::Display for BobData {
 
 #[derive(Debug, Clone)]
 pub struct BobMeta {
-    pub timestamp: u32,
+    pub timestamp: i64,
 }
 impl BobMeta {
     pub fn new(data: BlobMeta) -> Self {
@@ -99,7 +99,7 @@ impl BobMeta {
         }
     }
 
-    pub fn new_value(timestamp: u32) -> Self {
+    pub fn new_value(timestamp: i64) -> Self {
         BobMeta { timestamp }
     }
 

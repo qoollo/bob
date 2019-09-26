@@ -4,10 +4,12 @@ use crate::core::backend::pearl::data::*;
 use futures03::{compat::Future01CompatExt, FutureExt};
 use futures_locks::RwLock;
 
+use chrono::{DateTime, Datelike, Duration, Utc};
 use std::{
     fs::{create_dir_all, remove_file},
     path::PathBuf,
     sync::Arc,
+    time,
 };
 
 pub(crate) struct LockGuard<TGuard> {
@@ -113,5 +115,39 @@ impl Stuff {
                 });
         }
         Ok(())
+    }
+
+    pub(crate) fn get_start_timestamp(
+        period: time::Duration,
+        time: time::SystemTime,
+    ) -> BackendResult<i64> {
+        let period: Duration = Duration::from_std(period).map_err(|e| {
+            trace!("smth wrong with time: {:?}, error: {}", period, e);
+            backend::Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+        })?;
+        let time: DateTime<Utc> = DateTime::from(time);
+
+        let mut start_time = match period {
+            period if period <= Duration::days(1) => time.date().and_hms(0, 0, 0),
+            period if period <= Duration::weeks(1) => {
+                let time = time.date().and_hms(0, 0, 0);
+                time - Duration::days((time.weekday().num_days_from_monday() - 1) as i64)
+            }
+            _ => panic!("pearid: {} is too large", period),
+        };
+
+        while !(start_time <= time && time < start_time + period) {
+            start_time = start_time + period;
+        }
+        Ok(start_time.timestamp())
+    }
+
+    pub(crate) fn get_period_timestamp(period: time::Duration) -> BackendResult<i64> {
+        let period: Duration = Duration::from_std(period).map_err(|e| {
+            trace!("smth wrong with time: {:?}, error: {}", period, e);
+            backend::Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+        })?;
+
+        Ok(period.num_seconds())
     }
 }
