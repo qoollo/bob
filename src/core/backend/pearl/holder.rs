@@ -208,7 +208,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
         let repeat = true;
         let path = &self.disk_path;
         let config = self.config.clone();
-        // let spawner = self.spawner.clone();
+        let spawner = self.spawner.clone();
 
         let delay = config.fail_retry_timeout();
 
@@ -235,7 +235,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
                 continue;
             }
             let mut st = storage.unwrap();
-            if let Err(e) = st.init().await {
+            if let Err(e) = st.init(spawner.clone()).await {
                 error!("cannot init pearl by path: {:?}, error: {:?}", path, e);
                 continue;
             }
