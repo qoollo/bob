@@ -296,20 +296,12 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         Self::put_common(pearl.pearl, key, data).await
     }
 
-    fn is_write_error(err: Option<&backend::Error>) -> bool {
-        match err {
-            Some(backend::Error::DuplicateKey) | Some(backend::Error::VDiskIsNotReady) => false,
-            Some(_) => true,
-            _ => false,
-        }
-    }
-
     async fn put_common(pearl: PearlHolder<TSpawner>, key: BobKey, data: BobData) -> PutResult {
         let result = pearl
             .write(key, Box::new(data))
             .map(|r| r.map(|_ok| BackendPutResult {}))
             .await;
-        if Self::is_write_error(result.as_ref().err()) && pearl.try_reinit().await.unwrap() {
+        if backend::Error::is_put_error_need_restart(result.as_ref().err()) && pearl.try_reinit().await.unwrap() {
             let _ = pearl.reinit_storage().await;
         }
         result
@@ -349,20 +341,12 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         self.settings.choose_data(results)
     }
 
-    fn is_read_error(err: Option<&backend::Error>) -> bool {
-        match err {
-            Some(backend::Error::KeyNotFound) | Some(backend::Error::VDiskIsNotReady) => false,
-            Some(_) => true,
-            _ => false,
-        }
-    }
-
     async fn get_common(pearl: PearlHolder<TSpawner>, key: BobKey) -> GetResult {
         let result = pearl
             .read(key)
             .map(|r| r.map(|data| BackendGetResult { data }))
             .await;
-        if Self::is_read_error(result.as_ref().err()) && pearl.try_reinit().await.unwrap() {
+        if backend::Error::is_get_error_need_restart(result.as_ref().err()) && pearl.try_reinit().await.unwrap() {
             let _ = pearl.reinit_storage().await;
         }
         result

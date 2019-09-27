@@ -23,9 +23,36 @@ pub enum Error {
 }
 
 impl Error {
+    /// check if backend error causes 'bob_client' reconnect
     pub fn is_service(&self) -> bool {
-        match &self {
+        match self {
             Error::Timeout | Error::Other | Error::Failed(_) => true,
+            _ => false,
+        }
+    }
+
+    /// check if put error causes pearl restart
+    pub fn is_put_error_need_restart(err: Option<&Error>) -> bool {
+        match err {
+            Some(Error::DuplicateKey) | Some(Error::VDiskIsNotReady) => false,
+            Some(_) => true,
+            _ => false,
+        }
+    }
+    
+    /// check if put error causes put to local alien
+    pub fn is_put_error_need_alien(&self) -> bool {
+        match self {
+            Error::DuplicateKey => false,
+            _ => true,
+        }
+    }
+
+    /// check if get error causes pearl restart
+    pub fn is_get_error_need_restart(err: Option<&Error>) -> bool {
+        match err {
+            Some(Error::KeyNotFound) | Some(Error::VDiskIsNotReady) => false,
+            Some(_) => true,
             _ => false,
         }
     }

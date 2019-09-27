@@ -116,8 +116,6 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
     fn run_backend(&self) -> RunResult {
         debug!("run pearl backend");
 
-        // let vdisks = self.vdisks.clone();
-        // let alien_dir = self.alien_dir.clone();
         let vdisks_groups = self.vdisks_groups.clone();
         let alien_vdisks_groups = self.alien_vdisks_groups.clone();
 

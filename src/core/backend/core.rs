@@ -143,19 +143,15 @@ impl Backend {
             return Ok(BackendPutResult {});
         } else if let Some(path) = disk_path {
             return self
-                .put_local(key, data, BackendOperation::new_local(vdisk_id, path))
+                .put_single(key, data, BackendOperation::new_local(vdisk_id, path))
                 .await;
         } else {
             //todo some cluster put mistake ?
-            return Err(Error::Other);
+            return Err(Error::Failed(format!("Dont now what to with data: key: {}, op: {:?}. Data is not local and alien", key, options)));
         }
     }
 
-    pub async fn put_local(&self, key: BobKey, data: BobData, op: BackendOperation) -> PutResult {
-        self.put_single(key, data, op).await
-    }
-
-    async fn put_single(
+    pub async fn put_single(
         &self,
         key: BobKey,
         data: BobData,
@@ -170,7 +166,7 @@ impl Backend {
                 .boxed()
                 .await;
             match result {
-                Err(err) => {
+                Err(err) if err.is_put_error_need_alien() => {
                     error!(
                         "PUT[{}][{}] to backend. Error: {:?}",
                         key,
@@ -196,7 +192,7 @@ impl Backend {
     pub async fn get(&self, key: BobKey, options: BobOptions) -> GetResult {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
-        // we cannot write data to alien if it belong this node
+        // we cannot get data from alien if it belong this node
         if let Some(path) = disk_path.clone() {
             if options.get_normal() {
                 trace!("GET[{}] try read normal", key);
@@ -210,7 +206,8 @@ impl Backend {
             //TODO check is alien? how? add field to grpc
             trace!("GET[{}] try read alien", key);
             //TODO read from all vdisk ids
-            let op = BackendOperation::new_alien(vdisk_id.clone());
+            let mut op = BackendOperation::new_alien(vdisk_id.clone());
+            op.set_remote_folder(&self.mapper.local_node_name());
 
             return Self::get_single(self.backend.clone(), key, op).await;
         }
