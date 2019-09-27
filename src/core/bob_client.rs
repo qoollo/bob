@@ -141,19 +141,7 @@ mod b_client {
                             metrics2.put_timer_stop(timer);
 
                             ClusterResult {
-                                result: {
-                                    // if e.is_elapsed() {
-                                    //     Error::Timeout
-                                    // } else if e.is_timer() {
-                                    //     panic!("Timeout failed in core - can't continue")
-                                    // } else {
-                                    //     let err = e.into_inner();
-                                        Error::Failed(format!(
-                                            "Put operation for {} failed: {:?}",
-                                            n2, e
-                                        ))
-                                    // }
-                                },
+                                result: Error::convert_from_grpc(e),
                                 node: n2,
                             }
                         })
@@ -208,7 +196,7 @@ mod b_client {
                             metrics2.get_error_count();
                             metrics2.get_timer_stop(timer);
                             ClusterResult {
-                                result: {
+                                result: Error::convert_from_grpc(e),
                                     // if e.is_elapsed() {
                                     //     Error::Timeout
                                     // } else if e.is_timer() {
@@ -229,11 +217,11 @@ mod b_client {
                                     //         )),
                                     //     }
                                     // }
-                                    Error::Failed(format!(
-                                                "Get operation for {} failed: {:?}",
-                                                n2, e
-                                            ))
-                                },
+                                    // Error::Failed(format!(
+                                    //             "Get operation for {} failed: {:?}",
+                                    //             n2, e
+                                    //         ))
+                                // },
                                 node: n2,
                             }
                         })
@@ -271,7 +259,7 @@ mod b_client {
                     })
                     .map_err(move |e| ClusterResult {
                         node: n2.clone(),
-                        result: Error::StorageError(format!("ping operation error: {}", e)),
+                        result: Error::convert_from_grpc(e),
                     })
                     .compat()
                     .boxed()

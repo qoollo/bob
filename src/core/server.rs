@@ -3,11 +3,11 @@ use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRe
 use crate::core::{
     bob_client::BobClientFactory,
     data::{BobData, BobKey, BobMeta, BobOptions},
-    grinder::{Error, Grinder},
+    grinder::Grinder,
 };
 use futures::{
     future,
-    future::{err, ok},
+    future::ok,
     Future,
 };
 use stopwatch::Stopwatch;
@@ -86,10 +86,7 @@ impl server::BobApi for BobSrv {
                     }
                     Err(r_err) => {
                         error!("PUT[{}]-ERR dt: {}ms {:?}", key, elapsed, r_err);
-                        err(tower_grpc::Status::new(
-                            tower_grpc::Code::Internal,
-                            format!("Failed to write {:?}", r_err),
-                        ))
+                        future::err(r_err.convert_to_grpc())
                     }
                 }
             }))
@@ -124,30 +121,7 @@ impl server::BobApi for BobSrv {
                             }),
                         }))
                     }
-                    Err(r_err) => {
-                        let err = match r_err.error() {
-                            Error::NotFound => tower_grpc::Status::new(
-                                tower_grpc::Code::NotFound,
-                                format!("[bob] Can't find record with key {}", key),
-                            ),
-                            ww => {
-                                error!(
-                                    "GET[{}]-ERR  dt: {}ms {:?}, {:?}",
-                                    key,
-                                    // r_err.is_local(),
-                                    elapsed,
-                                    r_err,
-                                    ww,
-                                );
-                                tower_grpc::Status::new(
-                                    //TODO add error description
-                                    tower_grpc::Code::Unknown,
-                                    "[bob] Some error",
-                                )
-                            }
-                        };
-                        future::err(err)
-                    }
+                    Err(r_err) => future::err(r_err.convert_to_grpc()),
                 }
             }))
         }

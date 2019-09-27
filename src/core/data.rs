@@ -361,6 +361,7 @@ impl Node {
     }
 
     pub(crate) fn clear_connection(&self) {
+        info!("CLEAN CONNECTION");
         *self.conn.lock().unwrap() = None;
     }
 
