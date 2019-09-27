@@ -27,7 +27,12 @@ impl std::fmt::Display for BackendOperation {
                 path.path,
                 self.is_data_alien()
             ),
-            None => write!(f, "[id: {}, alien: {}]", self.vdisk_id, self.is_data_alien()),
+            None => write!(
+                f,
+                "[id: {}, alien: {}]",
+                self.vdisk_id,
+                self.is_data_alien()
+            ),
         }
     }
 }
@@ -144,23 +149,27 @@ impl Backend {
             }
             result
         } else if let Some(path) = disk_path {
-            self
-                .put_single(key, data, BackendOperation::new_local(vdisk_id, path))
+            self.put_single(key, data, BackendOperation::new_local(vdisk_id, path))
                 .await
         } else {
-            error!("PUT[{}] dont now what to with data: op: {:?}. Data is not local and alien", key, options);
+            error!(
+                "PUT[{}] dont now what to with data: op: {:?}. Data is not local and alien",
+                key, options
+            );
             Err(Error::Internal)
         };
         result.map_err(|e| e.convert_backend())
     }
-    
+
     pub async fn put_local(
         &self,
         key: BobKey,
         data: BobData,
         operation: BackendOperation,
     ) -> PutResult {
-        self.put_single(key, data, operation).await.map_err(|e| e.convert_backend())
+        self.put_single(key, data, operation)
+            .await
+            .map_err(|e| e.convert_backend())
     }
 
     async fn put_single(
@@ -188,7 +197,12 @@ impl Backend {
                     // write to alien/<local name>
                     let mut op = operation.clone_alien();
                     op.set_remote_folder(&self.mapper.local_node_name());
-                    self.backend.put_alien(op, key, data).0.boxed().await.map_err(|_|err)//we must return 'local' error if both ways are failed
+                    self.backend
+                        .put_alien(op, key, data)
+                        .0
+                        .boxed()
+                        .await
+                        .map_err(|_| err) //we must return 'local' error if both ways are failed
                 }
                 _ => result,
             }
@@ -208,12 +222,13 @@ impl Backend {
         let result = if options.get_normal() {
             if let Some(path) = disk_path.clone() {
                 trace!("GET[{}] try read normal", key);
-                self
-                    .get_local(key, BackendOperation::new_local(vdisk_id, path))
+                self.get_local(key, BackendOperation::new_local(vdisk_id, path))
                     .await
-            }
-            else{
-                error!("GET[{}] we must read data normaly but cannot find in config right path", key);
+            } else {
+                error!(
+                    "GET[{}] we must read data normaly but cannot find in config right path",
+                    key
+                );
                 Err(Error::Internal)
             }
         }
@@ -226,9 +241,7 @@ impl Backend {
             op.set_remote_folder(&self.mapper.local_node_name());
 
             Self::get_single(self.backend.clone(), key, op).await
-        }
-        else
-        {
+        } else {
             error!(
                 "GET[{}] we cannot read data from anywhere. path: {:?}, options: {:?}",
                 key, disk_path, options
@@ -239,7 +252,9 @@ impl Backend {
     }
 
     pub async fn get_local(&self, key: BobKey, op: BackendOperation) -> GetResult {
-        Self::get_single(self.backend.clone(), key, op).await.map_err(|e| e.convert_backend())
+        Self::get_single(self.backend.clone(), key, op)
+            .await
+            .map_err(|e| e.convert_backend())
     }
 
     async fn get_single(

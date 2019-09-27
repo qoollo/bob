@@ -124,7 +124,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
 
         debug!("{}: save pearls to group", self);
         while let Err(err) = self.add_range(pearls.clone()).await {
-            error!("{}: can't add pearls: {:?}",self, err);
+            error!("{}: can't add pearls: {:?}", self, err);
             let _ = Stuff::wait(delay).await;
         }
 
@@ -301,7 +301,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             .write(key, Box::new(data))
             .map(|r| r.map(|_ok| BackendPutResult {}))
             .await;
-        if backend::Error::is_put_error_need_restart(result.as_ref().err()) && pearl.try_reinit().await.unwrap() {
+        if backend::Error::is_put_error_need_restart(result.as_ref().err())
+            && pearl.try_reinit().await.unwrap()
+        {
             let _ = pearl.reinit_storage().await;
         }
         result
@@ -346,16 +348,22 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             .read(key)
             .map(|r| r.map(|data| BackendGetResult { data }))
             .await;
-        if backend::Error::is_get_error_need_restart(result.as_ref().err()) && pearl.try_reinit().await.unwrap() {
+        if backend::Error::is_get_error_need_restart(result.as_ref().err())
+            && pearl.try_reinit().await.unwrap()
+        {
             let _ = pearl.reinit_storage().await;
         }
         result
     }
 }
 
-impl<TSpawner> std::fmt::Display for PearlGroup<TSpawner>{
+impl<TSpawner> std::fmt::Display for PearlGroup<TSpawner> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "[id: {}, node: {}, path: {:?}, disk: {}]", self.vdisk_id, self.node_name, self.directory_path, self.disk_name)
+        write!(
+            f,
+            "[id: {}, node: {}, path: {:?}, disk: {}]",
+            self.vdisk_id, self.node_name, self.directory_path, self.disk_name
+        )
     }
 }
 

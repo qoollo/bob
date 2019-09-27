@@ -39,7 +39,7 @@ impl Error {
             _ => false,
         }
     }
-    
+
     /// check if put error causes put to local alien
     pub fn is_put_error_need_alien(&self) -> bool {
         match self {
@@ -65,31 +65,27 @@ impl Error {
         }
     }
 
-    pub fn convert_to_grpc(self) -> tower_grpc::Status{//TODO add custom errors
+    pub fn convert_to_grpc(self) -> tower_grpc::Status {
+        //TODO add custom errors
         trace!("Error: {}", self.clone());
         match self {
-            Error::KeyNotFound => tower_grpc::Status::new(
-                tower_grpc::Code::Unknown,
-                format!("KeyNotFound"),
-            ),
-            Error::DuplicateKey => tower_grpc::Status::new(
-                tower_grpc::Code::Unknown,
-                format!("DuplicateKey"),
-            ),
-            _ => tower_grpc::Status::new(
-                tower_grpc::Code::Unknown,
-                format!("Other errors"),
-            ),
+            Error::KeyNotFound => {
+                tower_grpc::Status::new(tower_grpc::Code::Unknown, format!("KeyNotFound"))
+            }
+            Error::DuplicateKey => {
+                tower_grpc::Status::new(tower_grpc::Code::Unknown, format!("DuplicateKey"))
+            }
+            _ => tower_grpc::Status::new(tower_grpc::Code::Unknown, format!("Other errors")),
         }
     }
 
-    pub fn convert_from_grpc(error: tower_grpc::Status) -> Self{
-        match error.code(){
+    pub fn convert_from_grpc(error: tower_grpc::Status) -> Self {
+        match error.code() {
             tower_grpc::Code::Unknown => match error.message() {
-                    "KeyNotFound" => Error::KeyNotFound,
-                    "DuplicateKey" => Error::DuplicateKey,
-                    _ => Error::Internal,
-                },
+                "KeyNotFound" => Error::KeyNotFound,
+                "DuplicateKey" => Error::DuplicateKey,
+                _ => Error::Internal,
+            },
             _ => Error::Failed(format!("grpc error: {}", error)),
         }
     }

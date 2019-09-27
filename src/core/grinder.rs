@@ -80,7 +80,11 @@ impl Grinder {
         }
     }
 
-    pub async fn get(&self, key: BobKey, opts: BobOptions) -> Result<BackendGetResult, backend::Error> {
+    pub async fn get(
+        &self,
+        key: BobKey,
+        opts: BobOptions,
+    ) -> Result<BackendGetResult, backend::Error> {
         if opts.flags.contains(BobFlags::FORCE_NODE) {
             CLIENT_GET_COUNTER.count(1);
             let time = CLIENT_GET_TIMER.start();

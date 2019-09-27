@@ -5,11 +5,7 @@ use crate::core::{
     data::{BobData, BobKey, BobMeta, BobOptions},
     grinder::Grinder,
 };
-use futures::{
-    future,
-    future::ok,
-    Future,
-};
+use futures::{future, future::ok, Future};
 use stopwatch::Stopwatch;
 use tower_grpc::{Request, Response};
 

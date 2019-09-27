@@ -197,30 +197,30 @@ mod b_client {
                             metrics2.get_timer_stop(timer);
                             ClusterResult {
                                 result: Error::convert_from_grpc(e),
-                                    // if e.is_elapsed() {
-                                    //     Error::Timeout
-                                    // } else if e.is_timer() {
-                                    //     panic!("Timeout failed in core - can't continue")
-                                    // } else {
-                                    //     let err = e.into_inner();
-                                    //     match err {
-                                    //         Some(status) => match status.code() {
-                                    //             tower_grpc::Code::NotFound => Error::KeyNotFound,
-                                    //             _ => Error::Failed(format!(
-                                    //                 "Get operation for {} failed: {:?}",
-                                    //                 n2, status
-                                    //             )),
-                                    //         },
-                                    //         None => Error::Failed(format!(
-                                    //             "Get operation for {} failed: {:?}",
-                                    //             n2, err
-                                    //         )),
-                                    //     }
-                                    // }
-                                    // Error::Failed(format!(
-                                    //             "Get operation for {} failed: {:?}",
-                                    //             n2, e
-                                    //         ))
+                                // if e.is_elapsed() {
+                                //     Error::Timeout
+                                // } else if e.is_timer() {
+                                //     panic!("Timeout failed in core - can't continue")
+                                // } else {
+                                //     let err = e.into_inner();
+                                //     match err {
+                                //         Some(status) => match status.code() {
+                                //             tower_grpc::Code::NotFound => Error::KeyNotFound,
+                                //             _ => Error::Failed(format!(
+                                //                 "Get operation for {} failed: {:?}",
+                                //                 n2, status
+                                //             )),
+                                //         },
+                                //         None => Error::Failed(format!(
+                                //             "Get operation for {} failed: {:?}",
+                                //             n2, err
+                                //         )),
+                                //     }
+                                // }
+                                // Error::Failed(format!(
+                                //             "Get operation for {} failed: {:?}",
+                                //             n2, e
+                                //         ))
                                 // },
                                 node: n2,
                             }

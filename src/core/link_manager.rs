@@ -75,7 +75,7 @@ impl LinkManager {
                         .boxed()
                         .map_err(move |e| {
                             if e.result.is_service() {
-                                 trace!("clean connection: {}", e.result);
+                                trace!("clean connection: {}", e.result);
                                 nl_clone.clear_connection();
                             }
                             e
