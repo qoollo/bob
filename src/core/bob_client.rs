@@ -148,10 +148,10 @@ mod b_client {
                                     //     panic!("Timeout failed in core - can't continue")
                                     // } else {
                                     //     let err = e.into_inner();
-                                        Error::Failed(format!(
-                                            "Put operation for {} failed: {:?}",
-                                            n2, e
-                                        ))
+                                    Error::Failed(format!(
+                                        "Put operation for {} failed: {:?}",
+                                        n2, e
+                                    ))
                                     // }
                                 },
                                 node: n2,
@@ -230,9 +230,9 @@ mod b_client {
                                     //     }
                                     // }
                                     Error::Failed(format!(
-                                                "Get operation for {} failed: {:?}",
-                                                n2, e
-                                            ))
+                                        "Get operation for {} failed: {:?}",
+                                        n2, e
+                                    ))
                                 },
                                 node: n2,
                             }

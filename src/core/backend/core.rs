@@ -27,7 +27,12 @@ impl std::fmt::Display for BackendOperation {
                 path.path,
                 self.is_data_alien()
             ),
-            None => write!(f, "[id: {}, alien: {}]", self.vdisk_id, self.is_data_alien()),
+            None => write!(
+                f,
+                "[id: {}, alien: {}]",
+                self.vdisk_id,
+                self.is_data_alien()
+            ),
         }
     }
 }
@@ -180,7 +185,12 @@ impl Backend {
                     // write to alien/<local name>
                     let mut op = operation.clone_alien();
                     op.set_remote_folder(&self.mapper.local_node_name());
-                    self.backend.put_alien(op, key, data).0.boxed().await.map_err(|_|err)//we must return 'local' error if both ways are failed
+                    self.backend
+                        .put_alien(op, key, data)
+                        .0
+                        .boxed()
+                        .await
+                        .map_err(|_| err) //we must return 'local' error if both ways are failed
                 }
                 _ => result,
             }

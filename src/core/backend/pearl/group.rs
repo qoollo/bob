@@ -124,7 +124,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
 
         debug!("{}: save pearls to group", self);
         while let Err(err) = self.add_range(pearls.clone()).await {
-            error!("{}: can't add pearls: {:?}",self, err);
+            error!("{}: can't add pearls: {:?}", self, err);
             let _ = Stuff::wait(delay).await;
         }
 
@@ -369,9 +369,13 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
     }
 }
 
-impl<TSpawner> std::fmt::Display for PearlGroup<TSpawner>{
+impl<TSpawner> std::fmt::Display for PearlGroup<TSpawner> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "[id: {}, node: {}, path: {:?}, disk: {}]", self.vdisk_id, self.node_name, self.directory_path, self.disk_name)
+        write!(
+            f,
+            "[id: {}, node: {}, path: {:?}, disk: {}]",
+            self.vdisk_id, self.node_name, self.directory_path, self.disk_name
+        )
     }
 }
 
