@@ -11,6 +11,7 @@ use std::{
     sync::Arc,
     time,
 };
+use tokio_timer::sleep;
 
 pub(crate) struct LockGuard<TGuard> {
     storage: Arc<RwLock<TGuard>>,
@@ -149,5 +150,9 @@ impl Stuff {
         })?;
 
         Ok(period.num_seconds())
+    }
+
+    pub(crate) async fn wait(delay: time::Duration) {
+        let _ = sleep(delay).compat().boxed().await;
     }
 }

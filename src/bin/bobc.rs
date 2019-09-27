@@ -10,6 +10,7 @@ use tokio::runtime::Runtime;
 
 use futures::Future;
 use hyper::client::connect::{Destination, HttpConnector};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tower_hyper::{client, util};
 
 fn wait_for_input() {
@@ -39,7 +40,13 @@ fn main() {
             key: Some(BlobKey { key: 0 }),
             data: Some(Blob {
                 data: vec![0],
-                meta: Some(BlobMeta { timestamp: 1 }),
+                meta: Some(BlobMeta {
+                    timestamp: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .expect("msg: &str")
+                        .as_secs() as i64
+                        + 100000,
+                }),
             }), // TODO
             options: None,
         }))

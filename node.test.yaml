@@ -19,6 +19,7 @@ pearl:                        # used only for 'backend_type: pearl'
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
+    create_pearl_wait_delay: 100ms # each thread will wait this peariod if another thread init requieed pearl. required for 'pearl'
 
 metrics:                      # optional, send metrics
   name: bob                   # optional, add base name for metrics

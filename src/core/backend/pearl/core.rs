@@ -26,11 +26,15 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
 
         let vdisks_groups =
             Arc::new(settings.read_group_from_disk(settings.clone(), config, spawner.clone()));
+        trace!("count vdisk groups: {}", vdisks_groups.len());
+
         let alien_vdisks_groups = Arc::new(
             settings
                 .read_alien_directory(settings.clone(), config, spawner)
                 .unwrap(),
         ); //TODO
+        trace!("count alien vdisk groups: {}", alien_vdisks_groups.len());
+
         PearlBackend {
             vdisks_groups,
             alien_vdisks_groups,

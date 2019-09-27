@@ -21,13 +21,18 @@ impl std::fmt::Display for BackendOperation {
         match self.disk_path.clone() {
             Some(path) => write!(
                 f,
-                "#{}-{}-{}-{}",
+                "[id: {}, name: {}, path: {}, alien: {}]",
                 self.vdisk_id,
                 path.name,
                 path.path,
                 self.is_data_alien()
             ),
-            None => write!(f, "#{}-{}", self.vdisk_id, self.is_data_alien()),
+            None => write!(
+                f,
+                "[id: {}, alien: {}]",
+                self.vdisk_id,
+                self.is_data_alien()
+            ),
         }
     }
 }
@@ -47,7 +52,13 @@ impl BackendOperation {
             remote_node_name: None,
         }
     }
-
+    pub fn clone_alien(&self) -> Self {
+        BackendOperation {
+            vdisk_id: self.vdisk_id.clone(),
+            disk_path: None,
+            remote_node_name: self.remote_node_name.clone(),
+        }
+    }
     pub fn set_remote_folder(&mut self, name: &str) {
         self.remote_node_name = Some(name.to_string())
     }
@@ -172,9 +183,14 @@ impl Backend {
                         err
                     );
                     // write to alien/<local name>
-                    let mut op = operation.clone();
+                    let mut op = operation.clone_alien();
                     op.set_remote_folder(&self.mapper.local_node_name());
-                    self.backend.put_alien(op, key, data).0.boxed().await
+                    self.backend
+                        .put_alien(op, key, data)
+                        .0
+                        .boxed()
+                        .await
+                        .map_err(|_| err) //we must return 'local' error if both ways are failed
                 }
                 _ => result,
             }

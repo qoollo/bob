@@ -13,6 +13,7 @@ pub struct BackendSettings {
     pub root_dir_name: Option<String>,
     pub alien_root_dir_name: Option<String>,
     pub timestamp_period: Option<String>,
+    pub create_pearl_wait_delay: Option<String>,
 }
 
 impl Validatable for BackendSettings {
@@ -61,6 +62,21 @@ impl Validatable for BackendSettings {
                 }
             },
         };
+        match &self.create_pearl_wait_delay {
+            None => {
+                debug!("field 'create_pearl_wait_delay' for 'backend settings config' is not set");
+                return Err(
+                    "field 'create_pearl_wait_delay' for 'backend settings config' is not set"
+                        .to_string(),
+                );
+            }
+            Some(timeout) => {
+                if timeout.parse::<humantime::Duration>().is_err() {
+                    debug!("field 'create_pearl_wait_delay' for 'backend settings config' is not valid");
+                    return Err("field 'create_pearl_wait_delay' for 'backend settings config' is not valid".to_string());
+                }
+            }
+        };
         Ok(())
     }
 }
@@ -75,6 +91,17 @@ impl BackendSettings {
     pub fn timestamp_period(&self) -> Duration {
         let t: Duration = self
             .timestamp_period
+            .as_ref()
+            .unwrap()
+            .clone()
+            .parse::<humantime::Duration>()
+            .unwrap()
+            .into();
+        t
+    }
+    pub fn create_pearl_wait_delay(&self) -> Duration {
+        let t: Duration = self
+            .create_pearl_wait_delay
             .as_ref()
             .unwrap()
             .clone()

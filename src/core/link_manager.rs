@@ -101,6 +101,7 @@ impl LinkManager {
                     .boxed()
                     .map_err(move |e| {
                         if e.result.is_service() {
+                            trace!("clean connection");
                             nl_node.clear_connection();
                         }
                         e

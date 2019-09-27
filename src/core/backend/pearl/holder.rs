@@ -9,14 +9,12 @@ use crate::core::data::{BobData, BobKey, VDiskId};
 use pearl::{Builder, ErrorKind, Storage};
 
 use futures03::{
-    compat::Future01CompatExt,
     future::err as err03,
     task::{Spawn, SpawnExt},
     FutureExt,
 };
 
 use std::{path::PathBuf, sync::Arc};
-use tokio_timer::sleep;
 
 /// Struct hold pearl and add put/get/restart api
 #[derive(Clone)]
@@ -97,7 +95,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
                 PEARL_PUT_ERROR_COUNTER.count(1);
                 trace!("error on write: {:?}", e);
                 //TODO check duplicate
-                backend::Error::StorageError(format!("{:?}", e))
+                // backend::Error::StorageError(format!("{:?}", e))
+                backend::Error::DuplicateKey // TODO
             })
     }
 
@@ -210,14 +209,14 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
         let repeat = true;
         let path = &self.disk_path;
         let config = self.config.clone();
-        // let spawner = self.spawner.clone();
+        let spawner = self.spawner.clone();
 
         let delay = config.fail_retry_timeout();
 
         let mut need_delay = false;
         while repeat {
             if need_delay {
-                let _ = sleep(delay).compat().boxed().await;
+                let _ = Stuff::wait(delay).await;
             }
             need_delay = true;
 
@@ -237,7 +236,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
                 continue;
             }
             let mut st = storage.unwrap();
-            if let Err(e) = st.init().await {
+            if let Err(e) = st.init(spawner.clone()).await {
                 error!("cannot init pearl by path: {:?}, error: {:?}", path, e);
                 continue;
             }

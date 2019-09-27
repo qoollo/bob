@@ -35,7 +35,7 @@ pub(crate) struct PearlData {
     timestamp: i64,
 }
 impl PearlData {
-    const TIMESTAMP_LEN: usize = 4;
+    const TIMESTAMP_LEN: usize = 8;
 
     pub(crate) fn new(data: Box<BobData>) -> Self {
         PearlData {
