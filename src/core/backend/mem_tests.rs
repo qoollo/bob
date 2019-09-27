@@ -29,7 +29,7 @@ mod tests {
                 )
                 .0,
         );
-        assert_eq!(retval.err().unwrap(), Error::Other)
+        assert_eq!(retval.err().unwrap(), Error::Internal)
     }
 
     #[test]
@@ -91,7 +91,7 @@ mod tests {
                 )
                 .0,
         );
-        assert_eq!(retval.err().unwrap(), Error::Other)
+        assert_eq!(retval.err().unwrap(), Error::Internal)
     }
 
     #[test]

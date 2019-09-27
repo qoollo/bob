@@ -373,7 +373,7 @@ pub mod tests {
     pub fn ping_err(node: Node) -> PingResult {
         Err(ClusterResult {
             node,
-            result: Error::Other,
+            result: Error::Internal,
         })
     }
 
@@ -391,7 +391,7 @@ pub mod tests {
         Put({
             ready(Err(ClusterResult {
                 node,
-                result: Error::Other,
+                result: Error::Internal,
             }))
             .boxed()
         })
@@ -413,7 +413,7 @@ pub mod tests {
         Get({
             ready(Err(ClusterResult {
                 node,
-                result: Error::Other,
+                result: Error::Internal,
             }))
             .boxed()
         })

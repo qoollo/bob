@@ -8,7 +8,7 @@ pub mod pearl;
 use crate::core::data::VDiskId;
 use std::io::ErrorKind;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Error {
     Timeout,
 
@@ -19,14 +19,14 @@ pub enum Error {
     VDiskIsNotReady,
 
     Failed(String),
-    Other,
+    Internal,
 }
 
 impl Error {
     /// check if backend error causes 'bob_client' reconnect
     pub fn is_service(&self) -> bool {
         match self {
-            Error::Timeout | Error::Other | Error::Failed(_) => true,
+            Error::Timeout | Error::Failed(_) => true,
             _ => false,
         }
     }
@@ -54,6 +54,14 @@ impl Error {
             Some(Error::KeyNotFound) | Some(Error::VDiskIsNotReady) => false,
             Some(_) => true,
             _ => false,
+        }
+    }
+
+    /// hide backend errors
+    pub fn convert_backend(self) -> Error {
+        match self {
+            Error::DuplicateKey | Error::KeyNotFound => self,
+            _ => Error::Internal,
         }
     }
 }

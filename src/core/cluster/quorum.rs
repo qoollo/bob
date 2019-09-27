@@ -79,7 +79,7 @@ impl QuorumCluster {
             let mut op = operation.clone();
             op.set_remote_folder(&failed_node.name());
 
-            let t = backend.put_single(key, data.clone(), op).boxed().await;
+            let t = backend.put_local(key, data.clone(), op).boxed().await;
             trace!("PUT[{}] local support put result: {:?}", key, t);
             if t.is_err() {
                 add_nodes.push(failed_node.name());

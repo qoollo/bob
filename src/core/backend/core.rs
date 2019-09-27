@@ -128,7 +128,8 @@ impl Backend {
 
     pub async fn put(&self, key: BobKey, data: BobData, options: BobOptions) -> PutResult {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        if options.have_remote_node() {
+        let result = if options.have_remote_node() {
+            let mut result = Ok(BackendPutResult {});
             // write to all remote_nodes
             for node_name in options.remote_nodes.iter() {
                 let mut op = BackendOperation::new_alien(vdisk_id.clone());
@@ -137,21 +138,32 @@ impl Backend {
                 //TODO make it parallel?
                 if let Err(err) = self.put_single(key, data.clone(), op).await {
                     //TODO stop after first error?
-                    return Err(err);
+                    result = Err(err);
+                    break;
                 }
             }
-            return Ok(BackendPutResult {});
+            result
         } else if let Some(path) = disk_path {
-            return self
+            self
                 .put_single(key, data, BackendOperation::new_local(vdisk_id, path))
-                .await;
+                .await
         } else {
-            //todo some cluster put mistake ?
-            return Err(Error::Failed(format!("Dont now what to with data: key: {}, op: {:?}. Data is not local and alien", key, options)));
-        }
+            error!("PUT[{}] dont now what to with data: op: {:?}. Data is not local and alien", key, options);
+            Err(Error::Internal)
+        };
+        result.map_err(|e| e.convert_backend())
+    }
+    
+    pub async fn put_local(
+        &self,
+        key: BobKey,
+        data: BobData,
+        operation: BackendOperation,
+    ) -> PutResult {
+        self.put_single(key, data, operation).await.map_err(|e| e.convert_backend())
     }
 
-    pub async fn put_single(
+    async fn put_single(
         &self,
         key: BobKey,
         data: BobData,
@@ -193,12 +205,16 @@ impl Backend {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
         // we cannot get data from alien if it belong this node
-        if let Some(path) = disk_path.clone() {
-            if options.get_normal() {
+        let result = if options.get_normal() {
+            if let Some(path) = disk_path.clone() {
                 trace!("GET[{}] try read normal", key);
-                return self
+                self
                     .get_local(key, BackendOperation::new_local(vdisk_id, path))
-                    .await;
+                    .await
+            }
+            else{
+                error!("GET[{}] we must read data normaly but cannot find in config right path", key);
+                Err(Error::Internal)
             }
         }
         //TODO how read from all alien folders?
@@ -209,21 +225,21 @@ impl Backend {
             let mut op = BackendOperation::new_alien(vdisk_id.clone());
             op.set_remote_folder(&self.mapper.local_node_name());
 
-            return Self::get_single(self.backend.clone(), key, op).await;
+            Self::get_single(self.backend.clone(), key, op).await
         }
-
-        error!(
-            "we cannot read data from anywhere. path: {:?}, options: {:?}",
-            disk_path, options
-        );
-        Err(Error::Failed(format!(
-            "we cannot read data from anywhere. path: {:?}, options: {:?}",
-            disk_path, options
-        )))
+        else
+        {
+            error!(
+                "GET[{}] we cannot read data from anywhere. path: {:?}, options: {:?}",
+                key, disk_path, options
+            );
+            Err(Error::Internal)
+        };
+        result.map_err(|e| e.convert_backend())
     }
 
     pub async fn get_local(&self, key: BobKey, op: BackendOperation) -> GetResult {
-        Self::get_single(self.backend.clone(), key, op).await
+        Self::get_single(self.backend.clone(), key, op).await.map_err(|e| e.convert_backend())
     }
 
     async fn get_single(
