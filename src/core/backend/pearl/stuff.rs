@@ -1,7 +1,7 @@
 use crate::core::backend;
 use crate::core::backend::pearl::data::*;
 
-use futures03::{compat::Future01CompatExt, FutureExt, future::ok as ok03};
+use futures03::{compat::Future01CompatExt, future::ok as ok03, FutureExt};
 use futures_locks::RwLock;
 
 use chrono::{DateTime, Datelike, Duration, Utc};
@@ -83,7 +83,7 @@ pub(crate) struct SyncState {
 impl SyncState {
     pub fn new() -> Self {
         SyncState {
-            state: LockGuard::new(StateWrapper::new())
+            state: LockGuard::new(StateWrapper::new()),
         }
     }
     pub async fn mark_as_created(&self) -> BackendResult<()> {

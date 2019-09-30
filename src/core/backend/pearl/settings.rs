@@ -6,7 +6,7 @@ use super::{
 use crate::core::{
     backend,
     backend::core::*,
-    configs::node::NodeConfig,
+    configs::node::{NodeConfig, PearlConfig},
     data::{BobData, BobKey, VDiskId},
     mapper::VDiskMapper,
 };
@@ -25,13 +25,16 @@ pub(crate) struct Settings<TSpawner> {
     bob_prefix_path: String,
     alien_folder: PathBuf,
     timestamp_period: Duration,
+    pub config: PearlConfig,
+    spawner: TSpawner,
+
     mapper: Arc<VDiskMapper>,
 
     phantom: PhantomData<TSpawner>,
 }
 
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner> {
-    pub(crate) fn new(config: &NodeConfig, mapper: Arc<VDiskMapper>) -> Self {
+    pub(crate) fn new(config: &NodeConfig, mapper: Arc<VDiskMapper>, spawner: TSpawner) -> Self {
         let pearl_config = config.pearl.clone().unwrap();
 
         let alien_folder = format!(
@@ -48,6 +51,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
             alien_folder: PathBuf::from(alien_folder),
             timestamp_period: pearl_config.settings().timestamp_period(),
             mapper,
+            spawner,
+            config: pearl_config,
             phantom: PhantomData,
         }
     }
@@ -180,6 +185,25 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         Ok(result)
     }
 
+    pub(crate) fn create_group(
+        &self,
+        operation: BackendOperation,
+        settings: Arc<Settings<TSpawner>>,
+    ) -> BackendResult<PearlGroup<TSpawner>> {
+        let id = operation.vdisk_id.clone();
+
+        let group = PearlGroup::<TSpawner>::new(
+            settings.clone(),
+            id.clone(),
+            operation.remote_node_name(),
+            operation.disk_name_local(),
+            self.alien_path(&id, &operation.remote_node_name()),
+            self.config.clone(),
+            self.spawner.clone(),
+        );
+        Ok(group)
+    }
+
     fn get_all_subdirectories(&self, path: PathBuf) -> BackendResult<Vec<DirEntry>> {
         Stuff::check_or_create_directory(&path)?;
 
@@ -269,6 +293,12 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
     fn normal_path(&self, disk_path: &str, vdisk_id: &VDiskId) -> PathBuf {
         let mut vdisk_path = PathBuf::from(format!("{}/{}/", disk_path, self.bob_prefix_path));
         vdisk_path.push(format!("{}/", vdisk_id));
+        vdisk_path
+    }
+
+    fn alien_path(&self, vdisk_id: &VDiskId, node_name: &str) -> PathBuf {
+        let mut vdisk_path = self.alien_folder.clone();
+        vdisk_path.push(format!("{}/{}/", node_name, vdisk_id));
         vdisk_path
     }
 

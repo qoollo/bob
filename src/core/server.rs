@@ -1,6 +1,7 @@
 use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRequest};
 
 use crate::core::{
+    backend,
     bob_client::BobClientFactory,
     data::{BobData, BobKey, BobMeta, BobOptions},
     grinder::Grinder,
@@ -18,7 +19,7 @@ pub struct BobSrv {
 }
 
 impl BobSrv {
-    pub async fn run_backend(&self) -> Result<(), String> {
+    pub async fn run_backend(&self) -> Result<(), backend::Error> {
         self.grinder.run_backend().await
     }
 

@@ -96,7 +96,7 @@ pub struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send>>);
 pub type PutResult = Result<BackendPutResult, Error>;
 pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
-pub type RunResult = Pin<Box<dyn Future<Output = Result<(), String>> + Send>>;
+pub type RunResult = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
 
 pub trait BackendStorage {
     fn run_backend(&self) -> RunResult;
@@ -127,7 +127,7 @@ impl Backend {
         Backend { backend, mapper }
     }
 
-    pub async fn run_backend(&self) -> Result<(), String> {
+    pub async fn run_backend(&self) -> Result<(), Error> {
         self.backend.run_backend().boxed().await
     }
 
