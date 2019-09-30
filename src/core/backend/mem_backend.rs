@@ -30,7 +30,7 @@ impl VDisk {
                 })
                 .map_err(|e| {
                     trace!("lock error: {:?}", e);
-                    Error::Other
+                    Error::Internal
                 })
                 .compat()
                 .boxed()
@@ -52,7 +52,7 @@ impl VDisk {
                         err(Error::KeyNotFound)
                     }
                 },
-                Err(_) => err(Error::Other),
+                Err(_) => err(Error::Internal),
             })
             .compat()
             .boxed())
@@ -107,7 +107,7 @@ impl MemDisk {
                     vdisk_id,
                     self.name
                 );
-                err2(Error::Other).boxed()
+                err2(Error::Internal).boxed()
             }
         })
     }
@@ -131,7 +131,7 @@ impl MemDisk {
                         vdisk_id,
                         self.name
                     );
-                    err2(Error::Other).boxed()
+                    err2(Error::Internal).boxed()
                 }
             }
         })
@@ -190,7 +190,7 @@ impl BackendStorage for MemBackend {
                     key,
                     operation.disk_name_local()
                 );
-                err2(Error::Other).boxed()
+                err2(Error::Internal).boxed()
             }
         })
     }
@@ -210,7 +210,7 @@ impl BackendStorage for MemBackend {
                     key,
                     operation.disk_name_local()
                 );
-                err2(Error::Other).boxed()
+                err2(Error::Internal).boxed()
             }
         })
     }

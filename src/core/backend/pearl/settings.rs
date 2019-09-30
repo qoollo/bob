@@ -209,7 +209,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
     fn try_parse_node_name(&self, entry: DirEntry) -> BackendResult<(DirEntry, String)> {
         let file_name = entry.file_name().into_string().map_err(|_| {
             warn!("cannot parse file name: {:?}", entry);
-            backend::Error::Other
+            backend::Error::Failed(format!("cannot parse file name: {:?}", entry))
         })?;
         let node = self
             .mapper
@@ -225,11 +225,11 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
     fn try_parse_vdisk_id(&self, entry: DirEntry) -> BackendResult<(DirEntry, VDiskId)> {
         let file_name = entry.file_name().into_string().map_err(|_| {
             warn!("cannot parse file name: {:?}", entry);
-            backend::Error::Other
+            backend::Error::Failed(format!("cannot parse file name: {:?}", entry))
         })?;
         let vdisk_id = VDiskId::new(file_name.parse().map_err(|_| {
             warn!("cannot parse file name: {:?} as vdisk id", entry);
-            backend::Error::Other
+            backend::Error::Failed(format!("cannot parse file name: {:?}", entry))
         })?);
 
         let vdisk = self

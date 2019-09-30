@@ -8,7 +8,7 @@ pub mod pearl;
 use crate::core::data::VDiskId;
 use std::io::ErrorKind;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Error {
     Timeout,
 
@@ -19,14 +19,49 @@ pub enum Error {
     VDiskIsNotReady,
 
     Failed(String),
-    Other,
+    Internal,
 }
 
 impl Error {
+    /// check if backend error causes 'bob_client' reconnect
     pub fn is_service(&self) -> bool {
-        match &self {
-            Error::Timeout | Error::Other | Error::Failed(_) => true,
+        match self {
+            Error::Timeout | Error::Failed(_) => true,
             _ => false,
+        }
+    }
+
+    /// check if put error causes pearl restart
+    pub fn is_put_error_need_restart(err: Option<&Error>) -> bool {
+        match err {
+            Some(Error::DuplicateKey) | Some(Error::VDiskIsNotReady) => false,
+            Some(_) => true,
+            _ => false,
+        }
+    }
+
+    /// check if put error causes put to local alien
+    pub fn is_put_error_need_alien(&self) -> bool {
+        match self {
+            Error::DuplicateKey => false,
+            _ => true,
+        }
+    }
+
+    /// check if get error causes pearl restart
+    pub fn is_get_error_need_restart(err: Option<&Error>) -> bool {
+        match err {
+            Some(Error::KeyNotFound) | Some(Error::VDiskIsNotReady) => false,
+            Some(_) => true,
+            _ => false,
+        }
+    }
+
+    /// hide backend errors
+    pub fn convert_backend(self) -> Error {
+        match self {
+            Error::DuplicateKey | Error::KeyNotFound => self,
+            _ => Error::Internal,
         }
     }
 }
@@ -46,6 +81,35 @@ impl From<std::io::Error> for Error {
         match error.kind() {
             ErrorKind::TimedOut => Error::Timeout,
             _ => Error::Failed(format!("Ping operation failed: {:?}", error)),
+        }
+    }
+}
+
+impl Into<tower_grpc::Status> for Error {
+    fn into(self) -> tower_grpc::Status {
+        //TODO add custom errors
+        trace!("Error: {}", self.clone());
+        match self {
+            Error::KeyNotFound => {
+                tower_grpc::Status::new(tower_grpc::Code::Unknown, format!("KeyNotFound"))
+            }
+            Error::DuplicateKey => {
+                tower_grpc::Status::new(tower_grpc::Code::Unknown, format!("DuplicateKey"))
+            }
+            _ => tower_grpc::Status::new(tower_grpc::Code::Unknown, format!("Other errors")),
+        }
+    }
+}
+
+impl From<tower_grpc::Status> for Error {
+    fn from(error: tower_grpc::Status) -> Self {
+        match error.code() {
+            tower_grpc::Code::Unknown => match error.message() {
+                "KeyNotFound" => Error::KeyNotFound,
+                "DuplicateKey" => Error::DuplicateKey,
+                _ => Error::Internal,
+            },
+            _ => Error::Failed(format!("grpc error: {}", error)),
         }
     }
 }

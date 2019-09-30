@@ -13,50 +13,6 @@ use crate::core::{
 use futures03::task::Spawn;
 use std::sync::Arc;
 
-#[derive(Debug)]
-pub enum Error {
-    NotFound,
-    Other,
-}
-
-#[derive(Debug)]
-pub enum BobError {
-    Cluster(backend::Error),
-    Local(backend::Error),
-}
-
-impl BobError {
-    pub fn error(&self) -> Error {
-        match self {
-            BobError::Cluster(err) => self.match_error(err, false),
-            BobError::Local(err) => self.match_error(err, true),
-        }
-    }
-
-    fn match_error(&self, err: &backend::Error, _is_local: bool) -> Error {
-        match err {
-            backend::Error::KeyNotFound => Error::NotFound,
-            _ => Error::Other,
-        }
-    }
-    fn is_cluster(&self) -> bool {
-        match *self {
-            BobError::Cluster(_) => true,
-            BobError::Local(_) => false,
-        }
-    }
-    fn is_local(&self) -> bool {
-        !self.is_cluster()
-    }
-}
-
-impl std::fmt::Display for BobError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let dest = if self.is_local() { "local" } else { "cluster" };
-        write!(f, "dest: {}, error: {}", dest, self)
-    }
-}
-
 pub struct Grinder {
     pub backend: Arc<Backend>,
 
@@ -88,7 +44,7 @@ impl Grinder {
         key: BobKey,
         data: BobData,
         opts: BobOptions,
-    ) -> Result<BackendPutResult, BobError> {
+    ) -> Result<BackendPutResult, backend::Error> {
         if opts.flags.contains(BobFlags::FORCE_NODE) {
             debug!(
                 "PUT[{}] flag FORCE_NODE is on - will handle it by local node. Put params: {:?}",
@@ -99,7 +55,7 @@ impl Grinder {
 
             let result = self.backend.put(key, data, opts).await.map_err(|err| {
                 GRINDER_PUT_ERROR_COUNT_COUNTER.count(1);
-                BobError::Local(err)
+                err
             });
 
             CLIENT_PUT_TIMER.stop(time);
@@ -116,7 +72,7 @@ impl Grinder {
                 .await
                 .map_err(|err| {
                     GRINDER_PUT_ERROR_COUNT_COUNTER.count(1);
-                    BobError::Cluster(err)
+                    err
                 });
 
             GRINDER_PUT_TIMER.stop(time);
@@ -124,7 +80,11 @@ impl Grinder {
         }
     }
 
-    pub async fn get(&self, key: BobKey, opts: BobOptions) -> Result<BackendGetResult, BobError> {
+    pub async fn get(
+        &self,
+        key: BobKey,
+        opts: BobOptions,
+    ) -> Result<BackendGetResult, backend::Error> {
         if opts.flags.contains(BobFlags::FORCE_NODE) {
             CLIENT_GET_COUNTER.count(1);
             let time = CLIENT_GET_TIMER.start();
@@ -135,7 +95,7 @@ impl Grinder {
             );
             let result = self.backend.get(key, opts).await.map_err(|err| {
                 CLIENT_GET_ERROR_COUNT_COUNTER.count(1);
-                BobError::Local(err)
+                err
             });
 
             CLIENT_GET_TIMER.stop(time);
@@ -152,7 +112,7 @@ impl Grinder {
                 .await
                 .map_err(|err| {
                     GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
-                    BobError::Cluster(err)
+                    err
                 });
 
             GRINDER_GET_TIMER.stop(time);

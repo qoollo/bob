@@ -44,9 +44,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
     #[allow(dead_code)]
     pub(crate) async fn test<TRet, F>(
         &self,
-        disk_name: String,
-        vdisk_id: VDiskId,
-        f: F,
+        _disk_name: String,
+        _vdisk_id: VDiskId,
+        _f: F,
     ) -> BackendResult<TRet>
     where
         F: Fn(&mut PearlSync) -> TRet + Send + Sync,
@@ -69,9 +69,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
     #[allow(dead_code)]
     pub(crate) async fn test_vdisk<TRet, F>(
         &self,
-        disk_name: String,
-        vdisk_id: VDiskId,
-        f: F,
+        _disk_name: String,
+        _vdisk_id: VDiskId,
+        _f: F,
     ) -> BackendResult<TRet>
     where
         F: Fn(PearlHolder<TSpawner>) -> Future03Result<TRet> + Send + Sync,
@@ -116,8 +116,6 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
     fn run_backend(&self) -> RunResult {
         debug!("run pearl backend");
 
-        // let vdisks = self.vdisks.clone();
-        // let alien_dir = self.alien_dir.clone();
         let vdisks_groups = self.vdisks_groups.clone();
         let alien_vdisks_groups = self.alien_vdisks_groups.clone();
 
