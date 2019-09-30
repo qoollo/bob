@@ -2,7 +2,7 @@ use super::{
     data::BackendResult,
     holder::PearlHolder,
     settings::Settings,
-    stuff::{LockGuard, Stuff},
+    stuff::{Stuff, SyncState},
 };
 use crate::core::{
     backend,
@@ -10,7 +10,7 @@ use crate::core::{
     configs::node::PearlConfig,
     data::{BobData, BobKey, VDiskId},
 };
-use futures03::{compat::Future01CompatExt, future::ok as ok03, task::Spawn, FutureExt};
+use futures03::{compat::Future01CompatExt, task::Spawn, FutureExt};
 
 use futures_locks::RwLock;
 use std::{path::PathBuf, sync::Arc};
@@ -49,7 +49,7 @@ pub(crate) struct PearlGroup<TSpawner> {
     /// all pearls
     pearls: Arc<RwLock<Vec<PearlTimestampHolder<TSpawner>>>>,
     // holds state when we create new pearl
-    pearl_sync: Arc<LockGuard<PearlSyncCreator>>,
+    pearl_sync: Arc<SyncState>,
 
     settings: Arc<Settings<TSpawner>>,
     config: PearlConfig,
@@ -73,7 +73,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
     ) -> Self {
         PearlGroup {
             pearls: Arc::new(RwLock::new(vec![])),
-            pearl_sync: Arc::new(LockGuard::new(PearlSyncCreator::new())),
+            pearl_sync: Arc::new(SyncState::new()),
             settings,
             vdisk_id,
             node_name,
@@ -244,19 +244,19 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
     async fn create_current_pearl(&self, key: BobKey, data: BobData) -> BackendResult<()> {
         // check if pearl is currently creating
         trace!("{}, try create new pearl for: {}", self, data.clone());
-        if self.try_init_pearl().await? {
+        if self.pearl_sync.try_init().await? {
             // check if pearl created
             debug!("{}, create new pearl for: {}", self, data.clone());
             if self.find_current_pearl(key, data.clone()).await.is_ok() {
                 debug!("{}, find new pearl for: {}", self, data.clone());
-                let _ = self.mark_pearl_as_created().await;
+                let _ = self.pearl_sync.mark_as_created().await;
                 return Ok(());
             }
             let pearl = self.settings.create_current_pearl(self);
             debug!("{}, creat new pearl: {} for: {}", self, pearl, data);
 
             let _ = self.save_pearl(pearl.clone()).await;
-            let _ = self.mark_pearl_as_created().await?;
+            let _ = self.pearl_sync.mark_as_created().await?;
         } else {
             let delay = self.config.settings().create_pearl_wait_delay();
             let _ = Stuff::wait(delay).await;
@@ -264,26 +264,6 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         Ok(())
     }
 
-    async fn try_init_pearl(&self) -> BackendResult<bool> {
-        self.pearl_sync
-            .write_mut(|st| {
-                if st.is_creating() {
-                    trace!("New pearl is currently creating, state: {}", st);
-                    return ok03(false).boxed();
-                }
-                st.start();
-                ok03(true).boxed()
-            })
-            .await
-    }
-    async fn mark_pearl_as_created(&self) -> BackendResult<()> {
-        self.pearl_sync
-            .write_mut(|st| {
-                st.created();
-                ok03(()).boxed()
-            })
-            .await
-    }
     async fn save_pearl(&self, pearl: PearlTimestampHolder<TSpawner>) -> BackendResult<()> {
         let _ = self.add(pearl.clone()).await?; // TODO while retry?
         let _ = pearl.pearl.prepare_storage().await;
@@ -364,42 +344,5 @@ impl<TSpawner> std::fmt::Display for PearlGroup<TSpawner> {
             "[id: {}, node: {}, path: {:?}, disk: {}]",
             self.vdisk_id, self.node_name, self.directory_path, self.disk_name
         )
-    }
-}
-
-#[derive(Clone, PartialEq, Debug)]
-enum CreatorState {
-    No,
-    Creating,
-}
-
-#[derive(Clone)]
-struct PearlSyncCreator {
-    state: CreatorState,
-}
-
-impl PearlSyncCreator {
-    pub fn new() -> Self {
-        PearlSyncCreator {
-            state: CreatorState::No,
-        }
-    }
-
-    pub fn is_creating(&self) -> bool {
-        self.state == CreatorState::Creating
-    }
-
-    pub fn start(&mut self) {
-        self.state = CreatorState::Creating;
-    }
-
-    pub fn created(&mut self) {
-        self.state = CreatorState::No;
-    }
-}
-
-impl std::fmt::Display for PearlSyncCreator {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "[{:?}]", self.state)
     }
 }

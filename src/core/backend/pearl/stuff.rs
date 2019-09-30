@@ -1,7 +1,7 @@
 use crate::core::backend;
 use crate::core::backend::pearl::data::*;
 
-use futures03::{compat::Future01CompatExt, FutureExt};
+use futures03::{compat::Future01CompatExt, FutureExt, future::ok as ok03};
 use futures_locks::RwLock;
 
 use chrono::{DateTime, Datelike, Duration, Utc};
@@ -74,6 +74,75 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
                 backend::Error::StorageError(format!("lock error: {:?}", e))
             })?
             .await
+    }
+}
+
+pub(crate) struct SyncState {
+    state: LockGuard<StateWrapper>,
+}
+impl SyncState {
+    pub fn new() -> Self {
+        SyncState {
+            state: LockGuard::new(StateWrapper::new())
+        }
+    }
+    pub async fn mark_as_created(&self) -> BackendResult<()> {
+        self.state
+            .write_mut(|st| {
+                st.created();
+                ok03(()).boxed()
+            })
+            .await
+    }
+
+    pub async fn try_init(&self) -> BackendResult<bool> {
+        self.state
+            .write_mut(|st| {
+                if st.is_creating() {
+                    trace!("New object is currently creating, state: {}", st);
+                    return ok03(false).boxed();
+                }
+                st.start();
+                ok03(true).boxed()
+            })
+            .await
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+enum CreationState {
+    No,
+    Creating,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+struct StateWrapper {
+    state: CreationState,
+}
+
+impl StateWrapper {
+    pub fn new() -> Self {
+        StateWrapper {
+            state: CreationState::No,
+        }
+    }
+
+    pub fn is_creating(&self) -> bool {
+        self.state == CreationState::Creating
+    }
+
+    pub fn start(&mut self) {
+        self.state = CreationState::Creating;
+    }
+
+    pub fn created(&mut self) {
+        self.state = CreationState::No;
+    }
+}
+
+impl std::fmt::Display for StateWrapper {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[{:?}]", self.state)
     }
 }
 
