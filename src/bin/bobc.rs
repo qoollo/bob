@@ -44,8 +44,7 @@ fn main() {
                     timestamp: SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .expect("msg: &str")
-                        .as_secs() as i64
-                        + 100000,
+                        .as_secs() as i64,
                 }),
             }), // TODO
             options: None,

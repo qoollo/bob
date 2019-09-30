@@ -179,7 +179,7 @@ impl Backend {
         operation: BackendOperation,
     ) -> PutResult {
         if !operation.is_data_alien() {
-            debug!("PUT[{}][{}] to backend", key, operation.disk_name_local());
+            debug!("PUT[{}] to backend: {}", key, operation);
             let result = self
                 .backend
                 .put(operation.clone(), key, data.clone())
@@ -208,8 +208,8 @@ impl Backend {
             }
         } else {
             debug!(
-                "PUT[{}] to backend, alien data for {}",
-                key, operation.vdisk_id
+                "PUT[{}] to backend, alien data: {}",
+                key, operation
             );
             self.backend.put_alien(operation, key, data).0.boxed().await
         }

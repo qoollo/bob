@@ -165,7 +165,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             backend::Error::Failed(format!("cannot take lock: {:?}", e))
         })?;
 
-        pearls.push(pearl);
+        pearls.push(pearl.clone());
+        trace!("{}: save {}", self, pearl);
 
         Ok(())
     }

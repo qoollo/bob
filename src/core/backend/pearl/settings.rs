@@ -191,13 +191,16 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         settings: Arc<Settings<TSpawner>>,
     ) -> BackendResult<PearlGroup<TSpawner>> {
         let id = operation.vdisk_id.clone();
+        let path = self.alien_path(&id, &operation.remote_node_name());
+
+        Stuff::check_or_create_directory(&path)?;
 
         let group = PearlGroup::<TSpawner>::new(
             settings.clone(),
             id.clone(),
             operation.remote_node_name(),
-            operation.disk_name_local(),
-            self.alien_path(&id, &operation.remote_node_name()),
+            self.config.alien_disk(),
+            path,
             self.config.clone(),
             self.spawner.clone(),
         );
@@ -316,6 +319,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         _key: BobKey,
         data: BobData,
     ) -> bool {
+
+        trace!("start: {}, end: {}, check: {}", pearl.start_timestamp, pearl.end_timestamp, data.meta.timestamp);
         pearl.start_timestamp <= data.meta.timestamp && data.meta.timestamp < pearl.end_timestamp
     }
 
