@@ -141,7 +141,7 @@ mod b_client {
                             metrics2.put_timer_stop(timer);
 
                             ClusterResult {
-                                result: Error::convert_from_grpc(e),
+                                result: Error::from(e),
                                 node: n2,
                             }
                         })
@@ -196,7 +196,7 @@ mod b_client {
                             metrics2.get_error_count();
                             metrics2.get_timer_stop(timer);
                             ClusterResult {
-                                result: Error::convert_from_grpc(e),
+                                result: Error::from(e),
                                 node: n2,
                             }
                         })
@@ -234,7 +234,7 @@ mod b_client {
                     })
                     .map_err(move |e| ClusterResult {
                         node: n2.clone(),
-                        result: Error::convert_from_grpc(e),
+                        result: Error::from(e),
                     })
                     .compat()
                     .boxed()

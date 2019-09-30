@@ -82,7 +82,7 @@ impl server::BobApi for BobSrv {
                     }
                     Err(r_err) => {
                         error!("PUT[{}]-ERR dt: {}ms {:?}", key, elapsed, r_err);
-                        future::err(r_err.convert_to_grpc())
+                        future::err(r_err.into())
                     }
                 }
             }))
@@ -117,7 +117,7 @@ impl server::BobApi for BobSrv {
                             }),
                         }))
                     }
-                    Err(r_err) => future::err(r_err.convert_to_grpc()),
+                    Err(r_err) => future::err(r_err.into()),
                 }
             }))
         }
