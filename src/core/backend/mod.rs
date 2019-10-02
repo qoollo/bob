@@ -113,3 +113,18 @@ impl From<tower_grpc::Status> for Error {
         }
     }
 }
+
+impl From<tokio_timer::timeout::Error<tower_grpc::Status>> for Error {
+    fn from(error: tokio_timer::timeout::Error<tower_grpc::Status>) -> Self {
+        if error.is_elapsed() {
+            return Error::Timeout;
+        }
+        if error.is_timer() {
+            return Error::Failed(format!("error in timer: {}", error));
+        }
+        match error.into_inner() {
+            Some(status) => Error::from(status),
+            _ => Error::Failed("failed grpc operation".to_string()),
+        }
+    }
+}

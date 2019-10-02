@@ -70,7 +70,7 @@ impl<T: std::fmt::Display> std::fmt::Display for ClusterResult<T> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct BobData {
     pub data: Vec<u8>,
     pub meta: BobMeta,
@@ -83,6 +83,12 @@ impl BobData {
 }
 
 impl std::fmt::Display for BobData {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "(len: {}, meta: {})", self.data.len(), self.meta)
+    }
+}
+
+impl std::fmt::Debug for BobData {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "(len: {}, meta: {})", self.data.len(), self.meta)
     }

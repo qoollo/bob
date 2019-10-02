@@ -13,10 +13,11 @@ mod b_client {
     use tower_grpc::{BoxBody, Code, Request, Status};
 
     use std::time::Duration;
-    use tokio::{prelude::FutureExt, runtime::TaskExecutor};
+    use tokio::runtime::TaskExecutor;
     use tower::MakeService;
 
     use futures::Future;
+    use futures_timer::ext::TryFutureExt;
     use hyper::client::connect::{Destination, HttpConnector};
     use tower_hyper::{client, util};
 
@@ -128,7 +129,6 @@ mod b_client {
                 } else {
                     client
                         .put(request)
-                        // .timeout(timeout)   //TODO
                         .map(move |_| {
                             metrics.put_timer_stop(timer);
                             ClusterResult {
@@ -136,16 +136,20 @@ mod b_client {
                                 result: BackendPutResult {},
                             }
                         })
-                        .map_err(move |e| {
-                            metrics2.put_error_count();
-                            metrics2.put_timer_stop(timer);
-
-                            ClusterResult {
-                                result: Error::from(e),
-                                node: n2,
-                            }
-                        })
+                        .map_err(move |e| Error::from(e))
                         .compat()
+                        .boxed()
+                        .timeout(timeout)
+                        .map(move |r| {
+                            if r.is_err() {
+                                metrics2.put_error_count();
+                                metrics2.put_timer_stop(timer);
+                            }
+                            r.map_err(|e| ClusterResult {
+                                result: e,
+                                node: n2,
+                            })
+                        })
                         .boxed()
                 }
             })
@@ -181,7 +185,6 @@ mod b_client {
                             key: Some(BlobKey { key: key.key }),
                             options: Some(options),
                         }))
-                        // .timeout(timeout)   //TODO
                         .map(move |r| {
                             metrics.get_timer_stop(timer);
                             let ans = r.into_inner();
@@ -192,15 +195,20 @@ mod b_client {
                                 },
                             }
                         })
-                        .map_err(move |e| {
-                            metrics2.get_error_count();
-                            metrics2.get_timer_stop(timer);
-                            ClusterResult {
-                                result: Error::from(e),
-                                node: n2,
-                            }
-                        })
+                        .map_err(move |e| Error::from(e))
                         .compat()
+                        .boxed()
+                        .timeout(timeout)
+                        .map(move |r| {
+                            if r.is_err() {
+                                metrics2.get_error_count();
+                                metrics2.get_timer_stop(timer);
+                            }
+                            r.map_err(|e| ClusterResult {
+                                result: e,
+                                node: n2,
+                            })
+                        })
                         .boxed()
                 }
             })
@@ -227,18 +235,19 @@ mod b_client {
             } else {
                 client
                     .ping(Request::new(Null {}))
-                    // .timeout(to) //TODO
                     .map(move |_| ClusterResult {
                         node: n1,
                         result: BackendPingResult {},
                     })
-                    .map_err(move |e| ClusterResult {
-                        node: n2.clone(),
-                        result: Error::from(e),
-                    })
+                    .map_err(move |e| Error::from(e))
                     .compat()
                     .boxed()
+                    .timeout(to)
                     .await
+                    .map_err(move |e| ClusterResult {
+                        node: n2.clone(),
+                        result: e,
+                    })
             }
         }
     }
