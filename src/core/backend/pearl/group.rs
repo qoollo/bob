@@ -113,13 +113,23 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         debug!("{}: count pearls: {}", self, pearls.len());
 
         debug!("{}: check current pearl for write", self);
-        if !pearls
-            .iter()
-            .any(|pearl| self.settings.is_actual_pearl(pearl))
-        {
-            let current_pearl = self.settings.create_current_pearl(self);
-            debug!("{}: create new pearl: {}", self, current_pearl);
-            pearls.push(current_pearl);
+        if !pearls.iter().any(|pearl| {
+            if let Ok(result) = self.settings.is_actual_pearl(pearl) {
+                result
+            } else {
+                false
+            }
+        }) {
+            match self.settings.create_current_pearl(self) {
+                Err(e) => {
+                    debug!("{}: cannot create current pearl: {}", self, e);
+                    //we will try again when some data come for put\get
+                }
+                Ok(current_pearl) => {
+                    debug!("{}: create current pearl: {}", self, current_pearl);
+                    pearls.push(current_pearl);
+                }
+            }
         }
 
         debug!("{}: save pearls to group", self);
@@ -253,11 +263,19 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
                 let _ = self.pearl_sync.mark_as_created().await;
                 return Ok(());
             }
-            let pearl = self.settings.create_pearl(self, key, data.clone());
-            debug!("{}, create new pearl: {} for: {}", self, pearl, data);
-
-            let _ = self.save_pearl(pearl.clone()).await;
+            let result = match self.settings.create_pearl(self, key, data.clone()) {
+                Ok(pearl) => {
+                    debug!("{}, create new pearl: {} for: {}", self, pearl, data);
+                    let _ = self.save_pearl(pearl.clone()).await;
+                    Ok(())
+                }
+                Err(e) => {
+                    debug!("{}, cannot create pearl for: {}, {}", self, data.clone(), e);
+                    Err(e)
+                }
+            };
             let _ = self.pearl_sync.mark_as_created().await?;
+            result?;
         } else {
             let delay = self.config.settings().create_pearl_wait_delay();
             let _ = Stuff::wait(delay).await;

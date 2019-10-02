@@ -60,17 +60,17 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
     pub(crate) fn create_current_pearl(
         &self,
         group: &PearlGroup<TSpawner>,
-    ) -> PearlTimestampHolder<TSpawner> {
-        let start_timestamp = self.get_current_timestamp_start();
-        let end_timestamp = start_timestamp + self.get_timestamp_period();
+    ) -> BackendResult<PearlTimestampHolder<TSpawner>> {
+        let start_timestamp = self.get_current_timestamp_start()?;
+        let end_timestamp = start_timestamp + self.get_timestamp_period()?;
         let mut path = group.directory_path.clone();
         path.push(format!("{}/", start_timestamp));
 
-        PearlTimestampHolder::new(
+        Ok(PearlTimestampHolder::new(
             group.create_pearl_by_path(path),
             start_timestamp,
             end_timestamp,
-        )
+        ))
     }
 
     pub(crate) fn create_pearl(
@@ -78,19 +78,19 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         group: &PearlGroup<TSpawner>,
         _key: BobKey,
         data: BobData,
-    ) -> PearlTimestampHolder<TSpawner> {
+    ) -> BackendResult<PearlTimestampHolder<TSpawner>> {
         let start_timestamp =
-            Stuff::get_start_timestamp_by_timestamp(self.timestamp_period, data.meta.timestamp)
-                .unwrap();
-        let end_timestamp = start_timestamp + self.get_timestamp_period();
+            Stuff::get_start_timestamp_by_timestamp(self.timestamp_period, data.meta.timestamp)?;
+
+        let end_timestamp = start_timestamp + self.get_timestamp_period()?;
         let mut path = group.directory_path.clone();
         path.push(format!("{}/", start_timestamp));
 
-        PearlTimestampHolder::new(
+        Ok(PearlTimestampHolder::new(
             group.create_pearl_by_path(path),
             start_timestamp,
             end_timestamp,
-        )
+        ))
     }
 
     pub(crate) fn read_group_from_disk(
@@ -145,7 +145,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
                 .parse()
                 .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry));
             let start_timestamp = timestamp.unwrap();
-            let end_timestamp = start_timestamp + self.get_timestamp_period();
+            let end_timestamp = start_timestamp + self.get_timestamp_period()?;
             let pearl_holder = PearlTimestampHolder::new(
                 group.create_pearl_by_path(entry.path()),
                 start_timestamp,
@@ -325,12 +325,11 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         vdisk_path
     }
 
-    fn get_timestamp_period(&self) -> i64 {
-        Stuff::get_period_timestamp(self.timestamp_period).unwrap() // TODO
+    fn get_timestamp_period(&self) -> BackendResult<i64> {
+        Stuff::get_period_timestamp(self.timestamp_period)
     }
-    fn get_current_timestamp_start(&self) -> i64 {
-        Stuff::get_start_timestamp_by_std_time(self.timestamp_period, SystemTime::now()).unwrap()
-        // TODO
+    fn get_current_timestamp_start(&self) -> BackendResult<i64> {
+        Stuff::get_start_timestamp_by_std_time(self.timestamp_period, SystemTime::now())
     }
 
     pub(crate) fn is_actual(
@@ -366,7 +365,10 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         Ok(result.unwrap().1)
     }
 
-    pub(crate) fn is_actual_pearl(&self, pearl: &PearlTimestampHolder<TSpawner>) -> bool {
-        pearl.start_timestamp == self.get_current_timestamp_start()
+    pub(crate) fn is_actual_pearl(
+        &self,
+        pearl: &PearlTimestampHolder<TSpawner>,
+    ) -> BackendResult<bool> {
+        Ok(pearl.start_timestamp == self.get_current_timestamp_start()?)
     }
 }
