@@ -253,7 +253,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
                 let _ = self.pearl_sync.mark_as_created().await;
                 return Ok(());
             }
-            let pearl = self.settings.create_current_pearl(self);
+            let pearl = self.settings.create_pearl(self, key, data.clone());
             debug!("{}, create new pearl: {} for: {}", self, pearl, data);
 
             let _ = self.save_pearl(pearl.clone()).await;

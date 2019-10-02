@@ -4,7 +4,7 @@ use crate::core::backend::pearl::data::*;
 use futures03::{compat::Future01CompatExt, future::ok as ok03, FutureExt};
 use futures_locks::RwLock;
 
-use chrono::{DateTime, Datelike, Duration, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDateTime, Utc};
 use std::{
     fs::{create_dir_all, remove_file},
     path::PathBuf,
@@ -187,7 +187,7 @@ impl Stuff {
         Ok(())
     }
 
-    pub(crate) fn get_start_timestamp(
+    pub(crate) fn get_start_timestamp_by_std_time(
         period: time::Duration,
         time: time::SystemTime,
     ) -> BackendResult<i64> {
@@ -197,6 +197,22 @@ impl Stuff {
         })?;
         let time: DateTime<Utc> = DateTime::from(time);
 
+        Self::get_start_timestamp(period, time)
+    }
+
+    pub(crate) fn get_start_timestamp_by_timestamp(
+        period: time::Duration,
+        time: i64,
+    ) -> BackendResult<i64> {
+        let period: Duration = Duration::from_std(period).map_err(|e| {
+            trace!("smth wrong with time: {:?}, error: {}", period, e);
+            backend::Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+        })?;
+        let time: DateTime<Utc> = DateTime::from_utc(NaiveDateTime::from_timestamp(time, 0), Utc);
+        Self::get_start_timestamp(period, time)
+    }
+
+    fn get_start_timestamp(period: Duration, time: DateTime<Utc>) -> BackendResult<i64> {
         let mut start_time = match period {
             period if period <= Duration::days(1) => time.date().and_hms(0, 0, 0),
             period if period <= Duration::weeks(1) => {
@@ -211,7 +227,6 @@ impl Stuff {
         }
         Ok(start_time.timestamp())
     }
-
     pub(crate) fn get_period_timestamp(period: time::Duration) -> BackendResult<i64> {
         let period: Duration = Duration::from_std(period).map_err(|e| {
             trace!("smth wrong with time: {:?}, error: {}", period, e);
