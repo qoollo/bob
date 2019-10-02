@@ -207,10 +207,7 @@ impl Backend {
                 _ => result,
             }
         } else {
-            debug!(
-                "PUT[{}] to backend, alien data: {}",
-                key, operation
-            );
+            debug!("PUT[{}] to backend, alien data: {}", key, operation);
             self.backend.put_alien(operation, key, data).0.boxed().await
         }
     }

@@ -319,8 +319,12 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         _key: BobKey,
         data: BobData,
     ) -> bool {
-
-        trace!("start: {}, end: {}, check: {}", pearl.start_timestamp, pearl.end_timestamp, data.meta.timestamp);
+        trace!(
+            "start: {}, end: {}, check: {}",
+            pearl.start_timestamp,
+            pearl.end_timestamp,
+            data.meta.timestamp
+        );
         pearl.start_timestamp <= data.meta.timestamp && data.meta.timestamp < pearl.end_timestamp
     }
 
