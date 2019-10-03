@@ -11,7 +11,7 @@ message BlobMeta {
 	int64 timestamp = 1; 
 }
 ```
-Timestamp used for data versioning and used must set this field.
+Timestamp used for data versioning and user must set this field.
 
 # Architecture
 [cluster.yaml](https://github.com/qoollo/bob/blob/master/cluster.test.yaml) file descibes all nodes location in cluster and each node data-range. All data separetes in vdisk.  You should create cluster with almost large count vdisks (~100..1000) depends on count nodes. Destination vdisk determs like this: vdisk_id = data_id mod vdisks_count. Then cluster write data on all nodes that store this vdisk.
