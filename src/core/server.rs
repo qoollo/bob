@@ -1,15 +1,12 @@
 use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRequest};
 
 use crate::core::{
+    backend,
     bob_client::BobClientFactory,
     data::{BobData, BobKey, BobMeta, BobOptions},
-    grinder::{Error, Grinder},
+    grinder::Grinder,
 };
-use futures::{
-    future,
-    future::{err, ok},
-    Future,
-};
+use futures::{future, future::ok, Future};
 use stopwatch::Stopwatch;
 use tower_grpc::{Request, Response};
 
@@ -22,7 +19,7 @@ pub struct BobSrv {
 }
 
 impl BobSrv {
-    pub async fn run_backend(&self) -> Result<(), String> {
+    pub async fn run_backend(&self) -> Result<(), backend::Error> {
         self.grinder.run_backend().await
     }
 
@@ -74,15 +71,7 @@ impl server::BobApi for BobSrv {
             let grinder = self.grinder.clone();
             let q = async move {
                 grinder
-                    .put(key, data, {
-                        let mut opts: BobOptions = Default::default();
-                        if let Some(vopts) = param.options.as_ref() {
-                            if vopts.force_node {
-                                opts |= BobOptions::FORCE_NODE;
-                            }
-                        }
-                        opts
-                    })
+                    .put(key, data, BobOptions::new_put(param.options))
                     .await
             };
             Box::new(q.boxed().compat().then(move |r| {
@@ -94,10 +83,7 @@ impl server::BobApi for BobSrv {
                     }
                     Err(r_err) => {
                         error!("PUT[{}]-ERR dt: {}ms {:?}", key, elapsed, r_err);
-                        err(tower_grpc::Status::new(
-                            tower_grpc::Code::Internal,
-                            format!("Failed to write {:?}", r_err),
-                        ))
+                        future::err(r_err.into())
                     }
                 }
             }))
@@ -119,19 +105,7 @@ impl server::BobApi for BobSrv {
             };
 
             let grinder = self.grinder.clone();
-            let q = async move {
-                grinder
-                    .get(key, {
-                        let mut opts: BobOptions = Default::default();
-                        if let Some(vopts) = param.options.as_ref() {
-                            if vopts.force_node {
-                                opts |= BobOptions::FORCE_NODE;
-                            }
-                        }
-                        opts
-                    })
-                    .await
-            };
+            let q = async move { grinder.get(key, BobOptions::new_get(param.options)).await };
             Box::new(q.boxed().compat().then(move |r| {
                 let elapsed = sw.elapsed_ms();
                 match r {
@@ -144,30 +118,7 @@ impl server::BobApi for BobSrv {
                             }),
                         }))
                     }
-                    Err(r_err) => {
-                        let err = match r_err.error() {
-                            Error::NotFound => tower_grpc::Status::new(
-                                tower_grpc::Code::NotFound,
-                                format!("[bob] Can't find record with key {}", key),
-                            ),
-                            ww => {
-                                error!(
-                                    "GET[{}]-ERR  dt: {}ms {:?}, {:?}",
-                                    key,
-                                    // r_err.is_local(),
-                                    elapsed,
-                                    r_err,
-                                    ww,
-                                );
-                                tower_grpc::Status::new(
-                                    //TODO add error description
-                                    tower_grpc::Code::Unknown,
-                                    "[bob] Some error",
-                                )
-                            }
-                        };
-                        future::err(err)
-                    }
+                    Err(r_err) => future::err(r_err.into()),
                 }
             }))
         }

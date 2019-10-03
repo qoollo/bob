@@ -16,7 +16,9 @@ use tower::MakeService;
 use tower_grpc::{BoxBody, Request};
 
 use bob::api::grpc::client::BobApi;
-use bob::api::grpc::{Blob, BlobKey, BlobMeta, GetOptions, GetRequest, PutOptions, PutRequest};
+use bob::api::grpc::{
+    Blob, BlobKey, BlobMeta, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
+};
 
 use hyper::client::connect::{Destination, HttpConnector};
 use tower_hyper::{client, util};
@@ -105,7 +107,10 @@ fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
 
     let mut options: Option<GetOptions> = None;
     if task_conf.direct {
-        options = Some(GetOptions { force_node: true });
+        options = Some(GetOptions {
+            force_node: true,
+            source: GetSource::Normal as i32,
+        });
     }
 
     rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
@@ -152,7 +157,7 @@ fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
                         timestamp: SystemTime::now()
                             .duration_since(UNIX_EPOCH)
                             .expect("msg: &str")
-                            .as_secs() as u32,
+                            .as_secs() as i64,
                     }),
                 }),
                 options: options.clone(),

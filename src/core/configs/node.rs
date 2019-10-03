@@ -9,6 +9,110 @@ use std::{
 };
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct BackendSettings {
+    pub root_dir_name: Option<String>,
+    pub alien_root_dir_name: Option<String>,
+    pub timestamp_period: Option<String>,
+    pub create_pearl_wait_delay: Option<String>,
+}
+
+impl Validatable for BackendSettings {
+    fn validate(&self) -> Result<(), String> {
+        if let Some(root_dir_name) = &self.root_dir_name {
+            if root_dir_name.is_empty() {
+                debug!("field 'root_dir_name' for 'backend settings config' is empty");
+                return Err(
+                    "field 'root_dir_name' for 'backend settings config' is empty".to_string(),
+                );
+            }
+        }
+        if let Some(alien_root_dir_name) = &self.alien_root_dir_name {
+            if alien_root_dir_name.is_empty() {
+                debug!("field 'alien_root_dir_name' for 'backend settings config' is empty");
+                return Err(
+                    "field 'alien_root_dir_name' for 'backend settings config' is empty"
+                        .to_string(),
+                );
+            }
+        }
+        match &self.timestamp_period {
+            None => {
+                debug!("field 'timestamp_period' for 'backend settings config' is not set");
+                return Err(
+                    "field 'timestamp_period' for 'backend settings config' is not set".to_string(),
+                );
+            }
+            Some(period) => match period.parse::<humantime::Duration>() {
+                Err(_) => {
+                    debug!("field 'timestamp_period' for 'backend settings config' is not valid");
+                    return Err(
+                        "field 'timestamp_period' for 'backend settings config' is not valid"
+                            .to_string(),
+                    );
+                }
+                Ok(_) => {
+                    let period: chrono::Duration =
+                        chrono::Duration::from_std(self.timestamp_period()).map_err(|e| {
+                            trace!("smth wrong with time: {:?}, error: {}", period, e);
+                            format!("smth wrong with time: {:?}, error: {}", period, e)
+                        })?;
+                    if period > chrono::Duration::weeks(1) {
+                        return Err("field 'timestamp_period' for 'backend settings config' is greater then week".to_string());
+                    }
+                }
+            },
+        };
+        match &self.create_pearl_wait_delay {
+            None => {
+                debug!("field 'create_pearl_wait_delay' for 'backend settings config' is not set");
+                return Err(
+                    "field 'create_pearl_wait_delay' for 'backend settings config' is not set"
+                        .to_string(),
+                );
+            }
+            Some(timeout) => {
+                if timeout.parse::<humantime::Duration>().is_err() {
+                    debug!("field 'create_pearl_wait_delay' for 'backend settings config' is not valid");
+                    return Err("field 'create_pearl_wait_delay' for 'backend settings config' is not valid".to_string());
+                }
+            }
+        };
+        Ok(())
+    }
+}
+
+impl BackendSettings {
+    pub fn root_dir_name(&self) -> String {
+        self.root_dir_name.as_ref().unwrap().clone()
+    }
+    pub fn alien_root_dir_name(&self) -> String {
+        self.alien_root_dir_name.as_ref().unwrap().clone()
+    }
+    pub fn timestamp_period(&self) -> Duration {
+        let t: Duration = self
+            .timestamp_period
+            .as_ref()
+            .unwrap()
+            .clone()
+            .parse::<humantime::Duration>()
+            .unwrap()
+            .into();
+        t
+    }
+    pub fn create_pearl_wait_delay(&self) -> Duration {
+        let t: Duration = self
+            .create_pearl_wait_delay
+            .as_ref()
+            .unwrap()
+            .clone()
+            .parse::<humantime::Duration>()
+            .unwrap()
+            .into();
+        t
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MetricsConfig {
     pub name: Option<String>,
     pub graphite: Option<String>,
@@ -49,6 +153,8 @@ pub struct PearlConfig {
     pub pool_count_threads: Option<u16>,
     pub fail_retry_timeout: Option<String>,
     pub alien_disk: Option<String>,
+
+    pub settings: Option<BackendSettings>,
 }
 
 impl PearlConfig {
@@ -70,6 +176,9 @@ impl PearlConfig {
         t
     }
 
+    pub fn settings(&self) -> BackendSettings {
+        self.settings.as_ref().unwrap().clone()
+    }
     pub fn prepare(&self) -> Result<(), String> {
         let _ = self.fail_retry_timeout(); // TODO check unwrap
 
@@ -110,6 +219,14 @@ impl Validatable for PearlConfig {
                     return Err("field 'fail_retry_timeout' for 'config' is not valid".to_string());
                 }
             }
+        };
+
+        match &self.settings {
+            None => {
+                debug!("field 'settings' for 'config' is not set");
+                return Err("field 'settings' for 'config' is not set".to_string());
+            }
+            Some(settings) => settings.validate()?,
         };
         Ok(())
     }
@@ -162,6 +279,9 @@ impl NodeConfig {
     }
     pub fn name(&self) -> String {
         self.name.as_ref().unwrap().clone()
+    }
+    pub fn pearl(&self) -> PearlConfig {
+        self.pearl.as_ref().unwrap().clone()
     }
     pub fn log_config(&self) -> String {
         self.log_config.as_ref().unwrap().clone()

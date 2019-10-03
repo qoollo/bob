@@ -1,4 +1,4 @@
-use crate::api::grpc::PutOptions;
+use crate::api::grpc::{GetOptions, PutOptions};
 use crate::core::{
     backend,
     backend::core::{BackendGetResult, BackendPutResult, Get, Put},
@@ -14,16 +14,18 @@ use futures03::{
     stream::{FuturesUnordered, StreamExt},
 };
 
+use std::sync::Arc;
+
 pub struct SimpleQuorumCluster {
-    mapper: VDiskMapper,
+    mapper: Arc<VDiskMapper>,
     quorum: u8,
 }
 
 impl SimpleQuorumCluster {
-    pub fn new(mapper: &VDiskMapper, config: &NodeConfig) -> Self {
+    pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
         SimpleQuorumCluster {
             quorum: config.quorum.unwrap(),
-            mapper: mapper.clone(),
+            mapper,
         }
     }
 
@@ -106,7 +108,9 @@ impl Cluster for SimpleQuorumCluster {
             key,
             print_vec(&target_nodes)
         );
-        let reqs = LinkManager::call_nodes(&target_nodes, |conn| conn.get(key).0);
+        let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
+            conn.get(key, GetOptions::new_normal()).0
+        });
 
         let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
 

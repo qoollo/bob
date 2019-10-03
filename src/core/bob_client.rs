@@ -13,10 +13,11 @@ mod b_client {
     use tower_grpc::{BoxBody, Code, Request, Status};
 
     use std::time::Duration;
-    use tokio::{prelude::FutureExt, runtime::TaskExecutor};
+    use tokio::runtime::TaskExecutor;
     use tower::MakeService;
 
     use futures::Future;
+    use futures_timer::ext::TryFutureExt;
     use hyper::client::connect::{Destination, HttpConnector};
     use tower_hyper::{client, util};
 
@@ -128,7 +129,6 @@ mod b_client {
                 } else {
                     client
                         .put(request)
-                        .timeout(timeout)
                         .map(move |_| {
                             metrics.put_timer_stop(timer);
                             ClusterResult {
@@ -136,34 +136,26 @@ mod b_client {
                                 result: BackendPutResult {},
                             }
                         })
-                        .map_err(move |e| {
-                            metrics2.put_error_count();
-                            metrics2.put_timer_stop(timer);
-
-                            ClusterResult {
-                                result: {
-                                    if e.is_elapsed() {
-                                        Error::Timeout
-                                    } else if e.is_timer() {
-                                        panic!("Timeout failed in core - can't continue")
-                                    } else {
-                                        let err = e.into_inner();
-                                        Error::Failed(format!(
-                                            "Put operation for {} failed: {:?}",
-                                            n2, err
-                                        ))
-                                    }
-                                },
-                                node: n2,
-                            }
-                        })
+                        .map_err(move |e| Error::from(e))
                         .compat()
+                        .boxed()
+                        .timeout(timeout)
+                        .map(move |r| {
+                            if r.is_err() {
+                                metrics2.put_error_count();
+                                metrics2.put_timer_stop(timer);
+                            }
+                            r.map_err(|e| ClusterResult {
+                                result: e,
+                                node: n2,
+                            })
+                        })
                         .boxed()
                 }
             })
         }
 
-        pub fn get(&mut self, key: BobKey) -> Get {
+        pub fn get(&mut self, key: BobKey, options: GetOptions) -> Get {
             Get({
                 let n1 = self.node.clone();
                 let n2 = self.node.clone();
@@ -191,9 +183,8 @@ mod b_client {
                     client
                         .get(Request::new(GetRequest {
                             key: Some(BlobKey { key: key.key }),
-                            options: Some(GetOptions { force_node: true }),
+                            options: Some(options),
                         }))
-                        .timeout(timeout)
                         .map(move |r| {
                             metrics.get_timer_stop(timer);
                             let ans = r.into_inner();
@@ -204,36 +195,20 @@ mod b_client {
                                 },
                             }
                         })
-                        .map_err(move |e| {
-                            metrics2.get_error_count();
-                            metrics2.get_timer_stop(timer);
-                            ClusterResult {
-                                result: {
-                                    if e.is_elapsed() {
-                                        Error::Timeout
-                                    } else if e.is_timer() {
-                                        panic!("Timeout failed in core - can't continue")
-                                    } else {
-                                        let err = e.into_inner();
-                                        match err {
-                                            Some(status) => match status.code() {
-                                                tower_grpc::Code::NotFound => Error::KeyNotFound,
-                                                _ => Error::Failed(format!(
-                                                    "Get operation for {} failed: {:?}",
-                                                    n2, status
-                                                )),
-                                            },
-                                            None => Error::Failed(format!(
-                                                "Get operation for {} failed: {:?}",
-                                                n2, err
-                                            )),
-                                        }
-                                    }
-                                },
-                                node: n2,
-                            }
-                        })
+                        .map_err(move |e| Error::from(e))
                         .compat()
+                        .boxed()
+                        .timeout(timeout)
+                        .map(move |r| {
+                            if r.is_err() {
+                                metrics2.get_error_count();
+                                metrics2.get_timer_stop(timer);
+                            }
+                            r.map_err(|e| ClusterResult {
+                                result: e,
+                                node: n2,
+                            })
+                        })
                         .boxed()
                 }
             })
@@ -260,18 +235,19 @@ mod b_client {
             } else {
                 client
                     .ping(Request::new(Null {}))
-                    .timeout(to)
                     .map(move |_| ClusterResult {
                         node: n1,
                         result: BackendPingResult {},
                     })
-                    .map_err(move |e| ClusterResult {
-                        node: n2.clone(),
-                        result: Error::StorageError(format!("ping operation error: {}", e)),
-                    })
+                    .map_err(move |e| Error::from(e))
                     .compat()
                     .boxed()
+                    .timeout(to)
                     .await
+                    .map_err(move |e| ClusterResult {
+                        node: n2.clone(),
+                        result: e,
+                    })
             }
         }
     }
@@ -281,7 +257,7 @@ mod b_client {
             async fn create(node: Node, executor: TaskExecutor, timeout: Duration, buffer_bound: u16, metrics: BobClientMetrics,
                     ) -> Result<Self, ()>;
             fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put;
-            fn get(&mut self, key: BobKey) -> Get;
+            fn get(&mut self, key: BobKey, options: GetOptions) -> Get;
             async fn ping(&mut self) -> PingResult;
         }
         trait Clone {
@@ -369,7 +345,7 @@ pub mod tests {
     pub fn ping_err(node: Node) -> PingResult {
         Err(ClusterResult {
             node,
-            result: Error::Other,
+            result: Error::Internal,
         })
     }
 
@@ -387,13 +363,13 @@ pub mod tests {
         Put({
             ready(Err(ClusterResult {
                 node,
-                result: Error::Other,
+                result: Error::Internal,
             }))
             .boxed()
         })
     }
 
-    pub fn get_ok(node: Node, timestamp: u32) -> Get {
+    pub fn get_ok(node: Node, timestamp: i64) -> Get {
         Get({
             ready(Ok(ClusterResult {
                 node,
@@ -409,7 +385,7 @@ pub mod tests {
         Get({
             ready(Err(ClusterResult {
                 node,
-                result: Error::Other,
+                result: Error::Internal,
             }))
             .boxed()
         })

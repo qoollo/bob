@@ -19,7 +19,7 @@ pub trait Cluster {
 
 pub fn get_cluster(
     _link: Arc<LinkManager>,
-    mapper: &VDiskMapper,
+    mapper: Arc<VDiskMapper>,
     config: &NodeConfig,
     backend: Arc<Backend>,
 ) -> Arc<dyn Cluster + Send + Sync> {

@@ -1,14 +1,17 @@
 use crate::core::backend;
 use crate::core::backend::pearl::data::*;
 
-use futures03::{compat::Future01CompatExt, FutureExt};
+use futures03::{compat::Future01CompatExt, future::ok as ok03, FutureExt};
 use futures_locks::RwLock;
 
+use chrono::{DateTime, Datelike, Duration, NaiveDateTime, Utc};
 use std::{
     fs::{create_dir_all, remove_file},
     path::PathBuf,
     sync::Arc,
+    time,
 };
+use tokio_timer::sleep;
 
 pub(crate) struct LockGuard<TGuard> {
     storage: Arc<RwLock<TGuard>>,
@@ -74,6 +77,75 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
     }
 }
 
+pub(crate) struct SyncState {
+    state: LockGuard<StateWrapper>,
+}
+impl SyncState {
+    pub fn new() -> Self {
+        SyncState {
+            state: LockGuard::new(StateWrapper::new()),
+        }
+    }
+    pub async fn mark_as_created(&self) -> BackendResult<()> {
+        self.state
+            .write_mut(|st| {
+                st.created();
+                ok03(()).boxed()
+            })
+            .await
+    }
+
+    pub async fn try_init(&self) -> BackendResult<bool> {
+        self.state
+            .write_mut(|st| {
+                if st.is_creating() {
+                    trace!("New object is currently creating, state: {}", st);
+                    return ok03(false).boxed();
+                }
+                st.start();
+                ok03(true).boxed()
+            })
+            .await
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+enum CreationState {
+    No,
+    Creating,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+struct StateWrapper {
+    state: CreationState,
+}
+
+impl StateWrapper {
+    pub fn new() -> Self {
+        StateWrapper {
+            state: CreationState::No,
+        }
+    }
+
+    pub fn is_creating(&self) -> bool {
+        self.state == CreationState::Creating
+    }
+
+    pub fn start(&mut self) {
+        self.state = CreationState::Creating;
+    }
+
+    pub fn created(&mut self) {
+        self.state = CreationState::No;
+    }
+}
+
+impl std::fmt::Display for StateWrapper {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[{:?}]", self.state)
+    }
+}
+
 pub(crate) struct Stuff {}
 
 impl Stuff {
@@ -113,5 +185,58 @@ impl Stuff {
                 });
         }
         Ok(())
+    }
+
+    pub(crate) fn get_start_timestamp_by_std_time(
+        period: time::Duration,
+        time: time::SystemTime,
+    ) -> BackendResult<i64> {
+        let period: Duration = Duration::from_std(period).map_err(|e| {
+            trace!("smth wrong with time: {:?}, error: {}", period, e);
+            backend::Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+        })?;
+        let time: DateTime<Utc> = DateTime::from(time);
+
+        Self::get_start_timestamp(period, time)
+    }
+
+    pub(crate) fn get_start_timestamp_by_timestamp(
+        period: time::Duration,
+        time: i64,
+    ) -> BackendResult<i64> {
+        let period: Duration = Duration::from_std(period).map_err(|e| {
+            trace!("smth wrong with time: {:?}, error: {}", period, e);
+            backend::Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+        })?;
+        let time: DateTime<Utc> = DateTime::from_utc(NaiveDateTime::from_timestamp(time, 0), Utc);
+        Self::get_start_timestamp(period, time)
+    }
+
+    fn get_start_timestamp(period: Duration, time: DateTime<Utc>) -> BackendResult<i64> {
+        let mut start_time = match period {
+            period if period <= Duration::days(1) => time.date().and_hms(0, 0, 0),
+            period if period <= Duration::weeks(1) => {
+                let time = time.date().and_hms(0, 0, 0);
+                time - Duration::days((time.weekday().num_days_from_monday() - 1) as i64)
+            }
+            _ => panic!("pearid: {} is too large", period),
+        };
+
+        while !(start_time <= time && time < start_time + period) {
+            start_time = start_time + period;
+        }
+        Ok(start_time.timestamp())
+    }
+    pub(crate) fn get_period_timestamp(period: time::Duration) -> BackendResult<i64> {
+        let period: Duration = Duration::from_std(period).map_err(|e| {
+            trace!("smth wrong with time: {:?}, error: {}", period, e);
+            backend::Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+        })?;
+
+        Ok(period.num_seconds())
+    }
+
+    pub(crate) async fn wait(delay: time::Duration) {
+        let _ = sleep(delay).compat().boxed().await;
     }
 }

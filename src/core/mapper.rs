@@ -1,5 +1,4 @@
 use crate::core::{
-    backend::core::BackendOperation,
     configs::cluster::ClusterConfig,
     configs::node::{DiskPath as ConfigDiskPath, NodeConfig},
     data::*,
@@ -57,8 +56,15 @@ impl VDiskMapper {
         (nodes, vdisks.to_vec())
     }
 
+    pub fn local_node_name(&self) -> String {
+        self.local_node_name.clone()
+    }
     pub fn vdisks_count(&self) -> u32 {
         self.vdisks.len() as u32
+    }
+
+    pub fn get_vdisks_ids(&self) -> Vec<VDiskId> {
+        self.vdisks.iter().map(|vdisk| vdisk.id.clone()).collect()
     }
 
     pub fn local_disks(&self) -> &Vec<DiskPath> {
@@ -88,21 +94,27 @@ impl VDiskMapper {
             .collect()
     }
 
-    pub fn get_operation(&self, key: BobKey) -> BackendOperation {
+    pub fn get_operation(&self, key: BobKey) -> (VDiskId, Option<DiskPath>) {
         let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
         let vdisk = self.vdisks.iter().find(|disk| disk.id == vdisk_id).unwrap();
         let disk = vdisk
             .replicas
             .iter()
-            .find(|disk| disk.node_name == self.local_node_name);
+            .find(|disk| disk.node_name == self.local_node_name); //TODO prepare at start?
         if disk.is_none() {
             trace!(
                 "cannot find node: {} for vdisk: {}",
                 self.local_node_name,
                 vdisk_id
             );
-            return BackendOperation::new_alien(vdisk_id);
+            return (vdisk_id, None);
         }
-        BackendOperation::new_local(vdisk_id, DiskPath::from(disk.unwrap()))
+        (vdisk_id, Some(DiskPath::from(disk.unwrap())))
+    }
+
+    pub fn does_node_holds_vdisk(&self, node_name: &str, id: VDiskId) -> bool {
+        self.vdisks
+            .iter()
+            .any(|vdisk| vdisk.id == id && vdisk.nodes.iter().any(|node| node.name() == node_name))
     }
 }
