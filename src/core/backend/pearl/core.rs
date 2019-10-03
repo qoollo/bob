@@ -109,6 +109,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
     }
 
     async fn get_common(pearl: PearlGroup<TSpawner>, key: BobKey) -> GetResult {
+        trace!("GET[{}] try from: {}", key, pearl);
         let result = pearl
             .get(key)
             .map(|r| r.map(|data| BackendGetResult { data: data.data }))
@@ -299,12 +300,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         let backend = self.clone();
         Get({
             async move {
-                let mut vdisk_group = backend.find_alien_pearl(operation.clone()).await;
-                if vdisk_group.is_err() {
-                    debug!("need create alien for: {}", operation.clone());
-                    let _ = backend.create_alien_pearl(operation.clone()).await;
-                    vdisk_group = backend.find_alien_pearl(operation.clone()).await;
-                }
+                let vdisk_group = backend.find_alien_pearl(operation.clone()).await;
                 if let Ok(group) = vdisk_group {
                     Self::get_common(group.clone(), key) // TODO remove copy of disk. add Box?
                         .await
@@ -317,7 +313,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
                         "GET[alien][{}] to pearl backend. Cannot find storage, operation: {}",
                         key, operation
                     );
-                    Err(backend::Error::VDiskNoFound(operation.vdisk_id))
+                    // must return that data not found
+                    Err(backend::Error::KeyNotFound)
                 }
             }
                 .boxed()

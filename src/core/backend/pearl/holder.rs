@@ -84,7 +84,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
     ) -> BackendResult<()> {
         PEARL_PUT_COUNTER.count(1);
         let timer = PEARL_PUT_TIMER.start();
-        storage
+        let result = storage
             .write(key, PearlData::new(data).bytes())
             .await
             .map(|r| {
@@ -95,9 +95,12 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
                 PEARL_PUT_ERROR_COUNTER.count(1);
                 trace!("error on write: {:?}", e);
                 //TODO check duplicate
-                // backend::Error::StorageError(format!("{:?}", e))
                 backend::Error::DuplicateKey // TODO
-            })
+            });
+        if result.is_err() {
+            return Ok(());
+        }
+        result
     }
 
     pub async fn read(&self, key: BobKey) -> Result<BobData, backend::Error> {

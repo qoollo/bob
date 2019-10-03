@@ -13,27 +13,19 @@ use std::{pin::Pin, sync::Arc};
 pub struct BackendOperation {
     pub vdisk_id: VDiskId,
     disk_path: Option<DiskPath>,
-    remote_node_name: Option<String>, // save data to alien/<remote_node_name>
+    pub remote_node_name: Option<String>, // save data to alien/<remote_node_name>
 }
 
 impl std::fmt::Display for BackendOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self.disk_path.clone() {
-            Some(path) => write!(
-                f,
-                "[id: {}, name: {}, path: {}, alien: {}]",
-                self.vdisk_id,
-                path.name,
-                path.path,
-                self.is_data_alien()
-            ),
-            None => write!(
-                f,
-                "[id: {}, alien: {}]",
-                self.vdisk_id,
-                self.is_data_alien()
-            ),
-        }
+        write!(
+            f,
+            "[id: {}, path: {:?}, node: {:?} alien: {}]",
+            self.vdisk_id,
+            self.disk_path,
+            self.remote_node_name,
+            self.is_data_alien()
+        )
     }
 }
 
@@ -234,8 +226,8 @@ impl Backend {
             //TODO check is alien? how? add field to grpc
             trace!("GET[{}] try read alien", key);
             //TODO read from all vdisk ids
-            let mut op = BackendOperation::new_alien(vdisk_id.clone());
-            op.set_remote_folder(&self.mapper.local_node_name());
+            let op = BackendOperation::new_alien(vdisk_id.clone());
+            // op.set_remote_folder(&self.mapper.local_node_name());
 
             Self::get_single(self.backend.clone(), key, op).await
         } else {

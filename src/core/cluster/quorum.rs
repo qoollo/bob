@@ -47,7 +47,6 @@ impl QuorumCluster {
             return vec![];
         }
 
-        let current_node_name = mapper.local_node_name();
         let indexes: Vec<u16> = target_nodes.iter().map(|n| n.index).collect();
         trace!("target indexes: {:?}", indexes);
 
@@ -60,10 +59,6 @@ impl QuorumCluster {
             cur_index = (cur_index + 1) % nodes.len();
             count_look += 1;
 
-            if current_node_name == nodes[cur_index].name {
-                trace!("cannot use current node as sup node");
-                continue;
-            }
             //TODO check node is available
             if indexes.iter().find(|&&i| i == cur_index as u16).is_some() {
                 trace!("node: {} is alrady target", nodes[cur_index]);

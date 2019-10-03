@@ -86,7 +86,10 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
 
     pub fn can_process_operation(&self, operation: &BackendOperation) -> bool {
         if operation.is_data_alien() {
-            operation.remote_node_name() == self.node_name && self.vdisk_id == operation.vdisk_id
+            match &operation.remote_node_name {
+                None => self.vdisk_id == operation.vdisk_id,
+                Some(node_name) => *node_name == self.node_name,
+            }
         } else {
             self.disk_name == operation.disk_name_local() && self.vdisk_id == operation.vdisk_id
         }
