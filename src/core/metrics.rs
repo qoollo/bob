@@ -1,5 +1,4 @@
 use super::prelude::*;
-use crate::prelude::*;
 
 metrics! {
     GRINDER: Proxy = "grinder" => {

@@ -10,6 +10,7 @@ mod stuff;
 mod tests;
 
 pub(crate) use self::core::PearlBackend;
+pub(crate) use self::metrics::init_pearl;
 pub(crate) use super::prelude::*;
 
 mod prelude {
@@ -29,7 +30,6 @@ mod prelude {
     pub(crate) use crate::core::metrics::MetricsContainerBuilder;
     pub(crate) use ::pearl::{Builder, ErrorKind, Key, Storage};
     pub(crate) use chrono::{DateTime, NaiveDateTime, Utc};
-    pub(crate) use dipstick::{Counter, Proxy, Timer};
     pub(crate) use std::fs::{create_dir_all, read_dir, remove_file, DirEntry, Metadata};
     pub(crate) use std::time::SystemTime;
     pub(crate) use std::{convert::TryInto, marker::PhantomData, path::PathBuf};
