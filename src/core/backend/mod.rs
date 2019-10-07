@@ -24,7 +24,6 @@ mod prelude {
     pub(crate) use crate::core::configs::{BackendType, DiskPath};
     pub(crate) use crate::core::data::{BobMeta, BobOptions};
     pub(crate) use crate::core::mapper::VDiskMapper;
-    pub(crate) use futures::task::Spawn;
     pub(crate) use futures_locks::RwLock;
     pub(crate) use std::io::ErrorKind;
     pub(crate) use tokio::timer::Error as TimerError;

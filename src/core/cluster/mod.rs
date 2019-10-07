@@ -11,12 +11,12 @@ mod prelude {
 use quorum::QuorumCluster;
 use simple::SimpleQuorumCluster;
 
-trait Cluster {
+pub(crate) trait Cluster {
     fn put_clustered_async(&self, key: BobKey, data: BobData) -> Put;
     fn get_clustered_async(&self, key: BobKey) -> Get;
 }
 
-fn get_cluster(
+pub(crate) fn get_cluster(
     _link: Arc<LinkManager>,
     mapper: Arc<VDiskMapper>,
     config: &NodeConfig,
