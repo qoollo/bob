@@ -35,11 +35,13 @@ mod prelude {
     };
     pub(crate) use backend::{Backend, Error as BackendError};
     pub(crate) use data::Node;
-    pub(crate) use futures::{future, task::Spawn, Future};
+    pub(crate) use futures::task::{Spawn, SpawnExt};
+    pub(crate) use futures::{future, Future, FutureExt, StreamExt, TryStreamExt};
     pub(crate) use std::collections::HashMap;
     pub(crate) use std::pin::Pin;
     pub(crate) use std::sync::Arc;
     pub(crate) use std::sync::Mutex;
     pub(crate) use std::time::Duration;
     pub(crate) use tokio::runtime::TaskExecutor;
+    pub(crate) use tokio::timer::Interval;
 }

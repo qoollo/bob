@@ -1,28 +1,12 @@
-use crate::core::{
-    backend::Error,
-    bob_client::{BobClient, BobClientFactory},
-    data::{ClusterResult, Node},
-};
-use futures::{future::Future, stream::Stream};
-use std::{pin::Pin, sync::Arc, time::Duration};
-
-use futures03::{
-    compat::Future01CompatExt,
-    future::{err, FutureExt as OtherFutureExt, TryFutureExt},
-    task::{Spawn, SpawnExt},
-    Future as Future03,
-};
-
-use tokio_timer::Interval;
+use super::prelude::*;
 
 pub struct LinkManager {
     repo: Arc<Vec<Node>>,
     check_interval: Duration,
 }
 
-pub type ClusterCallType<T> = Result<ClusterResult<T>, ClusterResult<Error>>;
-pub type ClusterCallFuture<T> =
-    Pin<Box<dyn Future03<Output = ClusterCallType<T>> + 'static + Send>>;
+pub type ClusterCallType<T> = Result<ClusterResult<T>, ClusterResult<BackendError>>;
+pub type ClusterCallFuture<T> = Pin<Box<dyn Future<Output = ClusterCallType<T>> + 'static + Send>>;
 
 impl LinkManager {
     pub fn new(nodes: &Vec<Node>, check_interval: Duration) -> LinkManager {
@@ -42,21 +26,19 @@ impl LinkManager {
     {
         let local_repo = self.repo.clone();
         Interval::new_interval(self.check_interval)
-            .for_each(move |_| {
+            .map(move |_| {
                 local_repo.iter().for_each(|v| {
-                    let q = v.clone().check(client_factory.clone());
+                    let q = v.clone().check(client_factory.clone()).map(|_| {});
                     spawner
                         .clone()
-                        .spawn(q.map(|_r| {}))
+                        .spawn(q)
                         .map_err(|e| panic!("can't run timer task {:?}", e));
                 });
-
-                Ok(())
             })
-            .map_err(|e| panic!("can't make to work timer {:?}", e))
-            .compat()
+            .collect::<Vec<_>>()
             .boxed()
-            .await
+            .await;
+        Ok(())
     }
 
     pub fn call_nodes<F: Send, T: 'static + Send>(
@@ -81,8 +63,8 @@ impl LinkManager {
                             e
                         })
                         .boxed(),
-                    None => err(ClusterResult {
-                        result: Error::Failed(format!("No active connection {:?}", nl)),
+                    None => future::err(ClusterResult {
+                        result: BackendError::Failed(format!("No active connection {:?}", nl)),
                         node: nl.clone(),
                     })
                     .boxed(),
@@ -109,8 +91,8 @@ impl LinkManager {
                     })
                     .boxed()
             }
-            None => err(ClusterResult {
-                result: Error::Failed(format!("No active connection {:?}", node)),
+            None => future::err(ClusterResult {
+                result: BackendError::Failed(format!("No active connection {:?}", node)),
                 node: node.clone(),
             })
             .boxed(),
