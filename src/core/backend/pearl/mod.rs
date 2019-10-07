@@ -25,13 +25,13 @@ mod prelude {
     pub(crate) use super::settings::Settings;
     pub(crate) use super::stuff::{LockGuard, Stuff, SyncState};
     pub(crate) use super::*;
-    pub(crate) use crate::core::configs::node::PearlConfig;
+    pub(crate) use crate::core::configs::PearlConfig;
     pub(crate) use crate::core::metrics::MetricsContainerBuilder;
     pub(crate) use ::pearl::{Builder, ErrorKind, Key, Storage};
     pub(crate) use chrono::{DateTime, NaiveDateTime, Utc};
     pub(crate) use dipstick::{Counter, Proxy, Timer};
     pub(crate) use std::fs::{create_dir_all, read_dir, remove_file, DirEntry, Metadata};
-    pub(crate) use std::time::{Duration, SystemTime};
+    pub(crate) use std::time::SystemTime;
     pub(crate) use std::{convert::TryInto, marker::PhantomData, path::PathBuf};
     pub(crate) use tokio::timer::delay_for;
 }

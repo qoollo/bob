@@ -1,5 +1,4 @@
-use serde::de::Deserialize;
-use std::fs;
+use super::prelude::*;
 
 pub trait Validatable {
     fn validate(&self) -> Result<(), String>;
@@ -21,7 +20,7 @@ pub struct YamlBobConfigReader {}
 
 impl YamlBobConfigReader {
     pub fn read(&self, filename: &str) -> Result<String, String> {
-        let result: Result<String, _> = fs::read_to_string(filename);
+        let result: Result<String, _> = read_to_string(filename);
         match result {
             Ok(config) => Ok(config),
             Err(e) => {

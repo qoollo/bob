@@ -8,7 +8,8 @@ mod stub_backend;
 mod mem_tests;
 
 pub(crate) use self::core::{
-    Backend, BackendGetResult, BackendOperation, BackendPutResult, Get, GetResult, Put, PutResult,
+    Backend, BackendGetResult, BackendOperation, BackendPingResult, BackendPutResult, Get,
+    GetResult, Put, PutResult,
 };
 pub(crate) use self::error::Error;
 pub(crate) use self::mem_backend::MemBackend;
@@ -20,13 +21,12 @@ mod prelude {
     pub(crate) use super::core::{BackendStorage, RunResult};
     pub(crate) use super::*;
     pub(crate) use super::{MemBackend, PearlBackend, StubBackend};
-    pub(crate) use crate::core::configs::node::{BackendType, DiskPath};
-    pub(crate) use crate::core::data::VDiskId;
+    pub(crate) use crate::core::configs::{BackendType, DiskPath};
     pub(crate) use crate::core::data::{BobMeta, BobOptions};
     pub(crate) use crate::core::mapper::VDiskMapper;
-    pub(crate) use futures::{task::Spawn, Future};
+    pub(crate) use futures::task::Spawn;
     pub(crate) use futures_locks::RwLock;
-    pub(crate) use std::{collections::HashMap, io::ErrorKind, pin::Pin};
+    pub(crate) use std::io::ErrorKind;
     pub(crate) use tokio::timer::Error as TimerError;
     pub(crate) use tonic::{Code, Status};
 }

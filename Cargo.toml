@@ -29,6 +29,11 @@ mockall = "~0.3"
 cfg-if = "~0.1"
 tonic = "0.1.0-alpha.1"
 
+tower = "*"
+tower-grpc = "*"
+tower-hyper = "*"
+tower-request-modifier = "*"
+
 [build-dependencies]
 tonic-build = "0.1.0-alpha.1"
 

@@ -1,29 +1,16 @@
 mod b_client {
-    use super::{Get, PingResult, Put};
-    use crate::api::grpc::{
-        client::BobApi, Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions,
-        PutRequest,
-    };
-    use crate::core::{
-        backend::core::{BackendGetResult, BackendPingResult, BackendPutResult},
-        backend::Error,
-        data::{BobData, BobKey, BobMeta, ClusterResult, Node},
-        metrics::*,
-    };
+    use super::super::prelude::*;
+
+    use super::PingResult;
+
     use tower_grpc::{BoxBody, Code, Request, Status};
 
-    use std::time::Duration;
+    use hyper::client::connect::{Destination, HttpConnector};
     use tokio::runtime::TaskExecutor;
     use tower::MakeService;
-
-    use futures::Future;
-    use futures_timer::ext::TryFutureExt;
-    use hyper::client::connect::{Destination, HttpConnector};
     use tower_hyper::{client, util};
 
-    use futures03::{
-        compat::Future01CompatExt, future::ready, future::FutureExt as OtherFutureExt,
-    };
+    use futures::{future::ready, future::FutureExt as OtherFutureExt};
     use mockall::*;
     use tower::buffer::Buffer;
 
@@ -36,7 +23,7 @@ mod b_client {
     pub struct BobClient {
         node: Node,
         timeout: Duration,
-        client: BobApi<TowerConnect>,
+        client: BobApiClient<TowerConnect>,
         metrics: BobClientMetrics,
     }
 
@@ -68,7 +55,7 @@ mod b_client {
                         .build(conn_l)
                         .unwrap();
 
-                    BobApi::new(Buffer::with_executor(
+                    BobApiClient::new(Buffer::with_executor(
                         conn,
                         buffer_bound as usize,
                         &mut executor.clone(),
@@ -116,14 +103,14 @@ mod b_client {
                     debug!("buffer inner error: {}", err);
                     let result = ClusterResult {
                         node: self.node.clone(),
-                        result: Error::Failed(format!("buffer inner error: {}", err)),
+                        result: BackendError::Failed(format!("buffer inner error: {}", err)),
                     };
                     ready(Err(result)).boxed()
                 } else if t.unwrap().is_not_ready() {
                     debug!("service connection is not ready");
                     let result = ClusterResult {
                         node: self.node.clone(),
-                        result: Error::Failed("service connection is not ready".to_string()),
+                        result: BackendError::Failed("service connection is not ready".to_string()),
                     };
                     ready(Err(result)).boxed()
                 } else {
@@ -136,7 +123,7 @@ mod b_client {
                                 result: BackendPutResult {},
                             }
                         })
-                        .map_err(move |e| Error::from(e))
+                        .map_err(move |e| BackendError::from(e))
                         .compat()
                         .boxed()
                         .timeout(timeout)
@@ -176,7 +163,7 @@ mod b_client {
                     debug!("service connection is not ready");
                     let result = ClusterResult {
                         node: self.node.clone(),
-                        result: Error::Failed("service connection is not ready".to_string()),
+                        result: BackendError::Failed("service connection is not ready".to_string()),
                     };
                     ready(Err(result)).boxed()
                 } else {
@@ -195,7 +182,7 @@ mod b_client {
                                 },
                             }
                         })
-                        .map_err(move |e| Error::from(e))
+                        .map_err(move |e| BackendError::from(e))
                         .compat()
                         .boxed()
                         .timeout(timeout)
@@ -229,7 +216,7 @@ mod b_client {
                 debug!("service connection is not ready");
                 let result = ClusterResult {
                     node: self.node.clone(),
-                    result: Error::Failed("service connection is not ready".to_string()),
+                    result: BackendError::Failed("service connection is not ready".to_string()),
                 };
                 Err(result)
             } else {
@@ -239,7 +226,7 @@ mod b_client {
                         node: n1,
                         result: BackendPingResult {},
                     })
-                    .map_err(move |e| Error::from(e))
+                    .map_err(move |e| BackendError::from(e))
                     .compat()
                     .boxed()
                     .timeout(to)
@@ -274,23 +261,15 @@ cfg_if! {
     }
 }
 
-use crate::core::{
-    backend::core::{BackendGetResult, BackendPingResult, BackendPutResult},
-    backend::Error,
-    data::{ClusterResult, Node},
-    metrics::*,
-};
-use futures03::Future as Future03;
-use std::{pin::Pin, sync::Arc, time::Duration};
-use tokio::runtime::TaskExecutor;
+use super::prelude::*;
 
-pub type PutResult = Result<ClusterResult<BackendPutResult>, ClusterResult<Error>>;
-pub struct Put(pub Pin<Box<dyn Future03<Output = PutResult> + Send>>);
+pub type PutResult = Result<ClusterResult<BackendPutResult>, ClusterResult<BackendError>>;
+pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
-pub type GetResult = Result<ClusterResult<BackendGetResult>, ClusterResult<Error>>;
-pub struct Get(pub Pin<Box<dyn Future03<Output = GetResult> + Send>>);
+pub type GetResult = Result<ClusterResult<BackendGetResult>, ClusterResult<BackendError>>;
+pub struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send>>);
 
-pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<Error>>;
+pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<BackendError>>;
 
 #[derive(Clone)]
 pub struct BobClientFactory {
@@ -330,11 +309,11 @@ impl BobClientFactory {
 pub mod tests {
     use super::*;
     use crate::core::{
-        backend::core::{BackendPingResult, BackendPutResult},
         backend::Error,
+        backend::{BackendPingResult, BackendPutResult},
         data::{BobData, BobMeta, ClusterResult, Node},
     };
-    use futures03::{future::ready, future::FutureExt as OtherFutureExt};
+    use futures::{future::ready, future::FutureExt as OtherFutureExt};
 
     pub fn ping_ok(node: Node) -> PingResult {
         Ok(ClusterResult {
@@ -345,7 +324,7 @@ pub mod tests {
     pub fn ping_err(node: Node) -> PingResult {
         Err(ClusterResult {
             node,
-            result: Error::Internal,
+            result: BackendError::Internal,
         })
     }
 
@@ -363,7 +342,7 @@ pub mod tests {
         Put({
             ready(Err(ClusterResult {
                 node,
-                result: Error::Internal,
+                result: BackendError::Internal,
             }))
             .boxed()
         })
@@ -385,7 +364,7 @@ pub mod tests {
         Get({
             ready(Err(ClusterResult {
                 node,
-                result: Error::Internal,
+                result: BackendError::Internal,
             }))
             .boxed()
         })

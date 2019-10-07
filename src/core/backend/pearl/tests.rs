@@ -1,8 +1,7 @@
 use super::prelude::*;
 
 use crate::core::backend::pearl::core::PearlBackend;
-use crate::core::configs::cluster::ClusterConfigYaml;
-use crate::core::configs::node::{DiskPath, NodeConfigYaml};
+use crate::core::configs::{ClusterConfigYaml, DiskPath, NodeConfigYaml};
 use futures::executor::{ThreadPool, ThreadPoolBuilder};
 use std::fs::remove_dir_all;
 

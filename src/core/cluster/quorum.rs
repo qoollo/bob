@@ -327,8 +327,7 @@ pub mod tests {
     use super::*;
     use crate::core::cluster::Cluster;
     use crate::core::configs::{
-        cluster::{tests::cluster_config, ClusterConfig, ClusterConfigYaml},
-        node::{tests::node_config, NodeConfig, NodeConfigYaml},
+        cluster_config, node_config, ClusterConfig, ClusterConfigYaml, NodeConfig, NodeConfigYaml,
     };
     use crate::core::{
         backend::Backend,
