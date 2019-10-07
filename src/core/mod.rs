@@ -24,6 +24,7 @@ mod prelude {
         print_vec, BobData, BobFlags, BobKey, BobMeta, BobOptions, ClusterResult, DiskPath,
         NodeDisk, VDisk, VDiskId,
     };
+    pub(crate) use super::grinder::Grinder;
     pub(crate) use super::metrics::{
         BobClientMetrics, MetricsContainerBuilder, CLIENT_GET_COUNTER,
         CLIENT_GET_ERROR_COUNT_COUNTER, CLIENT_GET_TIMER, CLIENT_PUT_COUNTER, CLIENT_PUT_TIMER,
@@ -33,8 +34,10 @@ mod prelude {
     pub(crate) use super::*;
     pub(crate) use super::{link_manager::LinkManager, mapper::VDiskMapper};
     pub(crate) use crate::api::grpc::client::BobApiClient;
+    pub(crate) use crate::api::grpc::server::BobApi;
     pub(crate) use crate::api::grpc::{
-        Blob, BlobKey, BlobMeta, GetOptions, GetRequest, GetSource, Null, PutOptions, PutRequest,
+        Blob, BlobKey, BlobMeta, GetOptions, GetRequest, GetSource, Null, OpStatus, PutOptions,
+        PutRequest,
     };
     pub(crate) use backend::{Backend, Error as BackendError};
     pub(crate) use data::Node;
@@ -49,6 +52,8 @@ mod prelude {
     pub(crate) use std::sync::Arc;
     pub(crate) use std::sync::Mutex;
     pub(crate) use std::time::Duration;
+    pub(crate) use stopwatch::Stopwatch;
     pub(crate) use tokio::runtime::TaskExecutor;
     pub(crate) use tokio::timer::Interval;
+    pub(crate) use tonic::{Code, Request, Response, Status};
 }

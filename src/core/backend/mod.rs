@@ -27,5 +27,4 @@ mod prelude {
     pub(crate) use futures_locks::RwLock;
     pub(crate) use std::io::ErrorKind;
     pub(crate) use tokio::timer::Error as TimerError;
-    pub(crate) use tonic::{Code, Status};
 }

@@ -6,7 +6,7 @@ pub struct BobSrv {
 }
 
 impl BobSrv {
-    pub async fn run_backend(&self) -> Result<(), Error> {
+    pub async fn run_backend(&self) -> Result<(), BackendError> {
         self.grinder.run_backend().await
     }
 
@@ -32,12 +32,12 @@ impl BobSrv {
     }
 }
 
-impl server::BobApi for BobSrv {
-    // type PutFuture = Box<dyn Future<Item = Response<OpStatus>, Error = tower_grpc::Status> + Send>;
-    // type GetFuture = Box<dyn Future<Item = Response<Blob>, Error = tower_grpc::Status> + Send>;
-    // type PingFuture = future::FutureResult<Response<Null>, tower_grpc::Status>;
+type PutFuture = Box<dyn Future<Output = Result<Response<OpStatus>, Status>> + Send>;
+type GetFuture = Box<dyn Future<Output = Result<Response<Blob>, Status>> + Send>;
+type PingFuture = future::Ready<Result<Response<Null>, Status>>;
 
-    fn put(&mut self, req: Request<PutRequest>) -> Self::PutFuture {
+impl BobApi for BobSrv {
+    fn put(&mut self, req: Request<PutRequest>) -> PutFuture {
         let sw = Stopwatch::start_new();
         let param = req.into_inner();
 
@@ -66,7 +66,7 @@ impl server::BobApi for BobSrv {
                 match r {
                     Ok(r_ok) => {
                         debug!("PUT[{}]-OK local:{:?} ok dt: {}ms", key, r_ok, elapsed);
-                        ok(Response::new(OpStatus { error: None }))
+                        future::ok(Response::new(OpStatus { error: None }))
                     }
                     Err(r_err) => {
                         error!("PUT[{}]-ERR dt: {}ms {:?}", key, elapsed, r_err);
@@ -77,7 +77,7 @@ impl server::BobApi for BobSrv {
         }
     }
 
-    fn get(&mut self, req: Request<GetRequest>) -> Self::GetFuture {
+    fn get(&mut self, req: Request<GetRequest>) -> GetFuture {
         let sw = Stopwatch::start_new();
         let param = req.into_inner();
         if !Self::get_is_valid(&param) {
@@ -98,7 +98,7 @@ impl server::BobApi for BobSrv {
                 match r {
                     Ok(r_ok) => {
                         debug!("GET[{}]-OK dt: {}ms", key, elapsed);
-                        ok(Response::new(Blob {
+                        future::ok(Response::new(Blob {
                             data: r_ok.data.data,
                             meta: Some(BlobMeta {
                                 timestamp: r_ok.data.meta.timestamp,
@@ -111,7 +111,7 @@ impl server::BobApi for BobSrv {
         }
     }
 
-    fn ping(&mut self, _request: Request<Null>) -> Self::PingFuture {
+    fn ping(&mut self, _request: Request<Null>) -> PingFuture {
         debug!("PING");
         let response = Response::new(Null {});
         future::ok(response)
