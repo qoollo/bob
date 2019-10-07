@@ -37,44 +37,45 @@ type GetFuture = Box<dyn Future<Output = Result<Response<Blob>, Status>> + Send>
 type PingFuture = future::Ready<Result<Response<Null>, Status>>;
 
 impl BobApi for BobSrv {
-    fn put(&mut self, req: Request<PutRequest>) -> PutFuture {
-        let sw = Stopwatch::start_new();
-        let param = req.into_inner();
+    fn put(&self, req: Request<PutRequest>) -> PutFuture {
+        // let sw = Stopwatch::start_new();
+        // let param = req.into_inner();
 
-        if !Self::put_is_valid(&param) {
-            warn!("PUT[-] invalid arguments - key and data is mandatory");
-            Box::new(future::err(Status::new(
-                Code::InvalidArgument,
-                "Key and data is mandatory",
-            )))
-        } else {
-            let key = BobKey {
-                key: param.clone().key.unwrap().key,
-            };
-            let blob = param.clone().data.unwrap();
-            let data = BobData::new(blob.data, BobMeta::new(blob.meta.unwrap()));
+        // if !Self::put_is_valid(&param) {
+        //     warn!("PUT[-] invalid arguments - key and data is mandatory");
+        //     Box::new(future::err(Status::new(
+        //         Code::InvalidArgument,
+        //         "Key and data is mandatory",
+        //     )))
+        // } else {
+        //     let key = BobKey {
+        //         key: param.clone().key.unwrap().key,
+        //     };
+        //     let blob = param.clone().data.unwrap();
+        //     let data = BobData::new(blob.data, BobMeta::new(blob.meta.unwrap()));
 
-            trace!("PUT[{}] data size: {}", key, data.data.len());
-            let grinder = self.grinder.clone();
-            let q = async move {
-                grinder
-                    .put(key, data, BobOptions::new_put(param.options))
-                    .await
-            };
-            Box::new(q.boxed().compat().then(move |r| {
-                let elapsed = sw.elapsed_ms();
-                match r {
-                    Ok(r_ok) => {
-                        debug!("PUT[{}]-OK local:{:?} ok dt: {}ms", key, r_ok, elapsed);
-                        future::ok(Response::new(OpStatus { error: None }))
-                    }
-                    Err(r_err) => {
-                        error!("PUT[{}]-ERR dt: {}ms {:?}", key, elapsed, r_err);
-                        future::err(r_err.into())
-                    }
-                }
-            }))
-        }
+        //     trace!("PUT[{}] data size: {}", key, data.data.len());
+        //     let grinder = self.grinder.clone();
+        //     let q = async move {
+        //         grinder
+        //             .put(key, data, BobOptions::new_put(param.options))
+        //             .await
+        //     };
+        //     Box::new(q.boxed().then(move |r| {
+        //         let elapsed = sw.elapsed_ms();
+        //         match r {
+        //             Ok(r_ok) => {
+        //                 debug!("PUT[{}]-OK local:{:?} ok dt: {}ms", key, r_ok, elapsed);
+        //                 future::ok(Response::new(OpStatus { error: None }))
+        //             }
+        //             Err(r_err) => {
+        //                 error!("PUT[{}]-ERR dt: {}ms {:?}", key, elapsed, r_err);
+        //                 future::err(r_err.into())
+        //             }
+        //         }
+        //     }))
+        // }
+        unimplemented!()
     }
 
     fn get(&mut self, req: Request<GetRequest>) -> GetFuture {
@@ -93,7 +94,7 @@ impl BobApi for BobSrv {
 
             let grinder = self.grinder.clone();
             let q = async move { grinder.get(key, BobOptions::new_get(param.options)).await };
-            Box::new(q.boxed().compat().then(move |r| {
+            Box::new(q.boxed().then(move |r| {
                 let elapsed = sw.elapsed_ms();
                 match r {
                     Ok(r_ok) => {

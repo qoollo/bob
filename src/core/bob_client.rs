@@ -2,28 +2,19 @@ mod b_client {
     use super::super::prelude::*;
 
     use super::PingResult;
-
-    use tower_grpc::{BoxBody, Code, Request, Status};
-
     use hyper::client::connect::{Destination, HttpConnector};
-    use tokio::runtime::TaskExecutor;
-    use tower::MakeService;
-    use tower_hyper::{client, util};
-
-    use futures::{future::ready, future::FutureExt as OtherFutureExt};
     use mockall::*;
-    use tower::buffer::Buffer;
 
-    type TowerConnect = Buffer<
-        tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>,
-        http::request::Request<BoxBody>,
-    >;
+    // type TowerConnect = Buffer<
+    //     tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>,
+    //     http::request::Request<BoxBody>,
+    // >;
 
     #[derive(Clone)]
     pub struct BobClient {
         node: Node,
         timeout: Duration,
-        client: BobApiClient<TowerConnect>,
+        client: BobApiClient<tonic::transport::Channel>,
         metrics: BobClientMetrics,
     }
 
@@ -39,39 +30,40 @@ mod b_client {
             let mut http_connector = HttpConnector::new(4);
             http_connector.set_nodelay(true);
 
-            let connector = util::Connector::new(http_connector);
-            let settings = client::Builder::new().http2_only(true).clone();
-            let mut make_client =
-                client::Connect::with_executor(connector, settings, executor.clone());
-            let n1 = node.clone();
+            // let connector = util::Connector::new(http_connector);
+            // let settings = client::Builder::new().http2_only(true).clone();
+            // let mut make_client =
+            //     client::Connect::with_executor(connector, settings, executor.clone());
+            // let n1 = node.clone();
 
-            make_client
-                .make_service(dst)
-                .map_err(|e| Status::new(Code::Unavailable, format!("Connection error: {}", e)))
-                .and_then(move |conn_l| {
-                    trace!("Connected to {:?}", n1);
-                    let conn = tower_request_modifier::Builder::new()
-                        .set_origin(n1.get_uri())
-                        .build(conn_l)
-                        .unwrap();
+            // make_client
+            //     .make_service(dst)
+            //     .map_err(|e| Status::new(Code::Unavailable, format!("Connection error: {}", e)))
+            //     .and_then(move |conn_l| {
+            //         trace!("Connected to {:?}", n1);
+            //         let conn = tower_request_modifier::Builder::new()
+            //             .set_origin(n1.get_uri())
+            //             .build(conn_l)
+            //             .unwrap();
 
-                    BobApiClient::new(Buffer::with_executor(
-                        conn,
-                        buffer_bound as usize,
-                        &mut executor.clone(),
-                    ))
-                    .ready() //TODO add count treads
-                })
-                .map(move |client| BobClient {
-                    node,
-                    client,
-                    timeout,
-                    metrics,
-                })
-                .map_err(|e| debug!("BobClient: ERR = {:?}", e))
-                .compat()
-                .boxed()
-                .await
+            //         BobApiClient::new(Buffer::with_executor(
+            //             conn,
+            //             buffer_bound as usize,
+            //             &mut executor.clone(),
+            //         ))
+            //         .ready() //TODO add count treads
+            //     })
+            //     .map(move |client| BobClient {
+            //         node,
+            //         client,
+            //         timeout,
+            //         metrics,
+            //     })
+            //     .map_err(|e| debug!("BobClient: ERR = {:?}", e))
+            //     .compat()
+            //     .boxed()
+            //     .await
+            unimplemented!()
         }
 
         pub fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put {
@@ -98,47 +90,48 @@ mod b_client {
 
                 let timer = metrics.put_timer();
 
-                let t = client.poll_ready();
-                if let Err(err) = t {
-                    debug!("buffer inner error: {}", err);
-                    let result = ClusterResult {
-                        node: self.node.clone(),
-                        result: BackendError::Failed(format!("buffer inner error: {}", err)),
-                    };
-                    ready(Err(result)).boxed()
-                } else if t.unwrap().is_not_ready() {
-                    debug!("service connection is not ready");
-                    let result = ClusterResult {
-                        node: self.node.clone(),
-                        result: BackendError::Failed("service connection is not ready".to_string()),
-                    };
-                    ready(Err(result)).boxed()
-                } else {
-                    client
-                        .put(request)
-                        .map(move |_| {
-                            metrics.put_timer_stop(timer);
-                            ClusterResult {
-                                node: n1,
-                                result: BackendPutResult {},
-                            }
-                        })
-                        .map_err(move |e| BackendError::from(e))
-                        .compat()
-                        .boxed()
-                        .timeout(timeout)
-                        .map(move |r| {
-                            if r.is_err() {
-                                metrics2.put_error_count();
-                                metrics2.put_timer_stop(timer);
-                            }
-                            r.map_err(|e| ClusterResult {
-                                result: e,
-                                node: n2,
-                            })
-                        })
-                        .boxed()
-                }
+                // let t = client.poll_ready();
+                // if let Err(err) = t {
+                //     debug!("buffer inner error: {}", err);
+                //     let result = ClusterResult {
+                //         node: self.node.clone(),
+                //         result: BackendError::Failed(format!("buffer inner error: {}", err)),
+                //     };
+                //     ready(Err(result)).boxed()
+                // } else if t.unwrap().is_not_ready() {
+                //     debug!("service connection is not ready");
+                //     let result = ClusterResult {
+                //         node: self.node.clone(),
+                //         result: BackendError::Failed("service connection is not ready".to_string()),
+                //     };
+                //     ready(Err(result)).boxed()
+                // } else {
+                //     client
+                //         .put(request)
+                //         .map(move |_| {
+                //             metrics.put_timer_stop(timer);
+                //             ClusterResult {
+                //                 node: n1,
+                //                 result: BackendPutResult {},
+                //             }
+                //         })
+                //         .map_err(move |e| BackendError::from(e))
+                //         .compat()
+                //         .boxed()
+                //         .timeout(timeout)
+                //         .map(move |r| {
+                //             if r.is_err() {
+                //                 metrics2.put_error_count();
+                //                 metrics2.put_timer_stop(timer);
+                //             }
+                //             r.map_err(|e| ClusterResult {
+                //                 result: e,
+                //                 node: n2,
+                //             })
+                //         })
+                //         .boxed()
+                // }
+                unimplemented!()
             })
         }
 
@@ -155,49 +148,50 @@ mod b_client {
                 metrics.get_count();
                 let timer = metrics.get_timer();
 
-                let t = client.poll_ready();
-                if let Err(err) = t {
-                    panic!("buffer inner error: {}", err);
-                }
-                if t.unwrap().is_not_ready() {
-                    debug!("service connection is not ready");
-                    let result = ClusterResult {
-                        node: self.node.clone(),
-                        result: BackendError::Failed("service connection is not ready".to_string()),
-                    };
-                    ready(Err(result)).boxed()
-                } else {
-                    client
-                        .get(Request::new(GetRequest {
-                            key: Some(BlobKey { key: key.key }),
-                            options: Some(options),
-                        }))
-                        .map(move |r| {
-                            metrics.get_timer_stop(timer);
-                            let ans = r.into_inner();
-                            ClusterResult {
-                                node: n1,
-                                result: BackendGetResult {
-                                    data: BobData::new(ans.data, BobMeta::new(ans.meta.unwrap())),
-                                },
-                            }
-                        })
-                        .map_err(move |e| BackendError::from(e))
-                        .compat()
-                        .boxed()
-                        .timeout(timeout)
-                        .map(move |r| {
-                            if r.is_err() {
-                                metrics2.get_error_count();
-                                metrics2.get_timer_stop(timer);
-                            }
-                            r.map_err(|e| ClusterResult {
-                                result: e,
-                                node: n2,
-                            })
-                        })
-                        .boxed()
-                }
+                // let t = client.poll_ready();
+                // if let Err(err) = t {
+                //     panic!("buffer inner error: {}", err);
+                // }
+                // if t.unwrap().is_not_ready() {
+                //     debug!("service connection is not ready");
+                //     let result = ClusterResult {
+                //         node: self.node.clone(),
+                //         result: BackendError::Failed("service connection is not ready".to_string()),
+                //     };
+                //     ready(Err(result)).boxed()
+                // } else {
+                //     client
+                //         .get(Request::new(GetRequest {
+                //             key: Some(BlobKey { key: key.key }),
+                //             options: Some(options),
+                //         }))
+                //         .map(move |r| {
+                //             metrics.get_timer_stop(timer);
+                //             let ans = r.into_inner();
+                //             ClusterResult {
+                //                 node: n1,
+                //                 result: BackendGetResult {
+                //                     data: BobData::new(ans.data, BobMeta::new(ans.meta.unwrap())),
+                //                 },
+                //             }
+                //         })
+                //         .map_err(move |e| BackendError::from(e))
+                //         .compat()
+                //         .boxed()
+                //         .timeout(timeout)
+                //         .map(move |r| {
+                //             if r.is_err() {
+                //                 metrics2.get_error_count();
+                //                 metrics2.get_timer_stop(timer);
+                //             }
+                //             r.map_err(|e| ClusterResult {
+                //                 result: e,
+                //                 node: n2,
+                //             })
+                //         })
+                //         .boxed()
+                // }
+                unimplemented!()
             })
         }
 
@@ -208,34 +202,35 @@ mod b_client {
 
             let mut client = self.client.clone();
 
-            let t = client.poll_ready();
-            if let Err(err) = t {
-                panic!("buffer inner error: {}", err);
-            }
-            if t.unwrap().is_not_ready() {
-                debug!("service connection is not ready");
-                let result = ClusterResult {
-                    node: self.node.clone(),
-                    result: BackendError::Failed("service connection is not ready".to_string()),
-                };
-                Err(result)
-            } else {
-                client
-                    .ping(Request::new(Null {}))
-                    .map(move |_| ClusterResult {
-                        node: n1,
-                        result: BackendPingResult {},
-                    })
-                    .map_err(move |e| BackendError::from(e))
-                    .compat()
-                    .boxed()
-                    .timeout(to)
-                    .await
-                    .map_err(move |e| ClusterResult {
-                        node: n2.clone(),
-                        result: e,
-                    })
-            }
+            // let t = client.poll_ready();
+            // if let Err(err) = t {
+            //     panic!("buffer inner error: {}", err);
+            // }
+            // if t.unwrap().is_not_ready() {
+            //     debug!("service connection is not ready");
+            //     let result = ClusterResult {
+            //         node: self.node.clone(),
+            //         result: BackendError::Failed("service connection is not ready".to_string()),
+            //     };
+            //     Err(result)
+            // } else {
+            //     client
+            //         .ping(Request::new(Null {}))
+            //         .map(move |_| ClusterResult {
+            //             node: n1,
+            //             result: BackendPingResult {},
+            //         })
+            //         .map_err(move |e| BackendError::from(e))
+            //         .compat()
+            //         .boxed()
+            //         .timeout(to)
+            //         .await
+            //         .map_err(move |e| ClusterResult {
+            //             node: n2.clone(),
+            //             result: e,
+            //         })
+            // }
+            unimplemented!()
         }
     }
 

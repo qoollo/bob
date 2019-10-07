@@ -83,29 +83,30 @@ impl QuorumCluster {
         data: BobData,
         requests: &[(Node, PutOptions)],
     ) -> Result<(), (usize, String)> {
-        let mut ret = vec![];
-        for (node, options) in requests {
-            let result =
-                LinkManager::call_node(&node, |conn| conn.put(key, &data, options.clone()).0).await;
-            trace!(
-                "PUT[{}] sup put to node: {}, result: {:?}",
-                key,
-                node,
-                result
-            );
-            if let Err(e) = result {
-                ret.push(e);
-            }
-        }
+        // let mut ret = vec![];
+        // for (node, options) in requests {
+        // let result =
+        //     LinkManager::call_node(&node, |conn| conn.put(key, &data, options.clone()).0).await;
+        // trace!(
+        //     "PUT[{}] sup put to node: {}, result: {:?}",
+        //     key,
+        //     node,
+        //     result
+        // );
+        // if let Err(e) = result {
+        //     ret.push(e);
+        // }
+        // }
 
-        if ret.len() > 0 {
-            return Err((
-                requests.len() - ret.len(),
-                ret.iter()
-                    .fold("".to_string(), |acc, x| format!("{}, {:?}", acc, x)),
-            ));
-        }
-        Ok(())
+        // if ret.len() > 0 {
+        //     return Err((
+        //         requests.len() - ret.len(),
+        //         ret.iter()
+        //             .fold("".to_string(), |acc, x| format!("{}, {:?}", acc, x)),
+        //     ));
+        // }
+        // Ok(())
+        unimplemented!()
     }
 
     fn get_filter_result(
@@ -118,29 +119,32 @@ impl QuorumCluster {
                 trace!("GET[{}] failed result: {:?}", key, e);
                 sup = format!("{}, {:?}", sup.clone(), e)
             } else if let Ok(e) = r {
-                trace!("GET[{}] success result from: {:?}", key, e.node);
+                // trace!("GET[{}] success result from: {:?}", key, e.node);
+                unimplemented!();
             }
         });
 
-        (
-            results
-                .into_iter()
-                .filter_map(|r| r.ok())
-                .max_by_key(|r| r.result.data.meta.timestamp),
-            sup,
-        )
+        // (
+        //     results
+        //         .into_iter()
+        //         .filter_map(|r| r.ok())
+        //         .max_by_key(|r| r.result.data.meta.timestamp),
+        //     sup,
+        // )
+        unimplemented!()
     }
 
     async fn get_all(key: BobKey, target_nodes: Vec<Node>, options: GetOptions) -> Vec<GetResult> {
-        LinkManager::call_nodes(&target_nodes, |conn| conn.get(key, options.clone()).0)
-            .into_iter()
-            .collect::<FuturesUnordered<_>>()
-            .fold(vec![], |mut acc, r| {
-                acc.push(r);
-                future::ready(acc)
-            })
-            .boxed()
-            .await
+        // LinkManager::call_nodes(&target_nodes, |conn| conn.get(key, options.clone()).0)
+        //     .into_iter()
+        //     .collect::<FuturesUnordered<_>>()
+        //     .fold(vec![], |mut acc, r| {
+        //         acc.push(r);
+        //         future::ready(acc)
+        //     })
+        //     .boxed()
+        //     .await
+        unimplemented!()
     }
 }
 
@@ -160,108 +164,111 @@ impl Cluster for QuorumCluster {
             print_vec(&target_nodes)
         );
 
-        let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
-            conn.put(key, &data, PutOptions::new_client()).0
-        })
-        .into_iter()
-        .collect::<FuturesUnordered<_>>()
-        .map(move |r| {
-            trace!("PUT[{}] Response from cluster {:?}", key, r);
-            r
-        })
-        .fold(vec![], |mut acc, r| {
-            acc.push(r);
-            future::ready(acc)
-        });
+        // let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
+        //     conn.put(key, &data, PutOptions::new_client()).0
+        // })
+        // .into_iter()
+        // .collect::<FuturesUnordered<_>>()
+        // .map(move |r| {
+        //     trace!("PUT[{}] Response from cluster {:?}", key, r);
+        //     r
+        // })
+        // .fold(vec![], |mut acc, r| {
+        //     acc.push(r);
+        //     future::ready(acc)
+        // });
+        unimplemented!();
 
         let p = async move {
-            let acc = reqs.boxed().await;
-            debug!("PUT[{}] cluster ans: {:?}", key, acc);
+            // let acc = reqs.boxed().await;
+            unimplemented!();
+            // debug!("PUT[{}] cluster ans: {:?}", key, acc);
 
-            let total_ops = acc.iter().count();
-            let failed: Vec<_> = acc
-                .into_iter()
-                .filter(|r| r.is_err())
-                .map(|e| e.err().unwrap())
-                .collect();
-            let ok_count = total_ops - failed.len();
+            // let total_ops = acc.iter().count();
+            // let failed: Vec<_> = acc
+            //     .into_iter()
+            //     .filter(|r| r.is_err())
+            //     .map(|e| e.err().unwrap())
+            //     .collect();
+            // let ok_count = total_ops - failed.len();
 
-            debug!(
-                "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
-                key, total_ops, ok_count, l_quorum
-            );
-            if ok_count == total_ops {
-                Ok(BackendPutResult {})
-            } else {
-                let mut additionl_remote_writes = match ok_count {
-                    0 => l_quorum, //TODO take value from config
-                    value if value < l_quorum => 1,
-                    _ => 0,
-                };
+            // debug!(
+            //     "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
+            //     key, total_ops, ok_count, l_quorum
+            // );
+            // if ok_count == total_ops {
+            //     Ok(BackendPutResult {})
+            // } else {
+            //     let mut additionl_remote_writes = match ok_count {
+            //         0 => l_quorum, //TODO take value from config
+            //         value if value < l_quorum => 1,
+            //         _ => 0,
+            //     };
 
-                let local_put = Self::put_local_all(
-                    backend,
-                    failed.iter().map(|n| n.node.clone()).collect(),
-                    key,
-                    data.clone(),
-                    BackendOperation::new_alien(vdisk_id.clone()),
-                )
-                .await;
+            //     let local_put = Self::put_local_all(
+            //         backend,
+            //         failed.iter().map(|n| n.node.clone()).collect(),
+            //         key,
+            //         data.clone(),
+            //         BackendOperation::new_alien(vdisk_id.clone()),
+            //     )
+            //     .await;
 
-                if local_put.is_err() {
-                    additionl_remote_writes += 1;
-                }
+            //     if local_put.is_err() {
+            //         additionl_remote_writes += 1;
+            //     }
 
-                let mut sup_nodes =
-                    Self::calc_sup_nodes(mapper, &target_nodes, additionl_remote_writes);
-                debug!("PUT[{}] sup put nodes: {}", key, print_vec(&sup_nodes));
+            //     let mut sup_nodes =
+            //         Self::calc_sup_nodes(mapper, &target_nodes, additionl_remote_writes);
+            //     debug!("PUT[{}] sup put nodes: {}", key, print_vec(&sup_nodes));
 
-                let mut queries = vec![];
+            //     let mut queries = vec![];
 
-                if let Err(op) = local_put {
-                    let item = sup_nodes.remove(sup_nodes.len() - 1);
-                    queries.push((item, op));
-                }
+            //     if let Err(op) = local_put {
+            //         let item = sup_nodes.remove(sup_nodes.len() - 1);
+            //         queries.push((item, op));
+            //     }
 
-                if additionl_remote_writes > 0 {
-                    let nodes: Vec<String> = failed.iter().map(|node| node.node.name()).collect();
-                    let put_options = PutOptions::new_alien(&nodes);
+            //     if additionl_remote_writes > 0 {
+            //         let nodes: Vec<String> = failed.iter().map(|node| node.node.name()).collect();
+            //         let put_options = PutOptions::new_alien(&nodes);
 
-                    let mut tt: Vec<_> = sup_nodes
-                        .iter()
-                        .map(|node| (node.clone(), put_options.clone()))
-                        .collect();
-                    queries.append(&mut tt);
-                }
+            //         let mut tt: Vec<_> = sup_nodes
+            //             .iter()
+            //             .map(|node| (node.clone(), put_options.clone()))
+            //             .collect();
+            //         queries.append(&mut tt);
+            //     }
 
-                let mut sup_ok_count = queries.len();
-                let mut err = String::new();
+            //     let mut sup_ok_count = queries.len();
+            //     let mut err = String::new();
 
-                if let Err((sup_ok_count_l, err_l)) = Self::put_sup_nodes(key, data, &queries).await
-                {
-                    sup_ok_count = sup_ok_count_l;
-                    err = err_l;
-                }
-                trace!(
-                    "PUT[{}] sup_ok: {}, ok_count: {}, quorum: {}, errors: {}",
-                    key,
-                    sup_ok_count,
-                    ok_count,
-                    l_quorum,
-                    err
-                );
-                if sup_ok_count + ok_count >= l_quorum {
-                    Ok(BackendPutResult {})
-                } else {
-                    Err(BackendError::Failed(format!(
-                        "failed: total: {}, ok: {}, quorum: {}, errors: {}",
-                        total_ops,
-                        ok_count + sup_ok_count,
-                        l_quorum,
-                        err
-                    )))
-                }
-            }
+            //     if let Err((sup_ok_count_l, err_l)) = Self::put_sup_nodes(key, data, &queries).await
+            //     {
+            //         sup_ok_count = sup_ok_count_l;
+            //         err = err_l;
+            //     }
+            //     trace!(
+            //         "PUT[{}] sup_ok: {}, ok_count: {}, quorum: {}, errors: {}",
+            //         key,
+            //         sup_ok_count,
+            //         ok_count,
+            //         l_quorum,
+            //         err
+            //     );
+            //     if sup_ok_count + ok_count >= l_quorum {
+            //         Ok(BackendPutResult {})
+            //     } else {
+            //         Err(BackendError::Failed(format!(
+            //             "failed: total: {}, ok: {}, quorum: {}, errors: {}",
+            //             total_ops,
+            //             ok_count + sup_ok_count,
+            //             l_quorum,
+            //             err
+            //         )))
+            //     }
+            // }
+            unimplemented!()
         };
         Put(p.boxed())
     }
@@ -356,18 +363,20 @@ pub mod tests {
 
         pub fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             let cl = node.clone();
-            client.expect_put().returning(move |_key, _data, _options| {
-                call.put_inc();
-                tests::put_ok(cl.clone())
-            });
+            // client.expect_put().returning(move |_key, _data, _options| {
+            //     call.put_inc();
+            //     tests::put_ok(cl.clone())
+            // });
+            unimplemented!()
         }
 
         pub fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             let cl = node.clone();
-            client.expect_put().returning(move |_key, _data, _options| {
-                call.put_inc();
-                tests::put_err(cl.clone())
-            });
+            // client.expect_put().returning(move |_key, _data, _options| {
+            //     call.put_inc();
+            //     tests::put_err(cl.clone())
+            // });
+            unimplemented!()
         }
 
         pub fn get_ok_timestamp(
@@ -377,18 +386,20 @@ pub mod tests {
             timestamp: i64,
         ) {
             let cl = node.clone();
-            client.expect_get().returning(move |_key, _options| {
-                call.get_inc();
-                tests::get_ok(cl.clone(), timestamp)
-            });
+            // client.expect_get().returning(move |_key, _options| {
+            //     call.get_inc();
+            //     tests::get_ok(cl.clone(), timestamp)
+            // });
+            unimplemented!()
         }
 
         pub fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             let cl = node.clone();
-            client.expect_get().returning(move |_key, _options| {
-                call.get_inc();
-                tests::get_err(cl.clone())
-            });
+            // client.expect_get().returning(move |_key, _options| {
+            //     call.get_inc();
+            //     tests::get_err(cl.clone())
+            // });
+            unimplemented!()
         }
         pub struct CountCall {
             put_count: AtomicU64,
@@ -430,7 +441,8 @@ pub mod tests {
         let cluster = cluster_config(count_nodes, count_vdisks, count_replicas);
         NodeConfigYaml::check(&cluster, &node).unwrap();
         let vdisks = ClusterConfigYaml::convert(&cluster).unwrap();
-        (vdisks, node, cluster)
+        // (vdisks, node, cluster)
+        unimplemented!()
     }
 
     fn create_cluster(

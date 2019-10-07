@@ -1,13 +1,13 @@
 #[cfg(test)]
 mod tests {
-    use crate::core::configs::cluster::*;
-    use crate::core::configs::node::*;
-    use crate::core::configs::reader::*;
-    use crate::core::data::VDiskId;
+  use crate::core::configs::cluster::*;
+  use crate::core::configs::node::*;
+  use crate::core::configs::reader::*;
+  use crate::core::data::VDiskId;
 
-    #[test]
-    fn test_node_disk_name_is_empty() {
-        let s = "
+  #[test]
+  fn test_node_disk_name_is_empty() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -25,13 +25,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_node_disk_name_is_missing() {
-        let s = "
+  #[test]
+  fn test_node_disk_name_is_missing() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -48,13 +48,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_node_check_duplicate_disk_names() {
-        let s = "
+  #[test]
+  fn test_node_check_duplicate_disk_names() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -69,13 +69,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_vdisk_check_duplicate_replicas_no_dup() {
-        let s = "
+  #[test]
+  fn test_vdisk_check_duplicate_replicas_no_dup() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -92,13 +92,13 @@ vdisks:
         - node: n1
           disk: disk2
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_ok());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_ok());
+  }
 
-    #[test]
-    fn test_vdisk_check_duplicate_ids() {
-        let s = "
+  #[test]
+  fn test_vdisk_check_duplicate_ids() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -119,13 +119,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_cluster_check_duplicate_nodes_names() {
-        let s = "
+  #[test]
+  fn test_cluster_check_duplicate_nodes_names() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -147,13 +147,13 @@ vdisks:
         - node: n1
           disk: disk2
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_vdisk_check_duplicate_replicas_dup() {
-        let s = "
+  #[test]
+  fn test_vdisk_check_duplicate_replicas_dup() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -170,13 +170,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_node_disk_path_is_missing() {
-        let s = "
+  #[test]
+  fn test_node_disk_path_is_missing() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -193,13 +193,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_node_disk_path_is_empty() {
-        let s = "
+  #[test]
+  fn test_node_disk_path_is_empty() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -217,13 +217,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_node_name_is_empty() {
-        let s = "
+  #[test]
+  fn test_node_name_is_empty() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -241,13 +241,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_node_address_is_empty() {
-        let s = "
+  #[test]
+  fn test_node_address_is_empty() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -265,13 +265,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_vdisk_replica_node_is_empty() {
-        let s = "
+  #[test]
+  fn test_vdisk_replica_node_is_empty() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -284,13 +284,13 @@ vdisks:
         - node:
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_vdisk_replica_disk_is_empty() {
-        let s = "
+  #[test]
+  fn test_vdisk_replica_disk_is_empty() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -303,13 +303,13 @@ vdisks:
         - node: n1
           disk:         # empty
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_vdisk_id_is_empty() {
-        let s = "
+  #[test]
+  fn test_vdisk_id_is_empty() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -326,13 +326,13 @@ vdisks:
         - node: n1
           disk: disk1        # empty
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_count_fields() {
-        let s = "
+  #[test]
+  fn test_count_fields() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -345,31 +345,31 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert_eq!(1, d.nodes.len());
-        assert_eq!(1, d.nodes[0].disks.len());
-        assert_eq!(1, d.vdisks.len());
-        assert_eq!(1, d.vdisks[0].replicas.len());
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert_eq!(1, d.nodes.len());
+    assert_eq!(1, d.nodes[0].disks.len());
+    assert_eq!(1, d.vdisks.len());
+    assert_eq!(1, d.vdisks[0].replicas.len());
 
-        assert!(d.validate().is_ok());
-    }
+    assert!(d.validate().is_ok());
+  }
 
-    #[test]
-    fn test_validate_no_nodes() {
-        let s = "
+  #[test]
+  fn test_validate_no_nodes() {
+    let s = "
 vdisks:
     - id: 0
       replicas:
         - node: disk1
           disk: /tmp/d1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_validate_no_vdisks() {
-        let s = "
+  #[test]
+  fn test_validate_no_vdisks() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -377,13 +377,13 @@ nodes:
         - name: disk1
           path: /tmp/d1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_validate_no_node_with_name() {
-        let s = "
+  #[test]
+  fn test_validate_no_node_with_name() {
+    let s = "
 nodes:
     - name: other_name
       address: 0.0.0.0:111
@@ -396,13 +396,13 @@ vdisks:
         - node: some_name
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_validate_no_disk_in_node() {
-        let s = "
+  #[test]
+  fn test_validate_no_disk_in_node() {
+    let s = "
 nodes:
     - name: some_name
       address: 0.0.0.0:111
@@ -415,13 +415,13 @@ vdisks:
         - node: some_name
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_cluster_convertation() {
-        let s = "
+  #[test]
+  fn test_cluster_convertation() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -447,23 +447,24 @@ vdisks:
         - node: n2
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_ok());
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_ok());
 
-        let vdisks = ClusterConfigYaml {}.convert_to_data(&d).unwrap();
-        assert_eq!(2, vdisks.len());
-        assert_eq!(VDiskId::new(0), vdisks[0].id);
-        assert_eq!(1, vdisks[0].replicas.len());
-        assert_eq!("/tmp/d1", vdisks[0].replicas[0].disk_path);
+    let vdisks = ClusterConfigYaml {}.convert_to_data(&d).unwrap();
+    assert_eq!(2, vdisks.len());
+    // assert_eq!(VDiskId::new(0), vdisks[0].id);
+    unimplemented!();
+    assert_eq!(1, vdisks[0].replicas.len());
+    // assert_eq!("/tmp/d1", vdisks[0].replicas[0].disk_path);
 
-        assert_eq!(VDiskId::new(1), vdisks[1].id);
-        assert_eq!(2, vdisks[1].replicas.len());
-        assert_eq!("/tmp/d2", vdisks[1].replicas[0].disk_path);
-    }
+    // assert_eq!(VDiskId::new(1), vdisks[1].id);
+    assert_eq!(2, vdisks[1].replicas.len());
+    // assert_eq!("/tmp/d2", vdisks[1].replicas[0].disk_path);
+  }
 
-    #[test]
-    fn test_ip_parsing() {
-        let s = "
+  #[test]
+  fn test_ip_parsing() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:111
@@ -478,16 +479,16 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_ok());
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_ok());
 
-        assert_eq!(111, d.nodes[0].port.get());
-        assert_eq!("0.0.0.0", d.nodes[0].host.borrow().to_string());
-    }
+    assert_eq!(111, d.nodes[0].port.get());
+    assert_eq!("0.0.0.0", d.nodes[0].host.borrow().to_string());
+  }
 
-    #[test]
-    fn test_ip_parsing2() {
-        let s = "
+  #[test]
+  fn test_ip_parsing2() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0:111
@@ -502,13 +503,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_ip_parsing3() {
-        let s = "
+  #[test]
+  fn test_ip_parsing3() {
+    let s = "
 nodes:
     - name: n1
       address: 0.0.0.0:11111111
@@ -523,13 +524,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: ClusterConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_node_config() {
-        let s = "
+  #[test]
+  fn test_node_config() {
+    let s = "
 log_config: logger.yaml
 name: no
 quorum: 1
@@ -540,12 +541,12 @@ ping_threads_count: 2
 grpc_buffer_bound: 100
 backend_type: stub
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_ok());
-    }
-    #[test]
-    fn test_node_config_ping_count_invalid() {
-        let s = "
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_ok());
+  }
+  #[test]
+  fn test_node_config_ping_count_invalid() {
+    let s = "
 log_config: logger.yaml
 name: no
 quorum: 1
@@ -556,13 +557,13 @@ ping_threads_count: -2
 grpc_buffer_bound: 100
 backend_type: stub
 ";
-        let d: Result<NodeConfig, _> = YamlBobConfigReader {}.parse(s);
-        assert!(d.is_err());
-    }
+    let d: Result<NodeConfig, _> = YamlBobConfigReader {}.parse(s);
+    assert!(d.is_err());
+  }
 
-    #[test]
-    fn test_node_pearl_config_no_pearl_config() {
-        let s = "
+  #[test]
+  fn test_node_pearl_config_no_pearl_config() {
+    let s = "
 log_config: logger.yaml
 name: no
 quorum: 1
@@ -573,13 +574,13 @@ ping_threads_count: 2
 grpc_buffer_bound: 100
 backend_type: pearl
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_node_pearl_config() {
-        let s = "
+  #[test]
+  fn test_node_pearl_config() {
+    let s = "
 log_config: logger.yaml
 name: no
 quorum: 1
@@ -602,13 +603,13 @@ pearl:
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_ok());
-    }
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_ok());
+  }
 
-    #[test]
-    fn test_node_pearl_config_big_timestamp() {
-        let s = "
+  #[test]
+  fn test_node_pearl_config_big_timestamp() {
+    let s = "
 log_config: logger.yaml
 name: no
 quorum: 1
@@ -631,13 +632,13 @@ pearl:
     timestamp_period: 2w      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_node_pearl_config2() {
-        let s = "
+  #[test]
+  fn test_node_pearl_config2() {
+    let s = "
 log_config: logger.yaml
 name: no
 quorum: 1
@@ -660,13 +661,13 @@ pearl:
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_ok());
-    }
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_ok());
+  }
 
-    #[test]
-    fn test_node_pearl_config_no_field() {
-        let s = "
+  #[test]
+  fn test_node_pearl_config_no_field() {
+    let s = "
 log_config: logger.yaml
 name: no
 quorum: 1
@@ -688,13 +689,13 @@ pearl:
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_node_pearl_config_invalid_retry_time() {
-        let s = "
+  #[test]
+  fn test_node_pearl_config_invalid_retry_time() {
+    let s = "
 log_config: logger.yaml
 name: no
 quorum: 1
@@ -716,13 +717,13 @@ pearl:
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_node_pearl_config_no_retry_time() {
-        let s = "
+  #[test]
+  fn test_node_pearl_config_no_retry_time() {
+    let s = "
 log_config: logger.yaml
 name: no
 quorum: 1
@@ -744,13 +745,13 @@ pearl:
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_node_config_invalid_backend_type() {
-        let s = "
+  #[test]
+  fn test_node_config_invalid_backend_type() {
+    let s = "
 log_config: logger.yaml
 name: n1
 quorum: 1
@@ -761,10 +762,10 @@ ping_threads_count: 2
 grpc_buffer_bound: 100
 backend_type: InvalidType
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_ok());
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_ok());
 
-        let s1 = "
+    let s1 = "
 nodes:
     - name: n1
       address: 0.0.0.0:11111111
@@ -779,13 +780,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let cl: ClusterConfig = YamlBobConfigReader {}.parse(s1).unwrap();
-        assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_err());
-    }
+    let cl: ClusterConfig = YamlBobConfigReader {}.parse(s1).unwrap();
+    assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_err());
+  }
 
-    #[test]
-    fn test_node_config_invalid_time() {
-        let s = "
+  #[test]
+  fn test_node_config_invalid_time() {
+    let s = "
 log_config: logger.yaml
 name: no
 quorum: 1
@@ -796,13 +797,13 @@ ping_threads_count: 2
 grpc_buffer_bound: 100
 backend_type: stub
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
 
-    #[test]
-    fn test_node_config_valid() {
-        let s = "
+  #[test]
+  fn test_node_config_valid() {
+    let s = "
 log_config: logger.yaml
 name: n1
 quorum: 1
@@ -813,9 +814,9 @@ ping_threads_count: 2
 grpc_buffer_bound: 100
 backend_type: stub
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_ok());
-        let s1 = "
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_ok());
+    let s1 = "
 nodes:
     - name: n1
       address: 0.0.0.0:11111111
@@ -830,13 +831,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let cl: ClusterConfig = YamlBobConfigReader {}.parse(s1).unwrap();
-        assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_ok());
-    }
+    let cl: ClusterConfig = YamlBobConfigReader {}.parse(s1).unwrap();
+    assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_ok());
+  }
 
-    #[test]
-    fn test_node_config_invalid() {
-        let s = "
+  #[test]
+  fn test_node_config_invalid() {
+    let s = "
 log_config: logger.yaml
 name: 1n2112321321321321
 quorum: 1
@@ -847,9 +848,9 @@ ping_threads_count: 2
 grpc_buffer_bound: 100
 backend_type: stub
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_ok());
-        let s1 = "
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_ok());
+    let s1 = "
 nodes:
     - name: n1
       address: 0.0.0.0:11111111
@@ -864,13 +865,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let cl: ClusterConfig = YamlBobConfigReader {}.parse(s1).unwrap();
-        assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_err());
-    }
+    let cl: ClusterConfig = YamlBobConfigReader {}.parse(s1).unwrap();
+    assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_err());
+  }
 
-    #[test]
-    fn test_node_config_check_valid_pearl_disk() {
-        let s = "
+  #[test]
+  fn test_node_config_check_valid_pearl_disk() {
+    let s = "
 log_config: logger.yaml
 name: n1
 quorum: 1
@@ -892,9 +893,9 @@ pearl:
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-        let s1 = "
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+    let s1 = "
 nodes:
     - name: n1
       address: 0.0.0.0:11111111
@@ -909,13 +910,13 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let cl: ClusterConfig = YamlBobConfigReader {}.parse(s1).unwrap();
-        assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_ok());
-    }
+    let cl: ClusterConfig = YamlBobConfigReader {}.parse(s1).unwrap();
+    assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_ok());
+  }
 
-    #[test]
-    fn test_node_config_check_invalid_pearl_disk() {
-        let s = "
+  #[test]
+  fn test_node_config_check_invalid_pearl_disk() {
+    let s = "
 log_config: logger.yaml
 name: n1
 quorum: 1
@@ -937,10 +938,10 @@ pearl:
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
 
-        let s1 = "
+    let s1 = "
 nodes:
     - name: n1
       address: 0.0.0.0:11111111
@@ -955,12 +956,12 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let cl: ClusterConfig = YamlBobConfigReader {}.parse(s1).unwrap();
-        assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_err());
-    }
-    #[test]
-    fn test_node_config_with_metrics() {
-        let s = "
+    let cl: ClusterConfig = YamlBobConfigReader {}.parse(s1).unwrap();
+    assert!(NodeConfigYaml {}.check_cluster(&cl, &d).is_err());
+  }
+  #[test]
+  fn test_node_config_with_metrics() {
+    let s = "
 log_config: logger.yaml
 name: no
 quorum: 1
@@ -975,12 +976,12 @@ metrics:                      # optional, send metrics
   name: machine               # optional, add base name for metrics
   graphite: 127.0.0.1:2003    # optional, send metrics to graphite
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_ok());
-    }
-    #[test]
-    fn test_node_config_with_metrics_invalid_graphite() {
-        let s = "
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_ok());
+  }
+  #[test]
+  fn test_node_config_with_metrics_invalid_graphite() {
+    let s = "
 log_config: logger.yaml
 name: no
 quorum: 1
@@ -995,12 +996,12 @@ metrics:                      # optional, send metrics
   name: machine               # optional, add base name for metrics
   graphite: 127.0.0.0.1:2003    # optional, send metrics to graphite
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
-    #[test]
-    fn test_node_config_with_metrics_no_fields() {
-        let s = "
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_err());
+  }
+  #[test]
+  fn test_node_config_with_metrics_no_fields() {
+    let s = "
 log_config: logger.yaml
 name: no
 quorum: 1
@@ -1015,7 +1016,7 @@ metrics:                      # optional, send metrics
  # name: machine               # optional, add base name for metrics
  # graphite: 127.0.0.1:2003    # optional, send metrics to graphite
 ";
-        let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
-        assert!(d.validate().is_ok());
-    }
+    let d: NodeConfig = YamlBobConfigReader {}.parse(s).unwrap();
+    assert!(d.validate().is_ok());
+  }
 }

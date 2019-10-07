@@ -1,4 +1,3 @@
-//use futures::{Future, Poll};
 use std::io;
 
 use bob::api::grpc::client::BobApi;

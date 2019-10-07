@@ -104,15 +104,16 @@ impl From<Status> for Error {
 
 impl From<TimerError> for Error {
     fn from(error: TimerError) -> Self {
-        if error.is_elapsed() {
-            return Error::Timeout;
-        }
-        if error.is_timer() {
-            return Error::Failed(format!("error in timer: {}", error));
-        }
-        match error.into_inner() {
-            Some(status) => Error::from(status),
-            _ => Error::Failed("failed grpc operation".to_string()),
-        }
+        // if error.is_elapsed() {
+        //     return Error::Timeout;
+        // }
+        // if error.is_timer() {
+        //     return Error::Failed(format!("error in timer: {}", error));
+        // }
+        // match error.into_inner() {
+        //     Some(status) => Error::from(status),
+        //     _ => Error::Failed("failed grpc operation".to_string()),
+        // }
+        unimplemented!()
     }
 }

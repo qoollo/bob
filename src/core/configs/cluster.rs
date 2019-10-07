@@ -349,20 +349,21 @@ impl ClusterConfigYaml {
 
         let mut result: Vec<VDisk> = Vec::with_capacity(cluster.vdisks.len());
         for vdisk in cluster.vdisks.iter() {
-            let mut disk = VDisk::new(VDiskId::new(vdisk.id() as u32), vdisk.replicas.len());
+            // let mut disk = VDisk::new(VDiskId::new(vdisk.id() as u32), vdisk.replicas.len());
 
-            for replica in vdisk.replicas.iter() {
-                let finded_node = node_map.get(&replica.node).unwrap();
-                let path = finded_node.1.get(&replica.disk).unwrap();
+            // for replica in vdisk.replicas.iter() {
+            //     let finded_node = node_map.get(&replica.node).unwrap();
+            //     let path = finded_node.1.get(&replica.disk).unwrap();
 
-                let node_disk = NodeDisk {
-                    disk_path: path.to_string(),
-                    disk_name: replica.disk(),
-                    node_name: finded_node.0.name(),
-                };
-                disk.replicas.push(node_disk);
-            }
-            result.push(disk);
+            //     let node_disk = NodeDisk {
+            //         disk_path: path.to_string(),
+            //         disk_name: replica.disk(),
+            //         node_name: finded_node.0.name(),
+            //     };
+            //     disk.replicas.push(node_disk);
+            // }
+            // result.push(disk);
+            unimplemented!();
         }
         Ok(result)
     }

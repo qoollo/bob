@@ -54,7 +54,6 @@ impl LinkManager {
                 let nl_clone = nl.clone();
                 match &mut nl.get_connection() {
                     Some(conn) => f(conn)
-                        .boxed()
                         .map_err(move |e| {
                             if e.result.is_service() {
                                 trace!("clean connection: {}", e.result);

@@ -9,6 +9,7 @@ mod mapper;
 mod metrics;
 mod server;
 
+pub(crate) use super::*;
 pub(crate) use backend::{
     init_pearl, BackendGetResult, BackendOperation, BackendPingResult, BackendPutResult, Get,
     GetResult, Put,
@@ -42,11 +43,11 @@ mod prelude {
     pub(crate) use backend::{Backend, Error as BackendError};
     pub(crate) use data::Node;
     pub(crate) use dipstick::{
-        AtomicBucket, Counter, Graphite, InputKind, MetricName, MetricValue, Output, Proxy,
-        ScoreType, TimeHandle, Timer, Void,
+        AtomicBucket, Counter, Graphite, InputKind, InputScope, MetricName, MetricValue, Output,
+        Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer, Void,
     };
     pub(crate) use futures::task::{Spawn, SpawnExt};
-    pub(crate) use futures::{future, Future, FutureExt, StreamExt, TryStreamExt};
+    pub(crate) use futures::{future, Future, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
     pub(crate) use std::collections::HashMap;
     pub(crate) use std::pin::Pin;
     pub(crate) use std::sync::Arc;

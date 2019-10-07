@@ -30,16 +30,17 @@ impl Cluster for SimpleQuorumCluster {
         );
 
         let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
-            conn.put(
-                key,
-                &data,
-                PutOptions {
-                    remote_nodes: vec![], //TODO check
-                    force_node: true,
-                    overwrite: false,
-                },
-            )
-            .0
+            // conn.put(
+            //     key,
+            //     &data,
+            //     PutOptions {
+            //         remote_nodes: vec![], //TODO check
+            //         force_node: true,
+            //         overwrite: false,
+            //     },
+            // )
+            // .0
+            unimplemented!()
         });
 
         let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
@@ -93,7 +94,8 @@ impl Cluster for SimpleQuorumCluster {
             print_vec(&target_nodes)
         );
         let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
-            conn.get(key, GetOptions::new_normal()).0
+            // conn.get(key, GetOptions::new_normal()).0
+            unimplemented!()
         });
 
         let t = reqs.into_iter().collect::<FuturesUnordered<_>>();

@@ -13,42 +13,44 @@ impl VDisk {
     }
 
     fn put(&self, key: BobKey, data: BobData) -> Put {
-        Put({
-            trace!("PUT[{}] to vdisk", key);
-            self.repo
-                .write()
-                .map(move |mut repo| {
-                    repo.insert(key, data);
-                    BackendPutResult {}
-                })
-                .map_err(|e| {
-                    trace!("lock error: {:?}", e);
-                    Error::Internal
-                })
-                .compat()
-                .boxed()
-        })
+        // Put({
+        //     trace!("PUT[{}] to vdisk", key);
+        //     self.repo
+        //         .write()
+        //         .map(move |mut repo| {
+        //             repo.insert(key, data);
+        //             BackendPutResult {}
+        //         })
+        //         .map_err(|e| {
+        //             trace!("lock error: {:?}", e);
+        //             Error::Internal
+        //         })
+        //         .compat()
+        //         .boxed()
+        // })
+        unimplemented!()
     }
 
     fn get(&self, key: BobKey) -> Get {
-        Get(self
-            .repo
-            .read()
-            .then(move |repo_lock_res| match repo_lock_res {
-                Ok(repo) => match repo.get(&key) {
-                    Some(data) => {
-                        trace!("GET[{}] from vdisk", key);
-                        future::ok(BackendGetResult { data: data.clone() })
-                    }
-                    None => {
-                        trace!("GET[{}] from vdisk failed. Cannot find key", key);
-                        future::err(Error::KeyNotFound)
-                    }
-                },
-                Err(_) => future::err(Error::Internal),
-            })
-            .compat()
-            .boxed())
+        // Get(self
+        //     .repo
+        //     .read()
+        //     .then(move |repo_lock_res| match repo_lock_res {
+        //         Ok(repo) => match repo.get(&key) {
+        //             Some(data) => {
+        //                 trace!("GET[{}] from vdisk", key);
+        //                 future::ok(BackendGetResult { data: data.clone() })
+        //             }
+        //             None => {
+        //                 trace!("GET[{}] from vdisk failed. Cannot find key", key);
+        //                 future::err(Error::KeyNotFound)
+        //             }
+        //         },
+        //         Err(_) => future::err(Error::Internal),
+        //     })
+        //     .compat()
+        //     .boxed())
+        unimplemented!()
     }
 }
 
