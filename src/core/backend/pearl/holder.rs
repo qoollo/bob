@@ -1,20 +1,4 @@
-use crate::core::backend;
-use crate::core::backend::pearl::{
-    data::*,
-    metrics::*,
-    stuff::{LockGuard, Stuff},
-};
-use crate::core::configs::node::PearlConfig;
-use crate::core::data::{BobData, BobKey, VDiskId};
-use pearl::{Builder, ErrorKind, Storage};
-
-use futures03::{
-    future::err as err03,
-    task::{Spawn, SpawnExt},
-    FutureExt,
-};
-
-use std::{path::PathBuf, sync::Arc};
+use super::prelude::*;
 
 /// Struct hold pearl and add put/get/restart api
 #[derive(Clone)]
@@ -68,7 +52,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
                         self.vdisk_print(),
                         st
                     );
-                    return err03(backend::Error::VDiskIsNotReady).boxed();
+                    return future::err(Error::VDiskIsNotReady).boxed();
                 }
                 let storage = st.get();
                 trace!("Vdisk: {}, write key: {}", self.vdisk_print(), key);
@@ -95,7 +79,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
                 PEARL_PUT_ERROR_COUNTER.count(1);
                 trace!("error on write: {:?}", e);
                 //TODO check duplicate
-                backend::Error::DuplicateKey // TODO
+                Error::DuplicateKey // TODO
             });
         if result.is_err() {
             return Ok(());
@@ -103,7 +87,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
         result
     }
 
-    pub async fn read(&self, key: BobKey) -> Result<BobData, backend::Error> {
+    pub async fn read(&self, key: BobKey) -> Result<BobData, Error> {
         self.storage
             .read(|st| {
                 if !st.is_ready() {
@@ -112,7 +96,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
                         self.vdisk_print(),
                         st
                     );
-                    return err03(backend::Error::VDiskIsNotReady).boxed();
+                    return future::err(Error::VDiskIsNotReady).boxed();
                 }
                 let storage = st.get();
                 trace!("Vdisk: {}, read key: {}", self.vdisk_print(), key);
@@ -131,8 +115,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
                             PEARL_GET_ERROR_COUNTER.count(1);
                             trace!("error on read: {:?}", e);
                             match e.kind() {
-                                ErrorKind::RecordNotFound => backend::Error::KeyNotFound,
-                                _ => backend::Error::StorageError(format!("{:?}", e)),
+                                ErrorKind::RecordNotFound => Error::KeyNotFound,
+                                _ => Error::StorageError(format!("{:?}", e)),
                             }
                         })?
                 };
@@ -156,8 +140,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
                 PEARL_GET_ERROR_COUNTER.count(1);
                 trace!("error on read: {:?}", e);
                 match e.kind() {
-                    ErrorKind::RecordNotFound => backend::Error::KeyNotFound,
-                    _ => backend::Error::StorageError(format!("{:?}", e)),
+                    ErrorKind::RecordNotFound => Error::KeyNotFound,
+                    _ => Error::StorageError(format!("{:?}", e)),
                 }
             })?
     }
@@ -171,7 +155,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
                         self.vdisk_print(),
                         st
                     );
-                    return err03(backend::Error::VDiskIsNotReady).boxed();
+                    return future::err(Error::VDiskIsNotReady).boxed();
                 }
                 st.init();
                 trace!("Vdisk: {} set as reinit, state: {}", self.vdisk_print(), st);
@@ -196,7 +180,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
         let mut spawner = self.spawner.clone();
         async move {
             debug!("Vdisk: {} start reinit Pearl", self.vdisk_print());
-            let _ = spawner
+            spawner
                 .spawn(self.prepare_storage().map(|_r| ()))
                 .map_err(|e| {
                     error!("can't start reinit thread: {:?}", e);
@@ -219,7 +203,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
         let mut need_delay = false;
         while repeat {
             if need_delay {
-                let _ = Stuff::wait(delay).await;
+                Stuff::wait(delay).await;
             }
             need_delay = true;
 
@@ -251,7 +235,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
             debug!("Vdisk: {} Pearl is ready for work", self.vdisk_print());
             return Ok(());
         }
-        Err(backend::Error::StorageError("stub".to_string()))
+        Err(Error::StorageError("stub".to_string()))
     }
 
     fn init_pearl_by_path(path: &PathBuf, config: &PearlConfig) -> BackendResult<PearlStorage> {
@@ -272,10 +256,10 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
 
         let storage = builder
             .build()
-            .map_err(|e| backend::Error::StorageError(format!("{:?}", e)));
+            .map_err(|e| Error::StorageError(format!("{:?}", e)));
         if let Err(e) = storage {
             error!("cannot build pearl by path: {:?}, error: {}", path, e);
-            return Err(backend::Error::StorageError(format!(
+            return Err(Error::StorageError(format!(
                 "cannot build pearl by path: {:?}, error: {}",
                 path, e
             )));

@@ -5,29 +5,17 @@ authors = ["Kirill Bushminkin <kb@qoollo.com>"]
 edition = "2018"
 
 [dependencies]
-pearl = { git = "https://github.com/qoollo/pearl", branch = "futures-timer-0.4" }
-futures         = "~0.1"
-futures03       = { package = "futures-preview", version = "0.3.0-alpha.16", features = ["compat"] }
-futures-cpupool = "~0.1"
-futures-locks = "0.3"
-futures-timer = "0.4"
-tower-hyper = "~0.1.0"
-tower-request-modifier = "~0.1.0"
-tower-grpc = { version = "~0.1.0", features = ["tower-hyper"] }
-tower-service = "0.2"
-tower = "~0.1"
-tower-util = "0.1"
-tokio = "~0.1"
-tokio-core = "~0.1"
-tokio-timer = "~0.2"
-tokio-periodic = "~0.1"
+pearl = { git = "https://github.com/qoollo/pearl", branch = "develop" }
+futures-preview = "0.3.0-alpha.19"
+futures-locks = "0.4.0"
+tokio = "0.2.0-alpha.6"
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.8"
 log = "~0.4"
 log4rs = "~0.8.3"
-clap            = "~2.31"
-bitflags        = "~1.0"
+clap = "~2.31"
+bitflags = "~1.0"
 http = "~0.1"
 prost = "~0.5"
 bytes = "~0.4"
@@ -39,9 +27,10 @@ chrono = "0.4.9"
 dipstick = "~0.7"
 mockall = "~0.3"
 cfg-if = "~0.1"
+tonic = "0.1.0-alpha.1"
 
 [build-dependencies]
-tower-grpc-build = { version = "~0.1.0", features = ["tower-hyper"] }
+tonic-build = "0.1.0-alpha.1"
 
 [lib]
 name = "bob"

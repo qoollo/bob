@@ -1,23 +1,23 @@
 mod quorum;
 mod simple;
 
-use crate::core::{
-    backend::core::{Backend, Get, Put},
-    configs::node::NodeConfig,
-    data::{BobData, BobKey},
-    link_manager::LinkManager,
-    mapper::VDiskMapper,
-};
-use std::sync::Arc;
+pub(crate) use super::prelude::*;
 
-use crate::core::cluster::{quorum::*, simple::*};
+mod prelude {
+    pub(crate) use super::*;
+    pub(crate) use crate::api::grpc::{GetOptions, PutOptions};
+    pub(crate) use futures::stream::FuturesUnordered;
+}
 
-pub trait Cluster {
+use quorum::QuorumCluster;
+use simple::SimpleQuorumCluster;
+
+trait Cluster {
     fn put_clustered_async(&self, key: BobKey, data: BobData) -> Put;
     fn get_clustered_async(&self, key: BobKey) -> Get;
 }
 
-pub fn get_cluster(
+fn get_cluster(
     _link: Arc<LinkManager>,
     mapper: Arc<VDiskMapper>,
     config: &NodeConfig,

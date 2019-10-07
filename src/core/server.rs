@@ -1,17 +1,4 @@
-use crate::api::grpc::{server, Blob, BlobMeta, GetRequest, Null, OpStatus, PutRequest};
-
-use crate::core::{
-    backend,
-    bob_client::BobClientFactory,
-    data::{BobData, BobKey, BobMeta, BobOptions},
-    grinder::Grinder,
-};
-use futures::{future, future::ok, Future};
-use stopwatch::Stopwatch;
-use tower_grpc::{Request, Response};
-
-use futures03::future::{FutureExt, TryFutureExt};
-use futures03::task::Spawn;
+use super::prelude::*;
 
 #[derive(Clone)]
 pub struct BobSrv {
@@ -19,7 +6,7 @@ pub struct BobSrv {
 }
 
 impl BobSrv {
-    pub async fn run_backend(&self) -> Result<(), backend::Error> {
+    pub async fn run_backend(&self) -> Result<(), Error> {
         self.grinder.run_backend().await
     }
 
@@ -46,9 +33,9 @@ impl BobSrv {
 }
 
 impl server::BobApi for BobSrv {
-    type PutFuture = Box<dyn Future<Item = Response<OpStatus>, Error = tower_grpc::Status> + Send>;
-    type GetFuture = Box<dyn Future<Item = Response<Blob>, Error = tower_grpc::Status> + Send>;
-    type PingFuture = future::FutureResult<Response<Null>, tower_grpc::Status>;
+    // type PutFuture = Box<dyn Future<Item = Response<OpStatus>, Error = tower_grpc::Status> + Send>;
+    // type GetFuture = Box<dyn Future<Item = Response<Blob>, Error = tower_grpc::Status> + Send>;
+    // type PingFuture = future::FutureResult<Response<Null>, tower_grpc::Status>;
 
     fn put(&mut self, req: Request<PutRequest>) -> Self::PutFuture {
         let sw = Stopwatch::start_new();
@@ -56,8 +43,8 @@ impl server::BobApi for BobSrv {
 
         if !Self::put_is_valid(&param) {
             warn!("PUT[-] invalid arguments - key and data is mandatory");
-            Box::new(future::err(tower_grpc::Status::new(
-                tower_grpc::Code::InvalidArgument,
+            Box::new(future::err(Status::new(
+                Code::InvalidArgument,
                 "Key and data is mandatory",
             )))
         } else {
@@ -95,8 +82,8 @@ impl server::BobApi for BobSrv {
         let param = req.into_inner();
         if !Self::get_is_valid(&param) {
             warn!("GET[-] invalid arguments - key is mandatory");
-            Box::new(future::err(tower_grpc::Status::new(
-                tower_grpc::Code::InvalidArgument,
+            Box::new(future::err(Status::new(
+                Code::InvalidArgument,
                 "Key is mandatory",
             )))
         } else {

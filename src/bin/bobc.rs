@@ -1,7 +1,5 @@
 //use futures::{Future, Poll};
 use std::io;
-use tower::MakeService;
-use tower_grpc::Request;
 
 use bob::api::grpc::client::BobApi;
 use bob::api::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest};

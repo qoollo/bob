@@ -1,19 +1,4 @@
-use super::{
-    data::*,
-    group::PearlGroup,
-    holder::{PearlHolder, PearlSync},
-    settings::Settings,
-    stuff::{LockGuard, Stuff, SyncState},
-};
-use crate::core::backend;
-use crate::core::backend::core::*;
-use crate::core::configs::node::NodeConfig;
-use crate::core::data::{BobData, BobKey, VDiskId};
-use crate::core::mapper::VDiskMapper;
-
-use futures03::{future::err as err03, task::Spawn, FutureExt};
-
-use std::sync::Arc;
+use super::prelude::*;
 
 #[derive(Clone)]
 pub struct PearlBackend<TSpawner> {
@@ -125,7 +110,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
             debug!("create alien for: {}", operation.clone());
             if self.find_alien_pearl(operation.clone()).await.is_ok() {
                 debug!("find new alien for: {}", operation.clone());
-                let _ = self.pearl_sync.mark_as_created().await;
+                self.pearl_sync.mark_as_created().await;
                 return Ok(());
             }
             let pearl = self
@@ -133,19 +118,18 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
                 .create_group(operation.clone(), self.settings.clone())
                 .unwrap(); //TODO
 
-            let _ = self
-                .alien_vdisks_groups
+            self.alien_vdisks_groups
                 .write_sync_mut(|groups| {
                     groups.push(pearl.clone());
                 })
                 .await;
 
             // if it run here then it will conflict withtimstamp runtime creation
-            // let _ = pearl.run().await;
-            let _ = self.pearl_sync.mark_as_created().await?;
+            // pearl.run().await;
+            self.pearl_sync.mark_as_created().await?;
         } else {
             let delay = self.settings.config.settings().create_pearl_wait_delay();
-            let _ = Stuff::wait(delay).await;
+            Stuff::wait(delay).await;
         }
         Ok(())
     }
@@ -164,10 +148,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
                         .map(|r| r.clone())
                         .ok_or({
                             trace!("cannot find actual alien folder. {}", op);
-                            backend::Error::Failed(format!(
-                                "cannot find actual alien folder. {}",
-                                op
-                            ))
+                            Error::Failed(format!("cannot find actual alien folder. {}", op))
                         })
                 }
                     .boxed()
@@ -229,7 +210,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
                     "PUT[{}] to pearl backend. Cannot find group, operation: {}",
                     key, operation
                 );
-                err03(backend::Error::VDiskNoFound(operation.vdisk_id)).boxed()
+                future::err(Error::VDiskNoFound(operation.vdisk_id)).boxed()
             }
         })
     }
@@ -243,7 +224,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
                 let mut vdisk_group = backend.find_alien_pearl(operation.clone()).await;
                 if vdisk_group.is_err() {
                     debug!("need create alien for: {}", operation.clone());
-                    let _ = backend.create_alien_pearl(operation.clone()).await;
+                    backend.create_alien_pearl(operation.clone()).await;
                     vdisk_group = backend.find_alien_pearl(operation.clone()).await;
                 }
                 if let Ok(group) = vdisk_group {
@@ -258,7 +239,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
                         "PUT[{}] to pearl backend. Cannot find group, operation: {}",
                         key, operation
                     );
-                    Err(backend::Error::VDiskNoFound(operation.vdisk_id))
+                    Err(Error::VDiskNoFound(operation.vdisk_id))
                 }
             }
                 .boxed()
@@ -289,7 +270,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
                     "GET[{}] to pearl backend. Cannot find storage, operation: {}",
                     key, operation
                 );
-                err03(backend::Error::VDiskNoFound(operation.vdisk_id)).boxed()
+                future::err(Error::VDiskNoFound(operation.vdisk_id)).boxed()
             }
         })
     }
@@ -314,7 +295,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
                         key, operation
                     );
                     // must return that data not found
-                    Err(backend::Error::KeyNotFound)
+                    Err(Error::KeyNotFound)
                 }
             }
                 .boxed()

@@ -1,17 +1,4 @@
-use crate::core::backend;
-use crate::core::backend::pearl::data::*;
-
-use futures03::{compat::Future01CompatExt, future::ok as ok03, FutureExt};
-use futures_locks::RwLock;
-
-use chrono::{DateTime, Datelike, Duration, NaiveDateTime, Utc};
-use std::{
-    fs::{create_dir_all, remove_file},
-    path::PathBuf,
-    sync::Arc,
-    time,
-};
-use tokio_timer::sleep;
+use super::prelude::*;
 
 pub(crate) struct LockGuard<TGuard> {
     storage: Arc<RwLock<TGuard>>,
@@ -39,7 +26,7 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
         })
         .map_err(|e| {
             error!("lock error: {:?}", e);
-            backend::Error::StorageError(format!("lock error: {:?}", e))
+            Error::StorageError(format!("lock error: {:?}", e))
         })?
         .await
     }
@@ -55,7 +42,7 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
 
         lock.map(move |mut st| f(&mut *st)).map_err(|e| {
             error!("lock error: {:?}", e);
-            backend::Error::StorageError(format!("lock error: {:?}", e))
+            Error::StorageError(format!("lock error: {:?}", e))
         })
     }
 
@@ -71,7 +58,7 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
         lock.map(move |mut st| f(&mut *st))
             .map_err(|e| {
                 error!("lock error: {:?}", e);
-                backend::Error::StorageError(format!("lock error: {:?}", e))
+                Error::StorageError(format!("lock error: {:?}", e))
             })?
             .await
     }
@@ -90,7 +77,7 @@ impl SyncState {
         self.state
             .write_mut(|st| {
                 st.created();
-                ok03(()).boxed()
+                future::ok(()).boxed()
             })
             .await
     }
@@ -100,10 +87,10 @@ impl SyncState {
             .write_mut(|st| {
                 if st.is_creating() {
                     trace!("New object is currently creating, state: {}", st);
-                    return ok03(false).boxed();
+                    return future::ok(false).boxed();
                 }
                 st.start();
-                ok03(true).boxed()
+                future::ok(true).boxed()
             })
             .await
     }
@@ -155,13 +142,13 @@ impl Stuff {
                 Some(dir) => create_dir_all(&path)
                     .map(|_r| info!("create directory: {}", dir))
                     .map_err(|e| {
-                        backend::Error::StorageError(format!(
+                        Error::StorageError(format!(
                             "cannot create directory: {}, error: {}",
                             dir,
                             e.to_string()
                         ))
                     }),
-                _ => Err(backend::Error::StorageError(
+                _ => Err(Error::StorageError(
                     "invalid some path, check vdisk or disk names".to_string(),
                 )),
             };
@@ -177,7 +164,7 @@ impl Stuff {
             return remove_file(&file)
                 .map(|_r| debug!("deleted lock file from directory: {:?}", file))
                 .map_err(|e| {
-                    backend::Error::StorageError(format!(
+                    Error::StorageError(format!(
                         "cannot delete lock file from directory: {:?}, error: {}",
                         file,
                         e.to_string()
@@ -188,12 +175,12 @@ impl Stuff {
     }
 
     pub(crate) fn get_start_timestamp_by_std_time(
-        period: time::Duration,
-        time: time::SystemTime,
+        period: Duration,
+        time: SystemTime,
     ) -> BackendResult<i64> {
         let period: Duration = Duration::from_std(period).map_err(|e| {
             trace!("smth wrong with time: {:?}, error: {}", period, e);
-            backend::Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+            Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
         })?;
         let time: DateTime<Utc> = DateTime::from(time);
 
@@ -201,12 +188,12 @@ impl Stuff {
     }
 
     pub(crate) fn get_start_timestamp_by_timestamp(
-        period: time::Duration,
+        period: Duration,
         time: i64,
     ) -> BackendResult<i64> {
         let period: Duration = Duration::from_std(period).map_err(|e| {
             trace!("smth wrong with time: {:?}, error: {}", period, e);
-            backend::Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+            Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
         })?;
         let time: DateTime<Utc> = DateTime::from_utc(NaiveDateTime::from_timestamp(time, 0), Utc);
         Self::get_start_timestamp(period, time)
@@ -227,16 +214,16 @@ impl Stuff {
         }
         Ok(start_time.timestamp())
     }
-    pub(crate) fn get_period_timestamp(period: time::Duration) -> BackendResult<i64> {
+    pub(crate) fn get_period_timestamp(period: Duration) -> BackendResult<i64> {
         let period: Duration = Duration::from_std(period).map_err(|e| {
             trace!("smth wrong with time: {:?}, error: {}", period, e);
-            backend::Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+            Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
         })?;
 
         Ok(period.num_seconds())
     }
 
-    pub(crate) async fn wait(delay: time::Duration) {
-        let _ = sleep(delay).compat().boxed().await;
+    pub(crate) async fn wait(delay: Duration) {
+        delay_for(delay).compat().boxed().await;
     }
 }

@@ -1,24 +1,4 @@
-use super::{
-    data::BackendResult,
-    group::{PearlGroup, PearlTimestampHolder},
-    stuff::*,
-};
-use crate::core::{
-    backend,
-    backend::core::*,
-    configs::node::{NodeConfig, PearlConfig},
-    data::{BobData, BobKey, VDiskId},
-    mapper::VDiskMapper,
-};
-
-use futures03::task::Spawn;
-use std::{
-    fs::{read_dir, DirEntry, Metadata},
-    marker::PhantomData,
-    path::PathBuf,
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
+use super::prelude::*;
 
 /// Contains timestamp and fs logic
 pub(crate) struct Settings<TSpawner> {
@@ -244,7 +224,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
             }
             Err(err) => {
                 debug!("couldn't process path: {:?}, error: {:?} ", path, err);
-                return Err(backend::Error::Failed(format!(
+                return Err(Error::Failed(format!(
                     "couldn't process path: {:?}, error: {:?} ",
                     path, err
                 )));
@@ -256,7 +236,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
     fn try_parse_node_name(&self, entry: DirEntry) -> BackendResult<(DirEntry, String)> {
         let file_name = entry.file_name().into_string().map_err(|_| {
             warn!("cannot parse file name: {:?}", entry);
-            backend::Error::Failed(format!("cannot parse file name: {:?}", entry))
+            Error::Failed(format!("cannot parse file name: {:?}", entry))
         })?;
         let node = self
             .mapper
@@ -265,18 +245,18 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
             .find(|node| node.name == file_name);
         node.map(|n| (entry, n.name().clone())).ok_or({
             debug!("cannot find node with name: {:?}", file_name);
-            backend::Error::Failed(format!("cannot find node with name: {:?}", file_name))
+            Error::Failed(format!("cannot find node with name: {:?}", file_name))
         })
     }
 
     fn try_parse_vdisk_id(&self, entry: DirEntry) -> BackendResult<(DirEntry, VDiskId)> {
         let file_name = entry.file_name().into_string().map_err(|_| {
             warn!("cannot parse file name: {:?}", entry);
-            backend::Error::Failed(format!("cannot parse file name: {:?}", entry))
+            Error::Failed(format!("cannot parse file name: {:?}", entry))
         })?;
         let vdisk_id = VDiskId::new(file_name.parse().map_err(|_| {
             warn!("cannot parse file name: {:?} as vdisk id", entry);
-            backend::Error::Failed(format!("cannot parse file name: {:?}", entry))
+            Error::Failed(format!("cannot parse file name: {:?}", entry))
         })?);
 
         let vdisk = self
@@ -286,7 +266,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
             .find(|vdisk| *vdisk == vdisk_id);
         vdisk.map(|id| (entry, id.clone())).ok_or({
             debug!("cannot find vdisk with id: {:?}", vdisk_id);
-            backend::Error::Failed(format!("cannot find vdisk with id: {:?}", vdisk_id))
+            Error::Failed(format!("cannot find vdisk with id: {:?}", vdisk_id))
         })
     }
 
@@ -299,17 +279,14 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
                 Ok((entry, metadata))
             } else {
                 debug!("Couldn't get metadata for {:?}", entry.path());
-                Err(backend::Error::Failed(format!(
+                Err(Error::Failed(format!(
                     "Couldn't get metadata for {:?}",
                     entry.path()
                 )))
             }
         } else {
             debug!("couldn't read entry: {:?} ", entry);
-            Err(backend::Error::Failed(format!(
-                "couldn't read entry: {:?}",
-                entry
-            )))
+            Err(Error::Failed(format!("couldn't read entry: {:?}", entry)))
         }
     }
 
@@ -349,7 +326,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
 
     pub(crate) fn choose_data(&self, records: Vec<BackendGetResult>) -> GetResult {
         if records.is_empty() {
-            return Err(backend::Error::KeyNotFound);
+            return Err(Error::KeyNotFound);
         }
         let mut iter = records.into_iter().enumerate();
         let first = iter.next().unwrap();

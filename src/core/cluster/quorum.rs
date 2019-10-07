@@ -1,20 +1,4 @@
-use crate::api::grpc::{GetOptions, PutOptions};
-use crate::core::{
-    backend,
-    backend::core::{Backend, BackendGetResult, BackendOperation, BackendPutResult, Get, Put},
-    bob_client::GetResult,
-    cluster::Cluster,
-    configs::node::NodeConfig,
-    data::{print_vec, BobData, BobKey, ClusterResult, Node},
-    link_manager::LinkManager,
-    mapper::VDiskMapper,
-};
-use std::sync::Arc;
-
-use futures03::{
-    future::{ready, FutureExt},
-    stream::{FuturesUnordered, StreamExt},
-};
+use super::prelude::*;
 
 pub struct QuorumCluster {
     backend: Arc<Backend>,
@@ -153,7 +137,7 @@ impl QuorumCluster {
             .collect::<FuturesUnordered<_>>()
             .fold(vec![], |mut acc, r| {
                 acc.push(r);
-                ready(acc)
+                future::ready(acc)
             })
             .boxed()
             .await
@@ -187,7 +171,7 @@ impl Cluster for QuorumCluster {
         })
         .fold(vec![], |mut acc, r| {
             acc.push(r);
-            ready(acc)
+            future::ready(acc)
         });
 
         let p = async move {
@@ -269,7 +253,7 @@ impl Cluster for QuorumCluster {
                 if sup_ok_count + ok_count >= l_quorum {
                     Ok(BackendPutResult {})
                 } else {
-                    Err(backend::Error::Failed(format!(
+                    Err(BackendError::Failed(format!(
                         "failed: total: {}, ok: {}, quorum: {}, errors: {}",
                         total_ops,
                         ok_count + sup_ok_count,
@@ -342,20 +326,18 @@ impl Cluster for QuorumCluster {
 pub mod tests {
     use super::*;
     use crate::core::cluster::Cluster;
+    use crate::core::configs::{
+        cluster::{tests::cluster_config, ClusterConfig, ClusterConfigYaml},
+        node::{tests::node_config, NodeConfig, NodeConfigYaml},
+    };
     use crate::core::{
-        backend::core::Backend,
+        backend::Backend,
         bob_client::BobClient,
-        configs::{
-            cluster::{tests::cluster_config, ClusterConfig, ClusterConfigYaml},
-            node::{tests::node_config, NodeConfig, NodeConfigYaml},
-        },
         data::{BobData, BobKey, BobMeta, Node, VDisk, VDiskId},
         mapper::VDiskMapper,
     };
-    use log4rs;
+    use futures::executor::{ThreadPool, ThreadPoolBuilder};
     use std::sync::Arc;
-
-    use futures03::executor::{ThreadPool, ThreadPoolBuilder};
     use sup::*;
 
     mod sup {

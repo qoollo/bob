@@ -180,7 +180,7 @@ impl PearlConfig {
         self.settings.as_ref().unwrap().clone()
     }
     pub fn prepare(&self) -> Result<(), String> {
-        let _ = self.fail_retry_timeout(); // TODO check unwrap
+        self.fail_retry_timeout(); // TODO check unwrap
 
         Ok(())
     }

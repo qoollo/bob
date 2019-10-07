@@ -1,20 +1,4 @@
-use crate::api::grpc::{GetOptions, PutOptions};
-use crate::core::{
-    backend,
-    backend::core::{BackendGetResult, BackendPutResult, Get, Put},
-    cluster::Cluster,
-    configs::node::NodeConfig,
-    data::{print_vec, BobData, BobKey, ClusterResult, Node},
-    link_manager::LinkManager,
-    mapper::VDiskMapper,
-};
-
-use futures03::{
-    future::{ready, FutureExt},
-    stream::{FuturesUnordered, StreamExt},
-};
-
-use std::sync::Arc;
+use super::prelude::*;
 
 pub struct SimpleQuorumCluster {
     mapper: Arc<VDiskMapper>,
@@ -68,7 +52,7 @@ impl Cluster for SimpleQuorumCluster {
             })
             .fold(vec![], |mut acc, r| {
                 acc.push(r);
-                ready(acc)
+                future::ready(acc)
             })
             .map(move |acc| {
                 debug!("PUT[{}] cluster ans: {:?}", key, acc);
@@ -117,7 +101,7 @@ impl Cluster for SimpleQuorumCluster {
         let w = t
             .fold(vec![], |mut acc, r| {
                 acc.push(r);
-                ready(acc)
+                future::ready(acc)
             })
             .map(move |acc| {
                 let mut sup = String::default();

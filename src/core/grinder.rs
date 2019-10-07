@@ -36,9 +36,11 @@ impl Grinder {
             cluster: get_cluster(link, m_link, config, backend),
         }
     }
+
     pub async fn run_backend(&self) -> Result<(), backend::Error> {
         self.backend.run_backend().await
     }
+
     pub async fn put(
         &self,
         key: BobKey,

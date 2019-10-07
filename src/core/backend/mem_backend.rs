@@ -1,11 +1,4 @@
-use crate::core::backend::core::*;
-use crate::core::backend::*;
-use crate::core::data::{BobData, BobKey, VDiskId};
-use crate::core::mapper::VDiskMapper;
-use futures::future::{err, ok, Future};
-use futures03::{compat::Future01CompatExt, future::err as err2, FutureExt};
-use futures_locks::RwLock;
-use std::{collections::HashMap, sync::Arc};
+use super::prelude::*;
 
 #[derive(Clone)]
 struct VDisk {
@@ -45,14 +38,14 @@ impl VDisk {
                 Ok(repo) => match repo.get(&key) {
                     Some(data) => {
                         trace!("GET[{}] from vdisk", key);
-                        ok(BackendGetResult { data: data.clone() })
+                        future::ok(BackendGetResult { data: data.clone() })
                     }
                     None => {
                         trace!("GET[{}] from vdisk failed. Cannot find key", key);
-                        err(Error::KeyNotFound)
+                        future::err(Error::KeyNotFound)
                     }
                 },
-                Err(_) => err(Error::Internal),
+                Err(_) => future::err(Error::Internal),
             })
             .compat()
             .boxed())
@@ -107,7 +100,7 @@ impl MemDisk {
                     vdisk_id,
                     self.name
                 );
-                err2(Error::Internal).boxed()
+                future::err(Error::Internal).boxed()
             }
         })
     }
@@ -131,7 +124,7 @@ impl MemDisk {
                         vdisk_id,
                         self.name
                     );
-                    err2(Error::Internal).boxed()
+                    future::err(Error::Internal).boxed()
                 }
             }
         })
@@ -190,7 +183,7 @@ impl BackendStorage for MemBackend {
                     key,
                     operation.disk_name_local()
                 );
-                err2(Error::Internal).boxed()
+                future::err(Error::Internal).boxed()
             }
         })
     }
@@ -210,7 +203,7 @@ impl BackendStorage for MemBackend {
                     key,
                     operation.disk_name_local()
                 );
-                err2(Error::Internal).boxed()
+                future::err(Error::Internal).boxed()
             }
         })
     }

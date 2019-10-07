@@ -1,12 +1,7 @@
-use crate::core::backend;
-use crate::core::data::{BobData, BobKey, BobMeta};
-use pearl::{Key, Storage};
+use super::prelude::*;
 
-use futures03::Future as Future03;
-use std::{boxed::Box, convert::TryInto, pin::Pin};
-
-pub(crate) type BackendResult<T> = Result<T, backend::Error>;
-pub(crate) type Future03Result<TRet> = Pin<Box<dyn Future03<Output = BackendResult<TRet>> + Send>>;
+pub(crate) type BackendResult<T> = Result<T, Error>;
+pub(crate) type Future03Result<TRet> = Pin<Box<dyn Future<Output = BackendResult<TRet>> + Send>>;
 
 pub(crate) type PearlStorage = Storage<PearlKey>;
 
@@ -50,7 +45,7 @@ impl PearlData {
         result
     }
 
-    pub(crate) fn parse(data: Vec<u8>) -> Result<BobData, backend::Error> {
+    pub(crate) fn parse(data: Vec<u8>) -> Result<BobData, Error> {
         let (tmp, bob_data) = data.split_at(PearlData::TIMESTAMP_LEN);
         match tmp.try_into() {
             Ok(bytes) => {
@@ -60,7 +55,7 @@ impl PearlData {
                     BobMeta::new_value(timestamp),
                 ))
             }
-            Err(e) => Err(backend::Error::StorageError(format!("parse error: {}", e))),
+            Err(e) => Err(Error::StorageError(format!("parse error: {}", e))),
         }
     }
 }

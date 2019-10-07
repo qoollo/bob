@@ -45,7 +45,7 @@ impl LinkManager {
             .for_each(move |_| {
                 local_repo.iter().for_each(|v| {
                     let q = v.clone().check(client_factory.clone());
-                    let _ = spawner
+                    spawner
                         .clone()
                         .spawn(q.map(|_r| {}))
                         .map_err(|e| panic!("can't run timer task {:?}", e));
