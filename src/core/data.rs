@@ -1,9 +1,4 @@
-use crate::api::grpc::{BlobMeta, GetOptions, GetSource, PutOptions};
-use crate::core::{
-    bob_client::{BobClient, BobClientFactory},
-    configs::cluster::Node as ConfigNode,
-};
-use std::sync::{Arc, Mutex};
+use super::prelude::*;
 
 impl PutOptions {
     pub(crate) fn new_client() -> Self {
@@ -400,8 +395,8 @@ impl Node {
     }
 }
 
-impl From<&ConfigNode> for Node {
-    fn from(node: &ConfigNode) -> Self {
+impl From<&ClusterNodeConfig> for Node {
+    fn from(node: &ClusterNodeConfig) -> Self {
         Node::new(&node.name(), &node.host(), node.port())
     }
 }

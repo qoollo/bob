@@ -3,7 +3,7 @@ mod cluster_tests;
 mod node;
 mod reader;
 
-pub(crate) use self::cluster::{tests::cluster_config, ClusterConfig, ClusterConfigYaml};
+pub(crate) use self::cluster::{tests::cluster_config, ClusterConfig, ClusterConfigYaml, Node};
 pub(crate) use self::node::{
     tests::node_config, BackendType, DiskPath, NodeConfig, NodeConfigYaml, PearlConfig,
 };

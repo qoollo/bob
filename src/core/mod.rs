@@ -14,7 +14,8 @@ pub(crate) use backend::{
 };
 
 mod prelude {
-    pub(crate) use super::configs::NodeConfig;
+    pub(crate) use super::bob_client::{BobClient, BobClientFactory};
+    pub(crate) use super::configs::{Node as ClusterNodeConfig, NodeConfig};
     pub(crate) use super::data::{
         print_vec, BobData, BobKey, BobMeta, ClusterResult, NodeDisk, VDisk, VDiskId,
     };
@@ -23,7 +24,7 @@ mod prelude {
     pub(crate) use super::{link_manager::LinkManager, mapper::VDiskMapper};
     pub(crate) use crate::api::grpc::client::BobApiClient;
     pub(crate) use crate::api::grpc::{
-        Blob, BlobKey, BlobMeta, GetOptions, GetRequest, Null, PutOptions, PutRequest,
+        Blob, BlobKey, BlobMeta, GetOptions, GetRequest, GetSource, Null, PutOptions, PutRequest,
     };
     pub(crate) use backend::{Backend, Error as BackendError};
     pub(crate) use data::Node;
@@ -31,6 +32,7 @@ mod prelude {
     pub(crate) use std::collections::HashMap;
     pub(crate) use std::pin::Pin;
     pub(crate) use std::sync::Arc;
+    pub(crate) use std::sync::Mutex;
     pub(crate) use std::time::Duration;
     pub(crate) use tokio::runtime::TaskExecutor;
 }
