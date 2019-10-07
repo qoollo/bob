@@ -326,10 +326,11 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
                     trace!("get data: {} from: {}", data, pearl);
                     results.push(data);
                 }
-                Err(err) => {
+                Err(err) if err != backend::Error::KeyNotFound => {
                     has_error = true;
                     debug!("get error: {}, from : {}", err, pearl);
                 }
+                _ => debug!("key not found from : {}", pearl),
             }
         }
         if results.is_empty() {

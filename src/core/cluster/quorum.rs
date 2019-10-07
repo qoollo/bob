@@ -129,13 +129,13 @@ impl QuorumCluster {
         results: Vec<GetResult>,
     ) -> (Option<ClusterResult<BackendGetResult>>, String) {
         let mut sup = String::default();
-        results.iter().for_each(|r| {
-            if let Err(e) = r {
+        results.iter().for_each(|r| match r {
+            Ok(e) => trace!("GET[{}] success result from: {:?}", key, e.node),
+            Err(e) if e.result != backend::Error::KeyNotFound => {
                 trace!("GET[{}] failed result: {:?}", key, e);
-                sup = format!("{}, {:?}", sup.clone(), e)
-            } else if let Ok(e) = r {
-                trace!("GET[{}] success result from: {:?}", key, e.node);
+                sup = format!("{}, {:?}", sup.clone(), e);
             }
+            _ => trace!("GET[{}] key not found ", key),
         });
 
         (
@@ -308,6 +308,9 @@ impl Cluster for QuorumCluster {
                     key, answer.node, answer.result.data.meta.timestamp
                 ); // TODO move meta
                 return Ok(answer.result);
+            } else if err == "" {
+                debug!("GET[{}] data not found", key);
+                return Err::<_, backend::Error>(backend::Error::KeyNotFound);
             }
             debug!("GET[{}] no success result", key);
 
