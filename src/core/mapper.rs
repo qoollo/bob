@@ -1,8 +1,4 @@
-use crate::core::{
-    configs::cluster::ClusterConfig,
-    configs::node::{DiskPath as ConfigDiskPath, NodeConfig},
-    data::*,
-};
+use super::prelude::*;
 
 #[derive(Debug, Clone)]
 pub struct VDiskMapper {

@@ -21,7 +21,7 @@ mod prelude {
     pub(crate) use super::core::{BackendStorage, RunResult};
     pub(crate) use super::*;
     pub(crate) use super::{MemBackend, PearlBackend, StubBackend};
-    pub(crate) use crate::core::configs::{BackendType, DiskPath};
+    pub(crate) use crate::core::configs::BackendType;
     pub(crate) use crate::core::data::{BobMeta, BobOptions};
     pub(crate) use crate::core::mapper::VDiskMapper;
     pub(crate) use futures_locks::RwLock;
