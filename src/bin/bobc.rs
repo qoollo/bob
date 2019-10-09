@@ -1,13 +1,10 @@
-use std::io;
-
-use bob::api::grpc::client::BobApiClient;
-use bob::api::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
-
-use tokio::runtime::Runtime;
-
+use bob::grpc::client::BobApiClient;
+use bob::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
 use futures::Future;
 use hyper::client::connect::{Destination, HttpConnector};
+use std::io;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::runtime::Runtime;
 use tonic::Request;
 
 fn wait_for_input() {
@@ -34,19 +31,19 @@ async fn main() {
         options: None,
     });
 
-    client.put(put_req).await;
+    client.put(put_req).await.unwrap();
     wait_for_input();
     let get_req = Request::new(GetRequest {
         key: Some(BlobKey { key: 0 }),
         options: None,
     });
 
-    client.get(get_req).await;
+    client.get(get_req).await.unwrap();
 
     wait_for_input();
     let get_req2 = Request::new(GetRequest {
         key: Some(BlobKey { key: 1 }),
         options: None,
     });
-    client.get(get_req2).await;
+    client.get(get_req2).await.unwrap();
 }

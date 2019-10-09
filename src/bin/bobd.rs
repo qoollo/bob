@@ -1,21 +1,15 @@
-use bob::api::grpc::server;
-
-use bob::core_inner::bob_client::BobClientFactory;
-use bob::core_inner::grinder::Grinder;
-use bob::core_inner::mapper::VDiskMapper;
+use bob::client::BobClientFactory;
+use bob::configs::cluster::ClusterConfigYaml;
+use bob::configs::node::{DiskPath, NodeConfigYaml};
+use bob::grinder::Grinder;
+use bob::grpc::server::BobApiServer;
+use bob::mapper::VDiskMapper;
+use bob::metrics;
+use bob::server::BobSrv;
 use clap::{App, Arg};
-use tokio::net::TcpListener;
-use tokio::runtime::Builder;
-
-use bob::core_inner::configs::cluster::ClusterConfigYaml;
-use bob::core_inner::configs::node::{DiskPath, NodeConfigYaml};
-
-use bob::core_inner::server::BobSrv;
-
-use futures::{Future, Stream};
-
 use futures::executor::ThreadPoolBuilder;
-use futures::future::{FutureExt, TryFutureExt};
+use futures::future::FutureExt;
+use tonic::transport::Server;
 
 use std::net::SocketAddr;
 
@@ -23,10 +17,10 @@ use std::net::SocketAddr;
 extern crate log;
 extern crate dipstick;
 
-use bob::core_inner::metrics;
 use log4rs;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let matches = App::new("Bob")
         .arg(
             Arg::with_name("cluster")
@@ -69,8 +63,7 @@ fn main() {
 
     log4rs::init_file(node.log_config(), Default::default()).unwrap();
 
-    // let mut mapper = VDiskMapper::new(vdisks.to_vec(), &node, &cluster);
-    unimplemented!();
+    let mut mapper = VDiskMapper::new(vdisks.to_vec(), &node, &cluster);
     let mut addr: SocketAddr = node.bind().parse().unwrap();
 
     let node_name = matches.value_of("name");
@@ -89,8 +82,7 @@ fn main() {
                 path: d.path(),
             })
             .collect();
-        // mapper = VDiskMapper::new_direct(vdisks.to_vec(), name, &disks, &cluster);
-        unimplemented!();
+        mapper = VDiskMapper::new_direct(vdisks.to_vec(), name, &disks, &cluster);
         addr = finded.address().parse().unwrap();
     }
 
@@ -98,54 +90,22 @@ fn main() {
 
     let backend_pool = ThreadPoolBuilder::new().pool_size(2).create().unwrap(); //TODO
 
-    // let bob = BobSrv {
-    //     grinder: std::sync::Arc::new(Grinder::new(mapper, &node, backend_pool.clone())),
-    // };
-    unimplemented!();
-
-    let pool = ThreadPoolBuilder::new()
-        .pool_size(node.ping_threads_count() as usize)
-        .create()
-        .unwrap();
-
-    let mut rt = Builder::new()
-        .core_threads(
-            matches
-                .value_of("threads")
-                .unwrap_or_default()
-                .parse()
-                .unwrap(),
-        )
-        .build()
-        .unwrap();
+    let bob = BobSrv {
+        grinder: std::sync::Arc::new(Grinder::new(mapper, &node, backend_pool.clone())),
+    };
 
     let executor = rt.executor();
 
-    // let b1 = bob.clone();
-    unimplemented!();
-    // let q1 = async move {
-    //     b1.run_backend()
-    //         .await
-    //         .map(|_r| {})
-    //         .map_err(|e| panic!("init failed: {:?}", e))
-    // };
-    // rt.block_on(q1.boxed().compat()).unwrap();
-    unimplemented!();
+    bob.run_backend().await.unwrap();
     info!("Start backend");
 
     let factory =
         BobClientFactory::new(executor, node.timeout(), node.grpc_buffer_bound(), metrics);
-    // let b = bob.clone();
-    // let q = async move { b.get_periodic_tasks(factory, pool).await };
-    // rt.spawn(q.boxed().compat());
+    let b = bob.clone();
+    tokio::spawn(async move { b.get_periodic_tasks(factory).map(|r| r.unwrap()).await });
+    let new_service = BobApiServer::new(bob);
 
-    // let new_service = server::BobApiServer::new(bob);
-
-    // let mut server = Server::new(new_service);
-
-    // info!("Listen on {:?}", addr);
-    // let bind = TcpListener::bind(&addr).expect("bind");
-    // let http = Http::new().http2_only(true).clone();
+    Server::builder().serve(addr, new_service).await.unwrap();
 
     // let serve = bind
     //     .incoming()
@@ -160,8 +120,4 @@ fn main() {
     //         Ok(())
     //     })
     //     .map_err(|e| error!("accept error: {}", e));
-
-    // rt.spawn(serve);
-    // rt.shutdown_on_idle().wait().unwrap();
-    unimplemented!();
 }

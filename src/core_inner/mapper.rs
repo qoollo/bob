@@ -4,12 +4,16 @@ use super::prelude::*;
 pub struct VDiskMapper {
     local_node_name: String,
     disks: Vec<DiskPath>,
-    vdisks: Vec<VDisk>,
+    vdisks: Vec<DataVDisk>,
     nodes: Vec<Node>,
 }
 
 impl VDiskMapper {
-    pub fn new(vdisks: Vec<VDisk>, config: &NodeConfig, cluster: &ClusterConfig) -> VDiskMapper {
+    pub fn new(
+        vdisks: Vec<DataVDisk>,
+        config: &NodeConfig,
+        cluster: &ClusterConfig,
+    ) -> VDiskMapper {
         VDiskMapper::new_direct(
             vdisks,
             &config.name.as_ref().unwrap().to_string(),
@@ -18,7 +22,7 @@ impl VDiskMapper {
         )
     }
     pub fn new_direct(
-        vdisks: Vec<VDisk>,
+        vdisks: Vec<DataVDisk>,
         node_name: &str,
         disks: &[ConfigDiskPath],
         cluster: &ClusterConfig,
@@ -35,7 +39,10 @@ impl VDiskMapper {
             nodes,
         }
     }
-    fn prepare_nodes(mut vdisks: Vec<VDisk>, cluster: &ClusterConfig) -> (Vec<Node>, Vec<VDisk>) {
+    fn prepare_nodes(
+        mut vdisks: Vec<DataVDisk>,
+        cluster: &ClusterConfig,
+    ) -> (Vec<Node>, Vec<DataVDisk>) {
         let mut index = 0;
         let nodes: Vec<_> = cluster
             .nodes
@@ -73,7 +80,7 @@ impl VDiskMapper {
         &self.nodes //TODO
     }
 
-    pub fn get_vdisk(&self, key: BobKey) -> &VDisk {
+    pub fn get_vdisk(&self, key: BobKey) -> &DataVDisk {
         let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
         self.vdisks.iter().find(|disk| disk.id == vdisk_id).unwrap()
     }

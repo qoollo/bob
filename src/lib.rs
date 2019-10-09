@@ -15,7 +15,14 @@ extern crate dipstick;
 mod api;
 mod core_inner;
 
+pub use self::api::grpc;
+pub use self::core_inner::{
+    backend, bob_client as client, configs, grinder, mapper, metrics, server,
+};
+
 mod prelude {
+    pub(crate) use super::*;
+    pub(crate) use grpc::{client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
     // pub(crate) use futures::{future, task::Spawn, Future};
     // pub(crate) use futures_locks::RwLock;
     // pub(crate) use std::io::ErrorKind;

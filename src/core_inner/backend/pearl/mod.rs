@@ -29,7 +29,8 @@ mod prelude {
     pub(crate) use crate::core_inner::configs::PearlConfig;
     pub(crate) use crate::core_inner::metrics::MetricsContainerBuilder;
     pub(crate) use ::pearl::{Builder, ErrorKind, Key, Storage};
-    pub(crate) use chrono::{DateTime, NaiveDateTime, Utc};
+    pub(crate) use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
+    pub(crate) use futures::compat::Future01CompatExt;
     pub(crate) use std::fs::{create_dir_all, read_dir, remove_file, DirEntry, Metadata};
     pub(crate) use std::time::SystemTime;
     pub(crate) use std::{convert::TryInto, marker::PhantomData, path::PathBuf};

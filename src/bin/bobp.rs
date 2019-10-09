@@ -12,8 +12,8 @@ use tokio::runtime::current_thread::Runtime;
 use futures::future::ok;
 use futures::Future;
 
-use bob::api::grpc::client::BobApiClient;
-use bob::api::grpc::{
+use bob::grpc::client::BobApiClient;
+use bob::grpc::{
     Blob, BlobKey, BlobMeta, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
 };
 

@@ -16,23 +16,13 @@ impl LinkManager {
         }
     }
 
-    pub async fn get_checker_future<S>(
-        &self,
-        client_factory: BobClientFactory,
-        spawner: S,
-    ) -> Result<(), ()>
-    where
-        S: Spawn + Clone + Send + 'static + Unpin + Sync,
-    {
+    pub async fn get_checker_future(&self, client_factory: BobClientFactory) -> Result<(), ()> {
         let local_repo = self.repo.clone();
         Interval::new_interval(self.check_interval)
             .map(move |_| {
                 local_repo.iter().for_each(|v| {
                     let q = v.clone().check(client_factory.clone()).map(|_| {});
-                    spawner
-                        .clone()
-                        .spawn(q)
-                        .map_err(|e| panic!("can't run timer task {:?}", e));
+                    tokio::spawn(q);
                 });
             })
             .collect::<Vec<_>>()

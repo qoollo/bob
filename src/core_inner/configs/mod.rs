@@ -3,7 +3,9 @@ pub mod cluster_tests;
 pub mod node;
 pub mod reader;
 
-pub(crate) use self::cluster::{tests::cluster_config, ClusterConfig, ClusterConfigYaml, Node};
+pub use self::cluster::ClusterConfigYaml;
+
+pub(crate) use self::cluster::{tests::cluster_config, ClusterConfig, Node};
 pub(crate) use self::node::{
     tests::node_config, BackendType, DiskPath, NodeConfig, NodeConfigYaml, PearlConfig,
 };

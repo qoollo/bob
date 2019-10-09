@@ -9,7 +9,7 @@ pub mod mapper;
 pub mod metrics;
 pub mod server;
 
-pub(crate) use super::*;
+pub(crate) use super::prelude::*;
 pub(crate) use backend::{
     init_pearl, BackendGetResult, BackendOperation, BackendPingResult, BackendPutResult, Get,
     GetResult, Put,
@@ -22,8 +22,8 @@ mod prelude {
         ClusterConfig, DiskPath as ConfigDiskPath, Node as ClusterNodeConfig, NodeConfig,
     };
     pub(crate) use super::data::{
-        print_vec, BobData, BobFlags, BobKey, BobMeta, BobOptions, ClusterResult, DiskPath,
-        NodeDisk, VDisk, VDiskId,
+        print_vec, BobData, BobFlags, BobKey, BobOptions, ClusterResult, DiskPath,
+        NodeDisk as DataNodeDisk, VDisk as DataVDisk, VDiskId,
     };
     pub(crate) use super::grinder::Grinder;
     pub(crate) use super::metrics::{
@@ -34,12 +34,6 @@ mod prelude {
     };
     pub(crate) use super::*;
     pub(crate) use super::{link_manager::LinkManager, mapper::VDiskMapper};
-    pub(crate) use crate::api::grpc::client::BobApiClient;
-    pub(crate) use crate::api::grpc::server::BobApi;
-    pub(crate) use crate::api::grpc::{
-        Blob, BlobKey, BlobMeta, GetOptions, GetRequest, GetSource, Null, OpStatus, PutOptions,
-        PutRequest,
-    };
     pub(crate) use backend::{Backend, Error as BackendError};
     pub(crate) use data::Node;
     pub(crate) use dipstick::{
@@ -47,7 +41,9 @@ mod prelude {
         Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer, Void,
     };
     pub(crate) use futures::task::{Spawn, SpawnExt};
-    pub(crate) use futures::{future, Future, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
+    pub(crate) use futures::{future, Future, FutureExt, StreamExt, TryFutureExt};
+    pub(crate) use grpc::server::BobApi;
+    pub(crate) use grpc::{GetOptions, GetSource, Null, OpStatus, PutOptions};
     pub(crate) use std::collections::HashMap;
     pub(crate) use std::pin::Pin;
     pub(crate) use std::sync::Arc;

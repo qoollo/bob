@@ -109,16 +109,8 @@ impl Grinder {
         }
     }
 
-    pub async fn get_periodic_tasks<S>(
-        &self,
-        client_factory: BobClientFactory,
-        spawner: S,
-    ) -> Result<(), ()>
-    where
-        S: Spawn + Clone + Send + 'static + Unpin + Sync,
-    {
-        self.link_manager
-            .get_checker_future(client_factory, spawner)
-            .await
+    #[inline]
+    pub async fn get_periodic_tasks(&self, client_factory: BobClientFactory) -> Result<(), ()> {
+        self.link_manager.get_checker_future(client_factory).await
     }
 }

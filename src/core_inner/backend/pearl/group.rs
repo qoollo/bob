@@ -175,15 +175,17 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         &self,
         mut new_pearls: Vec<PearlTimestampHolder<TSpawner>>,
     ) -> BackendResult<()> {
-        // let mut pearls = self.pearls.write().compat().boxed().await.map_err(|e| {
-        //     error!("cannot take lock: {:?}", e);
-        //     Error::Failed(format!("cannot take lock: {:?}", e))
-        // })?;
-
-        // pearls.append(&mut new_pearls);
-
-        // Ok(())
-        unimplemented!()
+        self.pearls
+            .write()
+            .compat()
+            .await
+            .map(|mut pearls| {
+                pearls.append(&mut new_pearls);
+            })
+            .map_err(|e| {
+                error!("cannot take lock: {:?}", e);
+                Error::Failed(format!("cannot take lock: {:?}", e))
+            })
     }
 
     /// find in all pearls actual pearl and try create new

@@ -10,17 +10,9 @@ impl BobSrv {
         self.grinder.run_backend().await
     }
 
-    pub async fn get_periodic_tasks<S>(
-        &self,
-        client_factory: BobClientFactory,
-        spawner: S,
-    ) -> Result<(), ()>
-    where
-        S: Spawn + Clone + Send + 'static + Unpin + Sync,
-    {
-        self.grinder
-            .get_periodic_tasks(client_factory, spawner)
-            .await
+    #[inline]
+    pub async fn get_periodic_tasks(&self, client_factory: BobClientFactory) -> Result<(), ()> {
+        self.grinder.get_periodic_tasks(client_factory).await
     }
 
     fn put_is_valid(req: &PutRequest) -> bool {

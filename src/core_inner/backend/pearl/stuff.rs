@@ -181,53 +181,49 @@ impl Stuff {
         period: Duration,
         time: SystemTime,
     ) -> BackendResult<i64> {
-        // let period: Duration = Duration::from_std(period).map_err(|e| {
-        //     trace!("smth wrong with time: {:?}, error: {}", period, e);
-        //     Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
-        // })?;
-        // let time: DateTime<Utc> = DateTime::from(time);
+        let period = ChronoDuration::from_std(period).map_err(|e| {
+            trace!("smth wrong with time: {:?}, error: {}", period, e);
+            Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+        })?;
+        let time = DateTime::from(time);
 
-        // Self::get_start_timestamp(period, time)
-        unimplemented!()
+        Self::get_start_timestamp(period, time)
     }
 
     pub(crate) fn get_start_timestamp_by_timestamp(
         period: Duration,
         time: i64,
     ) -> BackendResult<i64> {
-        // let period: Duration = Duration::from_std(period).map_err(|e| {
-        //     trace!("smth wrong with time: {:?}, error: {}", period, e);
-        //     Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
-        // })?;
-        // let time: DateTime<Utc> = DateTime::from_utc(NaiveDateTime::from_timestamp(time, 0), Utc);
-        // Self::get_start_timestamp(period, time)
-        unimplemented!()
+        let period = ChronoDuration::from_std(period).map_err(|e| {
+            trace!("smth wrong with time: {:?}, error: {}", period, e);
+            Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+        })?;
+        let time: DateTime<Utc> = DateTime::from_utc(NaiveDateTime::from_timestamp(time, 0), Utc);
+        Self::get_start_timestamp(period, time)
     }
 
-    fn get_start_timestamp(period: Duration, time: DateTime<Utc>) -> BackendResult<i64> {
-        // let mut start_time = match period {
-        //     period if period <= Duration::days(1) => time.date().and_hms(0, 0, 0),
-        //     period if period <= Duration::weeks(1) => {
-        //         let time = time.date().and_hms(0, 0, 0);
-        //         time - Duration::days((time.weekday().num_days_from_monday() - 1) as i64)
-        //     }
-        //     _ => panic!("pearid: {} is too large", period),
-        // };
+    fn get_start_timestamp(period: ChronoDuration, time: DateTime<Utc>) -> BackendResult<i64> {
+        let mut start_time = match period {
+            period if period <= ChronoDuration::days(1) => time.date().and_hms(0, 0, 0),
+            period if period <= ChronoDuration::weeks(1) => {
+                let time = time.date().and_hms(0, 0, 0);
+                time - ChronoDuration::days(i64::from(time.weekday().num_days_from_monday() - 1))
+            }
+            _ => panic!("pearid: {} is too large", period),
+        };
 
-        // while !(start_time <= time && time < start_time + period) {
-        //     start_time = start_time + period;
-        // }
-        // Ok(start_time.timestamp())
-        unimplemented!()
+        while !(start_time <= time && time < start_time + period) {
+            start_time = start_time + period;
+        }
+        Ok(start_time.timestamp())
     }
     pub(crate) fn get_period_timestamp(period: Duration) -> BackendResult<i64> {
-        // let period: Duration = Duration::from_std(period).map_err(|e| {
-        //     trace!("smth wrong with time: {:?}, error: {}", period, e);
-        //     Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
-        // })?;
+        let period = ChronoDuration::from_std(period).map_err(|e| {
+            trace!("smth wrong with time: {:?}, error: {}", period, e);
+            Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+        })?;
 
-        // Ok(period.num_seconds())
-        unimplemented!()
+        Ok(period.num_seconds())
     }
 
     pub(crate) async fn wait(delay: Duration) {
