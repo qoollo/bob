@@ -1,5 +1,6 @@
 #![crate_type = "lib"]
 #![allow(clippy::needless_lifetimes)]
+#![feature(async_closure)]
 
 #[macro_use]
 extern crate bitflags;

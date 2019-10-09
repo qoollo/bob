@@ -128,8 +128,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
             // pearl.run().await;
             self.pearl_sync.mark_as_created().await?;
         } else {
-            let delay = self.settings.config.settings().create_pearl_wait_delay();
-            Stuff::wait(delay).await;
+            let t = self.settings.config.settings().create_pearl_wait_delay();
+            delay_for(t).await;
         }
         Ok(())
     }

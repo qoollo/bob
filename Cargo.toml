@@ -27,10 +27,11 @@ chrono = "0.4.9"
 dipstick = "~0.7"
 mockall = "~0.3"
 cfg-if = "~0.1"
-tonic = "0.1.0-alpha.2"
+tower-hyper = "*"
+tonic = "0.1.0-alpha.3"
 
 [build-dependencies]
-tonic-build = "0.1.0-alpha.2"
+tonic-build = "0.1.0-alpha.3"
 
 [lib]
 name = "bob"

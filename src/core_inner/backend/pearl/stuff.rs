@@ -36,16 +36,15 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
     where
         F: Fn(&mut TGuard) -> Ret + Send + Sync,
     {
-        // let lock = self.storage.write().compat().boxed().await.map_err(|_e| {
-        //     error!("cannot take lock");
-        //     panic!("cannot take lock");
-        // });
-
-        // lock.map(move |mut st| f(&mut *st)).map_err(|e| {
-        //     error!("lock error: {:?}", e);
-        //     Error::StorageError(format!("lock error: {:?}", e))
-        // })
-        unimplemented!()
+        self.storage
+            .write()
+            .compat()
+            .await
+            .map(|mut storage| f(&mut storage))
+            .map_err(|e| {
+                error!("lock error: {:?}", e);
+                Error::StorageError(format!("lock error: {:?}", e))
+            })
     }
 
     pub(crate) async fn write_mut<F, TRet>(&self, f: F) -> BackendResult<TRet>
@@ -224,10 +223,5 @@ impl Stuff {
         })?;
 
         Ok(period.num_seconds())
-    }
-
-    pub(crate) async fn wait(delay: Duration) {
-        // delay_for(delay).compat().boxed().await;
-        unimplemented!()
     }
 }

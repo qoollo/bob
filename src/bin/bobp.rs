@@ -1,23 +1,18 @@
-extern crate clap;
-
-use clap::{App, Arg};
-
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::{thread, time};
-
-use tokio::runtime::current_thread::Runtime;
-
-use futures::future::ok;
-use futures::Future;
-
 use bob::grpc::client::BobApiClient;
 use bob::grpc::{
     Blob, BlobKey, BlobMeta, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
 };
-
+use clap::{App, Arg};
+use futures::future::ok;
+use futures::Future;
 use hyper::client::connect::{Destination, HttpConnector};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::{thread, time};
+use tokio::runtime::current_thread::Runtime;
+use tonic::transport::Channel;
+use tower_hyper::client::Connect;
 
 #[derive(Debug, Clone)]
 struct NetConfig {
@@ -73,31 +68,14 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
     }
 }
 
-fn build_client(rt: &mut Runtime, net_conf: NetConfig) -> BobApiClient<()> {
-    let uri = std::sync::Arc::new(net_conf.get_uri());
-
-    // let h2_settings = Default::default();
-    // let mut make_client = client::Connect::new(net_conf.get_connector(), h2_settings, rt.handle());
-    let dst = Destination::try_from_uri(net_conf.get_uri()).unwrap();
-    let mut http_connector = HttpConnector::new(4);
-    http_connector.set_nodelay(true);
-    // let connector = util::Connector::new(http_connector);
-    // let settings = client::Builder::new().http2_only(true).clone();
-    // let mut make_client = client::Connect::with_builder(connector, settings);
-
-    // let conn = rt.block_on(make_client.make_service(dst)).unwrap();
-    // let p_conn = tower_request_modifier::Builder::new()
-    // .set_origin(uri.as_ref())
-    // .build(conn)
-    // .unwrap();
-
-    // BobApiClient::new(p_conn)
-    unimplemented!()
+async fn build_client(net_conf: NetConfig) -> BobApiClient<Channel> {
+    let uri = net_conf.get_uri();
+    BobApiClient::connect(uri).unwrap()
 }
 
 fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
     let mut rt = Runtime::new().unwrap();
-    let mut client = build_client(&mut rt, net_conf);
+    let mut client = build_client(net_conf);
 
     let mut options: Option<GetOptions> = None;
     if task_conf.direct {
@@ -132,7 +110,7 @@ fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
 
 fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
     let mut rt = Runtime::new().unwrap();
-    let mut client = build_client(&mut rt, net_conf);
+    let mut client = build_client(net_conf);
 
     let mut options: Option<PutOptions> = None;
     if task_conf.direct {

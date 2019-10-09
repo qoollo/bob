@@ -81,7 +81,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
     }
 
     pub async fn run(&self) {
-        let delay = self.config.fail_retry_timeout();
+        let t = self.config.fail_retry_timeout();
 
         let mut pearls = vec![];
 
@@ -92,7 +92,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             let read_pearls = self.settings.read_vdisk_directory(self);
             if let Err(err) = read_pearls {
                 error!("{}: can't create pearls: {:?}", self, err);
-                Stuff::wait(delay).await;
+                delay_for(t).await;
             } else {
                 pearls = read_pearls.unwrap();
                 exit = true;
@@ -123,31 +123,27 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         debug!("{}: save pearls to group", self);
         while let Err(err) = self.add_range(pearls.clone()).await {
             error!("{}: can't add pearls: {:?}", self, err);
-            Stuff::wait(delay).await;
+            delay_for(t).await;
         }
 
         debug!("{}: start pearls", self);
         while let Err(err) = self.run_pearls().await {
             error!("{}: can't start pearls: {:?}", self, err);
-            Stuff::wait(delay).await;
+            delay_for(t).await;
         }
     }
 
     async fn run_pearls(&self) -> BackendResult<()> {
-        // let pearls = self.pearls.write().compat().boxed().await.map_err(|e| {
-        //     error!("{}: cannot take lock: {:?}", self, e);
-        //     Error::Failed(format!("cannot take lock: {:?}", e))
-        // })?;
+        let holders = self.pearls.write().compat().boxed().await.map_err(|e| {
+            error!("{}: cannot take lock: {:?}", self, e);
+            Error::Failed(format!("cannot take lock: {:?}", e))
+        })?;
 
-        // for i in 0..pearls.len() {
-        //     pearls[i]
-        //         .pearl
-        //         .clone()
-        //         .prepare_storage() //TODO add Box?
-        //         .await;
-        // }
-        // Ok(())
-        unimplemented!()
+        for holder in holders.iter() {
+            let pearl = holder.pearl.clone();
+            pearl.prepare_storage().await?;
+        }
+        Ok(())
     }
 
     pub fn create_pearl_by_path(&self, path: PathBuf) -> PearlHolder<TSpawner> {
@@ -271,8 +267,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             self.pearl_sync.mark_as_created().await?;
             result?;
         } else {
-            let delay = self.config.settings().create_pearl_wait_delay();
-            Stuff::wait(delay).await;
+            let t = self.config.settings().create_pearl_wait_delay();
+            delay_for(t).await;
         }
         Ok(())
     }
