@@ -1,7 +1,6 @@
 extern crate clap;
 
 use clap::{App, Arg};
-use futures::future::{loop_fn, Loop};
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -12,16 +11,13 @@ use tokio::runtime::current_thread::Runtime;
 
 use futures::future::ok;
 use futures::Future;
-use tower::MakeService;
-use tower_grpc::{BoxBody, Request};
 
-use bob::api::grpc::client::BobApi;
+use bob::api::grpc::client::BobApiClient;
 use bob::api::grpc::{
     Blob, BlobKey, BlobMeta, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
 };
 
 use hyper::client::connect::{Destination, HttpConnector};
-use tower_hyper::{client, util};
 
 #[derive(Debug, Clone)]
 struct NetConfig {
@@ -77,10 +73,7 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
     }
 }
 
-type TowerConnect =
-    tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>;
-
-fn build_client(rt: &mut Runtime, net_conf: NetConfig) -> BobApi<TowerConnect> {
+fn build_client(rt: &mut Runtime, net_conf: NetConfig) -> BobApiClient<()> {
     let uri = std::sync::Arc::new(net_conf.get_uri());
 
     // let h2_settings = Default::default();
@@ -88,17 +81,18 @@ fn build_client(rt: &mut Runtime, net_conf: NetConfig) -> BobApi<TowerConnect> {
     let dst = Destination::try_from_uri(net_conf.get_uri()).unwrap();
     let mut http_connector = HttpConnector::new(4);
     http_connector.set_nodelay(true);
-    let connector = util::Connector::new(http_connector);
-    let settings = client::Builder::new().http2_only(true).clone();
-    let mut make_client = client::Connect::with_builder(connector, settings);
+    // let connector = util::Connector::new(http_connector);
+    // let settings = client::Builder::new().http2_only(true).clone();
+    // let mut make_client = client::Connect::with_builder(connector, settings);
 
-    let conn = rt.block_on(make_client.make_service(dst)).unwrap();
-    let p_conn = tower_request_modifier::Builder::new()
-        .set_origin(uri.as_ref())
-        .build(conn)
-        .unwrap();
+    // let conn = rt.block_on(make_client.make_service(dst)).unwrap();
+    // let p_conn = tower_request_modifier::Builder::new()
+    // .set_origin(uri.as_ref())
+    // .build(conn)
+    // .unwrap();
 
-    BobApi::new(p_conn)
+    // BobApiClient::new(p_conn)
+    unimplemented!()
 }
 
 fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
@@ -113,26 +107,27 @@ fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
         });
     }
 
-    rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
-        client
-            .get(Request::new(GetRequest {
-                key: Some(BlobKey { key: i }),
-                options: options.clone(),
-            }))
-            .then(move |e| {
-                if e.is_err() {
-                    lstat.clone().get_error.fetch_add(1, Ordering::SeqCst);
-                }
-                lstat.clone().get_total.fetch_add(1, Ordering::SeqCst);
+    // rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
+    //     client
+    //         .get(Request::new(GetRequest {
+    //             key: Some(BlobKey { key: i }),
+    //             options: options.clone(),
+    //         }))
+    //         .then(move |e| {
+    //             if e.is_err() {
+    //                 lstat.clone().get_error.fetch_add(1, Ordering::SeqCst);
+    //             }
+    //             lstat.clone().get_total.fetch_add(1, Ordering::SeqCst);
 
-                if i + 1 == task_conf.low_idx + task_conf.count {
-                    ok::<_, ()>(Loop::Break((lstat, i)))
-                } else {
-                    ok::<_, ()>(Loop::Continue((lstat, i + 1)))
-                }
-            })
-    }))
-    .unwrap();
+    //             if i + 1 == task_conf.low_idx + task_conf.count {
+    //                 ok::<_, ()>(Loop::Break((lstat, i)))
+    //             } else {
+    //                 ok::<_, ()>(Loop::Continue((lstat, i + 1)))
+    //             }
+    //         })
+    // }))
+    // .unwrap();
+    unimplemented!();
 }
 
 fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
@@ -147,35 +142,36 @@ fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
             overwrite: false,
         });
     }
-    let put = loop_fn((stat.clone(), task_conf.low_idx), |(lstat, i)| {
-        client
-            .put(Request::new(PutRequest {
-                key: Some(BlobKey { key: i }),
-                data: Some(Blob {
-                    data: vec![0; task_conf.payload_size as usize],
-                    meta: Some(BlobMeta {
-                        timestamp: SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .expect("msg: &str")
-                            .as_secs() as i64,
-                    }),
-                }),
-                options: options.clone(),
-            }))
-            .then(move |e| {
-                if e.is_err() {
-                    lstat.clone().put_error.fetch_add(1, Ordering::SeqCst);
-                }
-                lstat.clone().put_total.fetch_add(1, Ordering::SeqCst);
+    // let put = loop_fn((stat.clone(), task_conf.low_idx), |(lstat, i)| {
+    //     client
+    //         .put(Request::new(PutRequest {
+    //             key: Some(BlobKey { key: i }),
+    //             data: Some(Blob {
+    //                 data: vec![0; task_conf.payload_size as usize],
+    //                 meta: Some(BlobMeta {
+    //                     timestamp: SystemTime::now()
+    //                         .duration_since(UNIX_EPOCH)
+    //                         .expect("msg: &str")
+    //                         .as_secs() as i64,
+    //                 }),
+    //             }),
+    //             options: options.clone(),
+    //         }))
+    //         .then(move |e| {
+    //             if e.is_err() {
+    //                 lstat.clone().put_error.fetch_add(1, Ordering::SeqCst);
+    //             }
+    //             lstat.clone().put_total.fetch_add(1, Ordering::SeqCst);
 
-                if i + 1 == task_conf.low_idx + task_conf.count {
-                    ok::<_, ()>(Loop::Break((lstat, i)))
-                } else {
-                    ok::<_, ()>(Loop::Continue((lstat, i + 1)))
-                }
-            })
-    });
-    rt.block_on(put).unwrap();
+    //             if i + 1 == task_conf.low_idx + task_conf.count {
+    //                 ok::<_, ()>(Loop::Break((lstat, i)))
+    //             } else {
+    //                 ok::<_, ()>(Loop::Continue((lstat, i + 1)))
+    //             }
+    //         })
+    // });
+    // rt.block_on(put).unwrap();
+    unimplemented!()
 }
 
 fn main() {

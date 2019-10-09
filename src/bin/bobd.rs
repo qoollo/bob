@@ -1,22 +1,21 @@
 use bob::api::grpc::server;
 
-use bob::core::bob_client::BobClientFactory;
-use bob::core::grinder::Grinder;
-use bob::core::mapper::VDiskMapper;
+use bob::core_inner::bob_client::BobClientFactory;
+use bob::core_inner::grinder::Grinder;
+use bob::core_inner::mapper::VDiskMapper;
 use clap::{App, Arg};
 use tokio::net::TcpListener;
 use tokio::runtime::Builder;
 
-use bob::core::configs::cluster::ClusterConfigYaml;
-use bob::core::configs::node::{DiskPath, NodeConfigYaml};
+use bob::core_inner::configs::cluster::ClusterConfigYaml;
+use bob::core_inner::configs::node::{DiskPath, NodeConfigYaml};
 
-use bob::core::server::BobSrv;
+use bob::core_inner::server::BobSrv;
 
 use futures::{Future, Stream};
-use tower_hyper::server::{Http, Server};
 
-use futures03::executor::ThreadPoolBuilder;
-use futures03::future::{FutureExt, TryFutureExt};
+use futures::executor::ThreadPoolBuilder;
+use futures::future::{FutureExt, TryFutureExt};
 
 use std::net::SocketAddr;
 
@@ -24,7 +23,7 @@ use std::net::SocketAddr;
 extern crate log;
 extern crate dipstick;
 
-use bob::core::metrics;
+use bob::core_inner::metrics;
 use log4rs;
 
 fn main() {
@@ -70,7 +69,8 @@ fn main() {
 
     log4rs::init_file(node.log_config(), Default::default()).unwrap();
 
-    let mut mapper = VDiskMapper::new(vdisks.to_vec(), &node, &cluster);
+    // let mut mapper = VDiskMapper::new(vdisks.to_vec(), &node, &cluster);
+    unimplemented!();
     let mut addr: SocketAddr = node.bind().parse().unwrap();
 
     let node_name = matches.value_of("name");
@@ -89,7 +89,8 @@ fn main() {
                 path: d.path(),
             })
             .collect();
-        mapper = VDiskMapper::new_direct(vdisks.to_vec(), name, &disks, &cluster);
+        // mapper = VDiskMapper::new_direct(vdisks.to_vec(), name, &disks, &cluster);
+        unimplemented!();
         addr = finded.address().parse().unwrap();
     }
 
@@ -97,9 +98,10 @@ fn main() {
 
     let backend_pool = ThreadPoolBuilder::new().pool_size(2).create().unwrap(); //TODO
 
-    let bob = BobSrv {
-        grinder: std::sync::Arc::new(Grinder::new(mapper, &node, backend_pool.clone())),
-    };
+    // let bob = BobSrv {
+    //     grinder: std::sync::Arc::new(Grinder::new(mapper, &node, backend_pool.clone())),
+    // };
+    unimplemented!();
 
     let pool = ThreadPoolBuilder::new()
         .pool_size(node.ping_threads_count() as usize)
@@ -119,44 +121,47 @@ fn main() {
 
     let executor = rt.executor();
 
-    let b1 = bob.clone();
-    let q1 = async move {
-        b1.run_backend()
-            .await
-            .map(|_r| {})
-            .map_err(|e| panic!("init failed: {:?}", e))
-    };
-    rt.block_on(q1.boxed().compat()).unwrap();
+    // let b1 = bob.clone();
+    unimplemented!();
+    // let q1 = async move {
+    //     b1.run_backend()
+    //         .await
+    //         .map(|_r| {})
+    //         .map_err(|e| panic!("init failed: {:?}", e))
+    // };
+    // rt.block_on(q1.boxed().compat()).unwrap();
+    unimplemented!();
     info!("Start backend");
 
     let factory =
         BobClientFactory::new(executor, node.timeout(), node.grpc_buffer_bound(), metrics);
-    let b = bob.clone();
-    let q = async move { b.get_periodic_tasks(factory, pool).await };
-    rt.spawn(q.boxed().compat());
+    // let b = bob.clone();
+    // let q = async move { b.get_periodic_tasks(factory, pool).await };
+    // rt.spawn(q.boxed().compat());
 
-    let new_service = server::BobApiServer::new(bob);
+    // let new_service = server::BobApiServer::new(bob);
 
-    let mut server = Server::new(new_service);
+    // let mut server = Server::new(new_service);
 
-    info!("Listen on {:?}", addr);
-    let bind = TcpListener::bind(&addr).expect("bind");
-    let http = Http::new().http2_only(true).clone();
+    // info!("Listen on {:?}", addr);
+    // let bind = TcpListener::bind(&addr).expect("bind");
+    // let http = Http::new().http2_only(true).clone();
 
-    let serve = bind
-        .incoming()
-        .for_each(move |sock| {
-            if let Err(e) = sock.set_nodelay(true) {
-                return Err(e);
-            }
+    // let serve = bind
+    //     .incoming()
+    //     .for_each(move |sock| {
+    //         if let Err(e) = sock.set_nodelay(true) {
+    //             return Err(e);
+    //         }
 
-            let serve = server.serve_with(sock, http.clone());
-            tokio::spawn(serve.map_err(|e| error!("Server h2 error: {:?}", e)));
+    //         let serve = server.serve_with(sock, http.clone());
+    //         tokio::spawn(serve.map_err(|e| error!("Server h2 error: {:?}", e)));
 
-            Ok(())
-        })
-        .map_err(|e| error!("accept error: {}", e));
+    //         Ok(())
+    //     })
+    //     .map_err(|e| error!("accept error: {}", e));
 
-    rt.spawn(serve);
-    rt.shutdown_on_idle().wait().unwrap();
+    // rt.spawn(serve);
+    // rt.shutdown_on_idle().wait().unwrap();
+    unimplemented!();
 }

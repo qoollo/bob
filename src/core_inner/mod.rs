@@ -1,13 +1,13 @@
-mod backend;
-mod bob_client;
-mod cluster;
-mod configs;
-mod data;
-mod grinder;
-mod link_manager;
-mod mapper;
-mod metrics;
-mod server;
+pub mod backend;
+pub mod bob_client;
+pub mod cluster;
+pub mod configs;
+pub mod data;
+pub mod grinder;
+pub mod link_manager;
+pub mod mapper;
+pub mod metrics;
+pub mod server;
 
 pub(crate) use super::*;
 pub(crate) use backend::{

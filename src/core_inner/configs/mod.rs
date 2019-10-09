@@ -1,7 +1,7 @@
-mod cluster;
-mod cluster_tests;
-mod node;
-mod reader;
+pub mod cluster;
+pub mod cluster_tests;
+pub mod node;
+pub mod reader;
 
 pub(crate) use self::cluster::{tests::cluster_config, ClusterConfig, ClusterConfigYaml, Node};
 pub(crate) use self::node::{
