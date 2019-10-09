@@ -35,11 +35,11 @@ tonic-build = "0.1.0-alpha.1"
 [lib]
 name = "bob"
 
-[[bin]]
-name = "bobd"
+# [[bin]]
+# name = "bobd"
 
-[[bin]]
-name = "bobc"
+# [[bin]]
+# name = "bobc"
 
-[[bin]]
-name = "bobp"
+# [[bin]]
+# name = "bobp"
