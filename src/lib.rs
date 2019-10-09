@@ -13,7 +13,7 @@ extern crate cfg_if;
 extern crate dipstick;
 
 pub mod api;
-pub mod core;
+pub mod core_inner;
 
 mod prelude {
     // pub(crate) use futures::{future, task::Spawn, Future};
