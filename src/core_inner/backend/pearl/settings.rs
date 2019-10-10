@@ -7,13 +7,13 @@ pub(crate) struct Settings<TSpawner> {
     timestamp_period: Duration,
     pub config: PearlConfig,
     spawner: TSpawner,
-
     mapper: Arc<VDiskMapper>,
-
-    phantom: PhantomData<TSpawner>,
 }
 
-impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner> {
+impl<TSpawner> Settings<TSpawner>
+where
+    TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync,
+{
     pub(crate) fn new(config: &NodeConfig, mapper: Arc<VDiskMapper>, spawner: TSpawner) -> Self {
         let pearl_config = config.pearl.clone().unwrap();
 
@@ -24,16 +24,16 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
                 .expect("cannot find alien disk in config")
                 .path,
             pearl_config.settings().alien_root_dir_name()
-        );
+        )
+        .into();
 
         Settings {
             bob_prefix_path: pearl_config.settings().root_dir_name(),
-            alien_folder: PathBuf::from(alien_folder),
+            alien_folder,
             timestamp_period: pearl_config.settings().timestamp_period(),
             mapper,
             spawner,
             config: pearl_config,
-            phantom: PhantomData,
         }
     }
 
@@ -112,26 +112,24 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         let mut pearls = vec![];
         let pearl_directories = self.get_all_subdirectories(group.directory_path.clone())?;
         for entry in pearl_directories.into_iter() {
-            let file_name = entry
+            if let Ok(file_name) = entry
                 .file_name()
                 .into_string()
-                .map_err(|_| warn!("cannot parse file name: {:?}", entry));
-            if file_name.is_err() {
-                continue;
+                .map_err(|_| warn!("cannot parse file name: {:?}", entry))
+            {
+                let start_timestamp: i64 = file_name
+                    .parse()
+                    .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry))
+                    .unwrap();
+                let end_timestamp = start_timestamp + self.get_timestamp_period()?;
+                let pearl_holder = PearlTimestampHolder::new(
+                    group.create_pearl_by_path(entry.path()),
+                    start_timestamp,
+                    end_timestamp,
+                );
+                trace!("read pearl: {}", pearl_holder);
+                pearls.push(pearl_holder);
             }
-            let timestamp: Result<i64, _> = file_name
-                .unwrap()
-                .parse()
-                .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry));
-            let start_timestamp = timestamp.unwrap();
-            let end_timestamp = start_timestamp + self.get_timestamp_period()?;
-            let pearl_holder = PearlTimestampHolder::new(
-                group.create_pearl_by_path(entry.path()),
-                start_timestamp,
-                end_timestamp,
-            );
-            trace!("read pearl: {}", pearl_holder);
-            pearls.push(pearl_holder);
         }
         Ok(pearls)
     }
@@ -146,38 +144,30 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
 
         let node_names = self.get_all_subdirectories(self.alien_folder.clone())?;
         for node in node_names.into_iter() {
-            let name = self.try_parse_node_name(node);
-            if name.is_err() {
-                trace!("ignore: {:?}", name);
-                continue;
-            }
-            let (node, name) = name.unwrap();
-            let vdisks = self.get_all_subdirectories(node.path())?;
+            if let Ok((node, name)) = self.try_parse_node_name(node) {
+                let vdisks = self.get_all_subdirectories(node.path())?;
 
-            for vdisk_id in vdisks.into_iter() {
-                let id = self.try_parse_vdisk_id(vdisk_id);
-                if id.is_err() {
-                    trace!("ignore: {:?}", id);
-                    continue;
-                }
-                let (vdisk_id, id) = id.unwrap();
-                if self.mapper.does_node_holds_vdisk(&name, id.clone()) {
-                    let pearl = config.pearl();
-                    let group = PearlGroup::<TSpawner>::new(
-                        settings.clone(),
-                        id.clone(),
-                        name.clone(),
-                        pearl.alien_disk(),
-                        vdisk_id.path().clone(),
-                        pearl,
-                        spawner.clone(),
-                    );
-                    result.push(group);
-                } else {
-                    warn!(
-                        "potentionally invalid state. Node: {} doesnt hold vdisk: {}",
-                        name, id
-                    );
+                for vdisk_id in vdisks.into_iter() {
+                    if let Ok((vdisk_id, id)) = self.try_parse_vdisk_id(vdisk_id) {
+                        if self.mapper.does_node_holds_vdisk(&name, id.clone()) {
+                            let pearl = config.pearl();
+                            let group = PearlGroup::<TSpawner>::new(
+                                settings.clone(),
+                                id.clone(),
+                                name.clone(),
+                                pearl.alien_disk(),
+                                vdisk_id.path().clone(),
+                                pearl,
+                                spawner.clone(),
+                            );
+                            result.push(group);
+                        } else {
+                            warn!(
+                                "potentionally invalid state. Node: {} doesnt hold vdisk: {}",
+                                name, id
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -209,27 +199,28 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
     fn get_all_subdirectories(&self, path: PathBuf) -> BackendResult<Vec<DirEntry>> {
         Stuff::check_or_create_directory(&path)?;
 
-        let mut directories = vec![];
         match read_dir(path.clone()) {
             Ok(dir) => {
+                let mut directories = vec![];
                 for entry in dir {
                     let (entry, metadata) = self.try_read_path(entry)?;
-                    if !metadata.is_dir() {
+                    if metadata.is_dir() {
+                        directories.push(entry);
+                    } else {
                         trace!("ignore: {:?}", entry);
                         continue;
                     }
-                    directories.push(entry);
                 }
+                Ok(directories)
             }
             Err(err) => {
                 debug!("couldn't process path: {:?}, error: {:?} ", path, err);
-                return Err(Error::Failed(format!(
+                Err(Error::Failed(format!(
                     "couldn't process path: {:?}, error: {:?} ",
                     path, err
-                )));
+                )))
             }
         }
-        Ok(directories)
     }
 
     fn try_parse_node_name(&self, entry: DirEntry) -> BackendResult<(DirEntry, String)> {
@@ -301,13 +292,17 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         vdisk_path
     }
 
+    #[inline]
     fn get_timestamp_period(&self) -> BackendResult<i64> {
         Stuff::get_period_timestamp(self.timestamp_period)
     }
+
+    #[inline]
     fn get_current_timestamp_start(&self) -> BackendResult<i64> {
         Stuff::get_start_timestamp_by_std_time(self.timestamp_period, SystemTime::now())
     }
 
+    #[inline]
     pub(crate) fn is_actual(&self, pearl: &PearlTimestampHolder<TSpawner>, data: &BobData) -> bool {
         trace!(
             "start: {}, end: {}, check: {}",
@@ -318,22 +313,12 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         pearl.start_timestamp <= data.meta.timestamp && data.meta.timestamp < pearl.end_timestamp
     }
 
+    #[inline]
     pub(crate) fn choose_data(&self, records: Vec<BackendGetResult>) -> GetResult {
-        if records.is_empty() {
-            return Err(Error::KeyNotFound);
-        }
-        let mut iter = records.into_iter().enumerate();
-        let first = iter.next().unwrap();
-        let result = iter.try_fold(first, |max, x| {
-            let r = if max.1.data.meta.timestamp > x.1.data.meta.timestamp {
-                max
-            } else {
-                x
-            };
-            Some(r)
-        });
-
-        Ok(result.unwrap().1)
+        records
+            .into_iter()
+            .max_by(|x, y| x.data.meta.timestamp.cmp(&y.data.meta.timestamp))
+            .ok_or(Error::KeyNotFound)
     }
 
     pub(crate) fn is_actual_pearl(

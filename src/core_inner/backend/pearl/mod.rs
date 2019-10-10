@@ -18,7 +18,7 @@ mod prelude {
         BackendResult, Future03Result, PearlData, PearlKey, PearlStorage,
     };
     pub(crate) use super::group::{PearlGroup, PearlTimestampHolder};
-    pub(crate) use super::holder::{PearlHolder, PearlSync};
+    pub(crate) use super::holder::PearlHolder;
     pub(crate) use super::metrics::{
         PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
         PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
@@ -34,6 +34,6 @@ mod prelude {
     pub(crate) use std::fmt::{Display, Formatter, Result as FmtResult};
     pub(crate) use std::fs::{create_dir_all, read_dir, remove_file, DirEntry, Metadata};
     pub(crate) use std::time::SystemTime;
-    pub(crate) use std::{convert::TryInto, marker::PhantomData, path::PathBuf};
+    pub(crate) use std::{convert::TryInto, path::PathBuf};
     pub(crate) use tokio::timer::delay_for;
 }

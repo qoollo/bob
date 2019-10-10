@@ -14,5 +14,5 @@ metrics! {
 
 pub fn init_pearl(prefix: &str, metrics: &Arc<dyn MetricsContainerBuilder + Send + Sync>) {
     let bucket = metrics.init_bucket(prefix);
-    PEARL.target(bucket.clone());
+    PEARL.target(bucket);
 }
