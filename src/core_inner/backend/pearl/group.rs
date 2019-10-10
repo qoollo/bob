@@ -319,7 +319,7 @@ impl<TSpawner> Display for PearlGroup<TSpawner> {
             .field("node_name", &self.node_name)
             .field("directory_path", &self.directory_path)
             .field("disk_name", &self.disk_name)
-            .field("..", &"")
+            .field("..", &"some fields ommited")
             .finish()
     }
 }
