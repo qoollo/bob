@@ -28,6 +28,7 @@ impl BackendOperation {
             remote_node_name: None,
         }
     }
+
     pub fn new_local(vdisk_id: VDiskId, path: DiskPath) -> BackendOperation {
         BackendOperation {
             vdisk_id,
@@ -35,6 +36,7 @@ impl BackendOperation {
             remote_node_name: None,
         }
     }
+
     pub fn clone_alien(&self) -> Self {
         BackendOperation {
             vdisk_id: self.vdisk_id.clone(),
@@ -42,36 +44,44 @@ impl BackendOperation {
             remote_node_name: self.remote_node_name.clone(),
         }
     }
+
+    #[inline]
     pub fn set_remote_folder(&mut self, name: &str) {
         self.remote_node_name = Some(name.to_string())
     }
+
+    #[inline]
     pub fn is_data_alien(&self) -> bool {
         self.disk_path.is_none()
     }
+
+    #[inline]
     pub fn disk_name_local(&self) -> String {
         self.disk_path.clone().unwrap().name.clone()
     }
+
+    #[inline]
     pub fn remote_node_name(&self) -> String {
         self.remote_node_name.clone().unwrap()
     }
 }
 
 #[derive(Debug)]
-pub struct BackendPutResult {}
+pub struct BackendPutResult;
 
 #[derive(Debug)]
 pub struct BackendGetResult {
     pub data: BobData,
 }
 
-impl std::fmt::Display for BackendGetResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.data)
+impl Display for BackendGetResult {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        write!(f, "{:?}", self)
     }
 }
 
 #[derive(Debug)]
-pub struct BackendPingResult {}
+pub struct BackendPingResult;
 
 pub type GetResult = Result<BackendGetResult, Error>;
 pub struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send>>);
@@ -97,11 +107,10 @@ pub struct Backend {
 }
 
 impl Backend {
-    pub fn new<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync>(
-        mapper: Arc<VDiskMapper>,
-        config: &NodeConfig,
-        spawner: TSpawner,
-    ) -> Self {
+    pub fn new<TSpawner>(mapper: Arc<VDiskMapper>, config: &NodeConfig, spawner: TSpawner) -> Self
+    where
+        TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync,
+    {
         let backend: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(mapper.clone())),
             BackendType::Stub => Arc::new(StubBackend {}),
@@ -110,40 +119,36 @@ impl Backend {
         Backend { backend, mapper }
     }
 
+    #[inline]
     pub async fn run_backend(&self) -> Result<(), Error> {
-        self.backend.run_backend().boxed().await
+        self.backend.run_backend().await
     }
 
     pub async fn put(&self, key: BobKey, data: BobData, options: BobOptions) -> PutResult {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        let result = if options.have_remote_node() {
-            let mut result = Ok(BackendPutResult {});
+        if options.have_remote_node() {
             // write to all remote_nodes
             for node_name in options.remote_nodes.iter() {
                 let mut op = BackendOperation::new_alien(vdisk_id.clone());
                 op.set_remote_folder(node_name);
 
                 //TODO make it parallel?
-                if let Err(err) = self.put_single(key, data.clone(), op).await {
-                    //TODO stop after first error?
-                    result = Err(err);
-                    break;
-                }
+                self.put_single(key, data.clone(), op).await?;
             }
-            result
         } else if let Some(path) = disk_path {
             self.put_single(key, data, BackendOperation::new_local(vdisk_id, path))
-                .await
+                .await?;
         } else {
             error!(
                 "PUT[{}] dont now what to with data: op: {:?}. Data is not local and alien",
                 key, options
             );
-            Err(Error::Internal)
-        };
-        result.map_err(|e| e.convert_backend())
+            return Err(Error::Internal);
+        }
+        Ok(BackendPutResult {})
     }
 
+    #[inline]
     pub async fn put_local(
         &self,
         key: BobKey,
@@ -161,13 +166,15 @@ impl Backend {
         data: BobData,
         operation: BackendOperation,
     ) -> PutResult {
-        if !operation.is_data_alien() {
+        if operation.is_data_alien() {
+            debug!("PUT[{}] to backend, alien data: {}", key, operation);
+            self.backend.put_alien(operation, key, data).0.await
+        } else {
             debug!("PUT[{}] to backend: {}", key, operation);
             let result = self
                 .backend
                 .put(operation.clone(), key, data.clone())
                 .0
-                .boxed()
                 .await;
             match result {
                 Err(err) if err.is_put_error_need_alien() => {
@@ -183,15 +190,11 @@ impl Backend {
                     self.backend
                         .put_alien(op, key, data)
                         .0
-                        .boxed()
                         .await
                         .map_err(|_| err) //we must return 'local' error if both ways are failed
                 }
                 _ => result,
             }
-        } else {
-            debug!("PUT[{}] to backend, alien data: {}", key, operation);
-            self.backend.put_alien(operation, key, data).0.boxed().await
         }
     }
 
@@ -242,12 +245,12 @@ impl Backend {
         key: BobKey,
         operation: BackendOperation,
     ) -> GetResult {
-        if !operation.is_data_alien() {
-            debug!("GET[{}][{}] to backend", key, operation.disk_name_local());
-            backend.get(operation, key).0.boxed().await
-        } else {
+        if operation.is_data_alien() {
             debug!("GET[{}] to backend, foreign data", key);
-            backend.get_alien(operation, key).0.boxed().await
+            backend.get_alien(operation, key).0.await
+        } else {
+            debug!("GET[{}][{}] to backend", key, operation.disk_name_local());
+            backend.get(operation, key).0.await
         }
     }
 }
