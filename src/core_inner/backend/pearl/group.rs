@@ -8,7 +8,10 @@ pub(crate) struct PearlTimestampHolder<TSpawner> {
     pub end_timestamp: i64,
 } //TODO add path and fix Display
 
-impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlTimestampHolder<TSpawner> {
+impl<TSpawner> PearlTimestampHolder<TSpawner>
+where
+    TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync,
+{
     pub(crate) fn new(
         pearl: PearlHolder<TSpawner>,
         start_timestamp: i64,
@@ -22,8 +25,8 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlTimestampHold
     }
 }
 
-impl<TSpawner> std::fmt::Display for PearlTimestampHolder<TSpawner> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl<TSpawner> Display for PearlTimestampHolder<TSpawner> {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         write!(f, "{}", self.start_timestamp)
     }
 }
@@ -46,7 +49,10 @@ pub(crate) struct PearlGroup<TSpawner> {
     disk_name: String,
 }
 
-impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawner> {
+impl<TSpawner> PearlGroup<TSpawner>
+where
+    TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync,
+{
     pub fn new(
         settings: Arc<Settings<TSpawner>>,
         vdisk_id: VDiskId,
@@ -71,9 +77,10 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
 
     pub fn can_process_operation(&self, operation: &BackendOperation) -> bool {
         if operation.is_data_alien() {
-            match &operation.remote_node_name {
-                None => self.vdisk_id == operation.vdisk_id,
-                Some(node_name) => *node_name == self.node_name,
+            if let Some(node_name) = &operation.remote_node_name {
+                *node_name == self.node_name
+            } else {
+                self.vdisk_id == operation.vdisk_id
             }
         } else {
             self.disk_name == operation.disk_name_local() && self.vdisk_id == operation.vdisk_id
@@ -83,39 +90,37 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
     pub async fn run(&self) {
         let t = self.config.fail_retry_timeout();
 
-        let mut pearls = vec![];
-
-        let mut exit = false;
+        let mut pearls;
 
         debug!("{}: read pearls from disk", self);
-        while !exit {
-            let read_pearls = self.settings.read_vdisk_directory(self);
-            if let Err(err) = read_pearls {
-                error!("{}: can't create pearls: {:?}", self, err);
-                delay_for(t).await;
-            } else {
-                pearls = read_pearls.unwrap();
-                exit = true;
+        loop {
+            let read_pearls_res = self.settings.read_vdisk_directory(self);
+            match read_pearls_res {
+                Ok(read_pearls) => {
+                    pearls = read_pearls;
+                    break;
+                }
+                Err(e) => {
+                    error!("{}: can't create pearls: {:?}", self, e);
+                    delay_for(t).await;
+                }
             }
         }
         debug!("{}: count pearls: {}", self, pearls.len());
 
         debug!("{}: check current pearl for write", self);
-        if !pearls.iter().any(|pearl| {
-            if let Ok(result) = self.settings.is_actual_pearl(pearl) {
-                result
-            } else {
-                false
-            }
-        }) {
+        if pearls
+            .iter()
+            .all(|pearl| self.settings.is_actual_pearl(pearl).unwrap_or(false))
+        {
             match self.settings.create_current_pearl(self) {
-                Err(e) => {
-                    debug!("{}: cannot create current pearl: {}", self, e);
-                    //we will try again when some data come for put\get
-                }
                 Ok(current_pearl) => {
                     debug!("{}: create current pearl: {}", self, current_pearl);
                     pearls.push(current_pearl);
+                }
+                Err(e) => {
+                    debug!("{}: cannot create current pearl: {}", self, e);
+                    //we will try again when some data come for put\get
                 }
             }
         }
@@ -134,7 +139,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
     }
 
     async fn run_pearls(&self) -> BackendResult<()> {
-        let holders = self.pearls.write().compat().boxed().await.map_err(|e| {
+        let holders = self.pearls.write().compat().await.map_err(|e| {
             error!("{}: cannot take lock: {:?}", self, e);
             Error::Failed(format!("cannot take lock: {:?}", e))
         })?;
@@ -154,29 +159,31 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
             self.spawner.clone(),
         )
     }
+
     pub async fn add(&self, pearl: PearlTimestampHolder<TSpawner>) -> BackendResult<()> {
-        // let mut pearls = self.pearls.write().compat().boxed().await.map_err(|e| {
-        //     error!("cannot take lock: {:?}", e);
-        //     Error::Failed(format!("cannot take lock: {:?}", e))
-        // })?;
-
-        // pearls.push(pearl.clone());
-        // trace!("{}: save {}", self, pearl);
-
-        // Ok(())
-        unimplemented!()
+        self.pearls
+            .write()
+            .compat()
+            .await
+            .map(|mut pearls| {
+                pearls.push(pearl);
+            })
+            .map_err(|e| {
+                error!("cannot take lock: {:?}", e);
+                Error::Failed(format!("cannot take lock: {:?}", e))
+            })
     }
 
     pub async fn add_range(
         &self,
-        mut new_pearls: Vec<PearlTimestampHolder<TSpawner>>,
+        new_pearls: Vec<PearlTimestampHolder<TSpawner>>,
     ) -> BackendResult<()> {
         self.pearls
             .write()
             .compat()
             .await
             .map(|mut pearls| {
-                pearls.append(&mut new_pearls);
+                pearls.extend(new_pearls);
             })
             .map_err(|e| {
                 error!("cannot take lock: {:?}", e);
@@ -187,85 +194,55 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
     /// find in all pearls actual pearl and try create new
     async fn try_get_current_pearl(
         &self,
-        key: BobKey,
-        data: BobData,
+        data: &BobData,
     ) -> BackendResult<PearlTimestampHolder<TSpawner>> {
-        let pearl = self
-            .find_current_pearl(key, data.clone())
-            .await
-            .map_err(|e| {
-                debug!("cannot find pearl: {}", e);
-                e
-            });
-        if pearl.is_err() {
-            match self.create_current_pearl(key, data.clone()).await {
-                Ok(_) => {
-                    return self.find_current_pearl(key, data).await.map_err(|e| {
-                        error!("cannot find pearl after creation: {}", e);
-                        e
-                    })
-                }
-                Err(e) => {
-                    error!("cannot create pearl: {}", e);
-                    return Err(e);
-                }
-            }
-        }
-        pearl
+        let task = self.find_current_pearl(data).or_else(|e| {
+            debug!("cannot find pearl: {}", e);
+            self.create_current_pearl(data)
+                .and_then(|_| self.find_current_pearl(data))
+        });
+        task.await
     }
 
     /// find in all pearls actual pearl
     async fn find_current_pearl(
         &self,
-        key: BobKey,
-        data: BobData,
+        data: &BobData,
     ) -> BackendResult<PearlTimestampHolder<TSpawner>> {
-        // let pearls = self.pearls.read().compat().boxed().await.map_err(|e| {
-        //     error!("cannot take lock: {:?}", e);
-        //     Error::Failed(format!("cannot take lock: {:?}", e))
-        // })?;
-
-        // for pearl in pearls.iter().rev() {
-        //     if self.settings.is_actual(pearl.clone(), key, data.clone()) {
-        //         return Ok(pearl.clone());
-        //     }
-        // }
-        // trace!(
-        //     "cannot find actual pearl folder. key: {}, meta: {}",
-        //     key,
-        //     data.meta
-        // );
-        // return Err(Error::Failed(format!(
-        //     "cannot find actual pearl folder. key: {}, meta: {}",
-        //     key, data.meta
-        // )));
-        unimplemented!()
+        self.pearls
+            .read()
+            .compat()
+            .await
+            .map_err(|e| {
+                error!("cannot take lock: {:?}", e);
+                Error::Failed(format!("cannot take lock: {:?}", e))
+            })
+            .and_then(|pearls| {
+                pearls
+                    .iter()
+                    .find(|pearl| self.settings.is_actual(pearl, &data))
+                    .cloned()
+                    .ok_or_else(|| {
+                        Error::Failed(format!(
+                            "cannot find actual pearl folder. meta: {}",
+                            data.meta
+                        ))
+                    })
+            })
     }
+
     /// create pearl for current write
-    async fn create_current_pearl(&self, key: BobKey, data: BobData) -> BackendResult<()> {
+    async fn create_current_pearl(&self, data: &BobData) -> BackendResult<()> {
         // check if pearl is currently creating
-        trace!("{}, try create new pearl for: {}", self, data.clone());
         if self.pearl_sync.try_init().await? {
             // check if pearl created
-            debug!("{}, create new pearl for: {}", self, data.clone());
-            if self.find_current_pearl(key, data.clone()).await.is_ok() {
-                debug!("{}, find new pearl for: {}", self, data.clone());
-                self.pearl_sync.mark_as_created().await;
-                return Ok(());
+            if self.find_current_pearl(&data).await.is_err() {
+                match self.settings.create_pearl(self, data.clone()) {
+                    Ok(pearl) => self.save_pearl(pearl).await,
+                    Err(e) => Err(e),
+                }?;
             }
-            let result = match self.settings.create_pearl(self, key, data.clone()) {
-                Ok(pearl) => {
-                    debug!("{}, create new pearl: {} for: {}", self, pearl, data);
-                    self.save_pearl(pearl.clone()).await;
-                    Ok(())
-                }
-                Err(e) => {
-                    debug!("{}, cannot create pearl for: {}, {}", self, data.clone(), e);
-                    Err(e)
-                }
-            };
             self.pearl_sync.mark_as_created().await?;
-            result?;
         } else {
             let t = self.config.settings().create_pearl_wait_delay();
             delay_for(t).await;
@@ -273,84 +250,76 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
         Ok(())
     }
 
-    async fn save_pearl(&self, pearl: PearlTimestampHolder<TSpawner>) -> BackendResult<()> {
-        self.add(pearl.clone()).await?; // TODO while retry?
-        pearl.pearl.prepare_storage().await;
-        Ok(())
+    async fn save_pearl(&self, holder: PearlTimestampHolder<TSpawner>) -> BackendResult<()> {
+        let pearl = holder.pearl.clone();
+        self.add(holder).await?; // TODO while retry?
+        pearl.prepare_storage().await
     }
 
     pub async fn put(&self, key: BobKey, data: BobData) -> PutResult {
-        let pearl = self.try_get_current_pearl(key, data.clone()).await?;
+        let holder = self.try_get_current_pearl(&data).await?;
 
-        Self::put_common(pearl.pearl, key, data).await
+        Self::put_common(holder.pearl, key, data).await
     }
 
-    async fn put_common(pearl: PearlHolder<TSpawner>, key: BobKey, data: BobData) -> PutResult {
-        let result = pearl
-            .write(key, data)
-            .map(|r| r.map(|_ok| BackendPutResult {}))
-            .await;
-        if Error::is_put_error_need_restart(result.as_ref().err())
-            && pearl.try_reinit().await.unwrap()
-        {
-            pearl.reinit_storage().await;
+    async fn put_common(holder: PearlHolder<TSpawner>, key: BobKey, data: BobData) -> PutResult {
+        let result = holder.write(key, data).await.map(|_| BackendPutResult {});
+        if Error::is_put_error_need_restart(result.as_ref().err()) && holder.try_reinit().await? {
+            holder.reinit_storage().await?;
         }
         result
     }
 
     pub async fn get(&self, key: BobKey) -> GetResult {
-        // let pearls = self.pearls.read().compat().boxed().await.map_err(|e| {
-        //     error!("cannot take lock: {:?}", e);
-        //     Error::Failed(format!("cannot take lock: {:?}", e))
-        // })?;
+        let holders = self.pearls.read().compat().await.map_err(|e| {
+            error!("cannot take lock: {:?}", e);
+            Error::Failed(format!("cannot take lock: {:?}", e))
+        })?;
 
-        // let mut has_error = false;
-        // let mut results = vec![];
-        // for pearl in pearls.iter() {
-        //     let get = Self::get_common(pearl.pearl.clone(), key).await;
-        //     match get {
-        //         Ok(data) => {
-        //             trace!("get data: {} from: {}", data, pearl);
-        //             results.push(data);
-        //         }
-        //         Err(err) => {
-        //             has_error = true;
-        //             debug!("get error: {}, from : {}", err, pearl);
-        //         }
-        //     }
-        // }
-        // if results.is_empty() {
-        //     if has_error {
-        //         debug!("cannot read from some pearls");
-        //         return Err(Error::Failed("cannot read from some pearls".to_string()));
-        //     } else {
-        //         return Err(Error::KeyNotFound);
-        //     }
-        // }
-        // self.settings.choose_data(results)
-        unimplemented!()
+        let mut has_error = false;
+        let mut results = vec![];
+        for holder in holders.iter() {
+            let get = Self::get_common(holder.pearl.clone(), key).await;
+            match get {
+                Ok(data) => {
+                    trace!("get data: {} from: {}", data, holder);
+                    results.push(data);
+                }
+                Err(err) => {
+                    has_error = true;
+                    debug!("get error: {}, from : {}", err, holder);
+                }
+            }
+        }
+        if results.is_empty() {
+            if has_error {
+                debug!("cannot read from some pearls");
+                Err(Error::Failed("cannot read from some pearls".to_string()))
+            } else {
+                Err(Error::KeyNotFound)
+            }
+        } else {
+            self.settings.choose_data(results)
+        }
     }
 
     async fn get_common(pearl: PearlHolder<TSpawner>, key: BobKey) -> GetResult {
-        let result = pearl
-            .read(key)
-            .map(|r| r.map(|data| BackendGetResult { data }))
-            .await;
-        if Error::is_get_error_need_restart(result.as_ref().err())
-            && pearl.try_reinit().await.unwrap()
-        {
-            pearl.reinit_storage().await;
+        let result = pearl.read(key).await.map(|data| BackendGetResult { data });
+        if Error::is_get_error_need_restart(result.as_ref().err()) && pearl.try_reinit().await? {
+            pearl.reinit_storage().await?;
         }
         result
     }
 }
 
-impl<TSpawner> std::fmt::Display for PearlGroup<TSpawner> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "[id: {}, node: {}, path: {:?}, disk: {}]",
-            self.vdisk_id, self.node_name, self.directory_path, self.disk_name
-        )
+impl<TSpawner> Display for PearlGroup<TSpawner> {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        f.debug_struct("PearlGroup")
+            .field("vdisk_id", &self.vdisk_id)
+            .field("node_name", &self.node_name)
+            .field("directory_path", &self.directory_path)
+            .field("disk_name", &self.disk_name)
+            .field("..", &"")
+            .finish()
     }
 }

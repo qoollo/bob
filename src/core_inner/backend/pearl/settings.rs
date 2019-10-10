@@ -56,7 +56,6 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
     pub(crate) fn create_pearl(
         &self,
         group: &PearlGroup<TSpawner>,
-        _key: BobKey,
         data: BobData,
     ) -> BackendResult<PearlTimestampHolder<TSpawner>> {
         let start_timestamp =
@@ -309,12 +308,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> Settings<TSpawner>
         Stuff::get_start_timestamp_by_std_time(self.timestamp_period, SystemTime::now())
     }
 
-    pub(crate) fn is_actual(
-        &self,
-        pearl: PearlTimestampHolder<TSpawner>,
-        _key: BobKey,
-        data: BobData,
-    ) -> bool {
+    pub(crate) fn is_actual(&self, pearl: &PearlTimestampHolder<TSpawner>, data: &BobData) -> bool {
         trace!(
             "start: {}, end: {}, check: {}",
             pearl.start_timestamp,
