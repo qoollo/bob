@@ -287,7 +287,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlGroup<TSpawne
 
     async fn put_common(pearl: PearlHolder<TSpawner>, key: BobKey, data: BobData) -> PutResult {
         let result = pearl
-            .write(key, Box::new(data))
+            .write(key, data)
             .map(|r| r.map(|_ok| BackendPutResult {}))
             .await;
         if Error::is_put_error_need_restart(result.as_ref().err())

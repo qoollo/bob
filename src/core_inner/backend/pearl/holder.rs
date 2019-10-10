@@ -43,7 +43,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
             .await
     }
 
-    pub async fn write(&self, key: BobKey, data: Box<BobData>) -> BackendResult<()> {
+    pub async fn write(&self, key: BobKey, data: BobData) -> BackendResult<()> {
         self.storage
             .read(|st| {
                 if !st.is_ready() {
@@ -61,11 +61,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlHolder<TSpawn
             .await
     }
 
-    async fn write_disk(
-        storage: PearlStorage,
-        key: PearlKey,
-        data: Box<BobData>,
-    ) -> BackendResult<()> {
+    async fn write_disk(storage: PearlStorage, key: PearlKey, data: BobData) -> BackendResult<()> {
         PEARL_PUT_COUNTER.count(1);
         let timer = PEARL_PUT_TIMER.start();
         let result = storage
