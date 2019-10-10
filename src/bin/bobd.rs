@@ -15,7 +15,6 @@ use std::net::SocketAddr;
 
 #[macro_use]
 extern crate log;
-extern crate dipstick;
 
 use log4rs;
 
@@ -106,18 +105,4 @@ async fn main() {
     let new_service = BobApiServer::new(bob);
 
     Server::builder().serve(addr, new_service).await.unwrap();
-
-    // let serve = bind
-    //     .incoming()
-    //     .for_each(move |sock| {
-    //         if let Err(e) = sock.set_nodelay(true) {
-    //             return Err(e);
-    //         }
-
-    //         let serve = server.serve_with(sock, http.clone());
-    //         tokio::spawn(serve.map_err(|e| error!("Server h2 error: {:?}", e)));
-
-    //         Ok(())
-    //     })
-    //     .map_err(|e| error!("accept error: {}", e));
 }

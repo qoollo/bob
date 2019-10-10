@@ -33,73 +33,16 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
         }
     }
 
-    #[allow(dead_code)]
-    pub(crate) async fn test<TRet, F>(
-        &self,
-        _disk_name: String,
-        _vdisk_id: VDiskId,
-        _f: F,
-    ) -> BackendResult<TRet>
-    where
-        F: Fn(&mut PearlSync) -> TRet + Send + Sync,
-    {
-        unimplemented!();
-        // let vdisks = self.vdisks.clone();
-        // let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
-        // if let Some(disk) = vdisk {
-        //     let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
-        //     let q = async move { d_clone.test(f).await };
-        //     q.await
-        // } else {
-        //     Err(backend::Error::StorageError(format!(
-        //         "vdisk not found: {}",
-        //         vdisk_id
-        //     )))
-        // }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) async fn test_vdisk<TRet, F>(
-        &self,
-        _disk_name: String,
-        _vdisk_id: VDiskId,
-        _f: F,
-    ) -> BackendResult<TRet>
-    where
-        F: Fn(PearlHolder<TSpawner>) -> Future03Result<TRet> + Send + Sync,
-    {
-        unimplemented!();
-        // let vdisks = self.vdisks.clone();
-        // let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
-        // if let Some(disk) = vdisk {
-        //     let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
-        //     f(d_clone).await
-        // } else {
-        //     async move {
-        //         Err(backend::Error::StorageError(format!(
-        //             "vdisk not found: {}",
-        //             vdisk_id
-        //         )))
-        //     }
-        //         .await
-        // }
-    }
-
+    #[inline]
     async fn put_common(pearl: PearlGroup<TSpawner>, key: BobKey, data: BobData) -> PutResult {
-        let result = pearl
-            .put(key, data)
-            .map(|r| r.map(|_ok| BackendPutResult {}))
-            .await;
-        result
+        let res = pearl.put(key, data).await;
+        res.map(|_ok| BackendPutResult {})
     }
 
     async fn get_common(pearl: PearlGroup<TSpawner>, key: BobKey) -> GetResult {
         trace!("GET[{}] try from: {}", key, pearl);
-        let result = pearl
-            .get(key)
-            .map(|r| r.map(|data| BackendGetResult { data: data.data }))
-            .await;
-        result
+        let result = pearl.get(key).await;
+        result.map(|get_res| BackendGetResult { data: get_res.data })
     }
 
     async fn create_alien_pearl(&self, operation: BackendOperation) -> BackendResult<()> {
@@ -108,30 +51,26 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
         if self.pearl_sync.try_init().await? {
             // check if alien created
             debug!("create alien for: {}", operation.clone());
-            if self.find_alien_pearl(operation.clone()).await.is_ok() {
-                debug!("find new alien for: {}", operation.clone());
-                self.pearl_sync.mark_as_created().await;
-                return Ok(());
+            if self.find_alien_pearl(operation.clone()).await.is_err() {
+                let pearl = self
+                    .settings
+                    .create_group(operation.clone(), self.settings.clone())
+                    .unwrap(); //TODO
+
+                self.alien_vdisks_groups
+                    .write_sync_mut(|groups| {
+                        groups.push(pearl.clone());
+                    })
+                    .await?;
             }
-            let pearl = self
-                .settings
-                .create_group(operation.clone(), self.settings.clone())
-                .unwrap(); //TODO
-
-            self.alien_vdisks_groups
-                .write_sync_mut(|groups| {
-                    groups.push(pearl.clone());
-                })
-                .await;
-
             // if it run here then it will conflict withtimstamp runtime creation
             // pearl.run().await;
-            self.pearl_sync.mark_as_created().await?;
+            self.pearl_sync.mark_as_created().await
         } else {
             let t = self.settings.config.settings().create_pearl_wait_delay();
             delay_for(t).await;
+            Ok(())
         }
-        Ok(())
     }
 
     async fn find_alien_pearl(
@@ -145,7 +84,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
                     pearls
                         .iter()
                         .find(|vd| vd.can_process_operation(&op))
-                        .map(|r| r.clone())
+                        .cloned()
                         .ok_or({
                             trace!("cannot find actual alien folder. {}", op);
                             Error::Failed(format!("cannot find actual alien folder. {}", op))
@@ -157,8 +96,9 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
     }
 }
 
-impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
-    for PearlBackend<TSpawner>
+impl<TSpawner> BackendStorage for PearlBackend<TSpawner>
+where
+    TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync,
 {
     fn run_backend(&self) -> RunResult {
         debug!("run pearl backend");
@@ -167,15 +107,15 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
         let alien_vdisks_groups = self.alien_vdisks_groups.clone();
 
         async move {
-            for i in 0..vdisks_groups.len() {
-                vdisks_groups[i].run().await;
+            for vdisk_group in vdisks_groups.iter() {
+                vdisk_group.run().await;
             }
 
             alien_vdisks_groups
                 .read(|pearls| {
                     async move {
-                        for i in 0..pearls.len() {
-                            pearls[i].run().await;
+                        for pearl in pearls {
+                            pearl.run().await;
                         }
                         Ok(())
                     }
@@ -188,31 +128,30 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
 
     fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}] to pearl backend. opeartion: {}", key, operation);
-        let vdisk_groups = self.vdisks_groups.clone();
 
-        Put({
-            let vdisk_group = vdisk_groups
-                .iter()
-                .find(|vd| vd.can_process_operation(&operation));
-            if let Some(group) = vdisk_group {
-                let d_clone = group.clone();
-                async move {
-                    Self::put_common(d_clone, key, data) // TODO remove copy of disk. add Box?
-                        .await
-                        .map_err(|e| {
-                            debug!("PUT[{}], error: {:?}", key, e);
-                            e
-                        })
-                }
-                    .boxed()
-            } else {
-                debug!(
-                    "PUT[{}] to pearl backend. Cannot find group, operation: {}",
-                    key, operation
-                );
-                future::err(Error::VDiskNoFound(operation.vdisk_id)).boxed()
-            }
-        })
+        let vdisk_group = self
+            .vdisks_groups
+            .iter()
+            .find(|vd| vd.can_process_operation(&operation));
+
+        if let Some(group) = vdisk_group {
+            let group = group.clone();
+            let task = async move {
+                Self::put_common(group, key, data) // TODO remove copy of disk. add Box?
+                    .await
+                    .map_err(|e| {
+                        debug!("PUT[{}], error: {:?}", key, e);
+                        e
+                    })
+            };
+            Put(task.boxed())
+        } else {
+            debug!(
+                "PUT[{}] to pearl backend. Cannot find group, operation: {}",
+                key, operation
+            );
+            Put(future::err(Error::VDiskNoFound(operation.vdisk_id)).boxed())
+        }
     }
 
     fn put_alien(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {
@@ -224,7 +163,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> BackendStorage
                 let mut vdisk_group = backend.find_alien_pearl(operation.clone()).await;
                 if vdisk_group.is_err() {
                     debug!("need create alien for: {}", operation.clone());
-                    backend.create_alien_pearl(operation.clone()).await;
+                    backend.create_alien_pearl(operation.clone()).await.unwrap();
                     vdisk_group = backend.find_alien_pearl(operation.clone()).await;
                 }
                 if let Ok(group) = vdisk_group {
