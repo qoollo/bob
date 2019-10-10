@@ -44,18 +44,19 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
     where
         F: Fn(&mut TGuard) -> Future03Result<TRet> + Send + Sync,
     {
-        // let lock = self.storage.write().compat().boxed().await.map_err(|_e| {
-        //     error!("cannot take lock");
-        //     panic!("cannot take lock");
-        // });
+        let mut st = self
+            .storage
+            .write()
+            .compat()
+            .await
+            .expect("cannot take lock");
 
-        // lock.map(move |mut st| f(&mut *st))
-        //     .map_err(|e| {
-        //         error!("lock error: {:?}", e);
-        //         Error::StorageError(format!("lock error: {:?}", e))
-        //     })?
-        //     .await
-        unimplemented!()
+        f(&mut st)
+            .map_err(|e| {
+                error!("lock error: {:?}", e);
+                Error::StorageError(format!("lock error: {:?}", e))
+            })
+            .await
     }
 }
 
@@ -109,89 +110,97 @@ impl StateWrapper {
         }
     }
 
+    #[inline]
     pub fn is_creating(&self) -> bool {
         self.state == CreationState::Creating
     }
 
+    #[inline]
     pub fn start(&mut self) {
         self.state = CreationState::Creating;
     }
 
+    #[inline]
     pub fn created(&mut self) {
         self.state = CreationState::No;
     }
 }
 
-impl std::fmt::Display for StateWrapper {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "[{:?}]", self.state)
+impl Display for StateWrapper {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        f.debug_struct("StateWrapper")
+            .field("state", &self.state)
+            .field("..", &"some fields ommited")
+            .finish()
     }
 }
 
-pub(crate) struct Stuff {}
+pub(crate) struct Stuff;
 
 impl Stuff {
     pub(crate) fn check_or_create_directory(path: &PathBuf) -> BackendResult<()> {
-        if !path.exists() {
-            return match path.to_str() {
-                Some(dir) => create_dir_all(&path)
-                    .map(|_r| info!("create directory: {}", dir))
-                    .map_err(|e| {
-                        Error::StorageError(format!(
-                            "cannot create directory: {}, error: {}",
-                            dir,
-                            e.to_string()
-                        ))
-                    }),
-                _ => Err(Error::StorageError(
-                    "invalid some path, check vdisk or disk names".to_string(),
-                )),
-            };
+        if path.exists() {
+            trace!("directory: {:?} exists", path);
+            Ok(())
+        } else {
+            let dir = path.to_str().ok_or_else(|| {
+                Error::StorageError("invalid some path, check vdisk or disk names".to_string())
+            })?;
+
+            create_dir_all(&path)
+                .map(|_| info!("create directory: {}", dir))
+                .map_err(|e| {
+                    Error::StorageError(format!(
+                        "cannot create directory: {}, error: {}",
+                        dir,
+                        e.to_string()
+                    ))
+                })
         }
-        trace!("directory: {:?} exists", path);
-        Ok(())
     }
 
     pub(crate) fn drop_pearl_lock_file(path: &PathBuf) -> BackendResult<()> {
         let mut file = path.clone();
         file.push("pearl.lock");
         if file.exists() {
-            return remove_file(&file)
-                .map(|_r| debug!("deleted lock file from directory: {:?}", file))
+            remove_file(&file)
+                .map(|_| debug!("deleted lock file from directory: {:?}", file))
                 .map_err(|e| {
                     Error::StorageError(format!(
                         "cannot delete lock file from directory: {:?}, error: {}",
-                        file,
-                        e.to_string()
+                        file, e
                     ))
-                });
+                })
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     pub(crate) fn get_start_timestamp_by_std_time(
         period: Duration,
         time: SystemTime,
     ) -> BackendResult<i64> {
-        let period = ChronoDuration::from_std(period).map_err(|e| {
-            trace!("smth wrong with time: {:?}, error: {}", period, e);
-            Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
-        })?;
-        let time = DateTime::from(time);
-
-        Self::get_start_timestamp(period, time)
+        ChronoDuration::from_std(period)
+            .map_err(|e| {
+                trace!("smth wrong with time: {:?}, error: {}", period, e);
+                Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+            })
+            .and_then(|period| Self::get_start_timestamp(period, DateTime::from(time)))
     }
 
     pub(crate) fn get_start_timestamp_by_timestamp(
         period: Duration,
         time: i64,
     ) -> BackendResult<i64> {
-        let period = ChronoDuration::from_std(period).map_err(|e| {
-            trace!("smth wrong with time: {:?}, error: {}", period, e);
-            Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
-        })?;
-        let time: DateTime<Utc> = DateTime::from_utc(NaiveDateTime::from_timestamp(time, 0), Utc);
-        Self::get_start_timestamp(period, time)
+        ChronoDuration::from_std(period)
+            .map_err(|e| {
+                trace!("smth wrong with time: {:?}, error: {}", period, e);
+                Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+            })
+            .and_then(|period| {
+                let time = DateTime::from_utc(NaiveDateTime::from_timestamp(time, 0), Utc);
+                Self::get_start_timestamp(period, time)
+            })
     }
 
     fn get_start_timestamp(period: ChronoDuration, time: DateTime<Utc>) -> BackendResult<i64> {
@@ -209,12 +218,13 @@ impl Stuff {
         }
         Ok(start_time.timestamp())
     }
-    pub(crate) fn get_period_timestamp(period: Duration) -> BackendResult<i64> {
-        let period = ChronoDuration::from_std(period).map_err(|e| {
-            trace!("smth wrong with time: {:?}, error: {}", period, e);
-            Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
-        })?;
 
-        Ok(period.num_seconds())
+    pub(crate) fn get_period_timestamp(period: Duration) -> BackendResult<i64> {
+        ChronoDuration::from_std(period)
+            .map_err(|e| {
+                trace!("smth wrong with time: {:?}, error: {}", period, e);
+                Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+            })
+            .map(|period| period.num_seconds())
     }
 }

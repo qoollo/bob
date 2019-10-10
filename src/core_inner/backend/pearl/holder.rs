@@ -286,7 +286,7 @@ impl PearlSync {
 
 impl std::fmt::Display for PearlSync {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.debug_struct("PearlGroup")
+        f.debug_struct("PearlSync")
             .field("state", &self.state)
             .field("..", &"some fields ommited")
             .finish()
