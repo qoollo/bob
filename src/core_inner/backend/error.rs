@@ -102,8 +102,8 @@ impl From<Status> for Error {
     }
 }
 
-impl From<TimerError> for Error {
-    fn from(error: TimerError) -> Self {
+impl From<tokio::timer::timeout::Elapsed> for Error {
+    fn from(error: tokio::timer::timeout::Elapsed) -> Self {
         // if error.is_elapsed() {
         //     return Error::Timeout;
         // }

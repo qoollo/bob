@@ -11,8 +11,8 @@ pub mod server;
 
 pub(crate) use super::prelude::*;
 pub(crate) use backend::{
-    init_pearl, BackendGetResult, BackendOperation, BackendPingResult, BackendPutResult, Get,
-    GetResult, Put,
+    init_pearl, BackendGetResult, BackendOperation, BackendPingResult, BackendPutResult,
+    Get as BackendGet, GetResult, Put as BackendPut,
 };
 
 mod prelude {
@@ -22,7 +22,7 @@ mod prelude {
         ClusterConfig, DiskPath as ConfigDiskPath, Node as ClusterNodeConfig, NodeConfig,
     };
     pub(crate) use super::data::{
-        print_vec, BobData, BobFlags, BobKey, BobOptions, ClusterResult, DiskPath,
+        print_vec, BobData, BobFlags, BobKey, BobMeta, BobOptions, ClusterResult, DiskPath,
         NodeDisk as DataNodeDisk, VDisk as DataVDisk, VDiskId,
     };
     pub(crate) use super::grinder::Grinder;

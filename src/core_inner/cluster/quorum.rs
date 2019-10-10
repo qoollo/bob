@@ -150,7 +150,7 @@ impl QuorumCluster {
 
 impl Cluster for QuorumCluster {
     //todo check duplicate data = > return error???
-    fn put_clustered_async(&self, key: BobKey, data: BobData) -> Put {
+    fn put_clustered_async(&self, key: BobKey, data: BobData) -> BackendPut {
         let l_quorum = self.quorum as usize;
         let mapper = self.mapper.clone();
         let vdisk_id = self.mapper.get_vdisk(key).id.clone(); // remove search vdisk (not vdisk id)
@@ -268,13 +268,13 @@ impl Cluster for QuorumCluster {
             //         )))
             //     }
             // }
-            unimplemented!()
         };
-        Put(p.boxed())
+        // Put(p.boxed())
+        unimplemented!()
     }
 
     //todo check no data (no error)
-    fn get_clustered_async(&self, key: BobKey) -> Get {
+    fn get_clustered_async(&self, key: BobKey) -> BackendGet {
         let mapper = self.mapper.clone();
         let l_quorim = self.quorum as usize;
 
@@ -325,7 +325,7 @@ impl Cluster for QuorumCluster {
 
             Err::<_, backend::Error>(backend::Error::Failed(err + &err_sup))
         };
-        Get(g.boxed())
+        BackendGet(g.boxed())
     }
 }
 

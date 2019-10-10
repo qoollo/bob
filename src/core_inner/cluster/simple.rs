@@ -20,7 +20,7 @@ impl SimpleQuorumCluster {
 }
 
 impl Cluster for SimpleQuorumCluster {
-    fn put_clustered_async(&self, key: BobKey, data: BobData) -> Put {
+    fn put_clustered_async(&self, key: BobKey, data: BobData) -> BackendPut {
         let target_nodes = self.calc_target_nodes(key);
 
         debug!(
@@ -29,64 +29,63 @@ impl Cluster for SimpleQuorumCluster {
             print_vec(&target_nodes)
         );
 
-        // let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
-        // conn.put(
-        //     key,
-        //     &data,
-        //     PutOptions {
-        //         remote_nodes: vec![], //TODO check
-        //         force_node: true,
-        //         overwrite: false,
-        //     },
-        // )
-        // .0
-        // unimplemented!()
-        // });
+        let reqs = LinkManager::call_nodes(&target_nodes, |mut mock_bob_client| {
+            mock_bob_client
+                .put(
+                    key,
+                    &data,
+                    PutOptions {
+                        remote_nodes: vec![], //TODO check
+                        force_node: true,
+                        overwrite: false,
+                    },
+                )
+                .0
+        });
 
-        // let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
+        let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
 
         let l_quorum = self.quorum;
-        // let q = t
-        //     .map(move |r| {
-        //         trace!("PUT[{}] Response from cluster {:?}", key, r);
-        //         r // wrap all result kind to process it later
-        //     })
-        //     .fold(vec![], |mut acc, r| {
-        //         acc.push(r);
-        //         future::ready(acc)
-        //     })
-        //     .map(move |acc| {
-        //         debug!("PUT[{}] cluster ans: {:?}", key, acc);
-        //         let total_ops = acc.iter().count();
-        //         let mut sup = String::default();
-        //         let ok_count = acc
-        //             .iter()
-        //             .filter(|&r| {
-        //                 if let Err(e) = r {
-        //                     sup = format!("{}, {:?}", sup.clone(), e)
-        //                 }
-        //                 r.is_ok()
-        //             })
-        //             .count();
-        //         debug!(
-        //             "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
-        //             key, total_ops, ok_count, l_quorum
-        //         );
-        //         // TODO: send actuall list of vdisk it has been written on
-        //         if ok_count >= l_quorum as usize {
-        //             Ok(BackendPutResult {})
-        //         } else {
-        //             Err(backend::Error::Failed(format!(
-        //                 "failed: total: {}, ok: {}, quorum: {}, sup: {}",
-        //                 total_ops, ok_count, l_quorum, sup
-        //             )))
-        //         }
-        //     });
-        // Put(q.boxed())
-        unimplemented!()
+        let q = t
+            .map(move |r| {
+                trace!("PUT[{}] Response from cluster {:?}", key, r);
+                r // wrap all result kind to process it later
+            })
+            .fold(vec![], |mut acc, r| {
+                acc.push(r);
+                future::ready(acc)
+            })
+            .map(move |acc| {
+                debug!("PUT[{}] cluster ans: {:?}", key, acc);
+                let total_ops = acc.iter().count();
+                let mut sup = String::default();
+                let ok_count = acc
+                    .iter()
+                    .filter(|&r| {
+                        if let Err(e) = r {
+                            sup = format!("{}, {:?}", sup.clone(), e)
+                        }
+                        r.is_ok()
+                    })
+                    .count();
+                debug!(
+                    "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
+                    key, total_ops, ok_count, l_quorum
+                );
+                // TODO: send actuall list of vdisk it has been written on
+                if ok_count >= l_quorum as usize {
+                    Ok(BackendPutResult {})
+                } else {
+                    Err(backend::Error::Failed(format!(
+                        "failed: total: {}, ok: {}, quorum: {}, sup: {}",
+                        total_ops, ok_count, l_quorum, sup
+                    )))
+                }
+            });
+        BackendPut(q.boxed())
     }
 
-    fn get_clustered_async(&self, key: BobKey) -> Get {
+    fn get_clustered_async(&self, key: BobKey) -> BackendGet {
         let target_nodes = self.calc_target_nodes(key);
 
         debug!(
@@ -128,6 +127,6 @@ impl Cluster for SimpleQuorumCluster {
                     Err::<_, backend::Error>(backend::Error::Failed(sup))
                 }
             });
-        Get(w.boxed())
+        BackendGet(w.boxed())
     }
 }

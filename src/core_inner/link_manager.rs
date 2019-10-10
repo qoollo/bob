@@ -6,7 +6,7 @@ pub struct LinkManager {
 }
 
 pub type ClusterCallType<T> = Result<ClusterResult<T>, ClusterResult<BackendError>>;
-pub type ClusterCallFuture<T> = Pin<Box<dyn Future<Output = ClusterCallType<T>> + 'static + Send>>;
+pub type ClusterCallFuture<T> = Pin<Box<dyn Future<Output = ClusterCallType<T>> + Send>>;
 
 impl LinkManager {
     pub fn new(nodes: &Vec<Node>, check_interval: Duration) -> LinkManager {
@@ -31,18 +31,17 @@ impl LinkManager {
         Ok(())
     }
 
-    pub fn call_nodes<F: Send, T: 'static + Send>(
-        nodes: &[Node],
-        mut f: F,
-    ) -> Vec<ClusterCallFuture<T>>
+    pub fn call_nodes<F, T>(nodes: &[Node], mut f: F) -> Vec<ClusterCallFuture<T>>
     where
-        F: FnMut(&mut BobClient) -> ClusterCallFuture<T>,
+        F: FnMut(BobClient) -> ClusterCallFuture<T> + Send,
+        T: 'static + Send,
     {
         nodes
             .iter()
             .map(move |nl| {
                 let nl_clone = nl.clone();
-                match &mut nl.get_connection() {
+                let client = nl.get_connection();
+                match client {
                     Some(conn) => f(conn)
                         .map_err(move |e| {
                             if e.result.is_service() {
@@ -62,11 +61,12 @@ impl LinkManager {
             .collect()
     }
 
-    pub fn call_node<F: Send, T: 'static + Send>(node: &Node, mut f: F) -> ClusterCallFuture<T>
+    pub fn call_node<F, T>(node: &Node, mut f: F) -> ClusterCallFuture<T>
     where
-        F: FnMut(&mut BobClient) -> ClusterCallFuture<T>,
+        F: FnMut(BobClient) -> ClusterCallFuture<T>,
+        T: 'static + Send,
     {
-        match &mut node.get_connection() {
+        match node.get_connection() {
             Some(conn) => {
                 let nl_node = node.clone();
                 f(conn)

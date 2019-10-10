@@ -24,54 +24,53 @@ impl BobSrv {
     }
 }
 
-type PutFuture = Result<Response<OpStatus>, Status>;
-type GetFuture = Result<Response<Blob>, Status>;
-type PingFuture = Result<Response<Null>, Status>;
+type ApiResult<T> = Result<Response<T>, Status>;
+// type PutFuture = Result<Response<OpStatus>, Status>;
+// type GetFuture = Result<Response<Blob>, Status>;
+// type PingFuture = Result<Response<Null>, Status>;
 
 #[tonic::async_trait]
 impl BobApi for BobSrv {
-    async fn put(&self, req: Request<PutRequest>) -> PutFuture {
-        // let sw = Stopwatch::start_new();
-        // let param = req.into_inner();
+    async fn put(&self, req: Request<PutRequest>) -> ApiResult<OpStatus> {
+        let sw = Stopwatch::start_new();
+        let put_request = req.into_inner();
 
-        // if !Self::put_is_valid(&param) {
-        //     warn!("PUT[-] invalid arguments - key and data is mandatory");
-        //     Box::new(future::err(Status::new(
-        //         Code::InvalidArgument,
-        //         "Key and data is mandatory",
-        //     )))
-        // } else {
-        //     let key = BobKey {
-        //         key: param.clone().key.unwrap().key,
-        //     };
-        //     let blob = param.clone().data.unwrap();
-        //     let data = BobData::new(blob.data, BobMeta::new(blob.meta.unwrap()));
+        if Self::put_is_valid(&put_request) {
+            let key = BobKey {
+                key: put_request
+                    .key
+                    .clone()
+                    .map(|blob_key| blob_key.key)
+                    .unwrap(),
+            };
+            let blob = put_request.data.clone().unwrap();
+            let data = BobData::new(blob.data, BobMeta::new(blob.meta.unwrap()));
 
-        //     trace!("PUT[{}] data size: {}", key, data.data.len());
-        //     let grinder = self.grinder.clone();
-        //     let q = async move {
-        //         grinder
-        //             .put(key, data, BobOptions::new_put(param.options))
-        //             .await
-        //     };
-        //     Box::new(q.boxed().then(move |r| {
-        //         let elapsed = sw.elapsed_ms();
-        //         match r {
-        //             Ok(r_ok) => {
-        //                 debug!("PUT[{}]-OK local:{:?} ok dt: {}ms", key, r_ok, elapsed);
-        //                 future::ok(Response::new(OpStatus { error: None }))
-        //             }
-        //             Err(r_err) => {
-        //                 error!("PUT[{}]-ERR dt: {}ms {:?}", key, elapsed, r_err);
-        //                 future::err(r_err.into())
-        //             }
-        //         }
-        //     }))
-        // }
-        unimplemented!()
+            trace!("PUT[{}] data size: {}", key, data.data.len());
+            let put_result = self
+                .grinder
+                .put(key, data, BobOptions::new_put(put_request.options))
+                .await;
+            let elapsed = sw.elapsed_ms();
+            put_result
+                .map(|back_res| {
+                    debug!("PUT[{}]-OK local:{:?} ok dt: {}ms", key, back_res, elapsed);
+                    Response::new(OpStatus { error: None })
+                })
+                .map_err(|e| {
+                    error!("PUT[{}]-ERR dt: {}ms {:?}", key, elapsed, e);
+                    e.into()
+                })
+        } else {
+            warn!("PUT[-] invalid arguments - key and data is mandatory");
+            Err(Status::new(
+                Code::InvalidArgument,
+                "Key and data is mandatory",
+            ))
+        }
     }
 
-    async fn get(&self, req: Request<GetRequest>) -> GetFuture {
+    async fn get(&self, req: Request<GetRequest>) -> ApiResult<Blob> {
         let sw = Stopwatch::start_new();
         let param = req.into_inner();
         if !Self::get_is_valid(&param) {
@@ -108,10 +107,8 @@ impl BobApi for BobSrv {
         unimplemented!()
     }
 
-    async fn ping(&self, _request: Request<Null>) -> PingFuture {
+    async fn ping(&self, _request: Request<Null>) -> ApiResult<Null> {
         debug!("PING");
-        let response = Response::new(Null {});
-        // future::ok(response)
-        unimplemented!()
+        Ok(Response::new(Null {}))
     }
 }

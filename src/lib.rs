@@ -24,12 +24,4 @@ pub use self::core_inner::{
 mod prelude {
     pub(crate) use super::*;
     pub(crate) use grpc::{client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
-    // pub(crate) use futures::{future, task::Spawn, Future};
-    // pub(crate) use futures_locks::RwLock;
-    // pub(crate) use std::io::ErrorKind;
-    // pub(crate) use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};
-    // pub(crate) use stopwatch::Stopwatch;
-    // pub(crate) use tokio::timer::Error as TimerError;
-    // pub(crate) use tonic::{Code, Status};
-    // pub(crate) use tonic::{Request, Response};
 }

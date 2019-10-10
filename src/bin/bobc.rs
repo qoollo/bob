@@ -1,10 +1,7 @@
 use bob::grpc::client::BobApiClient;
 use bob::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
-use futures::Future;
-use hyper::client::connect::{Destination, HttpConnector};
 use std::io;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::runtime::Runtime;
 use tonic::Request;
 
 fn wait_for_input() {

@@ -12,8 +12,8 @@ use quorum::QuorumCluster;
 use simple::SimpleQuorumCluster;
 
 pub(crate) trait Cluster {
-    fn put_clustered_async(&self, key: BobKey, data: BobData) -> Put;
-    fn get_clustered_async(&self, key: BobKey) -> Get;
+    fn put_clustered_async(&self, key: BobKey, data: BobData) -> BackendPut;
+    fn get_clustered_async(&self, key: BobKey) -> BackendGet;
 }
 
 pub(crate) fn get_cluster(
