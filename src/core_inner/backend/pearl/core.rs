@@ -94,6 +94,32 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
             })
             .await
     }
+
+    #[cfg(test)]
+    #[inline]
+    pub(crate) async fn test<TRet, F>(
+        &self,
+        _disk_name: String,
+        _vdisk_id: VDiskId,
+        _f: F,
+    ) -> BackendResult<TRet>
+    where
+        F: Fn(&mut super::holder::PearlSync) -> TRet + Send + Sync,
+    {
+        unimplemented!();
+        // let vdisks = self.vdisks.clone();
+        // let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
+        // if let Some(disk) = vdisk {
+        //     let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
+        //     let q = async move { d_clone.test(f).await };
+        //     q.await
+        // } else {
+        //     Err(backend::Error::StorageError(format!(
+        //         "vdisk not found: {}",
+        //         vdisk_id
+        //     )))
+        // }
+    }
 }
 
 impl<TSpawner> BackendStorage for PearlBackend<TSpawner>

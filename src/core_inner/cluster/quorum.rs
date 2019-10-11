@@ -321,9 +321,9 @@ impl Cluster for QuorumCluster {
 pub mod tests {
     use super::*;
     use crate::core_inner::cluster::Cluster;
-    use crate::core_inner::configs::{
-        cluster_config, node_config, ClusterConfig, ClusterConfigYaml, NodeConfig, NodeConfigYaml,
-    };
+    use crate::core_inner::configs::cluster::tests::cluster_config;
+    use crate::core_inner::configs::{node::tests::node_config, node::NodeConfigYaml};
+    use crate::core_inner::configs::{ClusterConfig, ClusterConfigYaml, NodeConfig};
     use crate::core_inner::{
         backend::Backend,
         bob_client::BobClient,

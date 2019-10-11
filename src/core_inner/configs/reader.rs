@@ -19,7 +19,7 @@ pub trait Validatable {
 pub struct YamlBobConfigReader {}
 
 impl YamlBobConfigReader {
-    pub fn read(&self, filename: &str) -> Result<String, String> {
+    pub fn read(filename: &str) -> Result<String, String> {
         let result: Result<String, _> = read_to_string(filename);
         match result {
             Ok(config) => Ok(config),
@@ -30,7 +30,7 @@ impl YamlBobConfigReader {
         }
     }
 
-    pub fn parse<T>(&self, config: &str) -> Result<T, String>
+    pub fn parse<T>(config: &str) -> Result<T, String>
     where
         T: for<'de> Deserialize<'de> + Validatable,
     {
@@ -44,12 +44,12 @@ impl YamlBobConfigReader {
         }
     }
 
-    pub fn get<T>(&self, filename: &str) -> Result<T, String>
+    pub fn get<T>(filename: &str) -> Result<T, String>
     where
         T: for<'de> Deserialize<'de> + Validatable,
     {
-        let file = self.read(filename)?;
-        let config: T = self.parse(&file)?;
+        let file = Self::read(filename)?;
+        let config: T = Self::parse(&file)?;
 
         let is_valid = config.validate();
         match is_valid {

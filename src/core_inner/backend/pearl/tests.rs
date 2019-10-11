@@ -1,19 +1,18 @@
 use super::prelude::*;
 
 use crate::core_inner::backend::pearl::core::PearlBackend;
-use crate::core_inner::configs::{ClusterConfigYaml, DiskPath, NodeConfigYaml};
+use crate::core_inner::configs::{node::NodeConfigYaml, ClusterConfigYaml};
 use futures::executor::{ThreadPool, ThreadPoolBuilder};
 use std::fs::remove_dir_all;
-
-static DISK_NAME: &'static str = "disk1";
-static PEARL_PATH: &'static str = "/tmp/d1/";
+static DISK_NAME: &str = "disk1";
+static PEARL_PATH: &str = "/tmp/d1/";
 const KEY_ID: u64 = 1;
 const TIMESTAMP: i64 = 1;
 
 fn drop_pearl() {
     let path = PathBuf::from(PEARL_PATH);
     if path.exists() {
-        remove_dir_all(path);
+        remove_dir_all(path).unwrap();
     }
 }
 
@@ -33,9 +32,8 @@ fn create_backend(
         .get_from_string(node_config, &cluster)
         .unwrap();
 
-    // let mapper = Arc::new(VDiskMapper::new(vdisks.to_vec(), &node, &cluster));
-    // PearlBackend::new(mapper, &node, pool)
-    unimplemented!()
+    let mapper = Arc::new(VDiskMapper::new(vdisks.to_vec(), &node, &cluster));
+    PearlBackend::new(mapper, &node, pool)
 }
 
 fn backend() -> PearlBackend<ThreadPool> {
@@ -83,142 +81,185 @@ fn test_write_multiple_read() {
     let vdisk_id = VDiskId::new(0);
     let backend = backend();
     let mut reactor = get_pool();
-    reactor.run(backend.run_backend());
+    reactor.run(backend.run_backend()).unwrap();
 
-    // let write = reactor.run(
-    //     backend
-    //         .put(
-    //             BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME.clone(), "")),
-    //             BobKey::new(KEY_ID),
-    //             BobData::new(vec![], BobMeta::new_value(TIMESTAMP)),
-    //         )
-    //         .0,
-    // );
-    // assert!(write.is_ok());
+    let write = reactor.run(
+        backend
+            .put(
+                BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+                BobKey::new(KEY_ID),
+                BobData::new(vec![], BobMeta::new_value(TIMESTAMP)),
+            )
+            .0,
+    );
+    assert!(write.is_ok());
 
-    // let mut read = reactor.run(
-    //     backend
-    //         .get(
-    //             BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME.clone(), "")),
-    //             BobKey::new(KEY_ID),
-    //         )
-    //         .0,
-    // );
-    // assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
-    // read = reactor.run(
-    //     backend
-    //         .get(
-    //             BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME.clone(), "")),
-    //             BobKey::new(KEY_ID),
-    //         )
-    //         .0,
-    // );
-    // assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
+    let mut read = reactor.run(
+        backend
+            .get(
+                BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+                BobKey::new(KEY_ID),
+            )
+            .0,
+    );
+    assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
+    read = reactor.run(
+        backend
+            .get(
+                BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+                BobKey::new(KEY_ID),
+            )
+            .0,
+    );
+    assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
 
-    // let q = async move {
-    //     let result1 = backend
-    //         .get(
-    //             BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME.clone(), "")),
-    //             BobKey::new(KEY_ID),
-    //         )
-    //         .0
-    //         .await;
-    //     let result2 = backend
-    //         .get(
-    //             BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME.clone(), "")),
-    //             BobKey::new(KEY_ID),
-    //         )
-    //         .0
-    //         .await;
-    //     assert_eq!(TIMESTAMP, result1.unwrap().data.meta.timestamp);
-    //     assert_eq!(TIMESTAMP, result2.unwrap().data.meta.timestamp);
-    // };
-    // reactor.run(q);
-    // drop_pearl();
-    unimplemented!()
+    let q = async move {
+        let result1 = backend
+            .get(
+                BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+                BobKey::new(KEY_ID),
+            )
+            .0
+            .await;
+        let result2 = backend
+            .get(
+                BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+                BobKey::new(KEY_ID),
+            )
+            .0
+            .await;
+        assert_eq!(TIMESTAMP, result1.unwrap().data.meta.timestamp);
+        assert_eq!(TIMESTAMP, result2.unwrap().data.meta.timestamp);
+    };
+    reactor.run(q);
+    drop_pearl();
 }
 
-// #[test]
+#[test]
 fn test_read_no_data() {
     drop_pearl();
     let vdisk_id = VDiskId::new(0);
     let backend = backend();
     let mut reactor = get_pool();
-    reactor.run(backend.run_backend());
+    reactor.run(backend.run_backend()).unwrap();
 
-    // let timestamp1 = reactor.run(backend.test(
-    //     DISK_NAME.clone().to_string(),
-    //     vdisk_id.clone(),
-    //     |st| st.start_time_test,
-    // ));
-    unimplemented!();
+    let timestamp1 = reactor.run(backend.test(DISK_NAME.to_string(), vdisk_id.clone(), |st| {
+        st.start_time_test
+    }));
 
-    // let read = reactor.run(
-    //     backend
-    //         .get(
-    //             BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME.clone(), "")),
-    //             BobKey::new(KEY_ID),
-    //         )
-    //         .0,
-    // );
-    // assert_eq!(Error::KeyNotFound, read.err().unwrap());
+    let read = reactor.run(
+        backend
+            .get(
+                BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+                BobKey::new(KEY_ID),
+            )
+            .0,
+    );
+    assert_eq!(Error::KeyNotFound, read.err().unwrap());
 
-    // let timestamp2 = reactor.run(backend.test(
-    //     DISK_NAME.clone().to_string(),
-    //     vdisk_id.clone(),
-    //     |st| st.start_time_test,
-    // ));
-    // assert_eq!(timestamp1, timestamp2); // check no restart vdisk-pearl
-    // drop_pearl();
-    unimplemented!()
+    let timestamp2 = reactor.run(backend.test(DISK_NAME.to_string(), vdisk_id.clone(), |st| {
+        st.start_time_test
+    }));
+    assert_eq!(timestamp1, timestamp2); // check no restart vdisk-pearl
+    drop_pearl();
 }
 
 // #[test]
 // fn test_write_duplicate() {
-//   drop_pearl();
-//   let vdisk_id = VDiskId::new(0);
-//   let backend = backend();
-//   let mut reactor = get_pool();
-//   reactor.run(backend.run_backend());
+//     drop_pearl();
+//     let vdisk_id = VDiskId::new(0);
+//     let backend = backend();
+//     let mut reactor = get_pool();
+//     reactor.run(backend.run_backend());
 
-//   let timestamp1 = reactor.run(backend.test(DISK_NAME.clone().to_string(), vdisk_id.clone(), |st| {st.start_time_test} ));
+//     let timestamp1 = reactor.run(backend.test(
+//         DISK_NAME.to_string(),
+//         vdisk_id.clone(),
+//         |st| st.start_time_test,
+//     ));
 
-//   let mut write = reactor.run(backend.put(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID), BobData::new(vec![], BobMeta::new_value(TIMESTAMP))).0);
-//   assert!(write.is_ok());
+//     let mut write = reactor.run(
+//         backend
+//             .put(
+//                 BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+//                 BobKey::new(KEY_ID),
+//                 BobData::new(vec![], BobMeta::new_value(TIMESTAMP)),
+//             )
+//             .0,
+//     );
+//     assert!(write.is_ok());
 
-//   write = reactor.run(backend.put(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID), BobData::new(vec![], BobMeta::new_value(TIMESTAMP))).0);
-//   assert_eq!(backend::Error::DuplicateKey, write.err().unwrap());
+//     write = reactor.run(
+//         backend
+//             .put(
+//                 BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+//                 BobKey::new(KEY_ID),
+//                 BobData::new(vec![], BobMeta::new_value(TIMESTAMP)),
+//             )
+//             .0,
+//     );
+//     assert_eq!(backend::Error::DuplicateKey, write.err().unwrap());
 
-//   let read = reactor.run(backend.get(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID)).0);
-//   assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
+//     let read = reactor.run(
+//         backend
+//             .get(
+//                 BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+//                 BobKey::new(KEY_ID),
+//             )
+//             .0,
+//     );
+//     assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
 
-//   let timestamp2 = reactor.run(backend.test(DISK_NAME.clone().to_string(), vdisk_id.clone(), |st| {st.start_time_test} ));
-//   assert_eq!(timestamp1, timestamp2); // check no restart vdisk-pearl
-//   drop_pearl();
+//     let timestamp2 = reactor.run(backend.test(
+//         DISK_NAME.to_string(),
+//         vdisk_id.clone(),
+//         |st| st.start_time_test,
+//     ));
+//     assert_eq!(timestamp1, timestamp2); // check no restart vdisk-pearl
+//     drop_pearl();
 // }
 
 // #[test]
 // fn test_write_restart_read() {
-//   drop_pearl();
-//   let vdisk_id = VDiskId::new(0);
-//   let backend = backend();
-//   let mut reactor = get_pool();
-//   reactor.run(backend.run_backend());
+//     drop_pearl();
+//     let vdisk_id = VDiskId::new(0);
+//     let backend = backend();
+//     let mut reactor = get_pool();
+//     reactor.run(backend.run_backend());
 
-//   let write = reactor.run(backend.put(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID), BobData::new(vec![], BobMeta::new_value(TIMESTAMP))).0);
-//   assert!(write.is_ok());
+//     let write = reactor.run(
+//         backend
+//             .put(
+//                 BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+//                 BobKey::new(KEY_ID),
+//                 BobData::new(vec![], BobMeta::new_value(TIMESTAMP)),
+//             )
+//             .0,
+//     );
+//     assert!(write.is_ok());
 
-//   reactor.run(backend.test_vdisk(DISK_NAME.clone().to_string(), vdisk_id.clone(), |st| {
-//     let q = async move {
-//       let result = st.try_reinit().await;
-//       assert!(result.unwrap());
-//       st.prepare_storage().await;
-//       Ok(())
-//     };
-//     q.boxed()
-//   }));
-//   let read = reactor.run(backend.get(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID)).0);
-//   assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
+//     reactor.run(backend.test_vdisk(
+//         BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+//         |st| {
+//             let q = async move {
+//                 let result = st.try_reinit().await;
+//                 assert!(result.unwrap());
+//                 st.prepare_storage().await;
+//                 Ok(())
+//             };
+//             q.boxed()
+//         },
+//     ));
+//     let read = reactor.run(
+//         backend
+//             .get(
+//                 DISK_NAME.to_string(),
+//                 vdisk_id.clone(),
+//                 BobKey::new(KEY_ID),
+//             )
+//             .0,
+//     );
+//     assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
 // }
 
 // #[test]
@@ -228,11 +269,34 @@ fn test_read_no_data() {
 //     let mut reactor = get_pool();
 //     reactor.run(backend.run_backend());
 
-//     let mut write = reactor.run(backend.put(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID), BobData::new(vec![], BobMeta::new_value(TIMESTAMP))).0);
+//     let mut write = reactor.run(
+//         backend
+//             .put(
+//                 BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+//                 BobKey::new(KEY_ID),
+//                 BobData::new(vec![], BobMeta::new_value(TIMESTAMP)),
+//             )
+//             .0,
+//     );
 //     assert!(write.is_ok());
-//     write = reactor.run(backend.put(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID), BobData::new(vec![], BobMeta::new_value(TIMESTAMP2))).0);
+//     write = reactor.run(
+//         backend
+//             .put(
+//                 BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+//                 BobKey::new(KEY_ID),
+//                 BobData::new(vec![], BobMeta::new_value(TIMESTAMP2)),
+//             )
+//             .0,
+//     );
 //     assert!(write.is_ok());
 
-//     let read = reactor.run(backend.get(DISK_NAME.clone().to_string(), vdisk_id.clone(), BobKey::new(KEY_ID)).0);
+//     let read = reactor.run(
+//         backend
+//             .get(
+//                 BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
+//                 BobKey::new(KEY_ID),
+//             )
+//             .0,
+//     );
 //     assert_eq!(TIMESTAMP2, read.unwrap().data.meta.timestamp);
 // }

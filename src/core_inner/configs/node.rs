@@ -75,32 +75,29 @@ impl Validatable for BackendSettings {
 
 impl BackendSettings {
     pub fn root_dir_name(&self) -> String {
-        self.root_dir_name.as_ref().unwrap().clone()
+        self.root_dir_name.clone().unwrap()
     }
+
     pub fn alien_root_dir_name(&self) -> String {
-        self.alien_root_dir_name.as_ref().unwrap().clone()
+        self.alien_root_dir_name.clone().unwrap()
     }
+
     pub fn timestamp_period(&self) -> Duration {
-        let t: Duration = self
-            .timestamp_period
-            .as_ref()
-            .unwrap()
+        self.timestamp_period
             .clone()
+            .unwrap()
             .parse::<humantime::Duration>()
             .unwrap()
-            .into();
-        t
+            .into()
     }
+
     pub fn create_pearl_wait_delay(&self) -> Duration {
-        let t: Duration = self
-            .create_pearl_wait_delay
-            .as_ref()
-            .unwrap()
+        self.create_pearl_wait_delay
             .clone()
+            .unwrap()
             .parse::<humantime::Duration>()
             .unwrap()
-            .into();
-        t
+            .into()
     }
 }
 
@@ -120,17 +117,16 @@ impl Validatable for MetricsConfig {
         }
 
         if let Some(value) = self.graphite.as_ref() {
-            let addr: Result<SocketAddr, _> = value.clone().parse();
-            if addr.is_err() {
+            value.parse::<SocketAddr>().map_err(|_| {
                 debug!(
                     "field 'graphite': {} for 'metrics config' is invalid",
                     value
                 );
-                return Err(format!(
+                format!(
                     "field 'graphite': {} for 'metrics config' is invalid",
                     value
-                ));
-            }
+                )
+            })?;
         }
 
         Ok(())
@@ -153,23 +149,22 @@ impl PearlConfig {
     pub fn pool_count_threads(&self) -> u16 {
         self.pool_count_threads.unwrap()
     }
+
     pub fn alien_disk(&self) -> String {
-        self.alien_disk.as_ref().unwrap().clone()
+        self.alien_disk.clone().unwrap()
     }
+
     pub fn fail_retry_timeout(&self) -> Duration {
-        let t: Duration = self
-            .fail_retry_timeout
-            .as_ref()
-            .unwrap()
+        self.fail_retry_timeout
             .clone()
+            .unwrap()
             .parse::<humantime::Duration>()
             .unwrap()
-            .into();
-        t
+            .into()
     }
 
     pub fn settings(&self) -> BackendSettings {
-        self.settings.as_ref().unwrap().clone()
+        self.settings.clone().unwrap()
     }
     pub fn prepare(&self) -> Result<(), String> {
         self.fail_retry_timeout(); // TODO check unwrap
@@ -180,14 +175,14 @@ impl PearlConfig {
 
 impl Validatable for PearlConfig {
     fn validate(&self) -> Result<(), String> {
-        if self.max_blob_size.is_none() {
+        self.max_blob_size.ok_or_else(|| {
             debug!("field 'max_blob_size' for 'config' is not set");
-            return Err("field 'max_blob_size' for 'config' is not set".to_string());
-        };
-        if self.pool_count_threads.is_none() {
+            "field 'max_blob_size' for 'config' is not set".to_string()
+        })?;
+        self.pool_count_threads.ok_or_else(|| {
             debug!("field 'pool_count_threads' for 'config' is not set");
-            return Err("field 'pool_count_threads' for 'config' is not set".to_string());
-        };
+            "field 'pool_count_threads' for 'config' is not set".to_string()
+        })?;
         match &self.alien_disk {
             None => {
                 debug!("field 'alien_disk' for 'config' is not set");
@@ -216,11 +211,10 @@ impl Validatable for PearlConfig {
         match &self.settings {
             None => {
                 debug!("field 'settings' for 'config' is not set");
-                return Err("field 'settings' for 'config' is not set".to_string());
+                Err("field 'settings' for 'config' is not set".to_string())
             }
-            Some(settings) => settings.validate()?,
-        };
-        Ok(())
+            Some(settings) => settings.validate(),
+        }
     }
 }
 
@@ -270,16 +264,16 @@ impl NodeConfig {
         self.ping_threads_count.unwrap()
     }
     pub fn name(&self) -> String {
-        self.name.as_ref().unwrap().clone()
+        self.name.clone().unwrap()
     }
     pub fn pearl(&self) -> PearlConfig {
-        self.pearl.as_ref().unwrap().clone()
+        self.pearl.clone().unwrap()
     }
     pub fn log_config(&self) -> String {
-        self.log_config.as_ref().unwrap().clone()
+        self.log_config.clone().unwrap()
     }
     pub fn cluster_policy(&self) -> String {
-        self.cluster_policy.as_ref().unwrap().clone()
+        self.cluster_policy.clone().unwrap()
     }
     pub fn bind(&self) -> String {
         self.bind_ref.borrow().to_string()
@@ -305,14 +299,12 @@ impl NodeConfig {
         }
     }
     pub fn prepare(&self, node: &Node) -> Result<(), String> {
-        self.bind_ref
-            .replace(node.address.as_ref().unwrap().clone());
+        self.bind_ref.replace(node.address.clone().unwrap());
 
         let t: Duration = self
             .timeout
-            .as_ref()
-            .unwrap()
             .clone()
+            .unwrap()
             .parse::<humantime::Duration>()
             .unwrap()
             .into();
@@ -320,9 +312,8 @@ impl NodeConfig {
 
         let t1: Duration = self
             .check_interval
-            .as_ref()
-            .unwrap()
             .clone()
+            .unwrap()
             .parse::<humantime::Duration>()
             .unwrap()
             .into();
@@ -332,30 +323,31 @@ impl NodeConfig {
             node.disks
                 .iter()
                 .map(|disk| DiskPath {
-                    name: disk.name.as_ref().unwrap().clone(),
-                    path: disk.path.as_ref().unwrap().clone(),
+                    name: disk.name.clone().unwrap(),
+                    path: disk.path.clone().unwrap(),
                 })
-                .collect::<Vec<DiskPath>>(),
+                .collect::<Vec<_>>(),
         );
 
         self.backend_result()?;
 
         if self.backend_type() == BackendType::Pearl {
-            self.pearl.as_ref().unwrap().prepare()?;
-        };
-        Ok(())
+            self.pearl.as_ref().unwrap().prepare()
+        } else {
+            Ok(())
+        }
     }
 }
 impl Validatable for NodeConfig {
     fn validate(&self) -> Result<(), String> {
-        if self.ping_threads_count.is_none() {
+        self.ping_threads_count.ok_or_else(|| {
             debug!("field 'ping_threads_count' for 'config' is not set");
-            return Err("field 'ping_threads_count' for 'config' is not set".to_string());
-        };
-        if self.grpc_buffer_bound.is_none() {
+            "field 'ping_threads_count' for 'config' is not set".to_string()
+        })?;
+        self.grpc_buffer_bound.ok_or_else(|| {
             debug!("field 'grpc_buffer_bound' for 'config' is not set");
-            return Err("field 'grpc_buffer_bound' for 'config' is not set".to_string());
-        };
+            "field 'grpc_buffer_bound' for 'config' is not set".to_string()
+        })?;
         match &self.backend_type {
             None => {
                 debug!("field 'backend_type' for 'config' is not set");
@@ -366,10 +358,10 @@ impl Validatable for NodeConfig {
                     match &self.pearl {
                         None => {
                             debug!("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set");
-                            return Err("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set".to_string());
+                            Err("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set".to_string())
                         }
-                        Some(pearl) => pearl.validate()?,
-                    };
+                        Some(pearl) => pearl.validate(),
+                    }?;
                 };
             }
         };
@@ -379,10 +371,10 @@ impl Validatable for NodeConfig {
                 return Err("field 'timeout' for 'config' is not set".to_string());
             }
             Some(timeout) => {
-                if timeout.parse::<humantime::Duration>().is_err() {
+                timeout.parse::<humantime::Duration>().map_err(|_| {
                     debug!("field 'timeout' for 'config' is not valid");
-                    return Err("field 'timeout' for 'config' is not valid".to_string());
-                }
+                    "field 'timeout' for 'config' is not valid".to_string()
+                })?;
             }
         };
         match &self.check_interval {
@@ -391,10 +383,10 @@ impl Validatable for NodeConfig {
                 return Err("field 'check_interval' for 'config' is not set".to_string());
             }
             Some(check_interval) => {
-                if check_interval.parse::<humantime::Duration>().is_err() {
+                check_interval.parse::<humantime::Duration>().map_err(|_| {
                     debug!("field 'check_interval' for 'config' is not valid");
-                    return Err("field 'check_interval' for 'config' is not valid".to_string());
-                }
+                    "field 'check_interval' for 'config' is not valid".to_string()
+                })?;
             }
         };
         match &self.name {
@@ -446,9 +438,10 @@ impl Validatable for NodeConfig {
             }
         };
         if let Some(metrics) = &self.metrics {
-            metrics.validate()?;
+            metrics.validate()
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 }
 
@@ -456,34 +449,32 @@ pub struct NodeConfigYaml {}
 
 impl NodeConfigYaml {
     pub fn check(cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
-        let finded = cluster.nodes.iter().find(|n| n.name == node.name);
-        if finded.is_none() {
-            debug!("cannot find node: {} in cluster config", node.name());
-            return Err(format!(
-                "cannot find node: {} in cluster config",
-                node.name()
-            ));
-        }
+        let finded = cluster
+            .nodes
+            .iter()
+            .find(|n| n.name == node.name)
+            .ok_or_else(|| {
+                debug!("cannot find node: {} in cluster config", node.name());
+                format!("cannot find node: {} in cluster config", node.name())
+            })?;
         if node.backend_result().is_ok() && node.backend_type() == BackendType::Pearl {
             let pearl = node.pearl.as_ref().unwrap();
-            let finded_disk = finded
-                .unwrap()
+            finded
                 .disks
                 .iter()
-                .find(|d| d.name == pearl.alien_disk);
-            if finded_disk.is_none() {
-                debug!(
-                    "cannot find disk {:?} for node {:?} in cluster config",
-                    pearl.alien_disk, node.name
-                );
-                return Err(format!(
-                    "cannot find disk {:?} for node {:?} in cluster config",
-                    pearl.alien_disk, node.name
-                ));
-            }
+                .find(|d| d.name == pearl.alien_disk)
+                .ok_or_else(|| {
+                    debug!(
+                        "cannot find disk {:?} for node {:?} in cluster config",
+                        pearl.alien_disk, node.name
+                    );
+                    format!(
+                        "cannot find disk {:?} for node {:?} in cluster config",
+                        pearl.alien_disk, node.name
+                    )
+                })?;
         }
-        node.prepare(finded.unwrap())?;
-        Ok(())
+        node.prepare(finded)
     }
 
     pub fn check_cluster(&self, cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
@@ -491,7 +482,8 @@ impl NodeConfigYaml {
     }
 
     pub fn get(&self, filename: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
-        let config: NodeConfig = YamlBobConfigReader {}.get::<NodeConfig>(filename)?;
+        let config = YamlBobConfigReader::get::<NodeConfig>(filename)?;
+
         match config.validate() {
             Ok(_) => {
                 self.check_cluster(cluster, &config)?;
@@ -509,7 +501,7 @@ impl NodeConfigYaml {
         file: &str,
         cluster: &ClusterConfig,
     ) -> Result<NodeConfig, String> {
-        let config: NodeConfig = YamlBobConfigReader {}.parse(file)?;
+        let config = YamlBobConfigReader::parse::<NodeConfig>(file)?;
         match config.validate() {
             Ok(_) => {
                 self.check_cluster(cluster, &config)?;
@@ -526,7 +518,7 @@ impl NodeConfigYaml {
 pub mod tests {
     use super::*;
     pub fn node_config(name: &str, quorum: u8) -> NodeConfig {
-        let config = NodeConfig {
+        NodeConfig {
             log_config: Some("".to_string()),
             name: Some(name.to_string()),
             quorum: Some(quorum),
@@ -542,7 +534,6 @@ pub mod tests {
             timeout_ref: Cell::default(),
             check_ref: Cell::default(),
             disks_ref: RefCell::default(),
-        };
-        config
+        }
     }
 }

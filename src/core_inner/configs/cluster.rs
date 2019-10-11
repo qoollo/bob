@@ -8,10 +8,11 @@ pub struct NodeDisk {
 
 impl NodeDisk {
     pub fn name(&self) -> String {
-        self.name.as_ref().unwrap().clone()
+        self.name.clone().unwrap()
     }
+
     pub fn path(&self) -> String {
-        self.path.as_ref().unwrap().clone()
+        self.path.clone().unwrap()
     }
 }
 impl Validatable for NodeDisk {
@@ -19,28 +20,31 @@ impl Validatable for NodeDisk {
         match &self.name {
             None => {
                 debug!("field 'name' for 'disk' is not set");
-                return Err("field 'name' for 'disk' is not set".to_string());
+                Err("field 'name' for 'disk' is not set".to_string())
             }
             Some(name) => {
                 if name.is_empty() {
                     debug!("field 'name' for 'disk' is empty");
-                    return Err("field 'name' for 'disk' is empty".to_string());
+                    Err("field 'name' for 'disk' is empty".to_string())
+                } else {
+                    Ok(())
                 }
             }
-        };
+        }?;
         match &self.path {
             None => {
                 debug!("field 'path' for 'disk' is not set");
-                return Err("field 'path' for 'disk' is not set".to_string());
+                Err("field 'path' for 'disk' is not set".to_string())
             }
             Some(path) => {
                 if path.is_empty() {
                     debug!("field 'path' for 'disk' is empty");
-                    return Err("field 'path' for 'disk' is empty".to_string());
+                    Err("field 'path' for 'disk' is empty".to_string())
+                } else {
+                    Ok(())
                 }
             }
-        };
-        Ok(())
+        }
     }
 }
 
@@ -58,36 +62,45 @@ pub struct Node {
 }
 
 impl Node {
+    #[inline]
     pub fn name(&self) -> String {
-        self.name.as_ref().unwrap().clone()
+        self.name.clone().unwrap()
     }
+
+    #[inline]
     pub fn address(&self) -> String {
-        self.address.as_ref().unwrap().clone()
+        self.address.clone().unwrap()
     }
+
+    #[inline]
     pub fn host(&self) -> String {
         self.host.borrow().clone()
     }
+
+    #[inline]
     pub fn port(&self) -> u16 {
         self.port.get()
     }
-    fn prepare(&self) -> Option<String> {
-        let addr: Result<SocketAddr, _> = self.address().parse();
-        if addr.is_err() {
-            debug!(
-                "field 'address': {} for 'Node': {} is invalid",
-                self.address(),
-                self.name()
-            );
-            return Some(format!(
-                "field 'address': {} for 'Node': {} is invalid",
-                self.address(),
-                self.name()
-            ));
-        }
-        let ip = addr.unwrap();
-        self.host.replace(ip.ip().to_string());
-        self.port.set(ip.port());
-        None
+
+    fn prepare(&self) -> Result<(), String> {
+        self.address()
+            .parse::<SocketAddr>()
+            .map(|ip| {
+                self.host.replace(ip.ip().to_string());
+                self.port.set(ip.port());
+            })
+            .map_err(|_| {
+                debug!(
+                    "field 'address': {} for 'Node': {} is invalid",
+                    self.address(),
+                    self.name()
+                );
+                format!(
+                    "field 'address': {} for 'Node': {} is invalid",
+                    self.address(),
+                    self.name()
+                )
+            })
     }
 }
 impl Validatable for Node {
@@ -95,56 +108,53 @@ impl Validatable for Node {
         match &self.name {
             None => {
                 debug!("field 'name' for 'Node' is not set");
-                return Err("field 'name' for 'Node' is not set".to_string());
+                Err("field 'name' for 'Node' is not set".to_string())
             }
             Some(name) => {
                 if name.is_empty() {
                     debug!("field 'name' for 'Node' is empty");
-                    return Err("field 'name' for 'Node' is empty".to_string());
+                    Err("field 'name' for 'Node' is empty".to_string())
+                } else {
+                    Ok(())
                 }
             }
-        };
+        }?;
         match &self.address {
             None => {
                 debug!("field 'address' for 'Node' is not set");
-                return Err("field 'address' for 'Node' is not set".to_string());
+                Err("field 'address' for 'Node' is not set".to_string())
             }
             Some(address) => {
                 if address.is_empty() {
                     debug!("field 'address' for 'Node' is empty");
-                    return Err("field 'address' for 'Node' is empty".to_string());
+                    Err("field 'address' for 'Node' is empty".to_string())
+                } else {
+                    Ok(())
                 }
             }
-        };
+        }?;
 
-        let result = self.aggregate(&self.disks);
-        if result.is_err() {
-            debug!("node is invalid: {} {}", self.name(), self.address());
-            return result;
-        }
+        self.aggregate(&self.disks)?;
 
-        if self
+        let mut names = self
             .disks
             .iter()
-            .group_by(|x| x.name.clone())
-            .into_iter()
-            .map(|(_, group)| group.count())
-            .filter(|x| *x > 1)
-            .count()
-            != 0
-        {
+            .filter_map(|disk| disk.name.as_ref())
+            .collect::<Vec<_>>();
+        names.sort();
+        if names.windows(2).any(|pair| pair[0] == pair[1]) {
             debug!("node: {} contains duplicate disk names", self.name());
-            return Err(format!(
+            Err(format!(
                 "node: {} contains duplicate disk names",
                 self.name()
-            ));
+            ))
+        } else {
+            Ok(())
         }
-
-        Ok(())
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Eq, PartialOrd, Ord, Clone)]
 pub struct Replica {
     pub node: Option<String>,
     pub disk: Option<String>,
@@ -152,10 +162,10 @@ pub struct Replica {
 
 impl Replica {
     pub fn node(&self) -> String {
-        self.node.as_ref().unwrap().clone()
+        self.node.clone().unwrap()
     }
     pub fn disk(&self) -> String {
-        self.disk.as_ref().unwrap().clone()
+        self.disk.clone().unwrap()
     }
 }
 impl Validatable for Replica {
@@ -163,28 +173,31 @@ impl Validatable for Replica {
         match &self.node {
             None => {
                 debug!("field 'node' for 'Replica' is not set");
-                return Err("field 'node' for 'Replica' is not set".to_string());
+                Err("field 'node' for 'Replica' is not set".to_string())
             }
             Some(node) => {
                 if node.is_empty() {
                     debug!("field 'node' for 'Replica' is empty");
-                    return Err("field 'node' for 'Replica' is empty".to_string());
+                    Err("field 'node' for 'Replica' is empty".to_string())
+                } else {
+                    Ok(())
                 }
             }
-        };
+        }?;
         match &self.disk {
             None => {
                 debug!("field 'disk' for 'Replica' is not set");
-                return Err("field 'disk' for 'Replica' is not set".to_string());
+                Err("field 'disk' for 'Replica' is not set".to_string())
             }
             Some(disk) => {
                 if disk.is_empty() {
                     debug!("field 'disk' for 'Replica' is empty");
-                    return Err("field 'disk' for 'Replica' is empty".to_string());
+                    Err("field 'disk' for 'Replica' is empty".to_string())
+                } else {
+                    Ok(())
                 }
             }
-        };
-        Ok(())
+        }
     }
 }
 
@@ -203,35 +216,28 @@ impl VDisk {
 
 impl Validatable for VDisk {
     fn validate(&self) -> Result<(), String> {
-        if self.id.is_none() {
+        self.id.ok_or_else(|| {
             debug!("field 'id' for 'VDisk' is not set");
-            return Err("field 'id' for 'VDisk' is not set".to_string());
-        }
+            "field 'id' for 'VDisk' is not set".to_string()
+        })?;
 
         if self.replicas.is_empty() {
             debug!("vdisk must have replicas: {}", self.id());
             return Err(format!("vdisk must have replicas: {}", self.id()));
         }
-        let result = self.aggregate(&self.replicas);
-        if result.is_err() {
+        self.aggregate(&self.replicas).map_err(|e| {
             debug!("vdisk is invalid: {}", self.id());
-            return result;
-        }
+            e
+        })?;
 
-        if self
-            .replicas
-            .iter()
-            .group_by(|&x| x.clone())
-            .into_iter()
-            .map(|(_, group)| group.count())
-            .filter(|x| *x > 1)
-            .count()
-            != 0
-        {
+        let mut replicas_ref = self.replicas.iter().collect::<Vec<_>>();
+        replicas_ref.sort();
+        if replicas_ref.windows(2).any(|pair| pair[0] == pair[1]) {
             debug!("vdisk: {} contains duplicate replicas", self.id());
-            return Err(format!("vdisk: {} contains duplicate replicas", self.id()));
+            Err(format!("vdisk: {} contains duplicate replicas", self.id()))
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 }
 
@@ -253,49 +259,44 @@ impl Validatable for ClusterConfig {
             debug!("no vdisks in config");
             return Err("no vdisks in config".to_string());
         }
-        let mut result = self.aggregate(&self.nodes);
-        if result.is_err() {
+        self.aggregate(&self.nodes).map_err(|e| {
             debug!("some nodes in config are invalid");
-            return result;
-        }
-        result = self.aggregate(&self.vdisks);
-        if result.is_err() {
+            e
+        })?;
+        self.aggregate(&self.vdisks).map_err(|e| {
             debug!("some vdisks in config are invalid");
-            return result;
-        }
+            e
+        })?;
 
-        if self
-            .vdisks
-            .iter()
-            .group_by(|x| x.id)
-            .into_iter()
-            .map(|(_, group)| group.count())
-            .filter(|x| *x > 1)
-            .count()
-            != 0
-        {
-            debug!("config contains duplicates vdisks ids");
-            return Err("config contains duplicates vdisks ids".to_string());
-        }
-        if self
+        let mut vdisks_id = self.vdisks.iter().map(|vdisk| vdisk.id).collect::<Vec<_>>();
+        vdisks_id.sort();
+        vdisks_id
+            .windows(2)
+            .find(|pair| pair[0] == pair[1])
+            .ok_or_else(|| {
+                debug!("config contains duplicates vdisks ids");
+                "config contains duplicates vdisks ids".to_string()
+            })?;
+
+        let mut node_names = self
             .nodes
             .iter()
-            .group_by(|x| x.name.clone())
-            .into_iter()
-            .map(|(_, group)| group.count())
-            .filter(|x| *x > 1)
-            .count()
-            != 0
-        {
-            debug!("config contains duplicates nodes names");
-            return Err("config contains duplicates nodes names".to_string());
-        }
+            .filter_map(|node| node.name.as_ref())
+            .collect::<Vec<_>>();
+        node_names.sort();
+        node_names
+            .windows(2)
+            .find(|pair| pair[0] == pair[1])
+            .ok_or_else(|| {
+                debug!("config contains duplicates nodes names");
+                "config contains duplicates nodes names".to_string()
+            })?;
 
         let err = self
             .nodes
             .iter()
-            .filter_map(|x| x.prepare())
-            .fold("".to_string(), |acc, x| acc + "\n" + &x);
+            .filter_map(|x| x.prepare().err())
+            .fold(String::new(), |acc, x| acc + "\n" + &x);
         if !err.is_empty() {
             return Err(err);
         }
@@ -372,7 +373,7 @@ impl ClusterConfigYaml {
     }
 
     pub fn get(&self, filename: &str) -> Result<(Vec<DataVDisk>, ClusterConfig), String> {
-        let config: ClusterConfig = YamlBobConfigReader {}.get::<ClusterConfig>(filename)?;
+        let config = YamlBobConfigReader::get::<ClusterConfig>(filename)?;
         match config.validate() {
             Ok(_) => Ok((self.convert_to_data(&config).unwrap(), config)),
             Err(e) => {
@@ -383,7 +384,7 @@ impl ClusterConfigYaml {
     }
 
     pub fn get_from_string(&self, file: &str) -> Result<(Vec<DataVDisk>, ClusterConfig), String> {
-        let config: ClusterConfig = YamlBobConfigReader {}.parse(file)?;
+        let config = YamlBobConfigReader::parse::<ClusterConfig>(file)?;
         match config.validate() {
             Ok(_) => Ok((self.convert_to_data(&config).unwrap(), config)),
             Err(e) => {
