@@ -24,8 +24,8 @@ mod prelude {
     pub(crate) use crate::core_inner::configs::BackendType;
     pub(crate) use crate::core_inner::data::{BobMeta, BobOptions};
     pub(crate) use crate::core_inner::mapper::VDiskMapper;
+    pub(crate) use futures::compat::Future01CompatExt;
     pub(crate) use futures_locks::RwLock;
     pub(crate) use std::fmt::{Display, Formatter, Result as FmtResult};
     pub(crate) use std::io::ErrorKind;
-    pub(crate) use tokio::timer::Error as TimerError;
 }

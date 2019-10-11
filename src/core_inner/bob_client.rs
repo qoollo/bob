@@ -76,7 +76,7 @@ mod b_client {
                         metrics.put_error_count();
                         metrics.put_timer_stop(timer);
                         ClusterResult {
-                            result: BackendError::from(e),
+                            result: BackendError::Timeout,
                             node,
                         }
                     })
@@ -156,7 +156,7 @@ mod b_client {
                 .await;
             ping_res.map_err(|e| ClusterResult {
                 node: self.node.clone(),
-                result: BackendError::from(e),
+                result: BackendError::Timeout,
             })
         }
     }

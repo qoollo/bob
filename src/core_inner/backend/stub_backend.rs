@@ -5,7 +5,7 @@ pub struct StubBackend {}
 
 impl BackendStorage for StubBackend {
     fn run_backend(&self) -> RunResult {
-        async move { Ok(()) }.boxed()
+        future::ok(()).boxed()
     }
 
     fn put(&self, _operation: BackendOperation, key: BobKey, data: BobData) -> Put {

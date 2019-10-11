@@ -81,11 +81,12 @@ impl Into<Status> for Error {
     fn into(self) -> Status {
         //TODO add custom errors
         trace!("Error: {}", self.clone());
-        match self {
-            Error::KeyNotFound => Status::new(Code::Unknown, format!("KeyNotFound")),
-            Error::DuplicateKey => Status::new(Code::Unknown, format!("DuplicateKey")),
-            _ => Status::new(Code::Unknown, format!("Other errors")),
-        }
+        let msg = match self {
+            Error::KeyNotFound => "KeyNotFound",
+            Error::DuplicateKey => "DuplicateKey",
+            _ => "Other errors",
+        };
+        Status::new(Code::Unknown, msg)
     }
 }
 
@@ -99,21 +100,5 @@ impl From<Status> for Error {
             },
             _ => Error::Failed(format!("grpc error: {}", error)),
         }
-    }
-}
-
-impl From<tokio::timer::timeout::Elapsed> for Error {
-    fn from(error: tokio::timer::timeout::Elapsed) -> Self {
-        // if error.is_elapsed() {
-        //     return Error::Timeout;
-        // }
-        // if error.is_timer() {
-        //     return Error::Failed(format!("error in timer: {}", error));
-        // }
-        // match error.into_inner() {
-        //     Some(status) => Error::from(status),
-        //     _ => Error::Failed("failed grpc operation".to_string()),
-        // }
-        unimplemented!()
     }
 }

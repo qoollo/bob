@@ -16,15 +16,14 @@ pub(crate) use backend::{
 };
 
 mod prelude {
+    pub(crate) use super::bob_client::GetResult as BobClientGetResult;
     pub(crate) use super::bob_client::{BobClient, BobClientFactory};
     pub(crate) use super::cluster::{get_cluster, Cluster};
-    pub(crate) use super::configs::{
-        ClusterConfig, DiskPath as ConfigDiskPath, Node as ClusterNodeConfig, NodeConfig,
-    };
-    pub(crate) use super::data::{
-        print_vec, BobData, BobFlags, BobKey, BobMeta, BobOptions, ClusterResult, DiskPath,
-        NodeDisk as DataNodeDisk, VDisk as DataVDisk, VDiskId,
-    };
+    pub(crate) use super::configs::{ClusterConfig, DiskPath as ConfigDiskPath};
+    pub(crate) use super::configs::{Node as ClusterNodeConfig, NodeConfig};
+    pub(crate) use super::data::{print_vec, ClusterResult};
+    pub(crate) use super::data::{BobData, BobFlags, BobKey, BobMeta, BobOptions};
+    pub(crate) use super::data::{DiskPath, NodeDisk as DataNodeDisk, VDisk as DataVDisk, VDiskId};
     pub(crate) use super::grinder::Grinder;
     pub(crate) use super::metrics::{
         BobClientMetrics, MetricsContainerBuilder, CLIENT_GET_COUNTER,

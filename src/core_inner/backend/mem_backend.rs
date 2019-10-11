@@ -1,7 +1,7 @@
 use super::prelude::*;
 
 #[derive(Clone)]
-struct VDisk {
+pub(crate) struct VDisk {
     repo: Arc<RwLock<HashMap<BobKey, BobData>>>,
 }
 
@@ -13,75 +13,67 @@ impl VDisk {
     }
 
     fn put(&self, key: BobKey, data: BobData) -> Put {
-        // Put({
-        //     trace!("PUT[{}] to vdisk", key);
-        //     self.repo
-        //         .write()
-        //         .map(move |mut repo| {
-        //             repo.insert(key, data);
-        //             BackendPutResult {}
-        //         })
-        //         .map_err(|e| {
-        //             trace!("lock error: {:?}", e);
-        //             Error::Internal
-        //         })
-        //         .compat()
-        //         .boxed()
-        // })
-        unimplemented!()
+        Put({
+            trace!("PUT[{}] to vdisk", key);
+            self.repo
+                .write()
+                .compat()
+                .map_ok(move |mut repo| {
+                    repo.insert(key, data);
+                    BackendPutResult {}
+                })
+                .map_err(|e| {
+                    trace!("lock error: {:?}", e);
+                    Error::Internal
+                })
+                .boxed()
+        })
     }
 
     fn get(&self, key: BobKey) -> Get {
-        // Get(self
-        //     .repo
-        //     .read()
-        //     .then(move |repo_lock_res| match repo_lock_res {
-        //         Ok(repo) => match repo.get(&key) {
-        //             Some(data) => {
-        //                 trace!("GET[{}] from vdisk", key);
-        //                 future::ok(BackendGetResult { data: data.clone() })
-        //             }
-        //             None => {
-        //                 trace!("GET[{}] from vdisk failed. Cannot find key", key);
-        //                 future::err(Error::KeyNotFound)
-        //             }
-        //         },
-        //         Err(_) => future::err(Error::Internal),
-        //     })
-        //     .compat()
-        //     .boxed())
-        unimplemented!()
+        Get(self
+            .repo
+            .read()
+            .compat()
+            .then(move |repo_lock_res| match repo_lock_res {
+                Ok(repo) => match repo.get(&key) {
+                    Some(data) => {
+                        trace!("GET[{}] from vdisk", key);
+                        future::ok(BackendGetResult { data: data.clone() })
+                    }
+                    None => {
+                        trace!("GET[{}] from vdisk failed. Cannot find key", key);
+                        future::err(Error::KeyNotFound)
+                    }
+                },
+                Err(_) => future::err(Error::Internal),
+            })
+            .boxed())
     }
 }
 
 #[derive(Clone)]
-struct MemDisk {
-    name: String,
-    vdisks: HashMap<VDiskId, VDisk>,
+pub(crate) struct MemDisk {
+    pub(crate) name: String,
+    pub(crate) vdisks: HashMap<VDiskId, VDisk>,
 }
 
 impl MemDisk {
-    pub fn new_direct(name: String, vdisks_count: u32) -> MemDisk {
-        let mut b: HashMap<VDiskId, VDisk> = HashMap::new();
+    pub fn new_direct(name: String, vdisks_count: u32) -> Self {
+        let mut vdisks = HashMap::new();
         for i in 0..vdisks_count {
-            b.insert(VDiskId::new(i), VDisk::new());
+            vdisks.insert(VDiskId::new(i), VDisk::new());
         }
-        MemDisk {
-            name: name.clone(),
-            vdisks: b,
-        }
+        Self { name, vdisks }
     }
 
-    pub fn new(name: String, mapper: Arc<VDiskMapper>) -> MemDisk {
-        let b: HashMap<VDiskId, VDisk> = mapper
+    pub fn new(name: String, mapper: Arc<VDiskMapper>) -> Self {
+        let vdisks = mapper
             .get_vdisks_by_disk(&name)
             .iter()
             .map(|id| (id.clone(), VDisk::new()))
-            .collect::<HashMap<VDiskId, VDisk>>();
-        MemDisk {
-            name: name.clone(),
-            vdisks: b,
-        }
+            .collect::<HashMap<_, _>>();
+        Self { name, vdisks }
     }
 
     pub fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Get {
@@ -135,24 +127,13 @@ impl MemDisk {
 
 #[derive(Clone)]
 pub struct MemBackend {
-    disks: HashMap<String, MemDisk>,
-    foreign_data: MemDisk,
+    pub(crate) disks: HashMap<String, MemDisk>,
+    pub(crate) foreign_data: MemDisk,
 }
 
 impl MemBackend {
-    pub fn new_direct(paths: &[String], vdisks_count: u32) -> MemBackend {
-        let b = paths
-            .iter()
-            .map(|p| (p.clone(), MemDisk::new_direct(p.clone(), vdisks_count)))
-            .collect::<HashMap<String, MemDisk>>();
-        MemBackend {
-            disks: b,
-            foreign_data: MemDisk::new_direct("foreign".to_string(), vdisks_count),
-        }
-    }
-
-    pub fn new(mapper: Arc<VDiskMapper>) -> MemBackend {
-        let b = mapper
+    pub fn new(mapper: Arc<VDiskMapper>) -> Self {
+        let disks = mapper
             .local_disks()
             .iter()
             .map(|node_disk| {
@@ -161,9 +142,9 @@ impl MemBackend {
                     MemDisk::new(node_disk.name.clone(), mapper.clone()),
                 )
             })
-            .collect::<HashMap<String, MemDisk>>();
-        MemBackend {
-            disks: b,
+            .collect::<HashMap<_, _>>();
+        Self {
+            disks,
             foreign_data: MemDisk::new_direct("foreign".to_string(), mapper.vdisks_count()),
         }
     }
@@ -171,7 +152,7 @@ impl MemBackend {
 
 impl BackendStorage for MemBackend {
     fn run_backend(&self) -> RunResult {
-        async move { Ok(()) }.boxed()
+        future::ok(()).boxed()
     }
 
     fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {

@@ -13,9 +13,9 @@ impl SimpleQuorumCluster {
         }
     }
 
+    #[inline]
     fn calc_target_nodes(&self, key: BobKey) -> Vec<Node> {
-        let target_vdisk = self.mapper.get_vdisk(key);
-        target_vdisk.nodes.clone()
+        self.mapper.get_vdisk(key).nodes.clone()
     }
 }
 
@@ -41,29 +41,26 @@ impl Cluster for SimpleQuorumCluster {
                     },
                 )
                 .0
-        });
-
-        let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
+        })
+        .into_iter()
+        .collect::<FuturesUnordered<_>>();
 
         let l_quorum = self.quorum;
-        let q = t
+        let task = reqs
             .map(move |r| {
                 trace!("PUT[{}] Response from cluster {:?}", key, r);
                 r // wrap all result kind to process it later
             })
-            .fold(vec![], |mut acc, r| {
-                acc.push(r);
-                future::ready(acc)
-            })
+            .collect::<Vec<_>>()
             .map(move |acc| {
                 debug!("PUT[{}] cluster ans: {:?}", key, acc);
                 let total_ops = acc.iter().count();
-                let mut sup = String::default();
+                let mut sup = String::new();
                 let ok_count = acc
                     .iter()
                     .filter(|&r| {
                         if let Err(e) = r {
-                            sup = format!("{}, {:?}", sup.clone(), e)
+                            sup += &e.to_string();
                         }
                         r.is_ok()
                     })
@@ -81,8 +78,9 @@ impl Cluster for SimpleQuorumCluster {
                         total_ops, ok_count, l_quorum, sup
                     )))
                 }
-            });
-        BackendPut(q.boxed())
+            })
+            .boxed();
+        BackendPut(task)
     }
 
     fn get_clustered_async(&self, key: BobKey) -> BackendGet {
@@ -93,40 +91,33 @@ impl Cluster for SimpleQuorumCluster {
             key,
             print_vec(&target_nodes)
         );
-        let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
-            // conn.get(key, GetOptions::new_normal()).0
-            unimplemented!()
-        });
+        let reqs = LinkManager::call_nodes(&target_nodes, |mut conn| {
+            conn.get(key, GetOptions::new_normal()).0
+        })
+        .into_iter()
+        .collect::<FuturesUnordered<_>>();
 
-        let t = reqs.into_iter().collect::<FuturesUnordered<_>>();
-
-        let w = t
-            .fold(vec![], |mut acc, r| {
-                acc.push(r);
-                future::ready(acc)
-            })
+        let task = reqs
+            .collect::<Vec<_>>()
             .map(move |acc| {
-                let mut sup = String::default();
-                acc.iter().for_each(|r| {
-                    if let Err(e) = r {
-                        trace!("GET[{}] failed result: {:?}", key, e);
-                        sup = format!("{}, {:?}", sup.clone(), e)
-                    } else if let Ok(e) = r {
-                        trace!("GET[{}] success result from: {:?}", key, e.node);
-                    }
-                });
+                let sup = acc
+                    .iter()
+                    .filter_map(|r| r.as_ref().err())
+                    .map(|e| e.to_string())
+                    .collect();
 
                 let r = acc.into_iter().find(|r| r.is_ok());
                 if let Some(answer) = r {
                     match answer {
-                        Ok(ClusterResult { result: i, .. }) => Ok::<BackendGetResult, _>(i),
-                        Err(ClusterResult { result: i, .. }) => Err::<_, backend::Error>(i),
+                        Ok(ClusterResult { result: i, .. }) => Ok(i),
+                        Err(ClusterResult { result: i, .. }) => Err(i),
                     }
                 } else {
                     debug!("GET[{}] no success result", key);
-                    Err::<_, backend::Error>(backend::Error::Failed(sup))
+                    Err(BackendError::Failed(sup))
                 }
-            });
-        BackendGet(w.boxed())
+            })
+            .boxed();
+        BackendGet(task)
     }
 }
