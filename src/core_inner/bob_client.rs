@@ -7,11 +7,6 @@ mod b_client {
     use mockall::*;
     use tokio::future::FutureExt as TokioFutureExt;
 
-    // type TowerConnect = Buffer<
-    //     tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>,
-    //     http::request::Request<BoxBody>,
-    // >;
-
     #[derive(Clone)]
     pub struct BobClient {
         node: Node,
@@ -85,76 +80,62 @@ mod b_client {
         }
 
         pub fn get(&mut self, key: BobKey, options: GetOptions) -> Get {
-            Get({
-                let n1 = self.node.clone();
-                let n2 = self.node.clone();
-                let mut client = self.client.clone();
-                let timeout = self.timeout;
+            let n1 = self.node.clone();
+            let n2 = self.node.clone();
+            let mut client = self.client.clone();
+            let timeout = self.timeout;
 
-                let metrics = self.metrics.clone();
-                let metrics2 = self.metrics.clone();
+            let metrics = self.metrics.clone();
+            let metrics2 = self.metrics.clone();
 
-                metrics.get_count();
-                let timer = metrics.get_timer();
+            metrics.get_count();
+            let timer = metrics.get_timer();
 
-                // let t = client.poll_ready();
-                // if let Err(err) = t {
-                //     panic!("buffer inner error: {}", err);
-                // }
-                // if t.unwrap().is_not_ready() {
-                //     debug!("service connection is not ready");
-                //     let result = ClusterResult {
-                //         node: self.node.clone(),
-                //         result: BackendError::Failed("service connection is not ready".to_string()),
-                //     };
-                //     ready(Err(result)).boxed()
-                // } else {
-                //     client
-                //         .get(Request::new(GetRequest {
-                //             key: Some(BlobKey { key: key.key }),
-                //             options: Some(options),
-                //         }))
-                //         .map(move |r| {
-                //             metrics.get_timer_stop(timer);
-                //             let ans = r.into_inner();
-                //             ClusterResult {
-                //                 node: n1,
-                //                 result: BackendGetResult {
-                //                     data: BobData::new(ans.data, BobMeta::new(ans.meta.unwrap())),
-                //                 },
-                //             }
-                //         })
-                //         .map_err(move |e| BackendError::from(e))
-                //         .compat()
-                //         .boxed()
-                //         .timeout(timeout)
-                //         .map(move |r| {
-                //             if r.is_err() {
-                //                 metrics2.get_error_count();
-                //                 metrics2.get_timer_stop(timer);
-                //             }
-                //             r.map_err(|e| ClusterResult {
-                //                 result: e,
-                //                 node: n2,
-                //             })
-                //         })
-                //         .boxed()
-                // }
-                unimplemented!()
-            })
+            let task = async move {
+                let res = client
+                    .get(Request::new(GetRequest {
+                        key: Some(BlobKey { key: key.key }),
+                        options: Some(options),
+                    }))
+                    .timeout(timeout)
+                    .await
+                    .unwrap();
+                res.map(move |r| {
+                    metrics.get_timer_stop(timer);
+                    let ans = r.into_inner();
+                    ClusterResult {
+                        node: n1,
+                        result: BackendGetResult {
+                            data: BobData::new(ans.data, BobMeta::new(ans.meta.unwrap())),
+                        },
+                    }
+                })
+                .map_err(BackendError::from)
+                .map_err(|e| {
+                    metrics2.get_error_count();
+                    metrics2.get_timer_stop(timer);
+                    ClusterResult {
+                        result: e,
+                        node: n2,
+                    }
+                })
+            }
+                .boxed();
+            Get(task)
         }
 
         pub async fn ping(&mut self) -> PingResult {
             let mut client = self.client.clone();
             let ping_res = client
                 .ping(Request::new(Null {}))
-                .map(|res| ClusterResult {
+                .timeout(self.timeout)
+                .await
+                .unwrap()
+                .map(|_| ClusterResult {
                     node: self.node.clone(),
                     result: BackendPingResult {},
-                })
-                .timeout(self.timeout)
-                .await;
-            ping_res.map_err(|e| ClusterResult {
+                });
+            ping_res.map_err(|_| ClusterResult {
                 node: self.node.clone(),
                 result: BackendError::Timeout,
             })
@@ -231,11 +212,10 @@ impl BobClientFactory {
 pub mod tests {
     use super::*;
     use crate::core_inner::{
-        backend::Error,
         backend::{BackendPingResult, BackendPutResult},
         data::{BobData, BobMeta, ClusterResult, Node},
     };
-    use futures::{future::ready, future::FutureExt as OtherFutureExt};
+    use futures::future::ready;
 
     pub fn ping_ok(node: Node) -> PingResult {
         Ok(ClusterResult {

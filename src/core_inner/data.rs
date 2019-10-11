@@ -179,8 +179,9 @@ impl BobOptions {
         }
     }
 
+    #[inline]
     pub(crate) fn have_remote_node(&self) -> bool {
-        self.remote_nodes.len() > 0
+        !self.remote_nodes.is_empty()
     }
 
     pub(crate) fn get_normal(&self) -> bool {
@@ -237,12 +238,7 @@ impl VDisk {
 
     pub(crate) fn set_nodes(&mut self, nodes: &[Node]) {
         nodes.iter().for_each(|node| {
-            if self
-                .replicas
-                .iter()
-                .find(|r| r.node_name == node.name)
-                .is_some()
-            {
+            if self.replicas.iter().any(|r| r.node_name == node.name) {
                 //TODO check if some duplicates
                 self.nodes.push(node.clone());
             }

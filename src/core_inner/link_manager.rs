@@ -9,7 +9,7 @@ pub type ClusterCallType<T> = Result<ClusterResult<T>, ClusterResult<BackendErro
 pub type ClusterCallFuture<T> = Pin<Box<dyn Future<Output = ClusterCallType<T>> + Send>>;
 
 impl LinkManager {
-    pub fn new(nodes: &Vec<Node>, check_interval: Duration) -> LinkManager {
+    pub fn new(nodes: &[Node], check_interval: Duration) -> LinkManager {
         LinkManager {
             repo: Arc::new(nodes.to_vec()),
             check_interval,
