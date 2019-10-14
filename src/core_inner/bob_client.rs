@@ -15,6 +15,7 @@ pub(crate) mod b_client {
     }
 
     impl RealBobClient {
+        #[allow(dead_code)]
         pub async fn create(
             node: Node,
             timeout: Duration,
@@ -30,6 +31,7 @@ pub(crate) mod b_client {
                 .map_err(|e| e.to_string())
         }
 
+        #[allow(dead_code)]
         pub fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put {
             let request = Request::new(PutRequest {
                 key: Some(BlobKey { key: key.key }),
@@ -73,6 +75,7 @@ pub(crate) mod b_client {
             Put(res.boxed())
         }
 
+        #[allow(dead_code)]
         pub fn get(&mut self, key: BobKey, options: GetOptions) -> Get {
             let n1 = self.node.clone();
             let n2 = self.node.clone();
@@ -118,6 +121,7 @@ pub(crate) mod b_client {
             Get(task)
         }
 
+        #[allow(dead_code)]
         pub async fn ping(&mut self) -> PingResult {
             let mut client = self.client.clone();
             let ping_res = client
