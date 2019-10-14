@@ -260,10 +260,7 @@ where
         })
     }
 
-    fn try_read_path(
-        &self,
-        entry: Result<DirEntry, std::io::Error>,
-    ) -> BackendResult<(DirEntry, Metadata)> {
+    fn try_read_path(&self, entry: IOResult<DirEntry>) -> BackendResult<(DirEntry, Metadata)> {
         if let Ok(entry) = entry {
             if let Ok(metadata) = entry.metadata() {
                 Ok((entry, metadata))

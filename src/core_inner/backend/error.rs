@@ -58,8 +58,8 @@ impl Error {
     }
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         match self {
             Error::VDiskNoFound(id) => write!(f, "vdisk: {:?} not found", id),
             Error::StorageError(description) => write!(f, "backend error: {}", description),
@@ -68,8 +68,8 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl From<std::io::Error> for Error {
-    fn from(error: std::io::Error) -> Self {
+impl From<IOError> for Error {
+    fn from(error: IOError) -> Self {
         match error.kind() {
             ErrorKind::TimedOut => Error::Timeout,
             _ => Error::Failed(format!("Ping operation failed: {:?}", error)),

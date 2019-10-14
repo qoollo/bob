@@ -1,40 +1,33 @@
-mod b_client {
+pub(crate) mod b_client {
     use super::super::prelude::*;
     use super::*;
 
     use super::PingResult;
-    use hyper::client::connect::{Destination, HttpConnector};
     use mockall::*;
     use tokio::future::FutureExt as TokioFutureExt;
 
     #[derive(Clone)]
-    pub struct BobClient {
+    pub struct RealBobClient {
         node: Node,
         timeout: Duration,
         client: BobApiClient<tonic::transport::Channel>,
         metrics: BobClientMetrics,
     }
 
-    impl BobClient {
+    impl RealBobClient {
         pub async fn create(
             node: Node,
-            executor: TaskExecutor,
             timeout: Duration,
-            buffer_bound: u16,
             metrics: BobClientMetrics,
-        ) -> Result<Self, ()> {
-            let dst = Destination::try_from_uri(node.get_uri()).unwrap();
-            let mut http_connector = HttpConnector::new(4);
-            http_connector.set_nodelay(true);
-
+        ) -> Result<Self, String> {
             BobApiClient::connect(node.get_uri())
-                .map(|client| BobClient {
+                .map(|client| Self {
                     node,
                     client,
                     timeout,
                     metrics,
                 })
-                .map_err(|e| error!("{}", e.to_string()))
+                .map_err(|e| e.to_string())
         }
 
         pub fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put {
@@ -59,6 +52,7 @@ mod b_client {
                 client
                     .put(request)
                     .map(|res| {
+                        res.unwrap();
                         metrics.put_timer_stop(timer);
                         ClusterResult {
                             node: node.clone(),
@@ -67,7 +61,7 @@ mod b_client {
                     })
                     .timeout(timeout)
                     .await
-                    .map_err(|e| {
+                    .map_err(|_| {
                         metrics.put_error_count();
                         metrics.put_timer_stop(timer);
                         ClusterResult {
@@ -144,8 +138,8 @@ mod b_client {
 
     mock! {
         pub BobClient {
-            async fn create(node: Node, executor: TaskExecutor, timeout: Duration, buffer_bound: u16, metrics: BobClientMetrics,
-                    ) -> Result<Self, ()>;
+            async fn create(node: Node, timeout: Duration, metrics: BobClientMetrics,
+                    ) -> Result<Self, String>;
             fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put;
             fn get(&mut self, key: BobKey, options: GetOptions) -> Get;
             async fn ping(&mut self) -> PingResult;
@@ -160,7 +154,7 @@ cfg_if! {
     if #[cfg(test)] {
         pub use self::b_client::MockBobClient as BobClient;
     } else {
-        pub use self::b_client::BobClient;
+        pub use self::b_client::RealBobClient as BobClient;
     }
 }
 
@@ -196,16 +190,9 @@ impl BobClientFactory {
             metrics,
         }
     }
-    pub(crate) async fn produce(&self, node: Node) -> Result<BobClient, ()> {
+    pub(crate) async fn produce(&self, node: Node) -> Result<BobClient, String> {
         let metrics = self.metrics.clone().get_metrics(&node.counter_display());
-        BobClient::create(
-            node,
-            self.executor.clone(),
-            self.timeout,
-            self.buffer_bound,
-            metrics,
-        )
-        .await
+        BobClient::create(node, self.timeout, metrics).await
     }
 }
 

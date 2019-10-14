@@ -99,26 +99,29 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
     #[inline]
     pub(crate) async fn test<TRet, F>(
         &self,
-        _disk_name: String,
-        _vdisk_id: VDiskId,
+        disk_name: String,
+        vdisk_id: VDiskId,
         _f: F,
     ) -> BackendResult<TRet>
     where
         F: Fn(&mut super::holder::PearlSync) -> TRet + Send + Sync,
     {
-        unimplemented!();
-        // let vdisks = self.vdisks.clone();
-        // let vdisk = vdisks.iter().find(|vd| vd.equal(&disk_name, &vdisk_id));
-        // if let Some(disk) = vdisk {
-        //     let d_clone = disk.clone(); // TODO remove copy of disk. add Box?
-        //     let q = async move { d_clone.test(f).await };
-        //     q.await
-        // } else {
-        //     Err(backend::Error::StorageError(format!(
-        //         "vdisk not found: {}",
-        //         vdisk_id
-        //     )))
-        // }
+        let vdisks = self.vdisks_groups.clone();
+        let vdisk = vdisks
+            .iter()
+            .filter(|vd| vd.disk_name() == disk_name)
+            .find(|vd| vd.vdisk_id() == &vdisk_id);
+        if let Some(disk) = vdisk {
+            let _d_clone = disk.clone(); // TODO remove copy of disk. add Box?
+            unimplemented!()
+        // let q = async move { d_clone.test(f).await };
+        // q.await
+        } else {
+            Err(backend::Error::StorageError(format!(
+                "vdisk not found: {}",
+                vdisk_id
+            )))
+        }
     }
 }
 

@@ -16,8 +16,6 @@ use std::net::SocketAddr;
 #[macro_use]
 extern crate log;
 
-use log4rs;
-
 #[tokio::main]
 async fn main() {
     let matches = App::new("Bob")
@@ -54,11 +52,11 @@ async fn main() {
 
     let cluster_config = matches.value_of("cluster").expect("expect cluster config");
     println!("Cluster config: {:?}", cluster_config);
-    let (vdisks, cluster) = ClusterConfigYaml {}.get(cluster_config).unwrap();
+    let (vdisks, cluster) = ClusterConfigYaml::get(cluster_config).unwrap();
 
     let node_config = matches.value_of("node").expect("expect node config");
     println!("Node config: {:?}", node_config);
-    let node = NodeConfigYaml {}.get(node_config, &cluster).unwrap();
+    let node = NodeConfigYaml::get(node_config, &cluster).unwrap();
 
     log4rs::init_file(node.log_config(), Default::default()).unwrap();
 

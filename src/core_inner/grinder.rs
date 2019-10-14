@@ -24,7 +24,7 @@ impl Grinder {
         }
     }
 
-    pub async fn run_backend(&self) -> Result<(), backend::Error> {
+    pub async fn run_backend(&self) -> Result<(), BackendError> {
         self.backend.run_backend().await
     }
 
@@ -33,7 +33,7 @@ impl Grinder {
         key: BobKey,
         data: BobData,
         opts: BobOptions,
-    ) -> Result<BackendPutResult, backend::Error> {
+    ) -> Result<BackendPutResult, BackendError> {
         if opts.flags.contains(BobFlags::FORCE_NODE) {
             debug!(
                 "PUT[{}] flag FORCE_NODE is on - will handle it by local node. Put params: {:?}",
@@ -73,7 +73,7 @@ impl Grinder {
         &self,
         key: BobKey,
         opts: BobOptions,
-    ) -> Result<BackendGetResult, backend::Error> {
+    ) -> Result<BackendGetResult, BackendError> {
         if opts.flags.contains(BobFlags::FORCE_NODE) {
             CLIENT_GET_COUNTER.count(1);
             let time = CLIENT_GET_TIMER.start();

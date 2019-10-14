@@ -310,6 +310,18 @@ where
         }
         result
     }
+
+    #[inline]
+    #[cfg(test)]
+    pub fn disk_name(&self) -> &str {
+        &self.disk_name
+    }
+
+    #[inline]
+    #[cfg(test)]
+    pub fn vdisk_id(&self) -> &VDiskId {
+        &self.vdisk_id
+    }
 }
 
 impl<TSpawner> Display for PearlGroup<TSpawner> {

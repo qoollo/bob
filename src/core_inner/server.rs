@@ -75,36 +75,27 @@ impl BobApi for BobSrv {
         let param = req.into_inner();
         if !Self::get_is_valid(&param) {
             warn!("GET[-] invalid arguments - key is mandatory");
-            // Box::new(future::err(Status::new(
-            //     Code::InvalidArgument,
-            //     "Key is mandatory",
-            // )))
-            unimplemented!()
+            Err(Status::new(Code::InvalidArgument, "Key is mandatory"))
         } else {
             let key = BobKey {
                 key: param.clone().key.unwrap().key,
             };
 
             let grinder = self.grinder.clone();
-            let q = async move { grinder.get(key, BobOptions::new_get(param.options)).await };
-            // Box::new(q.boxed().then(move |r| {
-            //     let elapsed = sw.elapsed_ms();
-            //     match r {
-            //         Ok(r_ok) => {
-            //             debug!("GET[{}]-OK dt: {}ms", key, elapsed);
-            //             future::ok(Response::new(Blob {
-            //                 data: r_ok.data.data,
-            //                 meta: Some(BlobMeta {
-            //                     timestamp: r_ok.data.meta.timestamp,
-            //                 }),
-            //             }))
-            //         }
-            //         Err(r_err) => future::err(r_err.into()),
-            //     }
-            // }))
-            unimplemented!()
-        };
-        unimplemented!()
+            let get_res = grinder
+                .get(key, BobOptions::new_get(param.options))
+                .await
+                .map_err::<Status, _>(|e| e.into())?;
+
+            let elapsed = sw.elapsed_ms();
+            debug!("GET[{}]-OK dt: {}ms", key, elapsed);
+            Ok(Response::new(Blob {
+                data: get_res.data.data,
+                meta: Some(BlobMeta {
+                    timestamp: get_res.data.meta.timestamp,
+                }),
+            }))
+        }
     }
 
     async fn ping(&self, _request: Request<Null>) -> ApiResult<Null> {

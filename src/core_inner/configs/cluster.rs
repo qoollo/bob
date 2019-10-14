@@ -270,13 +270,10 @@ impl Validatable for ClusterConfig {
 
         let mut vdisks_id = self.vdisks.iter().map(|vdisk| vdisk.id).collect::<Vec<_>>();
         vdisks_id.sort();
-        vdisks_id
-            .windows(2)
-            .find(|pair| pair[0] == pair[1])
-            .ok_or_else(|| {
-                debug!("config contains duplicates vdisks ids");
-                "config contains duplicates vdisks ids".to_string()
-            })?;
+        if vdisks_id.windows(2).any(|pair| pair[0] == pair[1]) {
+            debug!("config contains duplicates vdisks ids");
+            return Err("config contains duplicates vdisks ids".to_string());
+        }
 
         let mut node_names = self
             .nodes
@@ -284,13 +281,10 @@ impl Validatable for ClusterConfig {
             .filter_map(|node| node.name.as_ref())
             .collect::<Vec<_>>();
         node_names.sort();
-        node_names
-            .windows(2)
-            .find(|pair| pair[0] == pair[1])
-            .ok_or_else(|| {
-                debug!("config contains duplicates nodes names");
-                "config contains duplicates nodes names".to_string()
-            })?;
+        if node_names.windows(2).any(|pair| pair[0] == pair[1]) {
+            debug!("config contains duplicates nodes names");
+            return Err("config contains duplicates nodes names".to_string());
+        }
 
         let err = self
             .nodes
@@ -368,14 +362,14 @@ impl ClusterConfigYaml {
         Ok(result)
     }
 
-    pub fn convert_to_data(&self, cluster: &ClusterConfig) -> Result<Vec<DataVDisk>, String> {
+    pub fn convert_to_data(cluster: &ClusterConfig) -> Result<Vec<DataVDisk>, String> {
         Self::convert(cluster)
     }
 
-    pub fn get(&self, filename: &str) -> Result<(Vec<DataVDisk>, ClusterConfig), String> {
+    pub fn get(filename: &str) -> Result<(Vec<DataVDisk>, ClusterConfig), String> {
         let config = YamlBobConfigReader::get::<ClusterConfig>(filename)?;
         match config.validate() {
-            Ok(_) => Ok((self.convert_to_data(&config).unwrap(), config)),
+            Ok(_) => Ok((Self::convert_to_data(&config).unwrap(), config)),
             Err(e) => {
                 debug!("config is not valid: {}", e);
                 Err(format!("config is not valid: {}", e))
@@ -383,14 +377,15 @@ impl ClusterConfigYaml {
         }
     }
 
-    pub fn get_from_string(&self, file: &str) -> Result<(Vec<DataVDisk>, ClusterConfig), String> {
+    pub fn get_from_string(file: &str) -> Result<(Vec<DataVDisk>, ClusterConfig), String> {
         let config = YamlBobConfigReader::parse::<ClusterConfig>(file)?;
-        match config.validate() {
-            Ok(_) => Ok((self.convert_to_data(&config).unwrap(), config)),
-            Err(e) => {
-                debug!("config is not valid: {}", e);
-                Err(format!("config is not valid: {}", e))
-            }
+        debug!("config: {:?}", config);
+        if let Err(e) = config.validate() {
+            debug!("config is not valid: {}", e);
+            Err(format!("config is not valid: {}", e))
+        } else {
+            debug!("config is valid");
+            Ok((Self::convert_to_data(&config).unwrap(), config))
         }
     }
 }

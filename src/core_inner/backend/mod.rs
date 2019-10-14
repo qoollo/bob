@@ -20,12 +20,11 @@ pub(crate) use super::prelude::*;
 mod prelude {
     pub(crate) use super::core::{BackendStorage, RunResult};
     pub(crate) use super::*;
-    pub(crate) use super::{MemBackend, PearlBackend, StubBackend};
     pub(crate) use crate::core_inner::configs::BackendType;
     pub(crate) use crate::core_inner::data::{BobMeta, BobOptions};
     pub(crate) use crate::core_inner::mapper::VDiskMapper;
     pub(crate) use futures::compat::Future01CompatExt;
     pub(crate) use futures_locks::RwLock;
     pub(crate) use std::fmt::{Display, Formatter, Result as FmtResult};
-    pub(crate) use std::io::ErrorKind;
+    pub(crate) use std::io::{Error as IOError, ErrorKind, Result as IOResult};
 }

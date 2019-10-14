@@ -26,8 +26,8 @@ chrono = "0.4.9"
 dipstick = "~0.7"
 mockall = "~0.3"
 cfg-if = "~0.1"
-tower-hyper = "*"
 tonic = "0.1.0-alpha.3"
+env_logger = "*"
 
 [build-dependencies]
 tonic-build = "0.1.0-alpha.3"

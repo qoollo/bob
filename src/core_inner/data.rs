@@ -366,15 +366,16 @@ impl Node {
         self.conn.lock().unwrap().clone()
     }
 
-    pub(crate) async fn check(self, client_fatory: BobClientFactory) -> Result<(), ()> {
+    pub(crate) async fn check(self, client_fatory: BobClientFactory) -> Result<(), String> {
         match self.get_connection() {
             Some(mut conn) => {
                 conn.ping()
                     .await
                     .map(|_| debug!("All good with pinging node {:?}", self))
-                    .map_err(|_| {
+                    .map_err(|e| {
                         debug!("Got broken connection to node {:?}", self);
                         self.clear_connection();
+                        e.to_string()
                     })?;
                 Ok(())
             }

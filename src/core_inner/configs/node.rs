@@ -477,16 +477,16 @@ impl NodeConfigYaml {
         node.prepare(finded)
     }
 
-    pub fn check_cluster(&self, cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
+    pub fn check_cluster(cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
         Self::check(cluster, node) //TODO
     }
 
-    pub fn get(&self, filename: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
+    pub fn get(filename: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
         let config = YamlBobConfigReader::get::<NodeConfig>(filename)?;
 
         match config.validate() {
             Ok(_) => {
-                self.check_cluster(cluster, &config)?;
+                Self::check_cluster(cluster, &config)?;
                 Ok(config)
             }
             Err(e) => {
@@ -496,21 +496,17 @@ impl NodeConfigYaml {
         }
     }
 
-    pub fn get_from_string(
-        &self,
-        file: &str,
-        cluster: &ClusterConfig,
-    ) -> Result<NodeConfig, String> {
+    pub fn get_from_string(file: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
         let config = YamlBobConfigReader::parse::<NodeConfig>(file)?;
-        match config.validate() {
-            Ok(_) => {
-                self.check_cluster(cluster, &config)?;
-                Ok(config)
-            }
-            Err(e) => {
-                debug!("config is not valid: {}", e);
-                Err(format!("config is not valid: {}", e))
-            }
+        debug!("config: {:?}", config);
+        if let Err(e) = config.validate() {
+            debug!("config is not valid: {}", e);
+            Err(format!("config is not valid: {}", e))
+        } else {
+            debug!("config is valid");
+            Self::check_cluster(cluster, &config)?;
+            debug!("cluster config is valid");
+            Ok(config)
         }
     }
 }
