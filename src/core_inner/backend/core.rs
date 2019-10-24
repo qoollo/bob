@@ -57,12 +57,18 @@ impl BackendOperation {
 
     #[inline]
     pub fn disk_name_local(&self) -> String {
-        self.disk_path.clone().unwrap().name.clone()
+        self.disk_path
+            .clone()
+            .expect("disk path not set")
+            .name
+            .clone()
     }
 
     #[inline]
     pub fn remote_node_name(&self) -> String {
-        self.remote_node_name.clone().unwrap()
+        self.remote_node_name
+            .clone()
+            .expect("remote node name not set")
     }
 }
 

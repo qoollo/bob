@@ -16,7 +16,7 @@ impl VDiskMapper {
     ) -> VDiskMapper {
         VDiskMapper::new_direct(
             vdisks,
-            &config.name.as_ref().unwrap().to_string(),
+            &config.name.as_ref().expect("get name").to_string(),
             &config.disks(),
             cluster,
         )
@@ -82,7 +82,10 @@ impl VDiskMapper {
 
     pub fn get_vdisk(&self, key: BobKey) -> &DataVDisk {
         let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
-        self.vdisks.iter().find(|disk| disk.id == vdisk_id).unwrap()
+        self.vdisks
+            .iter()
+            .find(|disk| disk.id == vdisk_id)
+            .expect("find vdisk with id")
     }
 
     pub fn get_vdisks_by_disk(&self, disk: &str) -> Vec<VDiskId> {
@@ -99,20 +102,25 @@ impl VDiskMapper {
 
     pub fn get_operation(&self, key: BobKey) -> (VDiskId, Option<DiskPath>) {
         let vdisk_id = VDiskId::new((key.key % self.vdisks.len() as u64) as u32);
-        let vdisk = self.vdisks.iter().find(|disk| disk.id == vdisk_id).unwrap();
+        let vdisk = self
+            .vdisks
+            .iter()
+            .find(|disk| disk.id == vdisk_id)
+            .expect("find vdisk with id");
         let disk = vdisk
             .replicas
             .iter()
             .find(|disk| disk.node_name == self.local_node_name); //TODO prepare at start?
-        if disk.is_none() {
+        if let Some(disk) = disk {
+            (vdisk_id, Some(DiskPath::from(disk)))
+        } else {
             trace!(
                 "cannot find node: {} for vdisk: {}",
                 self.local_node_name,
                 vdisk_id
             );
-            return (vdisk_id, None);
+            (vdisk_id, None)
         }
-        (vdisk_id, Some(DiskPath::from(disk.unwrap())))
     }
 
     pub fn does_node_holds_vdisk(&self, node_name: &str, id: VDiskId) -> bool {

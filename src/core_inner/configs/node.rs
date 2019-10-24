@@ -75,28 +75,30 @@ impl Validatable for BackendSettings {
 
 impl BackendSettings {
     pub fn root_dir_name(&self) -> String {
-        self.root_dir_name.clone().unwrap()
+        self.root_dir_name.clone().expect("clone root dir name")
     }
 
     pub fn alien_root_dir_name(&self) -> String {
-        self.alien_root_dir_name.clone().unwrap()
+        self.alien_root_dir_name
+            .clone()
+            .expect("clone alien root dir name")
     }
 
     pub fn timestamp_period(&self) -> Duration {
         self.timestamp_period
             .clone()
-            .unwrap()
+            .expect("clone timestamp period")
             .parse::<humantime::Duration>()
-            .unwrap()
+            .expect("parse humantime duration")
             .into()
     }
 
     pub fn create_pearl_wait_delay(&self) -> Duration {
         self.create_pearl_wait_delay
             .clone()
-            .unwrap()
+            .expect("clone create pearl wait delay")
             .parse::<humantime::Duration>()
-            .unwrap()
+            .expect("parse humantime duration")
             .into()
     }
 }
@@ -147,24 +149,24 @@ pub struct PearlConfig {
 
 impl PearlConfig {
     pub fn pool_count_threads(&self) -> u16 {
-        self.pool_count_threads.unwrap()
+        self.pool_count_threads.expect("clone pool count threads")
     }
 
     pub fn alien_disk(&self) -> String {
-        self.alien_disk.clone().unwrap()
+        self.alien_disk.clone().expect("clone alien disk")
     }
 
     pub fn fail_retry_timeout(&self) -> Duration {
         self.fail_retry_timeout
             .clone()
-            .unwrap()
+            .expect("clone fail retry timeout")
             .parse::<humantime::Duration>()
-            .unwrap()
+            .expect("parse humantime duration")
             .into()
     }
 
     pub fn settings(&self) -> BackendSettings {
-        self.settings.clone().unwrap()
+        self.settings.clone().expect("clone settings")
     }
     pub fn prepare(&self) -> Result<(), String> {
         self.fail_retry_timeout(); // TODO check unwrap
@@ -258,22 +260,22 @@ pub struct NodeConfig {
 
 impl NodeConfig {
     pub fn grpc_buffer_bound(&self) -> u16 {
-        self.grpc_buffer_bound.unwrap()
+        self.grpc_buffer_bound.expect("clone grpc buffer bound")
     }
     pub fn ping_threads_count(&self) -> u8 {
-        self.ping_threads_count.unwrap()
+        self.ping_threads_count.expect("clone threads count")
     }
     pub fn name(&self) -> String {
-        self.name.clone().unwrap()
+        self.name.clone().expect("clone name")
     }
     pub fn pearl(&self) -> PearlConfig {
-        self.pearl.clone().unwrap()
+        self.pearl.clone().expect("clone pearl")
     }
     pub fn log_config(&self) -> String {
-        self.log_config.clone().unwrap()
+        self.log_config.clone().expect("clone log config")
     }
     pub fn cluster_policy(&self) -> String {
-        self.cluster_policy.clone().unwrap()
+        self.cluster_policy.clone().expect("clone cluster policy")
     }
     pub fn bind(&self) -> String {
         self.bind_ref.borrow().to_string()
@@ -288,10 +290,15 @@ impl NodeConfig {
         self.disks_ref.borrow().clone()
     }
     pub fn backend_type(&self) -> BackendType {
-        self.backend_result().unwrap()
+        self.backend_result().expect("clone backend type")
     }
     fn backend_result(&self) -> Result<BackendType, String> {
-        match self.backend_type.as_ref().unwrap().as_str() {
+        match self
+            .backend_type
+            .as_ref()
+            .expect("match backend type")
+            .as_str()
+        {
             "in_memory" => Ok(BackendType::InMemory),
             "stub" => Ok(BackendType::Stub),
             "pearl" => Ok(BackendType::Pearl),
@@ -299,23 +306,24 @@ impl NodeConfig {
         }
     }
     pub fn prepare(&self, node: &Node) -> Result<(), String> {
-        self.bind_ref.replace(node.address.clone().unwrap());
+        self.bind_ref
+            .replace(node.address.clone().expect("clone node address"));
 
         let t: Duration = self
             .timeout
             .clone()
-            .unwrap()
+            .expect("clone timeout")
             .parse::<humantime::Duration>()
-            .unwrap()
+            .expect("parse humantime duration")
             .into();
         self.timeout_ref.set(t);
 
         let t1: Duration = self
             .check_interval
             .clone()
-            .unwrap()
+            .expect("clone check interval")
             .parse::<humantime::Duration>()
-            .unwrap()
+            .expect("parse humantime duration")
             .into();
         self.check_ref.set(t1);
 
@@ -323,8 +331,8 @@ impl NodeConfig {
             node.disks
                 .iter()
                 .map(|disk| DiskPath {
-                    name: disk.name.clone().unwrap(),
-                    path: disk.path.clone().unwrap(),
+                    name: disk.name.clone().expect("clone disk name"),
+                    path: disk.path.clone().expect("clone disk path"),
                 })
                 .collect::<Vec<_>>(),
         );
@@ -332,7 +340,7 @@ impl NodeConfig {
         self.backend_result()?;
 
         if self.backend_type() == BackendType::Pearl {
-            self.pearl.as_ref().unwrap().prepare()
+            self.pearl.as_ref().expect("prepare pearl").prepare()
         } else {
             Ok(())
         }
@@ -458,7 +466,7 @@ impl NodeConfigYaml {
                 format!("cannot find node: {} in cluster config", node.name())
             })?;
         if node.backend_result().is_ok() && node.backend_type() == BackendType::Pearl {
-            let pearl = node.pearl.as_ref().unwrap();
+            let pearl = node.pearl.as_ref().expect("get node pearl");
             finded
                 .disks
                 .iter()

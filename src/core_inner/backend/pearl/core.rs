@@ -21,7 +21,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
 
         let alien = settings
             .read_alien_directory(settings.clone(), config, spawner.clone())
-            .unwrap();
+            .expect("vec of pearl groups");
         trace!("count alien vdisk groups: {}", alien.len());
         let alien_vdisks_groups = Arc::new(LockGuard::new(alien)); //TODO
 
@@ -55,7 +55,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
                 let pearl = self
                     .settings
                     .create_group(operation.clone(), self.settings.clone())
-                    .unwrap(); //TODO
+                    .expect("pearl group"); //TODO
 
                 self.alien_vdisks_groups
                     .write_sync_mut(|groups| {
@@ -96,7 +96,6 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
     }
 
     #[cfg(test)]
-    #[inline]
     pub(crate) async fn test<TRet, F>(
         &self,
         disk_name: String,
@@ -192,7 +191,10 @@ where
                 let mut vdisk_group = backend.find_alien_pearl(operation.clone()).await;
                 if vdisk_group.is_err() {
                     debug!("need create alien for: {}", operation.clone());
-                    backend.create_alien_pearl(operation.clone()).await.unwrap();
+                    backend
+                        .create_alien_pearl(operation.clone())
+                        .await
+                        .expect("create alien pearl");
                     vdisk_group = backend.find_alien_pearl(operation.clone()).await;
                 }
                 if let Ok(group) = vdisk_group {

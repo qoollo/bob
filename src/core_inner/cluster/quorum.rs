@@ -9,7 +9,7 @@ pub struct QuorumCluster {
 impl QuorumCluster {
     pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig, backend: Arc<Backend>) -> Self {
         QuorumCluster {
-            quorum: config.quorum.unwrap(),
+            quorum: config.quorum.expect("get quorum config"),
             mapper,
             backend,
         }
@@ -34,7 +34,7 @@ impl QuorumCluster {
         let indexes = target_nodes.iter().map(|n| n.index).collect::<Vec<_>>();
         trace!("target indexes: {:?}", indexes);
 
-        let index_max = *indexes.iter().max().unwrap() as usize;
+        let index_max = *indexes.iter().max().expect("get max index") as usize;
 
         let mut ret = vec![];
         let mut cur_index = index_max;
@@ -418,7 +418,10 @@ pub mod tests {
     }
 
     fn get_pool() -> ThreadPool {
-        ThreadPoolBuilder::new().pool_size(1).create().unwrap()
+        ThreadPoolBuilder::new()
+            .pool_size(1)
+            .create()
+            .expect("create thread pool")
     }
 
     fn prepare_configs(
@@ -429,8 +432,8 @@ pub mod tests {
     ) -> (Vec<VDisk>, NodeConfig, ClusterConfig) {
         let node = node_config("0", quorum);
         let cluster = cluster_config(count_nodes, count_vdisks, count_replicas);
-        NodeConfigYaml::check(&cluster, &node).unwrap();
-        let vdisks = ClusterConfigYaml::convert(&cluster).unwrap();
+        NodeConfigYaml::check(&cluster, &node).expect("check node config");
+        let vdisks = ClusterConfigYaml::convert(&cluster).expect("convert config");
         (vdisks, node, cluster)
     }
 
@@ -444,7 +447,10 @@ pub mod tests {
         let mapper = Arc::new(VDiskMapper::new(vdisks, &node, &cluster));
         mapper.nodes().iter().for_each(|n| {
             let mut client = BobClient::default();
-            let (_, func, call) = map.iter().find(|(name, _, _)| *name == n.name).unwrap();
+            let (_, func, call) = map
+                .iter()
+                .find(|(name, _, _)| *name == n.name)
+                .expect("find node with name");
             func(&mut client, n.clone(), call.clone());
 
             n.set_connection(client);

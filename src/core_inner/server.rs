@@ -41,10 +41,10 @@ impl BobApi for BobSrv {
                     .key
                     .clone()
                     .map(|blob_key| blob_key.key)
-                    .unwrap(),
+                    .expect("get key from request"),
             };
-            let blob = put_request.data.clone().unwrap();
-            let data = BobData::new(blob.data, BobMeta::new(blob.meta.unwrap()));
+            let blob = put_request.data.clone().expect("get data from request");
+            let data = BobData::new(blob.data, BobMeta::new(blob.meta.expect("get blob meta")));
 
             trace!("PUT[{}] data size: {}", key, data.data.len());
             let put_result = self
@@ -72,18 +72,18 @@ impl BobApi for BobSrv {
 
     async fn get(&self, req: Request<GetRequest>) -> ApiResult<Blob> {
         let sw = Stopwatch::start_new();
-        let param = req.into_inner();
-        if !Self::get_is_valid(&param) {
+        let get_req = req.into_inner();
+        if !Self::get_is_valid(&get_req) {
             warn!("GET[-] invalid arguments - key is mandatory");
             Err(Status::new(Code::InvalidArgument, "Key is mandatory"))
         } else {
             let key = BobKey {
-                key: param.clone().key.unwrap().key,
+                key: get_req.clone().key.expect("get key from request").key,
             };
 
             let grinder = self.grinder.clone();
             let get_res = grinder
-                .get(key, BobOptions::new_get(param.options))
+                .get(key, BobOptions::new_get(get_req.options))
                 .await
                 .map_err::<Status, _>(|e| e.into())?;
 

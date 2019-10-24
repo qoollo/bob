@@ -143,10 +143,7 @@ where
         let mut spawner = self.spawner.clone();
         spawner
             .spawn(self.prepare_storage().map(|_| {}))
-            .map_err(|e| {
-                error!("can't start reinit thread: {:?}", e);
-            })
-            .unwrap();
+            .expect("can't spawn reinit task");
 
         Ok(())
     }
@@ -280,7 +277,7 @@ impl PearlSync {
 
     #[inline]
     pub(crate) fn get(&self) -> PearlStorage {
-        self.storage.clone().unwrap()
+        self.storage.clone().expect("cloned storage")
     }
 }
 

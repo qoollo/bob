@@ -8,11 +8,11 @@ pub struct NodeDisk {
 
 impl NodeDisk {
     pub fn name(&self) -> String {
-        self.name.clone().unwrap()
+        self.name.clone().expect("clone name")
     }
 
     pub fn path(&self) -> String {
-        self.path.clone().unwrap()
+        self.path.clone().expect("clone path")
     }
 }
 impl Validatable for NodeDisk {
@@ -64,12 +64,12 @@ pub struct Node {
 impl Node {
     #[inline]
     pub fn name(&self) -> String {
-        self.name.clone().unwrap()
+        self.name.clone().expect("clone name")
     }
 
     #[inline]
     pub fn address(&self) -> String {
-        self.address.clone().unwrap()
+        self.address.clone().expect("clone address")
     }
 
     #[inline]
@@ -162,10 +162,10 @@ pub struct Replica {
 
 impl Replica {
     pub fn node(&self) -> String {
-        self.node.clone().unwrap()
+        self.node.clone().expect("clone node")
     }
     pub fn disk(&self) -> String {
-        self.disk.clone().unwrap()
+        self.disk.clone().expect("clone disk")
     }
 }
 impl Validatable for Replica {
@@ -210,7 +210,7 @@ pub struct VDisk {
 
 impl VDisk {
     pub fn id(&self) -> i32 {
-        self.id.unwrap()
+        self.id.expect("clone id")
     }
 }
 
@@ -347,8 +347,8 @@ impl ClusterConfigYaml {
             let mut disk = DataVDisk::new(VDiskId::new(vdisk.id() as u32), vdisk.replicas.len());
 
             for replica in vdisk.replicas.iter() {
-                let finded_node = node_map.get(&replica.node).unwrap();
-                let path = finded_node.1.get(&replica.disk).unwrap();
+                let finded_node = node_map.get(&replica.node).expect("get replica node");
+                let path = finded_node.1.get(&replica.disk).expect("get disk");
 
                 let node_disk = DataNodeDisk {
                     disk_path: path.to_string(),
@@ -369,7 +369,10 @@ impl ClusterConfigYaml {
     pub fn get(filename: &str) -> Result<(Vec<DataVDisk>, ClusterConfig), String> {
         let config = YamlBobConfigReader::get::<ClusterConfig>(filename)?;
         match config.validate() {
-            Ok(_) => Ok((Self::convert_to_data(&config).unwrap(), config)),
+            Ok(_) => Ok((
+                Self::convert_to_data(&config).expect("convert config to data"),
+                config,
+            )),
             Err(e) => {
                 debug!("config is not valid: {}", e);
                 Err(format!("config is not valid: {}", e))
@@ -385,7 +388,10 @@ impl ClusterConfigYaml {
             Err(format!("config is not valid: {}", e))
         } else {
             debug!("config is valid");
-            Ok((Self::convert_to_data(&config).unwrap(), config))
+            Ok((
+                Self::convert_to_data(&config).expect("convert config to data"),
+                config,
+            ))
         }
     }
 }

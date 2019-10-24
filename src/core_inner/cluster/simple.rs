@@ -8,7 +8,7 @@ pub struct SimpleQuorumCluster {
 impl SimpleQuorumCluster {
     pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
         SimpleQuorumCluster {
-            quorum: config.quorum.unwrap(),
+            quorum: config.quorum.expect("get quorum config"),
             mapper,
         }
     }

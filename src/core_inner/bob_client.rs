@@ -60,7 +60,7 @@ pub(crate) mod b_client {
                 client
                     .put(request)
                     .map(|res| {
-                        res.unwrap();
+                        res.expect("client put request");
                         metrics.put_timer_stop(timer);
                         ClusterResult {
                             node: node.clone(),
@@ -102,14 +102,17 @@ pub(crate) mod b_client {
                     }))
                     .timeout(timeout)
                     .await
-                    .unwrap();
+                    .expect("client get with timeout");
                 res.map(move |r| {
                     metrics.get_timer_stop(timer);
                     let ans = r.into_inner();
                     ClusterResult {
                         node: n1,
                         result: BackendGetResult {
-                            data: BobData::new(ans.data, BobMeta::new(ans.meta.unwrap())),
+                            data: BobData::new(
+                                ans.data,
+                                BobMeta::new(ans.meta.expect("get blob meta")),
+                            ),
                         },
                     }
                 })
@@ -134,7 +137,7 @@ pub(crate) mod b_client {
                 .ping(Request::new(Null {}))
                 .timeout(self.timeout)
                 .await
-                .unwrap()
+                .expect("client ping with timeout")
                 .map(|_| ClusterResult {
                     node: self.node.clone(),
                     result: BackendPingResult {},

@@ -15,7 +15,7 @@ where
     TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync,
 {
     pub(crate) fn new(config: &NodeConfig, mapper: Arc<VDiskMapper>, spawner: TSpawner) -> Self {
-        let pearl_config = config.pearl.clone().unwrap();
+        let pearl_config = config.pearl.clone().expect("get pearl config");
 
         let alien_folder = format!(
             "{}/{}/",
@@ -120,7 +120,7 @@ where
                 let start_timestamp: i64 = file_name
                     .parse()
                     .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry))
-                    .unwrap();
+                    .expect("parse file name");
                 let end_timestamp = start_timestamp + self.get_timestamp_period()?;
                 let pearl_holder = PearlTimestampHolder::new(
                     group.create_pearl_by_path(entry.path()),

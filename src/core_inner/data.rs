@@ -346,7 +346,7 @@ impl Node {
     pub fn get_uri(&self) -> http::Uri {
         format!("http://{}:{}", self.host, self.port)
             .parse()
-            .unwrap()
+            .expect("parse uri")
     }
 
     pub(crate) fn counter_display(&self) -> String {
@@ -354,16 +354,16 @@ impl Node {
     }
 
     pub(crate) fn set_connection(&self, client: BobClient) {
-        *self.conn.lock().unwrap() = Some(client);
+        *self.conn.lock().expect("lock mutex") = Some(client);
     }
 
     pub(crate) fn clear_connection(&self) {
         info!("CLEAN CONNECTION");
-        *self.conn.lock().unwrap() = None;
+        *self.conn.lock().expect("lock mutex") = None;
     }
 
     pub(crate) fn get_connection(&self) -> Option<BobClient> {
-        self.conn.lock().unwrap().clone()
+        self.conn.lock().expect("lock mutex").clone()
     }
 
     pub(crate) async fn check(self, client_fatory: BobClientFactory) -> Result<(), String> {
