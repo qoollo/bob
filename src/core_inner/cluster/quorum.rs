@@ -312,7 +312,7 @@ impl Cluster for QuorumCluster {
                 Err(BackendError::Failed(err + &err_sup))
             }
         }
-            .boxed();
+        .boxed();
         BackendGet(task)
     }
 }
