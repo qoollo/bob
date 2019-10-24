@@ -1,6 +1,12 @@
 pub(crate) mod b_client {
     use super::super::prelude::*;
     use super::*;
+    use crate::grpc::{Blob, BlobMeta};
+    use crate::grpc::{GetOptions, GetRequest, PutOptions, PutRequest};
+    use service::BobService;
+
+    use std::time::Duration;
+    use tonic::Request;
 
     use super::PingResult;
     use mockall::*;
@@ -10,7 +16,7 @@ pub(crate) mod b_client {
     pub struct RealBobClient {
         node: Node,
         timeout: Duration,
-        client: BobApiClient<tonic::transport::Channel>,
+        client: BobApiClient<BobService>,
         metrics: BobClientMetrics,
     }
 
@@ -21,14 +27,14 @@ pub(crate) mod b_client {
             timeout: Duration,
             metrics: BobClientMetrics,
         ) -> Result<Self, String> {
-            BobApiClient::connect(node.get_uri())
-                .map(|client| Self {
-                    node,
-                    client,
-                    timeout,
-                    metrics,
-                })
-                .map_err(|e| e.to_string())
+            let conn = BobService::new(node.get_uri());
+            let client = BobApiClient::new(conn);
+            Ok(Self {
+                node,
+                client,
+                timeout,
+                metrics,
+            })
         }
 
         #[allow(dead_code)]

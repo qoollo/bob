@@ -9,8 +9,8 @@ use bob::server::BobSrv;
 use clap::{App, Arg};
 use futures::executor::ThreadPoolBuilder;
 use futures::future::FutureExt;
-use tonic::transport::Server;
-
+use hyper::server::conn::AddrIncoming;
+use hyper::Server;
 use std::net::SocketAddr;
 
 #[macro_use]
@@ -102,5 +102,9 @@ async fn main() {
     tokio::spawn(async move { b.get_periodic_tasks(factory).map(|r| r.unwrap()).await });
     let new_service = BobApiServer::new(bob);
 
-    Server::builder().serve(addr, new_service).await.unwrap();
+    Server::builder(AddrIncoming::bind(&addr).unwrap())
+        .tcp_nodelay(true)
+        .serve(new_service)
+        .await
+        .unwrap();
 }

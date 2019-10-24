@@ -5,6 +5,7 @@ pub(crate) use super::prelude::*;
 
 mod prelude {
     pub(crate) use super::*;
+
     pub(crate) use futures::stream::FuturesUnordered;
 }
 

@@ -1,11 +1,21 @@
+#[macro_use]
+extern crate log;
+
 use bob::grpc::{client::BobApiClient, GetOptions, GetRequest, GetSource, PutOptions, PutRequest};
 use bob::grpc::{Blob, BlobKey, BlobMeta};
+use bob::service::BobService;
 use clap::{App, Arg};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::{self, SystemTime, UNIX_EPOCH};
-use tonic::{transport::Channel, Request};
+use std::time::{self, Duration, SystemTime, UNIX_EPOCH};
+use tokio::timer::delay_for;
+use tonic::Request;
+
+async fn build_client(net_conf: NetConfig) -> BobApiClient<BobService> {
+    let conn = BobService::new(net_conf.get_uri());
+    BobApiClient::new(conn)
+}
 
 #[derive(Debug, Clone)]
 struct NetConfig {
@@ -15,8 +25,11 @@ struct NetConfig {
 
 impl NetConfig {
     pub fn get_uri(&self) -> http::Uri {
-        format!("http://{}:{}", self.target, self.port)
-            .parse()
+        http::Uri::builder()
+            .scheme("http")
+            .authority(format!("{}:{}", self.target, self.port).as_str())
+            .path_and_query("/")
+            .build()
             .unwrap()
     }
 }
@@ -61,11 +74,6 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
     }
 }
 
-async fn build_client(net_conf: NetConfig) -> BobApiClient<Channel> {
-    let uri = net_conf.get_uri();
-    BobApiClient::connect(uri).unwrap()
-}
-
 async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
     let mut client = build_client(net_conf).await;
 
@@ -94,7 +102,7 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>)
 }
 
 async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
-    let mut client = build_client(net_conf).await;
+    let mut client = build_client(net_conf.clone()).await;
 
     let options: Option<PutOptions> = if task_conf.direct {
         Some(PutOptions {
@@ -278,8 +286,10 @@ async fn main() {
         } else {
             tokio::spawn(get_worker(nc, tc, stat_inner));
         }
+        error!("worker spawned");
     }
 
+    delay_for(Duration::from_secs(10)).await;
     stop_token.store(true, Ordering::Relaxed);
 
     stat_thread.join().unwrap();

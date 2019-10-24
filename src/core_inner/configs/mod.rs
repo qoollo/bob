@@ -10,10 +10,8 @@ pub(crate) use self::node::{BackendType, DiskPath, NodeConfig, PearlConfig};
 pub(crate) use super::prelude::*;
 
 mod prelude {
-    pub(crate) use super::reader::{Validatable, YamlBobConfigReader};
     pub(crate) use super::*;
+
+    pub(crate) use reader::{Validatable, YamlBobConfigReader};
     pub(crate) use serde::Deserialize;
-    pub(crate) use std::cell::{Cell, RefCell};
-    pub(crate) use std::fs::read_to_string;
-    pub(crate) use std::net::SocketAddr;
 }

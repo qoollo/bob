@@ -410,8 +410,8 @@ impl std::hash::Hash for Node {
     }
 }
 
-impl std::fmt::Debug for Node {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Debug for Node {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         write!(f, "{}={}:{}", self.name, self.host, self.port)
     }
 }
