@@ -286,6 +286,9 @@ impl Cluster for QuorumCluster {
                     key, answer.node, answer.result.data.meta.timestamp
                 ); // TODO move meta
                 return Ok(answer.result);
+            } else if err == "" {
+                debug!("GET[{}] data not found", key);
+                return Err::<_, backend::Error>(backend::Error::KeyNotFound);
             }
             debug!("GET[{}] no success result", key);
 

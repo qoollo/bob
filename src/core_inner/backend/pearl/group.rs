@@ -285,10 +285,11 @@ where
                     trace!("get data: {} from: {}", data, holder);
                     results.push(data);
                 }
-                Err(err) => {
+                Err(err) if err != backend::Error::KeyNotFound => {
                     has_error = true;
                     debug!("get error: {}, from : {}", err, holder);
                 }
+                _ => debug!("key not found from: {}", holder),
             }
         }
         if results.is_empty() {
