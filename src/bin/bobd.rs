@@ -1,33 +1,23 @@
-use bob::api::grpc::server;
-
-use bob::core::bob_client::BobClientFactory;
-use bob::core::grinder::Grinder;
-use bob::core::mapper::VDiskMapper;
+use bob::client::BobClientFactory;
+use bob::configs::cluster::ClusterConfigYaml;
+use bob::configs::node::{DiskPath, NodeConfigYaml};
+use bob::grinder::Grinder;
+use bob::grpc::server::BobApiServer;
+use bob::mapper::VDiskMapper;
+use bob::metrics;
+use bob::server::BobSrv;
 use clap::{App, Arg};
-use tokio::net::TcpListener;
-use tokio::runtime::Builder;
-
-use bob::core::configs::cluster::ClusterConfigYaml;
-use bob::core::configs::node::{DiskPath, NodeConfigYaml};
-
-use bob::core::server::BobSrv;
-
-use futures::{Future, Stream};
-use tower_hyper::server::{Http, Server};
-
-use futures03::executor::ThreadPoolBuilder;
-use futures03::future::{FutureExt, TryFutureExt};
-
+use futures::executor::ThreadPoolBuilder;
+use futures::future::FutureExt;
+use hyper::server::conn::AddrIncoming;
+use hyper::Server;
 use std::net::SocketAddr;
 
 #[macro_use]
 extern crate log;
-extern crate dipstick;
 
-use bob::core::metrics;
-use log4rs;
-
-fn main() {
+#[tokio::main]
+async fn main() {
     let matches = App::new("Bob")
         .arg(
             Arg::with_name("cluster")
@@ -62,11 +52,11 @@ fn main() {
 
     let cluster_config = matches.value_of("cluster").expect("expect cluster config");
     println!("Cluster config: {:?}", cluster_config);
-    let (vdisks, cluster) = ClusterConfigYaml {}.get(cluster_config).unwrap();
+    let (vdisks, cluster) = ClusterConfigYaml::get(cluster_config).unwrap();
 
     let node_config = matches.value_of("node").expect("expect node config");
     println!("Node config: {:?}", node_config);
-    let node = NodeConfigYaml {}.get(node_config, &cluster).unwrap();
+    let node = NodeConfigYaml::get(node_config, &cluster).unwrap();
 
     log4rs::init_file(node.log_config(), Default::default()).unwrap();
 
@@ -101,62 +91,20 @@ fn main() {
         grinder: std::sync::Arc::new(Grinder::new(mapper, &node, backend_pool.clone())),
     };
 
-    let pool = ThreadPoolBuilder::new()
-        .pool_size(node.ping_threads_count() as usize)
-        .create()
-        .unwrap();
-
-    let mut rt = Builder::new()
-        .core_threads(
-            matches
-                .value_of("threads")
-                .unwrap_or_default()
-                .parse()
-                .unwrap(),
-        )
-        .build()
-        .unwrap();
-
     let executor = rt.executor();
 
-    let b1 = bob.clone();
-    let q1 = async move {
-        b1.run_backend()
-            .await
-            .map(|_r| {})
-            .map_err(|e| panic!("init failed: {:?}", e))
-    };
-    rt.block_on(q1.boxed().compat()).unwrap();
+    bob.run_backend().await.unwrap();
     info!("Start backend");
 
     let factory =
         BobClientFactory::new(executor, node.timeout(), node.grpc_buffer_bound(), metrics);
     let b = bob.clone();
-    let q = async move { b.get_periodic_tasks(factory, pool).await };
-    rt.spawn(q.boxed().compat());
+    tokio::spawn(async move { b.get_periodic_tasks(factory).map(|r| r.unwrap()).await });
+    let new_service = BobApiServer::new(bob);
 
-    let new_service = server::BobApiServer::new(bob);
-
-    let mut server = Server::new(new_service);
-
-    info!("Listen on {:?}", addr);
-    let bind = TcpListener::bind(&addr).expect("bind");
-    let http = Http::new().http2_only(true).clone();
-
-    let serve = bind
-        .incoming()
-        .for_each(move |sock| {
-            if let Err(e) = sock.set_nodelay(true) {
-                return Err(e);
-            }
-
-            let serve = server.serve_with(sock, http.clone());
-            tokio::spawn(serve.map_err(|e| error!("Server h2 error: {:?}", e)));
-
-            Ok(())
-        })
-        .map_err(|e| error!("accept error: {}", e));
-
-    rt.spawn(serve);
-    rt.shutdown_on_idle().wait().unwrap();
+    Server::builder(AddrIncoming::bind(&addr).unwrap())
+        .tcp_nodelay(true)
+        .serve(new_service)
+        .await
+        .unwrap();
 }

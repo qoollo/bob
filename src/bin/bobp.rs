@@ -1,27 +1,21 @@
-extern crate clap;
+#[macro_use]
+extern crate log;
 
+use bob::grpc::{client::BobApiClient, GetOptions, GetRequest, GetSource, PutOptions, PutRequest};
+use bob::grpc::{Blob, BlobKey, BlobMeta};
+use bob::service::BobService;
 use clap::{App, Arg};
-use futures::future::{loop_fn, Loop};
-
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::{thread, time};
+use std::thread;
+use std::time::{self, Duration, SystemTime, UNIX_EPOCH};
+use tokio::timer::delay_for;
+use tonic::Request;
 
-use tokio::runtime::current_thread::Runtime;
-
-use futures::future::ok;
-use futures::Future;
-use tower::MakeService;
-use tower_grpc::{BoxBody, Request};
-
-use bob::api::grpc::client::BobApi;
-use bob::api::grpc::{
-    Blob, BlobKey, BlobMeta, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
-};
-
-use hyper::client::connect::{Destination, HttpConnector};
-use tower_hyper::{client, util};
+async fn build_client(net_conf: NetConfig) -> BobApiClient<BobService> {
+    let conn = BobService::new(net_conf.get_uri());
+    BobApiClient::new(conn)
+}
 
 #[derive(Debug, Clone)]
 struct NetConfig {
@@ -31,8 +25,11 @@ struct NetConfig {
 
 impl NetConfig {
     pub fn get_uri(&self) -> http::Uri {
-        format!("http://{}:{}", self.target, self.port)
-            .parse()
+        http::Uri::builder()
+            .scheme("http")
+            .authority(format!("{}:{}", self.target, self.port).as_str())
+            .path_and_query("/")
+            .build()
             .unwrap()
     }
 }
@@ -77,108 +74,74 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
     }
 }
 
-type TowerConnect =
-    tower_request_modifier::RequestModifier<tower_hyper::Connection<BoxBody>, BoxBody>;
+async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
+    let mut client = build_client(net_conf).await;
 
-fn build_client(rt: &mut Runtime, net_conf: NetConfig) -> BobApi<TowerConnect> {
-    let uri = std::sync::Arc::new(net_conf.get_uri());
-
-    // let h2_settings = Default::default();
-    // let mut make_client = client::Connect::new(net_conf.get_connector(), h2_settings, rt.handle());
-    let dst = Destination::try_from_uri(net_conf.get_uri()).unwrap();
-    let mut http_connector = HttpConnector::new(4);
-    http_connector.set_nodelay(true);
-    let connector = util::Connector::new(http_connector);
-    let settings = client::Builder::new().http2_only(true).clone();
-    let mut make_client = client::Connect::with_builder(connector, settings);
-
-    let conn = rt.block_on(make_client.make_service(dst)).unwrap();
-    let p_conn = tower_request_modifier::Builder::new()
-        .set_origin(uri.as_ref())
-        .build(conn)
-        .unwrap();
-
-    BobApi::new(p_conn)
-}
-
-fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
-    let mut rt = Runtime::new().unwrap();
-    let mut client = build_client(&mut rt, net_conf);
-
-    let mut options: Option<GetOptions> = None;
-    if task_conf.direct {
-        options = Some(GetOptions {
+    let options = if task_conf.direct {
+        Some(GetOptions {
             force_node: true,
             source: GetSource::Normal as i32,
-        });
-    }
+        })
+    } else {
+        None
+    };
 
-    rt.block_on(loop_fn((stat, task_conf.low_idx), |(lstat, i)| {
-        client
+    let upper_idx = task_conf.low_idx + task_conf.count;
+    for i in task_conf.low_idx..upper_idx {
+        let res = client
             .get(Request::new(GetRequest {
                 key: Some(BlobKey { key: i }),
                 options: options.clone(),
             }))
-            .then(move |e| {
-                if e.is_err() {
-                    lstat.clone().get_error.fetch_add(1, Ordering::SeqCst);
-                }
-                lstat.clone().get_total.fetch_add(1, Ordering::SeqCst);
-
-                if i + 1 == task_conf.low_idx + task_conf.count {
-                    ok::<_, ()>(Loop::Break((lstat, i)))
-                } else {
-                    ok::<_, ()>(Loop::Continue((lstat, i + 1)))
-                }
-            })
-    }))
-    .unwrap();
+            .await;
+        if res.is_err() {
+            stat.get_error.fetch_add(1, Ordering::SeqCst);
+        }
+        stat.get_total.fetch_add(1, Ordering::SeqCst);
+    }
 }
 
-fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
-    let mut rt = Runtime::new().unwrap();
-    let mut client = build_client(&mut rt, net_conf);
+async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
+    let mut client = build_client(net_conf.clone()).await;
 
-    let mut options: Option<PutOptions> = None;
-    if task_conf.direct {
-        options = Some(PutOptions {
+    let options: Option<PutOptions> = if task_conf.direct {
+        Some(PutOptions {
             remote_nodes: vec![],
             force_node: true,
             overwrite: false,
-        });
-    }
-    let put = loop_fn((stat.clone(), task_conf.low_idx), |(lstat, i)| {
-        client
-            .put(Request::new(PutRequest {
-                key: Some(BlobKey { key: i }),
-                data: Some(Blob {
-                    data: vec![0; task_conf.payload_size as usize],
-                    meta: Some(BlobMeta {
-                        timestamp: SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .expect("msg: &str")
-                            .as_secs() as i64,
-                    }),
-                }),
-                options: options.clone(),
-            }))
-            .then(move |e| {
-                if e.is_err() {
-                    lstat.clone().put_error.fetch_add(1, Ordering::SeqCst);
-                }
-                lstat.clone().put_total.fetch_add(1, Ordering::SeqCst);
+        })
+    } else {
+        None
+    };
 
-                if i + 1 == task_conf.low_idx + task_conf.count {
-                    ok::<_, ()>(Loop::Break((lstat, i)))
-                } else {
-                    ok::<_, ()>(Loop::Continue((lstat, i + 1)))
-                }
-            })
-    });
-    rt.block_on(put).unwrap();
+    let upper_idx = task_conf.low_idx + task_conf.count;
+    for i in task_conf.low_idx..upper_idx {
+        let meta = BlobMeta {
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("msg: &str")
+                .as_secs() as i64,
+        };
+        let blob = Blob {
+            data: vec![0; task_conf.payload_size as usize],
+            meta: Some(meta),
+        };
+        let key = BlobKey { key: i };
+        let req = Request::new(PutRequest {
+            key: Some(key),
+            data: Some(blob),
+            options: options.clone(),
+        });
+        let res = client.put(req).await;
+        if res.is_err() {
+            stat.put_error.fetch_add(1, Ordering::SeqCst);
+        }
+        stat.put_total.fetch_add(1, Ordering::SeqCst);
+    }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let matches = App::new("Bob benchmark tool")
         .arg(
             Arg::with_name("host")
@@ -308,7 +271,6 @@ fn main() {
         })
     };
 
-    let mut workers = vec![];
     let task_size = task_conf.count / workers_count;
     for i in 0..workers_count {
         let nc = net_conf.clone();
@@ -320,18 +282,14 @@ fn main() {
             direct: task_conf.direct,
         };
         if behavior {
-            workers.push(thread::spawn(move || {
-                put_worker(nc, tc, stat_inner);
-            }));
+            tokio::spawn(put_worker(nc, tc, stat_inner));
         } else {
-            workers.push(thread::spawn(move || {
-                get_worker(nc, tc, stat_inner);
-            }));
+            tokio::spawn(get_worker(nc, tc, stat_inner));
         }
+        error!("worker spawned");
     }
 
-    workers.drain(..).for_each(|w| w.join().unwrap());
-
+    delay_for(Duration::from_secs(10)).await;
     stop_token.store(true, Ordering::Relaxed);
 
     stat_thread.join().unwrap();

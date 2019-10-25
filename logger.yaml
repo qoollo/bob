@@ -21,7 +21,7 @@ root:
 
 loggers:
   bob:
-    level: trace
+    level: error
     appenders:
       - requests
       - stdout
