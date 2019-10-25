@@ -126,7 +126,7 @@ pub(crate) mod b_client {
                     }
                 })
             }
-                .boxed();
+            .boxed();
             Get(task)
         }
 
