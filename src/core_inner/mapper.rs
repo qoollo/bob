@@ -59,9 +59,19 @@ impl VDiskMapper {
         (nodes, vdisks.to_vec())
     }
 
-    pub fn local_node_name(&self) -> String {
-        self.local_node_name.clone()
+    pub fn local_node_name(&self) -> &str {
+        &self.local_node_name
     }
+
+    pub fn local_node_address(&self) -> String {
+        let name = self.local_node_name();
+        self.nodes
+            .iter()
+            .find(|node| node.name == name)
+            .expect("found node with name")
+            .get_address()
+    }
+
     pub fn vdisks_count(&self) -> u32 {
         self.vdisks.len() as u32
     }
@@ -73,6 +83,11 @@ impl VDiskMapper {
     pub fn local_disks(&self) -> &Vec<DiskPath> {
         &self.disks
     }
+
+    pub fn vdisks(&self) -> &[DataVDisk] {
+        &self.vdisks
+    }
+
     pub fn get_disk_by_name(&self, name: &str) -> Option<&DiskPath> {
         self.disks.iter().find(|d| d.name == name)
     }

@@ -212,6 +212,10 @@ impl VDiskId {
     pub fn new(id: u32) -> VDiskId {
         VDiskId { id }
     }
+
+    pub fn as_u32(&self) -> u32 {
+        self.id
+    }
 }
 
 impl std::fmt::Display for VDiskId {
@@ -343,10 +347,13 @@ impl Node {
             conn: Arc::new(Mutex::new(None)),
         }
     }
-    pub fn get_uri(&self) -> http::Uri {
+
+    pub fn get_address(&self) -> String {
         format!("http://{}:{}", self.host, self.port)
-            .parse()
-            .expect("parse uri")
+    }
+
+    pub fn get_uri(&self) -> http::Uri {
+        self.get_address().parse().expect("parse uri")
     }
 
     pub(crate) fn counter_display(&self) -> String {

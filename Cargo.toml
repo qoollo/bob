@@ -33,9 +33,11 @@ tower-make = "0.3.0-alpha.2a"
 tower-reconnect = "0.3.0-alpha.2"
 tower-balance = "0.3.0-alpha.2"
 tower-load = "0.3.0-alpha.2"
+rocket = "0.4"
+rocket_contrib = "0.4"
 
 [build-dependencies]
-tonic-build = "0.1.0-alpha.3"
+tonic-build = "0.1.0-alpha.4"
 
 [lib]
 name = "bob"

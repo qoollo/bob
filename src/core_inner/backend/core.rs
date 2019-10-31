@@ -259,4 +259,8 @@ impl Backend {
             backend.get(operation, key).0.await
         }
     }
+
+    pub fn mapper(&self) -> &VDiskMapper {
+        &self.mapper
+    }
 }

@@ -1,0 +1,185 @@
+openapi: 3.0.0
+info:
+  title: "Bob Node API"
+  description: Bob HTTP Rest API
+  version: 0.0.0
+paths:
+  /status:
+    get:
+      summary: Returns information about self
+      operationId: getStatus
+      responses:
+        '200':
+          description: "A JSON with node info"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /vdisks:
+    get:
+      summary: Returns a list of vdisks
+      operationId: getVDisks
+      responses:
+        '200':
+          description: "A JSON array of vdisks info"
+          content:
+            application/json:
+              schema:
+                type: array
+                items: 
+                  $ref: '#/components/schemas/VDisk'
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /vdisks/{VDiskId}:
+    get:
+      summary: Returns a vdisk info by ID
+      operationId: getVDisk
+      parameters:
+        - $ref: '#/components/parameters/VDiskIdParam'
+      responses:
+        '200':
+          description: "A JSON with vdisk info"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VDisk'
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /vdisks/{VDiskId}/partitions:
+    get:
+      summary: Returns a list of partitions
+      operationId: getPartitions
+      parameters:
+        - $ref: '#/components/parameters/VDiskIdParam'
+      responses:
+        '200':
+          description: "A JSON array with partitions info"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /vdisks/{VDiskId}/partitions/{partitionId}:
+    get:
+      summary: Returns a partition info by ID
+      operationId: getPartition
+      parameters: 
+        - $ref: '#/components/parameters/VDiskIdParam'
+        - name: partitionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "A JSON with partition info"
+          content:
+            application/json:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /vdisks/{VDiskId}/partitions/{partitionId}/{action}:
+    put:
+      summary: Attach/Detach a partition
+      parameters: 
+        - $ref: '#/components/parameters/VDiskIdParam'
+        - name: partitionId
+          in: path
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: action
+          schema:
+            type: string
+            enum: 
+              - attach
+              - detach
+          required: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /alien:
+    get:
+      summary: Returns an alien dir info
+      operationId: getAlien
+      responses:
+        '200':
+          description: "A JSON array with alien Node names info"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        default:
+          $ref: '#/components/responses/DefaultError'
+    
+components:
+  responses:
+    DefaultError:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  parameters:
+    VDiskIdParam:
+      name: VDiskId
+      in: path
+      required: true
+      schema:
+        type: integer
+  schemas:
+    Node:
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        disks:
+          type: array
+          items:
+            $ref: '#/components/schemas/VDisk'
+      required:
+        - name
+        - address
+    VDisk:
+      properties:
+        id:
+          type: integer
+        replicas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Replica'
+    Replica:
+      properties:
+        node:
+          type: string
+        disk:
+          type: string
+      required:
+        - name
+        - path
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+      required:
+        - code
+        - message
