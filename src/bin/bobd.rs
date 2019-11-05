@@ -6,6 +6,7 @@ use bob::grpc::server::BobApiServer;
 use bob::mapper::VDiskMapper;
 use bob::metrics;
 use bob::server::BobSrv;
+use bob::service::ServerSvc;
 use clap::{App, Arg};
 use futures::executor::ThreadPoolBuilder;
 use futures::future::FutureExt;
@@ -101,10 +102,11 @@ async fn main() {
     let b = bob.clone();
     tokio::spawn(async move { b.get_periodic_tasks(factory).map(|r| r.unwrap()).await });
     let new_service = BobApiServer::new(bob);
+    let svc = ServerSvc(new_service);
 
     Server::builder(AddrIncoming::bind(&addr).unwrap())
         .tcp_nodelay(true)
-        .serve(new_service)
+        .serve(svc)
         .await
         .unwrap();
 }

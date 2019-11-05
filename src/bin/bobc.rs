@@ -12,7 +12,9 @@ fn wait_for_input() {
 
 #[tokio::main]
 async fn main() {
-    let mut client = BobApiClient::connect("http://localhost:20000").unwrap();
+    let mut client = BobApiClient::connect("http://localhost:20000")
+        .await
+        .unwrap();
 
     let put_req = Request::new(PutRequest {
         key: Some(BlobKey { key: 0 }),

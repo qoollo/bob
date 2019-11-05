@@ -27,7 +27,7 @@ dipstick = "~0.7"
 mockall = "~0.3"
 cfg-if = "~0.1"
 env_logger = "*"
-tonic = "0.1.0-alpha.4"
+tonic = "0.1.0-alpha.5"
 tower = "0.3.0-alpha.2"
 tower-make = "0.3.0-alpha.2a"
 tower-reconnect = "0.3.0-alpha.2"
@@ -35,7 +35,7 @@ tower-balance = "0.3.0-alpha.2"
 tower-load = "0.3.0-alpha.2"
 
 [build-dependencies]
-tonic-build = "0.1.0-alpha.3"
+tonic-build = "0.1.0-alpha.5"
 
 [lib]
 name = "bob"

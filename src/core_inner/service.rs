@@ -3,9 +3,9 @@ use super::prelude::*;
 type Svc = AddOrigin<Reconnect<Connect<HttpConnector, BoxBody, Uri>, Uri>>;
 
 #[derive(Clone)]
-pub struct BobService(Buffer<Svc, HttpRequest<BoxBody>>);
+pub struct ClientSvc(Buffer<Svc, HttpRequest<BoxBody>>);
 
-impl BobService {
+impl ClientSvc {
     pub fn new(uri: Uri) -> Self {
         let mut http_connector = HttpConnector::new();
         http_connector.enforce_http(false);
@@ -24,7 +24,7 @@ impl BobService {
     }
 }
 
-impl Service<HttpRequest<BoxBody>> for BobService {
+impl Service<HttpRequest<BoxBody>> for ClientSvc {
     type Response = <Buffer<Svc, HttpRequest<BoxBody>> as Service<HttpRequest<BoxBody>>>::Response;
     type Error = <Buffer<Svc, HttpRequest<BoxBody>> as Service<HttpRequest<BoxBody>>>::Error;
     type Future = <Buffer<Svc, HttpRequest<BoxBody>> as Service<HttpRequest<BoxBody>>>::Future;
@@ -71,8 +71,8 @@ where
         let set_uri = self.origin.clone().into_parts();
 
         // Update the URI parts, setting hte scheme and authority
-        uri.scheme = Some(set_uri.scheme.expect("expected scheme").clone());
-        uri.authority = Some(set_uri.authority.expect("expected authority").clone());
+        uri.scheme = Some(set_uri.scheme.expect("expected scheme"));
+        uri.authority = Some(set_uri.authority.expect("expected authority"));
 
         // Update the the request URI
         head.uri = http::Uri::from_parts(uri).expect("valid uri");
@@ -94,5 +94,64 @@ where
 
     fn layer(&self, inner: S) -> Self::Service {
         (self.0)(inner)
+    }
+}
+
+type BoxService = tower::util::BoxService<
+    http::Request<hyper::Body>,
+    http::Response<tonic::body::BoxBody>,
+    String,
+>;
+
+pub struct ServerSvc<S>(pub S);
+
+impl<S, T> Service<T> for ServerSvc<S>
+where
+    S: Service<http::Request<hyper::Body>, Response = http::Response<BoxBody>>
+        + Clone
+        + Send
+        + 'static,
+    S::Future: Send + 'static,
+    S::Error: std::error::Error + Send,
+{
+    type Response = BoxService;
+    type Error = hyper::Error;
+    type Future =
+        Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'static>>;
+
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Ok(()).into()
+    }
+
+    fn call(&mut self, _: T) -> Self::Future {
+        let svc = self.0.clone();
+        Box::pin(async move {
+            let svc = tower::ServiceBuilder::new().service(svc);
+
+            let svc = BoxService::new(MakeSvc(svc));
+
+            Ok(svc)
+        })
+    }
+}
+
+#[derive(Debug)]
+struct MakeSvc<S>(S);
+
+impl<S> Service<http::Request<hyper::Body>> for MakeSvc<S>
+where
+    S: Service<http::Request<hyper::Body>, Response = http::Response<BoxBody>>,
+    S::Error: std::fmt::Debug,
+{
+    type Response = http::Response<BoxBody>;
+    type Error = String;
+    type Future = future::MapErr<S::Future, fn(S::Error) -> String>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.0.poll_ready(cx).map_err(|e| String::new())
+    }
+
+    fn call(&mut self, req: http::Request<hyper::Body>) -> Self::Future {
+        self.0.call(req).map_err(|e| String::new())
     }
 }
