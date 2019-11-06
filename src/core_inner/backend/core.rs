@@ -57,11 +57,7 @@ impl BackendOperation {
 
     #[inline]
     pub fn disk_name_local(&self) -> String {
-        self.disk_path
-            .clone()
-            .expect("disk path not set")
-            .name
-            .clone()
+        self.disk_path.clone().expect("disk path not set").name
     }
 
     #[inline]

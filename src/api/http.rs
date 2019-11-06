@@ -73,7 +73,7 @@ fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {
 fn status(bob: State<BobSrv>) -> Json<Node> {
     let mapper = bob.grinder.backend.mapper();
     let name = mapper.local_node_name().to_owned();
-    let address = mapper.local_node_address().to_owned();
+    let address = mapper.local_node_address();
     let vdisks = mapper.vdisks();
     let disks = collect_disks_info(vdisks);
     let node = Node {

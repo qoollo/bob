@@ -13,14 +13,14 @@ pub struct PearlBackend<TSpawner> {
 impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpawner> {
     pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig, spawner: TSpawner) -> Self {
         debug!("initializing pearl backend");
-        let settings = Arc::new(Settings::new(config, mapper.clone(), spawner.clone()));
+        let settings = Arc::new(Settings::new(config, mapper, spawner.clone()));
 
         let vdisks_groups =
             Arc::new(settings.read_group_from_disk(settings.clone(), config, spawner.clone()));
         trace!("count vdisk groups: {}", vdisks_groups.len());
 
         let alien = settings
-            .read_alien_directory(settings.clone(), config, spawner.clone())
+            .read_alien_directory(settings.clone(), config, spawner)
             .expect("vec of pearl groups");
         trace!("count alien vdisk groups: {}", alien.len());
         let alien_vdisks_groups = Arc::new(LockGuard::new(alien)); //TODO
@@ -90,7 +90,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
                             Error::Failed(format!("cannot find actual alien folder. {}", op))
                         })
                 }
-                    .boxed()
+                .boxed()
             })
             .await
     }
@@ -119,11 +119,11 @@ where
                         }
                         Ok(())
                     }
-                        .boxed()
+                    .boxed()
                 })
                 .await
         }
-            .boxed()
+        .boxed()
     }
 
     fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {
@@ -184,7 +184,7 @@ where
                     Err(Error::VDiskNoFound(operation.vdisk_id))
                 }
             }
-                .boxed()
+            .boxed()
         })
     }
 
@@ -206,7 +206,7 @@ where
                             e
                         })
                 }
-                    .boxed()
+                .boxed()
             } else {
                 debug!(
                     "GET[{}] to pearl backend. Cannot find storage, operation: {}",
@@ -240,7 +240,7 @@ where
                     Err(Error::KeyNotFound)
                 }
             }
-                .boxed()
+            .boxed()
         })
     }
 }

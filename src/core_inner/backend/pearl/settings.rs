@@ -92,7 +92,7 @@ where
                         vdisk_id.clone(),
                         config.name(),
                         disk.name.clone(),
-                        path.clone(),
+                        path,
                         config.pearl(),
                         spawner.clone(),
                     )
@@ -106,7 +106,7 @@ where
     pub(crate) fn read_vdisk_directory(
         &self,
         group: &PearlGroup<TSpawner>,
-    ) -> BackendResult<(Vec<PearlTimestampHolder<TSpawner>>)> {
+    ) -> BackendResult<Vec<PearlTimestampHolder<TSpawner>>> {
         Stuff::check_or_create_directory(&group.directory_path)?;
 
         let mut pearls = vec![];
@@ -185,8 +185,8 @@ where
         Stuff::check_or_create_directory(&path)?;
 
         let group = PearlGroup::<TSpawner>::new(
-            settings.clone(),
-            id.clone(),
+            settings,
+            id,
             operation.remote_node_name(),
             self.config.alien_disk(),
             path,
@@ -233,7 +233,7 @@ where
             .nodes()
             .iter()
             .find(|node| node.name == file_name);
-        node.map(|n| (entry, n.name().clone())).ok_or({
+        node.map(|n| (entry, n.name())).ok_or({
             debug!("cannot find node with name: {:?}", file_name);
             Error::Failed(format!("cannot find node with name: {:?}", file_name))
         })
@@ -254,7 +254,7 @@ where
             .get_vdisks_ids()
             .into_iter()
             .find(|vdisk| *vdisk == vdisk_id);
-        vdisk.map(|id| (entry, id.clone())).ok_or({
+        vdisk.map(|id| (entry, id)).ok_or({
             debug!("cannot find vdisk with id: {:?}", vdisk_id);
             Error::Failed(format!("cannot find vdisk with id: {:?}", vdisk_id))
         })

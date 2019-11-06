@@ -315,7 +315,7 @@ impl Cluster for QuorumCluster {
                 Err(BackendError::Failed(err + &err_sup))
             }
         }
-            .boxed();
+        .boxed();
         BackendGet(task)
     }
 }
@@ -345,7 +345,7 @@ pub mod tests {
         };
 
         pub fn ping_ok(client: &mut BobClient, node: Node) {
-            let cl = node.clone();
+            let cl = node;
 
             client
                 .expect_ping()
@@ -353,18 +353,16 @@ pub mod tests {
         }
 
         pub fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
-            let cl = node.clone();
             client.expect_put().returning(move |_key, _data, _options| {
                 call.put_inc();
-                tests::put_ok(cl.clone())
+                tests::put_ok(node.clone())
             });
         }
 
         pub fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
-            let cl = node.clone();
             client.expect_put().returning(move |_key, _data, _options| {
                 call.put_inc();
-                tests::put_err(cl.clone())
+                tests::put_err(node.clone())
             });
         }
 
@@ -374,18 +372,16 @@ pub mod tests {
             call: Arc<CountCall>,
             timestamp: i64,
         ) {
-            let cl = node.clone();
             client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
-                tests::get_ok(cl.clone(), timestamp)
+                tests::get_ok(node.clone(), timestamp)
             });
         }
 
         pub fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
-            let cl = node.clone();
             client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
-                tests::get_err(cl.clone())
+                tests::get_err(node.clone())
             });
         }
 
@@ -460,10 +456,7 @@ pub mod tests {
         });
 
         let backend = Arc::new(Backend::new(mapper.clone(), &node, pool.clone()));
-        (
-            QuorumCluster::new(mapper, &node, backend.clone()),
-            backend.clone(),
-        )
+        (QuorumCluster::new(mapper, &node, backend.clone()), backend)
     }
 
     fn create_ok_node(name: &str, op: (bool, bool)) -> (&str, Call, Arc<CountCall>) {
@@ -486,9 +479,9 @@ pub mod tests {
                             put_err(client, n.clone(), c.clone());
                         }
                         if op.1 {
-                            get_ok_timestamp(client, n.clone(), c, op.2);
+                            get_ok_timestamp(client, n, c, op.2);
                         } else {
-                            get_err(client, n.clone(), c);
+                            get_err(client, n, c);
                         }
                     };
                     f(client, n.clone(), call.clone(), op);
@@ -522,7 +515,7 @@ pub mod tests {
 
         let calls: Vec<_> = actions
             .iter()
-            .map(|(name, _, call)| (name.to_string(), call.clone()))
+            .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, backend) = create_cluster(&pool, vdisks, node, cluster, actions);
 
@@ -554,7 +547,7 @@ pub mod tests {
 
         let calls: Vec<_> = actions
             .iter()
-            .map(|(name, _, call)| (name.to_string(), call.clone()))
+            .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, backend) = create_cluster(&pool, vdisks, node, cluster, actions);
 
@@ -590,7 +583,7 @@ pub mod tests {
 
         let calls: Vec<_> = actions
             .iter()
-            .map(|(name, _, call)| (name.to_string(), call.clone()))
+            .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, backend) = create_cluster(&pool, vdisks, node, cluster, actions);
 
@@ -637,7 +630,7 @@ pub mod tests {
 
         let calls: Vec<_> = actions
             .iter()
-            .map(|(name, _, call)| (name.to_string(), call.clone()))
+            .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, backend) = create_cluster(&pool, vdisks, node, cluster, actions);
 
@@ -671,7 +664,7 @@ pub mod tests {
 
         let calls: Vec<_> = actions
             .iter()
-            .map(|(name, _, call)| (name.to_string(), call.clone()))
+            .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, backend) = create_cluster(&pool, vdisks, node, cluster, actions);
 
@@ -706,7 +699,7 @@ pub mod tests {
 
         let calls: Vec<_> = actions
             .iter()
-            .map(|(name, _, call)| (name.to_string(), call.clone()))
+            .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, backend) = create_cluster(&pool, vdisks, node, cluster, actions);
 
@@ -742,7 +735,7 @@ pub mod tests {
 
         let calls: Vec<_> = actions
             .iter()
-            .map(|(name, _, call)| (name.to_string(), call.clone()))
+            .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, backend) = create_cluster(&pool, vdisks, node, cluster, actions);
 
@@ -778,7 +771,7 @@ pub mod tests {
 
         let calls: Vec<_> = actions
             .iter()
-            .map(|(name, _, call)| (name.to_string(), call.clone()))
+            .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, backend) = create_cluster(&pool, vdisks, node, cluster, actions);
 
@@ -814,7 +807,7 @@ pub mod tests {
 
         let calls: Vec<_> = actions
             .iter()
-            .map(|(name, _, call)| (name.to_string(), call.clone()))
+            .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, backend) = create_cluster(&pool, vdisks, node, cluster, actions);
 
@@ -850,7 +843,7 @@ pub mod tests {
 
         let calls: Vec<_> = actions
             .iter()
-            .map(|(name, _, call)| (name.to_string(), call.clone()))
+            .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
 
@@ -872,7 +865,7 @@ pub mod tests {
 
         let calls: Vec<_> = actions
             .iter()
-            .map(|(name, _, call)| (name.to_string(), call.clone()))
+            .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
 
@@ -897,7 +890,7 @@ pub mod tests {
 
         let calls: Vec<_> = actions
             .iter()
-            .map(|(name, _, call)| (name.to_string(), call.clone()))
+            .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
 
@@ -923,7 +916,7 @@ pub mod tests {
 
         let calls: Vec<_> = actions
             .iter()
-            .map(|(name, _, call)| (name.to_string(), call.clone()))
+            .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, _) = create_cluster(&pool, vdisks, node, cluster, actions);
 

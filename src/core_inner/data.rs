@@ -274,8 +274,8 @@ pub struct DiskPath {
 impl DiskPath {
     pub fn new(name: &str, path: &str) -> DiskPath {
         DiskPath {
-            name: name.to_string().clone(),
-            path: path.to_string().clone(),
+            name: name.to_string(),
+            path: path.to_string(),
         }
     }
 }
