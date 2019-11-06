@@ -10,11 +10,11 @@ pub enum Action {
 pub struct Node {
     name: String,
     address: String,
-    disks: Vec<Disk>,
+    vdisks: Vec<VDisk>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct Disk {
+pub struct VDisk {
     id: u32,
     replicas: Vec<Replica>,
 }
@@ -48,10 +48,10 @@ pub fn spawn(bob: &BobSrv) {
     });
 }
 
-fn collect_disks_info(vdisks: &[DataVDisk]) -> Vec<Disk> {
+fn collect_disks_info(vdisks: &[DataVDisk]) -> Vec<VDisk> {
     vdisks
         .iter()
-        .map(|disk| Disk {
+        .map(|disk| VDisk {
             id: disk.id.as_u32(),
             replicas: collect_replicas_info(&disk.replicas),
         })
@@ -75,11 +75,11 @@ fn status(bob: State<BobSrv>) -> Json<Node> {
     let name = mapper.local_node_name().to_owned();
     let address = mapper.local_node_address();
     let vdisks = mapper.vdisks();
-    let disks = collect_disks_info(vdisks);
+    let vdisks = collect_disks_info(vdisks);
     let node = Node {
         name,
         address,
-        disks,
+        vdisks,
     };
     Json(node)
 }
