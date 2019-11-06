@@ -3,7 +3,7 @@ pub(crate) mod b_client {
     use super::*;
     use crate::grpc::{Blob, BlobMeta};
     use crate::grpc::{GetOptions, GetRequest, PutOptions, PutRequest};
-    use service::BobService;
+    use service::ClientSvc;
 
     use std::time::Duration;
     use tonic::Request;
@@ -16,7 +16,7 @@ pub(crate) mod b_client {
     pub struct RealBobClient {
         node: Node,
         timeout: Duration,
-        client: BobApiClient<BobService>,
+        client: BobApiClient<ClientSvc>,
         metrics: BobClientMetrics,
     }
 
@@ -27,7 +27,7 @@ pub(crate) mod b_client {
             timeout: Duration,
             metrics: BobClientMetrics,
         ) -> Result<Self, String> {
-            let conn = BobService::new(node.get_uri());
+            let conn = ClientSvc::new(node.get_uri());
             let client = BobApiClient::new(conn);
             Ok(Self {
                 node,

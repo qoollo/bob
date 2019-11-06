@@ -3,7 +3,7 @@ extern crate log;
 
 use bob::grpc::{client::BobApiClient, GetOptions, GetRequest, GetSource, PutOptions, PutRequest};
 use bob::grpc::{Blob, BlobKey, BlobMeta};
-use bob::service::BobService;
+use bob::service::ClientSvc;
 use clap::{App, Arg};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -12,8 +12,8 @@ use std::time::{self, Duration, SystemTime, UNIX_EPOCH};
 use tokio::timer::delay_for;
 use tonic::Request;
 
-async fn build_client(net_conf: NetConfig) -> BobApiClient<BobService> {
-    let conn = BobService::new(net_conf.get_uri());
+async fn build_client(net_conf: NetConfig) -> BobApiClient<ClientSvc> {
+    let conn = ClientSvc::new(net_conf.get_uri());
     BobApiClient::new(conn)
 }
 
