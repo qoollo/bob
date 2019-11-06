@@ -48,7 +48,9 @@ pub fn spawn(bob: &BobSrv) {
     });
 }
 
-fn collect_disks_info(vdisks: &[DataVDisk]) -> Vec<VDisk> {
+fn collect_disks_info(bob: &BobSrv) -> Vec<VDisk> {
+    let mapper = bob.grinder.backend.mapper();
+    let vdisks = mapper.vdisks();
     vdisks
         .iter()
         .map(|disk| VDisk {
@@ -56,6 +58,17 @@ fn collect_disks_info(vdisks: &[DataVDisk]) -> Vec<VDisk> {
             replicas: collect_replicas_info(&disk.replicas),
         })
         .collect()
+}
+
+fn get_vdisk_by_id(bob: &BobSrv, id: usize) -> Option<VDisk> {
+    let mapper = bob.grinder.backend.mapper();
+    let vdisks = mapper.vdisks();
+    vdisks.iter().find(|disk| disk.id.as_u32() == id).map(
+        disk | VDisk {
+            id: disk.id.as_u32(),
+            replicas: collect_replicas_info(&disk.replicas),
+        },
+    )
 }
 
 fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {
@@ -74,8 +87,7 @@ fn status(bob: State<BobSrv>) -> Json<Node> {
     let mapper = bob.grinder.backend.mapper();
     let name = mapper.local_node_name().to_owned();
     let address = mapper.local_node_address();
-    let vdisks = mapper.vdisks();
-    let vdisks = collect_disks_info(vdisks);
+    let vdisks = collect_disks_info(&bob);
     let node = Node {
         name,
         address,
@@ -85,12 +97,14 @@ fn status(bob: State<BobSrv>) -> Json<Node> {
 }
 
 #[get("/vdisks")]
-fn vdisks(_bob: State<BobSrv>) -> &'static str {
-    "vdisks"
+fn vdisks(bob: State<BobSrv>) -> Json<Vec<VDisk>> {
+    let vdisks = collect_disks_info(&bob);
+    Json(vdisks)
 }
 
 #[get("/vdisks/<vdisk_id>")]
-fn vdisk_by_id(_bob: State<BobSrv>, vdisk_id: usize) -> String {
+fn vdisk_by_id(bob: State<BobSrv>, vdisk_id: usize) -> String {
+    let vdisk = get_vdisk_by_id(&bob, vdisk_id);
     format!("vdisk by id {}", vdisk_id)
 }
 
