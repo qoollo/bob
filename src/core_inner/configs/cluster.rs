@@ -408,7 +408,7 @@ pub mod tests {
                     address: Some("1".to_string()),
                     disks: vec![NodeDisk {
                         name: Some(name.clone()),
-                        path: Some(name.clone()),
+                        path: Some(name),
                     }],
                     host: RefCell::default(),
                     port: Cell::default(),
@@ -423,7 +423,7 @@ pub mod tests {
                         let n = ((id + r) % count_nodes).to_string();
                         Replica {
                             node: Some(n.clone()),
-                            disk: Some(n.clone()),
+                            disk: Some(n),
                         }
                     })
                     .collect();

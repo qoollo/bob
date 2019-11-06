@@ -38,13 +38,13 @@ pub struct BobClientMetrics {
 impl BobClientMetrics {
     fn new(bucket: AtomicBucket) -> Self {
         BobClientMetrics {
-            put_count: bucket.clone().counter("put_count"),
-            put_timer: bucket.clone().timer("put_timer"),
-            put_error_count: bucket.clone().counter("put_error_count"),
+            put_count: bucket.counter("put_count"),
+            put_timer: bucket.timer("put_timer"),
+            put_error_count: bucket.counter("put_error_count"),
 
-            get_count: bucket.clone().counter("get_count"),
-            get_timer: bucket.clone().timer("get_timer"),
-            get_error_count: bucket.clone().counter("get_error_count"),
+            get_count: bucket.counter("get_count"),
+            get_timer: bucket.timer("get_timer"),
+            get_error_count: bucket.counter("get_error_count"),
         }
     }
 
@@ -148,14 +148,14 @@ pub fn init_counters(
 
     init_grinder(&(prefix.to_owned() + "cluster"), &metrics);
     init_bob_client(&(prefix.to_owned() + "backend"), &metrics);
-    init_pearl(&(prefix.to_owned() + "pearl"), &metrics);
+    init_pearl(&(prefix + "pearl"), &metrics);
 
     metrics
 }
 
 fn init_grinder(prefix: &str, metrics: &Arc<dyn MetricsContainerBuilder + Send + Sync>) {
     let bucket = metrics.init_bucket(prefix);
-    GRINDER.target(bucket.clone());
+    GRINDER.target(bucket);
 }
 
 fn init_bob_client(prefix: &str, metrics: &Arc<dyn MetricsContainerBuilder + Send + Sync>) {

@@ -27,7 +27,7 @@ mod prelude {
     };
     pub(crate) use data::{
         print_vec, BobData, BobFlags, BobKey, BobMeta, BobOptions, ClusterResult, DiskPath, Node,
-        NodeDisk as DataNodeDisk, VDisk as DataVDisk, VDiskId,
+        VDiskId,
     };
     pub(crate) use dipstick::{
         AtomicBucket, Counter, Graphite, InputKind, InputScope, MetricName, MetricValue, Output,

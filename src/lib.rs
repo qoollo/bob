@@ -1,6 +1,4 @@
-#![crate_type = "lib"]
-#![allow(clippy::needless_lifetimes)]
-#![feature(async_closure)]
+#![feature(proc_macro_hygiene, decl_macro)]
 
 #[macro_use]
 extern crate bitflags;
@@ -12,6 +10,8 @@ extern crate serde_derive;
 extern crate cfg_if;
 #[macro_use]
 extern crate dipstick;
+#[macro_use]
+extern crate rocket;
 
 mod api;
 mod core_inner;
@@ -23,6 +23,7 @@ pub use self::core_inner::{
 
 mod prelude {
     pub(crate) use super::*;
+    pub(crate) use backend::data::{NodeDisk as DataNodeDisk, VDisk as DataVDisk};
     pub(crate) use grpc::{client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
     pub(crate) use std::{
         cell::{Cell, RefCell},
@@ -36,6 +37,7 @@ mod prelude {
         pin::Pin,
         sync::{Arc, Mutex},
         task::{Context, Poll},
+        thread,
         time::{Duration, SystemTime},
     };
 }

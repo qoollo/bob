@@ -94,8 +94,10 @@ async fn main() {
 
     let executor = rt.executor();
 
-    bob.run_backend().await.unwrap();
     info!("Start backend");
+    bob.run_backend().await.unwrap();
+    info!("Start API server");
+    bob.run_api_server();
 
     let factory =
         BobClientFactory::new(executor, node.timeout(), node.grpc_buffer_bound(), metrics);

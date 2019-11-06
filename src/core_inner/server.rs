@@ -6,6 +6,10 @@ pub struct BobSrv {
 }
 
 impl BobSrv {
+    pub fn run_api_server(&self) {
+        api::http::spawn(&self);
+    }
+
     pub async fn run_backend(&self) -> Result<(), BackendError> {
         self.grinder.run_backend().await
     }

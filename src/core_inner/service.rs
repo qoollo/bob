@@ -104,6 +104,7 @@ type BoxService = tower::util::BoxService<
 >;
 
 pub struct ServerSvc<S>(pub S);
+type PinBoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
 impl<S, T> Service<T> for ServerSvc<S>
 where
@@ -116,8 +117,7 @@ where
 {
     type Response = BoxService;
     type Error = hyper::Error;
-    type Future =
-        Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'static>>;
+    type Future = PinBoxFuture<Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Ok(()).into()
@@ -137,21 +137,22 @@ where
 
 #[derive(Debug)]
 struct MakeSvc<S>(S);
+type MapFn<E> = fn(E) -> String;
 
 impl<S> Service<http::Request<hyper::Body>> for MakeSvc<S>
 where
     S: Service<http::Request<hyper::Body>, Response = http::Response<BoxBody>>,
-    S::Error: std::fmt::Debug,
+    S::Error: std::fmt::Debug + std::error::Error,
 {
     type Response = http::Response<BoxBody>;
     type Error = String;
-    type Future = future::MapErr<S::Future, fn(S::Error) -> String>;
+    type Future = future::MapErr<S::Future, MapFn<S::Error>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.0.poll_ready(cx).map_err(|e| String::new())
+        self.0.poll_ready(cx).map_err(|e| e.to_string())
     }
 
     fn call(&mut self, req: http::Request<hyper::Body>) -> Self::Future {
-        self.0.call(req).map_err(|e| String::new())
+        self.0.call(req).map_err(|e| e.to_string())
     }
 }
