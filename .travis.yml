@@ -15,7 +15,7 @@ before_script:
 script:
   - if [ "$RUSTFMT" = 1 ]; then cargo fmt -- --check; fi
   # build test crates
-  - cargo build --all
+  - travis_wait cargo build --all
   # run unit tests
   - cargo test
 
