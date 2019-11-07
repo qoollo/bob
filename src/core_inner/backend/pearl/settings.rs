@@ -1,20 +1,16 @@
 use super::prelude::*;
 
 /// Contains timestamp and fs logic
-pub(crate) struct Settings<TSpawner> {
+pub(crate) struct Settings {
     bob_prefix_path: String,
     alien_folder: PathBuf,
     timestamp_period: Duration,
     pub config: PearlConfig,
-    spawner: TSpawner,
     mapper: Arc<VDiskMapper>,
 }
 
-impl<TSpawner> Settings<TSpawner>
-where
-    TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync,
-{
-    pub(crate) fn new(config: &NodeConfig, mapper: Arc<VDiskMapper>, spawner: TSpawner) -> Self {
+impl Settings {
+    pub(crate) fn new(config: &NodeConfig, mapper: Arc<VDiskMapper>) -> Self {
         let pearl_config = config.pearl.clone().expect("get pearl config");
 
         let alien_folder = format!(
@@ -32,15 +28,14 @@ where
             alien_folder,
             timestamp_period: pearl_config.settings().timestamp_period(),
             mapper,
-            spawner,
             config: pearl_config,
         }
     }
 
     pub(crate) fn create_current_pearl(
         &self,
-        group: &PearlGroup<TSpawner>,
-    ) -> BackendResult<PearlTimestampHolder<TSpawner>> {
+        group: &PearlGroup,
+    ) -> BackendResult<PearlTimestampHolder> {
         let start_timestamp = self.get_current_timestamp_start()?;
         let end_timestamp = start_timestamp + self.get_timestamp_period()?;
         let mut path = group.directory_path.clone();
@@ -55,9 +50,9 @@ where
 
     pub(crate) fn create_pearl(
         &self,
-        group: &PearlGroup<TSpawner>,
+        group: &PearlGroup,
         data: BobData,
-    ) -> BackendResult<PearlTimestampHolder<TSpawner>> {
+    ) -> BackendResult<PearlTimestampHolder> {
         let start_timestamp =
             Stuff::get_start_timestamp_by_timestamp(self.timestamp_period, data.meta.timestamp)?;
 
@@ -74,10 +69,9 @@ where
 
     pub(crate) fn read_group_from_disk(
         &self,
-        settings: Arc<Settings<TSpawner>>,
+        settings: Arc<Settings>,
         config: &NodeConfig,
-        spawner: TSpawner,
-    ) -> Vec<PearlGroup<TSpawner>> {
+    ) -> Vec<PearlGroup> {
         let mut result = vec![];
         for disk in self.mapper.local_disks().iter() {
             let mut vdisks: Vec<_> = self
@@ -87,14 +81,13 @@ where
                 .map(|vdisk_id| {
                     let path = self.normal_path(&disk.path, &vdisk_id);
 
-                    PearlGroup::<TSpawner>::new(
+                    PearlGroup::new(
                         settings.clone(),
                         vdisk_id.clone(),
                         config.name(),
                         disk.name.clone(),
                         path,
                         config.pearl(),
-                        spawner.clone(),
                     )
                 })
                 .collect();
@@ -105,8 +98,8 @@ where
 
     pub(crate) fn read_vdisk_directory(
         &self,
-        group: &PearlGroup<TSpawner>,
-    ) -> BackendResult<Vec<PearlTimestampHolder<TSpawner>>> {
+        group: &PearlGroup,
+    ) -> BackendResult<Vec<PearlTimestampHolder>> {
         Stuff::check_or_create_directory(&group.directory_path)?;
 
         let mut pearls = vec![];
@@ -136,10 +129,9 @@ where
 
     pub(crate) fn read_alien_directory(
         &self,
-        settings: Arc<Settings<TSpawner>>,
+        settings: Arc<Settings>,
         config: &NodeConfig,
-        spawner: TSpawner,
-    ) -> BackendResult<Vec<PearlGroup<TSpawner>>> {
+    ) -> BackendResult<Vec<PearlGroup>> {
         let mut result = vec![];
 
         let node_names = self.get_all_subdirectories(self.alien_folder.clone())?;
@@ -151,14 +143,13 @@ where
                     if let Ok((vdisk_id, id)) = self.try_parse_vdisk_id(vdisk_id) {
                         if self.mapper.does_node_holds_vdisk(&name, id.clone()) {
                             let pearl = config.pearl();
-                            let group = PearlGroup::<TSpawner>::new(
+                            let group = PearlGroup::new(
                                 settings.clone(),
                                 id.clone(),
                                 name.clone(),
                                 pearl.alien_disk(),
                                 vdisk_id.path().clone(),
                                 pearl,
-                                spawner.clone(),
                             );
                             result.push(group);
                         } else {
@@ -177,21 +168,20 @@ where
     pub(crate) fn create_group(
         &self,
         operation: BackendOperation,
-        settings: Arc<Settings<TSpawner>>,
-    ) -> BackendResult<PearlGroup<TSpawner>> {
+        settings: Arc<Settings>,
+    ) -> BackendResult<PearlGroup> {
         let id = operation.vdisk_id.clone();
         let path = self.alien_path(&id, &operation.remote_node_name());
 
         Stuff::check_or_create_directory(&path)?;
 
-        let group = PearlGroup::<TSpawner>::new(
+        let group = PearlGroup::new(
             settings,
             id,
             operation.remote_node_name(),
             self.config.alien_disk(),
             path,
             self.config.clone(),
-            self.spawner.clone(),
         );
         Ok(group)
     }
@@ -300,7 +290,7 @@ where
     }
 
     #[inline]
-    pub(crate) fn is_actual(&self, pearl: &PearlTimestampHolder<TSpawner>, data: &BobData) -> bool {
+    pub(crate) fn is_actual(&self, pearl: &PearlTimestampHolder, data: &BobData) -> bool {
         trace!(
             "start: {}, end: {}, check: {}",
             pearl.start_timestamp,
@@ -318,10 +308,7 @@ where
             .ok_or(Error::KeyNotFound)
     }
 
-    pub(crate) fn is_actual_pearl(
-        &self,
-        pearl: &PearlTimestampHolder<TSpawner>,
-    ) -> BackendResult<bool> {
+    pub(crate) fn is_actual_pearl(&self, pearl: &PearlTimestampHolder) -> BackendResult<bool> {
         Ok(pearl.start_timestamp == self.get_current_timestamp_start()?)
     }
 }

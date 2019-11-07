@@ -1,26 +1,25 @@
 use super::prelude::*;
 
 #[derive(Clone)]
-pub struct PearlBackend<TSpawner> {
-    settings: Arc<Settings<TSpawner>>,
+pub struct PearlBackend {
+    settings: Arc<Settings>,
 
-    vdisks_groups: Arc<Vec<PearlGroup<TSpawner>>>,
-    alien_vdisks_groups: Arc<LockGuard<Vec<PearlGroup<TSpawner>>>>,
+    vdisks_groups: Arc<Vec<PearlGroup>>,
+    alien_vdisks_groups: Arc<LockGuard<Vec<PearlGroup>>>,
     // holds state when we create new alien pearl dir
     pearl_sync: Arc<SyncState>,
 }
 
-impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpawner> {
-    pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig, spawner: TSpawner) -> Self {
+impl PearlBackend {
+    pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
         debug!("initializing pearl backend");
-        let settings = Arc::new(Settings::new(config, mapper, spawner.clone()));
+        let settings = Arc::new(Settings::new(config, mapper));
 
-        let vdisks_groups =
-            Arc::new(settings.read_group_from_disk(settings.clone(), config, spawner.clone()));
+        let vdisks_groups = Arc::new(settings.read_group_from_disk(settings.clone(), config));
         trace!("count vdisk groups: {}", vdisks_groups.len());
 
         let alien = settings
-            .read_alien_directory(settings.clone(), config, spawner)
+            .read_alien_directory(settings.clone(), config)
             .expect("vec of pearl groups");
         trace!("count alien vdisk groups: {}", alien.len());
         let alien_vdisks_groups = Arc::new(LockGuard::new(alien)); //TODO
@@ -34,12 +33,12 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
     }
 
     #[inline]
-    async fn put_common(pearl: PearlGroup<TSpawner>, key: BobKey, data: BobData) -> PutResult {
+    async fn put_common(pearl: PearlGroup, key: BobKey, data: BobData) -> PutResult {
         let res = pearl.put(key, data).await;
         res.map(|_ok| BackendPutResult {})
     }
 
-    async fn get_common(pearl: PearlGroup<TSpawner>, key: BobKey) -> GetResult {
+    async fn get_common(pearl: PearlGroup, key: BobKey) -> GetResult {
         trace!("GET[{}] try from: {}", key, pearl);
         let result = pearl.get(key).await;
         result.map(|get_res| BackendGetResult { data: get_res.data })
@@ -73,10 +72,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
         }
     }
 
-    async fn find_alien_pearl(
-        &self,
-        operation: BackendOperation,
-    ) -> BackendResult<PearlGroup<TSpawner>> {
+    async fn find_alien_pearl(&self, operation: BackendOperation) -> BackendResult<PearlGroup> {
         self.alien_vdisks_groups
             .read(|pearls| {
                 let op = operation.clone();
@@ -96,10 +92,7 @@ impl<TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync> PearlBackend<TSpaw
     }
 }
 
-impl<TSpawner> BackendStorage for PearlBackend<TSpawner>
-where
-    TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync,
-{
+impl BackendStorage for PearlBackend {
     fn run_backend(&self) -> RunResult {
         debug!("run pearl backend");
 

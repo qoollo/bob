@@ -2,7 +2,6 @@ use super::prelude::*;
 
 use crate::core_inner::backend::pearl::core::PearlBackend;
 use crate::core_inner::configs::{node::NodeConfigYaml, ClusterConfigYaml};
-use futures::executor::{ThreadPool, ThreadPoolBuilder};
 use std::fs::remove_dir_all;
 
 static DISK_NAME: &str = "disk1";
@@ -17,15 +16,7 @@ fn drop_pearl() {
     }
 }
 
-fn get_pool() -> ThreadPool {
-    ThreadPoolBuilder::new().pool_size(4).create().unwrap()
-}
-
-fn create_backend(
-    node_config: &str,
-    cluster_config: &str,
-    pool: ThreadPool,
-) -> PearlBackend<ThreadPool> {
+fn create_backend(node_config: &str, cluster_config: &str) -> PearlBackend {
     let (vdisks, cluster) = ClusterConfigYaml::get_from_string(cluster_config).unwrap();
     debug!("vdisks: {:?}", vdisks);
     debug!("cluster: {:?}", cluster);
@@ -34,10 +25,10 @@ fn create_backend(
 
     let mapper = Arc::new(VDiskMapper::new(vdisks.to_vec(), &node, &cluster));
     debug!("mapper: {:?}", mapper);
-    PearlBackend::new(mapper, &node, pool)
+    PearlBackend::new(mapper, &node)
 }
 
-fn backend() -> PearlBackend<ThreadPool> {
+fn backend() -> PearlBackend {
     let node_config = "
 log_config: logger.yaml
 name: local_node
@@ -76,7 +67,7 @@ vdisks:
 ";
     debug!("node_config: {}", node_config);
     debug!("cluster_config: {}", cluster_config);
-    create_backend(node_config, cluster_config, get_pool())
+    create_backend(node_config, cluster_config)
 }
 
 #[tokio::test]

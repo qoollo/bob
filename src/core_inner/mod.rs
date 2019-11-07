@@ -33,11 +33,7 @@ mod prelude {
         AtomicBucket, Counter, Graphite, InputKind, InputScope, MetricName, MetricValue, Output,
         Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer, Void,
     };
-    pub(crate) use futures::{
-        future,
-        task::{Spawn, SpawnExt},
-        Future, FutureExt, StreamExt, TryFutureExt,
-    };
+    pub(crate) use futures::{future, Future, FutureExt, StreamExt, TryFutureExt};
     pub(crate) use grinder::Grinder;
     pub(crate) use grpc::{server::BobApi, GetOptions, GetSource, Null, OpStatus, PutOptions};
     pub(crate) use http::{Request as HttpRequest, Uri};
