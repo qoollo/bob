@@ -24,8 +24,10 @@ pub use self::core_inner::{
 mod prelude {
     pub(crate) use super::*;
     pub(crate) use backend::data::{NodeDisk as DataNodeDisk, VDisk as DataVDisk};
+    pub(crate) use backend::PearlBackend;
     pub(crate) use grpc::{client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
     pub(crate) use std::{
+        any::Any,
         cell::{Cell, RefCell},
         collections::HashMap,
         convert::TryInto,

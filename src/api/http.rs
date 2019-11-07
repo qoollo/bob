@@ -26,6 +26,11 @@ pub struct Replica {
     path: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct Partition {
+    name: String,
+}
+
 pub fn spawn(bob: &BobSrv) {
     let bob = bob.clone();
     thread::spawn(move || {
@@ -57,17 +62,17 @@ fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
 
 fn collect_disks_info(bob: &BobSrv) -> Vec<VDisk> {
     let mapper = bob.grinder.backend.mapper();
-    let vdisks = mapper.vdisks();
-    vdisks.iter().map(data_vdisk_to_scheme).collect()
+    mapper.vdisks().iter().map(data_vdisk_to_scheme).collect()
 }
 
+#[inline]
 fn get_vdisk_by_id(bob: &BobSrv, id: u32) -> Option<VDisk> {
+    find_vdisk(bob, id).map(data_vdisk_to_scheme)
+}
+
+fn find_vdisk(bob: &BobSrv, id: u32) -> Option<&DataVDisk> {
     let mapper = bob.grinder.backend.mapper();
-    let vdisks = mapper.vdisks();
-    vdisks
-        .iter()
-        .find(|disk| disk.id.as_u32() == id)
-        .map(data_vdisk_to_scheme)
+    mapper.vdisks().iter().find(|disk| disk.id.as_u32() == id)
 }
 
 fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {
@@ -102,14 +107,19 @@ fn vdisks(bob: State<BobSrv>) -> Json<Vec<VDisk>> {
 }
 
 #[get("/vdisks/<vdisk_id>")]
-fn vdisk_by_id(bob: State<BobSrv>, vdisk_id: u32) -> Json<Option<VDisk>> {
-    let vdisk = get_vdisk_by_id(&bob, vdisk_id);
-    Json(vdisk)
+fn vdisk_by_id(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<VDisk>> {
+    get_vdisk_by_id(&bob, vdisk_id).map(Json)
 }
 
+use std::any::Any;
+
 #[get("/vdisks/<vdisk_id>/partitions")]
-fn partitions(_bob: State<BobSrv>, vdisk_id: usize) -> String {
-    format!("partitions of vdisk {}", vdisk_id)
+fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<Vec<Partition>>> {
+    let data_vdisk = find_vdisk(&bob, vdisk_id)?;
+    let grinder = &bob.grinder;
+    let backend = &grinder.backend;
+    let storage = backend.storage();
+    None
 }
 
 #[get("/vdisks/<vdisk_id>/partitions/<partition_id>")]

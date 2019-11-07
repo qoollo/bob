@@ -93,7 +93,7 @@ pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
 pub type RunResult = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
 
-pub trait BackendStorage {
+pub trait BackendStorage: Any {
     fn run_backend(&self) -> RunResult;
 
     fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put;
@@ -258,5 +258,11 @@ impl Backend {
 
     pub fn mapper(&self) -> &VDiskMapper {
         &self.mapper
+    }
+
+    pub fn storage<TSpawner: Sized + 'static>(&self) -> &(dyn Any + Send + Sync + 'static) {
+        let temp: &(dyn Any + Send + Sync) = &self.backend;
+        let storage = (*temp).downcast_ref::<PearlBackend<TSpawner>>();
+        temp
     }
 }
