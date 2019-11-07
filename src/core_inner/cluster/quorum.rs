@@ -877,7 +877,7 @@ pub mod tests {
 
         assert!(result.is_ok());
         assert_eq!(1, result.unwrap().data.meta.timestamp);
-        assert_eq!(0, calls[0].1.get_count());
+        assert_eq!(1, calls[0].1.get_count());
     }
 
     /// 2 nodes, 2 vdisk, 1 replics in vdisk, quorum = 1
@@ -902,6 +902,6 @@ pub mod tests {
 
         assert!(result.is_ok());
         assert_eq!(1, result.unwrap().data.meta.timestamp);
-        assert_eq!(0, calls[0].1.get_count());
+        assert_eq!(1, calls[0].1.get_count());
     }
 }
