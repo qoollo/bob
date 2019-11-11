@@ -8,7 +8,6 @@ use bob::metrics;
 use bob::server::BobSrv;
 use bob::service::ServerSvc;
 use clap::{App, Arg};
-use futures::executor::ThreadPoolBuilder;
 use futures::future::FutureExt;
 use hyper::server::conn::AddrIncoming;
 use hyper::Server;
@@ -86,10 +85,8 @@ async fn main() {
 
     let metrics = metrics::init_counters(&node, addr.to_string());
 
-    let backend_pool = ThreadPoolBuilder::new().pool_size(2).create().unwrap(); //TODO
-
     let bob = BobSrv {
-        grinder: std::sync::Arc::new(Grinder::new(mapper, &node, backend_pool.clone())),
+        grinder: std::sync::Arc::new(Grinder::new(mapper, &node)),
     };
 
     let executor = rt.executor();

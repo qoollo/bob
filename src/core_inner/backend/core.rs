@@ -109,14 +109,11 @@ pub struct Backend {
 }
 
 impl Backend {
-    pub fn new<TSpawner>(mapper: Arc<VDiskMapper>, config: &NodeConfig, spawner: TSpawner) -> Self
-    where
-        TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync,
-    {
+    pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
         let backend: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(mapper.clone())),
             BackendType::Stub => Arc::new(StubBackend {}),
-            BackendType::Pearl => Arc::new(PearlBackend::new(mapper.clone(), config, spawner)),
+            BackendType::Pearl => Arc::new(PearlBackend::new(mapper.clone(), config)),
         };
         Backend { backend, mapper }
     }

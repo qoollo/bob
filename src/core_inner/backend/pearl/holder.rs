@@ -2,24 +2,19 @@ use super::prelude::*;
 
 /// Struct hold pearl and add put/get/restart api
 #[derive(Clone)]
-pub(crate) struct PearlHolder<TSpawner> {
+pub(crate) struct PearlHolder {
     vdisk: VDiskId,
     disk_path: PathBuf,
     config: PearlConfig,
-    spawner: TSpawner,
     pub(crate) storage: Arc<LockGuard<PearlSync>>,
 }
 
-impl<TSpawner> PearlHolder<TSpawner>
-where
-    TSpawner: Spawn + Clone + Send + 'static + Unpin + Sync,
-{
-    pub fn new(vdisk: VDiskId, disk_path: PathBuf, config: PearlConfig, spawner: TSpawner) -> Self {
+impl PearlHolder {
+    pub fn new(vdisk: VDiskId, disk_path: PathBuf, config: PearlConfig) -> Self {
         PearlHolder {
             disk_path,
             vdisk,
             config,
-            spawner,
             storage: Arc::new(LockGuard::new(PearlSync::new())),
         }
     }
@@ -138,13 +133,9 @@ where
             .await
     }
 
-    pub async fn reinit_storage(self) -> BackendResult<()> {
+    pub fn reinit_storage(self) -> BackendResult<()> {
         debug!("Vdisk: {} try reinit Pearl", self.vdisk);
-        let mut spawner = self.spawner.clone();
-        spawner
-            .spawn(self.prepare_storage().map(|_| {}))
-            .expect("can't spawn reinit task");
-
+        tokio::spawn(self.prepare_storage().map(|_| {}));
         Ok(())
     }
 
