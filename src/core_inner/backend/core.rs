@@ -1,5 +1,4 @@
 use super::prelude::*;
-use std::any::Any;
 
 #[derive(Debug, Clone)]
 pub struct BackendOperation {
@@ -94,7 +93,7 @@ pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
 pub type RunResult = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
 
-pub trait BackendStorage: Any + Debug {
+pub(crate) trait BackendStorage: Debug {
     fn run_backend(&self) -> RunResult;
 
     fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put;
@@ -102,6 +101,10 @@ pub trait BackendStorage: Any + Debug {
 
     fn get(&self, operation: BackendOperation, key: BobKey) -> Get;
     fn get_alien(&self, operation: BackendOperation, key: BobKey) -> Get;
+
+    fn vdisks_groups(&self) -> Option<&[PearlGroup]> {
+        None
+    }
 }
 
 #[derive(Debug)]
@@ -259,9 +262,7 @@ impl Backend {
         &self.mapper
     }
 
-    pub fn pearl_storage(&self) -> Option<&PearlBackend> {
-        dbg!(self);
-        let temp: &(dyn Any + Send + Sync) = &self.backend;
-        (*temp).downcast_ref()
+    pub(crate) fn backend(&self) -> &dyn BackendStorage {
+        self.backend.as_ref()
     }
 }

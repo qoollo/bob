@@ -240,4 +240,8 @@ impl BackendStorage for PearlBackend {
             .boxed()
         })
     }
+
+    fn vdisks_groups(&self) -> Option<&[PearlGroup]> {
+        Some(&self.vdisks_groups)
+    }
 }

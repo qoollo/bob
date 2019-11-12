@@ -25,12 +25,16 @@ pub struct Replica {
     disk: String,
     path: String,
 }
-
 #[derive(Debug, Serialize, Clone)]
-pub struct Partition {
+pub struct VDiskPartitions {
     vdisk_id: u32,
     node_name: String,
     disk_name: String,
+    partitions: Vec<Partition>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct Partition {
     timestamp: i64,
 }
 
@@ -115,29 +119,28 @@ fn vdisk_by_id(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<VDisk>> {
 }
 
 #[get("/vdisks/<vdisk_id>/partitions")]
-fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<Vec<Partition>>, String> {
+fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>, String> {
     let grinder = &bob.grinder;
     let backend = &grinder.backend;
-    let storage = backend
-        .as_ref()
-        .pearl_storage()
-        .ok_or("currently only pearl backend supports partitions")?;
-    let groups = storage.vdisks_groups();
+    let storage = backend.backend();
+    let groups = storage.vdisks_groups().ok_or("not pearl backend")?;
     let group = groups
         .iter()
         .find(|group| group.vdisk_id() == vdisk_id)
-        .ok_or("".to_owned())?;
-    let pearls = group.pearls().ok_or("".to_owned())?;
+        .ok_or("not found".to_owned())?;
+    let pearls = group.pearls().ok_or("blocked".to_owned())?;
     let pearls: &[_] = pearls.as_ref();
-    let ps: Vec<_> = pearls
+    let partitions: Vec<_> = pearls
         .iter()
-        .map(|pearl| Partition {
-            node_name: group.node_name().to_owned(),
-            disk_name: group.disk_name().to_owned(),
-            timestamp: pearl.start_timestamp,
-            vdisk_id: group.vdisk_id(),
-        })
+        .map(|pearl| pearl.start_timestamp)
+        .map(|timestamp| Partition { timestamp })
         .collect();
+    let ps = VDiskPartitions {
+        node_name: group.node_name().to_owned(),
+        disk_name: group.disk_name().to_owned(),
+        vdisk_id: group.vdisk_id(),
+        partitions,
+    };
     Ok(Json(ps))
 }
 

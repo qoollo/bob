@@ -10,6 +10,7 @@ mod stuff;
 mod tests;
 
 pub(crate) use self::core::PearlBackend;
+pub(crate) use self::group::PearlGroup;
 pub(crate) use self::metrics::init_pearl;
 pub(crate) use super::prelude::*;
 
@@ -21,7 +22,7 @@ mod prelude {
     pub(crate) use configs::PearlConfig;
     pub(crate) use data::{BackendResult, Future03Result, PearlData, PearlKey, PearlStorage};
     pub(crate) use futures_locks::RwLockReadGuard;
-    pub(crate) use group::{PearlGroup, PearlTimestampHolder};
+    pub(crate) use group::PearlTimestampHolder;
     pub(crate) use holder::PearlHolder;
     pub(crate) use metrics::{
         PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
