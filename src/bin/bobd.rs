@@ -48,6 +48,14 @@ async fn main() {
                 .long("threads")
                 .default_value("4"),
         )
+        .arg(
+            Arg::with_name("http_api_port")
+                .help("http api port")
+                .default_value("8000")
+                .short("p")
+                .long("port")
+                .takes_value(true),
+        )
         .get_matches();
 
     let cluster_config = matches.value_of("cluster").expect("expect cluster config");
@@ -94,7 +102,11 @@ async fn main() {
     info!("Start backend");
     bob.run_backend().await.unwrap();
     info!("Start API server");
-    bob.run_api_server();
+    let http_api_port = matches
+        .value_of("http_api_port")
+        .and_then(|v| v.parse().ok())
+        .expect("expect http_api_port port");
+    bob.run_api_server(http_api_port);
 
     let factory =
         BobClientFactory::new(executor, node.timeout(), node.grpc_buffer_bound(), metrics);

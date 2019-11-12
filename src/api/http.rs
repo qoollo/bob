@@ -26,11 +26,13 @@ pub struct Replica {
     path: String,
 }
 
-pub fn spawn(bob: &BobSrv) {
+pub fn spawn(bob: &BobSrv, port: u16) {
     let bob = bob.clone();
     thread::spawn(move || {
         info!("API server started");
-        rocket::ignite()
+        let mut config = Config::production();
+        config.set_port(port);
+        Rocket::custom(config)
             .manage(bob)
             .mount(
                 "/",

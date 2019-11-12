@@ -6,8 +6,8 @@ pub struct BobSrv {
 }
 
 impl BobSrv {
-    pub fn run_api_server(&self) {
-        api::http::spawn(&self);
+    pub fn run_api_server(&self, port: u16) {
+        api::http::spawn(&self, port);
     }
 
     pub async fn run_backend(&self) -> Result<(), BackendError> {
