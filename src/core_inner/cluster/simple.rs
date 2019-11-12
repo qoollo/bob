@@ -83,7 +83,7 @@ impl Cluster for SimpleQuorumCluster {
         BackendPut(task)
     }
 
-    fn get_clustered_async(&self, key: BobKey) -> BackendGet {
+    fn get_clustered_async(&self, key: BobKey, _opts: BobOptions) -> BackendGet {
         let target_nodes = self.calc_target_nodes(key);
 
         debug!(

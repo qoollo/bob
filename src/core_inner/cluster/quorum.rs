@@ -262,7 +262,7 @@ impl Cluster for QuorumCluster {
     }
 
     //todo check no data (no error)
-    fn get_clustered_async(&self, key: BobKey) -> BackendGet {
+    fn get_clustered_async(&self, key: BobKey, opts: BobOptions) -> BackendGet {
         let all_nodes = self.calc_target_nodes(key);
 
         let mapper = self.mapper.clone();
@@ -286,13 +286,13 @@ impl Cluster for QuorumCluster {
                     key, answer.node, answer.result.data.meta.timestamp
                 ); // TODO move meta
                 return Ok(answer.result);
-            } else if err == "" {
+            } else if err == "" && !opts.is_full_get() {
                 debug!("GET[{}] data not found", key);
                 return Err::<_, backend::Error>(backend::Error::KeyNotFound);
             }
-            debug!("GET[{}] no success result", key);
+            debug!("GET[{}] no success result, full read = {}", key, opts.is_full_get());
 
-            let mut sup_nodes = Self::calc_sup_nodes(mapper, &all_nodes, 1); // TODO take from config
+            let mut sup_nodes = Self::calc_sup_nodes(mapper, &all_nodes, l_quorim);
             sup_nodes.extend(all_nodes.into_iter().skip(l_quorim));
 
             debug!(
@@ -300,19 +300,24 @@ impl Cluster for QuorumCluster {
                 key,
                 print_vec(&sup_nodes)
             );
-
+            // TODO need fix: read from replicas with GetOptions::new_all(). Sup nodes with new_alien()
+            // In current implementation it works right. Data will read from sup nodes
             let second_attemp = Self::get_all(key, &sup_nodes, GetOptions::new_alien()).await;
             debug!("GET[{}] cluster ans sup: {:?}", key, second_attemp);
 
-            let (result_sup, err_sup) = Self::get_filter_result(key, second_attemp);
-            if let Some(answer) = result_sup {
+            let (result_second, err_second) = Self::get_filter_result(key, second_attemp);
+            if let Some(answer) = result_second {
                 debug!(
                     "GET[{}] take data from node: {}, timestamp: {}",
                     key, answer.node, answer.result.data.meta.timestamp
                 ); // TODO move meta
                 Ok(answer.result)
             } else {
-                Err(BackendError::Failed(err + &err_sup))
+                if err_second == "" && err == "" && opts.is_full_get() {
+                    debug!("GET[{}] data not found", key);
+                    return Err::<_, backend::Error>(backend::Error::KeyNotFound);
+                }
+                Err(BackendError::Failed(err + &err_second))
             }
         }
         .boxed();
@@ -330,7 +335,7 @@ pub mod tests {
     use crate::core_inner::{
         backend::Backend,
         bob_client::BobClient,
-        data::{BobData, BobKey, BobMeta, Node, VDisk, VDiskId},
+        data::{BobData, BobKey, BobMeta, Node, VDisk, VDiskId, BobOptions},
         mapper::VDiskMapper,
     };
     use std::sync::Arc;
@@ -828,7 +833,7 @@ pub mod tests {
             .collect();
         let (quorum, _) = create_cluster(vdisks, node, cluster, actions);
 
-        let result = quorum.get_clustered_async(BobKey::new(101)).0.await;
+        let result = quorum.get_clustered_async(BobKey::new(101), BobOptions::new_get_test()).0.await;
 
         assert!(result.is_ok());
         assert_eq!(1, calls[0].1.get_count());
@@ -849,7 +854,7 @@ pub mod tests {
             .collect();
         let (quorum, _) = create_cluster(vdisks, node, cluster, actions);
 
-        let result = quorum.get_clustered_async(BobKey::new(102)).0.await;
+        let result = quorum.get_clustered_async(BobKey::new(102), BobOptions::new_get_test()).0.await;
 
         assert!(result.is_err());
         assert_eq!(1, calls[0].1.get_count());
@@ -873,7 +878,7 @@ pub mod tests {
             .collect();
         let (quorum, _) = create_cluster(vdisks, node, cluster, actions);
 
-        let result = quorum.get_clustered_async(BobKey::new(110)).0.await;
+        let result = quorum.get_clustered_async(BobKey::new(110), BobOptions::new_get_test()).0.await;
 
         assert!(result.is_ok());
         assert_eq!(1, result.unwrap().data.meta.timestamp);
@@ -898,7 +903,7 @@ pub mod tests {
             .collect();
         let (quorum, _) = create_cluster(vdisks, node, cluster, actions);
 
-        let result = quorum.get_clustered_async(BobKey::new(110)).0.await;
+        let result = quorum.get_clustered_async(BobKey::new(110), BobOptions::new_get_test()).0.await;
 
         assert!(result.is_ok());
         assert_eq!(1, result.unwrap().data.meta.timestamp);

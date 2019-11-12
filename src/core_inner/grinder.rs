@@ -92,7 +92,7 @@ impl Grinder {
             debug!("GET[{}] will route to cluster", key);
             let result = self
                 .cluster
-                .get_clustered_async(key)
+                .get_clustered_async(key, opts)
                 .0
                 .await
                 .map_err(|err| {

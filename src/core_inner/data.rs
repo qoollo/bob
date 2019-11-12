@@ -179,6 +179,15 @@ impl BobOptions {
         }
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn new_get_test() -> Self {
+        BobOptions{
+            flags: Default::default(),
+            remote_nodes: vec![],
+            get_source: None,
+        }
+    }
+
     #[inline]
     pub(crate) fn have_remote_node(&self) -> bool {
         !self.remote_nodes.is_empty()
@@ -200,6 +209,10 @@ impl BobOptions {
             }
         }
         false
+    }
+
+    pub(crate) fn is_full_get(&self) -> bool {
+        true
     }
 }
 
