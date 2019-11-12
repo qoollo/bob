@@ -90,10 +90,6 @@ impl PearlBackend {
             })
             .await
     }
-
-    pub(crate) fn vdisks_groups(&self) -> &[PearlGroup] {
-        &self.vdisks_groups
-    }
 }
 
 impl BackendStorage for PearlBackend {

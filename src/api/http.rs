@@ -119,16 +119,27 @@ fn vdisk_by_id(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<VDisk>> {
 }
 
 #[get("/vdisks/<vdisk_id>/partitions")]
-fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>, String> {
-    let grinder = &bob.grinder;
-    let backend = &grinder.backend;
-    let storage = backend.backend();
-    let groups = storage.vdisks_groups().ok_or("not pearl backend")?;
+fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>, Status> {
+    let backend = &bob.grinder.backend.backend();
+    debug!("get backend: OK");
+    let groups = backend.vdisks_groups().ok_or_else(|| {
+        warn!("only pearl backend supports partitions");
+        Status::NotFound
+    })?;
+    debug!("get vdisks groups: OK");
     let group = groups
         .iter()
         .find(|group| group.vdisk_id() == vdisk_id)
-        .ok_or("not found".to_owned())?;
-    let pearls = group.pearls().ok_or("blocked".to_owned())?;
+        .ok_or_else(|| {
+            warn!("vdisk with id: {} nont found", vdisk_id);
+            Status::NotFound
+        })?;
+    debug!("group with provided vdisk_id found");
+    let pearls = group.pearls().ok_or_else(|| {
+        error!("writer panics while holding an exclusive lock");
+        Status::InternalServerError
+    })?;
+    debug!("get pearl holders: OK");
     let pearls: &[_] = pearls.as_ref();
     let partitions: Vec<_> = pearls
         .iter()
@@ -141,6 +152,7 @@ fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>
         vdisk_id: group.vdisk_id(),
         partitions,
     };
+    trace!("partitions: {:?}", ps);
     Ok(Json(ps))
 }
 
