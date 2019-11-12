@@ -176,7 +176,7 @@ impl Cluster for QuorumCluster {
 
             let total_ops = acc.iter().count();
             let failed = acc.into_iter().filter_map(|r| r.err()).collect::<Vec<_>>();
-            let ok_count = total_ops - failed.len();
+            let mut ok_count = total_ops - failed.len();
 
             debug!(
                 "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
@@ -187,10 +187,11 @@ impl Cluster for QuorumCluster {
             } else {
                 let mut additionl_remote_writes = match ok_count {
                     0 => l_quorum, //TODO take value from config
-                    value if value < l_quorum => 1,
+                    value if value < l_quorum => l_quorum - ok_count,
                     _ => 0,
                 };
 
+                trace!("PUT[{}] need to put after first attempt: {}", key, additionl_remote_writes);
                 let local_put = Self::put_local_all(
                     backend,
                     failed.iter().map(|n| &n.node).cloned().collect(),
@@ -200,20 +201,17 @@ impl Cluster for QuorumCluster {
                 )
                 .await;
 
-                if local_put.is_err() {
-                    additionl_remote_writes += 1;
+                if local_put.is_ok() && l_quorum != 1 {
+                    additionl_remote_writes -= 1;
+                    ok_count += 1;
                 }
+                trace!("PUT[{}] Local:{} , put result: {}", key, mapper.local_node_name(), local_put.is_ok());
 
-                let mut sup_nodes =
+                let sup_nodes =
                     Self::calc_sup_nodes(mapper, &target_nodes, additionl_remote_writes);
                 debug!("PUT[{}] sup put nodes: {}", key, print_vec(&sup_nodes));
 
                 let mut queries = Vec::new();
-
-                if let Err(op) = local_put {
-                    let item = sup_nodes.remove(sup_nodes.len() - 1);
-                    queries.push((item, op));
-                }
 
                 if additionl_remote_writes > 0 {
                     let nodes = failed
