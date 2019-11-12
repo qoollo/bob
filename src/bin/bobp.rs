@@ -40,6 +40,7 @@ struct TaskConfig {
     count: u64,
     payload_size: u64,
     direct: bool,
+    full_get: bool,
 }
 
 struct Stat {
@@ -81,7 +82,7 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>)
         Some(GetOptions {
             force_node: true,
             source: GetSource::Normal as i32,
-            full_get: false,
+            full_get: task_conf.full_get,
         })
     } else {
         None
@@ -206,6 +207,12 @@ async fn main() {
                 .short("d")
                 .long("direct"),
         )
+        .arg(
+            Arg::with_name("full_get")
+                .help("use 'full_get' modifierfor 'Get' operations")
+                .short("g")
+                .long("full_get"),
+        )
         .get_matches();
 
     let net_conf = NetConfig {
@@ -234,6 +241,7 @@ async fn main() {
             .parse()
             .unwrap(),
         direct: matches.is_present("direct"),
+        full_get: matches.is_present("full_get"),
     };
 
     let workers_count: u64 = matches
@@ -281,6 +289,7 @@ async fn main() {
             count: task_size,
             payload_size: task_conf.payload_size,
             direct: task_conf.direct,
+            full_get: task_conf.full_get,
         };
         if behavior {
             tokio::spawn(put_worker(nc, tc, stat_inner));
