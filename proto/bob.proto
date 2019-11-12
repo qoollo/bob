@@ -61,6 +61,7 @@ enum GetSource {
 message GetOptions {
     bool force_node = 1; // Force operation to be served by node to which it comes
     GetSource source = 2; // Set source for data reading
+    bool full_get = 3;
 }
 
 message BobError {

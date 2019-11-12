@@ -23,18 +23,21 @@ impl GetOptions {
         GetOptions {
             force_node: true,
             source: GetSource::Normal as i32,
+            full_get: false
         }
     }
     pub(crate) fn new_alien() -> Self {
         GetOptions {
             force_node: true,
             source: GetSource::Alien as i32,
+            full_get: false
         }
     }
     pub(crate) fn new_all() -> Self {
         GetOptions {
             force_node: true,
             source: GetSource::All as i32,
+            full_get: false
         }
     }
 }
@@ -136,6 +139,7 @@ bitflags! {
     #[derive(Default)]
     pub struct BobFlags: u8 {
         const FORCE_NODE = 0x01;
+        const FULL_GET = 0x02;
     }
 }
 
@@ -169,6 +173,9 @@ impl BobOptions {
         if let Some(vopts) = options {
             if vopts.force_node {
                 flags |= BobFlags::FORCE_NODE;
+            }
+            if vopts.full_get {
+                flags |= BobFlags::FULL_GET;
             }
             get_source = Some(GetSource::from(vopts.source));
         }
@@ -212,7 +219,7 @@ impl BobOptions {
     }
 
     pub(crate) fn is_full_get(&self) -> bool {
-        true
+        self.flags.contains(BobFlags::FULL_GET)
     }
 }
 

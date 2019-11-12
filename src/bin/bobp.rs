@@ -81,6 +81,7 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>)
         Some(GetOptions {
             force_node: true,
             source: GetSource::Normal as i32,
+            full_get: false,
         })
     } else {
         None
