@@ -1,4 +1,5 @@
 use super::prelude::*;
+use std::any::Any;
 
 #[derive(Debug, Clone)]
 pub struct BackendOperation {
@@ -257,9 +258,8 @@ impl Backend {
         &self.mapper
     }
 
-    pub fn storage<TSpawner: Sized + 'static>(&self) -> &(dyn Any + Send + Sync + 'static) {
+    pub fn pearl_storage(&self) -> Option<&PearlBackend> {
         let temp: &(dyn Any + Send + Sync) = &self.backend;
-        let storage = (*temp).downcast_ref::<PearlBackend<TSpawner>>();
-        temp
+        (*temp).downcast_ref()
     }
 }

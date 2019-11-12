@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 pearl = { git = "https://github.com/qoollo/pearl", branch = "develop" }
 futures-preview = { version = "0.3.0-alpha.19", features = ["compat"] }
-futures-locks = "0.4.0"
+futures-locks = "0.5"
 tokio = "0.2.0-alpha.6"
 serde = "1.0"
 serde_derive = "1.0"

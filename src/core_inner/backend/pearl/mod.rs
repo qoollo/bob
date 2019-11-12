@@ -20,6 +20,7 @@ mod prelude {
     pub(crate) use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
     pub(crate) use configs::PearlConfig;
     pub(crate) use data::{BackendResult, Future03Result, PearlData, PearlKey, PearlStorage};
+    pub(crate) use futures_locks::RwLockReadGuard;
     pub(crate) use group::{PearlGroup, PearlTimestampHolder};
     pub(crate) use holder::PearlHolder;
     pub(crate) use metrics::{

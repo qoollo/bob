@@ -284,6 +284,22 @@ impl PearlGroup {
         }
         result
     }
+
+    pub fn pearls(&self) -> Option<RwLockReadGuard<Vec<PearlTimestampHolder>>> {
+        self.pearls.try_read().ok()
+    }
+
+    pub fn node_name(&self) -> &str {
+        &self.node_name
+    }
+
+    pub fn disk_name(&self) -> &str {
+        &self.disk_name
+    }
+
+    pub fn vdisk_id(&self) -> u32 {
+        self.vdisk_id.as_u32()
+    }
 }
 
 impl Display for PearlGroup {

@@ -26,9 +26,12 @@ pub struct Replica {
     path: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Partition {
-    name: String,
+    vdisk_id: u32,
+    node_name: String,
+    disk_name: String,
+    timestamp: i64,
 }
 
 pub fn spawn(bob: &BobSrv) {
@@ -111,15 +114,25 @@ fn vdisk_by_id(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<VDisk>> {
     get_vdisk_by_id(&bob, vdisk_id).map(Json)
 }
 
-use std::any::Any;
-
 #[get("/vdisks/<vdisk_id>/partitions")]
 fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<Vec<Partition>>> {
-    let data_vdisk = find_vdisk(&bob, vdisk_id)?;
     let grinder = &bob.grinder;
     let backend = &grinder.backend;
-    let storage = backend.storage();
-    None
+    let storage = backend.as_ref().pearl_storage()?;
+    let groups = storage.vdisks_groups();
+    let group = groups.iter().find(|group| group.vdisk_id() == vdisk_id)?;
+    let pearls = group.pearls()?;
+    let pearls: &[_] = pearls.as_ref();
+    let ps: Vec<_> = pearls
+        .iter()
+        .map(|pearl| Partition {
+            node_name: group.node_name().to_owned(),
+            disk_name: group.disk_name().to_owned(),
+            timestamp: pearl.start_timestamp,
+            vdisk_id: group.vdisk_id(),
+        })
+        .collect();
+    Some(Json(ps))
 }
 
 #[get("/vdisks/<vdisk_id>/partitions/<partition_id>")]
