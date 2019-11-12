@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct VDisk {
     repo: Arc<RwLock<HashMap<BobKey, BobData>>>,
 }
@@ -52,7 +52,7 @@ impl VDisk {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct MemDisk {
     pub(crate) name: String,
     pub(crate) vdisks: HashMap<VDiskId, VDisk>,
@@ -125,7 +125,7 @@ impl MemDisk {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MemBackend {
     pub(crate) disks: HashMap<String, MemDisk>,
     pub(crate) foreign_data: MemDisk,

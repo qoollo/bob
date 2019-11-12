@@ -1,7 +1,7 @@
 use super::prelude::*;
 
 /// Struct hold pearl and add put/get/restart api
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct PearlHolder {
     vdisk: VDiskId,
     disk_path: PathBuf,
@@ -214,7 +214,7 @@ pub(crate) enum PearlState {
     Initializing,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct PearlSync {
     pub(crate) storage: Option<PearlStorage>,
     state: PearlState,

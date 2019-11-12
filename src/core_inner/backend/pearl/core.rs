@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PearlBackend {
     settings: Arc<Settings>,
 

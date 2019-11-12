@@ -115,13 +115,19 @@ fn vdisk_by_id(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<VDisk>> {
 }
 
 #[get("/vdisks/<vdisk_id>/partitions")]
-fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<Vec<Partition>>> {
+fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<Vec<Partition>>, String> {
     let grinder = &bob.grinder;
     let backend = &grinder.backend;
-    let storage = backend.as_ref().pearl_storage()?;
+    let storage = backend
+        .as_ref()
+        .pearl_storage()
+        .ok_or("currently only pearl backend supports partitions")?;
     let groups = storage.vdisks_groups();
-    let group = groups.iter().find(|group| group.vdisk_id() == vdisk_id)?;
-    let pearls = group.pearls()?;
+    let group = groups
+        .iter()
+        .find(|group| group.vdisk_id() == vdisk_id)
+        .ok_or("".to_owned())?;
+    let pearls = group.pearls().ok_or("".to_owned())?;
     let pearls: &[_] = pearls.as_ref();
     let ps: Vec<_> = pearls
         .iter()
@@ -132,7 +138,7 @@ fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<Vec<Partition>>>
             vdisk_id: group.vdisk_id(),
         })
         .collect();
-    Some(Json(ps))
+    Ok(Json(ps))
 }
 
 #[get("/vdisks/<vdisk_id>/partitions/<partition_id>")]

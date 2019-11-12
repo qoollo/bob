@@ -1,6 +1,7 @@
 use super::prelude::*;
 
 /// Contains timestamp and fs logic
+#[derive(Debug)]
 pub(crate) struct Settings {
     bob_prefix_path: String,
     alien_folder: PathBuf,

@@ -1,5 +1,6 @@
 use super::prelude::*;
 
+#[derive(Debug)]
 pub(crate) struct LockGuard<TGuard> {
     storage: Arc<RwLock<TGuard>>,
 }
@@ -60,6 +61,7 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct SyncState {
     state: LockGuard<StateWrapper>,
 }
