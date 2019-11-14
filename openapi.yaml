@@ -187,10 +187,17 @@ components:
         partitions:
           type: array
           items:
-            $ref: '#/components/schemas/Partition'
+            type: integer
     Partition:
       properties:
-        timestamp: integer
+        vdisk:
+          type: integer
+        node:
+          type: string
+        disk:
+          type: string
+        timestamp:
+          type: integer
     Error:
       type: object
       properties:

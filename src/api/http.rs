@@ -30,11 +30,14 @@ pub struct VDiskPartitions {
     vdisk_id: u32,
     node_name: String,
     disk_name: String,
-    partitions: Vec<Partition>,
+    partitions: Vec<i64>,
 }
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Partition {
+    vdisk_id: u32,
+    node_name: String,
+    disk_name: String,
     timestamp: i64,
 }
 
@@ -141,11 +144,7 @@ fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>
     })?;
     debug!("get pearl holders: OK");
     let pearls: &[_] = pearls.as_ref();
-    let partitions: Vec<_> = pearls
-        .iter()
-        .map(|pearl| pearl.start_timestamp)
-        .map(|timestamp| Partition { timestamp })
-        .collect();
+    let partitions = pearls.iter().map(|pearl| pearl.start_timestamp).collect();
     let ps = VDiskPartitions {
         node_name: group.node_name().to_owned(),
         disk_name: group.disk_name().to_owned(),
@@ -157,8 +156,44 @@ fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>
 }
 
 #[get("/vdisks/<vdisk_id>/partitions/<partition_id>")]
-fn partition_by_id(_bob: State<BobSrv>, vdisk_id: usize, partition_id: usize) -> String {
-    format!("partition {} of vdisk {}", partition_id, vdisk_id)
+fn partition_by_id(
+    bob: State<BobSrv>,
+    vdisk_id: u32,
+    partition_id: i64,
+) -> Result<Json<Partition>, Status> {
+    let backend = &bob.grinder.backend.backend();
+    debug!("get backend: OK");
+    let groups = backend.vdisks_groups().ok_or_else(|| {
+        warn!("only pearl backend supports partitions");
+        Status::NotFound
+    })?;
+    debug!("get vdisks groups: OK");
+    let group = groups
+        .iter()
+        .find(|group| group.vdisk_id() == vdisk_id)
+        .ok_or_else(|| {
+            warn!("vdisk with id: {} nont found", vdisk_id);
+            Status::NotFound
+        })?;
+    debug!("group with provided vdisk_id found");
+    let pearls = group.pearls().ok_or_else(|| {
+        error!("writer panics while holding an exclusive lock");
+        Status::InternalServerError
+    })?;
+    debug!("get pearl holders: OK");
+    let pearls: &[_] = pearls.as_ref();
+    pearls
+        .iter()
+        .map(|pearl| pearl.start_timestamp)
+        .find(|&timestamp| timestamp == partition_id)
+        .map(|timestamp| Partition {
+            node_name: group.node_name().to_owned(),
+            disk_name: group.disk_name().to_owned(),
+            vdisk_id: group.vdisk_id(),
+            timestamp,
+        })
+        .map(Json)
+        .ok_or(Status::NotFound)
 }
 
 #[put("/vdisks/<vdisk_id>/partitions/<partition_id>/<action>")]
