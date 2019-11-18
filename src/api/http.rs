@@ -41,6 +41,12 @@ pub struct Partition {
     timestamp: i64,
 }
 
+#[derive(Debug)]
+pub struct StatusExt {
+    status: Status,
+    msg: String,
+}
+
 pub fn spawn(bob: &BobSrv) {
     let bob = bob.clone();
     thread::spawn(move || {
@@ -96,6 +102,13 @@ fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {
         .collect()
 }
 
+fn not_acceptable_backend() -> Status {
+    let mut status = Status::NotAcceptable;
+    status.reason = "only pearl backend supports partitions";
+    warn!("{:?}", status);
+    status
+}
+
 #[get("/status")]
 fn status(bob: State<BobSrv>) -> Json<Node> {
     let mapper = bob.grinder.backend.mapper();
@@ -122,20 +135,18 @@ fn vdisk_by_id(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<VDisk>> {
 }
 
 #[get("/vdisks/<vdisk_id>/partitions")]
-fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>, Status> {
+fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>, StatusExt> {
     let backend = &bob.grinder.backend.backend();
     debug!("get backend: OK");
-    let groups = backend.vdisks_groups().ok_or_else(|| {
-        warn!("only pearl backend supports partitions");
-        Status::NotFound
-    })?;
+    let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
     debug!("get vdisks groups: OK");
     let group = groups
         .iter()
         .find(|group| group.vdisk_id() == vdisk_id)
         .ok_or_else(|| {
-            warn!("vdisk with id: {} nont found", vdisk_id);
-            Status::NotFound
+            let err = format!("vdisk with id: {} not found", vdisk_id);
+            warn!("{}", err);
+            StatusExt::new(Status::NotFound, err)
         })?;
     debug!("group with provided vdisk_id found");
     let pearls = group.pearls().ok_or_else(|| {
@@ -160,20 +171,18 @@ fn partition_by_id(
     bob: State<BobSrv>,
     vdisk_id: u32,
     partition_id: i64,
-) -> Result<Json<Partition>, Status> {
+) -> Result<Json<Partition>, StatusExt> {
     let backend = &bob.grinder.backend.backend();
     debug!("get backend: OK");
-    let groups = backend.vdisks_groups().ok_or_else(|| {
-        warn!("only pearl backend supports partitions");
-        Status::NotFound
-    })?;
+    let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
     debug!("get vdisks groups: OK");
     let group = groups
         .iter()
         .find(|group| group.vdisk_id() == vdisk_id)
         .ok_or_else(|| {
-            warn!("vdisk with id: {} nont found", vdisk_id);
-            Status::NotFound
+            let err = format!("vdisk with id: {} not found", vdisk_id);
+            warn!("{}", err);
+            StatusExt::new(Status::NotFound, err)
         })?;
     debug!("group with provided vdisk_id found");
     let pearls = group.pearls().ok_or_else(|| {
@@ -193,7 +202,14 @@ fn partition_by_id(
             timestamp,
         })
         .map(Json)
-        .ok_or(Status::NotFound)
+        .ok_or_else(|| {
+            let err = format!(
+                "partition with id: {} in vdisk {} not found",
+                partition_id, vdisk_id
+            );
+            warn!("{}", err);
+            StatusExt::new(Status::NotFound, err)
+        })
 }
 
 #[put("/vdisks/<vdisk_id>/partitions/<partition_id>/<action>")]
@@ -223,6 +239,30 @@ impl<'r> FromParam<'r> for Action {
             "attach" => Ok(Action::Attach),
             "detach" => Ok(Action::Detach),
             _ => Err(param),
+        }
+    }
+}
+
+impl Responder<'_> for StatusExt {
+    fn respond_to(self, _: &Request) -> RocketResult<'static> {
+        Response::build()
+            .status(self.status)
+            .sized_body(Cursor::new(self.msg))
+            .ok()
+    }
+}
+
+impl StatusExt {
+    fn new(status: Status, msg: String) -> Self {
+        Self { status, msg }
+    }
+}
+
+impl From<Status> for StatusExt {
+    fn from(status: Status) -> Self {
+        Self {
+            status,
+            msg: status.reason.to_owned(),
         }
     }
 }

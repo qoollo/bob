@@ -9,7 +9,13 @@ pub mod grpc {
 
 pub mod prelude {
     pub(crate) use super::*;
-    pub(crate) use rocket::{http::RawStr, http::Status, request::FromParam, State};
+    pub(crate) use rocket::{
+        http::RawStr,
+        http::Status,
+        request::{FromParam, Request},
+        response::{Responder, Response, Result as RocketResult},
+        State,
+    };
     pub(crate) use rocket_contrib::json::Json;
     pub(crate) use server::BobSrv;
 }
