@@ -55,13 +55,11 @@ paths:
         - $ref: '#/components/parameters/VDiskIdParam'
       responses:
         '200':
-          description: "A JSON array with partitions info"
+          description: "Node info and JSON array with partitions info"
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: string
+                $ref: '#/components/schemas/VDiskPartitions'
         default:
           $ref: '#/components/responses/DefaultError'
   /vdisks/{VDiskId}/partitions/{partitionId}:
@@ -178,6 +176,28 @@ components:
         - type
         - disk
         - path
+    VDiskPartitions:
+      properties:
+        vdisk:
+          type: integer
+        node:
+          type: string
+        disk:
+          type: string
+        partitions:
+          type: array
+          items:
+            type: integer
+    Partition:
+      properties:
+        vdisk:
+          type: integer
+        node:
+          type: string
+        disk:
+          type: string
+        timestamp:
+          type: integer
     Error:
       type: object
       properties:

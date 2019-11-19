@@ -34,7 +34,7 @@ mod prelude {
         convert::TryInto,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
         fs::{create_dir_all, read_dir, read_to_string, remove_file, DirEntry, Metadata},
-        io::{Error as IOError, ErrorKind, Result as IOResult},
+        io::{Cursor, Error as IOError, ErrorKind, Result as IOResult},
         net::SocketAddr,
         path::PathBuf,
         pin::Pin,

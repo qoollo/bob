@@ -5,7 +5,7 @@ pub(crate) type Future03Result<TRet> = Pin<Box<dyn Future<Output = BackendResult
 
 pub(crate) type PearlStorage = Storage<PearlKey>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct PearlKey {
     pub key: Vec<u8>,
 }

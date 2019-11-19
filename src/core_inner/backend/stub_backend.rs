@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StubBackend {}
 
 impl BackendStorage for StubBackend {

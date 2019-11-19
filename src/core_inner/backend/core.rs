@@ -93,7 +93,7 @@ pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
 pub type RunResult = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
 
-pub trait BackendStorage {
+pub(crate) trait BackendStorage: Debug {
     fn run_backend(&self) -> RunResult;
 
     fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put;
@@ -101,8 +101,13 @@ pub trait BackendStorage {
 
     fn get(&self, operation: BackendOperation, key: BobKey) -> Get;
     fn get_alien(&self, operation: BackendOperation, key: BobKey) -> Get;
+
+    fn vdisks_groups(&self) -> Option<&[PearlGroup]> {
+        None
+    }
 }
 
+#[derive(Debug)]
 pub struct Backend {
     backend: Arc<dyn BackendStorage + Send + Sync>,
     mapper: Arc<VDiskMapper>,
@@ -255,5 +260,9 @@ impl Backend {
 
     pub fn mapper(&self) -> &VDiskMapper {
         &self.mapper
+    }
+
+    pub(crate) fn backend(&self) -> &dyn BackendStorage {
+        self.backend.as_ref()
     }
 }

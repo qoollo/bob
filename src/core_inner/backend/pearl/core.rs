@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PearlBackend {
     settings: Arc<Settings>,
 
@@ -235,5 +235,9 @@ impl BackendStorage for PearlBackend {
             }
             .boxed()
         })
+    }
+
+    fn vdisks_groups(&self) -> Option<&[PearlGroup]> {
+        Some(&self.vdisks_groups)
     }
 }

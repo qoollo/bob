@@ -1,7 +1,7 @@
 use super::prelude::*;
 
 /// Wrap pearl holder and add timestamp info
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct PearlTimestampHolder {
     pub pearl: PearlHolder,
     pub start_timestamp: i64,
@@ -25,7 +25,7 @@ impl Display for PearlTimestampHolder {
 }
 
 /// Composition of pearls. Add put/get api
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct PearlGroup {
     /// all pearls
     pearls: Arc<RwLock<Vec<PearlTimestampHolder>>>,
@@ -283,6 +283,22 @@ impl PearlGroup {
             pearl.reinit_storage()?;
         }
         result
+    }
+
+    pub fn pearls(&self) -> Option<RwLockReadGuard<Vec<PearlTimestampHolder>>> {
+        self.pearls.try_read().ok()
+    }
+
+    pub fn node_name(&self) -> &str {
+        &self.node_name
+    }
+
+    pub fn disk_name(&self) -> &str {
+        &self.disk_name
+    }
+
+    pub fn vdisk_id(&self) -> u32 {
+        self.vdisk_id.as_u32()
     }
 }
 

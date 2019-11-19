@@ -25,6 +25,27 @@ pub struct Replica {
     disk: String,
     path: String,
 }
+#[derive(Debug, Serialize, Clone)]
+pub struct VDiskPartitions {
+    vdisk_id: u32,
+    node_name: String,
+    disk_name: String,
+    partitions: Vec<i64>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct Partition {
+    vdisk_id: u32,
+    node_name: String,
+    disk_name: String,
+    timestamp: i64,
+}
+
+#[derive(Debug)]
+pub struct StatusExt {
+    status: Status,
+    msg: String,
+}
 
 pub fn spawn(bob: &BobSrv, port: u16) {
     let bob = bob.clone();
@@ -59,17 +80,17 @@ fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
 
 fn collect_disks_info(bob: &BobSrv) -> Vec<VDisk> {
     let mapper = bob.grinder.backend.mapper();
-    let vdisks = mapper.vdisks();
-    vdisks.iter().map(data_vdisk_to_scheme).collect()
+    mapper.vdisks().iter().map(data_vdisk_to_scheme).collect()
 }
 
+#[inline]
 fn get_vdisk_by_id(bob: &BobSrv, id: u32) -> Option<VDisk> {
+    find_vdisk(bob, id).map(data_vdisk_to_scheme)
+}
+
+fn find_vdisk(bob: &BobSrv, id: u32) -> Option<&DataVDisk> {
     let mapper = bob.grinder.backend.mapper();
-    let vdisks = mapper.vdisks();
-    vdisks
-        .iter()
-        .find(|disk| disk.id.as_u32() == id)
-        .map(data_vdisk_to_scheme)
+    mapper.vdisks().iter().find(|disk| disk.id.as_u32() == id)
 }
 
 fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {
@@ -81,6 +102,13 @@ fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {
             node: r.node_name.to_owned(),
         })
         .collect()
+}
+
+fn not_acceptable_backend() -> Status {
+    let mut status = Status::NotAcceptable;
+    status.reason = "only pearl backend supports partitions";
+    warn!("{:?}", status);
+    status
 }
 
 #[get("/status")]
@@ -104,19 +132,86 @@ fn vdisks(bob: State<BobSrv>) -> Json<Vec<VDisk>> {
 }
 
 #[get("/vdisks/<vdisk_id>")]
-fn vdisk_by_id(bob: State<BobSrv>, vdisk_id: u32) -> Json<Option<VDisk>> {
-    let vdisk = get_vdisk_by_id(&bob, vdisk_id);
-    Json(vdisk)
+fn vdisk_by_id(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<VDisk>> {
+    get_vdisk_by_id(&bob, vdisk_id).map(Json)
 }
 
 #[get("/vdisks/<vdisk_id>/partitions")]
-fn partitions(_bob: State<BobSrv>, vdisk_id: usize) -> String {
-    format!("partitions of vdisk {}", vdisk_id)
+fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>, StatusExt> {
+    let backend = &bob.grinder.backend.backend();
+    debug!("get backend: OK");
+    let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
+    debug!("get vdisks groups: OK");
+    let group = groups
+        .iter()
+        .find(|group| group.vdisk_id() == vdisk_id)
+        .ok_or_else(|| {
+            let err = format!("vdisk with id: {} not found", vdisk_id);
+            warn!("{}", err);
+            StatusExt::new(Status::NotFound, err)
+        })?;
+    debug!("group with provided vdisk_id found");
+    let pearls = group.pearls().ok_or_else(|| {
+        error!("writer panics while holding an exclusive lock");
+        Status::InternalServerError
+    })?;
+    debug!("get pearl holders: OK");
+    let pearls: &[_] = pearls.as_ref();
+    let partitions = pearls.iter().map(|pearl| pearl.start_timestamp).collect();
+    let ps = VDiskPartitions {
+        node_name: group.node_name().to_owned(),
+        disk_name: group.disk_name().to_owned(),
+        vdisk_id: group.vdisk_id(),
+        partitions,
+    };
+    trace!("partitions: {:?}", ps);
+    Ok(Json(ps))
 }
 
 #[get("/vdisks/<vdisk_id>/partitions/<partition_id>")]
-fn partition_by_id(_bob: State<BobSrv>, vdisk_id: usize, partition_id: usize) -> String {
-    format!("partition {} of vdisk {}", partition_id, vdisk_id)
+fn partition_by_id(
+    bob: State<BobSrv>,
+    vdisk_id: u32,
+    partition_id: i64,
+) -> Result<Json<Partition>, StatusExt> {
+    let backend = &bob.grinder.backend.backend();
+    debug!("get backend: OK");
+    let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
+    debug!("get vdisks groups: OK");
+    let group = groups
+        .iter()
+        .find(|group| group.vdisk_id() == vdisk_id)
+        .ok_or_else(|| {
+            let err = format!("vdisk with id: {} not found", vdisk_id);
+            warn!("{}", err);
+            StatusExt::new(Status::NotFound, err)
+        })?;
+    debug!("group with provided vdisk_id found");
+    let pearls = group.pearls().ok_or_else(|| {
+        error!("writer panics while holding an exclusive lock");
+        Status::InternalServerError
+    })?;
+    debug!("get pearl holders: OK");
+    let pearls: &[_] = pearls.as_ref();
+    pearls
+        .iter()
+        .map(|pearl| pearl.start_timestamp)
+        .find(|&timestamp| timestamp == partition_id)
+        .map(|timestamp| Partition {
+            node_name: group.node_name().to_owned(),
+            disk_name: group.disk_name().to_owned(),
+            vdisk_id: group.vdisk_id(),
+            timestamp,
+        })
+        .map(Json)
+        .ok_or_else(|| {
+            let err = format!(
+                "partition with id: {} in vdisk {} not found",
+                partition_id, vdisk_id
+            );
+            warn!("{}", err);
+            StatusExt::new(Status::NotFound, err)
+        })
 }
 
 #[put("/vdisks/<vdisk_id>/partitions/<partition_id>/<action>")]
@@ -146,6 +241,30 @@ impl<'r> FromParam<'r> for Action {
             "attach" => Ok(Action::Attach),
             "detach" => Ok(Action::Detach),
             _ => Err(param),
+        }
+    }
+}
+
+impl Responder<'_> for StatusExt {
+    fn respond_to(self, _: &Request) -> RocketResult<'static> {
+        Response::build()
+            .status(self.status)
+            .sized_body(Cursor::new(self.msg))
+            .ok()
+    }
+}
+
+impl StatusExt {
+    fn new(status: Status, msg: String) -> Self {
+        Self { status, msg }
+    }
+}
+
+impl From<Status> for StatusExt {
+    fn from(status: Status) -> Self {
+        Self {
+            status,
+            msg: status.reason.to_owned(),
         }
     }
 }
