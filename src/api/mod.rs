@@ -14,7 +14,7 @@ pub mod prelude {
         http::Status,
         request::{FromParam, Request},
         response::{Responder, Response, Result as RocketResult},
-        State,
+        Config, Rocket, State,
     };
     pub(crate) use rocket_contrib::json::Json;
     pub(crate) use server::BobSrv;
