@@ -2,7 +2,7 @@ use super::prelude::*;
 
 #[derive(Debug)]
 pub(crate) struct LockGuard<TGuard> {
-    storage: Arc<RwLock<TGuard>>,
+    pub storage: Arc<RwLock<TGuard>>, //@TODO remove pub
 }
 
 impl<TGuard: Send + Clone> LockGuard<TGuard> {

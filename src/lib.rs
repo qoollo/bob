@@ -1,4 +1,4 @@
-#![feature(proc_macro_hygiene, decl_macro)]
+#![feature(proc_macro_hygiene, decl_macro, drain_filter)]
 // #![deny(missing_docs)]
 
 //! Library requires tokio runtime

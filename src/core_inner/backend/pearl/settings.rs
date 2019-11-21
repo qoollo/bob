@@ -33,41 +33,6 @@ impl Settings {
         }
     }
 
-    pub(crate) fn create_current_pearl(
-        &self,
-        group: &PearlGroup,
-    ) -> BackendResult<PearlTimestampHolder> {
-        let start_timestamp = self.get_current_timestamp_start()?;
-        let end_timestamp = start_timestamp + self.get_timestamp_period()?;
-        let mut path = group.directory_path.clone();
-        path.push(format!("{}/", start_timestamp));
-
-        Ok(PearlTimestampHolder::new(
-            group.create_pearl_by_path(path),
-            start_timestamp,
-            end_timestamp,
-        ))
-    }
-
-    pub(crate) fn create_pearl(
-        &self,
-        group: &PearlGroup,
-        data: BobData,
-    ) -> BackendResult<PearlTimestampHolder> {
-        let start_timestamp =
-            Stuff::get_start_timestamp_by_timestamp(self.timestamp_period, data.meta.timestamp)?;
-
-        let end_timestamp = start_timestamp + self.get_timestamp_period()?;
-        let mut path = group.directory_path.clone();
-        path.push(format!("{}/", start_timestamp));
-
-        Ok(PearlTimestampHolder::new(
-            group.create_pearl_by_path(path),
-            start_timestamp,
-            end_timestamp,
-        ))
-    }
-
     pub(crate) fn read_group_from_disk(
         &self,
         settings: Arc<Settings>,
@@ -95,37 +60,6 @@ impl Settings {
             result.append(&mut vdisks);
         }
         result
-    }
-
-    pub(crate) fn read_vdisk_directory(
-        &self,
-        group: &PearlGroup,
-    ) -> BackendResult<Vec<PearlTimestampHolder>> {
-        Stuff::check_or_create_directory(&group.directory_path)?;
-
-        let mut pearls = vec![];
-        let pearl_directories = self.get_all_subdirectories(group.directory_path.clone())?;
-        for entry in pearl_directories.into_iter() {
-            if let Ok(file_name) = entry
-                .file_name()
-                .into_string()
-                .map_err(|_| warn!("cannot parse file name: {:?}", entry))
-            {
-                let start_timestamp: i64 = file_name
-                    .parse()
-                    .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry))
-                    .expect("parse file name");
-                let end_timestamp = start_timestamp + self.get_timestamp_period()?;
-                let pearl_holder = PearlTimestampHolder::new(
-                    group.create_pearl_by_path(entry.path()),
-                    start_timestamp,
-                    end_timestamp,
-                );
-                trace!("read pearl: {}", pearl_holder);
-                pearls.push(pearl_holder);
-            }
-        }
-        Ok(pearls)
     }
 
     pub(crate) fn read_alien_directory(
@@ -187,7 +121,7 @@ impl Settings {
         Ok(group)
     }
 
-    fn get_all_subdirectories(&self, path: PathBuf) -> BackendResult<Vec<DirEntry>> {
+    pub fn get_all_subdirectories(&self, path: PathBuf) -> BackendResult<Vec<DirEntry>> {
         Stuff::check_or_create_directory(&path)?;
 
         match read_dir(path.clone()) {
@@ -281,12 +215,12 @@ impl Settings {
     }
 
     #[inline]
-    fn get_timestamp_period(&self) -> BackendResult<i64> {
+    pub fn get_timestamp_period(&self) -> BackendResult<i64> {
         Stuff::get_period_timestamp(self.timestamp_period)
     }
 
     #[inline]
-    fn get_current_timestamp_start(&self) -> BackendResult<i64> {
+    pub fn get_current_timestamp_start(&self) -> BackendResult<i64> {
         Stuff::get_start_timestamp_by_std_time(self.timestamp_period, SystemTime::now())
     }
 

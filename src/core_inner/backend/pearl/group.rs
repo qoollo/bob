@@ -74,6 +74,46 @@ impl PearlGroup {
         }
     }
 
+    pub(crate) fn read_vdisk_directory(&self) -> BackendResult<Vec<PearlTimestampHolder>> {
+        Stuff::check_or_create_directory(&self.directory_path)?;
+
+        let mut pearls = vec![];
+        let pearl_directories = self
+            .settings
+            .get_all_subdirectories(self.directory_path.clone())?;
+        for entry in pearl_directories.into_iter() {
+            if let Ok(file_name) = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| warn!("cannot parse file name: {:?}", entry))
+            {
+                let start_timestamp: i64 = file_name
+                    .parse()
+                    .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry))
+                    .expect("parse file name");
+                let pearl_holder = self.create_holder(start_timestamp);
+                trace!("read pearl: {}", pearl_holder);
+                pearls.push(pearl_holder);
+            }
+        }
+        Ok(pearls)
+    }
+
+    pub(crate) fn create_pearl(&self, data: BobData) -> BackendResult<PearlTimestampHolder> {
+        // let start_timestamp = Stuff::get_start_timestamp_by_timestamp(
+        //     self.settings.timestamp_period,
+        //     data.meta.timestamp,
+        // )?;
+        // Ok(self.create_holder(start_timestamp))
+        unimplemented!()
+    }
+
+    pub(crate) fn create_current_holder(&self) -> BackendResult<PearlTimestampHolder> {
+        self.settings
+            .get_current_timestamp_start()
+            .map(|start_timestamp| self.create_holder(start_timestamp))
+    }
+
     pub async fn run(&self) {
         let t = self.config.fail_retry_timeout();
 
@@ -81,7 +121,7 @@ impl PearlGroup {
 
         debug!("{}: read pearls from disk", self);
         loop {
-            let read_pearls_res = self.settings.read_vdisk_directory(self);
+            let read_pearls_res = self.read_vdisk_directory();
             match read_pearls_res {
                 Ok(read_pearls) => {
                     pearls = read_pearls;
@@ -100,7 +140,7 @@ impl PearlGroup {
             .iter()
             .all(|pearl| self.settings.is_actual_pearl(pearl).unwrap_or(false))
         {
-            match self.settings.create_current_pearl(self) {
+            match self.create_current_holder() {
                 Ok(current_pearl) => {
                     debug!("{}: create current pearl: {}", self, current_pearl);
                     pearls.push(current_pearl);
@@ -210,7 +250,7 @@ impl PearlGroup {
         if self.pearl_sync.try_init().await? {
             // check if pearl created
             if self.find_current_pearl(&data).await.is_err() {
-                match self.settings.create_pearl(self, data.clone()) {
+                match self.create_pearl(data.clone()) {
                     Ok(pearl) => self.save_pearl(pearl).await,
                     Err(e) => Err(e),
                 }?;
@@ -299,6 +339,58 @@ impl PearlGroup {
 
     pub fn vdisk_id(&self) -> u32 {
         self.vdisk_id.as_u32()
+    }
+
+    async fn pearls_write_guard(&self) -> RwLockWriteGuard<Vec<PearlTimestampHolder>> {
+        self.pearls
+            .write()
+            .compat()
+            .await
+            .expect("acquire write lock")
+    }
+
+    pub fn create_holder(&self, start_timestamp: i64) -> PearlTimestampHolder {
+        let mut path = self.directory_path.clone();
+        path.push(format!("{}/", start_timestamp));
+        let pearl_holder = self.create_pearl_by_path(path);
+        let end_timestamp = start_timestamp + self.settings.get_timestamp_period().unwrap();
+        PearlTimestampHolder::new(pearl_holder, start_timestamp, end_timestamp)
+    }
+
+    pub async fn attach(&self, start_timestamp: i64) {
+        let mut pearls = self.pearls_write_guard().await;
+        if pearls
+            .iter()
+            .all(|pearl| pearl.start_timestamp != start_timestamp)
+        {
+            let pearl_timestamp_holder = self.create_holder(start_timestamp);
+            pearl_timestamp_holder
+                .pearl
+                .clone()
+                .prepare_storage()
+                .await
+                .unwrap();
+            pearls.push(pearl_timestamp_holder);
+        }
+    }
+    pub async fn detach(&self, start_timestamp: i64) {
+        let mut pearls = self.pearls_write_guard().await;
+        info!("write lock acquired");
+        for pearl in pearls.drain_filter(|pearl| {
+            info!("{}", pearl.start_timestamp);
+            pearl.start_timestamp == start_timestamp
+        }) {
+            let pearl: PearlTimestampHolder = pearl;
+            let pearl_holder: PearlHolder = pearl.pearl;
+            let lock_guard: Arc<LockGuard<PearlSync>> = pearl_holder.storage;
+            let rwlock: &RwLock<PearlSync> = lock_guard.storage.as_ref();
+            let pearl_sync: RwLockWriteGuard<_> =
+                rwlock.write().compat().await.expect("write lock");
+            let storage: &Storage<_> = pearl_sync.storage.as_ref().expect("pearl storage");
+            if let Err(e) = storage.close().await {
+                warn!("pearl closed: {:?}", e);
+            }
+        }
     }
 }
 

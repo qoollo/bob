@@ -21,9 +21,9 @@ mod prelude {
     pub(crate) use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
     pub(crate) use configs::PearlConfig;
     pub(crate) use data::{BackendResult, Future03Result, PearlData, PearlKey, PearlStorage};
-    pub(crate) use futures_locks::RwLockReadGuard;
+    pub(crate) use futures_locks::{RwLockReadGuard, RwLockWriteGuard};
     pub(crate) use group::PearlTimestampHolder;
-    pub(crate) use holder::PearlHolder;
+    pub(crate) use holder::{PearlHolder, PearlSync};
     pub(crate) use metrics::{
         PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
         PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
