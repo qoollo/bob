@@ -12,7 +12,7 @@ pub(crate) struct PearlKey {
 
 impl PearlKey {
     pub fn new(bob_key: BobKey) -> Self {
-        PearlKey {
+        Self {
             key: bob_key.key.to_be_bytes().to_vec(),
         }
     }
@@ -37,7 +37,7 @@ impl PearlData {
     const TIMESTAMP_LEN: usize = 8;
 
     pub(crate) fn new(data: BobData) -> Self {
-        PearlData {
+        Self {
             data: data.data,
             timestamp: data.meta.timestamp,
         }
@@ -49,8 +49,8 @@ impl PearlData {
         result
     }
 
-    pub(crate) fn parse(data: Vec<u8>) -> Result<BobData, Error> {
-        let (tmp, bob_data) = data.split_at(PearlData::TIMESTAMP_LEN);
+    pub(crate) fn parse(data: &[u8]) -> Result<BobData, Error> {
+        let (tmp, bob_data) = data.split_at(Self::TIMESTAMP_LEN);
         match tmp.try_into() {
             Ok(bytes) => {
                 let timestamp = i64::from_be_bytes(bytes);
@@ -59,7 +59,7 @@ impl PearlData {
                     BobMeta::new_value(timestamp),
                 ))
             }
-            Err(e) => Err(Error::StorageError(format!("parse error: {}", e))),
+            Err(e) => Err(Error::Storage(format!("parse error: {}", e))),
         }
     }
 }

@@ -1,3 +1,4 @@
+#![warn(clippy::pedantic)]
 #![feature(proc_macro_hygiene, decl_macro)]
 // #![deny(missing_docs)]
 
@@ -36,7 +37,7 @@ mod prelude {
         fs::{create_dir_all, read_dir, read_to_string, remove_file, DirEntry, Metadata},
         io::{Cursor, Error as IOError, ErrorKind, Result as IOResult},
         net::SocketAddr,
-        path::PathBuf,
+        path::{Path, PathBuf},
         pin::Pin,
         sync::{Arc, Mutex},
         task::{Context, Poll},

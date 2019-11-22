@@ -15,16 +15,17 @@ impl PearlBackend {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
 
-        let vdisks_groups = Arc::new(settings.read_group_from_disk(settings.clone(), config));
+        let vdisks_groups = Arc::new(settings.clone().read_group_from_disk(config));
         trace!("count vdisk groups: {}", vdisks_groups.len());
 
         let alien = settings
-            .read_alien_directory(settings.clone(), config)
+            .clone()
+            .read_alien_directory(config)
             .expect("vec of pearl groups");
         trace!("count alien vdisk groups: {}", alien.len());
         let alien_vdisks_groups = Arc::new(LockGuard::new(alien)); //TODO
 
-        PearlBackend {
+        Self {
             settings,
             vdisks_groups,
             alien_vdisks_groups,
@@ -46,14 +47,15 @@ impl PearlBackend {
 
     async fn create_alien_pearl(&self, operation: BackendOperation) -> BackendResult<()> {
         // check if pearl is currently creating
-        trace!("try create alien for: {}", operation.clone());
+        trace!("try create alien for: {}", operation);
         if self.pearl_sync.try_init().await? {
             // check if alien created
-            debug!("create alien for: {}", operation.clone());
+            debug!("create alien for: {}", operation);
             if self.find_alien_pearl(operation.clone()).await.is_err() {
                 let pearl = self
                     .settings
-                    .create_group(operation.clone(), self.settings.clone())
+                    .clone()
+                    .create_group(&operation)
                     .expect("pearl group"); //TODO
 
                 self.alien_vdisks_groups

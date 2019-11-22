@@ -11,7 +11,7 @@ pub(crate) struct PearlHolder {
 
 impl PearlHolder {
     pub fn new(vdisk: VDiskId, disk_path: PathBuf, config: PearlConfig) -> Self {
-        PearlHolder {
+        Self {
             disk_path,
             vdisk,
             config,
@@ -80,14 +80,14 @@ impl PearlHolder {
                             .await
                             .map(|r| {
                                 PEARL_GET_TIMER.stop(timer);
-                                PearlData::parse(r)
+                                PearlData::parse(&r)
                             })
                             .map_err(|e| {
                                 PEARL_GET_ERROR_COUNTER.count(1);
                                 trace!("error on read: {:?}", e);
                                 match e.kind() {
                                     ErrorKind::RecordNotFound => Error::KeyNotFound,
-                                    _ => Error::StorageError(format!("{:?}", e)),
+                                    _ => Error::Storage(format!("{:?}", e)),
                                 }
                             })?
                     };
@@ -201,7 +201,7 @@ impl PearlHolder {
             .build()
             .map_err(|e| {
                 error!("cannot build pearl by path: {:?}, error: {}", path, e);
-                Error::StorageError(e.to_string())
+                Error::Storage(e.to_string())
             })
     }
 }
@@ -223,7 +223,7 @@ pub(crate) struct PearlSync {
 }
 impl PearlSync {
     pub(crate) fn new() -> Self {
-        PearlSync {
+        Self {
             storage: None,
             state: PearlState::Initializing,
             start_time_test: 0,

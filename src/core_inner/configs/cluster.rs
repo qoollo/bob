@@ -7,14 +7,17 @@ pub struct NodeDisk {
 }
 
 impl NodeDisk {
-    pub fn name(&self) -> String {
-        self.name.clone().expect("clone name")
+    #[must_use]
+    pub fn name(&self) -> &str {
+        self.name.as_ref().expect("node disk name")
     }
 
-    pub fn path(&self) -> String {
-        self.path.clone().expect("clone path")
+    #[must_use]
+    pub fn path(&self) -> &str {
+        self.path.as_ref().expect("node disk path")
     }
 }
+
 impl Validatable for NodeDisk {
     fn validate(&self) -> Result<(), String> {
         match &self.name {
@@ -161,11 +164,14 @@ pub struct Replica {
 }
 
 impl Replica {
-    pub fn node(&self) -> String {
-        self.node.clone().expect("clone node")
+    #[must_use]
+    pub fn node(&self) -> &str {
+        self.node.as_ref().expect("replica node")
     }
-    pub fn disk(&self) -> String {
-        self.disk.clone().expect("clone disk")
+
+    #[must_use]
+    pub fn disk(&self) -> &str {
+        self.disk.as_ref().expect("replica disk")
     }
 }
 impl Validatable for Replica {
@@ -209,8 +215,9 @@ pub struct VDisk {
 }
 
 impl VDisk {
+    #[must_use]
     pub fn id(&self) -> i32 {
-        self.id.expect("clone id")
+        self.id.expect("VDisk id")
     }
 }
 
@@ -242,14 +249,14 @@ impl Validatable for VDisk {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct ClusterConfig {
+pub struct Config {
     #[serde(default)]
     pub nodes: Vec<Node>,
     #[serde(default)]
     pub vdisks: Vec<VDisk>,
 }
 
-impl Validatable for ClusterConfig {
+impl Validatable for Config {
     fn validate(&self) -> Result<(), String> {
         if self.nodes.is_empty() {
             debug!("no nodes in config");
@@ -295,31 +302,28 @@ impl Validatable for ClusterConfig {
             return Err(err);
         }
 
-        for vdisk in self.vdisks.iter() {
-            for replica in vdisk.replicas.iter() {
-                match self.nodes.iter().find(|x| x.name == replica.node) {
-                    Some(node) => {
-                        if node.disks.iter().find(|x| x.name == replica.disk) == None {
-                            debug!(
-                                "cannot find in node: {:?}, disk with name: {:?} for vdisk: {:?}",
-                                replica.node, replica.disk, vdisk.id
-                            );
-                            return Err(format!(
-                                "cannot find in node: {:?}, disk with name: {:?} for vdisk: {:?}",
-                                replica.node, replica.disk, vdisk.id
-                            ));
-                        }
-                    }
-                    None => {
+        for vdisk in &self.vdisks {
+            for replica in &vdisk.replicas {
+                if let Some(node) = self.nodes.iter().find(|x| x.name == replica.node) {
+                    if node.disks.iter().find(|x| x.name == replica.disk) == None {
                         debug!(
-                            "cannot find node: {:?} for vdisk: {:?}",
-                            replica.node, vdisk.id
+                            "cannot find in node: {:?}, disk with name: {:?} for vdisk: {:?}",
+                            replica.node, replica.disk, vdisk.id
                         );
                         return Err(format!(
-                            "cannot find node: {:?} for vdisk: {:?}",
-                            replica.node, vdisk.id
+                            "cannot find in node: {:?}, disk with name: {:?} for vdisk: {:?}",
+                            replica.node, replica.disk, vdisk.id
                         ));
                     }
+                } else {
+                    debug!(
+                        "cannot find node: {:?} for vdisk: {:?}",
+                        replica.node, vdisk.id
+                    );
+                    return Err(format!(
+                        "cannot find node: {:?} for vdisk: {:?}",
+                        replica.node, vdisk.id
+                    ));
                 }
             }
         }
@@ -328,12 +332,12 @@ impl Validatable for ClusterConfig {
     }
 }
 
-pub struct ClusterConfigYaml {}
+pub struct ConfigYaml {}
 
-impl ClusterConfigYaml {
-    pub fn convert(cluster: &ClusterConfig) -> Result<Vec<DataVDisk>, String> {
+impl ConfigYaml {
+    pub fn convert(cluster: &Config) -> Result<Vec<DataVDisk>, String> {
         let mut node_map = HashMap::new();
-        for node in cluster.nodes.iter() {
+        for node in &cluster.nodes {
             let disk_map = node
                 .disks
                 .iter()
@@ -343,16 +347,16 @@ impl ClusterConfigYaml {
         }
 
         let mut result: Vec<DataVDisk> = Vec::with_capacity(cluster.vdisks.len());
-        for vdisk in cluster.vdisks.iter() {
+        for vdisk in &cluster.vdisks {
             let mut disk = DataVDisk::new(VDiskId::new(vdisk.id() as u32), vdisk.replicas.len());
 
-            for replica in vdisk.replicas.iter() {
+            for replica in &vdisk.replicas {
                 let finded_node = node_map.get(&replica.node).expect("get replica node");
-                let path = finded_node.1.get(&replica.disk).expect("get disk");
+                let path = (*finded_node.1.get(&replica.disk).expect("get disk")).to_string();
 
                 let node_disk = DataNodeDisk {
-                    disk_path: path.to_string(),
-                    disk_name: replica.disk(),
+                    disk_path: path,
+                    disk_name: replica.disk().to_string(),
                     node_name: finded_node.0.name(),
                 };
                 disk.replicas.push(node_disk);
@@ -362,12 +366,12 @@ impl ClusterConfigYaml {
         Ok(result)
     }
 
-    pub fn convert_to_data(cluster: &ClusterConfig) -> Result<Vec<DataVDisk>, String> {
+    pub fn convert_to_data(cluster: &Config) -> Result<Vec<DataVDisk>, String> {
         Self::convert(cluster)
     }
 
-    pub fn get(filename: &str) -> Result<(Vec<DataVDisk>, ClusterConfig), String> {
-        let config = YamlBobConfigReader::get::<ClusterConfig>(filename)?;
+    pub fn get(filename: &str) -> Result<(Vec<DataVDisk>, Config), String> {
+        let config = YamlBobConfigReader::get::<Config>(filename)?;
         match config.validate() {
             Ok(_) => Ok((
                 Self::convert_to_data(&config).expect("convert config to data"),
@@ -380,8 +384,8 @@ impl ClusterConfigYaml {
         }
     }
 
-    pub fn get_from_string(file: &str) -> Result<(Vec<DataVDisk>, ClusterConfig), String> {
-        let config = YamlBobConfigReader::parse::<ClusterConfig>(file)?;
+    pub fn get_from_string(file: &str) -> Result<(Vec<DataVDisk>, Config), String> {
+        let config = YamlBobConfigReader::parse::<Config>(file)?;
         debug!("config: {:?}", config);
         if let Err(e) = config.validate() {
             debug!("config is not valid: {}", e);
@@ -399,7 +403,8 @@ impl ClusterConfigYaml {
 pub mod tests {
     use super::*;
 
-    pub fn cluster_config(count_nodes: u8, count_vdisks: u8, count_replicas: u8) -> ClusterConfig {
+    #[must_use]
+    pub fn cluster_config(count_nodes: u8, count_vdisks: u8, count_replicas: u8) -> Config {
         let nodes = (0..count_nodes)
             .map(|id| {
                 let name = id.to_string();
@@ -434,6 +439,6 @@ pub mod tests {
             })
             .collect();
 
-        ClusterConfig { nodes, vdisks }
+        Config { nodes, vdisks }
     }
 }

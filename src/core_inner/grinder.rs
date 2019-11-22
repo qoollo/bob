@@ -15,8 +15,8 @@ impl Grinder {
 
         Grinder {
             backend: backend.clone(),
-            link_manager: link.clone(),
-            cluster: get_cluster(link, m_link, config, backend),
+            link_manager: link,
+            cluster: get_cluster(m_link, config, backend),
         }
     }
 
