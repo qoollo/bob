@@ -35,7 +35,7 @@ impl Validatable for BackendSettings {
                 );
             }
             Some(period) => {
-                if let Err(_) = period.parse::<humantime::Duration>() {
+                if period.parse::<humantime::Duration>().is_err() {
                     debug!("field 'timestamp_period' for 'backend settings config' is not valid");
                     return Err(
                         "field 'timestamp_period' for 'backend settings config' is not valid"

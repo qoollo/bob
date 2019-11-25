@@ -1,6 +1,7 @@
-#![warn(clippy::pedantic)]
 #![feature(proc_macro_hygiene, decl_macro)]
+// #![deny(missing_debug_implementations)]
 // #![deny(missing_docs)]
+// #![warn(clippy::pedantic)]
 
 //! Library requires tokio runtime
 
