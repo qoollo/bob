@@ -21,16 +21,16 @@ impl std::fmt::Display for BackendOperation {
 }
 
 impl BackendOperation {
-    pub fn new_alien(vdisk_id: VDiskId) -> BackendOperation {
-        BackendOperation {
+    pub fn new_alien(vdisk_id: VDiskId) -> Self {
+        Self {
             vdisk_id,
             disk_path: None,
             remote_node_name: None,
         }
     }
 
-    pub fn new_local(vdisk_id: VDiskId, path: DiskPath) -> BackendOperation {
-        BackendOperation {
+    pub fn new_local(vdisk_id: VDiskId, path: DiskPath) -> Self {
+        Self {
             vdisk_id,
             disk_path: Some(path),
             remote_node_name: None,
@@ -38,7 +38,7 @@ impl BackendOperation {
     }
 
     pub fn clone_alien(&self) -> Self {
-        BackendOperation {
+        Self {
             vdisk_id: self.vdisk_id.clone(),
             disk_path: None,
             remote_node_name: self.remote_node_name.clone(),
@@ -116,11 +116,11 @@ pub struct Backend {
 impl Backend {
     pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
         let backend: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
-            BackendType::InMemory => Arc::new(MemBackend::new(mapper.clone())),
+            BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
             BackendType::Pearl => Arc::new(PearlBackend::new(mapper.clone(), config)),
         };
-        Backend { backend, mapper }
+        Self { backend, mapper }
     }
 
     #[inline]
@@ -132,9 +132,9 @@ impl Backend {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         if options.have_remote_node() {
             // write to all remote_nodes
-            for node_name in options.remote_nodes.iter() {
+            for node_name in options.remote_nodes {
                 let mut op = BackendOperation::new_alien(vdisk_id.clone());
-                op.set_remote_folder(node_name);
+                op.set_remote_folder(&node_name);
 
                 //TODO make it parallel?
                 self.put_single(key, data.clone(), op).await?;
@@ -161,7 +161,7 @@ impl Backend {
     ) -> PutResult {
         self.put_single(key, data, operation)
             .await
-            .map_err(|e| e.convert_backend())
+            .map_err(Error::convert_backend)
     }
 
     async fn put_single(
@@ -235,13 +235,13 @@ impl Backend {
             );
             Err(Error::Internal)
         };
-        result.map_err(|e| e.convert_backend())
+        result.map_err(Error::convert_backend)
     }
 
     pub async fn get_local(&self, key: BobKey, op: BackendOperation) -> GetResult {
         Self::get_single(self.backend.clone(), key, op)
             .await
-            .map_err(|e| e.convert_backend())
+            .map_err(Error::convert_backend)
     }
 
     async fn get_single(

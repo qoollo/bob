@@ -196,12 +196,17 @@ fn partition_by_id(
     pearls
         .iter()
         .map(|pearl| pearl.start_timestamp)
-        .find(|&timestamp| timestamp == partition_id)
-        .map(|timestamp| Partition {
-            node_name: group.node_name().to_owned(),
-            disk_name: group.disk_name().to_owned(),
-            vdisk_id: group.vdisk_id(),
-            timestamp,
+        .find_map(|timestamp| {
+            if timestamp == partition_id {
+                Some(Partition {
+                    node_name: group.node_name().to_owned(),
+                    disk_name: group.disk_name().to_owned(),
+                    vdisk_id: group.vdisk_id(),
+                    timestamp,
+                })
+            } else {
+                None
+            }
         })
         .map(Json)
         .ok_or_else(|| {
@@ -238,8 +243,8 @@ impl<'r> FromParam<'r> for Action {
     fn from_param(param: &'r RawStr) -> Result<Self, Self::Error> {
         error!("{}", param.as_str());
         match param.as_str() {
-            "attach" => Ok(Action::Attach),
-            "detach" => Ok(Action::Detach),
+            "attach" => Ok(Self::Attach),
+            "detach" => Ok(Self::Detach),
             _ => Err(param),
         }
     }

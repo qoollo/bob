@@ -1,13 +1,13 @@
 use super::prelude::*;
 
-pub struct SimpleQuorumCluster {
+pub struct Quorum {
     mapper: Arc<VDiskMapper>,
     quorum: u8,
 }
 
-impl SimpleQuorumCluster {
+impl Quorum {
     pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
-        SimpleQuorumCluster {
+        Self {
             quorum: config.quorum.expect("get quorum config"),
             mapper,
         }
@@ -19,7 +19,7 @@ impl SimpleQuorumCluster {
     }
 }
 
-impl Cluster for SimpleQuorumCluster {
+impl Cluster for Quorum {
     fn put_clustered_async(&self, key: BobKey, data: BobData) -> BackendPut {
         let target_nodes = self.calc_target_nodes(key);
 
@@ -102,11 +102,10 @@ impl Cluster for SimpleQuorumCluster {
             .map(move |acc| {
                 let sup = acc
                     .iter()
-                    .filter_map(|r| r.as_ref().err())
-                    .map(|e| e.to_string())
+                    .filter_map(|r| r.as_ref().err().map(ToString::to_string))
                     .collect();
 
-                let r = acc.into_iter().find(|r| r.is_ok());
+                let r = acc.into_iter().find(Result::is_ok);
                 if let Some(answer) = r {
                     match answer {
                         Ok(ClusterResult { result: i, .. }) => Ok(i),
