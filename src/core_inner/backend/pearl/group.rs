@@ -314,7 +314,7 @@ impl PearlGroup {
         time: i64,
     ) -> BackendResult<PearlTimestampHolder> {
         let start_timestamp =
-            Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period, time)?;
+            Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period(), time)?;
         self.create_pearl_timestamp_holder(start_timestamp)
     }
 

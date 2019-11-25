@@ -5,7 +5,7 @@ use super::prelude::*;
 pub(crate) struct Settings {
     bob_prefix_path: String,
     alien_folder: PathBuf,
-    pub timestamp_period: Duration, //@TODO remove pub
+    timestamp_period: Duration,
     pub config: PearlConfig,
     mapper: Arc<VDiskMapper>,
 }
@@ -205,6 +205,10 @@ impl Settings {
         let mut vdisk_path = self.alien_folder.clone();
         vdisk_path.push(format!("{}/{}/", node_name, vdisk_id));
         vdisk_path
+    }
+
+    pub fn timestamp_period(&self) -> Duration {
+        self.timestamp_period
     }
 
     #[inline]
