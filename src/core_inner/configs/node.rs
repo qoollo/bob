@@ -34,15 +34,14 @@ impl Validatable for BackendSettings {
                     "field 'timestamp_period' for 'backend settings config' is not set".to_string(),
                 );
             }
-            Some(period) => match period.parse::<humantime::Duration>() {
-                Err(_) => {
+            Some(period) => {
+                if period.parse::<humantime::Duration>().is_err() {
                     debug!("field 'timestamp_period' for 'backend settings config' is not valid");
                     return Err(
                         "field 'timestamp_period' for 'backend settings config' is not valid"
                             .to_string(),
                     );
-                }
-                Ok(_) => {
+                } else {
                     let period: chrono::Duration =
                         chrono::Duration::from_std(self.timestamp_period()).map_err(|e| {
                             trace!("smth wrong with time: {:?}, error: {}", period, e);
@@ -52,7 +51,7 @@ impl Validatable for BackendSettings {
                         return Err("field 'timestamp_period' for 'backend settings config' is greater then week".to_string());
                     }
                 }
-            },
+            }
         };
         match &self.create_pearl_wait_delay {
             None => {

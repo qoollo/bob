@@ -1,5 +1,7 @@
 #![feature(proc_macro_hygiene, decl_macro, drain_filter)]
+// #![deny(missing_debug_implementations)]
 // #![deny(missing_docs)]
+// #![warn(clippy::pedantic)]
 
 //! Library requires tokio runtime
 
@@ -36,7 +38,7 @@ mod prelude {
         fs::{create_dir_all, read_dir, read_to_string, remove_file, DirEntry, Metadata},
         io::{Cursor, Error as IOError, ErrorKind, Result as IOResult},
         net::SocketAddr,
-        path::PathBuf,
+        path::{Path, PathBuf},
         pin::Pin,
         sync::{Arc, Mutex},
         task::{Context, Poll},

@@ -7,7 +7,7 @@ pub(crate) struct LockGuard<TGuard> {
 
 impl<TGuard: Send + Clone> LockGuard<TGuard> {
     pub(crate) fn new(data: TGuard) -> Self {
-        LockGuard {
+        Self {
             storage: Arc::new(RwLock::new(data)),
         }
     }
@@ -37,7 +37,7 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
             .map(|mut storage| f(&mut storage))
             .map_err(|e| {
                 error!("lock error: {:?}", e);
-                Error::StorageError(format!("lock error: {:?}", e))
+                Error::Storage(format!("lock error: {:?}", e))
             })
     }
 
@@ -55,7 +55,7 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
         f(&mut st)
             .map_err(|e| {
                 error!("lock error: {:?}", e);
-                Error::StorageError(format!("lock error: {:?}", e))
+                Error::Storage(format!("lock error: {:?}", e))
             })
             .await
     }
@@ -67,7 +67,7 @@ pub(crate) struct SyncState {
 }
 impl SyncState {
     pub fn new() -> Self {
-        SyncState {
+        Self {
             state: LockGuard::new(StateWrapper::new()),
         }
     }
@@ -107,7 +107,7 @@ struct StateWrapper {
 
 impl StateWrapper {
     pub fn new() -> Self {
-        StateWrapper {
+        Self {
             state: CreationState::No,
         }
     }
@@ -140,19 +140,19 @@ impl Display for StateWrapper {
 pub(crate) struct Stuff;
 
 impl Stuff {
-    pub(crate) fn check_or_create_directory(path: &PathBuf) -> BackendResult<()> {
+    pub(crate) fn check_or_create_directory(path: &Path) -> BackendResult<()> {
         if path.exists() {
             trace!("directory: {:?} exists", path);
             Ok(())
         } else {
             let dir = path.to_str().ok_or_else(|| {
-                Error::StorageError("invalid some path, check vdisk or disk names".to_string())
+                Error::Storage("invalid some path, check vdisk or disk names".to_string())
             })?;
 
             create_dir_all(&path)
                 .map(|_| info!("create directory: {}", dir))
                 .map_err(|e| {
-                    Error::StorageError(format!(
+                    Error::Storage(format!(
                         "cannot create directory: {}, error: {}",
                         dir,
                         e.to_string()
@@ -168,7 +168,7 @@ impl Stuff {
             remove_file(&file)
                 .map(|_| debug!("deleted lock file from directory: {:?}", file))
                 .map_err(|e| {
-                    Error::StorageError(format!(
+                    Error::Storage(format!(
                         "cannot delete lock file from directory: {:?}, error: {}",
                         file, e
                     ))
@@ -178,16 +178,13 @@ impl Stuff {
         }
     }
 
-    pub(crate) fn get_start_timestamp_by_std_time(
-        period: Duration,
-        time: SystemTime,
-    ) -> BackendResult<i64> {
+    pub(crate) fn get_start_timestamp_by_std_time(period: Duration, time: SystemTime) -> i64 {
         ChronoDuration::from_std(period)
+            .map(|period| Self::get_start_timestamp(period, DateTime::from(time)))
             .map_err(|e| {
                 trace!("smth wrong with time: {:?}, error: {}", period, e);
-                Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
             })
-            .and_then(|period| Self::get_start_timestamp(period, DateTime::from(time)))
+            .expect("convert std time to chrono")
     }
 
     pub(crate) fn get_start_timestamp_by_timestamp(
@@ -199,13 +196,13 @@ impl Stuff {
                 trace!("smth wrong with time: {:?}, error: {}", period, e);
                 Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
             })
-            .and_then(|period| {
+            .map(|period| {
                 let time = DateTime::from_utc(NaiveDateTime::from_timestamp(time, 0), Utc);
                 Self::get_start_timestamp(period, time)
             })
     }
 
-    fn get_start_timestamp(period: ChronoDuration, time: DateTime<Utc>) -> BackendResult<i64> {
+    fn get_start_timestamp(period: ChronoDuration, time: DateTime<Utc>) -> i64 {
         let mut start_time = match period {
             period if period <= ChronoDuration::days(1) => time.date().and_hms(0, 0, 0),
             period if period <= ChronoDuration::weeks(1) => {
@@ -218,7 +215,7 @@ impl Stuff {
         while !(start_time <= time && time < start_time + period) {
             start_time = start_time + period;
         }
-        Ok(start_time.timestamp())
+        start_time.timestamp()
     }
 
     pub(crate) fn get_period_timestamp(period: Duration) -> BackendResult<i64> {

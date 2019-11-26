@@ -1,5 +1,5 @@
 use bob::client::BobClientFactory;
-use bob::configs::cluster::ClusterConfigYaml;
+use bob::configs::cluster::ConfigYaml as ClusterConfigYaml;
 use bob::configs::node::{DiskPath, NodeConfigYaml};
 use bob::grinder::Grinder;
 use bob::grpc::server::BobApiServer;
@@ -83,8 +83,8 @@ async fn main() {
             .disks
             .iter()
             .map(|d| DiskPath {
-                name: d.name(),
-                path: d.path(),
+                name: d.name().to_owned(),
+                path: d.path().to_owned(),
             })
             .collect();
         mapper = VDiskMapper::new_direct(vdisks.to_vec(), name, &disks, &cluster);
