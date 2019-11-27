@@ -139,7 +139,7 @@ impl PearlHolder {
         Ok(())
     }
 
-    pub async fn prepare_storage(self) -> BackendResult<()> {
+    pub async fn prepare_storage(self) {
         let path = &self.disk_path;
         let config = self.config.clone();
         let t = config.fail_retry_timeout();
@@ -177,7 +177,7 @@ impl PearlHolder {
                 continue;
             }
             debug!("Vdisk: {} Pearl is ready for work", self.vdisk);
-            return Ok(());
+            break;
         }
     }
 

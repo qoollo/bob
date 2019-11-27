@@ -187,10 +187,7 @@ impl Stuff {
             .expect("convert std time to chrono")
     }
 
-    pub(crate) fn get_start_timestamp_by_timestamp(
-        period: Duration,
-        time: i64,
-    ) -> BackendResult<i64> {
+    pub(crate) fn get_start_timestamp_by_timestamp(period: Duration, time: i64) -> i64 {
         ChronoDuration::from_std(period)
             .map_err(|e| {
                 trace!("smth wrong with time: {:?}, error: {}", period, e);
@@ -200,6 +197,7 @@ impl Stuff {
                 let time = DateTime::from_utc(NaiveDateTime::from_timestamp(time, 0), Utc);
                 Self::get_start_timestamp(period, time)
             })
+            .expect("convert std time to chrono")
     }
 
     fn get_start_timestamp(period: ChronoDuration, time: DateTime<Utc>) -> i64 {
@@ -218,12 +216,13 @@ impl Stuff {
         start_time.timestamp()
     }
 
-    pub(crate) fn get_period_timestamp(period: Duration) -> BackendResult<i64> {
+    pub(crate) fn get_period_timestamp(period: Duration) -> i64 {
         ChronoDuration::from_std(period)
             .map_err(|e| {
                 trace!("smth wrong with time: {:?}, error: {}", period, e);
                 Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
             })
             .map(|period| period.num_seconds())
+            .expect("convert std time to chrono")
     }
 }

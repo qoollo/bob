@@ -93,16 +93,7 @@ impl PearlGroup {
             .iter()
             .all(|pearl| self.settings.is_actual_pearl(pearl))
         {
-            match self.create_current_pearl() {
-                Ok(current_pearl) => {
-                    debug!("{}: create current pearl: {}", self, current_pearl);
-                    pearls.push(current_pearl);
-                }
-                Err(e) => {
-                    debug!("{}: cannot create current pearl: {}", self, e);
-                    //we will try again when some data come for put\get
-                }
-            }
+            self.create_current_pearl();
         }
 
         debug!("{}: save pearls to group", self);
@@ -126,7 +117,7 @@ impl PearlGroup {
 
         for holder in holders.iter() {
             let pearl = holder.pearl.clone();
-            pearl.prepare_storage().await?;
+            pearl.prepare_storage().await;
         }
         Ok(())
     }
@@ -203,10 +194,8 @@ impl PearlGroup {
         if self.pearl_sync.try_init().await? {
             // check if pearl created
             if self.find_current_pearl(&data).await.is_err() {
-                match self.create_pearl_by_timestamp(data.meta.timestamp) {
-                    Ok(pearl) => self.save_pearl(pearl).await,
-                    Err(e) => Err(e),
-                }?;
+                let pearl = self.create_pearl_by_timestamp(data.meta.timestamp);
+                self.save_pearl(pearl).await?;
             }
             self.pearl_sync.mark_as_created().await?;
         } else {
@@ -219,7 +208,8 @@ impl PearlGroup {
     async fn save_pearl(&self, holder: PearlTimestampHolder) -> BackendResult<()> {
         let pearl = holder.pearl.clone();
         self.add(holder).await?; // TODO while retry?
-        pearl.prepare_storage().await
+        pearl.prepare_storage().await;
+        Ok(())
     }
 
     pub async fn put(&self, key: BobKey, data: BobData) -> PutResult {
@@ -251,7 +241,7 @@ impl PearlGroup {
                     trace!("get data: {} from: {}", data, holder);
                     results.push(data);
                 }
-                Err(err) if err != backend::Error::KeyNotFound => {
+                Err(err) if err != BackendError::KeyNotFound => {
                     has_error = true;
                     debug!("get error: {}, from : {}", err, holder);
                 }
@@ -308,13 +298,8 @@ impl PearlGroup {
             .iter()
             .all(|pearl| pearl.start_timestamp != start_timestamp)
         {
-            let pearl_timestamp_holder = self.create_pearl_by_timestamp(start_timestamp).unwrap();
-            pearl_timestamp_holder
-                .pearl
-                .clone()
-                .prepare_storage()
-                .await
-                .unwrap();
+            let pearl_timestamp_holder = self.create_pearl_by_timestamp(start_timestamp);
+            pearl_timestamp_holder.pearl.clone().prepare_storage().await;
             pearls.push(pearl_timestamp_holder);
         }
     }
@@ -338,31 +323,25 @@ impl PearlGroup {
         }
     }
 
-    pub fn create_pearl_timestamp_holder(
-        &self,
-        start_timestamp: i64,
-    ) -> BackendResult<PearlTimestampHolder> {
-        let end_timestamp = start_timestamp + self.settings.get_timestamp_period()?;
+    pub fn create_pearl_timestamp_holder(&self, start_timestamp: i64) -> PearlTimestampHolder {
+        let end_timestamp = start_timestamp + self.settings.get_timestamp_period();
         let mut path = self.directory_path.clone();
         path.push(format!("{}/", start_timestamp));
 
-        Ok(PearlTimestampHolder::new(
+        PearlTimestampHolder::new(
             self.create_pearl_by_path(path),
             start_timestamp,
             end_timestamp,
-        ))
+        )
     }
 
-    pub(crate) fn create_pearl_by_timestamp(
-        &self,
-        time: i64,
-    ) -> BackendResult<PearlTimestampHolder> {
+    pub(crate) fn create_pearl_by_timestamp(&self, time: i64) -> PearlTimestampHolder {
         let start_timestamp =
-            Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period(), time)?;
+            Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period(), time);
         self.create_pearl_timestamp_holder(start_timestamp)
     }
 
-    pub(crate) fn create_current_pearl(&self) -> BackendResult<PearlTimestampHolder> {
+    pub(crate) fn create_current_pearl(&self) -> PearlTimestampHolder {
         let start_timestamp = self.settings.get_current_timestamp_start();
         self.create_pearl_timestamp_holder(start_timestamp)
     }
@@ -382,7 +361,7 @@ impl PearlGroup {
                     .parse()
                     .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry))
                     .expect("parse file name");
-                let pearl_holder = self.create_pearl_timestamp_holder(start_timestamp)?;
+                let pearl_holder = self.create_pearl_timestamp_holder(start_timestamp);
                 trace!("read pearl: {}", pearl_holder);
                 pearls.push(pearl_holder);
             }

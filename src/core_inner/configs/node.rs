@@ -167,10 +167,9 @@ impl PearlConfig {
     pub fn settings(&self) -> BackendSettings {
         self.settings.clone().expect("clone settings")
     }
-    pub fn prepare(&self) -> Result<(), String> {
-        self.fail_retry_timeout(); // TODO check unwrap
 
-        Ok(())
+    pub fn prepare(&self) {
+        self.fail_retry_timeout(); // TODO check unwrap
     }
 }
 
@@ -339,10 +338,9 @@ impl NodeConfig {
         self.backend_result()?;
 
         if self.backend_type() == BackendType::Pearl {
-            self.pearl.as_ref().expect("prepare pearl").prepare()
-        } else {
-            Ok(())
+            self.pearl.as_ref().expect("prepare pearl").prepare();
         }
+        Ok(())
     }
 }
 impl Validatable for NodeConfig {
