@@ -44,6 +44,7 @@ pub struct Partition {
 #[derive(Debug)]
 pub struct StatusExt {
     status: Status,
+    ok: bool,
     msg: String,
 }
 
@@ -120,7 +121,7 @@ fn find_group(bob: &BobSrv, vdisk_id: u32) -> Result<&PearlGroup, StatusExt> {
         .ok_or_else(|| {
             let err = format!("vdisk with id: {} not found", vdisk_id);
             warn!("{}", err);
-            StatusExt::new(Status::NotFound, err)
+            StatusExt::new(Status::NotFound, false, err)
         })
 }
 
@@ -206,11 +207,11 @@ fn partition_by_id(
                 partition_id, vdisk_id
             );
             warn!("{}", err);
-            StatusExt::new(Status::NotFound, err)
+            StatusExt::new(Status::NotFound, false, err)
         })
 }
 
-#[get("/vdisks/<vdisk_id>/partitions/<partition_id>/<action>")]
+#[post("/vdisks/<vdisk_id>/partitions/<partition_id>/<action>")]
 fn change_partition_state(
     bob: State<BobSrv>,
     vdisk_id: u32,
@@ -232,7 +233,7 @@ fn change_partition_state(
     };
     rt.block_on(task);
     info!("{}", res);
-    Ok(StatusExt::new(Status::Ok, res))
+    Ok(StatusExt::new(Status::Ok, true, res))
 }
 
 #[get("/alien")]
@@ -255,16 +256,17 @@ impl<'r> FromParam<'r> for Action {
 
 impl Responder<'_> for StatusExt {
     fn respond_to(self, _: &Request) -> RocketResult<'static> {
+        let msg = format!("{{ ok: {}, msg: {} }}", self.ok, self.msg);
         Response::build()
             .status(self.status)
-            .sized_body(Cursor::new(self.msg))
+            .sized_body(Cursor::new(msg))
             .ok()
     }
 }
 
 impl StatusExt {
-    fn new(status: Status, msg: String) -> Self {
-        Self { status, msg }
+    fn new(status: Status, ok: bool, msg: String) -> Self {
+        Self { status, ok, msg }
     }
 }
 
@@ -272,6 +274,7 @@ impl From<Status> for StatusExt {
     fn from(status: Status) -> Self {
         Self {
             status,
+            ok: true,
             msg: status.reason.to_owned(),
         }
     }
