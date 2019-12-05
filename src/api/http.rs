@@ -220,6 +220,8 @@ fn change_partition_state(
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     let group = group.clone();
+    // TODO: run web server on same runtime as bob
+    error!("HOT FIX: run web server on same runtime as bob");
     let mut rt = Runtime::new().expect("create runtime");
     let res = format!(
         "partition with id: {} in vdisk {} is successfully {:?}ed",
