@@ -5,6 +5,8 @@ appenders:
   # An appender named "stdout" that writes to stdout
   stdout:
     kind: console
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>30.30}:{L:>3} {h({l})}    {m}\n"
 
   # An appender named "requests" that writes to a file with a custom pattern encoder
   requests:
@@ -32,3 +34,10 @@ loggers:
       - requests
       - stdout
     additive: false   # dont touch!!!!!!
+  dipstick:
+    level: error
+    appenders:
+      - requests
+      - stdout
+  dipstick::core::scheduler:
+    level: off

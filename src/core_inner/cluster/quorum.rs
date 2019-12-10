@@ -174,7 +174,9 @@ impl Cluster for Quorum {
             let acc = reqs.await;
             debug!("PUT[{}] cluster ans: {:?}", key, acc);
 
-            let total_ops = acc.iter().count();
+            let total_ops = acc.len();
+            debug!("total operations: {}", total_ops);
+            debug!("all results: {:?}", acc);
             let failed = acc.into_iter().filter_map(Result::err).collect::<Vec<_>>();
             let ok_count = total_ops - failed.len();
 

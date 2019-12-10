@@ -37,8 +37,15 @@ pub(crate) mod b_client {
             })
         }
 
+        // Getters
+        #[allow(dead_code)]
+        pub fn node(&self) -> &Node {
+            &self.node
+        }
+
         #[allow(dead_code)]
         pub fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put {
+            debug!("real client put called");
             let request = Request::new(PutRequest {
                 key: Some(BlobKey { key: key.key }),
                 data: Some(Blob {
@@ -156,6 +163,7 @@ pub(crate) mod b_client {
             fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put;
             fn get(&mut self, key: BobKey, options: GetOptions) -> Get;
             async fn ping(&mut self) -> PingResult;
+            fn node(&self) -> &Node;
         }
         trait Clone {
             fn clone(&self) -> Self;

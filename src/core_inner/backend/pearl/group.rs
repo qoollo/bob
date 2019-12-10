@@ -292,7 +292,7 @@ impl PearlGroup {
             .expect("acquire write lock")
     }
 
-    pub async fn attach(&self, start_timestamp: i64) {
+    pub async fn attach(&self, start_timestamp: i64) -> BackendResult<()> {
         let mut pearls = self.pearls_write_guard().await;
         if pearls
             .iter()
@@ -301,25 +301,44 @@ impl PearlGroup {
             let pearl_timestamp_holder = self.create_pearl_by_timestamp(start_timestamp);
             pearl_timestamp_holder.pearl.clone().prepare_storage().await;
             pearls.push(pearl_timestamp_holder);
+            Ok(())
+        } else {
+            let msg = format!("pearl:{} already exists", start_timestamp);
+            warn!("{}", msg);
+            Err(Error::PearlChangeState(msg))
         }
     }
-    pub async fn detach(&self, start_timestamp: i64) {
+    pub async fn detach(&self, start_timestamp: i64) -> BackendResult<()> {
         let mut pearls = self.pearls_write_guard().await;
-        info!("write lock acquired");
-        for pearl in pearls.drain_filter(|pearl| {
-            info!("{}", pearl.start_timestamp);
+        debug!("write lock acquired");
+        if let Some(pearl) = pearls.iter_mut().find(|pearl| {
+            debug!("{}", pearl.start_timestamp);
             pearl.start_timestamp == start_timestamp
         }) {
-            let pearl: PearlTimestampHolder = pearl;
-            let pearl_holder: PearlHolder = pearl.pearl;
-            let lock_guard: Arc<LockGuard<PearlSync>> = pearl_holder.storage;
-            let rwlock: &RwLock<PearlSync> = lock_guard.storage.as_ref();
-            let pearl_sync: RwLockWriteGuard<_> =
-                rwlock.write().compat().await.expect("write lock");
-            let storage: &Storage<_> = pearl_sync.storage.as_ref().expect("pearl storage");
-            if let Err(e) = storage.close().await {
-                warn!("pearl closed: {:?}", e);
+            if self.settings.is_actual_pearl(&pearl) {
+                let msg = format!(
+                    "current active pearl:{} cannot be detached",
+                    start_timestamp
+                );
+                warn!("{}", msg);
+                Err(Error::PearlChangeState(msg))
+            } else {
+                let pearl: &mut PearlTimestampHolder = pearl;
+                let pearl_holder: &mut PearlHolder = &mut pearl.pearl;
+                let lock_guard: &LockGuard<PearlSync> = &pearl_holder.storage;
+                let rwlock: &RwLock<PearlSync> = lock_guard.storage.as_ref();
+                let pearl_sync: RwLockWriteGuard<_> =
+                    rwlock.write().compat().await.expect("write lock");
+                let storage: &Storage<_> = pearl_sync.storage.as_ref().expect("pearl storage");
+                if let Err(e) = storage.close().await {
+                    warn!("pearl closed: {:?}", e);
+                }
+                pearls.retain(|pearl| pearl.start_timestamp != start_timestamp);
+                Ok(())
             }
+        } else {
+            let msg = format!("pearl:{} not found", start_timestamp);
+            Err(Error::PearlChangeState(msg))
         }
     }
 

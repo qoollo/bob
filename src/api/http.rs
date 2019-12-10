@@ -231,9 +231,13 @@ fn change_partition_state(
             Action::Detach => group.detach(partition_id).await,
         }
     };
-    rt.block_on(task);
-    info!("{}", res);
-    Ok(StatusExt::new(Status::Ok, true, res))
+    match rt.block_on(task) {
+        Ok(_) => {
+            info!("{}", res);
+            Ok(StatusExt::new(Status::Ok, true, res))
+        }
+        Err(e) => Err(StatusExt::new(Status::Ok, false, e.to_string())),
+    }
 }
 
 #[get("/alien")]

@@ -12,6 +12,8 @@ pub enum Error {
 
     Failed(String),
     Internal,
+
+    PearlChangeState(String),
 }
 
 impl Error {
