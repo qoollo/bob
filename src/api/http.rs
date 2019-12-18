@@ -262,7 +262,7 @@ impl<'r> FromParam<'r> for Action {
 
 impl Responder<'_> for StatusExt {
     fn respond_to(self, _: &Request) -> RocketResult<'static> {
-        let msg = format!("{{ ok: {}, msg: {} }}", self.ok, self.msg);
+        let msg = format!("{{ ok: {}, msg: \"{}\" }}", self.ok, self.msg);
         Response::build()
             .status(self.status)
             .sized_body(Cursor::new(msg))
