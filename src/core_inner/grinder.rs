@@ -32,7 +32,7 @@ impl Grinder {
     ) -> Result<BackendPutResult, BackendError> {
         if opts.flags.contains(BobFlags::FORCE_NODE) {
             debug!(
-                "PUT[{}] flag FORCE_NODE is on - will handle it by local node. Put params: {:?}",
+                "PUT[{}] FORCE_NODE=true - will handle it by local node. Put params: {:?}",
                 key, opts
             );
             CLIENT_PUT_COUNTER.count(1);

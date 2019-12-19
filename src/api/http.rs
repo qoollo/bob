@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Action {
     Attach,
     Detach,
@@ -44,31 +44,30 @@ pub struct Partition {
 #[derive(Debug)]
 pub struct StatusExt {
     status: Status,
+    ok: bool,
     msg: String,
 }
 
-pub fn spawn(bob: &BobSrv, port: u16) {
-    let bob = bob.clone();
-    thread::spawn(move || {
+pub fn spawn(bob: BobSrv, port: u16) {
+    let routes = routes![
+        status,
+        vdisks,
+        vdisk_by_id,
+        partitions,
+        partition_by_id,
+        change_partition_state,
+        alien
+    ];
+    let task = move || {
         info!("API server started");
         let mut config = Config::production();
         config.set_port(port);
         Rocket::custom(config)
             .manage(bob)
-            .mount(
-                "/",
-                routes![
-                    status,
-                    vdisks,
-                    vdisk_by_id,
-                    partitions,
-                    partition_by_id,
-                    change_partition_state,
-                    alien
-                ],
-            )
+            .mount("/", routes)
             .launch();
-    });
+    };
+    thread::spawn(task);
 }
 
 fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
@@ -111,6 +110,21 @@ fn not_acceptable_backend() -> Status {
     status
 }
 
+fn find_group(bob: &BobSrv, vdisk_id: u32) -> Result<&PearlGroup, StatusExt> {
+    let backend = bob.grinder.backend.backend();
+    debug!("get backend: OK");
+    let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
+    debug!("get vdisks groups: OK");
+    groups
+        .iter()
+        .find(|group| group.vdisk_id() == vdisk_id)
+        .ok_or_else(|| {
+            let err = format!("vdisk with id: {} not found", vdisk_id);
+            warn!("{}", err);
+            StatusExt::new(Status::NotFound, false, err)
+        })
+}
+
 #[get("/status")]
 fn status(bob: State<BobSrv>) -> Json<Node> {
     let mapper = bob.grinder.backend.mapper();
@@ -138,18 +152,7 @@ fn vdisk_by_id(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<VDisk>> {
 
 #[get("/vdisks/<vdisk_id>/partitions")]
 fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>, StatusExt> {
-    let backend = &bob.grinder.backend.backend();
-    debug!("get backend: OK");
-    let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
-    debug!("get vdisks groups: OK");
-    let group = groups
-        .iter()
-        .find(|group| group.vdisk_id() == vdisk_id)
-        .ok_or_else(|| {
-            let err = format!("vdisk with id: {} not found", vdisk_id);
-            warn!("{}", err);
-            StatusExt::new(Status::NotFound, err)
-        })?;
+    let group = find_group(&bob, vdisk_id)?;
     debug!("group with provided vdisk_id found");
     let pearls = group.pearls().ok_or_else(|| {
         error!("writer panics while holding an exclusive lock");
@@ -174,18 +177,7 @@ fn partition_by_id(
     vdisk_id: u32,
     partition_id: i64,
 ) -> Result<Json<Partition>, StatusExt> {
-    let backend = &bob.grinder.backend.backend();
-    debug!("get backend: OK");
-    let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
-    debug!("get vdisks groups: OK");
-    let group = groups
-        .iter()
-        .find(|group| group.vdisk_id() == vdisk_id)
-        .ok_or_else(|| {
-            let err = format!("vdisk with id: {} not found", vdisk_id);
-            warn!("{}", err);
-            StatusExt::new(Status::NotFound, err)
-        })?;
+    let group = find_group(&bob, vdisk_id)?;
     debug!("group with provided vdisk_id found");
     let pearls = group.pearls().ok_or_else(|| {
         error!("writer panics while holding an exclusive lock");
@@ -215,21 +207,39 @@ fn partition_by_id(
                 partition_id, vdisk_id
             );
             warn!("{}", err);
-            StatusExt::new(Status::NotFound, err)
+            StatusExt::new(Status::NotFound, false, err)
         })
 }
 
-#[put("/vdisks/<vdisk_id>/partitions/<partition_id>/<action>")]
+#[post("/vdisks/<vdisk_id>/partitions/<partition_id>/<action>")]
 fn change_partition_state(
-    _bob: State<BobSrv>,
-    vdisk_id: usize,
-    partition_id: usize,
+    bob: State<BobSrv>,
+    vdisk_id: u32,
+    partition_id: i64,
     action: Action,
-) -> String {
-    format!(
-        "{:?} partittion {} of vd {}",
-        action, partition_id, vdisk_id
-    )
+) -> Result<StatusExt, StatusExt> {
+    let group = find_group(&bob, vdisk_id)?;
+    let group = group.clone();
+    // TODO: run web server on same runtime as bob
+    error!("HOT FIX: run web server on same runtime as bob");
+    let mut rt = Runtime::new().expect("create runtime");
+    let res = format!(
+        "partition with id: {} in vdisk {} is successfully {:?}ed",
+        partition_id, vdisk_id, action
+    );
+    let task = async move {
+        match action {
+            Action::Attach => group.attach(partition_id).await,
+            Action::Detach => group.detach(partition_id).await,
+        }
+    };
+    match rt.block_on(task) {
+        Ok(_) => {
+            info!("{}", res);
+            Ok(StatusExt::new(Status::Ok, true, res))
+        }
+        Err(e) => Err(StatusExt::new(Status::Ok, false, e.to_string())),
+    }
 }
 
 #[get("/alien")]
@@ -252,16 +262,17 @@ impl<'r> FromParam<'r> for Action {
 
 impl Responder<'_> for StatusExt {
     fn respond_to(self, _: &Request) -> RocketResult<'static> {
+        let msg = format!("{{ \"ok\": {}, \"msg\": \"{}\" }}", self.ok, self.msg);
         Response::build()
             .status(self.status)
-            .sized_body(Cursor::new(self.msg))
+            .sized_body(Cursor::new(msg))
             .ok()
     }
 }
 
 impl StatusExt {
-    fn new(status: Status, msg: String) -> Self {
-        Self { status, msg }
+    fn new(status: Status, ok: bool, msg: String) -> Self {
+        Self { status, ok, msg }
     }
 }
 
@@ -269,6 +280,7 @@ impl From<Status> for StatusExt {
     fn from(status: Status) -> Self {
         Self {
             status,
+            ok: true,
             msg: status.reason.to_owned(),
         }
     }

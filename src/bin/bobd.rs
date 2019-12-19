@@ -58,11 +58,23 @@ async fn main() {
         )
         .get_matches();
 
-    let cluster_config = matches.value_of("cluster").expect("expect cluster config");
+    if matches.value_of("cluster").is_none() {
+        eprintln!("Expect cluster config");
+        eprintln!("use -h for help");
+        return;
+    }
+
+    if matches.value_of("node").is_none() {
+        eprintln!("Expect node config");
+        eprintln!("use -h for help");
+        return;
+    }
+
+    let cluster_config = matches.value_of("cluster").unwrap();
     println!("Cluster config: {:?}", cluster_config);
     let (vdisks, cluster) = ClusterConfigYaml::get(cluster_config).unwrap();
 
-    let node_config = matches.value_of("node").expect("expect node config");
+    let node_config = matches.value_of("node").unwrap();
     println!("Node config: {:?}", node_config);
     let node = NodeConfigYaml::get(node_config, &cluster).unwrap();
 

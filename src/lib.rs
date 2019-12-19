@@ -1,4 +1,4 @@
-#![feature(proc_macro_hygiene, decl_macro)]
+#![feature(proc_macro_hygiene, decl_macro, drain_filter)]
 // #![deny(missing_debug_implementations)]
 // #![deny(missing_docs)]
 // #![warn(clippy::pedantic)]

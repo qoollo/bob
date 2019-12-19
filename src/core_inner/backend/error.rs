@@ -12,6 +12,8 @@ pub enum Error {
 
     Failed(String),
     Internal,
+
+    PearlChangeState(String),
 }
 
 impl Error {
@@ -61,6 +63,7 @@ impl Display for Error {
         match self {
             Self::VDiskNoFound(id) => write!(f, "vdisk: {:?} not found", id),
             Self::Storage(description) => write!(f, "backend error: {}", description),
+            Self::PearlChangeState(description) => write!(f, "backend error: {}", description),
             err => write!(f, "{:?}", err),
         }
     }

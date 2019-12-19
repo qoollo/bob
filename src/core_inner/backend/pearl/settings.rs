@@ -207,12 +207,13 @@ impl Settings {
         vdisk_path
     }
 
+    #[inline]
     pub fn timestamp_period(&self) -> Duration {
         self.timestamp_period
     }
 
     #[inline]
-    pub fn get_timestamp_period(&self) -> BackendResult<i64> {
+    pub fn get_timestamp_period(&self) -> i64 {
         Stuff::get_period_timestamp(self.timestamp_period)
     }
 

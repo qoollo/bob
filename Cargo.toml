@@ -5,7 +5,7 @@ authors = ["Kirill Bushminkin <kb@qoollo.com>"]
 edition = "2018"
 
 [dependencies]
-pearl = { git = "https://github.com/qoollo/pearl", branch = "develop" }
+pearl = "0.1"
 futures-preview = { version = "0.3.0-alpha.19", features = ["compat"] }
 futures-locks = "0.5"
 tokio = "0.2.0-alpha.6"
@@ -24,7 +24,7 @@ hyper = "0.13.0-alpha.4"
 humantime = "1.2.0"
 chrono = "0.4.9"
 dipstick = "~0.7"
-mockall = "~0.3"
+mockall = "0.5"
 cfg-if = "~0.1"
 env_logger = "*"
 tonic = "0.1.0-alpha.6"
