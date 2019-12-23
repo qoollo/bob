@@ -47,7 +47,7 @@ mod prelude {
         GRINDER_PUT_COUNTER, GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER,
     };
     pub(crate) use stopwatch::Stopwatch;
-    pub(crate) use tokio::{runtime::TaskExecutor, timer::Interval};
+    pub(crate) use tokio::time::interval;
     pub(crate) use tonic::{body::BoxBody, Code, Request, Response, Status};
     pub(crate) use tower::{buffer::Buffer, layer::Layer, Service, ServiceBuilder};
     pub(crate) use tower_reconnect::Reconnect;

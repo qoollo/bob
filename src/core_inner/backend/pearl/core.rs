@@ -35,7 +35,7 @@ impl PearlBackend {
 
     #[inline]
     async fn put_common(pearl: PearlGroup, key: BobKey, data: BobData) -> PutResult {
-        let res = pearl.put(key, data).await;
+        let res = pearl.put(key, data).boxed().await;
         res.map(|_ok| BackendPutResult {})
     }
 
@@ -48,10 +48,15 @@ impl PearlBackend {
     async fn create_alien_pearl(&self, operation: BackendOperation) -> BackendResult<()> {
         // check if pearl is currently creating
         trace!("try create alien for: {}", operation);
-        if self.pearl_sync.try_init().await? {
+        if self.pearl_sync.try_init().boxed().await? {
             // check if alien created
             debug!("create alien for: {}", operation);
-            if self.find_alien_pearl(operation.clone()).await.is_err() {
+            if self
+                .find_alien_pearl(operation.clone())
+                .boxed()
+                .await
+                .is_err()
+            {
                 let pearl = self
                     .settings
                     .clone()
@@ -60,16 +65,18 @@ impl PearlBackend {
 
                 self.alien_vdisks_groups
                     .write_sync_mut(|groups| {
-                        groups.push(pearl.clone());
+                        unimplemented!()
+                        // groups.push(pearl.clone());
                     })
+                    .boxed()
                     .await?;
             }
             // if it run here then it will conflict withtimstamp runtime creation
-            // pearl.run().await;
-            self.pearl_sync.mark_as_created().await
+            // pearl.run().boxed().await;
+            self.pearl_sync.mark_as_created().boxed().await
         } else {
             let t = self.settings.config.settings().create_pearl_wait_delay();
-            delay_for(t).await;
+            delay_for(t).boxed().await;
             Ok(())
         }
     }
@@ -107,10 +114,10 @@ impl BackendStorage for PearlBackend {
             }
 
             alien_vdisks_groups
-                .read(|pearls| {
+                .read(|pearl_groups| {
                     async move {
-                        for pearl in pearls {
-                            pearl.run().await;
+                        for group in pearl_groups {
+                            group.run().await;
                         }
                         Ok(())
                     }
@@ -133,6 +140,7 @@ impl BackendStorage for PearlBackend {
             let group = group.clone();
             let task = async move {
                 Self::put_common(group, key, data) // TODO remove copy of disk. add Box?
+                    .boxed()
                     .await
                     .map_err(|e| {
                         debug!("PUT[{}], error: {:?}", key, e);
@@ -155,17 +163,19 @@ impl BackendStorage for PearlBackend {
         let backend = self.clone();
         Put({
             async move {
-                let mut vdisk_group = backend.find_alien_pearl(operation.clone()).await;
+                let mut vdisk_group = backend.find_alien_pearl(operation.clone()).boxed().await;
                 if vdisk_group.is_err() {
                     debug!("need create alien for: {}", operation.clone());
                     backend
                         .create_alien_pearl(operation.clone())
+                        .boxed()
                         .await
                         .expect("create alien pearl");
-                    vdisk_group = backend.find_alien_pearl(operation.clone()).await;
+                    vdisk_group = backend.find_alien_pearl(operation.clone()).boxed().await;
                 }
                 if let Ok(group) = vdisk_group {
                     Self::put_common(group.clone(), key, data) // TODO remove copy of disk. add Box?
+                        .boxed()
                         .await
                         .map_err(|e| {
                             debug!("PUT[alien][{}], error: {:?}", key, e);

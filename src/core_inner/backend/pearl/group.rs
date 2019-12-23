@@ -84,7 +84,7 @@ impl PearlGroup {
             pearls = read_pearls;
         }) {
             error!("{}: can't create pearls: {:?}", self, e);
-            delay_for(t).await;
+            delay_for(t).boxed().await;
         }
         debug!("{}: count pearls: {}", self, pearls.len());
 
@@ -99,13 +99,13 @@ impl PearlGroup {
         debug!("{}: save pearls to group", self);
         while let Err(err) = self.add_range(pearls.clone()).await {
             error!("{}: can't add pearls: {:?}", self, err);
-            delay_for(t).await;
+            delay_for(t).boxed().await;
         }
 
         debug!("{}: start pearls", self);
         while let Err(err) = self.run_pearls().await {
             error!("{}: can't start pearls: {:?}", self, err);
-            delay_for(t).await;
+            delay_for(t).boxed().await;
         }
     }
 
@@ -144,6 +144,7 @@ impl PearlGroup {
         self.pearls
             .write()
             .compat()
+            .boxed()
             .await
             .map(|mut pearls| {
                 pearls.extend(new_pearls);
@@ -156,11 +157,14 @@ impl PearlGroup {
 
     /// find in all pearls actual pearl and try create new
     async fn try_get_current_pearl(&self, data: &BobData) -> BackendResult<PearlTimestampHolder> {
-        let task = self.find_current_pearl(data).or_else(|e| {
-            debug!("cannot find pearl: {}", e);
-            self.create_current_write_pearl(data)
-                .and_then(|_| self.find_current_pearl(data))
-        });
+        let task = self
+            .find_current_pearl(data)
+            .or_else(|e| {
+                debug!("cannot find pearl: {}", e);
+                self.create_current_write_pearl(data)
+                    .and_then(|_| self.find_current_pearl(data))
+            })
+            .boxed();
         task.await
     }
 
@@ -213,9 +217,9 @@ impl PearlGroup {
     }
 
     pub async fn put(&self, key: BobKey, data: BobData) -> PutResult {
-        let holder = self.try_get_current_pearl(&data).await?;
+        let holder = self.try_get_current_pearl(&data).boxed().await?;
 
-        Self::put_common(holder.pearl, key, data).await
+        Self::put_common(holder.pearl, key, data).boxed().await
     }
 
     async fn put_common(holder: PearlHolder, key: BobKey, data: BobData) -> PutResult {
@@ -388,6 +392,9 @@ impl PearlGroup {
         Ok(pearls)
     }
 }
+
+// Traits
+impl Send for PearlGroup {}
 
 impl Display for PearlGroup {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {

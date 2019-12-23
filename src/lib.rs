@@ -29,7 +29,9 @@ pub use self::core_inner::{
 mod prelude {
     pub(crate) use super::*;
     pub(crate) use backend::data::{NodeDisk as DataNodeDisk, VDisk as DataVDisk};
-    pub(crate) use grpc::{client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
+    pub(crate) use grpc::{
+        bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest,
+    };
     pub(crate) use std::{
         cell::{Cell, RefCell},
         collections::HashMap,

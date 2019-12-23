@@ -10,7 +10,6 @@ pub(crate) mod b_client {
 
     use super::PingResult;
     use mockall::*;
-    use tokio::future::FutureExt as TokioFutureExt;
 
     #[derive(Clone)]
     pub struct RealBobClient {
