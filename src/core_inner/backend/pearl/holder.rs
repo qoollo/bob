@@ -182,7 +182,11 @@ impl PearlHolder {
     }
 
     fn init_pearl_by_path(path: &PathBuf, config: &PearlConfig) -> BackendResult<PearlStorage> {
-        let builder = Builder::new().work_dir(path);
+        let mut builder = Builder::new().work_dir(path);
+
+        if config.allow_duplicates.unwrap_or(true) {
+            builder = builder.allow_duplicates();
+        }
 
         let prefix = config
             .blob_file_name_prefix

@@ -1,20 +1,22 @@
 #[macro_use]
 extern crate log;
 
-use bob::grpc::{client::BobApiClient, GetOptions, GetRequest, GetSource, PutOptions, PutRequest};
+use bob::grpc::{
+    bob_api_client::BobApiClient, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
+};
 use bob::grpc::{Blob, BlobKey, BlobMeta};
-use bob::service::ClientSvc;
 use clap::{App, Arg};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::{self, Duration, SystemTime, UNIX_EPOCH};
-use tokio::timer::delay_for;
+use tokio::time::delay_for;
+use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
 
-async fn build_client(net_conf: NetConfig) -> BobApiClient<ClientSvc> {
-    let conn = ClientSvc::new(net_conf.get_uri());
-    BobApiClient::new(conn)
+async fn build_client(net_conf: NetConfig) -> BobApiClient<Channel> {
+    let endpoint = Endpoint::from(net_conf.get_uri()).tcp_nodelay(true);
+    BobApiClient::connect(endpoint).await.unwrap()
 }
 
 #[derive(Debug, Clone)]

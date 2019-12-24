@@ -374,27 +374,24 @@ impl Node {
     }
 
     pub(crate) async fn check(self, client_fatory: BobClientFactory) -> Result<(), String> {
-        match self.get_connection() {
-            Some(mut conn) => {
-                conn.ping()
-                    .await
-                    .map(|_| debug!("All good with pinging node {:?}", self))
-                    .map_err(|e| {
-                        debug!("Got broken connection to node {:?}", self);
-                        self.clear_connection();
-                        e.to_string()
-                    })?;
-                Ok(())
-            }
-            None => {
-                debug!("will connect to {:?}", self);
-                client_fatory
-                    .produce(self.clone())
-                    .await
-                    .map(move |client| {
-                        self.set_connection(client);
-                    })
-            }
+        let connection = self.get_connection();
+        if let Some(mut conn) = connection {
+            conn.ping()
+                .await
+                .map(|_| debug!("All good with pinging node {:?}", self))
+                .map_err(|e| {
+                    debug!("Got broken connection to node {:?}", self);
+                    self.clear_connection();
+                    e.to_string()
+                })
+        } else {
+            debug!("will connect to {:?}", self);
+            client_fatory
+                .produce(self.clone())
+                .await
+                .map(move |client| {
+                    self.set_connection(client);
+                })
         }
     }
 }

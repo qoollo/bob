@@ -1,4 +1,4 @@
-use bob::grpc::client::BobApiClient;
+use bob::grpc::bob_api_client::BobApiClient;
 use bob::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
 use std::io;
 use std::time::{SystemTime, UNIX_EPOCH};

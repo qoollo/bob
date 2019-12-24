@@ -8,7 +8,6 @@ pub mod link_manager;
 pub mod mapper;
 pub mod metrics;
 pub mod server;
-pub mod service;
 
 pub(crate) use super::prelude::*;
 pub(crate) use backend::{
@@ -35,9 +34,9 @@ mod prelude {
     };
     pub(crate) use futures::{future, Future, FutureExt, StreamExt, TryFutureExt};
     pub(crate) use grinder::Grinder;
-    pub(crate) use grpc::{server::BobApi, GetOptions, GetSource, Null, OpStatus, PutOptions};
-    pub(crate) use http::{Request as HttpRequest, Uri};
-    pub(crate) use hyper::client::{conn::Builder, service::Connect, HttpConnector};
+    pub(crate) use grpc::{
+        bob_api_server::BobApi, GetOptions, GetSource, Null, OpStatus, PutOptions,
+    };
     pub(crate) use link_manager::LinkManager;
     pub(crate) use mapper::VDiskMapper;
     pub(crate) use metrics::{
@@ -47,8 +46,9 @@ mod prelude {
         GRINDER_PUT_COUNTER, GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER,
     };
     pub(crate) use stopwatch::Stopwatch;
-    pub(crate) use tokio::{runtime::TaskExecutor, timer::Interval};
-    pub(crate) use tonic::{body::BoxBody, Code, Request, Response, Status};
-    pub(crate) use tower::{buffer::Buffer, layer::Layer, Service, ServiceBuilder};
-    pub(crate) use tower_reconnect::Reconnect;
+    pub(crate) use tokio::time::{interval, timeout};
+    pub(crate) use tonic::{
+        transport::{Channel, Endpoint},
+        Code, Request, Response, Status,
+    };
 }

@@ -14,7 +14,7 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
 
     pub(crate) async fn read<F, TRet>(&self, f: F) -> BackendResult<TRet>
     where
-        F: Fn(TGuard) -> Future03Result<TRet> + Send + Sync,
+        F: Fn(TGuard) -> FutureResult<TRet> + Send + Sync,
     {
         let storage = self
             .storage
@@ -43,7 +43,7 @@ impl<TGuard: Send + Clone> LockGuard<TGuard> {
 
     pub(crate) async fn write_mut<F, TRet>(&self, f: F) -> BackendResult<TRet>
     where
-        F: Fn(&mut TGuard) -> Future03Result<TRet> + Send + Sync,
+        F: Fn(&mut TGuard) -> FutureResult<TRet> + Send + Sync,
     {
         let mut st = self
             .storage

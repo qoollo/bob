@@ -1,7 +1,7 @@
 use super::prelude::*;
 
 pub(crate) type BackendResult<T> = Result<T, Error>;
-pub(crate) type Future03Result<TRet> = Pin<Box<dyn Future<Output = BackendResult<TRet>> + Send>>;
+pub(crate) type FutureResult<TRet> = Pin<Box<dyn Future<Output = BackendResult<TRet>> + Send>>;
 
 pub(crate) type PearlStorage = Storage<PearlKey>;
 

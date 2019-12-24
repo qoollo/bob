@@ -3,20 +3,18 @@ pub(crate) mod b_client {
     use super::*;
     use crate::grpc::{Blob, BlobMeta};
     use crate::grpc::{GetOptions, GetRequest, PutOptions, PutRequest};
-    use service::ClientSvc;
 
     use std::time::Duration;
     use tonic::Request;
 
     use super::PingResult;
     use mockall::*;
-    use tokio::future::FutureExt as TokioFutureExt;
 
     #[derive(Clone)]
     pub struct RealBobClient {
         node: Node,
         timeout: Duration,
-        client: BobApiClient<ClientSvc>,
+        client: BobApiClient<Channel>,
         metrics: BobClientMetrics,
     }
 
@@ -27,8 +25,10 @@ pub(crate) mod b_client {
             timeout: Duration,
             metrics: BobClientMetrics,
         ) -> Result<Self, String> {
-            let conn = ClientSvc::new(node.get_uri());
-            let client = BobApiClient::new(conn);
+            let endpoint = Endpoint::from(node.get_uri()).tcp_nodelay(true);
+            let client = BobApiClient::connect(endpoint)
+                .await
+                .map_err(|e| e.to_string())?;
             Ok(Self {
                 node,
                 client,
@@ -62,28 +62,28 @@ pub(crate) mod b_client {
             let mut client = self.client.clone();
             let metrics = self.metrics.clone();
             let node = self.node.clone();
-            let timeout = self.timeout;
+            let t = self.timeout;
             let res = async move {
-                client
-                    .put(request)
-                    .map(|res| {
+                timeout(
+                    t,
+                    client.put(request).map(|res| {
                         res.expect("client put request");
                         metrics.put_timer_stop(timer);
                         ClusterResult {
                             node: node.clone(),
                             result: BackendPutResult {},
                         }
-                    })
-                    .timeout(timeout)
-                    .await
-                    .map_err(|_| {
-                        metrics.put_error_count();
-                        metrics.put_timer_stop(timer);
-                        ClusterResult {
-                            result: BackendError::Timeout,
-                            node,
-                        }
-                    })
+                    }),
+                )
+                .await
+                .map_err(|_| {
+                    metrics.put_error_count();
+                    metrics.put_timer_stop(timer);
+                    ClusterResult {
+                        result: BackendError::Timeout,
+                        node,
+                    }
+                })
             };
             Put(res.boxed())
         }
@@ -93,7 +93,7 @@ pub(crate) mod b_client {
             let n1 = self.node.clone();
             let n2 = self.node.clone();
             let mut client = self.client.clone();
-            let timeout = self.timeout;
+            let t = self.timeout;
 
             let metrics = self.metrics.clone();
             let metrics2 = self.metrics.clone();
@@ -102,14 +102,15 @@ pub(crate) mod b_client {
             let timer = metrics.get_timer();
 
             let task = async move {
-                let res = client
-                    .get(Request::new(GetRequest {
+                let res = timeout(
+                    t,
+                    client.get(Request::new(GetRequest {
                         key: Some(BlobKey { key: key.key }),
                         options: Some(options),
-                    }))
-                    .timeout(timeout)
-                    .await
-                    .expect("client get with timeout");
+                    })),
+                )
+                .await
+                .expect("client get with timeout");
                 res.map(move |r| {
                     metrics.get_timer_stop(timer);
                     let ans = r.into_inner();
@@ -140,9 +141,7 @@ pub(crate) mod b_client {
         #[allow(dead_code)]
         pub async fn ping(&mut self) -> PingResult {
             let mut client = self.client.clone();
-            let ping_res = client
-                .ping(Request::new(Null {}))
-                .timeout(self.timeout)
+            let ping_res = timeout(self.timeout, client.ping(Request::new(Null {})))
                 .await
                 .expect("client ping with timeout")
                 .map(|_| ClusterResult {
@@ -191,7 +190,6 @@ pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<Bac
 
 #[derive(Clone)]
 pub struct BobClientFactory {
-    executor: TaskExecutor,
     timeout: Duration,
     buffer_bound: u16,
     metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
@@ -199,13 +197,11 @@ pub struct BobClientFactory {
 
 impl BobClientFactory {
     pub fn new(
-        executor: TaskExecutor,
         timeout: Duration,
         buffer_bound: u16,
         metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
     ) -> Self {
         BobClientFactory {
-            executor,
             timeout,
             buffer_bound,
             metrics,

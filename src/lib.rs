@@ -23,13 +23,15 @@ mod core_inner;
 
 pub use self::api::grpc;
 pub use self::core_inner::{
-    backend, bob_client as client, configs, grinder, mapper, metrics, server, service,
+    backend, bob_client as client, configs, grinder, mapper, metrics, server,
 };
 
 mod prelude {
     pub(crate) use super::*;
     pub(crate) use backend::data::{NodeDisk as DataNodeDisk, VDisk as DataVDisk};
-    pub(crate) use grpc::{client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
+    pub(crate) use grpc::{
+        bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest,
+    };
     pub(crate) use std::{
         cell::{Cell, RefCell},
         collections::HashMap,
@@ -41,7 +43,6 @@ mod prelude {
         path::{Path, PathBuf},
         pin::Pin,
         sync::{Arc, Mutex},
-        task::{Context, Poll},
         thread,
         time::{Duration, SystemTime},
     };

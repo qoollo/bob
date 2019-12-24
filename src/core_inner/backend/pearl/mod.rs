@@ -20,7 +20,7 @@ mod prelude {
     pub(crate) use ::pearl::{Builder, ErrorKind, Key, Storage};
     pub(crate) use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
     pub(crate) use configs::PearlConfig;
-    pub(crate) use data::{BackendResult, Future03Result, PearlData, PearlKey, PearlStorage};
+    pub(crate) use data::{BackendResult, FutureResult, PearlData, PearlKey, PearlStorage};
     pub(crate) use futures_locks::{RwLockReadGuard, RwLockWriteGuard};
     pub(crate) use group::PearlTimestampHolder;
     pub(crate) use holder::{PearlHolder, PearlSync};
@@ -30,5 +30,5 @@ mod prelude {
     };
     pub(crate) use settings::Settings;
     pub(crate) use stuff::{LockGuard, Stuff, SyncState};
-    pub(crate) use tokio::timer::delay_for;
+    pub(crate) use tokio::time::delay_for;
 }

@@ -156,12 +156,13 @@ impl PearlGroup {
 
     /// find in all pearls actual pearl and try create new
     async fn try_get_current_pearl(&self, data: &BobData) -> BackendResult<PearlTimestampHolder> {
-        let task = self.find_current_pearl(data).or_else(|e| {
-            debug!("cannot find pearl: {}", e);
-            self.create_current_write_pearl(data)
-                .and_then(|_| self.find_current_pearl(data))
-        });
-        task.await
+        self.find_current_pearl(data)
+            .or_else(|e| {
+                debug!("cannot find pearl: {}", e);
+                self.create_current_write_pearl(data)
+                    .and_then(|_| self.find_current_pearl(data))
+            })
+            .await
     }
 
     /// find in all pearls actual pearl

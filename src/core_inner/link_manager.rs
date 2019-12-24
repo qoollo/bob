@@ -18,7 +18,7 @@ impl LinkManager {
 
     pub async fn get_checker_future(&self, client_factory: BobClientFactory) -> Result<(), ()> {
         let local_repo = self.repo.clone();
-        Interval::new_interval(self.check_interval)
+        interval(self.check_interval)
             .map(move |_| {
                 local_repo.iter().for_each(|v| {
                     let q = v.clone().check(client_factory.clone()).map(|_| {});
