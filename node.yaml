@@ -1,5 +1,5 @@
 log_config: logger.yaml            # logger config file
-name: node1                        # node name, required to match with cluster config
+name: local_node                        # node name, required to match with cluster config
 quorum: 1                          # min count of successful operations on replicas to consider operation successful
 operation_timeout: 3sec            # timeout for every GRPC operation, eg: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
 check_interval: 5000ms             # interval for checking connections , eg: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
