@@ -378,7 +378,7 @@ impl Node {
         Result<(), String>: Send,
     {
         let connection = self.get_connection();
-        if let Some(conn) = connection {
+        if let Some(mut conn) = connection {
             conn.ping()
                 .await
                 .map(|_| debug!("All good with pinging node {:?}", self))
@@ -386,7 +386,7 @@ impl Node {
                     debug!("Got broken connection to node {:?}", self);
                     self.clear_connection();
                     e.to_string()
-                })?;
+                })
         } else {
             debug!("will connect to {:?}", self);
             client_fatory
@@ -394,9 +394,8 @@ impl Node {
                 .await
                 .map(move |client| {
                     self.set_connection(client);
-                })?;
+                })
         }
-        Ok(())
     }
 }
 

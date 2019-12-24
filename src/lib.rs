@@ -23,7 +23,7 @@ mod core_inner;
 
 pub use self::api::grpc;
 pub use self::core_inner::{
-    backend, bob_client as client, configs, grinder, mapper, metrics, server, service,
+    backend, bob_client as client, configs, grinder, mapper, metrics, server,
 };
 
 mod prelude {
@@ -43,7 +43,6 @@ mod prelude {
         path::{Path, PathBuf},
         pin::Pin,
         sync::{Arc, Mutex},
-        task::{Context, Poll},
         thread,
         time::{Duration, SystemTime},
     };

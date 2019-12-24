@@ -5,6 +5,7 @@ authors = ["Kirill Bushminkin <kb@qoollo.com>"]
 edition = "2018"
 
 [dependencies]
+http = "0.2.0"
 pearl = "0.2.2"
 futures = { version = "0.3.1", features = ["thread-pool", "compat"] }
 futures-locks = "0.5"
@@ -16,7 +17,6 @@ log = "~0.4"
 log4rs = "~0.8.3"
 clap = "~2.31"
 bitflags = "1.2.1"
-http = "~0.1"
 prost = "~0.5"
 bytes = "~0.4"
 stopwatch = "0.0.7"
@@ -35,9 +35,6 @@ tower-balance = "0.3.0"
 tower-load = "0.3.0"
 rocket = "0.4"
 rocket_contrib = "0.4"
-
-[dependencies.tower-reconnect]
-git = "https://github.com/tower-rs/tower"
 
 [build-dependencies]
 tonic-build = "0.1.0-alpha.6"

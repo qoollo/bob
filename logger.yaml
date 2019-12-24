@@ -23,7 +23,7 @@ root:
 
 loggers:
   bob:
-    level: debug
+    level: info
     appenders:
       - requests
       - stdout

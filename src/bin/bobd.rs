@@ -2,16 +2,14 @@ use bob::client::BobClientFactory;
 use bob::configs::cluster::ConfigYaml as ClusterConfigYaml;
 use bob::configs::node::{DiskPath, NodeConfigYaml};
 use bob::grinder::Grinder;
-use bob::grpc::server::BobApiServer;
+use bob::grpc::bob_api_server::BobApiServer;
 use bob::mapper::VDiskMapper;
 use bob::metrics;
 use bob::server::BobSrv;
-use bob::service::ServerSvc;
 use clap::{App, Arg};
 use futures::future::FutureExt;
-use hyper::server::conn::AddrIncoming;
-use hyper::Server;
 use std::net::SocketAddr;
+use tonic::transport::Server;
 
 #[macro_use]
 extern crate log;
@@ -109,8 +107,6 @@ async fn main() {
         grinder: std::sync::Arc::new(Grinder::new(mapper, &node)),
     };
 
-    let executor = rt.executor();
-
     info!("Start backend");
     bob.run_backend().await.unwrap();
     info!("Start API server");
@@ -120,16 +116,15 @@ async fn main() {
         .expect("expect http_api_port port");
     bob.run_api_server(http_api_port);
 
-    let factory =
-        BobClientFactory::new(executor, node.timeout(), node.grpc_buffer_bound(), metrics);
+    let factory = BobClientFactory::new(node.timeout(), node.grpc_buffer_bound(), metrics);
     let b = bob.clone();
     tokio::spawn(async move { b.get_periodic_tasks(factory).map(|r| r.unwrap()).await });
     let new_service = BobApiServer::new(bob);
-    let svc = ServerSvc(new_service);
 
-    Server::builder(AddrIncoming::bind(&addr).unwrap())
+    Server::builder()
         .tcp_nodelay(true)
-        .serve(svc)
+        .add_service(new_service)
+        .serve(addr)
         .await
         .unwrap();
 }

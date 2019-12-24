@@ -218,8 +218,8 @@ fn change_partition_state(
     partition_id: i64,
     action: Action,
 ) -> Result<StatusExt, StatusExt> {
-    // let group = find_group(&bob, vdisk_id)?;
-    // let group = group.clone();
+    let group = find_group(&bob, vdisk_id)?;
+    let group = group.clone();
     // TODO: run web server on same runtime as bob
     error!("HOT FIX: run web server on same runtime as bob");
     let mut rt = Runtime::new().expect("create runtime");
@@ -227,20 +227,19 @@ fn change_partition_state(
         "partition with id: {} in vdisk {} is successfully {:?}ed",
         partition_id, vdisk_id, action
     );
-    // let task = async move {
-    //     match action {
-    //         Action::Attach => group.attach(partition_id).await,
-    //         Action::Detach => group.detach(partition_id).await,
-    //     }
-    // };
-    // match rt.block_on(task) {
-    //     Ok(_) => {
-    //         info!("{}", res);
-    //         Ok(StatusExt::new(Status::Ok, true, res))
-    //     }
-    //     Err(e) => Err(StatusExt::new(Status::Ok, false, e.to_string())),
-    // }
-    unimplemented!()
+    let task = async move {
+        match action {
+            Action::Attach => group.attach(partition_id).await,
+            Action::Detach => group.detach(partition_id).await,
+        }
+    };
+    match rt.block_on(task) {
+        Ok(_) => {
+            info!("{}", res);
+            Ok(StatusExt::new(Status::Ok, true, res))
+        }
+        Err(e) => Err(StatusExt::new(Status::Ok, false, e.to_string())),
+    }
 }
 
 #[get("/alien")]

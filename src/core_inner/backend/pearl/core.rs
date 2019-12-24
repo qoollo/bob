@@ -35,7 +35,7 @@ impl PearlBackend {
 
     #[inline]
     async fn put_common(pearl: PearlGroup, key: BobKey, data: BobData) -> PutResult {
-        let res = pearl.put(key, data).boxed().await;
+        let res = pearl.put(key, data).await;
         res.map(|_ok| BackendPutResult {})
     }
 
@@ -51,12 +51,7 @@ impl PearlBackend {
         if self.pearl_sync.try_init().boxed().await? {
             // check if alien created
             debug!("create alien for: {}", operation);
-            if self
-                .find_alien_pearl(operation.clone())
-                .boxed()
-                .await
-                .is_err()
-            {
+            if self.find_alien_pearl(operation.clone()).await.is_err() {
                 let pearl = self
                     .settings
                     .clone()
@@ -65,8 +60,7 @@ impl PearlBackend {
 
                 self.alien_vdisks_groups
                     .write_sync_mut(|groups| {
-                        unimplemented!()
-                        // groups.push(pearl.clone());
+                        groups.push(pearl.clone());
                     })
                     .boxed()
                     .await?;
@@ -140,7 +134,6 @@ impl BackendStorage for PearlBackend {
             let group = group.clone();
             let task = async move {
                 Self::put_common(group, key, data) // TODO remove copy of disk. add Box?
-                    .boxed()
                     .await
                     .map_err(|e| {
                         debug!("PUT[{}], error: {:?}", key, e);
@@ -168,14 +161,12 @@ impl BackendStorage for PearlBackend {
                     debug!("need create alien for: {}", operation.clone());
                     backend
                         .create_alien_pearl(operation.clone())
-                        .boxed()
                         .await
                         .expect("create alien pearl");
                     vdisk_group = backend.find_alien_pearl(operation.clone()).boxed().await;
                 }
                 if let Ok(group) = vdisk_group {
                     Self::put_common(group.clone(), key, data) // TODO remove copy of disk. add Box?
-                        .boxed()
                         .await
                         .map_err(|e| {
                             debug!("PUT[alien][{}], error: {:?}", key, e);
