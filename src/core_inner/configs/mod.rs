@@ -12,6 +12,7 @@ pub(crate) use super::prelude::*;
 mod prelude {
     pub(crate) use super::*;
 
+    pub(crate) use humantime::Duration as HumanDuration;
     pub(crate) use reader::{Validatable, YamlBobConfigReader};
     pub(crate) use serde::Deserialize;
 }

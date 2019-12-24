@@ -1,7 +1,7 @@
 log_config: logger.yaml       # logger config file
 name: node1
 quorum: 1
-timeout: 3sec
+operation_timeout: 3sec       # timeout for every GRPC operation, [1y 2M 4w 8d 16h 32min 64s 128ms 256us 512 ns]
 check_interval: 5000ms
 cluster_policy: simple        # simple, quorum
 ping_threads_count: 2
