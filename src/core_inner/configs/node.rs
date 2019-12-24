@@ -250,8 +250,6 @@ pub struct NodeConfig {
     #[serde(skip)]
     pub bind_ref: RefCell<String>,
     #[serde(skip)]
-    pub check_ref: Cell<Duration>,
-    #[serde(skip)]
     pub disks_ref: RefCell<Vec<DiskPath>>,
 }
 
@@ -280,13 +278,18 @@ impl NodeConfig {
     pub fn operation_timeout(&self) -> Duration {
         self.operation_timeout
             .as_ref()
-            .expect("clone timeout")
+            .expect("get config operation timeout")
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
     }
     pub fn check_interval(&self) -> Duration {
-        self.check_ref.get()
+        self.check_interval
+            .as_ref()
+            .expect("get config check interval")
+            .parse::<HumanDuration>()
+            .expect("parse humantime duration")
+            .into()
     }
     pub fn disks(&self) -> Vec<DiskPath> {
         self.disks_ref.borrow().clone()
@@ -310,15 +313,6 @@ impl NodeConfig {
     pub fn prepare(&self, node: &Node) -> Result<(), String> {
         self.bind_ref
             .replace(node.address.clone().expect("clone node address"));
-
-        let t1: Duration = self
-            .check_interval
-            .clone()
-            .expect("clone check interval")
-            .parse::<HumanDuration>()
-            .expect("parse humantime duration")
-            .into();
-        self.check_ref.set(t1);
 
         self.disks_ref.replace(
             node.disks
@@ -527,7 +521,6 @@ pub mod tests {
             pearl: None,
             metrics: None,
             bind_ref: RefCell::default(),
-            check_ref: Cell::default(),
             disks_ref: RefCell::default(),
         }
     }
