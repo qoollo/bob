@@ -14,7 +14,7 @@ pub(crate) mod b_client {
     pub struct RealBobClient {
         node: Node,
         timeout: Duration,
-        client: BobApiClient<tonic::transport::Channel>,
+        client: BobApiClient<Channel>,
         metrics: BobClientMetrics,
     }
 
@@ -25,7 +25,7 @@ pub(crate) mod b_client {
             timeout: Duration,
             metrics: BobClientMetrics,
         ) -> Result<Self, String> {
-            let endpoint = tonic::transport::Endpoint::from(node.get_uri()).tcp_nodelay(true);
+            let endpoint = Endpoint::from(node.get_uri()).tcp_nodelay(true);
             let client = BobApiClient::connect(endpoint)
                 .await
                 .map_err(|e| e.to_string())?;

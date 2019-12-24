@@ -142,6 +142,7 @@ pub struct PearlConfig {
     pub pool_count_threads: Option<u16>,
     pub fail_retry_timeout: Option<String>,
     pub alien_disk: Option<String>,
+    pub allow_duplicates: Option<bool>,
 
     pub settings: Option<BackendSettings>,
 }

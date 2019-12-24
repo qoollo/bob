@@ -47,5 +47,8 @@ mod prelude {
     };
     pub(crate) use stopwatch::Stopwatch;
     pub(crate) use tokio::time::{interval, timeout};
-    pub(crate) use tonic::{Code, Request, Response, Status};
+    pub(crate) use tonic::{
+        transport::{Channel, Endpoint},
+        Code, Request, Response, Status,
+    };
 }

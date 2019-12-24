@@ -11,10 +11,11 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{self, Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::delay_for;
+use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
 
-async fn build_client(net_conf: NetConfig) -> BobApiClient<tonic::transport::Channel> {
-    let endpoint = tonic::transport::Endpoint::from(net_conf.get_uri()).tcp_nodelay(true);
+async fn build_client(net_conf: NetConfig) -> BobApiClient<Channel> {
+    let endpoint = Endpoint::from(net_conf.get_uri()).tcp_nodelay(true);
     BobApiClient::connect(endpoint).await.unwrap()
 }
 

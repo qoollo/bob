@@ -84,7 +84,7 @@ impl PearlGroup {
             pearls = read_pearls;
         }) {
             error!("{}: can't create pearls: {:?}", self, e);
-            delay_for(t).boxed().await;
+            delay_for(t).await;
         }
         debug!("{}: count pearls: {}", self, pearls.len());
 
@@ -99,13 +99,13 @@ impl PearlGroup {
         debug!("{}: save pearls to group", self);
         while let Err(err) = self.add_range(pearls.clone()).await {
             error!("{}: can't add pearls: {:?}", self, err);
-            delay_for(t).boxed().await;
+            delay_for(t).await;
         }
 
         debug!("{}: start pearls", self);
         while let Err(err) = self.run_pearls().await {
             error!("{}: can't start pearls: {:?}", self, err);
-            delay_for(t).boxed().await;
+            delay_for(t).await;
         }
     }
 
@@ -144,7 +144,6 @@ impl PearlGroup {
         self.pearls
             .write()
             .compat()
-            .boxed()
             .await
             .map(|mut pearls| {
                 pearls.extend(new_pearls);
@@ -217,7 +216,7 @@ impl PearlGroup {
     pub async fn put(&self, key: BobKey, data: BobData) -> PutResult {
         let holder = self.try_get_current_pearl(&data).await?;
 
-        Self::put_common(holder.pearl, key, data).boxed().await
+        Self::put_common(holder.pearl, key, data).await
     }
 
     async fn put_common(holder: PearlHolder, key: BobKey, data: BobData) -> PutResult {
