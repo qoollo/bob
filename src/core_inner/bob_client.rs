@@ -191,19 +191,16 @@ pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<Bac
 #[derive(Clone)]
 pub struct BobClientFactory {
     operation_timeout: Duration,
-    buffer_bound: u16,
     metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
 }
 
 impl BobClientFactory {
     pub fn new(
         operation_timeout: Duration,
-        buffer_bound: u16,
         metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
     ) -> Self {
         BobClientFactory {
             operation_timeout,
-            buffer_bound,
             metrics,
         }
     }

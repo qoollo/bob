@@ -36,7 +36,6 @@ quorum: 1
 operation_timeout: 3sec
 check_interval: 5000ms
 cluster_policy: quorum             # quorum
-grpc_buffer_bound: 100
 backend_type: pearl                # in_memory, stub, pearl
 pearl:                             # used only for 'backend_type: pearl'
   max_blob_size: 10000000          # size in bytes. required for 'pearl'

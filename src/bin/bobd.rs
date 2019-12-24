@@ -116,8 +116,7 @@ async fn main() {
         .expect("expect http_api_port port");
     bob.run_api_server(http_api_port);
 
-    let factory =
-        BobClientFactory::new(node.operation_timeout(), node.grpc_buffer_bound(), metrics);
+    let factory = BobClientFactory::new(node.operation_timeout(), metrics);
     let b = bob.clone();
     tokio::spawn(async move { b.get_periodic_tasks(factory).map(|r| r.unwrap()).await });
     let new_service = BobApiServer::new(bob);

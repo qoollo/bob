@@ -240,7 +240,6 @@ pub struct NodeConfig {
     pub operation_timeout: Option<String>,
     pub check_interval: Option<String>,
     pub cluster_policy: Option<String>,
-    pub grpc_buffer_bound: Option<u16>,
 
     pub backend_type: Option<String>,
     pub pearl: Option<PearlConfig>,
@@ -253,22 +252,18 @@ pub struct NodeConfig {
 }
 
 impl NodeConfig {
-    pub fn grpc_buffer_bound(&self) -> u16 {
-        self.grpc_buffer_bound.expect("clone grpc buffer bound")
-    }
-
     pub fn name(&self) -> String {
-        self.name.clone().expect("clone name")
+        self.name.clone().expect("config name")
     }
 
     pub fn pearl(&self) -> PearlConfig {
-        self.pearl.clone().expect("clone pearl")
+        self.pearl.clone().expect("config pearl")
     }
     pub fn log_config(&self) -> String {
-        self.log_config.clone().expect("clone log config")
+        self.log_config.clone().expect("config log config")
     }
     pub fn cluster_policy(&self) -> String {
-        self.cluster_policy.clone().expect("clone cluster policy")
+        self.cluster_policy.clone().expect("config cluster policy")
     }
     pub fn bind(&self) -> String {
         self.bind_ref.borrow().to_string()
@@ -332,10 +327,6 @@ impl NodeConfig {
 }
 impl Validatable for NodeConfig {
     fn validate(&self) -> Result<(), String> {
-        self.grpc_buffer_bound.ok_or_else(|| {
-            debug!("field 'grpc_buffer_bound' for 'config' is not set");
-            "field 'grpc_buffer_bound' for 'config' is not set".to_string()
-        })?;
         match &self.backend_type {
             None => {
                 debug!("field 'backend_type' for 'config' is not set");
@@ -509,7 +500,6 @@ pub mod tests {
             operation_timeout: Some("3sec".to_string()),
             check_interval: Some("3sec".to_string()),
             cluster_policy: Some("quorum".to_string()),
-            grpc_buffer_bound: Some(4),
             backend_type: Some("in_memory".to_string()),
             pearl: None,
             metrics: None,
