@@ -570,7 +570,6 @@ pearl:
   max_blob_size: 1
   max_data_in_blob: 1
   blob_file_name_prefix: bob
-  pool_count_threads: 4
   fail_retry_timeout: 100ms
   alien_disk: disk1
   settings:                     # describes how create and manage bob directories. required for 'pearl'
@@ -597,7 +596,6 @@ pearl:
   max_blob_size: 1
   max_data_in_blob: 1
   blob_file_name_prefix: bob
-  pool_count_threads: 4
   fail_retry_timeout: 100ms
   alien_disk: disk1
   settings:                     # describes how create and manage bob directories. required for 'pearl'
@@ -624,7 +622,6 @@ pearl:
   max_blob_size: 1
 #  max_data_in_blob: 1
 #  blob_file_name_prefix: bob
-  pool_count_threads: 4
   fail_retry_timeout: 100ms
   alien_disk: disk1  
   settings:                     # describes how create and manage bob directories. required for 'pearl'

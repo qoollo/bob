@@ -139,7 +139,6 @@ pub struct PearlConfig {
     pub max_blob_size: Option<u64>,
     pub max_data_in_blob: Option<u64>,
     pub blob_file_name_prefix: Option<String>,
-    pub pool_count_threads: Option<u16>,
     pub fail_retry_timeout: Option<String>,
     pub alien_disk: Option<String>,
     pub allow_duplicates: Option<bool>,
@@ -148,10 +147,6 @@ pub struct PearlConfig {
 }
 
 impl PearlConfig {
-    pub fn pool_count_threads(&self) -> u16 {
-        self.pool_count_threads.expect("clone pool count threads")
-    }
-
     pub fn alien_disk(&self) -> String {
         self.alien_disk.clone().expect("clone alien disk")
     }
@@ -179,10 +174,6 @@ impl Validatable for PearlConfig {
         self.max_blob_size.ok_or_else(|| {
             debug!("field 'max_blob_size' for 'config' is not set");
             "field 'max_blob_size' for 'config' is not set".to_string()
-        })?;
-        self.pool_count_threads.ok_or_else(|| {
-            debug!("field 'pool_count_threads' for 'config' is not set");
-            "field 'pool_count_threads' for 'config' is not set".to_string()
         })?;
         match &self.alien_disk {
             None => {

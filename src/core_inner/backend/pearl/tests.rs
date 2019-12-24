@@ -41,7 +41,6 @@ pearl:                             # used only for 'backend_type: pearl'
   max_blob_size: 10000000          # size in bytes. required for 'pearl'
   max_data_in_blob: 10000          # optional
   blob_file_name_prefix: bob       # optional
-  pool_count_threads: 4            # required for 'pearl'
   fail_retry_timeout: 100ms
   alien_disk: disk1                # required for 'pearl'
   settings:                        # describes how create and manage bob directories. required for 'pearl'
