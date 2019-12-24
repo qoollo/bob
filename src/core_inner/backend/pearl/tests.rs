@@ -33,10 +33,9 @@ fn backend() -> PearlBackend {
 log_config: logger.yaml
 name: local_node
 quorum: 1
-timeout: 3sec
+operation_timeout: 3sec
 check_interval: 5000ms
 cluster_policy: quorum             # quorum
-ping_threads_count: 2
 grpc_buffer_bound: 100
 backend_type: pearl                # in_memory, stub, pearl
 pearl:                             # used only for 'backend_type: pearl'

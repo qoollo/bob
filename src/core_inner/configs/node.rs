@@ -240,7 +240,6 @@ pub struct NodeConfig {
     pub operation_timeout: Option<String>,
     pub check_interval: Option<String>,
     pub cluster_policy: Option<String>,
-    pub ping_threads_count: Option<u8>,
     pub grpc_buffer_bound: Option<u16>,
 
     pub backend_type: Option<String>,
@@ -257,12 +256,11 @@ impl NodeConfig {
     pub fn grpc_buffer_bound(&self) -> u16 {
         self.grpc_buffer_bound.expect("clone grpc buffer bound")
     }
-    pub fn ping_threads_count(&self) -> u8 {
-        self.ping_threads_count.expect("clone threads count")
-    }
+
     pub fn name(&self) -> String {
         self.name.clone().expect("clone name")
     }
+
     pub fn pearl(&self) -> PearlConfig {
         self.pearl.clone().expect("clone pearl")
     }
@@ -334,10 +332,6 @@ impl NodeConfig {
 }
 impl Validatable for NodeConfig {
     fn validate(&self) -> Result<(), String> {
-        self.ping_threads_count.ok_or_else(|| {
-            debug!("field 'ping_threads_count' for 'config' is not set");
-            "field 'ping_threads_count' for 'config' is not set".to_string()
-        })?;
         self.grpc_buffer_bound.ok_or_else(|| {
             debug!("field 'grpc_buffer_bound' for 'config' is not set");
             "field 'grpc_buffer_bound' for 'config' is not set".to_string()
@@ -515,7 +509,6 @@ pub mod tests {
             operation_timeout: Some("3sec".to_string()),
             check_interval: Some("3sec".to_string()),
             cluster_policy: Some("quorum".to_string()),
-            ping_threads_count: Some(4),
             grpc_buffer_bound: Some(4),
             backend_type: Some("in_memory".to_string()),
             pearl: None,
