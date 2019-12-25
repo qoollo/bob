@@ -1,27 +1,24 @@
-log_config: logger.yaml       # logger config file
-name: local_node
-quorum: 1
-timeout: 3sec                 # ping t/o
-check_interval: 5000ms        # t/0 between pings
-cluster_policy: quorum        # simple, quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100        # grpc client buffer bound. used for multi-thread
-backend_type: pearl            # in_memory, stub, pearl
+log_config: logger.yaml            # logger config file
+name: node1                        # node name, required to match with cluster config
+quorum: 1                          # min count of successful operations on replicas to consider operation successful
+operation_timeout: 3sec            # timeout for every GRPC operation, eg: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
+check_interval: 5000ms             # interval for checking connections , eg: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
+cluster_policy: simple             # simple - without checking status [simple, quorum]
+backend_type: pearl                # type of the backend [in_memory, stub, pearl]
 
-pearl:                        # used only for 'backend_type: pearl'
-  max_blob_size: 10000000     # size in bytes. required for 'pearl'
-  allow_duplicates: true      # optional, required for 'pearl', disables search for existing keys before write
-  max_data_in_blob: 10000     # optional
-  blob_file_name_prefix: bob  # optional
-  pool_count_threads: 4       # required for 'pearl'
-  fail_retry_timeout: 1s      # mls, retry to reinit pearl backend after fail. required for 'pearl'
-  alien_disk: disk1           # required for 'pearl'
-  settings:                     # describes how create and manage bob directories. required for 'pearl'
-    root_dir_name: bob            # root dir for bob storage. required for 'pearl'
-    alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
-    timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
-    create_pearl_wait_delay: 100ms # each thread will wait this peariod if another thread init requieed pearl. required for 'pearl'
+pearl:                             # used only for 'backend_type: pearl'
+  max_blob_size: 1000000           # size in bytes. required for 'pearl'
+  allow_duplicates: true           # optional, required for 'pearl', disables search for existing keys before write
+  max_data_in_blob: 10000          # optional
+  blob_file_name_prefix: bob       # optional
+  fail_retry_timeout: 100ms        # mls, retry to reinit pearl backend after fail. required for 'pearl'
+  alien_disk: disk1                # required for 'pearl'  
+  settings:                        # describes how create and manage bob directories. required for 'pearl'
+    root_dir_name: bob             # root dir for bob storage. required for 'pearl'
+    alien_root_dir_name: alien     # root dir for alien storage in 'alien_disk'. required for 'pearl'
+    timestamp_period: 1d           # period when new pearl directory created. required for 'pearl'
+    create_pearl_wait_delay: 100ms # each thread will wait this period if another thread creating pearl. required for 'pearl'
 
-metrics:                      # optional, send metrics
-  name: bob_test1             # optional, add base name for metrics
-  graphite: 127.0.0.1:2003    # optional, send metrics to graphite
+metrics:                           # optional, send metrics
+  name: bob                        # optional, add base name for metrics
+  graphite: 127.0.0.1:2003         # optional, send metrics to graphite

@@ -532,31 +532,13 @@ vdisks:
 log_config: logger.yaml
 name: no
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
         assert!(d.validate().is_ok());
-    }
-    #[test]
-    fn test_node_config_ping_count_invalid() {
-        let s = "
-log_config: logger.yaml
-name: no
-quorum: 1
-timeout: 12h 5min 2ns
-check_interval: 100ms
-cluster_policy: quorum # quorum
-ping_threads_count: -2
-grpc_buffer_bound: 100
-backend_type: stub
-";
-        let d: Result<NodeConfig, _> = YamlBobConfigReader::parse(s);
-        assert!(d.is_err());
     }
 
     #[test]
@@ -565,11 +547,9 @@ backend_type: stub
 log_config: logger.yaml
 name: no
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: pearl
 ";
         let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
@@ -582,17 +562,14 @@ backend_type: pearl
 log_config: logger.yaml
 name: no
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
   max_blob_size: 1
   max_data_in_blob: 1
   blob_file_name_prefix: bob
-  pool_count_threads: 4
   fail_retry_timeout: 100ms
   alien_disk: disk1
   settings:                     # describes how create and manage bob directories. required for 'pearl'
@@ -611,17 +588,14 @@ pearl:
 log_config: logger.yaml
 name: no
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
   max_blob_size: 1
   max_data_in_blob: 1
   blob_file_name_prefix: bob
-  pool_count_threads: 4
   fail_retry_timeout: 100ms
   alien_disk: disk1
   settings:                     # describes how create and manage bob directories. required for 'pearl'
@@ -640,17 +614,14 @@ pearl:
 log_config: logger.yaml
 name: no
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
   max_blob_size: 1
 #  max_data_in_blob: 1
 #  blob_file_name_prefix: bob
-  pool_count_threads: 4
   fail_retry_timeout: 100ms
   alien_disk: disk1  
   settings:                     # describes how create and manage bob directories. required for 'pearl'
@@ -669,11 +640,9 @@ pearl:
 log_config: logger.yaml
 name: no
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
 #  max_blob_size: 1
@@ -697,11 +666,9 @@ pearl:
 log_config: logger.yaml
 name: no
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
   max_blob_size: 1
@@ -725,11 +692,9 @@ pearl:
 log_config: logger.yaml
 name: no
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
   max_blob_size: 1
@@ -753,11 +718,9 @@ pearl:
 log_config: logger.yaml
 name: n1
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: InvalidType
 ";
         let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
@@ -788,11 +751,9 @@ vdisks:
 log_config: logger.yaml
 name: no
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100mms
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
@@ -805,11 +766,9 @@ backend_type: stub
 log_config: logger.yaml
 name: n1
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
@@ -839,11 +798,9 @@ vdisks:
 log_config: logger.yaml
 name: 1n2112321321321321
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: stub
 ";
         let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
@@ -873,11 +830,9 @@ vdisks:
 log_config: logger.yaml
 name: n1
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
 #  max_blob_size: 1
@@ -918,11 +873,9 @@ vdisks:
 log_config: logger.yaml
 name: n1
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: pearl
 pearl:
 #  max_blob_size: 1
@@ -963,11 +916,9 @@ vdisks:
 log_config: logger.yaml
 name: no
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: stub
 
 metrics:                      # optional, send metrics
@@ -983,11 +934,9 @@ metrics:                      # optional, send metrics
 log_config: logger.yaml
 name: no
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: stub
 
 metrics:                      # optional, send metrics
@@ -1003,11 +952,9 @@ metrics:                      # optional, send metrics
 log_config: logger.yaml
 name: no
 quorum: 1
-timeout: 12h 5min 2ns
+operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
-ping_threads_count: 2
-grpc_buffer_bound: 100
 backend_type: stub
 
 metrics:                      # optional, send metrics

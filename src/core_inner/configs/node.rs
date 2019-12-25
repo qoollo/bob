@@ -35,7 +35,7 @@ impl Validatable for BackendSettings {
                 );
             }
             Some(period) => {
-                if period.parse::<humantime::Duration>().is_err() {
+                if period.parse::<HumanDuration>().is_err() {
                     debug!("field 'timestamp_period' for 'backend settings config' is not valid");
                     return Err(
                         "field 'timestamp_period' for 'backend settings config' is not valid"
@@ -62,7 +62,7 @@ impl Validatable for BackendSettings {
                 );
             }
             Some(timeout) => {
-                if timeout.parse::<humantime::Duration>().is_err() {
+                if timeout.parse::<HumanDuration>().is_err() {
                     debug!("field 'create_pearl_wait_delay' for 'backend settings config' is not valid");
                     return Err("field 'create_pearl_wait_delay' for 'backend settings config' is not valid".to_string());
                 }
@@ -87,7 +87,7 @@ impl BackendSettings {
         self.timestamp_period
             .clone()
             .expect("clone timestamp period")
-            .parse::<humantime::Duration>()
+            .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
     }
@@ -96,7 +96,7 @@ impl BackendSettings {
         self.create_pearl_wait_delay
             .clone()
             .expect("clone create pearl wait delay")
-            .parse::<humantime::Duration>()
+            .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
     }
@@ -139,7 +139,6 @@ pub struct PearlConfig {
     pub max_blob_size: Option<u64>,
     pub max_data_in_blob: Option<u64>,
     pub blob_file_name_prefix: Option<String>,
-    pub pool_count_threads: Option<u16>,
     pub fail_retry_timeout: Option<String>,
     pub alien_disk: Option<String>,
     pub allow_duplicates: Option<bool>,
@@ -148,10 +147,6 @@ pub struct PearlConfig {
 }
 
 impl PearlConfig {
-    pub fn pool_count_threads(&self) -> u16 {
-        self.pool_count_threads.expect("clone pool count threads")
-    }
-
     pub fn alien_disk(&self) -> String {
         self.alien_disk.clone().expect("clone alien disk")
     }
@@ -160,7 +155,7 @@ impl PearlConfig {
         self.fail_retry_timeout
             .clone()
             .expect("clone fail retry timeout")
-            .parse::<humantime::Duration>()
+            .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
     }
@@ -180,10 +175,6 @@ impl Validatable for PearlConfig {
             debug!("field 'max_blob_size' for 'config' is not set");
             "field 'max_blob_size' for 'config' is not set".to_string()
         })?;
-        self.pool_count_threads.ok_or_else(|| {
-            debug!("field 'pool_count_threads' for 'config' is not set");
-            "field 'pool_count_threads' for 'config' is not set".to_string()
-        })?;
         match &self.alien_disk {
             None => {
                 debug!("field 'alien_disk' for 'config' is not set");
@@ -202,7 +193,7 @@ impl Validatable for PearlConfig {
                 return Err("field 'fail_retry_timeout' for 'config' is not set".to_string());
             }
             Some(timeout) => {
-                if timeout.parse::<humantime::Duration>().is_err() {
+                if timeout.parse::<HumanDuration>().is_err() {
                     debug!("field 'fail_retry_timeout' for 'config' is not valid");
                     return Err("field 'fail_retry_timeout' for 'config' is not valid".to_string());
                 }
@@ -232,16 +223,14 @@ pub enum BackendType {
     Pearl,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Deserialize)]
 pub struct NodeConfig {
     pub log_config: Option<String>,
     pub name: Option<String>,
     pub quorum: Option<u8>,
-    pub timeout: Option<String>,
+    pub operation_timeout: Option<String>,
     pub check_interval: Option<String>,
     pub cluster_policy: Option<String>,
-    pub ping_threads_count: Option<u8>,
-    pub grpc_buffer_bound: Option<u16>,
 
     pub backend_type: Option<String>,
     pub pearl: Option<PearlConfig>,
@@ -250,40 +239,41 @@ pub struct NodeConfig {
     #[serde(skip)]
     pub bind_ref: RefCell<String>,
     #[serde(skip)]
-    pub timeout_ref: Cell<Duration>,
-    #[serde(skip)]
-    pub check_ref: Cell<Duration>,
-    #[serde(skip)]
     pub disks_ref: RefCell<Vec<DiskPath>>,
 }
 
 impl NodeConfig {
-    pub fn grpc_buffer_bound(&self) -> u16 {
-        self.grpc_buffer_bound.expect("clone grpc buffer bound")
-    }
-    pub fn ping_threads_count(&self) -> u8 {
-        self.ping_threads_count.expect("clone threads count")
-    }
     pub fn name(&self) -> String {
-        self.name.clone().expect("clone name")
+        self.name.clone().expect("config name")
     }
+
     pub fn pearl(&self) -> PearlConfig {
-        self.pearl.clone().expect("clone pearl")
+        self.pearl.clone().expect("config pearl")
     }
     pub fn log_config(&self) -> String {
-        self.log_config.clone().expect("clone log config")
+        self.log_config.clone().expect("config log config")
     }
     pub fn cluster_policy(&self) -> String {
-        self.cluster_policy.clone().expect("clone cluster policy")
+        self.cluster_policy.clone().expect("config cluster policy")
     }
     pub fn bind(&self) -> String {
         self.bind_ref.borrow().to_string()
     }
-    pub fn timeout(&self) -> Duration {
-        self.timeout_ref.get()
+    pub fn operation_timeout(&self) -> Duration {
+        self.operation_timeout
+            .as_ref()
+            .expect("get config operation timeout")
+            .parse::<HumanDuration>()
+            .expect("parse humantime duration")
+            .into()
     }
     pub fn check_interval(&self) -> Duration {
-        self.check_ref.get()
+        self.check_interval
+            .as_ref()
+            .expect("get config check interval")
+            .parse::<HumanDuration>()
+            .expect("parse humantime duration")
+            .into()
     }
     pub fn disks(&self) -> Vec<DiskPath> {
         self.disks_ref.borrow().clone()
@@ -308,24 +298,6 @@ impl NodeConfig {
         self.bind_ref
             .replace(node.address.clone().expect("clone node address"));
 
-        let t: Duration = self
-            .timeout
-            .clone()
-            .expect("clone timeout")
-            .parse::<humantime::Duration>()
-            .expect("parse humantime duration")
-            .into();
-        self.timeout_ref.set(t);
-
-        let t1: Duration = self
-            .check_interval
-            .clone()
-            .expect("clone check interval")
-            .parse::<humantime::Duration>()
-            .expect("parse humantime duration")
-            .into();
-        self.check_ref.set(t1);
-
         self.disks_ref.replace(
             node.disks
                 .iter()
@@ -346,14 +318,6 @@ impl NodeConfig {
 }
 impl Validatable for NodeConfig {
     fn validate(&self) -> Result<(), String> {
-        self.ping_threads_count.ok_or_else(|| {
-            debug!("field 'ping_threads_count' for 'config' is not set");
-            "field 'ping_threads_count' for 'config' is not set".to_string()
-        })?;
-        self.grpc_buffer_bound.ok_or_else(|| {
-            debug!("field 'grpc_buffer_bound' for 'config' is not set");
-            "field 'grpc_buffer_bound' for 'config' is not set".to_string()
-        })?;
         match &self.backend_type {
             None => {
                 debug!("field 'backend_type' for 'config' is not set");
@@ -371,13 +335,13 @@ impl Validatable for NodeConfig {
                 };
             }
         };
-        match &self.timeout {
+        match &self.operation_timeout {
             None => {
                 debug!("field 'timeout' for 'config' is not set");
                 return Err("field 'timeout' for 'config' is not set".to_string());
             }
             Some(timeout) => {
-                timeout.parse::<humantime::Duration>().map_err(|_| {
+                timeout.parse::<HumanDuration>().map_err(|_| {
                     debug!("field 'timeout' for 'config' is not valid");
                     "field 'timeout' for 'config' is not valid".to_string()
                 })?;
@@ -389,7 +353,7 @@ impl Validatable for NodeConfig {
                 return Err("field 'check_interval' for 'config' is not set".to_string());
             }
             Some(check_interval) => {
-                check_interval.parse::<humantime::Duration>().map_err(|_| {
+                check_interval.parse::<HumanDuration>().map_err(|_| {
                     debug!("field 'check_interval' for 'config' is not valid");
                     "field 'check_interval' for 'config' is not valid".to_string()
                 })?;
@@ -524,17 +488,13 @@ pub mod tests {
             log_config: Some("".to_string()),
             name: Some(name.to_string()),
             quorum: Some(quorum),
-            timeout: Some("3sec".to_string()),
+            operation_timeout: Some("3sec".to_string()),
             check_interval: Some("3sec".to_string()),
             cluster_policy: Some("quorum".to_string()),
-            ping_threads_count: Some(4),
-            grpc_buffer_bound: Some(4),
             backend_type: Some("in_memory".to_string()),
             pearl: None,
             metrics: None,
             bind_ref: RefCell::default(),
-            timeout_ref: Cell::default(),
-            check_ref: Cell::default(),
             disks_ref: RefCell::default(),
         }
     }
