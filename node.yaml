@@ -3,7 +3,7 @@ name: local_node                        # node name, required to match with clus
 quorum: 1                          # min count of successful operations on replicas to consider operation successful
 operation_timeout: 3sec            # timeout for every GRPC operation, eg: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
 check_interval: 5000ms             # interval for checking connections , eg: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
-cluster_policy: simple             # simple - without checking status [simple, quorum]
+cluster_policy: quorum             # simple - without checking status [simple, quorum]
 backend_type: pearl                # type of the backend [in_memory, stub, pearl]
 
 pearl:                             # used only for 'backend_type: pearl'
