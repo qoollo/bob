@@ -290,7 +290,7 @@ impl Cluster for Quorum {
                 return Ok(answer.result);
             } else if err == "" {
                 debug!("GET[{}] data not found", key);
-                return Err::<_, backend::Error>(backend::Error::KeyNotFound);
+                return Err::<_, backend::Error>(backend::Error::KeyNotFound(key));
             }
             debug!("GET[{}] no success result", key);
 
@@ -511,17 +511,18 @@ pub mod tests {
             .collect();
         let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
 
+        let key = BobKey::new(1);
         let result = quorum
-            .put_clustered_async(BobKey::new(1), BobData::new(vec![], BobMeta::new_value(11)))
+            .put_clustered_async(key, BobData::new(vec![], BobMeta::new_value(11)))
             .0
             .await;
 
         assert!(result.is_ok());
         assert_eq!(1, calls[0].1.put_count());
         let get = backend
-            .get_local(BobKey::new(1), BackendOperation::new_alien(VDiskId::new(0)))
+            .get_local(key, BackendOperation::new_alien(VDiskId::new(0)))
             .await;
-        assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
+        assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
     }
 
     /// 2 node, 1 vdisk, 1 replics in vdisk, quorum = 1
@@ -541,9 +542,9 @@ pub mod tests {
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
-
+        let key = BobKey::new(2);
         let result = quorum
-            .put_clustered_async(BobKey::new(2), BobData::new(vec![], BobMeta::new_value(11)))
+            .put_clustered_async(key, BobData::new(vec![], BobMeta::new_value(11)))
             .0
             .await;
 
@@ -552,9 +553,9 @@ pub mod tests {
         assert_eq!(1, calls[1].1.put_count());
 
         let get = backend
-            .get_local(BobKey::new(2), BackendOperation::new_alien(VDiskId::new(0)))
+            .get_local(key, BackendOperation::new_alien(VDiskId::new(0)))
             .await;
-        assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
+        assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
     }
 
     /// 2 node, 2 vdisk, 1 replics in vdisk, quorum = 1
@@ -594,15 +595,15 @@ pub mod tests {
         assert!(result.is_ok());
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
-
+        let key = BobKey::new(3);
         let mut get = backend
-            .get_local(BobKey::new(3), BackendOperation::new_alien(VDiskId::new(0)))
+            .get_local(key, BackendOperation::new_alien(VDiskId::new(0)))
             .await;
-        assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
+        assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
         get = backend
             .get_local(BobKey::new(4), BackendOperation::new_alien(VDiskId::new(0)))
             .await;
-        assert_eq!(backend::Error::KeyNotFound, get.err().unwrap());
+        assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
     }
 
     /// 2 node, 1 vdisk, 2 replics in vdisk, quorum = 2

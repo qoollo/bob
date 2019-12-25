@@ -234,11 +234,10 @@ impl Settings {
     }
 
     #[inline]
-    pub(crate) fn choose_data(records: Vec<BackendGetResult>) -> GetResult {
+    pub(crate) fn choose_data(records: Vec<BackendGetResult>) -> Option<BackendGetResult> {
         records
             .into_iter()
             .max_by(|x, y| x.data.meta.timestamp.cmp(&y.data.meta.timestamp))
-            .ok_or(Error::KeyNotFound)
     }
 
     pub(crate) fn is_actual_pearl(&self, pearl: &PearlTimestampHolder) -> bool {

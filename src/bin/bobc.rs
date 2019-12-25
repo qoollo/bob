@@ -66,7 +66,19 @@ async fn get(key: u64) {
         options: None,
     });
     let res = client.get(get_req).await;
-    info!("{:?}", res);
+    match res {
+        Ok(res) => {
+            let res: tonic::Response<_> = res;
+            let data: &bob::grpc::Blob = res.get_ref();
+            info!("OK");
+            info!("response meta: {:?})", res.metadata());
+            info!("data len: {}, meta: {:?}", data.data.len(), data.meta);
+        }
+        Err(res) => {
+            info!("ERR");
+            info!("{:?}", res);
+        }
+    }
 }
 
 fn build_app<'a>() -> ArgMatches<'a> {

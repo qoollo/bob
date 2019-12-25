@@ -97,26 +97,29 @@ impl Cluster for Quorum {
         .into_iter()
         .collect::<FuturesUnordered<_>>();
 
-        let task = reqs
-            .collect::<Vec<_>>()
-            .map(move |acc| {
-                let sup = acc
-                    .iter()
-                    .filter_map(|r| r.as_ref().err().map(ToString::to_string))
-                    .collect();
-
-                let r = acc.into_iter().find(Result::is_ok);
-                if let Some(answer) = r {
-                    match answer {
-                        Ok(ClusterResult { result: i, .. }) => Ok(i),
-                        Err(ClusterResult { result: i, .. }) => Err(i),
-                    }
-                } else {
-                    debug!("GET[{}] no success result", key);
-                    Err(BackendError::Failed(sup))
-                }
-            })
-            .boxed();
+        let task = async move {
+            let results = reqs.collect::<Vec<_>>().await;
+            let err_results = results
+                .iter()
+                .filter_map(|r| r.as_ref().err())
+                .collect::<Vec<_>>();
+            let errors = err_results
+                .iter()
+                .map(ToString::to_string)
+                .collect::<String>();
+            trace!("GET[{}] errors: {}", key, errors);
+            let mut ok_results = results
+                .into_iter()
+                .filter_map(|r| r.ok())
+                .collect::<Vec<_>>();
+            if ok_results.is_empty() {
+                Err(BackendError::KeyNotFound(key))
+            } else {
+                let cluster_result = ok_results.remove(0);
+                Ok(cluster_result.result)
+            }
+        }
+        .boxed();
         BackendGet(task)
     }
 }

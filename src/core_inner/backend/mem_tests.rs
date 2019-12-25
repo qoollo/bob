@@ -89,13 +89,14 @@ async fn test_mem_get_wrong_disk() {
 #[tokio::test]
 async fn test_mem_get_no_data() {
     let backend = new_direct(&["name".to_string()], VDISKS_COUNT);
+    let key = BobKey { key: 1 };
 
     let retval = backend
         .get(
             BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "")),
-            BobKey { key: 1 },
+            key,
         )
         .0
         .await;
-    assert_eq!(retval.err().unwrap(), Error::KeyNotFound)
+    assert_eq!(retval.err().unwrap(), Error::KeyNotFound(key))
 }

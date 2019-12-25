@@ -242,22 +242,18 @@ impl PearlGroup {
                     trace!("get data: {} from: {}", data, holder);
                     results.push(data);
                 }
-                Err(err) if err != BackendError::KeyNotFound => {
+                Err(err) if err != BackendError::KeyNotFound(key) => {
                     has_error = true;
                     debug!("get error: {}, from : {}", err, holder);
                 }
                 _ => debug!("key not found from: {}", holder),
             }
         }
-        if results.is_empty() {
-            if has_error {
-                debug!("cannot read from some pearls");
-                Err(Error::Failed("cannot read from some pearls".to_string()))
-            } else {
-                Err(Error::KeyNotFound)
-            }
+        if results.is_empty() && has_error {
+            debug!("cannot read from some pearls");
+            Err(Error::Failed("cannot read from some pearls".to_string()))
         } else {
-            Settings::choose_data(results)
+            Settings::choose_data(results).ok_or(Error::KeyNotFound(key))
         }
     }
 

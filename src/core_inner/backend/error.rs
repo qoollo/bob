@@ -7,7 +7,7 @@ pub enum Error {
     VDiskNoFound(VDiskId),
     Storage(String),
     DuplicateKey,
-    KeyNotFound,
+    KeyNotFound(BobKey),
     VDiskIsNotReady,
 
     Failed(String),
@@ -44,7 +44,7 @@ impl Error {
     /// check if get error causes pearl restart
     pub fn is_get_error_need_restart(err: Option<&Self>) -> bool {
         match err {
-            Some(Self::KeyNotFound) | Some(Self::VDiskIsNotReady) | None => false,
+            Some(Self::KeyNotFound(_)) | Some(Self::VDiskIsNotReady) | None => false,
             _ => true,
         }
     }
@@ -52,7 +52,7 @@ impl Error {
     /// hide backend errors
     pub fn convert_backend(self) -> Self {
         match self {
-            Self::DuplicateKey | Self::KeyNotFound => self,
+            Self::DuplicateKey | Self::KeyNotFound(_) => self,
             _ => Self::Internal,
         }
     }
@@ -82,24 +82,16 @@ impl Into<Status> for Error {
     fn into(self) -> Status {
         //TODO add custom errors
         trace!("Error: {}", self.clone());
-        let msg = match self {
-            Self::KeyNotFound => "KeyNotFound",
-            Self::DuplicateKey => "DuplicateKey",
-            _ => "Other errors",
-        };
-        Status::new(Code::Unknown, msg)
+        match self {
+            Self::KeyNotFound(key) => Status::not_found(&format!("KeyNotFound: {}", key)),
+            Self::DuplicateKey => Status::already_exists("DuplicateKey"),
+            _ => Status::unknown("Other errors"),
+        }
     }
 }
 
 impl From<Status> for Error {
-    fn from(error: Status) -> Self {
-        match error.code() {
-            Code::Unknown => match error.message() {
-                "KeyNotFound" => Self::KeyNotFound,
-                "DuplicateKey" => Self::DuplicateKey,
-                _ => Self::Internal,
-            },
-            _ => Self::Failed(format!("grpc error: {}", error)),
-        }
+    fn from(status: Status) -> Self {
+        Self::Failed(format!("{:?}", status))
     }
 }

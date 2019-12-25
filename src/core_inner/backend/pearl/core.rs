@@ -230,7 +230,7 @@ impl BackendStorage for PearlBackend {
                     key, operation
                 );
                 // must return that data not found
-                Err(Error::KeyNotFound)
+                Err(Error::KeyNotFound(key))
             }
         }
         .boxed())
