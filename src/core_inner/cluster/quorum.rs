@@ -274,7 +274,7 @@ impl Cluster for Quorum {
             let results = Self::get_all(key, &target_nodes, GetOptions::new_all()).await;
             debug!("GET[{}] cluster ans: {:?}", key, results);
 
-            let (result, errors) = Self::get_filter_result(key, results);
+            let (result, errors) = Self::get_filter_result(key, results); // @TODO refactoring of the error logs
             if let Some(answer) = result {
                 debug!(
                     "GET[{}] take data from node: {}, timestamp: {}",

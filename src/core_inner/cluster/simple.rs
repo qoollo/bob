@@ -103,7 +103,7 @@ impl Cluster for Quorum {
                 .iter()
                 .filter_map(|r| r.as_ref().err())
                 .collect::<Vec<_>>();
-            let errors = err_results
+            let errors = err_results // @TODO refactoring of the error logs
                 .iter()
                 .map(ToString::to_string)
                 .collect::<String>();
