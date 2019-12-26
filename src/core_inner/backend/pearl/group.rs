@@ -249,11 +249,21 @@ impl PearlGroup {
                 _ => debug!("key not found from: {}", holder),
             }
         }
-        if results.is_empty() && has_error {
-            debug!("cannot read from some pearls");
-            Err(Error::Failed("cannot read from some pearls".to_string()))
+        if results.is_empty() {
+            if has_error {
+                debug!("cannot read from some pearls");
+                Err(Error::Failed("cannot read from some pearls".to_string()))
+            } else {
+                debug!("not found in any pearl");
+                Err(Error::KeyNotFound(key))
+            }
         } else {
-            Settings::choose_data(results).ok_or(Error::KeyNotFound(key))
+            debug!(
+                "get data with the max meta timestamp, from {} results",
+                results.len()
+            );
+            Ok(Settings::choose_most_recent_data(results)
+                .expect("results cannot be empty, because of the previous check"))
         }
     }
 

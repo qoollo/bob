@@ -234,7 +234,9 @@ impl Settings {
     }
 
     #[inline]
-    pub(crate) fn choose_data(records: Vec<BackendGetResult>) -> Option<BackendGetResult> {
+    pub(crate) fn choose_most_recent_data(
+        records: Vec<BackendGetResult>,
+    ) -> Option<BackendGetResult> {
         records
             .into_iter()
             .max_by(|x, y| x.data.meta.timestamp.cmp(&y.data.meta.timestamp))
