@@ -86,7 +86,7 @@ impl PearlHolder {
                                 PEARL_GET_ERROR_COUNTER.count(1);
                                 trace!("error on read: {:?}", e);
                                 match e.kind() {
-                                    ErrorKind::RecordNotFound => Error::KeyNotFound,
+                                    ErrorKind::RecordNotFound => Error::KeyNotFound(key),
                                     _ => Error::Storage(format!("{:?}", e)),
                                 }
                             })?

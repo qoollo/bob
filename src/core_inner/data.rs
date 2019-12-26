@@ -365,7 +365,7 @@ impl Node {
     }
 
     pub(crate) fn clear_connection(&self) {
-        info!("CLEAN CONNECTION");
+        debug!("clear connection");
         *self.conn.lock().expect("lock mutex") = None;
     }
 

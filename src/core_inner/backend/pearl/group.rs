@@ -242,7 +242,7 @@ impl PearlGroup {
                     trace!("get data: {} from: {}", data, holder);
                     results.push(data);
                 }
-                Err(err) if err != BackendError::KeyNotFound => {
+                Err(err) if err != BackendError::KeyNotFound(key) => {
                     has_error = true;
                     debug!("get error: {}, from : {}", err, holder);
                 }
@@ -254,10 +254,16 @@ impl PearlGroup {
                 debug!("cannot read from some pearls");
                 Err(Error::Failed("cannot read from some pearls".to_string()))
             } else {
-                Err(Error::KeyNotFound)
+                debug!("not found in any pearl");
+                Err(Error::KeyNotFound(key))
             }
         } else {
-            Settings::choose_data(results)
+            debug!(
+                "get data with the max meta timestamp, from {} results",
+                results.len()
+            );
+            Ok(Settings::choose_most_recent_data(results)
+                .expect("results cannot be empty, because of the previous check"))
         }
     }
 

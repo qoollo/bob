@@ -42,7 +42,7 @@ impl VDisk {
                         future::ok(BackendGetResult { data: data.clone() })
                     } else {
                         trace!("GET[{}] from vdisk failed. Cannot find key", key);
-                        future::err(Error::KeyNotFound)
+                        future::err(Error::KeyNotFound(key))
                     }
                 }
                 Err(_) => future::err(Error::Internal),
