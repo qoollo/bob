@@ -15,42 +15,27 @@ impl Quorum {
         }
     }
 
-    pub(crate) fn calc_target_nodes(&self, key: BobKey) -> Vec<Node> {
-        let target_vdisk = self.mapper.get_vdisk(key);
-        target_vdisk.nodes.clone()
+    #[inline]
+    pub(crate) fn get_target_nodes(&self, key: BobKey) -> Vec<Node> {
+        self.mapper.get_vdisk(key).nodes.clone()
     }
 
-    pub(crate) fn calc_sup_nodes(
-        mapper: &VDiskMapper,
-        target_nodes: &[Node],
+    pub(crate) fn get_support_nodes(
+        nodes: &[Node],
+        target_indexes: &[u16],
         count: usize,
     ) -> Vec<Node> {
-        let nodes = mapper.nodes();
-        if nodes.len() > target_nodes.len() + count {
-            error!("cannot find enough nodes for write"); //TODO check in mapper
-            return vec![];
+        if nodes.len() < target_indexes.len() + count {
+            error!("cannot find enough support nodes"); //TODO check in mapper
+            Vec::new()
+        } else {
+            nodes
+                .iter()
+                .filter(|node| target_indexes.iter().all(|&i| i != node.index))
+                .take(count)
+                .cloned()
+                .collect()
         }
-
-        let indexes = target_nodes.iter().map(|n| n.index).collect::<Vec<_>>();
-        trace!("target indexes: {:?}", indexes);
-
-        let index_max = *indexes.iter().max().expect("get max index") as usize;
-
-        let mut ret = vec![];
-        let mut cur_index = index_max;
-        let mut count_look = 0;
-        while count_look < nodes.len() && ret.len() < count {
-            cur_index = (cur_index + 1) % nodes.len();
-            count_look += 1;
-
-            //TODO check node is available
-            if indexes.iter().any(|&i| i as usize == cur_index) {
-                trace!("node: {} is alrady target", nodes[cur_index]);
-                continue;
-            }
-            ret.push(nodes[cur_index].clone());
-        }
-        ret
     }
 
     async fn put_local_all(
@@ -65,9 +50,8 @@ impl Quorum {
             let mut op = operation.clone();
             op.set_remote_folder(&failed_node.name());
 
-            let t = backend.put_local(key, data.clone(), op).await;
-            trace!("PUT[{}] local support put result: {:?}", key, t);
-            if t.is_err() {
+            if let Err(e) = backend.put_local(key, data.clone(), op).await {
+                debug!("PUT[{}] local support put result: {:?}", key, e);
                 add_nodes.push(failed_node.name());
             }
         }
@@ -134,8 +118,6 @@ impl Quorum {
         options: GetOptions,
     ) -> Vec<BobClientGetResult> {
         LinkManager::call_nodes(target_nodes, |mut conn| conn.get(key, options.clone()).0)
-            .into_iter()
-            .collect::<FuturesUnordered<_>>()
             .collect()
             .await
     }
@@ -144,7 +126,7 @@ impl Quorum {
 impl Cluster for Quorum {
     //todo check duplicate data = > return error???
     fn put_clustered_async(&self, key: BobKey, data: BobData) -> BackendPut {
-        let target_nodes = self.calc_target_nodes(key);
+        let target_nodes = self.get_target_nodes(key);
         debug!(
             "PUT[{}]: Nodes for fan out: {:?}",
             key,
@@ -154,8 +136,6 @@ impl Cluster for Quorum {
         let reqs = LinkManager::call_nodes(&target_nodes, |mut conn| {
             conn.put(key, &data, PutOptions::new_client()).0
         })
-        .into_iter()
-        .collect::<FuturesUnordered<_>>()
         .inspect(move |r| trace!("PUT[{}] Response from cluster {:?}", key, r))
         .collect::<Vec<_>>();
 
@@ -199,8 +179,14 @@ impl Cluster for Quorum {
                     additionl_remote_writes += 1;
                 }
 
-                let mut sup_nodes =
-                    Self::calc_sup_nodes(&mapper, &target_nodes, additionl_remote_writes);
+                let mut sup_nodes = Self::get_support_nodes(
+                    mapper.nodes(),
+                    &target_nodes
+                        .iter()
+                        .map(|node| node.index)
+                        .collect::<Vec<_>>(),
+                    additionl_remote_writes,
+                );
                 debug!("PUT[{}] sup put nodes: {}", key, print_vec(&sup_nodes));
 
                 let mut queries = Vec::new();
@@ -258,7 +244,7 @@ impl Cluster for Quorum {
 
     //todo check no data (no error)
     fn get_clustered_async(&self, key: BobKey) -> BackendGet {
-        let all_nodes = self.calc_target_nodes(key);
+        let all_nodes = self.get_target_nodes(key);
 
         let mapper = self.mapper.clone();
         let l_quorim = self.quorum as usize;
@@ -287,7 +273,11 @@ impl Cluster for Quorum {
             }
             debug!("GET[{}] no success result", key);
 
-            let mut sup_nodes = Self::calc_sup_nodes(&mapper, &all_nodes, 1); // @TODO take from config
+            let mut sup_nodes = Self::get_support_nodes(
+                mapper.nodes(),
+                &all_nodes.iter().map(|node| node.index).collect::<Vec<_>>(),
+                1,
+            ); // @TODO take from config
             sup_nodes.extend(all_nodes.into_iter().skip(l_quorim));
 
             debug!(

@@ -5,8 +5,6 @@ pub(crate) use super::prelude::*;
 
 mod prelude {
     pub(crate) use super::*;
-
-    pub(crate) use futures::stream::FuturesUnordered;
 }
 
 use quorum::Quorum;
@@ -18,7 +16,6 @@ pub(crate) trait Cluster {
 }
 
 pub(crate) fn get_cluster(
-    // _link: Arc<LinkManager>,
     mapper: Arc<VDiskMapper>,
     config: &NodeConfig,
     backend: Arc<Backend>,
