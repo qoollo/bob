@@ -31,7 +31,7 @@ impl LinkManager {
         Ok(())
     }
 
-    pub fn call_nodes<F, T>(nodes: &[Node], mut f: F) -> Vec<ClusterCallFuture<T>>
+    pub fn call_nodes<F, T>(nodes: &[Node], mut f: F) -> FuturesUnordered<ClusterCallFuture<T>>
     where
         F: FnMut(BobClient) -> ClusterCallFuture<T> + Send,
         T: 'static + Send,

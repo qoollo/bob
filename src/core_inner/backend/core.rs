@@ -68,10 +68,10 @@ impl BackendOperation {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BackendPutResult;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BackendGetResult {
     pub data: BobData,
 }

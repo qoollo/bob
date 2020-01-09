@@ -317,7 +317,7 @@ impl PartialEq for NodeDisk {
     }
 }
 
-pub fn print_vec<T: std::fmt::Display>(coll: &[T]) -> String {
+pub fn print_vec<T: Display>(coll: &[T]) -> String {
     coll.iter()
         .map(|vd| vd.to_string())
         .collect::<Vec<_>>()
