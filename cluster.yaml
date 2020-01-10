@@ -1,11 +1,23 @@
+# [list] of all cluster nodes
 nodes:
+      # [str] node name
     - name: local_node
-      address: 127.0.0.1:20000
+      # [ip:port] node address
+      address: 127.0.0.1:20000  
+      # [list] of physical node disks
       disks:
+          # [str] name of disk, the node uses it to determine which vdisks belong to it
         - name: disk1
+          # [str] mount point, it doesn't matter if it is a whole physical disk or a directory
           path: /tmp/d1
+
+# [list] of all cluster vdisks
 vdisks:
+      # [uint] unique vdisk identifier
     - id: 0
+      # [list] of vdisk replicas locations
       replicas:
+          #[str] node name, to find target node in nodes list 
         - node: local_node
+          #[str] disk name, to find location of the replica on the node in disks list
           disk: disk1
