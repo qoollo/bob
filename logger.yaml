@@ -1,11 +1,10 @@
-# [time] format units:
-# nsec, ns
-# usec, us
+# [time] format units, frequently used:
 # msec, ms
 # seconds, second, sec, s
 # minutes, minute, min, m
 # hours, hour, hr, h
-# If set, logger will scan the file at the specified rate for changes and
+
+# [time] If set, logger will scan the file at the specified rate for changes and
 # automatically reconfigure the logger.
 refresh_rate: 30 seconds
 

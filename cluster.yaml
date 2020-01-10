@@ -1,3 +1,11 @@
+# [time] is a concatenation of spans. Where each span is an integer number and a suffix.
+# E.g.: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
+# Some supported suffixes:
+#  msec, ms -- milliseconds
+#  seconds, second, sec, s
+#  minutes, minute, min, m
+#  hours, hour, hr, h
+
 # [list] of all cluster nodes
 nodes:
       # [str] node name
