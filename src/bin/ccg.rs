@@ -1,19 +1,22 @@
 #[macro_use]
 extern crate log;
 
-use bob::configs::cluster::{Config, Node};
+use bob::configs::cluster::{Config, Node, Replica, VDisk};
 use chrono::Local;
 use clap::{App, Arg, ArgMatches};
 use env_logger::fmt::Color;
 use log::{Level, LevelFilter};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+const ORD: Ordering = Ordering::Relaxed;
 
 #[tokio::main]
 async fn main() {
     init_logger();
     if let Some(output) = read_from_file().and_then(|input| generate_config(input)) {
-        let output = write_to_file(output);
+        write_to_file(output);
         debug!("config cluster generation: OK");
     } else {
         debug!("config cluster generation: ERR");
@@ -99,11 +102,81 @@ fn deserialize(content: String) -> Option<Config> {
         .ok()
 }
 
-fn generate_config(input: Config) -> Option<()> {
+fn generate_config(input: Config) -> Option<Config> {
     let replicas_count = get_replicas_count()?;
-    let vdisks_count = get_vdisks_count(&input.nodes, replicas_count)?;
+    let vdisks_count = get_vdisks_count(&input.nodes)?;
+    let res = simple_gen(input, replicas_count, vdisks_count);
     debug!("generate config: OK");
-    Some(())
+    Some(res)
+}
+
+#[derive(Debug)]
+struct Pair {
+    node: String,
+    disk: String,
+    used_count: AtomicUsize,
+}
+
+fn gcd(a: usize, b: usize) -> usize {
+    debug!("gcd of {} and {}", a, b);
+    if a == 0 {
+        b
+    } else if b == 0 {
+        a
+    } else {
+        gcd(b, a % b)
+    }
+}
+
+fn lcm(a: usize, b: usize) -> usize {
+    let lcm = a / gcd(a, b) * b;
+    debug!("lcm of {} and {} is {}", a, b, lcm);
+    lcm
+}
+
+fn simple_gen(mut config: Config, replicas_count: usize, vdisks_count: usize) -> Config {
+    let mut pairs = get_pairs(&config);
+    let vdisks_count = lcm(pairs.len(), replicas_count);
+    debug!("new vdisks count: OK [{}]", vdisks_count);
+    let mut vdisks = Vec::new();
+    while vdisks.len() < vdisks_count {
+        let mut vdisk = VDisk {
+            id: Some(vdisks.len() as i32),
+            replicas: Vec::new(),
+        };
+        pairs.sort_by(|a, b| a.used_count.load(ORD).cmp(&b.used_count.load(ORD)));
+        let mut iter = pairs.iter().cycle();
+        while vdisk.replicas.len() < replicas_count {
+            if let Some(pair) = iter.next() {
+                vdisk.replicas.push(Replica {
+                    node: Some(pair.node.clone()),
+                    disk: Some(pair.disk.clone()),
+                });
+                pair.used_count.fetch_add(1, ORD);
+                debug!("replica added: {} {}", pair.node, pair.disk);
+            }
+        }
+        debug!("vdisk added: {}", vdisk.id());
+        vdisks.push(vdisk);
+    }
+    config.vdisks = vdisks;
+    debug!("simple gen: OK [\n{:#?}\n]", pairs);
+    config
+}
+
+fn get_pairs(config: &Config) -> Vec<Pair> {
+    config
+        .nodes
+        .iter()
+        .flat_map(|node| {
+            let node_name = node.name();
+            node.disks.iter().map(move |d| Pair {
+                node: node_name.clone(),
+                disk: d.name.clone().unwrap(),
+                used_count: AtomicUsize::new(0),
+            })
+        })
+        .collect()
 }
 
 fn get_replicas_count() -> Option<usize> {
@@ -116,19 +189,13 @@ fn get_replicas_count() -> Option<usize> {
         .ok()
 }
 
-fn get_vdisks_count(nodes: &[Node], replicas_count: usize) -> Option<usize> {
+fn get_vdisks_count(nodes: &[Node]) -> Option<usize> {
     let matches = get_matches();
     matches.value_of("vdisks_count").map_or_else(
         || {
-            let pairs_count = get_pairs_count(nodes);
-            if pairs_count % replicas_count != 0 {
-                error!("get vdisks count: ERR [number of pairs node-disk must be multiple of replicas]");
-                None
-            } else {
-                let res = pairs_count / replicas_count;
-                debug!("get vdisks count: OK [{}]", res);
-                Some(res)
-            }
+            let res = get_pairs_count(nodes);
+            debug!("get vdisks count: OK [{}]", res);
+            Some(res)
         },
         |s| {
             s.parse()
@@ -142,7 +209,16 @@ fn get_pairs_count(nodes: &[Node]) -> usize {
     nodes.iter().fold(0, |acc, n| acc + n.disks.len())
 }
 
-fn write_to_file(output: ()) {
+fn write_to_file(output: Config) {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open("cluster.gen-output.yaml")
+        .unwrap();
+    let mut output = serde_yaml::to_string(&output).unwrap();
+    output += "\n";
+    file.write_all(output.as_bytes()).unwrap();
     debug!("write to file: OK");
 }
 
@@ -153,7 +229,7 @@ fn get_matches() -> ArgMatches<'static> {
         .takes_value(true);
     let vdisks_count = Arg::with_name("vdisks_count")
         .short("d")
-        .help("counts as number of pairs node-disk divided by number of replicas")
+        .help("min - equal to number of pairs node-disk")
         .takes_value(true);
     let replicas = Arg::with_name("replicas")
         .short("r")
