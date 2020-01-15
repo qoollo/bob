@@ -155,9 +155,14 @@ fn get_matches() -> ArgMatches<'static> {
         .short("d")
         .help("counts as number of pairs node-disk divided by number of replicas")
         .takes_value(true);
+    let replicas = Arg::with_name("replicas")
+        .short("r")
+        .default_value("1")
+        .takes_value(true);
     debug!("input arg: OK");
     App::new("Config Cluster Generator")
         .arg(input)
         .arg(vdisks_count)
+        .arg(replicas)
         .get_matches()
 }
