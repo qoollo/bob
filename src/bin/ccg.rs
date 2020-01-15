@@ -1,12 +1,13 @@
 #[macro_use]
 extern crate log;
 
+use bob::configs::cluster::Config;
 use chrono::Local;
 use clap::{App, Arg};
 use env_logger::fmt::Color;
 use log::{Level, LevelFilter};
 use std::fs::{File, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Write};
 
 #[tokio::main]
 async fn main() {
@@ -48,13 +49,13 @@ fn init_logger() {
     debug!("init logger: OK");
 }
 
-fn read_from_file() -> Option<()> {
+fn read_from_file() -> Option<Config> {
     let name = get_name();
     let file = open_file(name)?;
-    let content = read_file(file);
-    let res = deserialize(content);
+    let content = read_file(file)?;
+    let config = deserialize(content)?;
     debug!("read from file: OK");
-    Some(res)
+    Some(config)
 }
 
 fn get_name() -> String {
@@ -87,15 +88,26 @@ fn open_file(name: String) -> Option<File> {
         .ok()
 }
 
-fn read_file(file: File) -> () {
-    debug!("read file: OK");
+fn read_file(mut file: File) -> Option<String> {
+    let mut buf = String::new();
+    file.read_to_string(&mut buf)
+        .map(|n| debug!("read file: OK [{}b]", n))
+        .map_err(|e| error!("read file: ERR [{}]", e))
+        .ok()?;
+    Some(buf)
 }
 
-fn deserialize(content: ()) -> () {
-    debug!("deserialize: OK");
+fn deserialize(content: String) -> Option<Config> {
+    serde_yaml::from_str(content.as_str())
+        .map(|c: Config| {
+            debug!("deserialize: OK [nodes count: {}]", c.nodes.len());
+            c
+        })
+        .map_err(|e| error!("deserialize: ERR [{}]", e))
+        .ok()
 }
 
-fn generate_config(input: ()) -> () {
+fn generate_config(input: Config) -> () {
     debug!("generate config: OK");
 }
 
