@@ -70,7 +70,7 @@ fn get_name() -> String {
     let name = matches
         .value_of("input")
         .expect("is some, because of default arg value");
-    debug!("get name: {}", name);
+    debug!("get name: OK [{}]", name);
     name.to_owned()
 }
 
