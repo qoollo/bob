@@ -5,15 +5,19 @@ use chrono::Local;
 use clap::{App, Arg};
 use env_logger::fmt::Color;
 use log::{Level, LevelFilter};
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 
 #[tokio::main]
 async fn main() {
     init_logger();
-    let input = read_from_file();
-    let output = generate_config(input);
-    write_to_file(output);
-    debug!("config cluster generation: OK");
+    if let Some(input) = read_from_file() {
+        let output = generate_config(input);
+        write_to_file(output);
+        debug!("config cluster generation: OK");
+    } else {
+        debug!("config cluster generation: ERR");
+    }
 }
 
 fn init_logger() {
@@ -40,17 +44,17 @@ fn init_logger() {
         })
         .filter_level(LevelFilter::Trace)
         .try_init()
-        .unwrap_or(());
+        .expect("other logger already started");
     debug!("init logger: OK");
 }
 
-fn read_from_file() -> () {
+fn read_from_file() -> Option<()> {
     let name = get_name();
-    let file = open_file(name);
+    let file = open_file(name)?;
     let content = read_file(file);
     let res = deserialize(content);
     debug!("read from file: OK");
-    res
+    Some(res)
 }
 
 fn get_name() -> String {
@@ -70,11 +74,20 @@ fn get_name() -> String {
     name.to_owned()
 }
 
-fn open_file(name: String) -> () {
-    debug!("open file: OK");
+fn open_file(name: String) -> Option<File> {
+    OpenOptions::new()
+        .read(true)
+        .create(false)
+        .open(name)
+        .map(|f| {
+            debug!("open file: OK");
+            f
+        })
+        .map_err(|e| error!("open file: ERR [{}]", e))
+        .ok()
 }
 
-fn read_file(file: ()) -> () {
+fn read_file(file: File) -> () {
     debug!("read file: OK");
 }
 
