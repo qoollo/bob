@@ -3,7 +3,7 @@ extern crate log;
 
 use bob::configs::cluster::Config;
 use chrono::Local;
-use clap::{App, Arg};
+use clap::{App, Arg, ArgMatches};
 use env_logger::fmt::Color;
 use log::{Level, LevelFilter};
 use std::fs::{File, OpenOptions};
@@ -12,9 +12,8 @@ use std::io::{Read, Write};
 #[tokio::main]
 async fn main() {
     init_logger();
-    if let Some(input) = read_from_file() {
-        let output = generate_config(input);
-        write_to_file(output);
+    if let Some(output) = read_from_file().and_then(|input| generate_config(input)) {
+        let output = write_to_file(output);
         debug!("config cluster generation: OK");
     } else {
         debug!("config cluster generation: ERR");
@@ -59,14 +58,7 @@ fn read_from_file() -> Option<Config> {
 }
 
 fn get_name() -> String {
-    let input = Arg::with_name("input")
-        .short("i")
-        .default_value("cluster.yaml")
-        .takes_value(true);
-    debug!("input arg: OK");
-    let matches = App::new("Config Cluster Generator")
-        .arg(input)
-        .get_matches();
+    let matches = get_matches();
     debug!("get matches: OK");
     let name = matches
         .value_of("input")
@@ -107,10 +99,29 @@ fn deserialize(content: String) -> Option<Config> {
         .ok()
 }
 
-fn generate_config(input: Config) -> () {
+fn generate_config(input: Config) -> Option<()> {
+    let matches = get_matches();
+    let vdisks_count: usize = matches
+        .value_of("vdisks_count")
+        .expect("is some, because of default arg value")
+        .parse()
+        .map_err(|e| error!("generate config: ERR [{}]", e))
+        .ok()?;
     debug!("generate config: OK");
+    Some(())
 }
 
 fn write_to_file(output: ()) {
     debug!("write to file: OK");
+}
+
+fn get_matches() -> ArgMatches<'static> {
+    let input = Arg::with_name("input")
+        .short("i")
+        .default_value("cluster.yaml")
+        .takes_value(true);
+    debug!("input arg: OK");
+    App::new("Config Cluster Generator")
+        .arg(input)
+        .get_matches()
 }
