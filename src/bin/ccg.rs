@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use bob::configs::cluster::Config;
+use bob::configs::cluster::{Config, Node};
 use chrono::Local;
 use clap::{App, Arg, ArgMatches};
 use env_logger::fmt::Color;
@@ -100,15 +100,46 @@ fn deserialize(content: String) -> Option<Config> {
 }
 
 fn generate_config(input: Config) -> Option<()> {
-    let matches = get_matches();
-    let vdisks_count: usize = matches
-        .value_of("vdisks_count")
-        .expect("is some, because of default arg value")
-        .parse()
-        .map_err(|e| error!("generate config: ERR [{}]", e))
-        .ok()?;
+    let replicas_count = get_replicas_count()?;
+    let vdisks_count = get_vdisks_count(&input.nodes, replicas_count)?;
     debug!("generate config: OK");
     Some(())
+}
+
+fn get_replicas_count() -> Option<usize> {
+    let matches = get_matches();
+    matches
+        .value_of("replicas")
+        .expect("replicas count")
+        .parse()
+        .map_err(|e| error!("get replicas count: ERR [{}]", e))
+        .ok()
+}
+
+fn get_vdisks_count(nodes: &[Node], replicas_count: usize) -> Option<usize> {
+    let matches = get_matches();
+    matches.value_of("vdisks_count").map_or_else(
+        || {
+            let pairs_count = get_pairs_count(nodes);
+            if pairs_count % replicas_count != 0 {
+                error!("get vdisks count: ERR [number of pairs node-disk must be multiple of replicas]");
+                None
+            } else {
+                let res = pairs_count / replicas_count;
+                debug!("get vdisks count: OK [{}]", res);
+                Some(res)
+            }
+        },
+        |s| {
+            s.parse()
+                .map_err(|e| error!("generate config: ERR [{}]", e))
+                .ok()
+        },
+    )
+}
+
+fn get_pairs_count(nodes: &[Node]) -> usize {
+    nodes.iter().fold(0, |acc, n| acc + n.disks.len())
 }
 
 fn write_to_file(output: ()) {
@@ -120,8 +151,13 @@ fn get_matches() -> ArgMatches<'static> {
         .short("i")
         .default_value("cluster.yaml")
         .takes_value(true);
+    let vdisks_count = Arg::with_name("vdisks_count")
+        .short("d")
+        .help("counts as number of pairs node-disk divided by number of replicas")
+        .takes_value(true);
     debug!("input arg: OK");
     App::new("Config Cluster Generator")
         .arg(input)
+        .arg(vdisks_count)
         .get_matches()
 }
