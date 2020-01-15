@@ -50,3 +50,6 @@ name = "bobc"
 
 [[bin]]
 name = "bobp"
+
+[[bin]]
+name = "ccg"
