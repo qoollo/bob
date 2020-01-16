@@ -34,7 +34,7 @@ async fn main() {
 }
 
 async fn put(key: u64, size: usize) {
-    let mut client = BobApiClient::connect("http://localhost:20000")
+    let mut client = BobApiClient::connect("http://10.5.5.126:20000")
         .await
         .unwrap();
 
@@ -57,7 +57,7 @@ async fn put(key: u64, size: usize) {
 }
 
 async fn get(key: u64) {
-    let mut client = BobApiClient::connect("http://localhost:20000")
+    let mut client = BobApiClient::connect("http://10.5.5.126:20000")
         .await
         .unwrap();
 

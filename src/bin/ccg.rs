@@ -136,7 +136,7 @@ fn lcm(a: usize, b: usize) -> usize {
 
 fn simple_gen(mut config: Config, replicas_count: usize, vdisks_count: usize) -> Config {
     let mut pairs = get_pairs(&config);
-    let vdisks_count = lcm(pairs.len(), replicas_count);
+    let vdisks_count = vdisks_count.max(lcm(pairs.len(), replicas_count));
     debug!("new vdisks count: OK [{}]", vdisks_count);
     let mut vdisks = Vec::new();
     while vdisks.len() < vdisks_count {
