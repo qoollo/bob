@@ -16,7 +16,8 @@ extern crate log;
 
 #[tokio::main]
 async fn main() {
-    let matches = App::new("Bob")
+    let matches = App::new(env!("CARGO_PKG_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
         .arg(
             Arg::with_name("cluster")
                 .help("cluster config file")
