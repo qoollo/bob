@@ -1,0 +1,115 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/core_inner/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../bob/index.html'><div class='logo-container'><img src='../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1"> 1</span>
+<span id="2"> 2</span>
+<span id="3"> 3</span>
+<span id="4"> 4</span>
+<span id="5"> 5</span>
+<span id="6"> 6</span>
+<span id="7"> 7</span>
+<span id="8"> 8</span>
+<span id="9"> 9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">backend</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bob_client</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cluster</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">configs</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">data</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">grinder</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">link_manager</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">mapper</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">metrics</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">server</span>;
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">backend</span>::{
+    <span class="ident">init_pearl</span>, <span class="ident">BackendGetResult</span>, <span class="ident">BackendOperation</span>, <span class="ident">BackendPingResult</span>, <span class="ident">BackendPutResult</span>,
+    <span class="ident">Get</span> <span class="kw">as</span> <span class="ident">BackendGet</span>, <span class="ident">Put</span> <span class="kw">as</span> <span class="ident">BackendPut</span>,
+};
+
+<span class="kw">mod</span> <span class="ident">prelude</span> {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">backend</span>::{<span class="ident">Backend</span>, <span class="ident">Error</span> <span class="kw">as</span> <span class="ident">BackendError</span>};
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">bob_client</span>::{<span class="ident">BobClient</span>, <span class="ident">BobClientFactory</span>, <span class="ident">GetResult</span> <span class="kw">as</span> <span class="ident">BobClientGetResult</span>};
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">cluster</span>::{<span class="ident">get_cluster</span>, <span class="ident">Cluster</span>};
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">configs</span>::{
+        <span class="ident">ClusterConfig</span>, <span class="ident">DiskPath</span> <span class="kw">as</span> <span class="ident">ConfigDiskPath</span>, <span class="ident">Node</span> <span class="kw">as</span> <span class="ident">ClusterNodeConfig</span>, <span class="ident">NodeConfig</span>,
+    };
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">data</span>::{
+        <span class="ident">print_vec</span>, <span class="ident">BobData</span>, <span class="ident">BobFlags</span>, <span class="ident">BobKey</span>, <span class="ident">BobMeta</span>, <span class="ident">BobOptions</span>, <span class="ident">ClusterResult</span>, <span class="ident">DiskPath</span>, <span class="ident">Node</span>,
+        <span class="ident">VDiskId</span>,
+    };
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">dipstick</span>::{
+        <span class="ident">AtomicBucket</span>, <span class="ident">Counter</span>, <span class="ident">Graphite</span>, <span class="ident">InputKind</span>, <span class="ident">InputScope</span>, <span class="ident">MetricName</span>, <span class="ident">MetricValue</span>, <span class="ident">Output</span>,
+        <span class="ident">Prefixed</span>, <span class="ident">Proxy</span>, <span class="ident">ScheduleFlush</span>, <span class="ident">ScoreType</span>, <span class="ident">TimeHandle</span>, <span class="ident">Timer</span>, <span class="ident">Void</span>,
+    };
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">futures</span>::{
+        <span class="ident">future</span>, <span class="ident">stream</span>::<span class="ident">FuturesUnordered</span>, <span class="ident">Future</span>, <span class="ident">FutureExt</span>, <span class="ident">StreamExt</span>, <span class="ident">TryFutureExt</span>,
+    };
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">grinder</span>::<span class="ident">Grinder</span>;
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">grpc</span>::{
+        <span class="ident">bob_api_server</span>::<span class="ident">BobApi</span>, <span class="ident">GetOptions</span>, <span class="ident">GetSource</span>, <span class="ident">Null</span>, <span class="ident">OpStatus</span>, <span class="ident">PutOptions</span>,
+    };
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">link_manager</span>::<span class="ident">LinkManager</span>;
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">mapper</span>::<span class="ident">VDiskMapper</span>;
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">metrics</span>::{
+        <span class="ident">BobClientMetrics</span>, <span class="ident">MetricsContainerBuilder</span>, <span class="ident">CLIENT_GET_COUNTER</span>,
+        <span class="ident">CLIENT_GET_ERROR_COUNT_COUNTER</span>, <span class="ident">CLIENT_GET_TIMER</span>, <span class="ident">CLIENT_PUT_COUNTER</span>, <span class="ident">CLIENT_PUT_TIMER</span>,
+        <span class="ident">GRINDER_GET_COUNTER</span>, <span class="ident">GRINDER_GET_ERROR_COUNT_COUNTER</span>, <span class="ident">GRINDER_GET_TIMER</span>,
+        <span class="ident">GRINDER_PUT_COUNTER</span>, <span class="ident">GRINDER_PUT_ERROR_COUNT_COUNTER</span>, <span class="ident">GRINDER_PUT_TIMER</span>,
+    };
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">stopwatch</span>::<span class="ident">Stopwatch</span>;
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">tokio</span>::<span class="ident">time</span>::{<span class="ident">interval</span>, <span class="ident">timeout</span>};
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">tonic</span>::{
+        <span class="ident">transport</span>::{<span class="ident">Channel</span>, <span class="ident">Endpoint</span>},
+        <span class="ident">Code</span>, <span class="ident">Request</span>, <span class="ident">Response</span>, <span class="ident">Status</span>,
+    };
+}
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../../";window.currentCrate = "bob";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>
