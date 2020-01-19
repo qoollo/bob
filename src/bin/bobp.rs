@@ -5,10 +5,13 @@ use bob::grpc::{
     bob_api_client::BobApiClient, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
 };
 use bob::grpc::{Blob, BlobKey, BlobMeta};
-use clap::{App, Arg};
+use clap::{App, Arg, ArgMatches};
+use std::fmt::{Debug, Error, Formatter};
+use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
+use std::thread::JoinHandle;
 use std::time::{self, Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::delay_for;
 use tonic::transport::{Channel, Endpoint};
@@ -19,7 +22,7 @@ async fn build_client(net_conf: NetConfig) -> BobApiClient<Channel> {
     BobApiClient::connect(endpoint).await.unwrap()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct NetConfig {
     port: u16,
     target: String,
@@ -34,9 +37,22 @@ impl NetConfig {
             .build()
             .unwrap()
     }
+
+    fn from_matches(matches: &ArgMatches) -> Self {
+        Self {
+            port: matches.value_or_default("port"),
+            target: matches.value_or_default("host"),
+        }
+    }
 }
 
-#[derive(Debug, Clone, Copy)]
+impl Debug for NetConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(f, "{}:{}", self.target, self.port)
+    }
+}
+
+#[derive(Clone, Copy)]
 struct TaskConfig {
     low_idx: u64,
     count: u64,
@@ -44,7 +60,57 @@ struct TaskConfig {
     direct: bool,
 }
 
-struct Stat {
+impl TaskConfig {
+    fn from_matches(matches: &ArgMatches) -> Self {
+        Self {
+            low_idx: matches.value_or_default("first"),
+            count: matches.value_or_default("count"),
+            payload_size: matches.value_or_default("payload"),
+            direct: matches.is_present("direct"),
+        }
+    }
+
+    fn find_get_options(&self) -> Option<GetOptions> {
+        if self.direct {
+            Some(GetOptions {
+                force_node: true,
+                source: GetSource::Normal as i32,
+            })
+        } else {
+            None
+        }
+    }
+
+    fn find_put_options(&self) -> Option<PutOptions> {
+        if self.direct {
+            Some(PutOptions {
+                remote_nodes: vec![],
+                force_node: true,
+                overwrite: false,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+impl Debug for TaskConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(
+            f,
+            "payload size: {}, count: {}",
+            self.payload_size, self.count
+        )?;
+        if self.direct {
+            write!(f, ", direct")
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[derive(Default)]
+struct Statistics {
     put_total: AtomicU64,
     put_error: AtomicU64,
 
@@ -52,7 +118,64 @@ struct Stat {
     get_error: AtomicU64,
 }
 
-fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
+struct BenchmarkConfig {
+    workers_count: u64,
+    behavior: bool,
+    statistics: Arc<Statistics>,
+    time: Duration,
+}
+
+impl BenchmarkConfig {
+    fn from_matches(matches: &ArgMatches) -> Self {
+        Self {
+            workers_count: matches.value_or_default("threads"),
+            behavior: match matches.value_of("behavior").unwrap_or_default() {
+                "put" => true,
+                "get" => false,
+                value => panic!("invalid value for behavior: {}", value),
+            },
+            statistics: Arc::new(Statistics::default()),
+            time: Duration::from_secs(matches.value_or_default("time")),
+        }
+    }
+}
+
+impl Debug for BenchmarkConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(
+            f,
+            "workers count: {}, time: {:?}, behaviour: {}",
+            self.workers_count, self.time, self.behavior
+        )
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    let matches = get_matches();
+
+    let net_conf = NetConfig::from_matches(&matches);
+    let task_conf = TaskConfig::from_matches(&matches);
+    let benchmark_conf = BenchmarkConfig::from_matches(&matches);
+
+    println!("Bob will be benchmarked now");
+    println!(
+        "target: {:?}\r\nbenchmark configuration: {:?}\r\ntotal task configuration: {:?}",
+        net_conf, benchmark_conf, task_conf,
+    );
+
+    let stop_token: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+
+    let stat_thread = spawn_statistics_thread(&benchmark_conf, &stop_token);
+
+    spawn_workers(&net_conf, &task_conf, &benchmark_conf);
+
+    delay_for(benchmark_conf.time).await;
+    stop_token.store(true, Ordering::Relaxed);
+    stat_thread.join().unwrap();
+}
+
+fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Statistics>) {
     let pause = time::Duration::from_millis(period_ms);
     let mut last_put_count = stat.put_total.load(Ordering::Relaxed);
     let mut last_get_count = stat.get_total.load(Ordering::Relaxed);
@@ -76,17 +199,10 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Stat>) {
     }
 }
 
-async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
+async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = build_client(net_conf).await;
 
-    let options = if task_conf.direct {
-        Some(GetOptions {
-            force_node: true,
-            source: GetSource::Normal as i32,
-        })
-    } else {
-        None
-    };
+    let options = task_conf.find_get_options();
 
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
@@ -103,18 +219,10 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>)
     }
 }
 
-async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>) {
+async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = build_client(net_conf.clone()).await;
 
-    let options: Option<PutOptions> = if task_conf.direct {
-        Some(PutOptions {
-            remote_nodes: vec![],
-            force_node: true,
-            overwrite: false,
-        })
-    } else {
-        None
-    };
+    let options: Option<PutOptions> = task_conf.find_put_options();
 
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
@@ -142,9 +250,39 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat>)
     }
 }
 
-#[tokio::main]
-async fn main() {
-    let matches = App::new("Bob benchmark tool")
+fn spawn_workers(net_conf: &NetConfig, task_conf: &TaskConfig, benchmark_conf: &BenchmarkConfig) {
+    let task_size = task_conf.count / benchmark_conf.workers_count;
+    for i in 0..benchmark_conf.workers_count {
+        let nc = net_conf.clone();
+        let stat_inner = benchmark_conf.statistics.clone();
+        let tc = TaskConfig {
+            low_idx: task_conf.low_idx + task_size * i,
+            count: task_size,
+            payload_size: task_conf.payload_size,
+            direct: task_conf.direct,
+        };
+        if benchmark_conf.behavior {
+            tokio::spawn(put_worker(nc, tc, stat_inner));
+        } else {
+            tokio::spawn(get_worker(nc, tc, stat_inner));
+        }
+        error!("worker spawned");
+    }
+}
+
+fn spawn_statistics_thread(
+    benchmark_conf: &BenchmarkConfig,
+    stop_token: &Arc<AtomicBool>,
+) -> JoinHandle<()> {
+    let stop_token = stop_token.clone();
+    let stat = benchmark_conf.statistics.clone();
+    thread::spawn(move || {
+        stat_worker(stop_token, 1000, stat);
+    })
+}
+
+fn get_matches() -> ArgMatches<'static> {
+    App::new("Bob benchmark tool")
         .arg(
             Arg::with_name("host")
                 .help("ip or hostname of bob")
@@ -207,92 +345,28 @@ async fn main() {
                 .short("d")
                 .long("direct"),
         )
-        .get_matches();
+        .arg(
+            Arg::with_name("time")
+                .help("max time for benchmark")
+                .long("time")
+                .default_value("10"),
+        )
+        .get_matches()
+}
 
-    let net_conf = NetConfig {
-        port: matches
-            .value_of("port")
-            .unwrap_or_default()
-            .parse()
-            .unwrap(),
-        target: matches.value_of("host").unwrap_or_default().to_string(),
-    };
+trait ValueOrDefault<'a, 'b> {
+    fn value_or_default<T>(&'a self, key: &'b str) -> T
+    where
+        T: FromStr + Debug,
+        <T as std::str::FromStr>::Err: std::fmt::Debug;
+}
 
-    let task_conf = TaskConfig {
-        low_idx: matches
-            .value_of("first")
-            .unwrap_or_default()
-            .parse()
-            .unwrap(),
-        count: matches
-            .value_of("count")
-            .unwrap_or_default()
-            .parse()
-            .unwrap(),
-        payload_size: matches
-            .value_of("payload")
-            .unwrap_or_default()
-            .parse()
-            .unwrap(),
-        direct: matches.is_present("direct"),
-    };
-
-    let workers_count: u64 = matches
-        .value_of("threads")
-        .unwrap_or_default()
-        .parse()
-        .unwrap();
-
-    let behavior = match matches.value_of("behavior").unwrap_or_default() {
-        "put" => true,
-        "get" => false,
-        value => panic!("invalid value for behavior: {}", value),
-    };
-
-    println!("Bob will be benchmarked now");
-    println!(
-        "target: {}:{} workers_count: {} payload size: {} total records: {}",
-        net_conf.target, net_conf.port, workers_count, task_conf.payload_size, task_conf.count,
-    );
-
-    let stat = Arc::new(Stat {
-        put_total: AtomicU64::new(0),
-        put_error: AtomicU64::new(0),
-
-        get_total: AtomicU64::new(0),
-        get_error: AtomicU64::new(0),
-    });
-
-    let stop_token: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-    let stat_cln = stat.clone();
-
-    let stat_thread = {
-        let stop_token = stop_token.clone();
-        thread::spawn(move || {
-            stat_worker(stop_token, 1000, stat_cln);
-        })
-    };
-
-    let task_size = task_conf.count / workers_count;
-    for i in 0..workers_count {
-        let nc = net_conf.clone();
-        let stat_inner = stat.clone();
-        let tc = TaskConfig {
-            low_idx: task_conf.low_idx + task_size * i,
-            count: task_size,
-            payload_size: task_conf.payload_size,
-            direct: task_conf.direct,
-        };
-        if behavior {
-            tokio::spawn(put_worker(nc, tc, stat_inner));
-        } else {
-            tokio::spawn(get_worker(nc, tc, stat_inner));
-        }
-        error!("worker spawned");
+impl<'a, 'b> ValueOrDefault<'a, 'b> for ArgMatches<'a> {
+    fn value_or_default<T>(&'a self, key: &'b str) -> T
+    where
+        T: FromStr + Debug,
+        <T as std::str::FromStr>::Err: std::fmt::Debug,
+    {
+        self.value_of(key).unwrap_or_default().parse().unwrap()
     }
-
-    delay_for(Duration::from_secs(10)).await;
-    stop_token.store(true, Ordering::Relaxed);
-
-    stat_thread.join().unwrap();
 }
