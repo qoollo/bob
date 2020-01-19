@@ -122,7 +122,7 @@ struct BenchmarkConfig {
     workers_count: u64,
     behavior: bool,
     statistics: Arc<Statistics>,
-    time: Duration,
+    time: Option<Duration>,
 }
 
 impl BenchmarkConfig {
@@ -135,7 +135,9 @@ impl BenchmarkConfig {
                 value => panic!("invalid value for behavior: {}", value),
             },
             statistics: Arc::new(Statistics::default()),
-            time: Duration::from_secs(matches.value_or_default("time")),
+            time: matches
+                .value_of("time")
+                .map(|t| Duration::from_secs(t.parse().expect("error parsing time"))),
         }
     }
 }
@@ -144,8 +146,12 @@ impl Debug for BenchmarkConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         write!(
             f,
-            "workers count: {}, time: {:?}, behaviour: {}",
-            self.workers_count, self.time, self.behavior
+            "workers count: {}, time: {}, behaviour: {}",
+            self.workers_count,
+            self.time
+                .map(|t| format!("{:?}", t))
+                .unwrap_or("infinite".to_string()),
+            self.behavior
         )
     }
 }
@@ -168,9 +174,15 @@ async fn main() {
 
     let stat_thread = spawn_statistics_thread(&benchmark_conf, &stop_token);
 
-    spawn_workers(&net_conf, &task_conf, &benchmark_conf);
+    let workers = spawn_workers(&net_conf, &task_conf, &benchmark_conf);
 
-    delay_for(benchmark_conf.time).await;
+    if let Some(time) = benchmark_conf.time {
+        delay_for(time).await;
+    } else {
+        for worker in workers {
+            let _ = worker.await;
+        }
+    }
     stop_token.store(true, Ordering::Relaxed);
     stat_thread.join().unwrap();
 }
@@ -217,6 +229,7 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
     }
+    println!("get worker finished");
 }
 
 async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
@@ -250,24 +263,29 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     }
 }
 
-fn spawn_workers(net_conf: &NetConfig, task_conf: &TaskConfig, benchmark_conf: &BenchmarkConfig) {
+fn spawn_workers(
+    net_conf: &NetConfig,
+    task_conf: &TaskConfig,
+    benchmark_conf: &BenchmarkConfig,
+) -> Vec<tokio::task::JoinHandle<()>> {
     let task_size = task_conf.count / benchmark_conf.workers_count;
-    for i in 0..benchmark_conf.workers_count {
-        let nc = net_conf.clone();
-        let stat_inner = benchmark_conf.statistics.clone();
-        let tc = TaskConfig {
-            low_idx: task_conf.low_idx + task_size * i,
-            count: task_size,
-            payload_size: task_conf.payload_size,
-            direct: task_conf.direct,
-        };
-        if benchmark_conf.behavior {
-            tokio::spawn(put_worker(nc, tc, stat_inner));
-        } else {
-            tokio::spawn(get_worker(nc, tc, stat_inner));
-        }
-        error!("worker spawned");
-    }
+    (0..benchmark_conf.workers_count)
+        .map(|i| {
+            let nc = net_conf.clone();
+            let stat_inner = benchmark_conf.statistics.clone();
+            let tc = TaskConfig {
+                low_idx: task_conf.low_idx + task_size * i,
+                count: task_size,
+                payload_size: task_conf.payload_size,
+                direct: task_conf.direct,
+            };
+            if benchmark_conf.behavior {
+                tokio::spawn(put_worker(nc, tc, stat_inner))
+            } else {
+                tokio::spawn(get_worker(nc, tc, stat_inner))
+            }
+        })
+        .collect()
 }
 
 fn spawn_statistics_thread(
@@ -348,8 +366,8 @@ fn get_matches() -> ArgMatches<'static> {
         .arg(
             Arg::with_name("time")
                 .help("max time for benchmark")
-                .long("time")
-                .default_value("10"),
+                .takes_value(true)
+                .long("time"),
         )
         .get_matches()
 }
