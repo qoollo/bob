@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use bob::configs::cluster::{Config, Node, Replica, VDisk};
+use bob::configs::cluster::{Config, Node as ClusterNode, Replica, VDisk};
 use chrono::Local;
 use clap::{App, Arg, ArgMatches};
 use env_logger::fmt::Color;
@@ -110,13 +110,161 @@ fn generate_config(input: Config) -> Option<Config> {
     Some(res)
 }
 
+fn replica_from_pair(node: &Node, disk: &Disk) -> Replica {
+    Replica {
+        node: Some(node.name.clone()),
+        disk: Some(disk.name.clone()),
+    }
+}
+
+fn get_used_nodes_names(replicas: &[Replica]) -> Vec<String> {
+    replicas.iter().map(|r| r.node().to_string()).collect()
+}
+
+fn new_vdisk(id: i32) -> VDisk {
+    VDisk {
+        id: Some(id),
+        replicas: Vec::new(),
+    }
+}
+
 #[derive(Debug)]
-struct Pair {
-    node: String,
-    disk: String,
+struct Center {
+    racks: Vec<Rack>,
+}
+
+impl Center {
+    fn new() -> Self {
+        Self { racks: Vec::new() }
+    }
+
+    fn push(&mut self, item: Rack) {
+        self.racks.push(item)
+    }
+
+    fn disks_count(&self) -> usize {
+        self.racks.iter().fold(0, |acc, r| acc + r.disks_count())
+    }
+
+    fn next_disk(&self) -> Option<(&Node, &Disk)> {
+        let disks = self.racks.iter().flat_map(|r| {
+            r.nodes
+                .iter()
+                .flat_map(|n| n.disks.iter().map(move |d| (n, d)))
+        });
+        let (node, disk) = disks.min_by_key(|r| r.1.used_count.load(ORD))?;
+        node.inc();
+        disk.inc();
+        Some((node, disk))
+    }
+
+    fn next_rack(&self) -> Option<&Rack> {
+        let rack = self
+            .racks
+            .iter()
+            .min_by_key(|r: &&Rack| r.used_count.load(ORD))?;
+        rack.inc();
+        Some(rack)
+    }
+
+    fn create_vdisk(&self, id: i32, replicas_count: usize) -> VDisk {
+        let mut vdisk = new_vdisk(id);
+        let (node, disk) = self.next_disk().expect("no disks in setup");
+        vdisk.replicas.push(replica_from_pair(node, disk));
+
+        while vdisk.replicas.len() < replicas_count {
+            let rack = self.next_rack().expect("no racks in setup");
+            let banned_nodes = get_used_nodes_names(&vdisk.replicas);
+            let (node, disk) = rack.next_disk(&banned_nodes).expect("no disks in setup");
+            vdisk.replicas.push(replica_from_pair(node, disk));
+            debug!("replica added: {} {}", node.name, disk.name);
+        }
+        vdisk
+    }
+}
+
+#[derive(Debug)]
+struct Rack {
+    name: String,
+    used_count: AtomicUsize,
+    nodes: Vec<Node>,
+}
+
+impl Rack {
+    fn disks_count(&self) -> usize {
+        self.nodes.iter().fold(0, |acc, n| acc + n.disks_count())
+    }
+
+    fn inc(&self) {
+        self.used_count.fetch_add(1, ORD);
+    }
+
+    fn next_disk(&self, replicas: &Vec<String>) -> Option<(&Node, &Disk)> {
+        let (node, disk) = self
+            .nodes
+            .iter()
+            .filter(|node| !replicas.contains(&&node.name))
+            .flat_map(|n| n.disks.iter().map(move |d| (n, d)))
+            .min_by_key(|(_, d)| d.used_count.load(ORD))
+            .unwrap_or(self.min_used_disk()?);
+        node.inc();
+        disk.inc();
+        Some((node, disk))
+    }
+
+    fn min_used_disk(&self) -> Option<(&Node, &Disk)> {
+        self.nodes
+            .iter()
+            .flat_map(|n| n.disks.iter().map(move |d| (n, d)))
+            .min_by_key(|(_, d)| d.used_count.load(ORD))
+    }
+}
+
+#[derive(Debug)]
+struct Node {
+    name: String,
+    used_count: AtomicUsize,
+    disks: Vec<Disk>,
+}
+
+impl Node {
+    fn new(name: impl Into<String>, disks: Vec<Disk>) -> Self {
+        Self {
+            name: name.into(),
+            used_count: AtomicUsize::new(0),
+            disks,
+        }
+    }
+
+    fn disks_count(&self) -> usize {
+        self.disks.len()
+    }
+
+    fn inc(&self) {
+        self.used_count.fetch_add(1, ORD);
+    }
+}
+
+#[derive(Debug)]
+struct Disk {
+    name: String,
     used_count: AtomicUsize,
 }
 
+impl Disk {
+    fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            used_count: AtomicUsize::new(0),
+        }
+    }
+
+    fn inc(&self) {
+        self.used_count.fetch_add(1, ORD);
+    }
+}
+
+/// greatest common divider
 fn gcd(a: usize, b: usize) -> usize {
     debug!("gcd of {} and {}", a, b);
     if a == 0 {
@@ -128,6 +276,7 @@ fn gcd(a: usize, b: usize) -> usize {
     }
 }
 
+/// least common multiple
 fn lcm(a: usize, b: usize) -> usize {
     let lcm = a / gcd(a, b) * b;
     debug!("lcm of {} and {} is {}", a, b, lcm);
@@ -135,48 +284,39 @@ fn lcm(a: usize, b: usize) -> usize {
 }
 
 fn simple_gen(mut config: Config, replicas_count: usize, vdisks_count: usize) -> Config {
-    let mut pairs = get_pairs(&config);
-    let vdisks_count = vdisks_count.max(lcm(pairs.len(), replicas_count));
+    let center = get_structure(&config);
+    let vdisks_count = vdisks_count.max(lcm(center.disks_count(), replicas_count));
     debug!("new vdisks count: OK [{}]", vdisks_count);
     let mut vdisks = Vec::new();
     while vdisks.len() < vdisks_count {
-        let mut vdisk = VDisk {
-            id: Some(vdisks.len() as i32),
-            replicas: Vec::new(),
-        };
-        pairs.sort_by(|a, b| a.used_count.load(ORD).cmp(&b.used_count.load(ORD)));
-        let mut iter = pairs.iter().cycle();
-        while vdisk.replicas.len() < replicas_count {
-            if let Some(pair) = iter.next() {
-                vdisk.replicas.push(Replica {
-                    node: Some(pair.node.clone()),
-                    disk: Some(pair.disk.clone()),
-                });
-                pair.used_count.fetch_add(1, ORD);
-                debug!("replica added: {} {}", pair.node, pair.disk);
-            }
-        }
+        let vdisk = center.create_vdisk(vdisks.len() as i32, replicas_count);
         debug!("vdisk added: {}", vdisk.id());
         vdisks.push(vdisk);
     }
     config.vdisks = vdisks;
-    debug!("simple gen: OK [\n{:#?}\n]", pairs);
+    debug!("simple gen: OK [\n{:#?}\n]", center);
     config
 }
 
-fn get_pairs(config: &Config) -> Vec<Pair> {
-    config
+fn get_structure(config: &Config) -> Center {
+    let nodes = config
         .nodes
         .iter()
-        .flat_map(|node| {
-            let node_name = node.name();
-            node.disks.iter().map(move |d| Pair {
-                node: node_name.clone(),
-                disk: d.name.clone().unwrap(),
-                used_count: AtomicUsize::new(0),
-            })
+        .map(|node| {
+            Node::new(
+                node.name(),
+                node.disks.iter().map(|d| Disk::new(d.name())).collect(),
+            )
         })
-        .collect()
+        .collect();
+    let mut center = Center::new();
+    let rack = Rack {
+        name: "unknown".to_string(),
+        used_count: AtomicUsize::new(0),
+        nodes,
+    };
+    center.push(rack);
+    center
 }
 
 fn get_replicas_count() -> Option<usize> {
@@ -189,7 +329,7 @@ fn get_replicas_count() -> Option<usize> {
         .ok()
 }
 
-fn get_vdisks_count(nodes: &[Node]) -> Option<usize> {
+fn get_vdisks_count(nodes: &[ClusterNode]) -> Option<usize> {
     let matches = get_matches();
     matches.value_of("vdisks_count").map_or_else(
         || {
@@ -205,26 +345,34 @@ fn get_vdisks_count(nodes: &[Node]) -> Option<usize> {
     )
 }
 
-fn get_pairs_count(nodes: &[Node]) -> usize {
+fn get_pairs_count(nodes: &[ClusterNode]) -> usize {
     nodes.iter().fold(0, |acc, n| acc + n.disks.len())
 }
 
 fn write_to_file(output: Config) {
+    let name = get_matches()
+        .value_of("output")
+        .expect("is some, default value is set")
+        .to_owned();
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
-        .open("cluster.gen-output.yaml")
-        .unwrap();
-    let mut output = serde_yaml::to_string(&output).unwrap();
+        .open(name)
+        .expect("File IO error");
+    let mut output = serde_yaml::to_string(&output).expect("config serialization error");
     output += "\n";
-    file.write_all(output.as_bytes()).unwrap();
+    file.write_all(output.as_bytes()).expect("File IO error");
     debug!("write to file: OK");
 }
 
 fn get_matches() -> ArgMatches<'static> {
     let input = Arg::with_name("input")
         .short("i")
+        .default_value("cluster.yaml")
+        .takes_value(true);
+    let output = Arg::with_name("output")
+        .short("o")
         .default_value("cluster.yaml")
         .takes_value(true);
     let vdisks_count = Arg::with_name("vdisks_count")
@@ -238,6 +386,7 @@ fn get_matches() -> ArgMatches<'static> {
     debug!("input arg: OK");
     App::new("Config Cluster Generator")
         .arg(input)
+        .arg(output)
         .arg(vdisks_count)
         .arg(replicas)
         .get_matches()
