@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate log;
-
 use bob::grpc::{
     bob_api_client::BobApiClient, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
 };
@@ -17,11 +14,6 @@ use tokio::time::delay_for;
 use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
 
-async fn build_client(net_conf: NetConfig) -> BobApiClient<Channel> {
-    let endpoint = Endpoint::from(net_conf.get_uri()).tcp_nodelay(true);
-    BobApiClient::connect(endpoint).await.unwrap()
-}
-
 #[derive(Clone)]
 struct NetConfig {
     port: u16,
@@ -29,7 +21,7 @@ struct NetConfig {
 }
 
 impl NetConfig {
-    pub fn get_uri(&self) -> http::Uri {
+    fn get_uri(&self) -> http::Uri {
         http::Uri::builder()
             .scheme("http")
             .authority(format!("{}:{}", self.target, self.port).as_str())
@@ -43,6 +35,11 @@ impl NetConfig {
             port: matches.value_or_default("port"),
             target: matches.value_or_default("host"),
         }
+    }
+
+    async fn build_client(&self) -> BobApiClient<Channel> {
+        let endpoint = Endpoint::from(self.get_uri()).tcp_nodelay(true);
+        BobApiClient::connect(endpoint).await.unwrap()
     }
 }
 
@@ -120,20 +117,40 @@ struct Statistics {
 
 struct BenchmarkConfig {
     workers_count: u64,
-    behavior: bool,
+    behavior: Behavior,
     statistics: Arc<Statistics>,
     time: Option<Duration>,
+}
+
+#[derive(Debug)]
+enum Behavior {
+    Put,
+    Get,
+    Test,
+}
+
+impl FromStr for Behavior {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "get" => Ok(Behavior::Get),
+            "put" => Ok(Behavior::Put),
+            "test" => Ok(Behavior::Test),
+            _ => Err(()),
+        }
+    }
 }
 
 impl BenchmarkConfig {
     fn from_matches(matches: &ArgMatches) -> Self {
         Self {
             workers_count: matches.value_or_default("threads"),
-            behavior: match matches.value_of("behavior").unwrap_or_default() {
-                "put" => true,
-                "get" => false,
-                value => panic!("invalid value for behavior: {}", value),
-            },
+            behavior: matches
+                .value_of("behavior")
+                .unwrap()
+                .parse()
+                .expect("incorrect behavior"),
             statistics: Arc::new(Statistics::default()),
             time: matches
                 .value_of("time")
@@ -146,7 +163,7 @@ impl Debug for BenchmarkConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         write!(
             f,
-            "workers count: {}, time: {}, behaviour: {}",
+            "workers count: {}, time: {}, behaviour: {:?}",
             self.workers_count,
             self.time
                 .map(|t| format!("{:?}", t))
@@ -212,10 +229,9 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Statistics
 }
 
 async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
-    let mut client = build_client(net_conf).await;
+    let mut client = net_conf.build_client().await;
 
     let options = task_conf.find_get_options();
-
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
         let res = client
@@ -229,11 +245,10 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
     }
-    println!("get worker finished");
 }
 
 async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
-    let mut client = build_client(net_conf.clone()).await;
+    let mut client = net_conf.build_client().await;
 
     let options: Option<PutOptions> = task_conf.find_put_options();
 
@@ -246,7 +261,7 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
                 .as_secs() as i64,
         };
         let blob = Blob {
-            data: vec![0; task_conf.payload_size as usize],
+            data: vec![0_u8; task_conf.payload_size as usize],
             meta: Some(meta),
         };
         let key = BlobKey { key: i };
@@ -261,6 +276,11 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
     }
+}
+
+async fn test_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
+    put_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
+    get_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
 }
 
 fn spawn_workers(
@@ -279,10 +299,10 @@ fn spawn_workers(
                 payload_size: task_conf.payload_size,
                 direct: task_conf.direct,
             };
-            if benchmark_conf.behavior {
-                tokio::spawn(put_worker(nc, tc, stat_inner))
-            } else {
-                tokio::spawn(get_worker(nc, tc, stat_inner))
+            match benchmark_conf.behavior {
+                Behavior::Put => tokio::spawn(put_worker(nc, tc, stat_inner)),
+                Behavior::Get => tokio::spawn(get_worker(nc, tc, stat_inner)),
+                Behavior::Test => tokio::spawn(test_worker(nc, tc, stat_inner)),
             }
         })
         .collect()
@@ -319,11 +339,11 @@ fn get_matches() -> ArgMatches<'static> {
         )
         .arg(
             Arg::with_name("payload")
-                .help("payload size")
+                .help("payload size in bytes")
                 .takes_value(true)
                 .short("l")
                 .long("payload")
-                .default_value("100000"),
+                .default_value("1024"),
         )
         .arg(
             Arg::with_name("threads")
@@ -351,11 +371,11 @@ fn get_matches() -> ArgMatches<'static> {
         )
         .arg(
             Arg::with_name("behavior")
-                .help("put / get")
+                .help("put / get / test")
                 .takes_value(true)
                 .short("b")
                 .long("behavior")
-                .default_value("put"),
+                .default_value("test"),
         )
         .arg(
             Arg::with_name("direct")
@@ -368,6 +388,12 @@ fn get_matches() -> ArgMatches<'static> {
                 .help("max time for benchmark")
                 .takes_value(true)
                 .long("time"),
+        )
+        .arg(
+            Arg::with_name("amount")
+                .help("amount of bytes to write")
+                .takes_value(true)
+                .long("amount"),
         )
         .get_matches()
 }
