@@ -120,6 +120,7 @@ struct BenchmarkConfig {
     behavior: Behavior,
     statistics: Arc<Statistics>,
     time: Option<Duration>,
+    request_amount_bytes: u64,
 }
 
 #[derive(Debug)]
@@ -157,6 +158,7 @@ impl BenchmarkConfig {
             time: matches
                 .value_of("time")
                 .map(|t| Duration::from_secs(t.parse().expect("error parsing time"))),
+            request_amount_bytes: matches.value_or_default("payload"),
         }
     }
 }
@@ -206,10 +208,16 @@ async fn main() {
     stat_thread.join().unwrap();
 }
 
-fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Statistics>) {
+fn stat_worker(
+    stop_token: Arc<AtomicBool>,
+    period_ms: u64,
+    stat: Arc<Statistics>,
+    request_bytes: u64,
+) {
     let pause = time::Duration::from_millis(period_ms);
     let mut last_put_count = stat.put_total.load(Ordering::Relaxed);
     let mut last_get_count = stat.get_total.load(Ordering::Relaxed);
+    let k = request_bytes as f64 / period_ms as f64 * 1000.0 / 1024.0;
 
     while !stop_token.load(Ordering::Relaxed) {
         thread::sleep(pause);
@@ -223,9 +231,12 @@ fn stat_worker(stop_token: Arc<AtomicBool>, period_ms: u64, stat: Arc<Statistics
 
         let put_error = stat.put_error.load(Ordering::Relaxed);
         let get_error = stat.get_error.load(Ordering::Relaxed);
+
+        let put_bandwidth = put_count_spd as f64 * k;
+        let get_bandwidth = get_count_spd as f64 * k;
         println!(
-            "put: {:5} rps | get {:5} rps | put err: {:5} | get err: {:5}",
-            put_count_spd, get_count_spd, put_error, get_error
+            "put: {:5} rps | get {:5} rps | put err: {:5} | get err: {:5} | put {:5.2} kb/s | get {:5.2} kb/s |",
+            put_count_spd, get_count_spd, put_error, get_error, put_bandwidth, get_bandwidth
         );
     }
 }
@@ -341,8 +352,9 @@ fn spawn_statistics_thread(
 ) -> JoinHandle<()> {
     let stop_token = stop_token.clone();
     let stat = benchmark_conf.statistics.clone();
+    let bytes_amount = benchmark_conf.request_amount_bytes;
     thread::spawn(move || {
-        stat_worker(stop_token, 1000, stat);
+        stat_worker(stop_token, 1000, stat, bytes_amount);
     })
 }
 
