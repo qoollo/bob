@@ -127,6 +127,7 @@ enum Behavior {
     Put,
     Get,
     Test,
+    PingPong,
 }
 
 impl FromStr for Behavior {
@@ -137,6 +138,7 @@ impl FromStr for Behavior {
             "get" => Ok(Behavior::Get),
             "put" => Ok(Behavior::Put),
             "test" => Ok(Behavior::Test),
+            "ping_pong" => Ok(Behavior::PingPong),
             _ => Err(()),
         }
     }
@@ -254,16 +256,7 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
 
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
-        let meta = BlobMeta {
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("msg: &str")
-                .as_secs() as i64,
-        };
-        let blob = Blob {
-            data: vec![0_u8; task_conf.payload_size as usize],
-            meta: Some(meta),
-        };
+        let blob = create_blob(&task_conf);
         let key = BlobKey { key: i };
         let req = Request::new(PutRequest {
             key: Some(key),
@@ -281,6 +274,39 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
 async fn test_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     put_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
     get_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
+}
+
+async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
+    let mut client = net_conf.build_client().await;
+
+    let get_options = task_conf.find_get_options();
+    let put_options = task_conf.find_put_options();
+    let upper_idx = task_conf.low_idx + task_conf.count;
+    for i in task_conf.low_idx..upper_idx {
+        let blob = create_blob(&task_conf);
+        let key = BlobKey { key: i };
+        let put_res = client
+            .put(Request::new(PutRequest {
+                key: Some(key.clone()),
+                data: Some(blob),
+                options: put_options.clone(),
+            }))
+            .await;
+        if put_res.is_err() {
+            stat.put_error.fetch_add(1, Ordering::SeqCst);
+        }
+        stat.put_total.fetch_add(1, Ordering::SeqCst);
+        let get_res = client
+            .get(Request::new(GetRequest {
+                key: Some(key),
+                options: get_options.clone(),
+            }))
+            .await;
+        if get_res.is_err() {
+            stat.get_error.fetch_add(1, Ordering::SeqCst);
+        }
+        stat.get_total.fetch_add(1, Ordering::SeqCst);
+    }
 }
 
 fn spawn_workers(
@@ -303,6 +329,7 @@ fn spawn_workers(
                 Behavior::Put => tokio::spawn(put_worker(nc, tc, stat_inner)),
                 Behavior::Get => tokio::spawn(get_worker(nc, tc, stat_inner)),
                 Behavior::Test => tokio::spawn(test_worker(nc, tc, stat_inner)),
+                Behavior::PingPong => tokio::spawn(ping_pong_worker(nc, tc, stat_inner)),
             }
         })
         .collect()
@@ -317,6 +344,19 @@ fn spawn_statistics_thread(
     thread::spawn(move || {
         stat_worker(stop_token, 1000, stat);
     })
+}
+
+fn create_blob(task_conf: &TaskConfig) -> Blob {
+    let meta = BlobMeta {
+        timestamp: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("msg: &str")
+            .as_secs() as i64,
+    };
+    Blob {
+        data: vec![0_u8; task_conf.payload_size as usize],
+        meta: Some(meta),
+    }
 }
 
 fn get_matches() -> ArgMatches<'static> {
