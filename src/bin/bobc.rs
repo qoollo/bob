@@ -4,6 +4,7 @@ extern crate log;
 use bob::grpc::bob_api_client::BobApiClient;
 use bob::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
 use clap::{App, Arg, ArgMatches, SubCommand};
+use http::Uri;
 use log::LevelFilter;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tonic::Request;
@@ -11,7 +12,7 @@ use tonic::Request;
 #[tokio::main]
 async fn main() {
     env_logger::builder().filter_level(LevelFilter::Info).init();
-    let matches = build_app();
+    let matches = get_matches();
     if let (sc, Some(sub_mathes)) = matches.subcommand() {
         let key = get_key_value(sub_mathes);
         match sc {
@@ -34,9 +35,12 @@ async fn main() {
 }
 
 async fn put(key: u64, size: usize) {
-    let mut client = BobApiClient::connect("http://10.5.5.126:20000")
-        .await
-        .unwrap();
+    let addr: Uri = get_matches()
+        .value_of("uri")
+        .expect("has default value")
+        .parse()
+        .expect("wrong format of url");
+    let mut client = BobApiClient::connect(addr).await.unwrap();
 
     let put_req = Request::new(PutRequest {
         key: Some(BlobKey { key }),
@@ -57,9 +61,12 @@ async fn put(key: u64, size: usize) {
 }
 
 async fn get(key: u64) {
-    let mut client = BobApiClient::connect("http://10.5.5.126:20000")
-        .await
-        .unwrap();
+    let addr: Uri = get_matches()
+        .value_of("uri")
+        .expect("has default value")
+        .parse()
+        .expect("wrong format of url");
+    let mut client = BobApiClient::connect(addr).await.unwrap();
 
     let get_req = Request::new(GetRequest {
         key: Some(BlobKey { key }),
@@ -81,17 +88,23 @@ async fn get(key: u64) {
     }
 }
 
-fn build_app<'a>() -> ArgMatches<'a> {
+fn get_matches<'a>() -> ArgMatches<'a> {
     let key_arg = Arg::with_name("key").takes_value(true).required(true);
+    let uri_arg = Arg::with_name("uri")
+        .takes_value(true)
+        .default_value("http://localhost:20000");
     App::new("bobc")
         .subcommand(
-            SubCommand::with_name("put").arg(&key_arg).arg(
-                Arg::with_name("size")
-                    .takes_value(true)
-                    .default_value("90000"),
-            ),
+            SubCommand::with_name("put")
+                .arg(&key_arg)
+                .arg(
+                    Arg::with_name("size")
+                        .takes_value(true)
+                        .default_value("90000"),
+                )
+                .arg(&uri_arg),
         )
-        .subcommand(SubCommand::with_name("get").arg(key_arg))
+        .subcommand(SubCommand::with_name("get").arg(key_arg).arg(uri_arg))
         .get_matches()
 }
 

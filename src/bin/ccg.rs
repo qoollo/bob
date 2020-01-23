@@ -15,7 +15,7 @@ const ORD: Ordering = Ordering::Relaxed;
 #[tokio::main]
 async fn main() {
     init_logger();
-    if let Some(output) = read_from_file().and_then(|input| generate_config(input)) {
+    if let Some(output) = read_from_file().and_then(generate_config) {
         write_to_file(output);
         debug!("config cluster generation: OK");
     } else {
@@ -199,7 +199,7 @@ impl Rack {
         self.used_count.fetch_add(1, ORD);
     }
 
-    fn next_disk(&self, replicas: &Vec<String>) -> Option<(&Node, &Disk)> {
+    fn next_disk(&self, replicas: &[String]) -> Option<(&Node, &Disk)> {
         let (node, disk) = self
             .nodes
             .iter()
