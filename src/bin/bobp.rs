@@ -89,6 +89,10 @@ impl TaskConfig {
             None
         }
     }
+
+    fn is_time_measurement_thread(&self) -> bool {
+        self.low_idx == 0
+    }
 }
 
 impl Debug for TaskConfig {
@@ -113,6 +117,26 @@ struct Statistics {
 
     get_total: AtomicU64,
     get_error: AtomicU64,
+
+    put_time_ns_single_thread: AtomicU64,
+    put_count_single_thread: AtomicU64,
+
+    get_time_ns_single_thread: AtomicU64,
+    get_count_single_thread: AtomicU64,
+}
+
+impl Statistics {
+    fn save_single_thread_put_time(&self, duration: &Duration) {
+        self.put_time_ns_single_thread
+            .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
+        self.put_count_single_thread.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn save_single_thread_get_time(&self, duration: &Duration) {
+        self.get_time_ns_single_thread
+            .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
+        self.get_count_single_thread.fetch_add(1, Ordering::Relaxed);
+    }
 }
 
 struct BenchmarkConfig {
@@ -217,36 +241,60 @@ fn stat_worker(
     let pause = time::Duration::from_millis(period_ms);
     let mut last_put_count = stat.put_total.load(Ordering::Relaxed);
     let mut last_get_count = stat.get_total.load(Ordering::Relaxed);
+    let mut last_st_put_time = stat.put_time_ns_single_thread.load(Ordering::Relaxed);
+    let mut last_st_put_count = stat.put_count_single_thread.load(Ordering::Relaxed);
+    let mut last_st_get_time = stat.get_time_ns_single_thread.load(Ordering::Relaxed);
+    let mut last_st_get_count = stat.get_count_single_thread.load(Ordering::Relaxed);
     let k = request_bytes as f64 / period_ms as f64 * 1000.0 / 1024.0;
     let start = Instant::now();
     while !stop_token.load(Ordering::Relaxed) {
         thread::sleep(pause);
-        let cur_put_count = stat.put_total.load(Ordering::Relaxed);
-        let put_count = cur_put_count - last_put_count;
-        let put_count_spd = (put_count) * 1000 / period_ms;
-        last_put_count = cur_put_count;
-
-        let cur_get_count = stat.get_total.load(Ordering::Relaxed);
-        let get_count = cur_get_count - last_get_count;
-        let get_count_spd = (get_count) * 1000 / period_ms;
-        last_get_count = cur_get_count;
+        let put_count_spd = get_diff(&mut last_put_count, stat.put_total.load(Ordering::Relaxed))
+            * 1000
+            / period_ms;
+        let get_count_spd = get_diff(&mut last_get_count, stat.get_total.load(Ordering::Relaxed))
+            * 1000
+            / period_ms;
+        let cur_st_put_time = get_diff(
+            &mut last_st_put_time,
+            stat.put_time_ns_single_thread.load(Ordering::Relaxed),
+        ) as f64;
+        let cur_st_put_count = get_diff(
+            &mut last_st_put_count,
+            stat.put_count_single_thread.load(Ordering::Relaxed),
+        ) as f64;
+        let cur_st_get_time = get_diff(
+            &mut last_st_get_time,
+            stat.get_time_ns_single_thread.load(Ordering::Relaxed),
+        ) as f64;
+        let cur_st_get_count = get_diff(
+            &mut last_st_get_count,
+            stat.get_count_single_thread.load(Ordering::Relaxed),
+        ) as f64;
 
         let put_error = stat.put_error.load(Ordering::Relaxed);
         let get_error = stat.get_error.load(Ordering::Relaxed);
 
-        let put_bandwidth = put_count_spd as f64 * k;
-        let get_bandwidth = get_count_spd as f64 * k;
         println!(
-            "put: {:>6} rps  | get {:>6} rps   | put err: {:5}    | get err: {:5}\r\n\
-            put: {:>6.2} kb/s | get: {:>6.2} kb/s",
-            put_count_spd, get_count_spd, put_error, get_error, put_bandwidth, get_bandwidth,
+            "put: {:>6} rps  | get {:>6} rps   | put err: {:5}     | get err: {:5}\r\n\
+            put: {:>6.2} kb/s | get: {:>6.2} kb/s | put lat: {:>6.2} ms | get lat: {:>6.2} ms",
+            put_count_spd,
+            get_count_spd,
+            put_error,
+            get_error,
+            put_count_spd as f64 * k,
+            get_count_spd as f64 * k,
+            finite_or_default(cur_st_put_time / cur_st_put_count / 1e9),
+            finite_or_default(cur_st_get_time / cur_st_get_count / 1e9)
         );
     }
     let elapsed = start.elapsed();
     let elapsed_secs = elapsed.as_secs() as f64;
     println!("Total, elapsed: {:?}", elapsed);
     println!(
-        "avg total: {:>6} rps | total err: {:>6} | put: {:>6.2} kb/s | get: {:>6.2} kb/s ",
+        "avg total: {:>6} rps | total err: {:>6}\r\n\
+        put: {:>6.2} kb/s | get: {:>6.2} kb/s\r\n\
+        put resp time, ms: {:>6.2} | get resp time, ms: {:>6.2}",
         ((stat.put_total.load(Ordering::Relaxed) + stat.get_total.load(Ordering::Relaxed)) * 1000)
             .checked_div(elapsed.as_millis() as u64)
             .unwrap_or_default(),
@@ -255,7 +303,31 @@ fn stat_worker(
             / 1024.0,
         (stat.get_total.load(Ordering::Relaxed) as f64 / elapsed_secs) * request_bytes as f64
             / 1024.0,
+        finite_or_default(
+            (stat.put_time_ns_single_thread.load(Ordering::Relaxed) as f64)
+                / (stat.put_count_single_thread.load(Ordering::Relaxed) as f64)
+                / 1e9
+        ),
+        finite_or_default(
+            (stat.get_time_ns_single_thread.load(Ordering::Relaxed) as f64)
+                / (stat.get_count_single_thread.load(Ordering::Relaxed) as f64)
+                / 1e9
+        )
     );
+}
+
+fn get_diff(last: &mut u64, current: u64) -> u64 {
+    let diff = current - *last;
+    *last = current;
+    diff
+}
+
+fn finite_or_default(value: f64) -> f64 {
+    if value.is_finite() {
+        value
+    } else {
+        f64::default()
+    }
 }
 
 async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
@@ -263,13 +335,20 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
 
     let options = task_conf.find_get_options();
     let upper_idx = task_conf.low_idx + task_conf.count;
+    let measure_time = task_conf.is_time_measurement_thread();
     for i in task_conf.low_idx..upper_idx {
-        let res = client
-            .get(Request::new(GetRequest {
-                key: Some(BlobKey { key: i }),
-                options: options.clone(),
-            }))
-            .await;
+        let request = Request::new(GetRequest {
+            key: Some(BlobKey { key: i }),
+            options: options.clone(),
+        });
+        let res = if measure_time {
+            let start = Instant::now();
+            let res = client.get(request).await;
+            stat.save_single_thread_get_time(&start.elapsed());
+            res
+        } else {
+            client.get(request).await
+        };
         if res.is_err() {
             stat.get_error.fetch_add(1, Ordering::SeqCst);
         }
@@ -281,7 +360,7 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let mut client = net_conf.build_client().await;
 
     let options: Option<PutOptions> = task_conf.find_put_options();
-
+    let measure_time = task_conf.is_time_measurement_thread();
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
         let blob = create_blob(&task_conf);
@@ -291,7 +370,14 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
             data: Some(blob),
             options: options.clone(),
         });
-        let res = client.put(req).await;
+        let res = if measure_time {
+            let start = Instant::now();
+            let res = client.put(req).await;
+            stat.save_single_thread_put_time(&start.elapsed());
+            res
+        } else {
+            client.put(req).await
+        };
         if res.is_err() {
             stat.put_error.fetch_add(1, Ordering::SeqCst);
         }
@@ -309,27 +395,40 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
 
     let get_options = task_conf.find_get_options();
     let put_options = task_conf.find_put_options();
+    let measure_time = task_conf.is_time_measurement_thread();
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
         let blob = create_blob(&task_conf);
         let key = BlobKey { key: i };
-        let put_res = client
-            .put(Request::new(PutRequest {
-                key: Some(key.clone()),
-                data: Some(blob),
-                options: put_options.clone(),
-            }))
-            .await;
+        let put_request = Request::new(PutRequest {
+            key: Some(key.clone()),
+            data: Some(blob),
+            options: put_options.clone(),
+        });
+        let put_res = if measure_time {
+            let start = Instant::now();
+            let res = client.put(put_request).await;
+            stat.save_single_thread_put_time(&start.elapsed());
+            res
+        } else {
+            client.put(put_request).await
+        };
         if put_res.is_err() {
             stat.put_error.fetch_add(1, Ordering::SeqCst);
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
-        let get_res = client
-            .get(Request::new(GetRequest {
-                key: Some(key),
-                options: get_options.clone(),
-            }))
-            .await;
+        let get_request = Request::new(GetRequest {
+            key: Some(key),
+            options: get_options.clone(),
+        });
+        let get_res = if measure_time {
+            let start = Instant::now();
+            let res = client.get(get_request).await;
+            stat.save_single_thread_get_time(&start.elapsed());
+            res
+        } else {
+            client.get(get_request).await
+        };
         if get_res.is_err() {
             stat.get_error.fetch_add(1, Ordering::SeqCst);
         }
