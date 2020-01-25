@@ -290,7 +290,7 @@ fn stat_worker(
     }
     let elapsed = start.elapsed();
     let elapsed_secs = elapsed.as_secs() as f64;
-    println!("Total, elapsed: {:?}", elapsed);
+    println!("Total statistics, elapsed: {:?}", elapsed);
     println!(
         "avg total: {:>6} rps | total err: {:>6}\r\n\
         put: {:>6.2} kb/s | get: {:>6.2} kb/s\r\n\
