@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use std::time::{self, Duration, SystemTime, UNIX_EPOCH};
+use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::time::delay_for;
 use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
@@ -218,15 +218,17 @@ fn stat_worker(
     let mut last_put_count = stat.put_total.load(Ordering::Relaxed);
     let mut last_get_count = stat.get_total.load(Ordering::Relaxed);
     let k = request_bytes as f64 / period_ms as f64 * 1000.0 / 1024.0;
-
+    let start = Instant::now();
     while !stop_token.load(Ordering::Relaxed) {
         thread::sleep(pause);
         let cur_put_count = stat.put_total.load(Ordering::Relaxed);
-        let put_count_spd = (cur_put_count - last_put_count) * 1000 / period_ms;
+        let put_count = cur_put_count - last_put_count;
+        let put_count_spd = (put_count) * 1000 / period_ms;
         last_put_count = cur_put_count;
 
         let cur_get_count = stat.get_total.load(Ordering::Relaxed);
-        let get_count_spd = (cur_get_count - last_get_count) * 1000 / period_ms;
+        let get_count = cur_get_count - last_get_count;
+        let get_count_spd = (get_count) * 1000 / period_ms;
         last_get_count = cur_get_count;
 
         let put_error = stat.put_error.load(Ordering::Relaxed);
@@ -235,10 +237,25 @@ fn stat_worker(
         let put_bandwidth = put_count_spd as f64 * k;
         let get_bandwidth = get_count_spd as f64 * k;
         println!(
-            "put: {:5} rps | get {:5} rps | put err: {:5} | get err: {:5} | put {:5.2} kb/s | get {:5.2} kb/s |",
-            put_count_spd, get_count_spd, put_error, get_error, put_bandwidth, get_bandwidth
+            "put: {:>6} rps  | get {:>6} rps   | put err: {:5}    | get err: {:5}\r\n\
+            put: {:>6.2} kb/s | get: {:>6.2} kb/s",
+            put_count_spd, get_count_spd, put_error, get_error, put_bandwidth, get_bandwidth,
         );
     }
+    let elapsed = start.elapsed();
+    let elapsed_secs = elapsed.as_secs() as f64;
+    println!("Total, elapsed: {:?}", elapsed);
+    println!(
+        "avg total: {:>6} rps | total err: {:>6} | put: {:>6.2} kb/s | get: {:>6.2} kb/s ",
+        ((stat.put_total.load(Ordering::Relaxed) + stat.get_total.load(Ordering::Relaxed)) * 1000)
+            .checked_div(elapsed.as_millis() as u64)
+            .unwrap_or_default(),
+        stat.put_error.load(Ordering::Relaxed) + stat.get_error.load(Ordering::Relaxed),
+        (stat.put_total.load(Ordering::Relaxed) as f64 / elapsed_secs) * request_bytes as f64
+            / 1024.0,
+        (stat.get_total.load(Ordering::Relaxed) as f64 / elapsed_secs) * request_bytes as f64
+            / 1024.0,
+    );
 }
 
 async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
