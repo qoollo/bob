@@ -289,7 +289,7 @@ fn stat_worker(
         );
     }
     let elapsed = start.elapsed();
-    let elapsed_secs = elapsed.as_secs() as f64;
+    let elapsed_secs = elapsed.as_secs_f64();
     println!("Total statistics, elapsed: {:?}", elapsed);
     println!(
         "avg total: {:>6} rps | total err: {:>6}\r\n\
@@ -387,7 +387,7 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
 
 async fn test_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     put_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
-    get_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
+    get_worker(net_conf, task_conf, stat).await;
 }
 
 async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
