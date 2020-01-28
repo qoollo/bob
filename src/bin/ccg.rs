@@ -16,8 +16,15 @@ const ORD: Ordering = Ordering::Relaxed;
 async fn main() {
     init_logger();
     if let Some(output) = read_from_file().and_then(generate_config) {
-        write_to_file(output);
+        let output = serde_yaml::to_string(&output).expect("config serialization error");
         debug!("config cluster generation: OK");
+        if let Some(name) = get_matches().value_of("output") {
+            write_to_file(output, name.to_owned());
+            debug!("output to file: OK");
+        } else {
+            println!("{}", output);
+            debug!("no file provided, stdout print: OK");
+        }
     } else {
         debug!("config cluster generation: ERR");
     }
@@ -349,18 +356,13 @@ fn get_pairs_count(nodes: &[ClusterNode]) -> usize {
     nodes.iter().fold(0, |acc, n| acc + n.disks.len())
 }
 
-fn write_to_file(output: Config) {
-    let name = get_matches()
-        .value_of("output")
-        .expect("is some, default value is set")
-        .to_owned();
+fn write_to_file(mut output: String, name: String) {
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
         .open(name)
         .expect("File IO error");
-    let mut output = serde_yaml::to_string(&output).expect("config serialization error");
     output += "\n";
     file.write_all(output.as_bytes()).expect("File IO error");
     debug!("write to file: OK");
@@ -373,8 +375,8 @@ fn get_matches() -> ArgMatches<'static> {
         .takes_value(true);
     let output = Arg::with_name("output")
         .short("o")
-        .default_value("cluster.yaml")
-        .takes_value(true);
+        .takes_value(true)
+        .help("output file, if not set, use stdout instead");
     let vdisks_count = Arg::with_name("vdisks_count")
         .short("d")
         .help("min - equal to number of pairs node-disk")
