@@ -55,6 +55,7 @@ struct TaskConfig {
     count: u64,
     payload_size: u64,
     direct: bool,
+    measure_time: bool,
 }
 
 impl TaskConfig {
@@ -64,6 +65,7 @@ impl TaskConfig {
             count: matches.value_or_default("count"),
             payload_size: matches.value_or_default("payload"),
             direct: matches.is_present("direct"),
+            measure_time: false,
         }
     }
 
@@ -91,7 +93,7 @@ impl TaskConfig {
     }
 
     fn is_time_measurement_thread(&self) -> bool {
-        self.low_idx == 0
+        self.measure_time
     }
 }
 
@@ -451,6 +453,7 @@ fn spawn_workers(
                 count: task_size,
                 payload_size: task_conf.payload_size,
                 direct: task_conf.direct,
+                measure_time: i == 0,
             };
             match benchmark_conf.behavior {
                 Behavior::Put => tokio::spawn(put_worker(nc, tc, stat_inner)),
