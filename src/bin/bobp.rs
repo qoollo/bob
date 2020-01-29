@@ -247,6 +247,8 @@ fn stat_worker(
     let mut last_st_put_count = stat.put_count_single_thread.load(Ordering::Relaxed);
     let mut last_st_get_time = stat.get_time_ns_single_thread.load(Ordering::Relaxed);
     let mut last_st_get_count = stat.get_count_single_thread.load(Ordering::Relaxed);
+    let mut put_speed_values = vec![];
+    let mut get_speed_values = vec![];
     let k = request_bytes as f64 / period_ms as f64 * 1000.0 / 1024.0;
     let start = Instant::now();
     while !stop_token.load(Ordering::Relaxed) {
@@ -276,7 +278,10 @@ fn stat_worker(
 
         let put_error = stat.put_error.load(Ordering::Relaxed);
         let get_error = stat.get_error.load(Ordering::Relaxed);
-
+        let put_spd = put_count_spd as f64 * k;
+        let get_spd = get_count_spd as f64 * k;
+        put_speed_values.push(put_spd);
+        get_speed_values.push(get_spd);
         println!(
             "put: {:>6} rps  | get {:>6} rps   | put err: {:5}     | get err: {:5}\r\n\
             put: {:>6.2} kb/s | get: {:>6.2} kb/s | put lat: {:>6.2} ms | get lat: {:>6.2} ms",
@@ -284,14 +289,13 @@ fn stat_worker(
             get_count_spd,
             put_error,
             get_error,
-            put_count_spd as f64 * k,
-            get_count_spd as f64 * k,
+            put_spd,
+            get_spd,
             finite_or_default(cur_st_put_time / cur_st_put_count / 1e9),
             finite_or_default(cur_st_get_time / cur_st_get_count / 1e9)
         );
     }
     let elapsed = start.elapsed();
-    let elapsed_secs = elapsed.as_secs_f64();
     println!("Total statistics, elapsed: {:?}", elapsed);
     println!(
         "avg total: {:>6} rps | total err: {:>6}\r\n\
@@ -301,10 +305,8 @@ fn stat_worker(
             .checked_div(elapsed.as_millis() as u64)
             .unwrap_or_default(),
         stat.put_error.load(Ordering::Relaxed) + stat.get_error.load(Ordering::Relaxed),
-        (stat.put_total.load(Ordering::Relaxed) as f64 / elapsed_secs) * request_bytes as f64
-            / 1024.0,
-        (stat.get_total.load(Ordering::Relaxed) as f64 / elapsed_secs) * request_bytes as f64
-            / 1024.0,
+        average(&put_speed_values),
+        average(&get_speed_values),
         finite_or_default(
             (stat.put_time_ns_single_thread.load(Ordering::Relaxed) as f64)
                 / (stat.put_count_single_thread.load(Ordering::Relaxed) as f64)
@@ -316,6 +318,10 @@ fn stat_worker(
                 / 1e9
         )
     );
+}
+
+fn average(values: &[f64]) -> f64 {
+    finite_or_default(values.iter().sum::<f64>() / values.len() as f64)
 }
 
 fn get_diff(last: &mut u64, current: u64) -> u64 {
