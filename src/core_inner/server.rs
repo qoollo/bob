@@ -1,4 +1,5 @@
 use super::prelude::*;
+use crate::core_inner::backend::Error;
 
 #[derive(Clone)]
 pub struct BobSrv {
@@ -110,9 +111,17 @@ impl BobApi for BobSrv {
     async fn exists(&self, req: Request<ExistsRequest>) -> ApiResult<ExistsResponse> {
         let sw = Stopwatch::start_new();
         let req = req.into_inner();
-        for key in &req.keys {
-            eprintln!("key = {:?}", key);
+        let mut result = vec![];
+        let grinder = self.grinder.clone();
+        for key in req.keys {
+            let key = BobKey { key: key.key };
+            let get_res = grinder.get(key, BobOptions::new_get(None)).await;
+            result.push(match get_res {
+                Ok(_) => true,
+                Err(_) => false,
+            })
         }
-        Ok(Response::new(ExistsResponse::default()))
+        debug!("EXISTS-Ok, dt: {}ms", sw.elapsed_ms());
+        Ok(Response::new(ExistsResponse { exists: result }))
     }
 }
