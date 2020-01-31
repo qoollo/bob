@@ -106,4 +106,13 @@ impl BobApi for BobSrv {
         debug!("PING");
         Ok(Response::new(Null {}))
     }
+
+    async fn exists(&self, req: Request<ExistsRequest>) -> ApiResult<ExistsResponse> {
+        let sw = Stopwatch::start_new();
+        let req = req.into_inner();
+        for key in &req.keys {
+            eprintln!("key = {:?}", key);
+        }
+        Ok(Response::new(ExistsResponse::default()))
+    }
 }

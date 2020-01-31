@@ -37,7 +37,8 @@ mod prelude {
     };
     pub(crate) use grinder::Grinder;
     pub(crate) use grpc::{
-        bob_api_server::BobApi, GetOptions, GetSource, Null, OpStatus, PutOptions,
+        bob_api_server::BobApi, ExistsRequest, ExistsResponse, GetOptions, GetSource, Null,
+        OpStatus, PutOptions,
     };
     pub(crate) use link_manager::LinkManager;
     pub(crate) use mapper::VDiskMapper;
