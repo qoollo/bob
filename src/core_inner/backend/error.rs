@@ -92,6 +92,12 @@ impl Into<Status> for Error {
 
 impl From<Status> for Error {
     fn from(status: Status) -> Self {
-        Self::Failed(format!("{:?}", status))
+        match status.code() {
+            // TODO: Find better solution for passing key
+            Code::NotFound => Self::KeyNotFound(BobKey {
+                key: status.message()[13..].parse().unwrap_or_default(),
+            }),
+            _ => Self::Failed(format!("{:?}", status)),
+        }
     }
 }
