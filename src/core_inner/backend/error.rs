@@ -83,21 +83,50 @@ impl Into<Status> for Error {
         //TODO add custom errors
         trace!("Error: {}", self.clone());
         match self {
-            Self::KeyNotFound(key) => Status::not_found(&format!("KeyNotFound: {}", key)),
+            Self::KeyNotFound(key) => Status::not_found(format!("KeyNotFound {}", key)),
             Self::DuplicateKey => Status::already_exists("DuplicateKey"),
-            _ => Status::unknown("Other errors"),
+            Self::Timeout => Status::deadline_exceeded("Timeout"),
+            Self::VDiskNoFound(id) => Status::not_found(format!("VDiskNoFound {}", id)),
+            Self::Storage(msg) => Status::internal(format!("Storage {}", msg)),
+            Self::VDiskIsNotReady => Status::internal("VDiskIsNotReady"),
+            Self::Failed(msg) => Status::internal(format!("Failed {}", msg)),
+            Self::Internal => Status::internal("Internal"),
+            Self::PearlChangeState(msg) => Status::internal(format!("PearlChangeState {}", msg)),
         }
     }
 }
 
 impl From<Status> for Error {
     fn from(status: Status) -> Self {
-        match status.code() {
-            // TODO: Find better solution for passing key
-            Code::NotFound => Self::KeyNotFound(BobKey {
-                key: status.message()[13..].parse().unwrap_or_default(),
-            }),
-            _ => Self::Failed(format!("{:?}", status)),
+        let mut words = status.message().split_whitespace();
+        let name = words.next();
+        let length = status.message().len();
+        match name {
+            None => None,
+            Some(name) => match name {
+                "KeyNotFound" => parse_next(words, |n| Self::KeyNotFound(BobKey { key: n })),
+                "DuplicateKey" => Some(Self::DuplicateKey),
+                "Timeout" => Some(Self::Timeout),
+                "VDiskNoFound" => parse_next(words, |n| Self::VDiskNoFound(VDiskId::new(n))),
+                "Storage" => Some(Self::Storage(rest_words(words, length))),
+                "VDiskIsNotReady" => Some(Self::VDiskIsNotReady),
+                "Failed" => Some(Self::Failed(rest_words(words, length))),
+                "Internal" => Some(Self::Internal),
+                "PearlChangeState" => Some(Self::PearlChangeState(rest_words(words, length))),
+                _ => None,
+            },
         }
+        .unwrap_or(Self::Failed("Can't parse status".to_string()))
     }
+}
+
+fn rest_words<'a>(words: impl Iterator<Item = &'a str>, length: usize) -> String {
+    words.fold(String::with_capacity(length), |s, n| s + n)
+}
+
+fn parse_next<'a, T, Y>(mut words: impl Iterator<Item = &'a str>, f: impl Fn(T) -> Y) -> Option<Y>
+where
+    T: std::str::FromStr,
+{
+    words.next().and_then(|w| w.parse().ok()).map(f)
 }
