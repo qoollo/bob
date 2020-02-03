@@ -1,5 +1,4 @@
 use super::prelude::*;
-use crate::core_inner::backend::Error;
 
 #[derive(Clone)]
 pub struct BobSrv {
