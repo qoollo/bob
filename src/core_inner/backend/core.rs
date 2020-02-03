@@ -202,7 +202,7 @@ impl Backend {
         }
     }
 
-    pub async fn get(&self, key: BobKey, options: BobOptions) -> GetResult {
+    pub async fn get(&self, key: BobKey, options: &BobOptions) -> GetResult {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
         // we cannot get data from alien if it belong this node

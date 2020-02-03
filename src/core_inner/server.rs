@@ -87,8 +87,9 @@ impl BobApi for BobSrv {
             };
 
             let grinder = self.grinder.clone();
+            let options = BobOptions::new_get(get_req.options);
             let get_res = grinder
-                .get(key, BobOptions::new_get(get_req.options))
+                .get(key, &options)
                 .await
                 .map_err::<Status, _>(|e| e.into())?;
 
@@ -113,13 +114,14 @@ impl BobApi for BobSrv {
         let req = req.into_inner();
         let mut result = vec![];
         let grinder = self.grinder.clone();
+        let options = BobOptions::new_get(req.options);
         for key in req.keys {
             let key = BobKey { key: key.key };
-            let get_res = grinder.get(key, BobOptions::new_get(None)).await;
+            let get_res = grinder.get(key, &options).await;
             result.push(match get_res {
                 Ok(_) => true,
                 Err(_) => false,
-            })
+            });
         }
         debug!("EXISTS-Ok, dt: {}ms", sw.elapsed_ms());
         Ok(Response::new(ExistsResponse { exists: result }))

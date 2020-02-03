@@ -68,7 +68,7 @@ impl Grinder {
     pub async fn get(
         &self,
         key: BobKey,
-        opts: BobOptions,
+        opts: &BobOptions,
     ) -> Result<BackendGetResult, BackendError> {
         if opts.flags.contains(BobFlags::FORCE_NODE) {
             CLIENT_GET_COUNTER.count(1);
