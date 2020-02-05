@@ -111,18 +111,21 @@ impl BobApi for BobSrv {
     async fn exists(&self, req: Request<ExistsRequest>) -> ApiResult<ExistsResponse> {
         let sw = Stopwatch::start_new();
         let req = req.into_inner();
-        let mut result = vec![];
         let grinder = self.grinder.clone();
+        let keys = req
+            .keys
+            .into_iter()
+            .map(|k| BobKey { key: k.key })
+            .collect::<Vec<_>>();
         let options = BobOptions::new_get(req.options);
-        for key in req.keys {
-            let key = BobKey { key: key.key };
-            let get_res = grinder.get(key, &options).await;
-            result.push(match get_res {
-                Ok(_) => true,
-                Err(_) => false,
-            });
-        }
-        debug!("EXISTS-Ok, dt: {}ms", sw.elapsed_ms());
-        Ok(Response::new(ExistsResponse { exists: result }))
+        let exists_res = grinder
+            .exists(&keys, &options)
+            .await
+            .map_err::<Status, _>(|e| e.into())?;
+        let elapsed = sw.elapsed();
+        debug!("EXISTS-OK dt: {:?}", elapsed);
+        Ok(Response::new(ExistsResponse {
+            exists: exists_res.exists,
+        }))
     }
 }

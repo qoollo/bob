@@ -8,8 +8,8 @@ mod stub_backend;
 mod mem_tests;
 
 pub(crate) use self::core::{
-    Backend, BackendGetResult, BackendOperation, BackendPingResult, BackendPutResult, Get,
-    GetResult, Put, PutResult,
+    Backend, BackendExistsResult, BackendGetResult, BackendOperation, BackendPingResult,
+    BackendPutResult, Get, GetResult, Put, PutResult,
 };
 pub(crate) use self::error::Error;
 pub(crate) use self::mem_backend::MemBackend;

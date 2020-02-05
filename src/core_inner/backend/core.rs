@@ -76,6 +76,11 @@ pub struct BackendGetResult {
     pub data: BobData,
 }
 
+#[derive(Debug, Clone)]
+pub struct BackendExistsResult {
+    pub exists: Vec<bool>,
+}
+
 impl Display for BackendGetResult {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         write!(f, "{:?}", self)

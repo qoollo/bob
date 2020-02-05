@@ -300,7 +300,7 @@ fn stat_worker(
         "avg total: {} rps | total err: {}\r\n\
         put: {:>6.2} kb/s | get: {:>6.2} kb/s\r\n\
         put resp time, ms: {:>6.2} | get resp time, ms: {:>6.2}\r\n\
-        unverefied put threads: {}",
+        unverified put threads: {}",
         ((stat.put_total.load(Ordering::Relaxed) + stat.get_total.load(Ordering::Relaxed)) * 1000)
             .checked_div(elapsed.as_millis() as u64)
             .unwrap_or_default(),
