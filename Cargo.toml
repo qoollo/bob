@@ -1,6 +1,6 @@
 [package]
 name = "bob"
-version = "1.2.0"
+version = "1.2.1"
 authors = ["Kirill Bushminkin <kb@qoollo.com>"]
 edition = "2018"
 
