@@ -119,13 +119,13 @@ impl BobApi for BobSrv {
             .collect::<Vec<_>>();
         let options = BobOptions::new_get(req.options);
         let exists_res = grinder
-            .exists(&keys, &options)
+            .exist(&keys, &options)
             .await
             .map_err::<Status, _>(|e| e.into())?;
         let elapsed = sw.elapsed();
         debug!("EXISTS-OK dt: {:?}", elapsed);
         Ok(Response::new(ExistsResponse {
-            exists: exists_res.exists,
+            exists: exists_res.exist,
         }))
     }
 }

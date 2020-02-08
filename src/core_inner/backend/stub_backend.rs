@@ -1,4 +1,5 @@
 use super::prelude::*;
+use crate::core_inner::backend::core::Exist;
 
 #[derive(Clone, Debug)]
 pub struct StubBackend {}
@@ -32,5 +33,15 @@ impl BackendStorage for StubBackend {
             data: BobData::new(vec![0], BobMeta::new_stub()),
         })
         .boxed())
+    }
+
+    fn exist(&self, _operation: BackendOperation, _keys: &[BobKey]) -> Exist {
+        debug!("EXIST: hi from backend");
+        Exist(future::ok(BackendExistResult { exist: vec![] }).boxed())
+    }
+
+    fn exist_alien(&self, _operation: BackendOperation, _keys: &[BobKey]) -> Exist {
+        debug!("EXIST: hi from backend");
+        Exist(future::ok(BackendExistResult { exist: vec![] }).boxed())
     }
 }

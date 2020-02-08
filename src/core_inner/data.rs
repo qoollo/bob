@@ -265,7 +265,7 @@ impl std::fmt::Display for VDisk {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct DiskPath {
     pub name: String,
     pub path: String,

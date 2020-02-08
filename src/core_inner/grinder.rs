@@ -105,50 +105,16 @@ impl Grinder {
         }
     }
 
-    pub async fn exists(
+    pub async fn exist(
         &self,
         keys: &[BobKey],
         opts: &BobOptions,
-    ) -> Result<BackendExistsResult, BackendError> {
-        let mut exists = vec![];
-        for key in keys {
-            let key = key.clone();
-            let result = if opts.flags.contains(BobFlags::FORCE_NODE) {
-                CLIENT_GET_COUNTER.count(1);
-                let time = CLIENT_GET_TIMER.start();
-
-                debug!(
-                    "GET[{}] flag FORCE_NODE is on - will handle it by local node. Get params: {:?}",
-                    key, opts
-                );
-                let result = self.backend.get(key, opts).await.map_err(|err| {
-                    CLIENT_GET_ERROR_COUNT_COUNTER.count(1);
-                    err
-                });
-
-                CLIENT_GET_TIMER.stop(time);
-                result
-            } else {
-                GRINDER_GET_COUNTER.count(1);
-                let time = GRINDER_GET_TIMER.start();
-
-                debug!("GET[{}] will route to cluster", key);
-                let result = self
-                    .cluster
-                    .get_clustered_async(key)
-                    .0
-                    .await
-                    .map_err(|err| {
-                        GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
-                        err
-                    });
-
-                GRINDER_GET_TIMER.stop(time);
-                result
-            };
-            exists.push(result.is_ok())
+    ) -> Result<BackendExistResult, BackendError> {
+        if opts.flags.contains(BobFlags::FORCE_NODE) {
+            self.backend.exist(keys, opts).await
+        } else {
+            unimplemented!()
         }
-        Ok(BackendExistsResult { exists })
     }
 
     #[inline]

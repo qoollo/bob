@@ -1,4 +1,5 @@
 use super::prelude::*;
+use crate::core_inner::backend::core::Exist;
 
 #[derive(Clone, Debug)]
 pub struct PearlBackend {
@@ -234,6 +235,14 @@ impl BackendStorage for PearlBackend {
             }
         }
         .boxed())
+    }
+
+    fn exist(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
+        unimplemented!()
+    }
+
+    fn exist_alien(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
+        unimplemented!()
     }
 
     fn vdisks_groups(&self) -> Option<&[PearlGroup]> {

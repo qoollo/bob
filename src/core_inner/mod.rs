@@ -11,7 +11,7 @@ pub mod server;
 
 pub(crate) use super::prelude::*;
 pub(crate) use backend::{
-    init_pearl, BackendExistsResult, BackendGetResult, BackendOperation, BackendPingResult,
+    init_pearl, BackendExistResult, BackendGetResult, BackendOperation, BackendPingResult,
     BackendPutResult, Get as BackendGet, Put as BackendPut,
 };
 
