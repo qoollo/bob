@@ -281,9 +281,8 @@ impl Backend {
                 })
                 .or_insert_with(|| (vec![key], vec![ind]));
         }
-        let results = keys_by_id_and_path
-            .into_iter()
-            .map(|((vdisk_id, path), (keys, indexes))| {
+        let results = futures::future::join_all(keys_by_id_and_path.into_iter().filter_map(
+            |((vdisk_id, path), (keys, indexes))| {
                 if options.get_normal() {
                     if let Some(path) = path {
                         Some(BackendOperation::new_local(vdisk_id, path))
@@ -295,31 +294,26 @@ impl Backend {
                 } else {
                     None
                 }
-                .map(|op| {
-                    self.backend
-                        .exist(op, &keys)
-                        .0
-                        .map(|r| {
-                            r.map(|v| {
-                                v.exist
-                                    .into_iter()
-                                    .enumerate()
-                                    .map(|(ind, res)| (res, indexes[ind]))
-                                    .collect::<Vec<_>>()
-                            })
+                .map(move |op| {
+                    self.backend.exist(op, &keys).0.map(move |r| {
+                        r.map(move |v| {
+                            v.exist
+                                .into_iter()
+                                .enumerate()
+                                .map(|(ind, res)| (res, indexes[ind]))
+                                .collect::<Vec<_>>()
                         })
-                        .await
+                    })
                 })
-            })
-            .collect::<Vec<_>>();
+            },
+        ))
+        .await;
         let mut exist = Vec::with_capacity(keys.len());
         exist.extend((0..keys.len()).map(|_| false));
         for result in results {
-            if let Ok(result) = result {
-                if let Ok(data) = result {
-                    for (res, ind) in data {
-                        exist[ind] = res;
-                    }
+            if let Ok(data) = result {
+                for (res, ind) in data {
+                    exist[ind] = res;
                 }
             }
         }
