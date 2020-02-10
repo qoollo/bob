@@ -1,4 +1,6 @@
 use super::prelude::*;
+use crate::core_inner::backend::Exist;
+use crate::core_inner::bob_client::ExistResult;
 
 pub struct Quorum {
     backend: Arc<Backend>,
@@ -304,6 +306,47 @@ impl Cluster for Quorum {
         }
         .boxed();
         BackendGet(task)
+    }
+
+    fn exist_clustered_async(&self, keys: &[BobKey]) -> Exist {
+        let mut keys_by_nodes: HashMap<_, Vec<_>> = HashMap::new();
+        for &key in keys {
+            keys_by_nodes
+                .entry(self.get_target_nodes(key))
+                .and_modify(|v| v.push(key))
+                .or_insert_with(|| vec![key]);
+        }
+        debug!(
+            "EXIST Nodes for fan out: {:?}",
+            print_vec(&keys_by_nodes.keys().flat_map(|v| v).collect::<Vec<_>>())
+        );
+        let keys = keys.to_vec();
+        Exist(
+            async move {
+                let mut exist = Vec::with_capacity(keys.len());
+                exist.extend((0..keys.len()).map(|_| false));
+                for (nodes, current_keys) in keys_by_nodes {
+                    let indexes = current_keys
+                        .iter()
+                        .map(|k| keys.iter().position(|k1| k.eq(k1)).unwrap())
+                        .collect::<Vec<_>>();
+                    let res: Vec<ExistResult> = LinkManager::call_nodes(&nodes, |mut conn| {
+                        conn.exist(current_keys.clone(), GetOptions::new_all()).0
+                    })
+                    .collect()
+                    .await;
+                    for result in res {
+                        if let Ok(result) = result {
+                            for (ind, r) in result.result.exist.iter().enumerate() {
+                                exist[indexes[ind]] |= *r;
+                            }
+                        }
+                    }
+                }
+                Ok(BackendExistResult { exist })
+            }
+            .boxed(),
+        )
     }
 }
 

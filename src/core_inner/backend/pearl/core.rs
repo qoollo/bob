@@ -238,11 +238,38 @@ impl BackendStorage for PearlBackend {
     }
 
     fn exist(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
-        unimplemented!()
+        let groups = self.vdisks_groups.clone();
+        let keys = keys.to_vec();
+        let vdisk_group = groups
+            .iter()
+            .find(|vd| vd.can_process_operation(&operation))
+            .cloned();
+        Exist(
+            async move {
+                if let Some(group) = vdisk_group {
+                    group.exist(&keys).await
+                } else {
+                    Err(BackendError::Internal)
+                }
+            }
+            .boxed(),
+        )
     }
 
     fn exist_alien(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
-        unimplemented!()
+        let backend = self.clone();
+        let keys = keys.to_vec();
+        Exist(
+            async move {
+                let vdisk_group = backend.find_alien_pearl(operation.clone()).await;
+                if let Ok(group) = vdisk_group {
+                    group.exist(&keys).await
+                } else {
+                    Err(BackendError::Internal)
+                }
+            }
+            .boxed(),
+        )
     }
 
     fn vdisks_groups(&self) -> Option<&[PearlGroup]> {

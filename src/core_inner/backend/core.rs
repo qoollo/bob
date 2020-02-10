@@ -98,8 +98,8 @@ pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
 pub type RunResult = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
 
-pub type ExistsResult = Result<BackendExistResult, Error>;
-pub struct Exist(pub Pin<Box<dyn Future<Output = ExistsResult> + Send>>);
+pub type ExistResult = Result<BackendExistResult, Error>;
+pub struct Exist(pub Pin<Box<dyn Future<Output = ExistResult> + Send>>);
 
 pub(crate) trait BackendStorage: Debug {
     fn run_backend(&self) -> RunResult;
@@ -269,7 +269,7 @@ impl Backend {
         }
     }
 
-    pub async fn exist(&self, keys: &[BobKey], options: &BobOptions) -> ExistsResult {
+    pub async fn exist(&self, keys: &[BobKey], options: &BobOptions) -> ExistResult {
         let mut keys_by_id_and_path: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
         for (ind, &key) in keys.iter().enumerate() {
             let map_key = self.mapper.get_operation(key);

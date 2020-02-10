@@ -113,7 +113,7 @@ impl Grinder {
         if opts.flags.contains(BobFlags::FORCE_NODE) {
             self.backend.exist(keys, opts).await
         } else {
-            unimplemented!()
+            self.cluster.exist_clustered_async(keys).0.await
         }
     }
 

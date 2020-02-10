@@ -1,4 +1,5 @@
 use super::prelude::*;
+use crate::core_inner::backend::core::ExistResult;
 
 /// Wrap pearl holder and add timestamp info
 #[derive(Clone, Debug)]
@@ -273,6 +274,25 @@ impl PearlGroup {
             pearl.reinit_storage()?;
         }
         result
+    }
+
+    pub async fn exist(&self, keys: &[BobKey]) -> ExistResult {
+        let holders = self.pearls.read().compat().await.map_err(|e| {
+            error!("cannot take lock: {:?}", e);
+            Error::Failed(format!("cannot take lock: {:?}", e))
+        })?;
+
+        futures::future::join_all(keys.iter().map(|&key| {
+            futures::future::join_all(holders.iter().map(|h| {
+                h.pearl
+                    .exist(key)
+                    .map_err(|_| false)
+                    .map(|r| r.unwrap_or(false))
+            }))
+            .map(|r| r.into_iter().fold(false, |s, n| s | n))
+        }))
+        .map(|v| Ok(BackendExistResult { exist: v }))
+        .await
     }
 
     pub fn pearls(&self) -> Option<RwLockReadGuard<Vec<PearlTimestampHolder>>> {

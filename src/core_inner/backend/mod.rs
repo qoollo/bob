@@ -9,7 +9,7 @@ mod mem_tests;
 
 pub(crate) use self::core::{
     Backend, BackendExistResult, BackendGetResult, BackendOperation, BackendPingResult,
-    BackendPutResult, Get, GetResult, Put, PutResult,
+    BackendPutResult, Exist, ExistResult, Get, GetResult, Put, PutResult,
 };
 pub(crate) use self::error::Error;
 pub(crate) use self::mem_backend::MemBackend;

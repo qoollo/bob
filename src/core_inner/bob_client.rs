@@ -153,6 +153,34 @@ pub(crate) mod b_client {
                 result: BackendError::Timeout,
             })
         }
+
+        pub fn exist(&mut self, keys: Vec<BobKey>, options: GetOptions) -> Exist {
+            let mut client = self.client.clone();
+            let node1 = self.node.clone();
+            let node2 = self.node.clone();
+            Exist(
+                async move {
+                    let res = client.exists(Request::new(ExistsRequest {
+                        keys: keys.into_iter().map(|k| BlobKey { key: k.key }).collect(),
+                        options: Some(options),
+                    }));
+                    res.map(move |r| {
+                        r.map(|r| ClusterResult {
+                            node: node1,
+                            result: BackendExistResult {
+                                exist: r.into_inner().exists,
+                            },
+                        })
+                        .map_err(|e| ClusterResult {
+                            node: node2,
+                            result: BackendError::from(e),
+                        })
+                    })
+                    .await
+                }
+                .boxed(),
+            )
+        }
     }
 
     mock! {
@@ -187,6 +215,9 @@ pub type GetResult = Result<ClusterResult<BackendGetResult>, ClusterResult<Backe
 pub struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send>>);
 
 pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<BackendError>>;
+
+pub type ExistResult = Result<ClusterResult<BackendExistResult>, ClusterResult<BackendError>>;
+pub struct Exist(pub Pin<Box<dyn Future<Output = ExistResult> + Send>>);
 
 #[derive(Clone)]
 pub struct BobClientFactory {

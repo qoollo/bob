@@ -13,6 +13,7 @@ use simple::Quorum as SimpleQuorum;
 pub(crate) trait Cluster {
     fn put_clustered_async(&self, key: BobKey, data: BobData) -> BackendPut;
     fn get_clustered_async(&self, key: BobKey) -> BackendGet;
+    fn exist_clustered_async(&self, keys: &[BobKey]) -> BackendExist;
 }
 
 pub(crate) fn get_cluster(
