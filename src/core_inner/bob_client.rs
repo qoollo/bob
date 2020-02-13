@@ -191,6 +191,7 @@ pub(crate) mod b_client {
             fn get(&mut self, key: BobKey, options: GetOptions) -> Get;
             async fn ping(&mut self) -> PingResult;
             fn node(&self) -> &Node;
+            fn exist(&mut self, keys: Vec<BobKey>, options: GetOptions) -> Exist;
         }
         trait Clone {
             fn clone(&self) -> Self;
