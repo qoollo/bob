@@ -48,6 +48,12 @@ pub struct StatusExt {
     msg: String,
 }
 
+fn runtime() -> Runtime {
+    // TODO: run web server on same runtime as bob
+    error!("HOT FIX: run web server on same runtime as bob");
+    Runtime::new().expect("create runtime")
+}
+
 pub fn spawn(bob: BobSrv, port: u16) {
     let routes = routes![
         status,
@@ -154,10 +160,8 @@ fn vdisk_by_id(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<VDisk>> {
 fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     debug!("group with provided vdisk_id found");
-    let pearls = group.pearls().ok_or_else(|| {
-        error!("writer panics while holding an exclusive lock");
-        Status::InternalServerError
-    })?;
+    let pearls = group.pearls();
+    let pearls = runtime().block_on(pearls.read());
     debug!("get pearl holders: OK");
     let pearls: &[_] = pearls.as_ref();
     let partitions = pearls.iter().map(|pearl| pearl.start_timestamp).collect();
@@ -173,18 +177,18 @@ fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>
 
 #[get("/vdisks/<vdisk_id>/partitions/<partition_id>")]
 fn partition_by_id(
-    bob: State<BobSrv>,
+    bob: State<'_, BobSrv>,
     vdisk_id: u32,
     partition_id: i64,
 ) -> Result<Json<Partition>, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     debug!("group with provided vdisk_id found");
-    let pearls = group.pearls().ok_or_else(|| {
-        error!("writer panics while holding an exclusive lock");
-        Status::InternalServerError
-    })?;
+    let pearls = group.pearls();
     debug!("get pearl holders: OK");
-    let pearls: &[_] = pearls.as_ref();
+    // TODO: run web server on same runtime as bob
+    error!("HOT FIX: run web server on same runtime as bob");
+    let mut rt = Runtime::new().expect("create runtime");
+    let pearls = rt.block_on(pearls.read());
     pearls
         .iter()
         .map(|pearl| pearl.start_timestamp)

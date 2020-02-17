@@ -23,7 +23,6 @@ mod prelude {
     pub(crate) use super::core::{BackendStorage, RunResult};
     pub(crate) use configs::BackendType;
     pub(crate) use data::{BobMeta, BobOptions};
-    pub(crate) use futures::compat::Future01CompatExt;
-    pub(crate) use futures_locks::RwLock;
+    pub(crate) use tokio::sync::RwLock;
     pub(crate) use mapper::VDiskMapper;
 }
