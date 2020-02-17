@@ -39,18 +39,9 @@ impl LinkManager {
         nodes
             .iter()
             .map(move |nl| {
-                let nl_clone = nl.clone();
                 let client = nl.get_connection();
                 match client {
-                    Some(conn) => f(conn)
-                        .map_err(move |e| {
-                            if e.result.is_service() {
-                                trace!("clean connection: {}", e.result);
-                                nl_clone.clear_connection();
-                            }
-                            e
-                        })
-                        .boxed(),
+                    Some(conn) => f(conn).boxed(),
                     None => future::err(ClusterResult {
                         result: BackendError::Failed(format!("No active connection {:?}", nl)),
                         node: nl.clone(),
@@ -67,19 +58,7 @@ impl LinkManager {
         T: 'static + Send,
     {
         match node.get_connection() {
-            Some(conn) => {
-                let nl_node = node.clone();
-                f(conn)
-                    .boxed()
-                    .map_err(move |e| {
-                        if e.result.is_service() {
-                            trace!("clean connection: {}", e.result);
-                            nl_node.clear_connection();
-                        }
-                        e
-                    })
-                    .boxed()
-            }
+            Some(conn) => f(conn).boxed(),
             None => future::err(ClusterResult {
                 result: BackendError::Failed(format!("No active connection {:?}", node)),
                 node: node.clone(),
