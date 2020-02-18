@@ -97,10 +97,7 @@ impl PearlGroup {
         }
 
         debug!("{}: save pearls to group", self);
-        while let Err(err) = self.add_range(pearls.clone()).await {
-            error!("{}: can't add pearls: {:?}", self, err);
-            delay_for(t).await;
-        }
+        self.add_range(pearls.clone()).await;
 
         debug!("{}: start pearls", self);
         while let Err(err) = self.run_pearls().await {
@@ -110,10 +107,7 @@ impl PearlGroup {
     }
 
     async fn run_pearls(&self) -> BackendResult<()> {
-        let holders = self.pearls.write().compat().await.map_err(|e| {
-            error!("{}: cannot take lock: {:?}", self, e);
-            Error::Failed(format!("cannot take lock: {:?}", e))
-        })?;
+        let holders = self.pearls.write().await;
 
         for holder in holders.iter() {
             let pearl = holder.pearl.clone();
@@ -126,32 +120,14 @@ impl PearlGroup {
         PearlHolder::new(self.vdisk_id.clone(), path, self.config.clone())
     }
 
-    pub async fn add(&self, pearl: PearlTimestampHolder) -> BackendResult<()> {
-        self.pearls
-            .write()
-            .compat()
-            .await
-            .map(|mut pearls| {
-                pearls.push(pearl);
-            })
-            .map_err(|e| {
-                error!("cannot take lock: {:?}", e);
-                Error::Failed(format!("cannot take lock: {:?}", e))
-            })
+    pub async fn add(&self, pearl: PearlTimestampHolder) {
+        let mut pearls = self.pearls.write().await;
+        pearls.push(pearl);
     }
 
-    pub async fn add_range(&self, new_pearls: Vec<PearlTimestampHolder>) -> BackendResult<()> {
-        self.pearls
-            .write()
-            .compat()
-            .await
-            .map(|mut pearls| {
-                pearls.extend(new_pearls);
-            })
-            .map_err(|e| {
-                error!("cannot take lock: {:?}", e);
-                Error::Failed(format!("cannot take lock: {:?}", e))
-            })
+    pub async fn add_range(&self, new_pearls: Vec<PearlTimestampHolder>) {
+        let mut pearls = self.pearls.write().await;
+        pearls.extend(new_pearls);
     }
 
     /// find in all pearls actual pearl and try create new
@@ -167,25 +143,16 @@ impl PearlGroup {
 
     /// find in all pearls actual pearl
     async fn find_current_pearl(&self, data: &BobData) -> BackendResult<PearlTimestampHolder> {
-        self.pearls
-            .read()
-            .compat()
-            .await
-            .map_err(|e| {
-                error!("cannot take lock: {:?}", e);
-                Error::Failed(format!("cannot take lock: {:?}", e))
-            })
-            .and_then(|pearls| {
-                pearls
-                    .iter()
-                    .find(|pearl| Settings::is_actual(pearl, &data))
-                    .cloned()
-                    .ok_or_else(|| {
-                        Error::Failed(format!(
-                            "cannot find actual pearl folder. meta: {}",
-                            data.meta
-                        ))
-                    })
+        let pearls = self.pearls.read().await;
+        pearls
+            .iter()
+            .find(|pearl| Settings::is_actual(pearl, &data))
+            .cloned()
+            .ok_or_else(|| {
+                Error::Failed(format!(
+                    "cannot find actual pearl folder. meta: {}",
+                    data.meta
+                ))
             })
     }
 
@@ -208,7 +175,7 @@ impl PearlGroup {
 
     async fn save_pearl(&self, holder: PearlTimestampHolder) -> BackendResult<()> {
         let pearl = holder.pearl.clone();
-        self.add(holder).await?; // TODO while retry?
+        self.add(holder).await;
         pearl.prepare_storage().await;
         Ok(())
     }
@@ -228,11 +195,7 @@ impl PearlGroup {
     }
 
     pub async fn get(&self, key: BobKey) -> GetResult {
-        let holders = self.pearls.read().compat().await.map_err(|e| {
-            error!("cannot take lock: {:?}", e);
-            Error::Failed(format!("cannot take lock: {:?}", e))
-        })?;
-
+        let holders = self.pearls.read().await;
         let mut has_error = false;
         let mut results = vec![];
         for holder in holders.iter() {
@@ -275,8 +238,8 @@ impl PearlGroup {
         result
     }
 
-    pub fn pearls(&self) -> Option<RwLockReadGuard<Vec<PearlTimestampHolder>>> {
-        self.pearls.try_read().ok()
+    pub fn pearls(&self) -> Arc<RwLock<Vec<PearlTimestampHolder>>> {
+        self.pearls.clone()
     }
 
     pub fn node_name(&self) -> &str {
@@ -291,16 +254,8 @@ impl PearlGroup {
         self.vdisk_id.as_u32()
     }
 
-    async fn pearls_write_guard(&self) -> RwLockWriteGuard<Vec<PearlTimestampHolder>> {
-        self.pearls
-            .write()
-            .compat()
-            .await
-            .expect("acquire write lock")
-    }
-
     pub async fn attach(&self, start_timestamp: i64) -> BackendResult<()> {
-        let mut pearls = self.pearls_write_guard().await;
+        let mut pearls = self.pearls.write().await;
         if pearls
             .iter()
             .all(|pearl| pearl.start_timestamp != start_timestamp)
@@ -316,7 +271,7 @@ impl PearlGroup {
         }
     }
     pub async fn detach(&self, start_timestamp: i64) -> BackendResult<()> {
-        let mut pearls = self.pearls_write_guard().await;
+        let mut pearls = self.pearls.write().await;
         debug!("write lock acquired");
         if let Some(pearl) = pearls.iter_mut().find(|pearl| {
             debug!("{}", pearl.start_timestamp);
@@ -334,11 +289,12 @@ impl PearlGroup {
                 let pearl_holder: &mut PearlHolder = &mut pearl.pearl;
                 let lock_guard: &LockGuard<PearlSync> = &pearl_holder.storage;
                 let rwlock: &RwLock<PearlSync> = lock_guard.storage.as_ref();
-                let pearl_sync: RwLockWriteGuard<_> =
-                    rwlock.write().compat().await.expect("write lock");
-                let storage: &Storage<_> = pearl_sync.storage.as_ref().expect("pearl storage");
-                if let Err(e) = storage.close().await {
-                    warn!("pearl closed: {:?}", e);
+                {
+                    let pearl_sync: RwLockWriteGuard<_> = rwlock.write().await;
+                    let storage: &Storage<_> = pearl_sync.storage.as_ref().expect("pearl storage");
+                    if let Err(e) = storage.close().await {
+                        warn!("pearl closed: {:?}", e);
+                    }
                 }
                 pearls.retain(|pearl| pearl.start_timestamp != start_timestamp);
                 Ok(())
