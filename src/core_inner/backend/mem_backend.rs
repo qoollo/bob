@@ -14,58 +14,37 @@ impl VDisk {
     }
 
     fn put(&self, key: BobKey, data: BobData) -> Put {
-        Put({
+        let repo = self.repo.clone();
+        Put(Box::pin(async move {
             trace!("PUT[{}] to vdisk", key);
-            self.repo
-                .write()
-                .compat()
-                .map_ok(move |mut repo| {
-                    repo.insert(key, data);
-                    BackendPutResult {}
-                })
-                .map_err(|e| {
-                    trace!("lock error: {:?}", e);
-                    Error::Internal
-                })
-                .boxed()
-        })
+            let mut repo = repo.write().await;
+            repo.insert(key, data);
+            Ok(BackendPutResult {})
+        }))
     }
 
     fn get(&self, key: BobKey) -> Get {
-        Get(self
-            .repo
-            .read()
-            .compat()
-            .then(move |repo_lock_res| match repo_lock_res {
-                Ok(repo) => {
-                    if let Some(data) = repo.get(&key) {
-                        trace!("GET[{}] from vdisk", key);
-                        future::ok(BackendGetResult { data: data.clone() })
-                    } else {
-                        trace!("GET[{}] from vdisk failed. Cannot find key", key);
-                        future::err(Error::KeyNotFound(key))
-                    }
-                }
-                Err(_) => future::err(Error::Internal),
-            })
-            .boxed())
+        let repo = self.repo.clone();
+        Get(Box::pin(async move {
+            let repo = repo.read().await;
+            if let Some(data) = repo.get(&key) {
+                trace!("GET[{}] from vdisk", key);
+                Ok(BackendGetResult { data: data.clone() })
+            } else {
+                trace!("GET[{}] from vdisk failed. Cannot find key", key);
+                Err(Error::KeyNotFound(key))
+            }
+        }))
     }
 
     fn exist(&self, keys: &[BobKey]) -> Exist {
         let keys = keys.to_vec();
-        Exist(
-            self.repo
-                .read()
-                .compat()
-                .then(move |repo_lock_res| match repo_lock_res {
-                    Ok(repo) => {
-                        let result = keys.iter().map(|k| repo.get(k).is_some()).collect();
-                        future::ok(BackendExistResult { exist: result })
-                    }
-                    _ => future::err(Error::Internal),
-                })
-                .boxed(),
-        )
+        let repo = self.repo.clone();
+        Exist(Box::pin(async move {
+            let repo = repo.read().await;
+            let result = keys.iter().map(|k| repo.get(k).is_some()).collect();
+            Ok(BackendExistResult { exist: result })
+        }))
     }
 }
 

@@ -63,7 +63,7 @@ impl PearlBackend {
                     .write_sync_mut(|groups| {
                         groups.push(pearl.clone());
                     })
-                    .await?;
+                    .await;
             }
             // if it run here then it will conflict withtimstamp runtime creation
             // pearl.run().await;

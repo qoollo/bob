@@ -20,6 +20,5 @@ pub mod prelude {
         },
         rocket_contrib::json::Json,
         server::BobSrv,
-        tokio::runtime::Runtime,
     };
 }

@@ -19,7 +19,7 @@ impl PearlHolder {
         }
     }
 
-    pub async fn update(&self, storage: Storage<PearlKey>) -> BackendResult<()> {
+    pub async fn update(&self, storage: Storage<PearlKey>) {
         trace!("try update Pearl id: {}", self.vdisk);
         self.storage
             .write_sync_mut(|st| {
@@ -30,7 +30,7 @@ impl PearlHolder {
                     self.vdisk, st
                 );
             })
-            .await
+            .await;
     }
 
     pub async fn write(&self, key: BobKey, data: BobData) -> BackendResult<()> {
@@ -192,11 +192,7 @@ impl PearlHolder {
                 error!("cannot init pearl by path: {:?}, error: {:?}", path, e);
                 continue;
             }
-            if let Err(e) = self.update(st).await {
-                error!("cannot update storage by path: {:?}, error: {:?}", path, e);
-                //TODO drop storage  .Part 2: i think we should panic here
-                continue;
-            }
+            self.update(st).await;
             debug!("Vdisk: {} Pearl is ready for work", self.vdisk);
             break;
         }
