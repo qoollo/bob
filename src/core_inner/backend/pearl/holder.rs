@@ -1,5 +1,4 @@
 use super::prelude::*;
-use std::time::Instant;
 
 /// Struct hold pearl and add put/get/restart api
 #[derive(Clone, Debug)]
