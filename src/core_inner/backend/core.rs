@@ -99,7 +99,7 @@ pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
 pub type RunResult = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
 
 pub type ExistResult = Result<BackendExistResult, Error>;
-pub struct Exist(pub Pin<Box<dyn Future<Output = ExistResult> + Send>>);
+pub struct Exist(pub Pin<Box<dyn Future<Output = ExistResult>>>);
 
 pub(crate) trait BackendStorage: Debug {
     fn run_backend(&self) -> RunResult;

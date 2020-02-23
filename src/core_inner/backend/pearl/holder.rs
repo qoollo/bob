@@ -1,4 +1,5 @@
 use super::prelude::*;
+use std::time::Instant;
 
 /// Struct hold pearl and add put/get/restart api
 #[derive(Clone, Debug)]
@@ -134,24 +135,21 @@ impl PearlHolder {
     }
 
     pub async fn exist(&self, key: BobKey) -> Result<bool, Error> {
-        self.storage
-            .read(|state| {
-                if state.is_ready() {
-                    trace!("Vdisk: {}, check key: {}", self.vdisk, key);
-                    let pearl_key = PearlKey::new(key);
-                    let storage = state.get();
-                    //storage.read_all(&pearl_key).next()
-                    unimplemented!()
-                } else {
-                    trace!(
-                        "Vdisk: {} is not ready for reading, state: {}",
-                        self.vdisk,
-                        state
-                    );
-                    future::err(Error::VDiskIsNotReady).boxed()
-                }
-            })
-            .await
+        let state = self.storage.storage.read().await;
+        if state.is_ready() {
+            trace!("Vdisk: {}, check key: {}", self.vdisk, key);
+            let pearl_key = PearlKey::new(key);
+            let storage = state.get();
+            let mut stream = storage.read_all(&pearl_key);
+            stream.next().map(|o| Ok(o.is_some())).await
+        } else {
+            trace!(
+                "Vdisk: {} is not ready for reading, state: {:?}",
+                self.vdisk,
+                state
+            );
+            Err(Error::VDiskIsNotReady)
+        }
     }
 
     pub fn reinit_storage(self) -> BackendResult<()> {

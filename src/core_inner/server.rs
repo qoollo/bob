@@ -118,10 +118,15 @@ impl BobApi for BobSrv {
             .map(|k| BobKey { key: k.key })
             .collect::<Vec<_>>();
         let options = BobOptions::new_get(req.options);
-        let exists_res = grinder
-            .exist(&keys, &options)
-            .await
-            .map_err::<Status, _>(|e| e.into())?;
+        let exists_res = thread::spawn(move || {
+            futures::executor::block_on(
+                grinder
+                    .exist(&keys, &options)
+                    .map_err::<Status, _>(|e| e.into()),
+            )
+        })
+        .join()
+        .unwrap_or(Err(Status::internal("thread join failed")))?;
         let elapsed = sw.elapsed();
         debug!("EXISTS-OK dt: {:?}", elapsed);
         Ok(Response::new(ExistsResponse {

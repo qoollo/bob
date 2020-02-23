@@ -158,13 +158,13 @@ pub(crate) mod b_client {
             let mut client = self.client.clone();
             let node1 = self.node.clone();
             let node2 = self.node.clone();
-            Exist(
-                async move {
-                    let res = client.exists(Request::new(ExistsRequest {
+            Exist(Box::pin(async move {
+                client
+                    .exists(Request::new(ExistsRequest {
                         keys: keys.into_iter().map(|k| BlobKey { key: k.key }).collect(),
                         options: Some(options),
-                    }));
-                    res.map(move |r| {
+                    }))
+                    .map(move |r| {
                         r.map(|r| ClusterResult {
                             node: node1,
                             result: BackendExistResult {
@@ -177,9 +177,7 @@ pub(crate) mod b_client {
                         })
                     })
                     .await
-                }
-                .boxed(),
-            )
+            }))
         }
     }
 
