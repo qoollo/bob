@@ -154,6 +154,7 @@ pub(crate) mod b_client {
             })
         }
 
+        #[allow(dead_code)]
         pub fn exist(&mut self, keys: Vec<BobKey>, options: GetOptions) -> Exist {
             let mut client = self.client.clone();
             let node1 = self.node.clone();
