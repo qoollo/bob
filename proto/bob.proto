@@ -7,7 +7,7 @@ service BobApi {
     rpc Put (PutRequest) returns (OpStatus) {}
     rpc Get (GetRequest) returns (Blob) {}
     rpc Ping (Null) returns (Null) {}
-    rpc Exists (ExistsRequest) returns (ExistsResponse) {}
+    rpc Exist (ExistRequest) returns (ExistResponse) {}
 }
 
 message Null {};
@@ -26,7 +26,7 @@ message GetRequest {
 }
 
 // Exists operation parameters
-message ExistsRequest {
+message ExistRequest {
     repeated BlobKey keys = 1; // Keys to check
     GetOptions options = 2; // Options, same as in get request
 }
@@ -52,8 +52,8 @@ message OpStatus {
     BobError error = 1; // If all good - null
 }
 
-message ExistsResponse {
-    repeated bool exists = 1;
+message ExistResponse {
+    repeated bool exist = 1;
 }
 
 // Put operation options

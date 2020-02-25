@@ -1,5 +1,5 @@
 use bob::grpc::{
-    bob_api_client::BobApiClient, ExistsRequest, GetOptions, GetRequest, GetSource, PutOptions,
+    bob_api_client::BobApiClient, ExistRequest, GetOptions, GetRequest, GetSource, PutOptions,
     PutRequest,
 };
 use bob::grpc::{Blob, BlobKey, BlobMeta};
@@ -400,12 +400,12 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let keys = (task_conf.low_idx..upper_idx)
         .map(|i| BlobKey { key: i })
         .collect();
-    let req = Request::new(ExistsRequest {
+    let req = Request::new(ExistRequest {
         keys,
         options: task_conf.find_get_options(),
     });
-    let res = client.exists(req).await;
-    if res.is_err() || res.unwrap().into_inner().exists.iter().any(|&b| !b) {
+    let res = client.exist(req).await;
+    if res.is_err() || res.unwrap().into_inner().exist.iter().any(|&b| !b) {
         stat.unverified_puts.fetch_add(1, Ordering::SeqCst);
     }
 }

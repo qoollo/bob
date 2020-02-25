@@ -108,7 +108,7 @@ impl BobApi for BobSrv {
         Ok(Response::new(Null {}))
     }
 
-    async fn exists(&self, req: Request<ExistsRequest>) -> ApiResult<ExistsResponse> {
+    async fn exist(&self, req: Request<ExistRequest>) -> ApiResult<ExistResponse> {
         let sw = Stopwatch::start_new();
         let req = req.into_inner();
         let grinder = self.grinder.clone();
@@ -118,7 +118,7 @@ impl BobApi for BobSrv {
             .map(|k| BobKey { key: k.key })
             .collect::<Vec<_>>();
         let options = BobOptions::new_get(req.options);
-        let exists_res = tokio::task::spawn_blocking(move || {
+        let exist_res = tokio::task::spawn_blocking(move || {
             futures::executor::block_on(
                 grinder
                     .exist(&keys, &options)
@@ -130,8 +130,8 @@ impl BobApi for BobSrv {
 
         let elapsed = sw.elapsed();
         debug!("EXISTS-OK dt: {:?}", elapsed);
-        Ok(Response::new(ExistsResponse {
-            exists: exists_res.exist,
+        Ok(Response::new(ExistResponse {
+            exist: exist_res.exist,
         }))
     }
 }

@@ -103,12 +103,15 @@ impl Cluster for Quorum {
     }
 
     fn exist_clustered_async(&self, keys: &[BobKey]) -> Exist {
-        let mut keys_by_nodes: HashMap<_, Vec<_>> = HashMap::new();
-        for &key in keys {
+        let mut keys_by_nodes: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
+        for (ind, &key) in keys.iter().enumerate() {
             keys_by_nodes
                 .entry(self.get_target_nodes(key))
-                .and_modify(|v| v.push(key))
-                .or_insert_with(|| vec![key]);
+                .and_modify(|(keys, indexes)| {
+                    keys.push(key);
+                    indexes.push(ind);
+                })
+                .or_insert_with(|| (vec![key], vec![ind]));
         }
         debug!(
             "EXIST Nodes for fan out: {:?}",
@@ -119,13 +122,9 @@ impl Cluster for Quorum {
             async move {
                 let mut exist = Vec::with_capacity(keys.len());
                 exist.extend((0..keys.len()).map(|_| false));
-                for (nodes, current_keys) in keys_by_nodes {
-                    let indexes = current_keys
-                        .iter()
-                        .map(|k| keys.iter().position(|k1| k.eq(k1)).unwrap())
-                        .collect::<Vec<_>>();
+                for (nodes, (keys, indexes)) in keys_by_nodes {
                     let res: Vec<ExistResult> = LinkManager::call_nodes(&nodes, |mut conn| {
-                        conn.exist(current_keys.clone(), GetOptions::new_all()).0
+                        conn.exist(keys.clone(), GetOptions::new_all()).0
                     })
                     .collect()
                     .await;

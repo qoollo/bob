@@ -243,12 +243,11 @@ impl PearlGroup {
         let holders = self.pearls.read().await;
 
         futures::future::join_all(keys.iter().map(|&key| {
-            futures::future::join_all(holders.iter().map(|h| {
-                h.pearl
-                    .exist(key)
-                    .map_err(|_| false)
-                    .map(|r| r.unwrap_or(false))
-            }))
+            futures::future::join_all(
+                holders
+                    .iter()
+                    .map(|h| h.pearl.exist(key).map(|r| r.unwrap_or(false))),
+            )
             .map(|r| r.into_iter().fold(false, |s, n| s | n))
         }))
         .map(|v| Ok(BackendExistResult { exist: v }))

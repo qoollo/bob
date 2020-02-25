@@ -275,9 +275,9 @@ impl Backend {
             let map_key = self.mapper.get_operation(key);
             keys_by_id_and_path
                 .entry(map_key)
-                .and_modify(|(k, i)| {
-                    k.push(key);
-                    i.push(ind);
+                .and_modify(|(keys, indexes)| {
+                    keys.push(key);
+                    indexes.push(ind);
                 })
                 .or_insert_with(|| (vec![key], vec![ind]));
         }
