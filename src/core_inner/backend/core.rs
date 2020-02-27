@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BackendOperation {
     pub vdisk_id: VDiskId,
     disk_path: Option<DiskPath>,
@@ -271,47 +271,50 @@ impl Backend {
 
     pub async fn exist(&self, keys: &[BobKey], options: &BobOptions) -> ExistResult {
         let mut exist = vec![false; keys.len()];
-        let keys_by_id_and_path = self.group_keys_by_ids(keys);
-        for ((vdisk_id, path), (keys, indexes)) in keys_by_id_and_path {
-            let operation = if options.get_normal() && path.is_some() {
-                Some(BackendOperation::new_local(vdisk_id, path.unwrap()))
-            } else if options.get_alien() {
-                Some(BackendOperation::new_alien(vdisk_id))
-            } else {
-                None
-            };
-            if let Some(operation) = operation {
-                let result = self.backend.exist(operation, &keys).0.await;
-                if let Ok(result) = result {
-                    for (&res, ind) in result.exist.iter().zip(indexes) {
-                        exist[ind] = res;
-                    }
+        let keys_by_id_and_path = self.group_keys_by_operations(keys, options);
+        for (operation, (keys, indexes)) in keys_by_id_and_path {
+            let result = self.backend.exist(operation, &keys).0.await;
+            if let Ok(result) = result {
+                for (&res, ind) in result.exist.iter().zip(indexes) {
+                    exist[ind] = res;
                 }
             }
         }
         Ok(BackendExistResult { exist })
     }
 
-    fn group_keys_by_ids(
+    fn group_keys_by_operations(
         &self,
         keys: &[BobKey],
-    ) -> HashMap<
-        (VDiskId, Option<DiskPath>),
-        (Vec<BobKey>, Vec<usize>),
-        std::collections::hash_map::RandomState,
-    > {
-        let mut keys_by_id_and_path: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
+        options: &BobOptions,
+    ) -> HashMap<BackendOperation, (Vec<BobKey>, Vec<usize>), std::collections::hash_map::RandomState>
+    {
+        let mut keys_by_operations: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
         for (ind, &key) in keys.iter().enumerate() {
-            let map_key = self.mapper.get_operation(key);
-            keys_by_id_and_path
-                .entry(map_key)
-                .and_modify(|(keys, indexes)| {
-                    keys.push(key);
-                    indexes.push(ind);
-                })
-                .or_insert_with(|| (vec![key], vec![ind]));
+            let operation = self.find_operation(key, options);
+            if let Some(operation) = operation {
+                keys_by_operations
+                    .entry(operation)
+                    .and_modify(|(keys, indexes)| {
+                        keys.push(key);
+                        indexes.push(ind);
+                    })
+                    .or_insert_with(|| (vec![key], vec![ind]));
+            }
         }
-        keys_by_id_and_path
+        keys_by_operations
+    }
+
+    fn find_operation(&self, key: BobKey, options: &BobOptions) -> Option<BackendOperation> {
+        let (vdisk_id, path) = self.mapper.get_operation(key);
+        let operation = if options.get_normal() && path.is_some() {
+            Some(BackendOperation::new_local(vdisk_id, path.unwrap()))
+        } else if options.get_alien() {
+            Some(BackendOperation::new_alien(vdisk_id))
+        } else {
+            None
+        };
+        operation
     }
 
     pub fn mapper(&self) -> &VDiskMapper {
