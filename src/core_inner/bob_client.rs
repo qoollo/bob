@@ -156,29 +156,35 @@ pub(crate) mod b_client {
 
         #[allow(dead_code)]
         pub fn exist(&mut self, keys: Vec<BobKey>, options: GetOptions) -> Exist {
+            let node = self.node.clone();
             let mut client = self.client.clone();
-            let node1 = self.node.clone();
-            let node2 = self.node.clone();
             Exist(Box::pin(async move {
-                client
+                let exist_response = client
                     .exist(Request::new(ExistRequest {
                         keys: keys.into_iter().map(|k| BlobKey { key: k.key }).collect(),
                         options: Some(options),
                     }))
-                    .map(move |r| {
-                        r.map(|r| ClusterResult {
-                            node: node1,
-                            result: BackendExistResult {
-                                exist: r.into_inner().exist,
-                            },
-                        })
-                        .map_err(|e| ClusterResult {
-                            node: node2,
-                            result: BackendError::from(e),
-                        })
-                    })
-                    .await
+                    .await;
+                Self::get_exist_result(node, exist_response)
             }))
+        }
+
+        fn get_exist_result(
+            node: Node,
+            exist_response: Result<Response<ExistResponse>, Status>,
+        ) -> ExistResult {
+            match exist_response {
+                Ok(response) => Ok(ClusterResult {
+                    node,
+                    result: BackendExistResult {
+                        exist: response.into_inner().exist,
+                    },
+                }),
+                Err(error) => Err(ClusterResult {
+                    node,
+                    result: BackendError::from(error),
+                }),
+            }
         }
     }
 

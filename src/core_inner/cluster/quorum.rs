@@ -123,6 +123,24 @@ impl Quorum {
             .collect()
             .await
     }
+
+    fn group_keys_by_nodes(
+        &self,
+        keys: &[BobKey],
+    ) -> HashMap<Vec<Node>, (Vec<BobKey>, Vec<usize>), std::collections::hash_map::RandomState>
+    {
+        let mut keys_by_nodes: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
+        for (ind, &key) in keys.iter().enumerate() {
+            keys_by_nodes
+                .entry(self.get_target_nodes(key))
+                .and_modify(|(keys, indexes)| {
+                    keys.push(key);
+                    indexes.push(ind);
+                })
+                .or_insert_with(|| (vec![key], vec![ind]));
+        }
+        keys_by_nodes
+    }
 }
 
 impl Cluster for Quorum {
@@ -309,25 +327,15 @@ impl Cluster for Quorum {
     }
 
     fn exist_clustered_async(&self, keys: &[BobKey]) -> Exist {
-        let mut keys_by_nodes: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
-        for (ind, &key) in keys.iter().enumerate() {
-            keys_by_nodes
-                .entry(self.get_target_nodes(key))
-                .and_modify(|(keys, indexes)| {
-                    keys.push(key);
-                    indexes.push(ind);
-                })
-                .or_insert_with(|| (vec![key], vec![ind]));
-        }
+        let keys_by_nodes = self.group_keys_by_nodes(keys);
         debug!(
             "EXIST Nodes for fan out: {:?}",
-            print_vec(&keys_by_nodes.keys().flat_map(|v| v).collect::<Vec<_>>())
+            print_vec(&keys_by_nodes.keys().flatten().collect::<Vec<_>>())
         );
-        let keys = keys.to_vec();
+        let len = keys.len();
         Exist(
             async move {
-                let mut exist = Vec::with_capacity(keys.len());
-                exist.extend((0..keys.len()).map(|_| false));
+                let mut exist = vec![false; len];
                 for (nodes, (keys, indexes)) in keys_by_nodes {
                     let res: Vec<ExistResult> = LinkManager::call_nodes(&nodes, |mut conn| {
                         conn.exist(keys.clone(), GetOptions::new_all()).0
@@ -336,8 +344,8 @@ impl Cluster for Quorum {
                     .await;
                     for result in res {
                         if let Ok(result) = result {
-                            for (ind, r) in result.result.exist.iter().enumerate() {
-                                exist[indexes[ind]] |= *r;
+                            for (&r, &ind) in result.result.exist.iter().zip(&indexes) {
+                                exist[ind] |= r;
                             }
                         }
                     }

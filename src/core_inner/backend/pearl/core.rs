@@ -238,9 +238,9 @@ impl BackendStorage for PearlBackend {
     }
 
     fn exist(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
-        let groups = self.vdisks_groups.clone();
         let keys = keys.to_vec();
-        let vdisk_group = groups
+        let vdisk_group = self
+            .vdisks_groups
             .iter()
             .find(|vd| vd.can_process_operation(&operation))
             .cloned();

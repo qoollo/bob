@@ -270,6 +270,36 @@ impl Backend {
     }
 
     pub async fn exist(&self, keys: &[BobKey], options: &BobOptions) -> ExistResult {
+        let mut exist = vec![false; keys.len()];
+        let keys_by_id_and_path = self.group_keys_by_ids(keys);
+        for ((vdisk_id, path), (keys, indexes)) in keys_by_id_and_path {
+            let operation = if options.get_normal() && path.is_some() {
+                Some(BackendOperation::new_local(vdisk_id, path.unwrap()))
+            } else if options.get_alien() {
+                Some(BackendOperation::new_alien(vdisk_id))
+            } else {
+                None
+            };
+            if let Some(operation) = operation {
+                let result = self.backend.exist(operation, &keys).0.await;
+                if let Ok(result) = result {
+                    for (&res, ind) in result.exist.iter().zip(indexes) {
+                        exist[ind] = res;
+                    }
+                }
+            }
+        }
+        Ok(BackendExistResult { exist })
+    }
+
+    fn group_keys_by_ids(
+        &self,
+        keys: &[BobKey],
+    ) -> HashMap<
+        (VDiskId, Option<DiskPath>),
+        (Vec<BobKey>, Vec<usize>),
+        std::collections::hash_map::RandomState,
+    > {
         let mut keys_by_id_and_path: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
         for (ind, &key) in keys.iter().enumerate() {
             let map_key = self.mapper.get_operation(key);
@@ -281,43 +311,7 @@ impl Backend {
                 })
                 .or_insert_with(|| (vec![key], vec![ind]));
         }
-        let results = futures::future::join_all(keys_by_id_and_path.into_iter().filter_map(
-            |((vdisk_id, path), (keys, indexes))| {
-                if options.get_normal() {
-                    if let Some(path) = path {
-                        Some(BackendOperation::new_local(vdisk_id, path))
-                    } else {
-                        None
-                    }
-                } else if options.get_alien() {
-                    Some(BackendOperation::new_alien(vdisk_id))
-                } else {
-                    None
-                }
-                .map(move |op| {
-                    self.backend.exist(op, &keys).0.map(move |r| {
-                        r.map(move |v| {
-                            v.exist
-                                .into_iter()
-                                .enumerate()
-                                .map(|(ind, res)| (res, indexes[ind]))
-                                .collect::<Vec<_>>()
-                        })
-                    })
-                })
-            },
-        ))
-        .await;
-        let mut exist = Vec::with_capacity(keys.len());
-        exist.extend((0..keys.len()).map(|_| false));
-        for result in results {
-            if let Ok(data) = result {
-                for (res, ind) in data {
-                    exist[ind] = res;
-                }
-            }
-        }
-        Ok(BackendExistResult { exist })
+        keys_by_id_and_path
     }
 
     pub fn mapper(&self) -> &VDiskMapper {
