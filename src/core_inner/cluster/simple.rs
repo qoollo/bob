@@ -131,11 +131,7 @@ impl Cluster for Quorum {
             async move {
                 let mut exist = vec![false; len];
                 for (nodes, (keys, indexes)) in keys_by_nodes {
-                    let res: Vec<ExistResult> = LinkManager::call_nodes(&nodes, |mut conn| {
-                        conn.exist(keys.clone(), GetOptions::new_all()).0
-                    })
-                    .collect()
-                    .await;
+                    let res: Vec<ExistResult> = LinkManager::exist_on_nodes(&nodes, keys).await;
                     for result in res {
                         if let Ok(result) = result {
                             for (&r, &ind) in result.result.exist.iter().zip(&indexes) {

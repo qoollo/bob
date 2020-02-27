@@ -307,14 +307,13 @@ impl Backend {
 
     fn find_operation(&self, key: BobKey, options: &BobOptions) -> Option<BackendOperation> {
         let (vdisk_id, path) = self.mapper.get_operation(key);
-        let operation = if options.get_normal() && path.is_some() {
+        if options.get_normal() && path.is_some() {
             Some(BackendOperation::new_local(vdisk_id, path.unwrap()))
         } else if options.get_alien() {
             Some(BackendOperation::new_alien(vdisk_id))
         } else {
             None
-        };
-        operation
+        }
     }
 
     pub fn mapper(&self) -> &VDiskMapper {

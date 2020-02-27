@@ -1,6 +1,5 @@
 use super::prelude::*;
 use crate::core_inner::backend::Exist;
-use crate::core_inner::bob_client::ExistResult;
 
 pub struct Quorum {
     backend: Arc<Backend>,
@@ -337,12 +336,8 @@ impl Cluster for Quorum {
             async move {
                 let mut exist = vec![false; len];
                 for (nodes, (keys, indexes)) in keys_by_nodes {
-                    let res: Vec<ExistResult> = LinkManager::call_nodes(&nodes, |mut conn| {
-                        conn.exist(keys.clone(), GetOptions::new_all()).0
-                    })
-                    .collect()
-                    .await;
-                    for result in res {
+                    let cluster_results = LinkManager::exist_on_nodes(&nodes, keys).await;
+                    for result in cluster_results {
                         if let Ok(result) = result {
                             for (&r, &ind) in result.result.exist.iter().zip(&indexes) {
                                 exist[ind] |= r;
