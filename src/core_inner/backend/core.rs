@@ -287,8 +287,7 @@ impl Backend {
         &self,
         keys: &[BobKey],
         options: &BobOptions,
-    ) -> HashMap<BackendOperation, (Vec<BobKey>, Vec<usize>), std::collections::hash_map::RandomState>
-    {
+    ) -> HashMap<BackendOperation, (Vec<BobKey>, Vec<usize>)> {
         let mut keys_by_operations: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
         for (ind, &key) in keys.iter().enumerate() {
             let operation = self.find_operation(key, options);
@@ -307,8 +306,8 @@ impl Backend {
 
     fn find_operation(&self, key: BobKey, options: &BobOptions) -> Option<BackendOperation> {
         let (vdisk_id, path) = self.mapper.get_operation(key);
-        if options.get_normal() && path.is_some() {
-            Some(BackendOperation::new_local(vdisk_id, path.unwrap()))
+        if options.get_normal() {
+            path.map(|path| BackendOperation::new_local(vdisk_id, path.unwrap()))
         } else if options.get_alien() {
             Some(BackendOperation::new_alien(vdisk_id))
         } else {

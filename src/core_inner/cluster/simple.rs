@@ -23,8 +23,7 @@ impl Quorum {
     fn group_keys_by_nodes(
         &self,
         keys: &[BobKey],
-    ) -> HashMap<Vec<Node>, (Vec<BobKey>, Vec<usize>), std::collections::hash_map::RandomState>
-    {
+    ) -> HashMap<Vec<Node>, (Vec<BobKey>, Vec<usize>)> {
         let mut keys_by_nodes: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
         for (ind, &key) in keys.iter().enumerate() {
             keys_by_nodes
