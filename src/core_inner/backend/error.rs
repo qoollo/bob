@@ -62,8 +62,8 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         match self {
             Self::VDiskNoFound(id) => write!(f, "vdisk: {:?} not found", id),
-            Self::Storage(description) => write!(f, "backend error: {}", description),
-            Self::PearlChangeState(description) => write!(f, "backend error: {}", description),
+            Self::Storage(desc) => write!(f, "backend storage error: {}", desc),
+            Self::PearlChangeState(desc) => write!(f, "backend pearl error: {}", desc),
             err => write!(f, "{:?}", err),
         }
     }
@@ -116,7 +116,7 @@ impl From<Status> for Error {
                 _ => None,
             },
         }
-        .unwrap_or(Self::Failed("Can't parse status".to_string()))
+        .unwrap_or_else(|| Self::Failed("Can't parse status".to_string()))
     }
 }
 

@@ -1,6 +1,6 @@
 pub(crate) mod b_client {
     use super::super::prelude::*;
-    use super::*;
+    use super::{Get, Put};
     use crate::grpc::{Blob, BlobMeta};
     use crate::grpc::{GetOptions, GetRequest, PutOptions, PutRequest};
 
@@ -8,7 +8,7 @@ pub(crate) mod b_client {
     use tonic::Request;
 
     use super::PingResult;
-    use mockall::*;
+    use mockall::mock;
 
     #[derive(Clone)]
     pub struct RealBobClient {
