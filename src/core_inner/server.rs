@@ -126,7 +126,7 @@ impl BobApi for BobSrv {
             )
         })
         .await
-        .unwrap_or(Err(Status::internal("spawn_blocking failed")))?;
+        .unwrap_or_else(|_| Err(Status::internal("spawn_blocking failed")))?;
 
         let elapsed = sw.elapsed();
         debug!("EXISTS-OK dt: {:?}", elapsed);

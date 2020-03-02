@@ -116,7 +116,7 @@ impl From<Status> for Error {
                 _ => None,
             },
         }
-        .unwrap_or(Self::Failed("Can't parse status".to_string()))
+        .unwrap_or_else(|| Self::Failed("Can't parse status".to_string()))
     }
 }
 

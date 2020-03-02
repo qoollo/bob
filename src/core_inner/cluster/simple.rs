@@ -123,7 +123,7 @@ impl Cluster for Quorum {
         let keys_by_nodes = self.group_keys_by_nodes(keys);
         debug!(
             "EXIST Nodes for fan out: {:?}",
-            print_vec(&keys_by_nodes.keys().flat_map(|v| v).collect::<Vec<_>>())
+            print_vec(&keys_by_nodes.keys().flatten().collect::<Vec<_>>())
         );
         let len = keys.len();
         Exist(
