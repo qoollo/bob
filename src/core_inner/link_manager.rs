@@ -66,4 +66,15 @@ impl LinkManager {
             .boxed(),
         }
     }
+
+    pub async fn exist_on_nodes(
+        nodes: &[Node],
+        keys: Vec<BobKey>,
+    ) -> Vec<Result<ClusterResult<BackendExistResult>, ClusterResult<BackendError>>> {
+        Self::call_nodes(&nodes, |mut conn| {
+            conn.exist(keys.clone(), GetOptions::new_all()).0
+        })
+        .collect()
+        .await
+    }
 }

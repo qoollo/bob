@@ -1,5 +1,6 @@
 use bob::grpc::{
-    bob_api_client::BobApiClient, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
+    bob_api_client::BobApiClient, ExistRequest, GetOptions, GetRequest, GetSource, PutOptions,
+    PutRequest,
 };
 use bob::grpc::{Blob, BlobKey, BlobMeta};
 use clap::{App, Arg, ArgMatches};
@@ -125,6 +126,8 @@ struct Statistics {
 
     get_time_ns_single_thread: AtomicU64,
     get_count_single_thread: AtomicU64,
+
+    unverified_puts: AtomicU64,
 }
 
 impl Statistics {
@@ -298,9 +301,10 @@ fn stat_worker(
     let elapsed = start.elapsed();
     println!("Total statistics, elapsed: {:?}", elapsed);
     println!(
-        "avg total: {:>6} rps | total err: {:>6}\r\n\
+        "avg total: {} rps | total err: {}\r\n\
         put: {:>6.2} kb/s | get: {:>6.2} kb/s\r\n\
-        put resp time, ms: {:>6.2} | get resp time, ms: {:>6.2}",
+        put resp time, ms: {:>6.2} | get resp time, ms: {:>6.2}\r\n\
+        unverified put threads: {}",
         ((stat.put_total.load(Ordering::Relaxed) + stat.get_total.load(Ordering::Relaxed)) * 1000)
             .checked_div(elapsed.as_millis() as u64)
             .unwrap_or_default(),
@@ -316,7 +320,8 @@ fn stat_worker(
             (stat.get_time_ns_single_thread.load(Ordering::Relaxed) as f64)
                 / (stat.get_count_single_thread.load(Ordering::Relaxed) as f64)
                 / 1e9
-        )
+        ),
+        stat.unverified_puts.load(Ordering::Relaxed),
     );
 }
 
@@ -390,6 +395,18 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
             stat.put_error.fetch_add(1, Ordering::SeqCst);
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
+    }
+    delay_for(Duration::from_secs(1)).await;
+    let keys = (task_conf.low_idx..upper_idx)
+        .map(|i| BlobKey { key: i })
+        .collect();
+    let req = Request::new(ExistRequest {
+        keys,
+        options: task_conf.find_get_options(),
+    });
+    let res = client.exist(req).await;
+    if res.is_err() || res.unwrap().into_inner().exist.iter().any(|&b| !b) {
+        stat.unverified_puts.fetch_add(1, Ordering::SeqCst);
     }
 }
 

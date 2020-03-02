@@ -1,4 +1,6 @@
 use super::prelude::*;
+use crate::core_inner::backend::Exist;
+use crate::core_inner::bob_client::ExistResult;
 
 pub struct Quorum {
     mapper: Arc<VDiskMapper>,
@@ -16,6 +18,23 @@ impl Quorum {
     #[inline]
     fn get_target_nodes(&self, key: BobKey) -> Vec<Node> {
         self.mapper.get_vdisk(key).nodes.clone()
+    }
+
+    fn group_keys_by_nodes(
+        &self,
+        keys: &[BobKey],
+    ) -> HashMap<Vec<Node>, (Vec<BobKey>, Vec<usize>)> {
+        let mut keys_by_nodes: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
+        for (ind, &key) in keys.iter().enumerate() {
+            keys_by_nodes
+                .entry(self.get_target_nodes(key))
+                .and_modify(|(keys, indexes)| {
+                    keys.push(key);
+                    indexes.push(ind);
+                })
+                .or_insert_with(|| (vec![key], vec![ind]));
+        }
+        keys_by_nodes
     }
 }
 
@@ -98,5 +117,31 @@ impl Cluster for Quorum {
             }
         };
         BackendGet(task.boxed())
+    }
+
+    fn exist_clustered_async(&self, keys: &[BobKey]) -> Exist {
+        let keys_by_nodes = self.group_keys_by_nodes(keys);
+        debug!(
+            "EXIST Nodes for fan out: {:?}",
+            print_vec(&keys_by_nodes.keys().flat_map(|v| v).collect::<Vec<_>>())
+        );
+        let len = keys.len();
+        Exist(
+            async move {
+                let mut exist = vec![false; len];
+                for (nodes, (keys, indexes)) in keys_by_nodes {
+                    let res: Vec<ExistResult> = LinkManager::exist_on_nodes(&nodes, keys).await;
+                    for result in res {
+                        if let Ok(result) = result {
+                            for (&r, &ind) in result.result.exist.iter().zip(&indexes) {
+                                exist[ind] |= r;
+                            }
+                        }
+                    }
+                }
+                Ok(BackendExistResult { exist })
+            }
+            .boxed(),
+        )
     }
 }

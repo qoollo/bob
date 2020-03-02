@@ -133,6 +133,24 @@ impl PearlHolder {
             .await
     }
 
+    pub async fn exist(&self, key: BobKey) -> Result<bool, Error> {
+        let state = self.storage.storage.read().await;
+        if state.is_ready() {
+            trace!("Vdisk: {}, check key: {}", self.vdisk, key);
+            let pearl_key = PearlKey::new(key);
+            let storage = state.get();
+            let mut stream = storage.read_all(&pearl_key);
+            Ok(stream.next().await.is_some())
+        } else {
+            trace!(
+                "Vdisk: {} is not ready for reading, state: {:?}",
+                self.vdisk,
+                state
+            );
+            Err(Error::VDiskIsNotReady)
+        }
+    }
+
     pub fn reinit_storage(self) -> BackendResult<()> {
         debug!("Vdisk: {} try reinit Pearl", self.vdisk);
         tokio::spawn(self.prepare_storage().map(|_| {}));

@@ -1,4 +1,5 @@
 use super::prelude::*;
+use crate::core_inner::backend::core::Exist;
 
 #[derive(Clone, Debug)]
 pub struct PearlBackend {
@@ -234,6 +235,35 @@ impl BackendStorage for PearlBackend {
             }
         }
         .boxed())
+    }
+
+    fn exist(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
+        let keys = keys.to_vec();
+        let vdisk_group = self
+            .vdisks_groups
+            .iter()
+            .find(|vd| vd.can_process_operation(&operation))
+            .cloned();
+        Exist(Box::pin(async move {
+            if let Some(group) = vdisk_group {
+                group.exist(&keys).await
+            } else {
+                Err(BackendError::Internal)
+            }
+        }))
+    }
+
+    fn exist_alien(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
+        let backend = self.clone();
+        let keys = keys.to_vec();
+        Exist(Box::pin(async move {
+            let vdisk_group = backend.find_alien_pearl(operation.clone()).await;
+            if let Ok(group) = vdisk_group {
+                group.exist(&keys).await
+            } else {
+                Err(BackendError::Internal)
+            }
+        }))
     }
 
     fn vdisks_groups(&self) -> Option<&[PearlGroup]> {

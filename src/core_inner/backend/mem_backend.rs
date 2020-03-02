@@ -1,4 +1,5 @@
 use super::prelude::*;
+use crate::core_inner::backend::core::Exist;
 
 #[derive(Clone, Debug)]
 pub(crate) struct VDisk {
@@ -33,6 +34,16 @@ impl VDisk {
                 trace!("GET[{}] from vdisk failed. Cannot find key", key);
                 Err(Error::KeyNotFound(key))
             }
+        }))
+    }
+
+    fn exist(&self, keys: &[BobKey]) -> Exist {
+        let keys = keys.to_vec();
+        let repo = self.repo.clone();
+        Exist(Box::pin(async move {
+            let repo = repo.read().await;
+            let result = keys.iter().map(|k| repo.get(k).is_some()).collect();
+            Ok(BackendExistResult { exist: result })
         }))
     }
 }
@@ -100,6 +111,20 @@ impl MemDisk {
                 );
                 future::err(Error::Internal).boxed()
             }
+        })
+    }
+
+    pub fn exist(&self, vdisk_id: &VDiskId, keys: &[BobKey]) -> Exist {
+        Exist(if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
+            trace!("EXIST from vdisk: {} for disk: {}", vdisk_id, self.name);
+            vdisk.exist(keys).0
+        } else {
+            trace!(
+                "EXIST from vdisk: {} failed. Cannot find vdisk for disk: {}",
+                vdisk_id,
+                self.name
+            );
+            future::err(Error::Internal).boxed()
         })
     }
 }
@@ -173,5 +198,22 @@ impl BackendStorage for MemBackend {
     fn get_alien(&self, operation: BackendOperation, key: BobKey) -> Get {
         debug!("GET[{}] to backend, foreign data", key);
         Get(self.foreign_data.get(&operation.vdisk_id, key).0)
+    }
+
+    fn exist(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
+        debug!("EXIST[{}] to backend", operation.disk_name_local());
+        Exist(
+            if let Some(mem_disk) = self.disks.get(&operation.disk_name_local()) {
+                mem_disk.exist(&operation.vdisk_id, keys).0
+            } else {
+                error!("EXIST Can't find disk {}", operation.disk_name_local());
+                future::err(Error::Internal).boxed()
+            },
+        )
+    }
+
+    fn exist_alien(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
+        debug!("EXIST to backend, foreign data");
+        Exist(self.foreign_data.exist(&operation.vdisk_id, keys).0)
     }
 }

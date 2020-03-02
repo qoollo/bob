@@ -11,8 +11,8 @@ pub mod server;
 
 pub(crate) use super::prelude::*;
 pub(crate) use backend::{
-    init_pearl, BackendGetResult, BackendOperation, BackendPingResult, BackendPutResult,
-    Get as BackendGet, Put as BackendPut,
+    init_pearl, BackendExistResult, BackendGetResult, BackendOperation, BackendPingResult,
+    BackendPutResult, Exist as BackendExist, Get as BackendGet, Put as BackendPut,
 };
 
 mod prelude {
@@ -37,7 +37,8 @@ mod prelude {
     };
     pub(crate) use grinder::Grinder;
     pub(crate) use grpc::{
-        bob_api_server::BobApi, GetOptions, GetSource, Null, OpStatus, PutOptions,
+        bob_api_server::BobApi, ExistRequest, ExistResponse, GetOptions, GetSource, Null, OpStatus,
+        PutOptions,
     };
     pub(crate) use link_manager::LinkManager;
     pub(crate) use mapper::VDiskMapper;

@@ -153,6 +153,39 @@ pub(crate) mod b_client {
                 result: BackendError::Timeout,
             })
         }
+
+        #[allow(dead_code)]
+        pub fn exist(&mut self, keys: Vec<BobKey>, options: GetOptions) -> Exist {
+            let node = self.node.clone();
+            let mut client = self.client.clone();
+            Exist(Box::pin(async move {
+                let exist_response = client
+                    .exist(Request::new(ExistRequest {
+                        keys: keys.into_iter().map(|k| BlobKey { key: k.key }).collect(),
+                        options: Some(options),
+                    }))
+                    .await;
+                Self::get_exist_result(node, exist_response)
+            }))
+        }
+
+        fn get_exist_result(
+            node: Node,
+            exist_response: Result<Response<ExistResponse>, Status>,
+        ) -> ExistResult {
+            match exist_response {
+                Ok(response) => Ok(ClusterResult {
+                    node,
+                    result: BackendExistResult {
+                        exist: response.into_inner().exist,
+                    },
+                }),
+                Err(error) => Err(ClusterResult {
+                    node,
+                    result: BackendError::from(error),
+                }),
+            }
+        }
     }
 
     mock! {
@@ -163,6 +196,7 @@ pub(crate) mod b_client {
             fn get(&mut self, key: BobKey, options: GetOptions) -> Get;
             async fn ping(&mut self) -> PingResult;
             fn node(&self) -> &Node;
+            fn exist(&mut self, keys: Vec<BobKey>, options: GetOptions) -> Exist;
         }
         trait Clone {
             fn clone(&self) -> Self;
@@ -187,6 +221,9 @@ pub type GetResult = Result<ClusterResult<BackendGetResult>, ClusterResult<Backe
 pub struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send>>);
 
 pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<BackendError>>;
+
+pub type ExistResult = Result<ClusterResult<BackendExistResult>, ClusterResult<BackendError>>;
+pub struct Exist(pub Pin<Box<dyn Future<Output = ExistResult> + Send>>);
 
 #[derive(Clone)]
 pub struct BobClientFactory {

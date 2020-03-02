@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BackendOperation {
     pub vdisk_id: VDiskId,
     disk_path: Option<DiskPath>,
@@ -76,6 +76,11 @@ pub struct BackendGetResult {
     pub data: BobData,
 }
 
+#[derive(Debug, Clone)]
+pub struct BackendExistResult {
+    pub exist: Vec<bool>,
+}
+
 impl Display for BackendGetResult {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         write!(f, "{:?}", self)
@@ -93,6 +98,9 @@ pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
 pub type RunResult = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
 
+pub type ExistResult = Result<BackendExistResult, Error>;
+pub struct Exist(pub Pin<Box<dyn Future<Output = ExistResult>>>);
+
 pub(crate) trait BackendStorage: Debug {
     fn run_backend(&self) -> RunResult;
 
@@ -101,6 +109,9 @@ pub(crate) trait BackendStorage: Debug {
 
     fn get(&self, operation: BackendOperation, key: BobKey) -> Get;
     fn get_alien(&self, operation: BackendOperation, key: BobKey) -> Get;
+
+    fn exist(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist;
+    fn exist_alien(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist;
 
     fn vdisks_groups(&self) -> Option<&[PearlGroup]> {
         None
@@ -202,7 +213,7 @@ impl Backend {
         }
     }
 
-    pub async fn get(&self, key: BobKey, options: BobOptions) -> GetResult {
+    pub async fn get(&self, key: BobKey, options: &BobOptions) -> GetResult {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
         // we cannot get data from alien if it belong this node
@@ -255,6 +266,52 @@ impl Backend {
         } else {
             debug!("GET[{}][{}] to backend", key, operation.disk_name_local());
             backend.get(operation, key).0.await
+        }
+    }
+
+    pub async fn exist(&self, keys: &[BobKey], options: &BobOptions) -> ExistResult {
+        let mut exist = vec![false; keys.len()];
+        let keys_by_id_and_path = self.group_keys_by_operations(keys, options);
+        for (operation, (keys, indexes)) in keys_by_id_and_path {
+            let result = self.backend.exist(operation, &keys).0.await;
+            if let Ok(result) = result {
+                for (&res, ind) in result.exist.iter().zip(indexes) {
+                    exist[ind] = res;
+                }
+            }
+        }
+        Ok(BackendExistResult { exist })
+    }
+
+    fn group_keys_by_operations(
+        &self,
+        keys: &[BobKey],
+        options: &BobOptions,
+    ) -> HashMap<BackendOperation, (Vec<BobKey>, Vec<usize>)> {
+        let mut keys_by_operations: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
+        for (ind, &key) in keys.iter().enumerate() {
+            let operation = self.find_operation(key, options);
+            if let Some(operation) = operation {
+                keys_by_operations
+                    .entry(operation)
+                    .and_modify(|(keys, indexes)| {
+                        keys.push(key);
+                        indexes.push(ind);
+                    })
+                    .or_insert_with(|| (vec![key], vec![ind]));
+            }
+        }
+        keys_by_operations
+    }
+
+    fn find_operation(&self, key: BobKey, options: &BobOptions) -> Option<BackendOperation> {
+        let (vdisk_id, path) = self.mapper.get_operation(key);
+        if options.get_normal() {
+            path.map(|path| BackendOperation::new_local(vdisk_id, path))
+        } else if options.get_alien() {
+            Some(BackendOperation::new_alien(vdisk_id))
+        } else {
+            None
         }
     }
 

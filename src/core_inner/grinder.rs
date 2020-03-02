@@ -68,7 +68,7 @@ impl Grinder {
     pub async fn get(
         &self,
         key: BobKey,
-        opts: BobOptions,
+        opts: &BobOptions,
     ) -> Result<BackendGetResult, BackendError> {
         if opts.flags.contains(BobFlags::FORCE_NODE) {
             CLIENT_GET_COUNTER.count(1);
@@ -102,6 +102,18 @@ impl Grinder {
 
             GRINDER_GET_TIMER.stop(time);
             result
+        }
+    }
+
+    pub async fn exist(
+        &self,
+        keys: &[BobKey],
+        opts: &BobOptions,
+    ) -> Result<BackendExistResult, BackendError> {
+        if opts.flags.contains(BobFlags::FORCE_NODE) {
+            self.backend.exist(keys, opts).await
+        } else {
+            self.cluster.exist_clustered_async(keys).0.await
         }
     }
 

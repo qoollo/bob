@@ -1,4 +1,5 @@
 use super::prelude::*;
+use crate::core_inner::backend::core::ExistResult;
 
 /// Wrap pearl holder and add timestamp info
 #[derive(Clone, Debug)]
@@ -236,6 +237,17 @@ impl PearlGroup {
             pearl.reinit_storage()?;
         }
         result
+    }
+
+    pub async fn exist(&self, keys: &[BobKey]) -> ExistResult {
+        let mut exist = vec![false; keys.len()];
+        let holders = self.pearls.read().await;
+        for (ind, &key) in keys.iter().enumerate() {
+            for holder in holders.iter() {
+                exist[ind] = holder.pearl.exist(key).await.unwrap_or(false);
+            }
+        }
+        Ok(BackendExistResult { exist })
     }
 
     pub fn pearls(&self) -> Arc<RwLock<Vec<PearlTimestampHolder>>> {

@@ -86,8 +86,9 @@ impl BobApi for BobSrv {
             };
 
             let grinder = self.grinder.clone();
+            let options = BobOptions::new_get(get_req.options);
             let get_res = grinder
-                .get(key, BobOptions::new_get(get_req.options))
+                .get(key, &options)
                 .await
                 .map_err::<Status, _>(|e| e.into())?;
 
@@ -105,5 +106,32 @@ impl BobApi for BobSrv {
     async fn ping(&self, _request: Request<Null>) -> ApiResult<Null> {
         debug!("PING");
         Ok(Response::new(Null {}))
+    }
+
+    async fn exist(&self, req: Request<ExistRequest>) -> ApiResult<ExistResponse> {
+        let sw = Stopwatch::start_new();
+        let req = req.into_inner();
+        let grinder = self.grinder.clone();
+        let keys = req
+            .keys
+            .into_iter()
+            .map(|k| BobKey { key: k.key })
+            .collect::<Vec<_>>();
+        let options = BobOptions::new_get(req.options);
+        let exist_res = tokio::task::spawn_blocking(move || {
+            futures::executor::block_on(
+                grinder
+                    .exist(&keys, &options)
+                    .map_err::<Status, _>(|e| e.into()),
+            )
+        })
+        .await
+        .unwrap_or(Err(Status::internal("spawn_blocking failed")))?;
+
+        let elapsed = sw.elapsed();
+        debug!("EXISTS-OK dt: {:?}", elapsed);
+        Ok(Response::new(ExistResponse {
+            exist: exist_res.exist,
+        }))
     }
 }
