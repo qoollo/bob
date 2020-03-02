@@ -344,6 +344,7 @@ fn finite_or_default(value: f64) -> f64 {
 }
 
 async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
+    println!("start get worker");
     let mut client = net_conf.build_client().await;
 
     let options = task_conf.find_get_options();
@@ -370,6 +371,7 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
 }
 
 async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
+    println!("start put worker");
     let mut client = net_conf.build_client().await;
 
     let options: Option<PutOptions> = task_conf.find_put_options();
@@ -404,7 +406,9 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         keys,
         options: task_conf.find_get_options(),
     });
+    println!("start check exist");
     let res = client.exist(req).await;
+    println!("finish check exist");
     if res.is_err() || res.unwrap().into_inner().exist.iter().any(|&b| !b) {
         stat.unverified_puts.fetch_add(1, Ordering::SeqCst);
     }

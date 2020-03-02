@@ -139,8 +139,7 @@ impl PearlHolder {
             trace!("Vdisk: {}, check key: {}", self.vdisk, key);
             let pearl_key = PearlKey::new(key);
             let storage = state.get();
-            let mut stream = storage.read_all(&pearl_key);
-            Ok(stream.next().await.is_some())
+            Ok(storage.contains(&pearl_key).await)
         } else {
             trace!(
                 "Vdisk: {} is not ready for reading, state: {:?}",
