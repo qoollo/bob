@@ -6,9 +6,9 @@ edition = "2018"
 
 [dependencies]
 http = "0.2.0"
-pearl = "0.2.2"
+pearl = "0.3.0"
 futures = { version = "0.3.4", features = ["thread-pool"] }
-tokio = { version = "0.2.11", features = ["full"] }
+tokio = { version = "0.2.13", features = ["full"] }
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.8"
@@ -32,8 +32,8 @@ tower-make = "0.3.0"
 tower-service = "0.3.0"
 tower-balance = "0.3.0"
 tower-load = "0.3.0"
-rocket = "0.4.2"
-rocket_contrib = "0.4.2"
+rocket = "0.4.3"
+rocket_contrib = "0.4.3"
 
 [build-dependencies]
 tonic-build = "0.1.1"
