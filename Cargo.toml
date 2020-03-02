@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 http = "0.2.0"
-pearl = "0.2.2"
+pearl = "0.2.3-alpha.1"
 futures = { version = "0.3.4", features = ["thread-pool"] }
 tokio = { version = "0.2.11", features = ["full"] }
 serde = "1.0"
