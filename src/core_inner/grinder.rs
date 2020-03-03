@@ -117,6 +117,10 @@ impl Grinder {
         }
     }
 
+    pub async fn delete_partition(&self, name: &str) -> Result<(), BackendError> {
+        unimplemented!()
+    }
+
     #[inline]
     pub async fn get_periodic_tasks(&self, client_factory: BobClientFactory) -> Result<(), ()> {
         self.link_manager.get_checker_future(client_factory).await

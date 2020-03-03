@@ -8,7 +8,7 @@ service BobApi {
     rpc Get (GetRequest) returns (Blob) {}
     rpc Ping (Null) returns (Null) {}
     rpc Exist (ExistRequest) returns (ExistResponse) {}
-    rpc DeletePartition (DeletePartitionRequest) returns (OpStatus) {}
+    rpc DeletePartition (DeletePartitionRequest) returns (Null) {}
 }
 
 message Null {};
