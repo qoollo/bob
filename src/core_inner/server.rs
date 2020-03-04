@@ -134,13 +134,4 @@ impl BobApi for BobSrv {
             exist: exist_res.exist,
         }))
     }
-
-    async fn delete_partition(&self, req: Request<DeletePartitionRequest>) -> ApiResult<Null> {
-        let name = req.into_inner().name;
-        self.grinder
-            .delete_partition(&name)
-            .await
-            .map(|_| Response::new(Null {}))
-            .map_err(|e| e.into())
-    }
 }

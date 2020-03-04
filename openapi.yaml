@@ -109,6 +109,25 @@ paths:
                 type: string
         default:
           $ref: '#/components/responses/DefaultError'
+  /vdisks/{vdiskId}/partitions/{partitionId}:
+    delete:
+      summary: Delete partition
+      parameters:
+        - $ref: '#/components/parameters/VDiskIdParam'
+        - name: partitionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/DefaultError'
   /alien:
     get:
       summary: Returns an alien dir info

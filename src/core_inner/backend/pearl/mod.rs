@@ -29,6 +29,7 @@ mod prelude {
     };
     pub(crate) use settings::Settings;
     pub(crate) use stuff::{LockGuard, Stuff, SyncState};
+    pub(crate) use tokio::sync::RwLock;
     pub(crate) use tokio::sync::RwLockWriteGuard;
     pub(crate) use tokio::time::delay_for;
 }

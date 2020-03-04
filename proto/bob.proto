@@ -8,7 +8,6 @@ service BobApi {
     rpc Get (GetRequest) returns (Blob) {}
     rpc Ping (Null) returns (Null) {}
     rpc Exist (ExistRequest) returns (ExistResponse) {}
-    rpc DeletePartition (DeletePartitionRequest) returns (Null) {}
 }
 
 message Null {};
@@ -30,11 +29,6 @@ message GetRequest {
 message ExistRequest {
     repeated BlobKey keys = 1; // Keys to check
     GetOptions options = 2; // Options, same as in get request
-}
-
-// Delete partition parameters
-message DeletePartitionRequest {
-    string name = 1; // Name of partition to delete
 }
 
 // Blob id

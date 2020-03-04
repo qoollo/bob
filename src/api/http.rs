@@ -62,6 +62,7 @@ pub fn spawn(bob: BobSrv, port: u16) {
         partitions,
         partition_by_id,
         change_partition_state,
+        delete_partition,
         alien
     ];
     let task = move || {
@@ -234,7 +235,7 @@ fn change_partition_state(
     let task = async move {
         match action {
             Action::Attach => group.attach(partition_id).await,
-            Action::Detach => group.detach(partition_id).await,
+            Action::Detach => group.detach(partition_id).await.map(|_| ()),
         }
     };
     match rt.block_on(task) {
@@ -243,6 +244,47 @@ fn change_partition_state(
             Ok(StatusExt::new(Status::Ok, true, res))
         }
         Err(e) => Err(StatusExt::new(Status::Ok, false, e.to_string())),
+    }
+}
+
+#[delete("/vdisks/<vdisk_id>/partitions/<partition_id>")]
+fn delete_partition(
+    bob: State<BobSrv>,
+    vdisk_id: u32,
+    partition_id: i64,
+) -> Result<StatusExt, StatusExt> {
+    let group = find_group(&bob, vdisk_id)?;
+    let pearl = futures::executor::block_on(group.detach(partition_id));
+    if let Ok(holder) = pearl {
+        holder
+            .pearl
+            .drop_directory()
+            .map(|_| {
+                StatusExt::new(
+                    Status::Ok,
+                    true,
+                    format!("successfully deleted partition {}", partition_id),
+                )
+            })
+            .map_err(|e| {
+                StatusExt::new(
+                    Status::InternalServerError,
+                    true,
+                    format!(
+                        "error removing partition {} on vdisk {}, error: {}",
+                        partition_id, vdisk_id, e
+                    ),
+                )
+            })
+    } else {
+        Err(StatusExt::new(
+            Status::BadRequest,
+            true,
+            format!(
+                "partition {} not found on vdisk {} or it is active",
+                partition_id, vdisk_id
+            ),
+        ))
     }
 }
 

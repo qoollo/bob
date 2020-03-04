@@ -194,6 +194,10 @@ impl PearlHolder {
         }
     }
 
+    pub(crate) fn drop_directory(&self) -> BackendResult<()> {
+        Stuff::drop_directory(&self.disk_path)
+    }
+
     fn init_pearl_by_path(path: &PathBuf, config: &PearlConfig) -> BackendResult<PearlStorage> {
         let mut builder = Builder::new().work_dir(path);
 

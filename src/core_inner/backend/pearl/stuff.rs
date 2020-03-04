@@ -1,4 +1,5 @@
 use super::prelude::*;
+use std::fs::remove_dir_all;
 
 #[derive(Debug)]
 pub(crate) struct LockGuard<TGuard> {
@@ -158,6 +159,12 @@ impl Stuff {
         } else {
             Ok(())
         }
+    }
+
+    pub(crate) fn drop_directory(path: &PathBuf) -> BackendResult<()> {
+        remove_dir_all(path)
+            .map(|_| debug!("deleted directory {:?}", path))
+            .map_err(|e| Error::Storage(format!("error deleting directory {:?}, {}", path, e)))
     }
 
     pub(crate) fn get_start_timestamp_by_std_time(period: Duration, time: SystemTime) -> i64 {

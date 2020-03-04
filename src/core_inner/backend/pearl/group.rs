@@ -282,7 +282,7 @@ impl PearlGroup {
             Err(Error::PearlChangeState(msg))
         }
     }
-    pub async fn detach(&self, start_timestamp: i64) -> BackendResult<()> {
+    pub async fn detach(&self, start_timestamp: i64) -> BackendResult<PearlTimestampHolder> {
         let mut pearls = self.pearls.write().await;
         debug!("write lock acquired");
         if let Some(pearl) = pearls.iter_mut().find(|pearl| {
@@ -308,8 +308,9 @@ impl PearlGroup {
                         warn!("pearl closed: {:?}", e);
                     }
                 }
+                let ret = pearl.clone();
                 pearls.retain(|pearl| pearl.start_timestamp != start_timestamp);
-                Ok(())
+                Ok(ret)
             }
         } else {
             let msg = format!("pearl:{} not found", start_timestamp);
