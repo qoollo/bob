@@ -308,9 +308,9 @@ impl PearlGroup {
                         warn!("pearl closed: {:?}", e);
                     }
                 }
-                let ret = pearl.clone();
+                let pearl = pearl.clone();
                 pearls.retain(|pearl| pearl.start_timestamp != start_timestamp);
-                Ok(ret)
+                Ok(pearl)
             }
         } else {
             let msg = format!("pearl:{} not found", start_timestamp);
