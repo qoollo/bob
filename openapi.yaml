@@ -127,8 +127,6 @@ paths:
                 type: string
         default:
           $ref: '#/components/responses/DefaultError'
-  /vdisks/{vdiskId}/partitions/{partitionId}:
-
   /alien:
     get:
       summary: Returns an alien dir info
