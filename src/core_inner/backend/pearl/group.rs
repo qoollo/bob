@@ -308,9 +308,15 @@ impl PearlGroup {
                         warn!("pearl closed: {:?}", e);
                     }
                 }
-                let pearl = pearl.clone();
-                pearls.retain(|pearl| pearl.start_timestamp != start_timestamp);
-                Ok(pearl)
+                let mut pearls_to_return = pearls
+                    .drain_filter(|pearl| pearl.start_timestamp == start_timestamp)
+                    .collect::<Vec<_>>();
+                pearls_to_return
+                    .pop()
+                    .ok_or(Error::PearlChangeState(format!(
+                        "error detaching pearl with timestamp {}",
+                        start_timestamp
+                    )))
             }
         } else {
             let msg = format!("pearl:{} not found", start_timestamp);
