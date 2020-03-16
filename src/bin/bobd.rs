@@ -98,7 +98,7 @@ async fn main() {
                 path: d.path().to_owned(),
             })
             .collect();
-        mapper = Virtual::new_direct(vdisks.to_vec(), name, &disks, &cluster);
+        mapper = Virtual::new(vdisks.to_vec(), &node, &cluster);
         addr = finded.address().parse().unwrap();
     }
 

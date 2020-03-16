@@ -18,7 +18,7 @@ impl Quorum {
 
     #[inline]
     pub(crate) fn get_target_nodes(&self, key: BobKey) -> Vec<Node> {
-        self.mapper.get_vdisk(key).nodes().to_vec()
+        self.mapper.get_vdisk_for_key(key).nodes().to_vec()
     }
 
     pub(crate) fn get_support_nodes(
@@ -148,7 +148,7 @@ impl Cluster for Quorum {
 
         let l_quorum = self.quorum as usize;
         let mapper = self.mapper.clone();
-        let vdisk_id = self.mapper.get_vdisk(key).id(); // remove search vdisk (not vdisk id)
+        let vdisk_id = self.mapper.get_vdisk_for_key(key).id(); // remove search vdisk (not vdisk id)
         let backend = self.backend.clone();
         let task = async move {
             let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
@@ -452,7 +452,7 @@ pub(crate) mod tests {
 
     fn create_cluster(
         vdisks: Vec<VDisk>,
-        node: &NodeConfig,
+        node: NodeConfig,
         cluster: &ClusterConfig,
         map: &[(&str, Call, Arc<CountCall>)],
     ) -> (Quorum, Arc<Backend>) {
@@ -529,7 +529,7 @@ pub(crate) mod tests {
             .iter()
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
-        let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
+        let (quorum, backend) = create_cluster(vdisks, node, &cluster, &actions);
 
         let key = 1;
         let result = quorum
@@ -559,7 +559,7 @@ pub(crate) mod tests {
             .iter()
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
-        let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
+        let (quorum, backend) = create_cluster(vdisks, node, &cluster, &actions);
         let key = 2;
         let result = quorum
             .put_clustered_async(key, BobData::new(vec![], BobMeta::new(11)))
@@ -592,7 +592,7 @@ pub(crate) mod tests {
             .iter()
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
-        let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
+        let (quorum, backend) = create_cluster(vdisks, node, &cluster, &actions);
 
         let mut result = quorum
             .put_clustered_async(3, BobData::new(vec![], BobMeta::new(11)))
@@ -635,7 +635,7 @@ pub(crate) mod tests {
             .iter()
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
-        let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
+        let (quorum, backend) = create_cluster(vdisks, node, &cluster, &actions);
 
         let result = quorum
             .put_clustered_async(5, BobData::new(vec![], BobMeta::new(11)))
@@ -666,7 +666,7 @@ pub(crate) mod tests {
             .iter()
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
-        let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
+        let (quorum, backend) = create_cluster(vdisks, node, &cluster, &actions);
 
         let result = quorum
             .put_clustered_async(5, BobData::new(vec![], BobMeta::new(11)))
@@ -698,7 +698,7 @@ pub(crate) mod tests {
             .iter()
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
-        let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
+        let (quorum, backend) = create_cluster(vdisks, node, &cluster, &actions);
 
         let result = quorum
             .put_clustered_async(0, BobData::new(vec![], BobMeta::new(11)))
@@ -731,7 +731,7 @@ pub(crate) mod tests {
             .iter()
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
-        let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
+        let (quorum, backend) = create_cluster(vdisks, node, &cluster, &actions);
 
         let result = quorum
             .put_clustered_async(0, BobData::new(vec![], BobMeta::new(11)))
@@ -764,7 +764,7 @@ pub(crate) mod tests {
             .iter()
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
-        let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
+        let (quorum, backend) = create_cluster(vdisks, node, &cluster, &actions);
 
         let result = quorum
             .put_clustered_async(0, BobData::new(vec![], BobMeta::new(11)))
@@ -797,7 +797,7 @@ pub(crate) mod tests {
             .iter()
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
-        let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
+        let (quorum, backend) = create_cluster(vdisks, node, &cluster, &actions);
 
         let result = quorum
             .put_clustered_async(0, BobData::new(vec![], BobMeta::new(11)))
@@ -830,7 +830,7 @@ pub(crate) mod tests {
             .iter()
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
-        let (quorum, _) = create_cluster(vdisks, &node, &cluster, &actions);
+        let (quorum, _) = create_cluster(vdisks, node, &cluster, &actions);
 
         let result = quorum.get_clustered_async(101).0.await;
 
@@ -851,7 +851,7 @@ pub(crate) mod tests {
             .iter()
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
-        let (quorum, _) = create_cluster(vdisks, &node, &cluster, &actions);
+        let (quorum, _) = create_cluster(vdisks, node, &cluster, &actions);
 
         let result = quorum.get_clustered_async(102).0.await;
 
@@ -875,7 +875,7 @@ pub(crate) mod tests {
             .iter()
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
-        let (quorum, _) = create_cluster(vdisks, &node, &cluster, &actions);
+        let (quorum, _) = create_cluster(vdisks, node, &cluster, &actions);
 
         let result = quorum.get_clustered_async(110).0.await;
 
@@ -900,7 +900,7 @@ pub(crate) mod tests {
             .iter()
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
-        let (quorum, _) = create_cluster(vdisks, &node, &cluster, &actions);
+        let (quorum, _) = create_cluster(vdisks, node, &cluster, &actions);
 
         let result = quorum.get_clustered_async(110).0.await;
 

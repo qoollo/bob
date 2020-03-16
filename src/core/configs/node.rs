@@ -223,7 +223,7 @@ pub(crate) enum BackendType {
     Pearl,
 }
 
-#[derive(Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct NodeConfig {
     pub(crate) log_config: Option<String>,
     pub(crate) name: Option<String>,

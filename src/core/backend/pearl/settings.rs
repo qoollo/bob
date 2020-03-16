@@ -17,7 +17,7 @@ impl Settings {
         let alien_folder = format!(
             "{}/{}/",
             mapper
-                .get_disk_by_name(&pearl_config.alien_disk())
+                .get_disk(&pearl_config.alien_disk())
                 .expect("cannot find alien disk in config")
                 .path(),
             pearl_config.settings().alien_root_dir_name()
@@ -70,7 +70,7 @@ impl Settings {
 
                 for vdisk_id in vdisks {
                     if let Ok((vdisk_id, id)) = self.try_parse_vdisk_id(vdisk_id) {
-                        if self.mapper.does_node_holds_vdisk(&name, id.clone()) {
+                        if self.mapper.is_vdisk_on_node(&name, id.clone()) {
                             let pearl = config.pearl();
                             let group = PearlGroup::new(
                                 self.clone(),

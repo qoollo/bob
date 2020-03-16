@@ -25,7 +25,7 @@ mod prelude {
         ClusterConfig, DiskPath as ConfigDiskPath, Node as ClusterNodeConfig, NodeConfig,
     };
     pub(crate) use data::{
-        BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, Node, NodeOutput, VDiskId,
+        BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, Node, NodeOutput, VDisk, VDiskId,
     };
     pub(crate) use dipstick::{
         AtomicBucket, Counter, Graphite, InputKind, InputScope, MetricName, MetricValue, Output,

@@ -17,7 +17,7 @@ impl Quorum {
 
     #[inline]
     fn get_target_nodes(&self, key: BobKey) -> Vec<Node> {
-        self.mapper.get_vdisk(key).nodes().to_vec()
+        self.mapper.get_vdisk_for_key(key).nodes().to_vec()
     }
 
     fn group_keys_by_nodes(
