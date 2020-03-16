@@ -1,15 +1,11 @@
+#[allow(clippy::ptr_arg)] // requires to avoid warnings on mock macro
+
 pub(crate) mod b_client {
     use super::super::prelude::*;
-    use super::*;
-    use crate::grpc::{Blob, BlobMeta};
-    use crate::grpc::{GetOptions, GetRequest, PutOptions, PutRequest};
+    use super::{Exist, ExistResult, Get, PingResult, Put};
+    use mockall::mock;
 
-    use std::time::Duration;
-    use tonic::Request;
-
-    use super::PingResult;
-    use mockall::*;
-
+    /// Client for interaction with bob backend
     #[derive(Clone)]
     pub struct RealBobClient {
         node: Node,
@@ -19,6 +15,9 @@ pub(crate) mod b_client {
     }
 
     impl RealBobClient {
+        /// Creates [`BobClient`] instance
+        /// # Errors
+        /// Fails if can't connect to endpoint
         #[allow(dead_code)]
         pub async fn create(
             node: Node,
@@ -38,13 +37,15 @@ pub(crate) mod b_client {
         }
 
         // Getters
+
         #[allow(dead_code)]
-        pub fn node(&self) -> &Node {
+        #[must_use]
+        pub(crate) fn node(&self) -> &Node {
             &self.node
         }
 
         #[allow(dead_code)]
-        pub fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put {
+        pub(crate) fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put {
             debug!("real client put called");
             let request = Request::new(PutRequest {
                 key: Some(BlobKey { key: key.key }),
@@ -89,7 +90,7 @@ pub(crate) mod b_client {
         }
 
         #[allow(dead_code)]
-        pub fn get(&mut self, key: BobKey, options: GetOptions) -> Get {
+        pub(crate) fn get(&mut self, key: BobKey, options: GetOptions) -> Get {
             let n1 = self.node.clone();
             let n2 = self.node.clone();
             let mut client = self.client.clone();
@@ -139,7 +140,7 @@ pub(crate) mod b_client {
         }
 
         #[allow(dead_code)]
-        pub async fn ping(&mut self) -> PingResult {
+        pub(crate) async fn ping(&mut self) -> PingResult {
             let mut client = self.client.clone();
             let ping_res = timeout(self.operation_timeout, client.ping(Request::new(Null {})))
                 .await
@@ -155,7 +156,7 @@ pub(crate) mod b_client {
         }
 
         #[allow(dead_code)]
-        pub fn exist(&mut self, keys: Vec<BobKey>, options: GetOptions) -> Exist {
+        pub(crate) fn exist(&mut self, keys: Vec<BobKey>, options: GetOptions) -> Exist {
             let node = self.node.clone();
             let mut client = self.client.clone();
             Exist(Box::pin(async move {
@@ -189,7 +190,7 @@ pub(crate) mod b_client {
     }
 
     mock! {
-        pub BobClient {
+        pub(crate) BobClient {
             async fn create(node: Node, operation_timeout: Duration, metrics: BobClientMetrics,
                     ) -> Result<Self, String>;
             fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put;
@@ -202,11 +203,22 @@ pub(crate) mod b_client {
             fn clone(&self) -> Self;
         }
     }
+
+    impl Debug for RealBobClient {
+        fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+            f.debug_struct("RealBobClient")
+                .field("client", &"BobApiClient<Channel>")
+                .field("metrics", &self.metrics)
+                .field("node", &self.node)
+                .field("operation_timeout", &self.operation_timeout)
+                .finish()
+        }
+    }
 }
 
 cfg_if! {
     if #[cfg(test)] {
-        pub use self::b_client::MockBobClient as BobClient;
+        pub(crate) use self::b_client::MockBobClient as BobClient;
     } else {
         pub use self::b_client::RealBobClient as BobClient;
     }
@@ -214,29 +226,33 @@ cfg_if! {
 
 use super::prelude::*;
 
-pub type PutResult = Result<ClusterResult<BackendPutResult>, ClusterResult<BackendError>>;
-pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
+pub(crate) type PutResult = Result<ClusterResult<BackendPutResult>, ClusterResult<BackendError>>;
+pub(crate) struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
-pub type GetResult = Result<ClusterResult<BackendGetResult>, ClusterResult<BackendError>>;
-pub struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send>>);
+pub(crate) type GetResult = Result<ClusterResult<BackendGetResult>, ClusterResult<BackendError>>;
+pub(crate) struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send>>);
 
-pub type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<BackendError>>;
+pub(crate) type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<BackendError>>;
 
-pub type ExistResult = Result<ClusterResult<BackendExistResult>, ClusterResult<BackendError>>;
-pub struct Exist(pub Pin<Box<dyn Future<Output = ExistResult> + Send>>);
+pub(crate) type ExistResult =
+    Result<ClusterResult<BackendExistResult>, ClusterResult<BackendError>>;
+pub(crate) struct Exist(pub Pin<Box<dyn Future<Output = ExistResult> + Send>>);
 
+/// Bob metrics factory
 #[derive(Clone)]
-pub struct BobClientFactory {
+pub struct Factory {
     operation_timeout: Duration,
     metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
 }
 
-impl BobClientFactory {
+impl Factory {
+    /// Creates new instance of the [`Factory`]
+    #[must_use]
     pub fn new(
         operation_timeout: Duration,
         metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
     ) -> Self {
-        BobClientFactory {
+        Factory {
             operation_timeout,
             metrics,
         }
@@ -247,66 +263,11 @@ impl BobClientFactory {
     }
 }
 
-pub mod tests {
-    use super::*;
-    use crate::core_inner::{
-        backend::{BackendPingResult, BackendPutResult},
-        data::{BobData, BobMeta, ClusterResult, Node},
-    };
-    use futures::future::ready;
-
-    pub fn ping_ok(node: Node) -> PingResult {
-        Ok(ClusterResult {
-            node,
-            result: BackendPingResult {},
-        })
-    }
-    pub fn ping_err(node: Node) -> PingResult {
-        Err(ClusterResult {
-            node,
-            result: BackendError::Internal,
-        })
-    }
-
-    pub fn put_ok(node: Node) -> Put {
-        Put({
-            ready(Ok(ClusterResult {
-                node,
-                result: BackendPutResult {},
-            }))
-            .boxed()
-        })
-    }
-
-    pub fn put_err(node: Node) -> Put {
-        Put({
-            ready(Err(ClusterResult {
-                node,
-                result: BackendError::Internal,
-            }))
-            .boxed()
-        })
-    }
-
-    pub fn get_ok(node: Node, timestamp: i64) -> Get {
-        Get({
-            ready(Ok(ClusterResult {
-                node,
-                result: BackendGetResult {
-                    data: BobData::new(vec![], BobMeta::new_value(timestamp)),
-                },
-            }))
-            .boxed()
-        })
-    }
-
-    pub fn get_err(node: Node) -> Get {
-        Get({
-            ready(Err(ClusterResult {
-                node,
-                result: BackendError::Internal,
-            }))
-            .boxed()
-        })
+impl Debug for Factory {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.debug_struct("Factory")
+            .field("operation_timeout", &self.operation_timeout)
+            .field("metrics", &"<dyn MetricsContainerBuilder>")
+            .finish()
     }
 }

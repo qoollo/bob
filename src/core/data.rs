@@ -373,7 +373,7 @@ impl Node {
         self.conn.lock().expect("lock mutex").clone()
     }
 
-    pub(crate) async fn check(self, client_fatory: BobClientFactory) -> Result<(), String> {
+    pub(crate) async fn check(self, client_fatory: Factory) -> Result<(), String> {
         let connection = self.get_connection();
         if let Some(mut conn) = connection {
             conn.ping()

@@ -48,7 +48,7 @@ pearl:
     # root dir for alien storage in 'alien_disk'. required for 'pearl'
     alien_root_dir_name: alien
     # [time] period when new pearl directory created. required for 'pearl'
-    timestamp_period: 1d
+    timestamp_period: 1m
     # each thread will wait this period if another thread creating pearl. required for 'pearl'
     create_pearl_wait_delay: 100ms
 

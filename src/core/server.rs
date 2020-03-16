@@ -2,10 +2,15 @@ use super::prelude::*;
 
 #[derive(Clone)]
 pub struct BobSrv {
-    pub grinder: std::sync::Arc<Grinder>,
+    pub(crate) grinder: Arc<Grinder>,
 }
 
 impl BobSrv {
+    pub fn new(grinder: Grinder) -> Self {
+        Self {
+            grinder: Arc::new(grinder),
+        }
+    }
     pub fn run_api_server(&self, port: u16) {
         api::http::spawn(self.clone(), port);
     }
@@ -15,7 +20,7 @@ impl BobSrv {
     }
 
     #[inline]
-    pub async fn get_periodic_tasks(&self, client_factory: BobClientFactory) -> Result<(), ()> {
+    pub async fn get_periodic_tasks(&self, client_factory: Factory) -> Result<(), ()> {
         self.grinder.get_periodic_tasks(client_factory).await
     }
 

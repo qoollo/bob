@@ -1,0 +1,124 @@
+pub mod backend;
+pub mod bob_client;
+pub mod cluster;
+pub mod configs;
+pub mod data;
+pub mod grinder;
+pub mod link_manager;
+pub mod mapper;
+pub mod metrics;
+pub mod server;
+
+pub(crate) use super::prelude::*;
+pub(crate) use backend::{
+    init_pearl, Backend, BackendExistResult, BackendGetResult, BackendOperation, BackendPingResult,
+    BackendPutResult, Error as BackendError, Exist as BackendExist, Get as BackendGet,
+    Put as BackendPut,
+};
+
+mod prelude {
+    pub(crate) use super::*;
+
+    pub(crate) use bob_client::{BobClient, Factory, GetResult as BobClientGetResult};
+    pub(crate) use cluster::{get_cluster, Cluster};
+    pub(crate) use configs::{
+        ClusterConfig, DiskPath as ConfigDiskPath, Node as ClusterNodeConfig, NodeConfig,
+    };
+    pub(crate) use data::{
+        print_vec, BobData, BobFlags, BobKey, BobMeta, BobOptions, ClusterResult, DiskPath, Node,
+        VDiskId,
+    };
+    pub(crate) use dipstick::{
+        AtomicBucket, Counter, Graphite, InputKind, InputScope, MetricName, MetricValue, Output,
+        Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer, Void,
+    };
+    pub(crate) use futures::{
+        future, stream::FuturesUnordered, Future, FutureExt, StreamExt, TryFutureExt,
+    };
+    pub(crate) use grinder::Grinder;
+    pub(crate) use grpc::{
+        bob_api_server::BobApi, ExistRequest, ExistResponse, GetOptions, GetSource, Null, OpStatus,
+        PutOptions,
+    };
+    pub(crate) use link_manager::LinkManager;
+    pub(crate) use mapper::VDiskMapper;
+    pub(crate) use metrics::{
+        BobClientMetrics, MetricsContainerBuilder, CLIENT_GET_COUNTER,
+        CLIENT_GET_ERROR_COUNT_COUNTER, CLIENT_GET_TIMER, CLIENT_PUT_COUNTER, CLIENT_PUT_TIMER,
+        GRINDER_GET_COUNTER, GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER,
+        GRINDER_PUT_COUNTER, GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER,
+    };
+    pub(crate) use stopwatch::Stopwatch;
+    pub(crate) use tokio::time::{interval, timeout};
+    pub(crate) use tonic::{
+        transport::{Channel, Endpoint},
+        Code, Request, Response, Status,
+    };
+}
+
+#[cfg(test)]
+pub(crate) mod test_utils {
+    use super::prelude::*;
+    use super::{
+        backend::{BackendGetResult, BackendPingResult, BackendPutResult},
+        bob_client::{Get, PingResult, Put},
+        data::{BobData, BobMeta, ClusterResult, Node},
+        BackendError,
+    };
+    use futures::future::ready;
+
+    pub(crate) fn ping_ok(node: Node) -> PingResult {
+        Ok(ClusterResult {
+            node,
+            result: BackendPingResult {},
+        })
+    }
+    pub(crate) fn ping_err(node: Node) -> PingResult {
+        Err(ClusterResult {
+            node,
+            result: BackendError::Internal,
+        })
+    }
+
+    pub(crate) fn put_ok(node: Node) -> Put {
+        Put({
+            ready(Ok(ClusterResult {
+                node,
+                result: BackendPutResult {},
+            }))
+            .boxed()
+        })
+    }
+
+    pub(crate) fn put_err(node: Node) -> Put {
+        Put({
+            ready(Err(ClusterResult {
+                node,
+                result: BackendError::Internal,
+            }))
+            .boxed()
+        })
+    }
+
+    pub(crate) fn get_ok(node: Node, timestamp: i64) -> Get {
+        Get({
+            ready(Ok(ClusterResult {
+                node,
+                result: BackendGetResult {
+                    data: BobData::new(vec![], BobMeta::new_value(timestamp)),
+                },
+            }))
+            .boxed()
+        })
+    }
+
+    pub(crate) fn get_err(node: Node) -> Get {
+        Get({
+            ready(Err(ClusterResult {
+                node,
+                result: BackendError::Internal,
+            }))
+            .boxed()
+        })
+    }
+}

@@ -2,7 +2,7 @@
 mod tests {
     use super::super::prelude::*;
 
-    use crate::core_inner::configs::node::NodeConfigYaml;
+    use crate::core::configs::node::NodeConfigYaml;
 
     #[test]
     fn test_node_disk_name_is_empty() {

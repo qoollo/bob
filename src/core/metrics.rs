@@ -24,7 +24,7 @@ metrics! {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct BobClientMetrics {
     put_count: Counter,
     put_timer: Timer,
