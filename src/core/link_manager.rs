@@ -6,8 +6,9 @@ pub(crate) struct LinkManager {
     check_interval: Duration,
 }
 
-pub(crate) type ClusterCallType<T> = Result<NodeOutput<T>, NodeOutput<BackendError>>;
-pub(crate) type ClusterCallFuture<T> = Pin<Box<dyn Future<Output = ClusterCallType<T>> + Send>>;
+pub(crate) type ClusterCallOutput<T> = Result<NodeOutput<T>, NodeOutput<BackendError>>;
+pub(crate) type ClusterCallFuture<'a, T> =
+    Pin<Box<dyn Future<Output = ClusterCallOutput<T>> + Send + 'a>>;
 
 impl LinkManager {
     pub(crate) fn new(nodes: Vec<Node>, check_interval: Duration) -> LinkManager {
@@ -31,29 +32,29 @@ impl LinkManager {
         tokio::spawn(task);
     }
 
-    pub(crate) fn call_nodes<F, T>(nodes: &[Node], f: F) -> FuturesUnordered<ClusterCallFuture<T>>
+    pub(crate) async fn call_nodes<'a, F, T>(nodes: &[Node], f: F) -> Vec<ClusterCallOutput<T>>
     where
-        F: FnMut(BobClient) -> ClusterCallFuture<T> + Send + Clone,
-        T: 'static + Send,
+        F: FnMut(&'_ BobClient) -> ClusterCallFuture<'_, T> + Send + Clone,
+        T: Send,
     {
-        nodes
+        let futures: FuturesUnordered<_> = nodes
             .iter()
             .map(|node| Self::call_node(node, f.clone()))
-            .collect()
+            .collect();
+        futures.collect().await
     }
 
-    pub(crate) fn call_node<F, T>(node: &Node, mut f: F) -> ClusterCallFuture<T>
+    pub(crate) async fn call_node<'a, F, T>(node: &Node, mut f: F) -> ClusterCallOutput<T>
     where
-        F: FnMut(BobClient) -> ClusterCallFuture<T>,
-        T: 'static + Send,
+        F: FnMut(&'_ BobClient) -> ClusterCallFuture<'_, T> + Send + Clone,
+        T: Send,
     {
         match node.get_connection() {
-            Some(conn) => f(conn).boxed(),
-            None => future::err(NodeOutput::new(
+            Some(conn) => f(&conn).await,
+            None => Err(NodeOutput::new(
                 node.name().to_owned(),
                 BackendError::Failed(format!("No active connection {:?}", node)),
-            ))
-            .boxed(),
+            )),
         }
     }
 

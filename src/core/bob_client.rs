@@ -2,7 +2,7 @@
 
 pub(crate) mod b_client {
     use super::super::prelude::*;
-    use super::{Exist, ExistResult, Get, PingResult, Put};
+    use super::{Exist, ExistResult, Get, PingResult, Put, PutResult};
     use mockall::mock;
 
     /// Client for interaction with bob backend
@@ -45,7 +45,7 @@ pub(crate) mod b_client {
         }
 
         #[allow(dead_code)]
-        pub(crate) fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put {
+        pub(crate) async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult {
             debug!("real client put called");
             let request = Request::new(PutRequest {
                 key: Some(BlobKey { key }),
@@ -53,7 +53,7 @@ pub(crate) mod b_client {
                     meta: Some(BlobMeta {
                         timestamp: d.meta().timestamp(),
                     }),
-                    data: d.inner().to_vec(),
+                    data: d.into_inner(),
                 }),
                 options: Some(options),
             });
@@ -64,27 +64,24 @@ pub(crate) mod b_client {
             let metrics = self.metrics.clone();
             let node = self.node.clone();
             let t = self.operation_timeout;
-            let res = async move {
-                timeout(
-                    t,
-                    client.put(request).map(|res| {
-                        res.expect("client put request");
-                        metrics.put_timer_stop(timer);
-                        NodeOutput::new(node.name().to_owned(), BackendPutResult {})
-                    }),
-                )
-                .await
-                .map_err(|_| {
-                    metrics.put_error_count();
+            timeout(
+                t,
+                client.put(request).map(|res| {
+                    res.expect("client put request");
                     metrics.put_timer_stop(timer);
-                    NodeOutput::new(node.name().to_owned(), BackendError::Timeout)
-                })
-            };
-            Put(res.boxed())
+                    NodeOutput::new(node.name().to_owned(), BackendPutResult {})
+                }),
+            )
+            .await
+            .map_err(|_| {
+                metrics.put_error_count();
+                metrics.put_timer_stop(timer);
+                NodeOutput::new(node.name().to_owned(), BackendError::Timeout)
+            })
         }
 
         #[allow(dead_code)]
-        pub(crate) fn get(&mut self, key: BobKey, options: GetOptions) -> Get {
+        pub(crate) fn get(&self, key: BobKey, options: GetOptions) -> Get {
             let n1 = self.node.clone();
             let n2 = self.node.clone();
             let mut client = self.client.clone();
@@ -175,8 +172,8 @@ pub(crate) mod b_client {
         pub(crate) BobClient {
             async fn create(node: Node, operation_timeout: Duration, metrics: BobClientMetrics,
                     ) -> Result<Self, String>;
-            fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put;
-            fn get(&mut self, key: BobKey, options: GetOptions) -> Get;
+            async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult;
+            fn get(&self, key: BobKey, options: GetOptions) -> Get;
             async fn ping(&self) -> PingResult;
             fn node(&self) -> &Node;
             fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> Exist;
