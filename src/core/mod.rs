@@ -42,7 +42,7 @@ mod prelude {
     pub(crate) use link_manager::LinkManager;
     pub(crate) use mapper::Virtual;
     pub(crate) use metrics::{
-        BobClientMetrics, MetricsContainerBuilder, CLIENT_GET_COUNTER,
+        BobClient as BobClientMetrics, MetricsContainerBuilder, CLIENT_GET_COUNTER,
         CLIENT_GET_ERROR_COUNT_COUNTER, CLIENT_GET_TIMER, CLIENT_PUT_COUNTER,
         CLIENT_PUT_ERROR_COUNT_COUNTER, CLIENT_PUT_TIMER, GRINDER_GET_COUNTER,
         GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER, GRINDER_PUT_COUNTER,
