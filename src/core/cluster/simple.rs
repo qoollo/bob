@@ -111,7 +111,7 @@ impl Cluster for Quorum {
                 .collect::<Vec<_>>();
 
             if let Some(cluster_result) = ok_results.get(0) {
-                Ok(cluster_result.result.clone())
+                Ok(cluster_result.inner().clone())
             } else {
                 Err(BackendError::KeyNotFound(key))
             }
@@ -133,7 +133,7 @@ impl Cluster for Quorum {
                     let res: Vec<ExistResult> = LinkManager::exist_on_nodes(&nodes, keys).await;
                     for result in res {
                         if let Ok(result) = result {
-                            for (&r, &ind) in result.result.exist.iter().zip(&indexes) {
+                            for (&r, &ind) in result.inner().exist.iter().zip(&indexes) {
                                 exist[ind] |= r;
                             }
                         }

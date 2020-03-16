@@ -70,20 +70,14 @@ pub(crate) mod b_client {
                     client.put(request).map(|res| {
                         res.expect("client put request");
                         metrics.put_timer_stop(timer);
-                        ClusterResult {
-                            node: node.clone(),
-                            result: BackendPutResult {},
-                        }
+                        ClusterResult::new(node.name(), BackendPutResult {})
                     }),
                 )
                 .await
                 .map_err(|_| {
                     metrics.put_error_count();
                     metrics.put_timer_stop(timer);
-                    ClusterResult {
-                        result: BackendError::Timeout,
-                        node,
-                    }
+                    ClusterResult::new(node.name(), BackendError::Timeout)
                 })
             };
             Put(res.boxed())
@@ -115,24 +109,21 @@ pub(crate) mod b_client {
                 res.map(move |r| {
                     metrics.get_timer_stop(timer);
                     let ans = r.into_inner();
-                    ClusterResult {
-                        node: n1,
-                        result: BackendGetResult {
+                    ClusterResult::new(
+                        n1.name(),
+                        BackendGetResult {
                             data: BobData::new(
                                 ans.data,
                                 BobMeta::new(ans.meta.expect("get blob meta")),
                             ),
                         },
-                    }
+                    )
                 })
                 .map_err(BackendError::from)
                 .map_err(|e| {
                     metrics2.get_error_count();
                     metrics2.get_timer_stop(timer);
-                    ClusterResult {
-                        result: e,
-                        node: n2,
-                    }
+                    ClusterResult::new(n2.name(), e)
                 })
             }
             .boxed();
@@ -142,17 +133,11 @@ pub(crate) mod b_client {
         #[allow(dead_code)]
         pub(crate) async fn ping(&mut self) -> PingResult {
             let mut client = self.client.clone();
-            let ping_res = timeout(self.operation_timeout, client.ping(Request::new(Null {})))
+            timeout(self.operation_timeout, client.ping(Request::new(Null {})))
                 .await
                 .expect("client ping with timeout")
-                .map(|_| ClusterResult {
-                    node: self.node.clone(),
-                    result: BackendPingResult {},
-                });
-            ping_res.map_err(|_| ClusterResult {
-                node: self.node.clone(),
-                result: BackendError::Timeout,
-            })
+                .map(|_| ClusterResult::new(self.node.name(), BackendPingResult {}))
+                .map_err(|_| ClusterResult::new(self.node.name(), BackendError::Timeout))
         }
 
         #[allow(dead_code)]
@@ -166,25 +151,22 @@ pub(crate) mod b_client {
                         options: Some(options),
                     }))
                     .await;
-                Self::get_exist_result(node, exist_response)
+                Self::get_exist_result(node.name(), exist_response)
             }))
         }
 
         fn get_exist_result(
-            node: Node,
+            node_name: String,
             exist_response: Result<Response<ExistResponse>, Status>,
         ) -> ExistResult {
             match exist_response {
-                Ok(response) => Ok(ClusterResult {
-                    node,
-                    result: BackendExistResult {
+                Ok(response) => Ok(ClusterResult::new(
+                    node_name,
+                    BackendExistResult {
                         exist: response.into_inner().exist,
                     },
-                }),
-                Err(error) => Err(ClusterResult {
-                    node,
-                    result: BackendError::from(error),
-                }),
+                )),
+                Err(error) => Err(ClusterResult::new(node_name, BackendError::from(error))),
             }
         }
     }

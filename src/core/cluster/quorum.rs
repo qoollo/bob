@@ -45,7 +45,7 @@ impl Quorum {
 
     async fn put_local_all(
         backend: Arc<Backend>,
-        failed_nodes: Vec<Node>,
+        failed_nodes: Vec<String>,
         key: BobKey,
         data: BobData,
         operation: BackendOperation,
@@ -53,18 +53,18 @@ impl Quorum {
         let mut add_nodes = vec![];
         for failed_node in failed_nodes {
             let mut op = operation.clone();
-            op.set_remote_folder(&failed_node.name());
+            op.set_remote_folder(&failed_node);
 
             if let Err(e) = backend.put_local(key, data.clone(), op).await {
                 debug!("PUT[{}] local support put result: {:?}", key, e);
-                add_nodes.push(failed_node.name());
+                add_nodes.push(failed_node);
             }
         }
 
         if add_nodes.is_empty() {
             Ok(())
         } else {
-            Err(PutOptions::new_alien(&add_nodes))
+            Err(PutOptions::new_alien(add_nodes))
         }
     }
 
@@ -113,7 +113,7 @@ impl Quorum {
         let recent_successful = results
             .into_iter()
             .filter_map(Result::ok)
-            .max_by_key(|r| r.result.data.meta.timestamp);
+            .max_by_key(|r| r.inner().data.meta.timestamp);
         (recent_successful, sup)
     }
 
@@ -190,7 +190,7 @@ impl Cluster for Quorum {
 
                 let local_put = Self::put_local_all(
                     backend,
-                    failed.iter().map(|n| &n.node).cloned().collect(),
+                    failed.iter().map(|n| n.node_name().to_owned()).collect(),
                     key,
                     data.clone(),
                     BackendOperation::new_alien(vdisk_id),
@@ -220,10 +220,10 @@ impl Cluster for Quorum {
 
                 if additionl_remote_writes > 0 {
                     let nodes = failed
-                        .iter()
-                        .map(|node| node.node.name())
+                        .into_iter()
+                        .map(|res| res.node_name().to_owned())
                         .collect::<Vec<_>>();
-                    let put_options = PutOptions::new_alien(&nodes);
+                    let put_options = PutOptions::new_alien(nodes);
 
                     queries.extend(
                         sup_nodes
@@ -286,9 +286,11 @@ impl Cluster for Quorum {
             if let Some(answer) = result {
                 debug!(
                     "GET[{}] take data from node: {}, timestamp: {}",
-                    key, answer.node, answer.result.data.meta.timestamp
+                    key,
+                    answer.node_name(),
+                    answer.inner().data.meta.timestamp
                 ); // TODO move meta
-                return Ok(answer.result);
+                return Ok(answer.into_inner());
             } else if errors.is_empty() {
                 debug!("GET[{}] data not found", key);
                 return Err(BackendError::KeyNotFound(key));
@@ -315,9 +317,11 @@ impl Cluster for Quorum {
             if let Some(answer) = result_sup {
                 debug!(
                     "GET[{}] take data from node: {}, timestamp: {}",
-                    key, answer.node, answer.result.data.meta.timestamp
+                    key,
+                    answer.node_name(),
+                    answer.inner().data.meta.timestamp
                 ); // @TODO move meta
-                Ok(answer.result)
+                Ok(answer.into_inner())
             } else {
                 debug!("errors: {}", errors);
                 debug!("GET[{}] data not found", key);
@@ -342,7 +346,7 @@ impl Cluster for Quorum {
                     let cluster_results = LinkManager::exist_on_nodes(&nodes, keys).await;
                     for result in cluster_results {
                         if let Ok(result) = result {
-                            for (&r, &ind) in result.result.exist.iter().zip(&indexes) {
+                            for (&r, &ind) in result.inner().exist.iter().zip(&indexes) {
                                 exist[ind] |= r;
                             }
                         }
@@ -383,20 +387,20 @@ pub(crate) mod tests {
 
             client
                 .expect_ping()
-                .returning(move || test_utils::ping_ok(cl.clone()));
+                .returning(move || test_utils::ping_ok(cl.name()));
         }
 
         pub(crate) fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             client.expect_put().returning(move |_key, _data, _options| {
                 call.put_inc();
-                test_utils::put_ok(node.clone())
+                test_utils::put_ok(node.name())
             });
         }
 
         pub(crate) fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             client.expect_put().returning(move |_key, _data, _options| {
                 call.put_inc();
-                test_utils::put_err(node.clone())
+                test_utils::put_err(node.name())
             });
         }
 
@@ -408,14 +412,14 @@ pub(crate) mod tests {
         ) {
             client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
-                test_utils::get_ok(node.clone(), timestamp)
+                test_utils::get_ok(node.name(), timestamp)
             });
         }
 
         pub(crate) fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
-                test_utils::get_err(node.clone())
+                test_utils::get_err(node.name())
             });
         }
 

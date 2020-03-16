@@ -9,9 +9,9 @@ impl PutOptions {
         }
     }
 
-    pub(crate) fn new_alien(nodes: &[String]) -> Self {
+    pub(crate) fn new_alien(remote_nodes: Vec<String>) -> Self {
         PutOptions {
-            remote_nodes: nodes.to_vec(),
+            remote_nodes,
             force_node: true,
             overwrite: false,
         }
@@ -25,12 +25,14 @@ impl GetOptions {
             source: GetSource::Normal as i32,
         }
     }
+
     pub(crate) fn new_alien() -> Self {
         GetOptions {
             force_node: true,
             source: GetSource::Alien as i32,
         }
     }
+
     pub(crate) fn new_all() -> Self {
         GetOptions {
             force_node: true,
@@ -47,7 +49,7 @@ impl From<i32> for GetSource {
             2 => GetSource::Alien,
             other => {
                 error!("cannot convert value: {} to 'GetSource' enum", other);
-                panic!("cannot convert value: {} to 'GetSource' enum", other);
+                panic!("fatal core error");
             }
         }
     }
@@ -55,13 +57,25 @@ impl From<i32> for GetSource {
 
 #[derive(Debug)]
 pub struct ClusterResult<T> {
-    pub node: Node,
-    pub result: T,
+    node_name: String,
+    inner: T,
 }
 
-impl<T: std::fmt::Display> std::fmt::Display for ClusterResult<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "node: {}, result: {}", self.node, self.result)
+impl<T> ClusterResult<T> {
+    pub fn new(node_name: String, inner: T) -> Self {
+        Self { node_name, inner }
+    }
+
+    pub(crate) fn node_name(&self) -> &str {
+        &self.node_name
+    }
+
+    pub(crate) fn inner(&self) -> &T {
+        &self.inner
+    }
+
+    pub(crate) fn into_inner(self) -> T {
+        self.inner
     }
 }
 
@@ -382,7 +396,7 @@ impl Node {
                 .map_err(|e| {
                     debug!("Got broken connection to node {:?}", self);
                     self.clear_connection();
-                    e.to_string()
+                    format!("{:?}", e)
                 })
         } else {
             debug!("will connect to {:?}", self);

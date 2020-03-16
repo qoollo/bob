@@ -67,58 +67,35 @@ pub(crate) mod test_utils {
     };
     use futures::future::ready;
 
-    pub(crate) fn ping_ok(node: Node) -> PingResult {
-        Ok(ClusterResult {
-            node,
-            result: BackendPingResult {},
-        })
-    }
-    pub(crate) fn ping_err(node: Node) -> PingResult {
-        Err(ClusterResult {
-            node,
-            result: BackendError::Internal,
-        })
+    pub(crate) fn ping_ok(node_name: String) -> PingResult {
+        Ok(ClusterResult::new(node_name, BackendPingResult {}))
     }
 
-    pub(crate) fn put_ok(node: Node) -> Put {
-        Put({
-            ready(Ok(ClusterResult {
-                node,
-                result: BackendPutResult {},
-            }))
-            .boxed()
-        })
+    pub(crate) fn ping_err(node_name: String) -> PingResult {
+        Err(ClusterResult::new(node_name, BackendError::Internal))
     }
 
-    pub(crate) fn put_err(node: Node) -> Put {
-        Put({
-            ready(Err(ClusterResult {
-                node,
-                result: BackendError::Internal,
-            }))
-            .boxed()
-        })
+    pub(crate) fn put_ok(node_name: String) -> Put {
+        Put({ ready(Ok(ClusterResult::new(node_name, BackendPutResult {}))).boxed() })
     }
 
-    pub(crate) fn get_ok(node: Node, timestamp: i64) -> Get {
+    pub(crate) fn put_err(node_name: String) -> Put {
+        Put({ ready(Err(ClusterResult::new(node_name, BackendError::Internal))).boxed() })
+    }
+
+    pub(crate) fn get_ok(node_name: String, timestamp: i64) -> Get {
         Get({
-            ready(Ok(ClusterResult {
-                node,
-                result: BackendGetResult {
+            ready(Ok(ClusterResult::new(
+                node_name,
+                BackendGetResult {
                     data: BobData::new(vec![], BobMeta::new_value(timestamp)),
                 },
-            }))
+            )))
             .boxed()
         })
     }
 
-    pub(crate) fn get_err(node: Node) -> Get {
-        Get({
-            ready(Err(ClusterResult {
-                node,
-                result: BackendError::Internal,
-            }))
-            .boxed()
-        })
+    pub(crate) fn get_err(node_name: String) -> Get {
+        Get({ ready(Err(ClusterResult::new(node_name, BackendError::Internal))).boxed() })
     }
 }

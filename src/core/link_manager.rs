@@ -45,10 +45,10 @@ impl LinkManager {
                 let client = nl.get_connection();
                 match client {
                     Some(conn) => f(conn).boxed(),
-                    None => future::err(ClusterResult {
-                        result: BackendError::Failed(format!("No active connection {:?}", nl)),
-                        node: nl.clone(),
-                    })
+                    None => future::err(ClusterResult::new(
+                        nl.name(),
+                        BackendError::Failed(format!("No active connection {:?}", nl)),
+                    ))
                     .boxed(),
                 }
             })
@@ -62,10 +62,10 @@ impl LinkManager {
     {
         match node.get_connection() {
             Some(conn) => f(conn).boxed(),
-            None => future::err(ClusterResult {
-                result: BackendError::Failed(format!("No active connection {:?}", node)),
-                node: node.clone(),
-            })
+            None => future::err(ClusterResult::new(
+                node.name(),
+                BackendError::Failed(format!("No active connection {:?}", node)),
+            ))
             .boxed(),
         }
     }
