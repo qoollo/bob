@@ -23,6 +23,6 @@ mod prelude {
     pub(crate) use super::core::{BackendStorage, RunResult};
     pub(crate) use configs::BackendType;
     pub(crate) use data::{BobMeta, BobOptions};
-    pub(crate) use mapper::VDiskMapper;
+    pub(crate) use mapper::Virtual;
     pub(crate) use tokio::sync::RwLock;
 }

@@ -9,7 +9,7 @@ pub struct Grinder {
 
 impl Grinder {
     /// Creates new instance of the Grinder
-    pub fn new(mapper: VDiskMapper, config: &NodeConfig) -> Grinder {
+    pub fn new(mapper: Virtual, config: &NodeConfig) -> Grinder {
         let link_manager = Arc::new(LinkManager::new(
             mapper.nodes().to_vec(),
             config.check_interval(),

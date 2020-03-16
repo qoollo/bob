@@ -121,11 +121,11 @@ pub(crate) trait BackendStorage: Debug {
 #[derive(Debug)]
 pub(crate) struct Backend {
     backend: Arc<dyn BackendStorage + Send + Sync>,
-    mapper: Arc<VDiskMapper>,
+    mapper: Arc<Virtual>,
 }
 
 impl Backend {
-    pub(crate) fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
+    pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         let backend: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
@@ -315,7 +315,7 @@ impl Backend {
         }
     }
 
-    pub(crate) fn mapper(&self) -> &VDiskMapper {
+    pub(crate) fn mapper(&self) -> &Virtual {
         &self.mapper
     }
 

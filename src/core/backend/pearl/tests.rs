@@ -23,7 +23,7 @@ fn create_backend(node_config: &str, cluster_config: &str) -> PearlBackend {
     let node = NodeConfigYaml::get_from_string(node_config, &cluster).unwrap();
     debug!("node: {:?}", node);
 
-    let mapper = Arc::new(VDiskMapper::new(vdisks.to_vec(), &node, &cluster));
+    let mapper = Arc::new(Virtual::new(vdisks.to_vec(), &node, &cluster));
     debug!("mapper: {:?}", mapper);
     PearlBackend::new(mapper, &node)
 }

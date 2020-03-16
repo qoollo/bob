@@ -3,12 +3,12 @@ use crate::core::backend::Exist;
 use crate::core::bob_client::ExistResult;
 
 pub(crate) struct Quorum {
-    mapper: Arc<VDiskMapper>,
+    mapper: Arc<Virtual>,
     quorum: u8,
 }
 
 impl Quorum {
-    pub(crate) fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
+    pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         Self {
             quorum: config.quorum.expect("get quorum config"),
             mapper,
@@ -17,7 +17,7 @@ impl Quorum {
 
     #[inline]
     fn get_target_nodes(&self, key: BobKey) -> Vec<Node> {
-        self.mapper.get_vdisk(key).nodes().to_vec()
+        self.mapper.get_vdisk_for_key(key).nodes().to_vec()
     }
 
     fn group_keys_by_nodes(

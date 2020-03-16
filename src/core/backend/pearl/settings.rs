@@ -7,17 +7,17 @@ pub(crate) struct Settings {
     alien_folder: PathBuf,
     timestamp_period: Duration,
     pub config: PearlConfig,
-    mapper: Arc<VDiskMapper>,
+    mapper: Arc<Virtual>,
 }
 
 impl Settings {
-    pub(crate) fn new(config: &NodeConfig, mapper: Arc<VDiskMapper>) -> Self {
+    pub(crate) fn new(config: &NodeConfig, mapper: Arc<Virtual>) -> Self {
         let pearl_config = config.pearl.clone().expect("get pearl config");
 
         let alien_folder = format!(
             "{}/{}/",
             mapper
-                .get_disk_by_name(&pearl_config.alien_disk())
+                .get_disk(&pearl_config.alien_disk())
                 .expect("cannot find alien disk in config")
                 .path(),
             pearl_config.settings().alien_root_dir_name()
@@ -70,7 +70,7 @@ impl Settings {
 
                 for vdisk_id in vdisks {
                     if let Ok((vdisk_id, id)) = self.try_parse_vdisk_id(vdisk_id) {
-                        if self.mapper.does_node_holds_vdisk(&name, id.clone()) {
+                        if self.mapper.is_vdisk_on_node(&name, id.clone()) {
                             let pearl = config.pearl();
                             let group = PearlGroup::new(
                                 self.clone(),

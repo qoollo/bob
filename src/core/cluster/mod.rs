@@ -17,7 +17,7 @@ pub(crate) trait Cluster {
 }
 
 pub(crate) fn get_cluster(
-    mapper: Arc<VDiskMapper>,
+    mapper: Arc<Virtual>,
     config: &NodeConfig,
     backend: Arc<Backend>,
 ) -> Arc<dyn Cluster + Send + Sync> {
