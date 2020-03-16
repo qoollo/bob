@@ -2,24 +2,36 @@ use super::prelude::*;
 
 metrics! {
     GRINDER: Proxy = "grinder" => {
+        /// Counts number of PUT requests, processed by Grinder
         pub GRINDER_PUT_COUNTER: Counter = "put_count";
+        /// Counts number of PUT requests return error, processed by Grinder
         pub GRINDER_PUT_ERROR_COUNT_COUNTER: Counter = "put_error_count";
+        /// Measures processing time of the PUT request
         pub GRINDER_PUT_TIMER: Timer = "put_timer";
 
+        /// Counts number of GET requests, processed by Grinder
         pub GRINDER_GET_COUNTER: Counter = "get_count";
+        /// Counts number of GET requests return error, processed by Grinder
         pub GRINDER_GET_ERROR_COUNT_COUNTER: Counter = "get_error_count";
+        /// Measures processing time of the GET request
         pub GRINDER_GET_TIMER: Timer = "get_timer";
     }
 }
 
 metrics! {
     CLIENT: Proxy = "client" => {
+        /// Counts number of PUT requests, processed by Client
         pub CLIENT_PUT_COUNTER: Counter = "put_count";
+        /// Counts number of PUT requests return error, processed by Client
         pub CLIENT_PUT_ERROR_COUNT_COUNTER: Counter = "put_error_count";
+        /// Measures processing time of the PUT request
         pub CLIENT_PUT_TIMER: Timer = "put_timer";
+        /// Counts number of GET requests, processed by Client
 
         pub CLIENT_GET_COUNTER: Counter = "get_count";
+        /// Counts number of GET requests return error, processed by Client
         pub CLIENT_GET_ERROR_COUNT_COUNTER: Counter = "get_error_count";
+        /// Measures processing time of the GET request
         pub CLIENT_GET_TIMER: Timer = "get_timer";
     }
 }
