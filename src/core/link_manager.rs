@@ -2,7 +2,7 @@ use super::prelude::*;
 
 #[derive(Debug)]
 pub(crate) struct LinkManager {
-    repo: Arc<Vec<Node>>,
+    nodes: Arc<Vec<Node>>,
     check_interval: Duration,
 }
 
@@ -10,48 +10,35 @@ pub(crate) type ClusterCallType<T> = Result<NodeOutput<T>, NodeOutput<BackendErr
 pub(crate) type ClusterCallFuture<T> = Pin<Box<dyn Future<Output = ClusterCallType<T>> + Send>>;
 
 impl LinkManager {
-    pub(crate) fn new(nodes: &[Node], check_interval: Duration) -> LinkManager {
+    pub(crate) fn new(nodes: Vec<Node>, check_interval: Duration) -> LinkManager {
         LinkManager {
-            repo: Arc::new(nodes.to_vec()),
+            nodes: Arc::new(nodes),
             check_interval,
         }
     }
 
     pub(crate) fn spawn_checker(&self, client_factory: Factory) {
-        let local_repo = self.repo.clone();
+        let nodes = self.nodes.clone();
         let mut interval = interval(self.check_interval);
         let task = async move {
             loop {
                 interval.tick().await;
-                for node in local_repo.iter() {
-                    node.check(client_factory.clone()).await.expect("check");
+                for node in nodes.iter() {
+                    node.check(&client_factory).await.expect("check");
                 }
             }
         };
         tokio::spawn(task);
     }
 
-    pub(crate) fn call_nodes<F, T>(
-        nodes: &[Node],
-        mut f: F,
-    ) -> FuturesUnordered<ClusterCallFuture<T>>
+    pub(crate) fn call_nodes<F, T>(nodes: &[Node], f: F) -> FuturesUnordered<ClusterCallFuture<T>>
     where
-        F: FnMut(BobClient) -> ClusterCallFuture<T> + Send,
+        F: FnMut(BobClient) -> ClusterCallFuture<T> + Send + Clone,
         T: 'static + Send,
     {
         nodes
             .iter()
-            .map(move |nl| {
-                let client = nl.get_connection();
-                match client {
-                    Some(conn) => f(conn).boxed(),
-                    None => future::err(NodeOutput::new(
-                        nl.name().to_owned(),
-                        BackendError::Failed(format!("No active connection {:?}", nl)),
-                    ))
-                    .boxed(),
-                }
-            })
+            .map(|node| Self::call_node(node, f.clone()))
             .collect()
     }
 
@@ -74,10 +61,14 @@ impl LinkManager {
         nodes: &[Node],
         keys: Vec<BobKey>,
     ) -> Vec<Result<NodeOutput<BackendExistResult>, NodeOutput<BackendError>>> {
-        Self::call_nodes(&nodes, |mut conn| {
-            conn.exist(keys.clone(), GetOptions::new_all()).0
-        })
-        .collect()
-        .await
+        let mut results = Vec::new();
+        for node in nodes {
+            let client = node.get_connection();
+            if let Some(client) = client {
+                let res = client.exist(keys.clone(), GetOptions::new_all()).0.await;
+                results.push(res);
+            }
+        }
+        results
     }
 }
