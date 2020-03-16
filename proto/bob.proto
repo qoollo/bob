@@ -25,7 +25,7 @@ message GetRequest {
     GetOptions options = 2; // options
 }
 
-// Exists operation parameters
+// Exist operation parameters
 message ExistRequest {
     repeated BlobKey keys = 1; // Keys to check
     GetOptions options = 2; // Options, same as in get request
