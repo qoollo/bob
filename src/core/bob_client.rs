@@ -2,7 +2,7 @@
 
 pub(crate) mod b_client {
     use super::super::prelude::*;
-    use super::{Exist, ExistResult, Get, PingResult, Put, PutResult};
+    use super::{ExistResult, Get, PingResult, PutResult};
     use mockall::mock;
 
     /// Client for interaction with bob backend
@@ -204,7 +204,6 @@ cfg_if! {
 use super::prelude::*;
 
 pub(crate) type PutResult = Result<NodeOutput<BackendPutResult>, NodeOutput<BackendError>>;
-pub(crate) struct Put(pub(crate) Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
 pub(crate) type GetResult = Result<NodeOutput<BackendGetResult>, NodeOutput<BackendError>>;
 pub(crate) struct Get(pub(crate) Pin<Box<dyn Future<Output = GetResult> + Send>>);
@@ -212,7 +211,6 @@ pub(crate) struct Get(pub(crate) Pin<Box<dyn Future<Output = GetResult> + Send>>
 pub(crate) type PingResult = Result<NodeOutput<BackendPingResult>, NodeOutput<BackendError>>;
 
 pub(crate) type ExistResult = Result<NodeOutput<BackendExistResult>, NodeOutput<BackendError>>;
-pub(crate) struct Exist(pub(crate) Pin<Box<dyn Future<Output = ExistResult> + Send>>);
 
 /// Bob metrics factory
 #[derive(Clone)]
