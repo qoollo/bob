@@ -10,19 +10,27 @@ impl BackendStorage for StubBackend {
     }
 
     fn put(&self, _operation: BackendOperation, key: BobKey, data: BobData) -> Put {
-        debug!("PUT[{}]: hi from backend, timestamp: {}", key, data.meta);
+        debug!(
+            "PUT[{}]: hi from backend, timestamp: {:?}",
+            key,
+            data.meta()
+        );
         Put(future::ok(BackendPutResult {}).boxed())
     }
 
     fn put_alien(&self, _operation: BackendOperation, key: BobKey, data: BobData) -> Put {
-        debug!("PUT[{}]: hi from backend, timestamp: {}", key, data.meta);
+        debug!(
+            "PUT[{}]: hi from backend, timestamp: {:?}",
+            key,
+            data.meta()
+        );
         Put(future::ok(BackendPutResult {}).boxed())
     }
 
     fn get(&self, _operation: BackendOperation, key: BobKey) -> Get {
         debug!("GET[{}]: hi from backend", key);
         Get(future::ok(BackendGetResult {
-            data: BobData::new(vec![0], BobMeta::new_stub()),
+            data: BobData::new(vec![0], BobMeta::stub()),
         })
         .boxed())
     }
@@ -30,7 +38,7 @@ impl BackendStorage for StubBackend {
     fn get_alien(&self, _operation: BackendOperation, key: BobKey) -> Get {
         debug!("GET[{}]: hi from backend", key);
         Get(future::ok(BackendGetResult {
-            data: BobData::new(vec![0], BobMeta::new_stub()),
+            data: BobData::new(vec![0], BobMeta::stub()),
         })
         .boxed())
     }

@@ -451,13 +451,13 @@ vdisks:
 
         let vdisks = ClusterConfigYaml::convert_to_data(&d).unwrap();
         assert_eq!(2, vdisks.len());
-        assert_eq!(VDiskId::new(0), vdisks[0].id);
-        assert_eq!(1, vdisks[0].replicas.len());
-        assert_eq!("/tmp/d1", vdisks[0].replicas[0].disk_path);
+        assert_eq!(0, vdisks[0].id());
+        assert_eq!(1, vdisks[0].replicas().len());
+        assert_eq!("/tmp/d1", vdisks[0].replicas()[0].disk_path());
 
-        assert_eq!(VDiskId::new(1), vdisks[1].id);
-        assert_eq!(2, vdisks[1].replicas.len());
-        assert_eq!("/tmp/d2", vdisks[1].replicas[0].disk_path);
+        assert_eq!(1, vdisks[1].id());
+        assert_eq!(2, vdisks[1].replicas().len());
+        assert_eq!("/tmp/d2", vdisks[1].replicas()[0].disk_path());
     }
 
     #[test]

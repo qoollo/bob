@@ -1,11 +1,11 @@
 use super::prelude::*;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct BackendSettings {
-    pub root_dir_name: Option<String>,
-    pub alien_root_dir_name: Option<String>,
-    pub timestamp_period: Option<String>,
-    pub create_pearl_wait_delay: Option<String>,
+pub(crate) struct BackendSettings {
+    pub(crate) root_dir_name: Option<String>,
+    pub(crate) alien_root_dir_name: Option<String>,
+    pub(crate) timestamp_period: Option<String>,
+    pub(crate) create_pearl_wait_delay: Option<String>,
 }
 
 impl Validatable for BackendSettings {
@@ -73,17 +73,17 @@ impl Validatable for BackendSettings {
 }
 
 impl BackendSettings {
-    pub fn root_dir_name(&self) -> String {
+    pub(crate) fn root_dir_name(&self) -> String {
         self.root_dir_name.clone().expect("clone root dir name")
     }
 
-    pub fn alien_root_dir_name(&self) -> String {
+    pub(crate) fn alien_root_dir_name(&self) -> String {
         self.alien_root_dir_name
             .clone()
             .expect("clone alien root dir name")
     }
 
-    pub fn timestamp_period(&self) -> Duration {
+    pub(crate) fn timestamp_period(&self) -> Duration {
         self.timestamp_period
             .clone()
             .expect("clone timestamp period")
@@ -92,7 +92,7 @@ impl BackendSettings {
             .into()
     }
 
-    pub fn create_pearl_wait_delay(&self) -> Duration {
+    pub(crate) fn create_pearl_wait_delay(&self) -> Duration {
         self.create_pearl_wait_delay
             .clone()
             .expect("clone create pearl wait delay")
@@ -103,9 +103,9 @@ impl BackendSettings {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct MetricsConfig {
-    pub name: Option<String>,
-    pub graphite: Option<String>,
+pub(crate) struct MetricsConfig {
+    pub(crate) name: Option<String>,
+    pub(crate) graphite: Option<String>,
 }
 
 impl Validatable for MetricsConfig {
@@ -135,23 +135,23 @@ impl Validatable for MetricsConfig {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct PearlConfig {
-    pub max_blob_size: Option<u64>,
-    pub max_data_in_blob: Option<u64>,
-    pub blob_file_name_prefix: Option<String>,
-    pub fail_retry_timeout: Option<String>,
-    pub alien_disk: Option<String>,
-    pub allow_duplicates: Option<bool>,
+pub(crate) struct PearlConfig {
+    pub(crate) max_blob_size: Option<u64>,
+    pub(crate) max_data_in_blob: Option<u64>,
+    pub(crate) blob_file_name_prefix: Option<String>,
+    pub(crate) fail_retry_timeout: Option<String>,
+    pub(crate) alien_disk: Option<String>,
+    pub(crate) allow_duplicates: Option<bool>,
 
-    pub settings: Option<BackendSettings>,
+    pub(crate) settings: Option<BackendSettings>,
 }
 
 impl PearlConfig {
-    pub fn alien_disk(&self) -> String {
+    pub(crate) fn alien_disk(&self) -> String {
         self.alien_disk.clone().expect("clone alien disk")
     }
 
-    pub fn fail_retry_timeout(&self) -> Duration {
+    pub(crate) fn fail_retry_timeout(&self) -> Duration {
         self.fail_retry_timeout
             .clone()
             .expect("clone fail retry timeout")
@@ -160,11 +160,11 @@ impl PearlConfig {
             .into()
     }
 
-    pub fn settings(&self) -> BackendSettings {
+    pub(crate) fn settings(&self) -> BackendSettings {
         self.settings.clone().expect("clone settings")
     }
 
-    pub fn prepare(&self) {
+    pub(crate) fn prepare(&self) {
         self.fail_retry_timeout(); // TODO check unwrap
     }
 }
@@ -217,7 +217,7 @@ pub struct DiskPath {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
-pub enum BackendType {
+pub(crate) enum BackendType {
     InMemory = 0,
     Stub,
     Pearl,
@@ -225,35 +225,35 @@ pub enum BackendType {
 
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct NodeConfig {
-    pub log_config: Option<String>,
-    pub name: Option<String>,
-    pub quorum: Option<u8>,
-    pub operation_timeout: Option<String>,
-    pub check_interval: Option<String>,
-    pub cluster_policy: Option<String>,
+    pub(crate) log_config: Option<String>,
+    pub(crate) name: Option<String>,
+    pub(crate) quorum: Option<u8>,
+    pub(crate) operation_timeout: Option<String>,
+    pub(crate) check_interval: Option<String>,
+    pub(crate) cluster_policy: Option<String>,
 
-    pub backend_type: Option<String>,
-    pub pearl: Option<PearlConfig>,
-    pub metrics: Option<MetricsConfig>,
+    pub(crate) backend_type: Option<String>,
+    pub(crate) pearl: Option<PearlConfig>,
+    pub(crate) metrics: Option<MetricsConfig>,
 
     #[serde(skip)]
-    pub bind_ref: RefCell<String>,
+    pub(crate) bind_ref: RefCell<String>,
     #[serde(skip)]
-    pub disks_ref: RefCell<Vec<DiskPath>>,
+    pub(crate) disks_ref: RefCell<Vec<DiskPath>>,
 }
 
 impl NodeConfig {
-    pub fn name(&self) -> String {
+    pub(crate) fn name(&self) -> String {
         self.name.clone().expect("config name")
     }
 
-    pub fn pearl(&self) -> PearlConfig {
+    pub(crate) fn pearl(&self) -> PearlConfig {
         self.pearl.clone().expect("config pearl")
     }
     pub fn log_config(&self) -> String {
         self.log_config.clone().expect("config log config")
     }
-    pub fn cluster_policy(&self) -> String {
+    pub(crate) fn cluster_policy(&self) -> String {
         self.cluster_policy.clone().expect("config cluster policy")
     }
     pub fn bind(&self) -> String {
@@ -267,7 +267,7 @@ impl NodeConfig {
             .expect("parse humantime duration")
             .into()
     }
-    pub fn check_interval(&self) -> Duration {
+    pub(crate) fn check_interval(&self) -> Duration {
         self.check_interval
             .as_ref()
             .expect("get config check interval")
@@ -275,10 +275,10 @@ impl NodeConfig {
             .expect("parse humantime duration")
             .into()
     }
-    pub fn disks(&self) -> Vec<DiskPath> {
+    pub(crate) fn disks(&self) -> Vec<DiskPath> {
         self.disks_ref.borrow().clone()
     }
-    pub fn backend_type(&self) -> BackendType {
+    pub(crate) fn backend_type(&self) -> BackendType {
         self.backend_result().expect("clone backend type")
     }
     fn backend_result(&self) -> Result<BackendType, String> {
@@ -294,7 +294,7 @@ impl NodeConfig {
             value => Err(format!("unknown backend type: {}", value)),
         }
     }
-    pub fn prepare(&self, node: &Node) -> Result<(), String> {
+    pub(crate) fn prepare(&self, node: &Node) -> Result<(), String> {
         self.bind_ref
             .replace(node.address.clone().expect("clone node address"));
 
@@ -418,7 +418,7 @@ impl Validatable for NodeConfig {
 pub struct NodeConfigYaml {}
 
 impl NodeConfigYaml {
-    pub fn check(cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
+    pub(crate) fn check(cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
         let finded = cluster
             .nodes
             .iter()
@@ -447,7 +447,7 @@ impl NodeConfigYaml {
         node.prepare(finded)
     }
 
-    pub fn check_cluster(cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
+    pub(crate) fn check_cluster(cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
         Self::check(cluster, node) //TODO
     }
 
@@ -466,7 +466,10 @@ impl NodeConfigYaml {
         }
     }
 
-    pub fn get_from_string(file: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
+    pub(crate) fn get_from_string(
+        file: &str,
+        cluster: &ClusterConfig,
+    ) -> Result<NodeConfig, String> {
         let config = YamlBobConfigReader::parse::<NodeConfig>(file)?;
         debug!("config: {:?}", config);
         if let Err(e) = config.validate() {
@@ -481,9 +484,9 @@ impl NodeConfigYaml {
     }
 }
 
-pub mod tests {
+pub(crate) mod tests {
     use super::*;
-    pub fn node_config(name: &str, quorum: u8) -> NodeConfig {
+    pub(crate) fn node_config(name: &str, quorum: u8) -> NodeConfig {
         NodeConfig {
             log_config: Some("".to_string()),
             name: Some(name.to_string()),

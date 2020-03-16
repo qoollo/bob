@@ -30,7 +30,7 @@ impl Grinder {
         data: BobData,
         opts: BobOptions,
     ) -> Result<BackendPutResult, BackendError> {
-        if opts.flags.contains(BobFlags::FORCE_NODE) {
+        if opts.flags().contains(BobFlags::FORCE_NODE) {
             debug!(
                 "PUT[{}] FORCE_NODE=true - will handle it by local node. Put params: {:?}",
                 key, opts
@@ -70,7 +70,7 @@ impl Grinder {
         key: BobKey,
         opts: &BobOptions,
     ) -> Result<BackendGetResult, BackendError> {
-        if opts.flags.contains(BobFlags::FORCE_NODE) {
+        if opts.flags().contains(BobFlags::FORCE_NODE) {
             CLIENT_GET_COUNTER.count(1);
             let time = CLIENT_GET_TIMER.start();
 
@@ -110,7 +110,7 @@ impl Grinder {
         keys: &[BobKey],
         opts: &BobOptions,
     ) -> Result<BackendExistResult, BackendError> {
-        if opts.flags.contains(BobFlags::FORCE_NODE) {
+        if opts.flags().contains(BobFlags::FORCE_NODE) {
             self.backend.exist(keys, opts).await
         } else {
             self.cluster.exist_clustered_async(keys).0.await

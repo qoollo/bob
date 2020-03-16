@@ -22,7 +22,7 @@ impl Quorum {
 
     #[inline]
     pub(crate) fn get_target_nodes(&self, key: BobKey) -> Vec<Node> {
-        self.mapper.get_vdisk(key).nodes.clone()
+        self.mapper.get_vdisk(key).nodes().to_vec()
     }
 
     pub(crate) fn get_support_nodes(
@@ -36,7 +36,7 @@ impl Quorum {
         } else {
             nodes
                 .iter()
-                .filter(|node| target_indexes.iter().all(|&i| i != node.index))
+                .filter(|node| target_indexes.iter().all(|&i| i != node.index()))
                 .take(count)
                 .cloned()
                 .collect()
@@ -45,7 +45,7 @@ impl Quorum {
 
     async fn put_local_all(
         backend: Arc<Backend>,
-        failed_nodes: Vec<Node>,
+        failed_nodes: Vec<String>,
         key: BobKey,
         data: BobData,
         operation: BackendOperation,
@@ -53,18 +53,18 @@ impl Quorum {
         let mut add_nodes = vec![];
         for failed_node in failed_nodes {
             let mut op = operation.clone();
-            op.set_remote_folder(&failed_node.name());
+            op.set_remote_folder(&failed_node);
 
-            if let Err(e) = backend.put_local(key, data.clone(), op).await {
+            if let Err(e) = backend.put_local(key.clone(), data.clone(), op).await {
                 debug!("PUT[{}] local support put result: {:?}", key, e);
-                add_nodes.push(failed_node.name());
+                add_nodes.push(failed_node);
             }
         }
 
         if add_nodes.is_empty() {
             Ok(())
         } else {
-            Err(PutOptions::new_alien(&add_nodes))
+            Err(PutOptions::new_alien(add_nodes))
         }
     }
 
@@ -79,7 +79,7 @@ impl Quorum {
                 LinkManager::call_node(&node, |mut conn| conn.put(key, &data, options.clone()).0)
                     .await;
             trace!(
-                "PUT[{}] sup put to node: {}, result: {:?}",
+                "PUT[{}] sup put to node: {:?}, result: {:?}",
                 key,
                 node,
                 result
@@ -102,7 +102,7 @@ impl Quorum {
     fn get_filter_result(
         key: BobKey,
         results: Vec<BobClientGetResult>,
-    ) -> (Option<ClusterResult<BackendGetResult>>, String) {
+    ) -> (Option<NodeOutput<BackendGetResult>>, String) {
         let sup = results
             .iter()
             .filter_map(|res| {
@@ -113,7 +113,7 @@ impl Quorum {
         let recent_successful = results
             .into_iter()
             .filter_map(Result::ok)
-            .max_by_key(|r| r.result.data.meta.timestamp);
+            .max_by_key(|r| r.inner().data.meta().timestamp());
         (recent_successful, sup)
     }
 
@@ -149,11 +149,7 @@ impl Cluster for Quorum {
     //todo check duplicate data = > return error???
     fn put_clustered_async(&self, key: BobKey, data: BobData) -> BackendPut {
         let target_nodes = self.get_target_nodes(key);
-        debug!(
-            "PUT[{}]: Nodes for fan out: {:?}",
-            key,
-            print_vec(&target_nodes)
-        );
+        debug!("PUT[{}]: Nodes for fan out: {:?}", key, &target_nodes);
 
         let reqs = LinkManager::call_nodes(&target_nodes, |mut conn| {
             conn.put(key, &data, PutOptions::new_client()).0
@@ -163,7 +159,7 @@ impl Cluster for Quorum {
 
         let l_quorum = self.quorum as usize;
         let mapper = self.mapper.clone();
-        let vdisk_id = self.mapper.get_vdisk(key).id.clone(); // remove search vdisk (not vdisk id)
+        let vdisk_id = self.mapper.get_vdisk(key).id(); // remove search vdisk (not vdisk id)
         let backend = self.backend.clone();
         let task = async move {
             let acc = reqs.await;
@@ -190,7 +186,7 @@ impl Cluster for Quorum {
 
                 let local_put = Self::put_local_all(
                     backend,
-                    failed.iter().map(|n| &n.node).cloned().collect(),
+                    failed.iter().map(|n| n.node_name().to_owned()).collect(),
                     key,
                     data.clone(),
                     BackendOperation::new_alien(vdisk_id),
@@ -205,11 +201,11 @@ impl Cluster for Quorum {
                     mapper.nodes(),
                     &target_nodes
                         .iter()
-                        .map(|node| node.index)
+                        .map(|node| node.index())
                         .collect::<Vec<_>>(),
                     additionl_remote_writes,
                 );
-                debug!("PUT[{}] sup put nodes: {}", key, print_vec(&sup_nodes));
+                debug!("PUT[{}] sup put nodes: {:?}", key, &sup_nodes);
 
                 let mut queries = Vec::new();
 
@@ -220,10 +216,10 @@ impl Cluster for Quorum {
 
                 if additionl_remote_writes > 0 {
                     let nodes = failed
-                        .iter()
-                        .map(|node| node.node.name())
+                        .into_iter()
+                        .map(|res| res.node_name().to_owned())
                         .collect::<Vec<_>>();
-                    let put_options = PutOptions::new_alien(&nodes);
+                    let put_options = PutOptions::new_alien(nodes);
 
                     queries.extend(
                         sup_nodes
@@ -272,11 +268,7 @@ impl Cluster for Quorum {
         let l_quorim = self.quorum as usize;
         let target_nodes = all_nodes.iter().take(l_quorim).cloned().collect::<Vec<_>>();
 
-        debug!(
-            "GET[{}]: Nodes for fan out: {:?}",
-            key,
-            print_vec(&target_nodes)
-        );
+        debug!("GET[{}]: Nodes for fan out: {:?}", key, &target_nodes);
 
         let task = async move {
             let results = Self::get_all(key, &target_nodes, GetOptions::new_all()).await;
@@ -286,9 +278,11 @@ impl Cluster for Quorum {
             if let Some(answer) = result {
                 debug!(
                     "GET[{}] take data from node: {}, timestamp: {}",
-                    key, answer.node, answer.result.data.meta.timestamp
+                    key,
+                    answer.node_name(),
+                    answer.inner().data.meta().timestamp()
                 ); // TODO move meta
-                return Ok(answer.result);
+                return Ok(answer.into_inner());
             } else if errors.is_empty() {
                 debug!("GET[{}] data not found", key);
                 return Err(BackendError::KeyNotFound(key));
@@ -297,16 +291,15 @@ impl Cluster for Quorum {
 
             let mut sup_nodes = Self::get_support_nodes(
                 mapper.nodes(),
-                &all_nodes.iter().map(|node| node.index).collect::<Vec<_>>(),
+                &all_nodes
+                    .iter()
+                    .map(|node| node.index())
+                    .collect::<Vec<_>>(),
                 1,
             ); // @TODO take from config
             sup_nodes.extend(all_nodes.into_iter().skip(l_quorim));
 
-            debug!(
-                "GET[{}]: Sup nodes for fan out: {:?}",
-                key,
-                print_vec(&sup_nodes)
-            );
+            debug!("GET[{}]: Sup nodes for fan out: {:?}", key, &sup_nodes);
 
             let second_attempt = Self::get_all(key, &sup_nodes, GetOptions::new_alien()).await;
             debug!("GET[{}] cluster ans sup: {:?}", key, second_attempt);
@@ -315,9 +308,11 @@ impl Cluster for Quorum {
             if let Some(answer) = result_sup {
                 debug!(
                     "GET[{}] take data from node: {}, timestamp: {}",
-                    key, answer.node, answer.result.data.meta.timestamp
+                    key,
+                    answer.node_name(),
+                    answer.inner().data.meta().timestamp()
                 ); // @TODO move meta
-                Ok(answer.result)
+                Ok(answer.into_inner())
             } else {
                 debug!("errors: {}", errors);
                 debug!("GET[{}] data not found", key);
@@ -332,7 +327,7 @@ impl Cluster for Quorum {
         let keys_by_nodes = self.group_keys_by_nodes(keys);
         debug!(
             "EXIST Nodes for fan out: {:?}",
-            print_vec(&keys_by_nodes.keys().flatten().collect::<Vec<_>>())
+            &keys_by_nodes.keys().flatten().collect::<Vec<_>>()
         );
         let len = keys.len();
         Exist(
@@ -342,7 +337,7 @@ impl Cluster for Quorum {
                     let cluster_results = LinkManager::exist_on_nodes(&nodes, keys).await;
                     for result in cluster_results {
                         if let Ok(result) = result {
-                            for (&r, &ind) in result.result.exist.iter().zip(&indexes) {
+                            for (&r, &ind) in result.inner().exist.iter().zip(&indexes) {
                                 exist[ind] |= r;
                             }
                         }
@@ -383,20 +378,20 @@ pub(crate) mod tests {
 
             client
                 .expect_ping()
-                .returning(move || test_utils::ping_ok(cl.clone()));
+                .returning(move || test_utils::ping_ok(cl.name().to_owned()));
         }
 
         pub(crate) fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             client.expect_put().returning(move |_key, _data, _options| {
                 call.put_inc();
-                test_utils::put_ok(node.clone())
+                test_utils::put_ok(node.name().to_owned())
             });
         }
 
         pub(crate) fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             client.expect_put().returning(move |_key, _data, _options| {
                 call.put_inc();
-                test_utils::put_err(node.clone())
+                test_utils::put_err(node.name().to_owned())
             });
         }
 
@@ -408,14 +403,14 @@ pub(crate) mod tests {
         ) {
             client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
-                test_utils::get_ok(node.clone(), timestamp)
+                test_utils::get_ok(node.name().to_owned(), timestamp)
             });
         }
 
         pub(crate) fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
-                test_utils::get_err(node.clone())
+                test_utils::get_err(node.name().to_owned())
             });
         }
 
@@ -474,7 +469,7 @@ pub(crate) mod tests {
             let mut client = BobClient::default();
             let (_, func, call) = map
                 .iter()
-                .find(|(name, _, _)| *name == n.name)
+                .find(|(name, _, _)| *name == n.name())
                 .expect("find node with name");
             func(&mut client, n.clone(), call.clone());
 
@@ -544,17 +539,15 @@ pub(crate) mod tests {
             .collect();
         let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
 
-        let key = BobKey::new(1);
+        let key = 1;
         let result = quorum
-            .put_clustered_async(key, BobData::new(vec![], BobMeta::new_value(11)))
+            .put_clustered_async(key, BobData::new(vec![], BobMeta::new(11)))
             .0
             .await;
 
         assert!(result.is_ok());
         assert_eq!(1, calls[0].1.put_count());
-        let get = backend
-            .get_local(key, BackendOperation::new_alien(VDiskId::new(0)))
-            .await;
+        let get = backend.get_local(key, BackendOperation::new_alien(0)).await;
         assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
     }
 
@@ -575,9 +568,9 @@ pub(crate) mod tests {
             .map(|(name, _, call)| ((*name).to_string(), call.clone()))
             .collect();
         let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
-        let key = BobKey::new(2);
+        let key = 2;
         let result = quorum
-            .put_clustered_async(key, BobData::new(vec![], BobMeta::new_value(11)))
+            .put_clustered_async(key, BobData::new(vec![], BobMeta::new(11)))
             .0
             .await;
 
@@ -585,9 +578,7 @@ pub(crate) mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let get = backend
-            .get_local(key, BackendOperation::new_alien(VDiskId::new(0)))
-            .await;
+        let get = backend.get_local(key, BackendOperation::new_alien(0)).await;
         assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
     }
 
@@ -612,7 +603,7 @@ pub(crate) mod tests {
         let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
 
         let mut result = quorum
-            .put_clustered_async(BobKey::new(3), BobData::new(vec![], BobMeta::new_value(11)))
+            .put_clustered_async(3, BobData::new(vec![], BobMeta::new(11)))
             .0
             .await;
 
@@ -621,22 +612,18 @@ pub(crate) mod tests {
         assert_eq!(1, calls[1].1.put_count());
 
         result = quorum
-            .put_clustered_async(BobKey::new(4), BobData::new(vec![], BobMeta::new_value(11)))
+            .put_clustered_async(4, BobData::new(vec![], BobMeta::new(11)))
             .0
             .await;
 
         assert!(result.is_ok());
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
-        let key = BobKey::new(3);
-        let mut get = backend
-            .get_local(key, BackendOperation::new_alien(VDiskId::new(0)))
-            .await;
+        let key = 3;
+        let mut get = backend.get_local(key, BackendOperation::new_alien(0)).await;
         assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
-        let key = BobKey::new(4);
-        get = backend
-            .get_local(key, BackendOperation::new_alien(VDiskId::new(0)))
-            .await;
+        let key = 4;
+        get = backend.get_local(key, BackendOperation::new_alien(0)).await;
         assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
     }
 
@@ -659,7 +646,7 @@ pub(crate) mod tests {
         let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
 
         let result = quorum
-            .put_clustered_async(BobKey::new(5), BobData::new(vec![], BobMeta::new_value(11)))
+            .put_clustered_async(5, BobData::new(vec![], BobMeta::new(11)))
             .0
             .await;
 
@@ -667,9 +654,7 @@ pub(crate) mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let get = backend
-            .get_local(BobKey::new(5), BackendOperation::new_alien(VDiskId::new(0)))
-            .await;
+        let get = backend.get_local(5, BackendOperation::new_alien(0)).await;
         assert!(get.is_ok());
     }
 
@@ -692,7 +677,7 @@ pub(crate) mod tests {
         let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
 
         let result = quorum
-            .put_clustered_async(BobKey::new(5), BobData::new(vec![], BobMeta::new_value(11)))
+            .put_clustered_async(5, BobData::new(vec![], BobMeta::new(11)))
             .0
             .await;
 
@@ -700,9 +685,7 @@ pub(crate) mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let get = backend
-            .get_local(BobKey::new(5), BackendOperation::new_alien(VDiskId::new(0)))
-            .await;
+        let get = backend.get_local(5, BackendOperation::new_alien(0)).await;
         assert!(get.is_ok());
     }
 
@@ -726,7 +709,7 @@ pub(crate) mod tests {
         let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
 
         let result = quorum
-            .put_clustered_async(BobKey::new(0), BobData::new(vec![], BobMeta::new_value(11)))
+            .put_clustered_async(0, BobData::new(vec![], BobMeta::new(11)))
             .0
             .await;
 
@@ -735,9 +718,7 @@ pub(crate) mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(1, calls[2].1.put_count());
 
-        let get = backend
-            .get_local(BobKey::new(0), BackendOperation::new_alien(VDiskId::new(0)))
-            .await;
+        let get = backend.get_local(0, BackendOperation::new_alien(0)).await;
         assert!(get.is_ok());
     }
 
@@ -761,7 +742,7 @@ pub(crate) mod tests {
         let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
 
         let result = quorum
-            .put_clustered_async(BobKey::new(0), BobData::new(vec![], BobMeta::new_value(11)))
+            .put_clustered_async(0, BobData::new(vec![], BobMeta::new(11)))
             .0
             .await;
 
@@ -770,9 +751,7 @@ pub(crate) mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(1, calls[2].1.put_count());
 
-        let get = backend
-            .get_local(BobKey::new(0), BackendOperation::new_alien(VDiskId::new(0)))
-            .await;
+        let get = backend.get_local(0, BackendOperation::new_alien(0)).await;
         assert!(get.is_ok());
     }
 
@@ -796,7 +775,7 @@ pub(crate) mod tests {
         let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
 
         let result = quorum
-            .put_clustered_async(BobKey::new(0), BobData::new(vec![], BobMeta::new_value(11)))
+            .put_clustered_async(0, BobData::new(vec![], BobMeta::new(11)))
             .0
             .await;
 
@@ -805,9 +784,7 @@ pub(crate) mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(0, calls[2].1.put_count());
 
-        let get = backend
-            .get_local(BobKey::new(0), BackendOperation::new_alien(VDiskId::new(0)))
-            .await;
+        let get = backend.get_local(0, BackendOperation::new_alien(0)).await;
         assert!(get.is_err());
     }
 
@@ -831,7 +808,7 @@ pub(crate) mod tests {
         let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions);
 
         let result = quorum
-            .put_clustered_async(BobKey::new(0), BobData::new(vec![], BobMeta::new_value(11)))
+            .put_clustered_async(0, BobData::new(vec![], BobMeta::new(11)))
             .0
             .await;
 
@@ -840,9 +817,7 @@ pub(crate) mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(1, calls[2].1.put_count());
 
-        let get = backend
-            .get_local(BobKey::new(0), BackendOperation::new_alien(VDiskId::new(0)))
-            .await;
+        let get = backend.get_local(0, BackendOperation::new_alien(0)).await;
         assert!(get.is_ok());
     }
 
@@ -865,7 +840,7 @@ pub(crate) mod tests {
             .collect();
         let (quorum, _) = create_cluster(vdisks, &node, &cluster, &actions);
 
-        let result = quorum.get_clustered_async(BobKey::new(101)).0.await;
+        let result = quorum.get_clustered_async(101).0.await;
 
         assert!(result.is_ok());
         assert_eq!(1, calls[0].1.get_count());
@@ -886,7 +861,7 @@ pub(crate) mod tests {
             .collect();
         let (quorum, _) = create_cluster(vdisks, &node, &cluster, &actions);
 
-        let result = quorum.get_clustered_async(BobKey::new(102)).0.await;
+        let result = quorum.get_clustered_async(102).0.await;
 
         assert!(result.is_err());
         assert_eq!(1, calls[0].1.get_count());
@@ -910,10 +885,10 @@ pub(crate) mod tests {
             .collect();
         let (quorum, _) = create_cluster(vdisks, &node, &cluster, &actions);
 
-        let result = quorum.get_clustered_async(BobKey::new(110)).0.await;
+        let result = quorum.get_clustered_async(110).0.await;
 
         assert!(result.is_ok());
-        assert_eq!(1, result.unwrap().data.meta.timestamp);
+        assert_eq!(1, result.unwrap().data.meta().timestamp());
         assert_eq!(1, calls[0].1.get_count());
     }
 
@@ -935,10 +910,10 @@ pub(crate) mod tests {
             .collect();
         let (quorum, _) = create_cluster(vdisks, &node, &cluster, &actions);
 
-        let result = quorum.get_clustered_async(BobKey::new(110)).0.await;
+        let result = quorum.get_clustered_async(110).0.await;
 
         assert!(result.is_ok());
-        assert_eq!(1, result.unwrap().data.meta.timestamp);
+        assert_eq!(1, result.unwrap().data.meta().timestamp());
         assert_eq!(1, calls[0].1.get_count());
     }
 }

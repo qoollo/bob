@@ -7,7 +7,7 @@ pub(crate) struct VDisk {
 }
 
 impl VDisk {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             repo: Arc::new(RwLock::new(HashMap::<BobKey, BobData>::new())),
         }
@@ -55,15 +55,15 @@ pub(crate) struct MemDisk {
 }
 
 impl MemDisk {
-    pub fn new_direct(name: String, vdisks_count: u32) -> Self {
+    pub(crate) fn new_direct(name: String, vdisks_count: u32) -> Self {
         let mut vdisks = HashMap::new();
         for i in 0..vdisks_count {
-            vdisks.insert(VDiskId::new(i), VDisk::new());
+            vdisks.insert(i, VDisk::new());
         }
         Self { name, vdisks }
     }
 
-    pub fn new(name: String, mapper: &VDiskMapper) -> Self {
+    pub(crate) fn new(name: String, mapper: &VDiskMapper) -> Self {
         let vdisks = mapper
             .get_vdisks_by_disk(&name)
             .iter()
@@ -72,7 +72,7 @@ impl MemDisk {
         Self { name, vdisks }
     }
 
-    pub fn get(&self, vdisk_id: &VDiskId, key: BobKey) -> Get {
+    pub(crate) fn get(&self, vdisk_id: &VDiskId, key: BobKey) -> Get {
         Get(if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             trace!(
                 "GET[{}] from vdisk: {} for disk: {}",
@@ -92,7 +92,7 @@ impl MemDisk {
         })
     }
 
-    pub fn put(&self, vdisk_id: &VDiskId, key: BobKey, data: BobData) -> Put {
+    pub(crate) fn put(&self, vdisk_id: &VDiskId, key: BobKey, data: BobData) -> Put {
         Put({
             if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
                 trace!(
@@ -114,7 +114,7 @@ impl MemDisk {
         })
     }
 
-    pub fn exist(&self, vdisk_id: &VDiskId, keys: &[BobKey]) -> Exist {
+    pub(crate) fn exist(&self, vdisk_id: &VDiskId, keys: &[BobKey]) -> Exist {
         Exist(if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             trace!("EXIST from vdisk: {} for disk: {}", vdisk_id, self.name);
             vdisk.exist(keys).0
@@ -130,20 +130,20 @@ impl MemDisk {
 }
 
 #[derive(Clone, Debug)]
-pub struct MemBackend {
+pub(crate) struct MemBackend {
     pub(crate) disks: HashMap<String, MemDisk>,
     pub(crate) foreign_data: MemDisk,
 }
 
 impl MemBackend {
-    pub fn new(mapper: &VDiskMapper) -> Self {
+    pub(crate) fn new(mapper: &VDiskMapper) -> Self {
         let disks = mapper
             .local_disks()
             .iter()
             .map(|node_disk| {
                 (
-                    node_disk.name.clone(),
-                    MemDisk::new(node_disk.name.clone(), &mapper),
+                    node_disk.name().to_owned(),
+                    MemDisk::new(node_disk.name().to_owned(), &mapper),
                 )
             })
             .collect::<HashMap<_, _>>();

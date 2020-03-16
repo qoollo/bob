@@ -45,17 +45,18 @@ impl BobApi for BobSrv {
         let put_request = req.into_inner();
 
         if Self::put_is_valid(&put_request) {
-            let key = BobKey {
-                key: put_request
-                    .key
-                    .clone()
-                    .map(|blob_key| blob_key.key)
-                    .expect("get key from request"),
-            };
+            let key = put_request
+                .key
+                .clone()
+                .map(|blob_key| blob_key.key)
+                .expect("get key from request");
             let blob = put_request.data.clone().expect("get data from request");
-            let data = BobData::new(blob.data, BobMeta::new(blob.meta.expect("get blob meta")));
+            let data = BobData::new(
+                blob.data,
+                BobMeta::new(blob.meta.expect("get blob meta").timestamp),
+            );
 
-            trace!("PUT[{}] data size: {}", key, data.data.len());
+            trace!("PUT[{}] data size: {}", key, data.inner().len());
             let put_result = self
                 .grinder
                 .put(key, data, BobOptions::new_put(put_request.options))
@@ -86,9 +87,7 @@ impl BobApi for BobSrv {
             warn!("GET[-] invalid arguments - key is mandatory");
             Err(Status::new(Code::InvalidArgument, "Key is mandatory"))
         } else {
-            let key = BobKey {
-                key: get_req.clone().key.expect("get key from request").key,
-            };
+            let key = get_req.clone().key.expect("get key from request").key;
 
             let grinder = self.grinder.clone();
             let options = BobOptions::new_get(get_req.options);
@@ -100,10 +99,10 @@ impl BobApi for BobSrv {
             let elapsed = sw.elapsed_ms();
             debug!("GET[{}]-OK dt: {}ms", key, elapsed);
             Ok(Response::new(Blob {
-                data: get_res.data.data,
                 meta: Some(BlobMeta {
-                    timestamp: get_res.data.meta.timestamp,
+                    timestamp: get_res.data.meta().timestamp(),
                 }),
+                data: get_res.data.into_inner(),
             }))
         }
     }
@@ -117,11 +116,7 @@ impl BobApi for BobSrv {
         let sw = Stopwatch::start_new();
         let req = req.into_inner();
         let grinder = self.grinder.clone();
-        let keys = req
-            .keys
-            .into_iter()
-            .map(|k| BobKey { key: k.key })
-            .collect::<Vec<_>>();
+        let keys = req.keys.into_iter().map(|k| k.key).collect::<Vec<_>>();
         let options = BobOptions::new_get(req.options);
         let exist_res = tokio::task::spawn_blocking(move || {
             futures::executor::block_on(

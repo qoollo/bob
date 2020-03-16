@@ -152,7 +152,7 @@ impl PearlGroup {
             .ok_or_else(|| {
                 Error::Failed(format!(
                     "cannot find actual pearl folder. meta: {}",
-                    data.meta
+                    data.meta().timestamp()
                 ))
             })
     }
@@ -163,7 +163,7 @@ impl PearlGroup {
         if self.pearl_sync.try_init().await? {
             // check if pearl created
             if self.find_current_pearl(&data).await.is_err() {
-                let pearl = self.create_pearl_by_timestamp(data.meta.timestamp);
+                let pearl = self.create_pearl_by_timestamp(data.meta().timestamp());
                 self.save_pearl(pearl).await?;
             }
             self.pearl_sync.mark_as_created().await?;
@@ -263,7 +263,7 @@ impl PearlGroup {
     }
 
     pub fn vdisk_id(&self) -> u32 {
-        self.vdisk_id.as_u32()
+        self.vdisk_id
     }
 
     pub async fn attach(&self, start_timestamp: i64) -> BackendResult<()> {

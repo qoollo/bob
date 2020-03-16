@@ -2,7 +2,7 @@ use super::prelude::*;
 use crate::core::backend::core::Exist;
 
 #[derive(Clone, Debug)]
-pub struct PearlBackend {
+pub(crate) struct PearlBackend {
     settings: Arc<Settings>,
 
     vdisks_groups: Arc<Vec<PearlGroup>>,
@@ -12,7 +12,7 @@ pub struct PearlBackend {
 }
 
 impl PearlBackend {
-    pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
+    pub(crate) fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
 

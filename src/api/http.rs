@@ -79,8 +79,8 @@ pub(crate) fn spawn(bob: BobSrv, port: u16) {
 
 fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
     VDisk {
-        id: disk.id.as_u32(),
-        replicas: collect_replicas_info(&disk.replicas),
+        id: disk.id(),
+        replicas: collect_replicas_info(disk.replicas()),
     }
 }
 
@@ -96,16 +96,16 @@ fn get_vdisk_by_id(bob: &BobSrv, id: u32) -> Option<VDisk> {
 
 fn find_vdisk(bob: &BobSrv, id: u32) -> Option<&DataVDisk> {
     let mapper = bob.grinder.backend.mapper();
-    mapper.vdisks().iter().find(|disk| disk.id.as_u32() == id)
+    mapper.vdisks().iter().find(|disk| disk.id() == id)
 }
 
 fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {
     replicas
         .iter()
         .map(|r| Replica {
-            path: r.disk_path.to_owned(),
-            disk: r.disk_name.to_owned(),
-            node: r.node_name.to_owned(),
+            path: r.disk_path().to_owned(),
+            disk: r.disk_name().to_owned(),
+            node: r.node_name().to_owned(),
         })
         .collect()
 }

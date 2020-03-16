@@ -70,15 +70,18 @@ vdisks:
 #[tokio::test]
 async fn test_write_multiple_read() {
     drop_pearl();
-    let vdisk_id = VDiskId::new(0);
+    let vdisk_id = 0;
     let backend = backend();
     backend.run_backend().await.unwrap();
 
     let write = backend
         .put(
-            BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
-            BobKey::new(KEY_ID),
-            BobData::new(vec![], BobMeta::new_value(TIMESTAMP)),
+            BackendOperation::new_local(
+                vdisk_id.clone(),
+                DiskPath::new(DISK_NAME.to_owned(), "".to_owned()),
+            ),
+            KEY_ID,
+            BobData::new(vec![], BobMeta::new(TIMESTAMP)),
         )
         .0
         .await;
@@ -86,36 +89,48 @@ async fn test_write_multiple_read() {
 
     let mut read = backend
         .get(
-            BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
-            BobKey::new(KEY_ID),
+            BackendOperation::new_local(
+                vdisk_id.clone(),
+                DiskPath::new(DISK_NAME.to_owned(), "".to_owned()),
+            ),
+            KEY_ID,
         )
         .0
         .await;
-    assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
+    assert_eq!(TIMESTAMP, read.unwrap().data.meta().timestamp());
     read = backend
         .get(
-            BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
-            BobKey::new(KEY_ID),
+            BackendOperation::new_local(
+                vdisk_id.clone(),
+                DiskPath::new(DISK_NAME.to_owned(), "".to_owned()),
+            ),
+            KEY_ID,
         )
         .0
         .await;
-    assert_eq!(TIMESTAMP, read.unwrap().data.meta.timestamp);
+    assert_eq!(TIMESTAMP, read.unwrap().data.meta().timestamp());
 
     let result1 = backend
         .get(
-            BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
-            BobKey::new(KEY_ID),
+            BackendOperation::new_local(
+                vdisk_id.clone(),
+                DiskPath::new(DISK_NAME.to_owned(), "".to_owned()),
+            ),
+            KEY_ID,
         )
         .0
         .await;
     let result2 = backend
         .get(
-            BackendOperation::new_local(vdisk_id.clone(), DiskPath::new(DISK_NAME, "")),
-            BobKey::new(KEY_ID),
+            BackendOperation::new_local(
+                vdisk_id.clone(),
+                DiskPath::new(DISK_NAME.to_owned(), "".to_owned()),
+            ),
+            KEY_ID,
         )
         .0
         .await;
-    assert_eq!(TIMESTAMP, result1.unwrap().data.meta.timestamp);
-    assert_eq!(TIMESTAMP, result2.unwrap().data.meta.timestamp);
+    assert_eq!(TIMESTAMP, result1.unwrap().data.meta().timestamp());
+    assert_eq!(TIMESTAMP, result2.unwrap().data.meta().timestamp());
     drop_pearl();
 }
