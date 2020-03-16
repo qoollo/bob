@@ -1,14 +1,12 @@
 pub(crate) mod b_client {
     use super::super::prelude::*;
-    use super::*;
+    use super::PingResult;
+    use super::{Exist, ExistResult, Get, Put};
     use crate::grpc::{Blob, BlobMeta};
     use crate::grpc::{GetOptions, GetRequest, PutOptions, PutRequest};
-
+    use mockall::mock;
     use std::time::Duration;
     use tonic::Request;
-
-    use super::PingResult;
-    use mockall::*;
 
     #[derive(Clone)]
     pub struct RealBobClient {
@@ -200,6 +198,17 @@ pub(crate) mod b_client {
         }
         trait Clone {
             fn clone(&self) -> Self;
+        }
+    }
+
+    impl Debug for RealBobClient {
+        fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+            f.debug_struct("RealBobClient")
+                .field("client", &"BobApiClient<Channel>")
+                .field("metrics", &self.metrics)
+                .field("node", &self.node)
+                .field("operation_timeout", &self.operation_timeout)
+                .finish()
         }
     }
 }
