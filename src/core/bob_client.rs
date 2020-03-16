@@ -138,18 +138,16 @@ pub(crate) mod b_client {
         }
 
         #[allow(dead_code)]
-        pub(crate) fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> Exist {
+        pub(crate) async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult {
             let node = self.node.clone();
             let mut client = self.client.clone();
-            Exist(Box::pin(async move {
-                let exist_response = client
-                    .exist(Request::new(ExistRequest {
-                        keys: keys.into_iter().map(|key| BlobKey { key }).collect(),
-                        options: Some(options),
-                    }))
-                    .await;
-                Self::get_exist_result(node.name().to_owned(), exist_response)
-            }))
+            let exist_response = client
+                .exist(Request::new(ExistRequest {
+                    keys: keys.into_iter().map(|key| BlobKey { key }).collect(),
+                    options: Some(options),
+                }))
+                .await;
+            Self::get_exist_result(node.name().to_owned(), exist_response)
         }
 
         fn get_exist_result(
@@ -176,7 +174,7 @@ pub(crate) mod b_client {
             fn get(&self, key: BobKey, options: GetOptions) -> Get;
             async fn ping(&self) -> PingResult;
             fn node(&self) -> &Node;
-            fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> Exist;
+            async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult;
         }
         trait Clone {
             fn clone(&self) -> Self;

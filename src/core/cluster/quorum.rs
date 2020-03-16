@@ -330,7 +330,7 @@ impl Cluster for Quorum {
             async move {
                 let mut exist = vec![false; len];
                 for (nodes, (keys, indexes)) in keys_by_nodes {
-                    let cluster_results = LinkManager::exist_on_nodes(&nodes, keys).await;
+                    let cluster_results = LinkManager::exist_on_nodes(&nodes, &keys).await;
                     for result in cluster_results {
                         if let Ok(result) = result {
                             for (&r, &ind) in result.inner().exist.iter().zip(&indexes) {

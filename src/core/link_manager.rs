@@ -60,16 +60,11 @@ impl LinkManager {
 
     pub(crate) async fn exist_on_nodes(
         nodes: &[Node],
-        keys: Vec<BobKey>,
+        keys: &[BobKey],
     ) -> Vec<Result<NodeOutput<BackendExistResult>, NodeOutput<BackendError>>> {
-        let mut results = Vec::new();
-        for node in nodes {
-            let client = node.get_connection();
-            if let Some(client) = client {
-                let res = client.exist(keys.clone(), GetOptions::new_all()).0.await;
-                results.push(res);
-            }
-        }
-        results
+        Self::call_nodes(nodes, |client| {
+            Box::pin(client.exist(keys.to_vec(), GetOptions::new_all()))
+        })
+        .await
     }
 }
