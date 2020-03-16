@@ -7,11 +7,11 @@ pub(crate) struct Settings {
     alien_folder: PathBuf,
     timestamp_period: Duration,
     pub config: PearlConfig,
-    mapper: Arc<VDiskMapper>,
+    mapper: Arc<Virtual>,
 }
 
 impl Settings {
-    pub(crate) fn new(config: &NodeConfig, mapper: Arc<VDiskMapper>) -> Self {
+    pub(crate) fn new(config: &NodeConfig, mapper: Arc<Virtual>) -> Self {
         let pearl_config = config.pearl.clone().expect("get pearl config");
 
         let alien_folder = format!(

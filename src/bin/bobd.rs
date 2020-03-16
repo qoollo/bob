@@ -3,7 +3,7 @@ use bob::configs::cluster::ConfigYaml as ClusterConfigYaml;
 use bob::configs::node::{DiskPath, NodeConfigYaml};
 use bob::grinder::Grinder;
 use bob::grpc::bob_api_server::BobApiServer;
-use bob::mapper::VDiskMapper;
+use bob::mapper::Virtual;
 use bob::metrics;
 use bob::server::BobSrv;
 use clap::{App, Arg};
@@ -79,7 +79,7 @@ async fn main() {
 
     log4rs::init_file(node.log_config(), Default::default()).unwrap();
 
-    let mut mapper = VDiskMapper::new(vdisks.to_vec(), &node, &cluster);
+    let mut mapper = Virtual::new(vdisks.to_vec(), &node, &cluster);
     let mut addr: SocketAddr = node.bind().parse().unwrap();
 
     let node_name = matches.value_of("name");
@@ -98,7 +98,7 @@ async fn main() {
                 path: d.path().to_owned(),
             })
             .collect();
-        mapper = VDiskMapper::new_direct(vdisks.to_vec(), name, &disks, &cluster);
+        mapper = Virtual::new_direct(vdisks.to_vec(), name, &disks, &cluster);
         addr = finded.address().parse().unwrap();
     }
 

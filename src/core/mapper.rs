@@ -1,20 +1,17 @@
 use super::prelude::*;
 
+/// Struct for managing distribution of disks and vdisks on nodex
 #[derive(Debug, Clone)]
-pub struct VDiskMapper {
+pub struct Virtual {
     local_node_name: String,
     disks: Vec<DiskPath>,
     vdisks: Vec<DataVDisk>,
     nodes: Vec<Node>,
 }
 
-impl VDiskMapper {
-    pub fn new(
-        vdisks: Vec<DataVDisk>,
-        config: &NodeConfig,
-        cluster: &ClusterConfig,
-    ) -> VDiskMapper {
-        VDiskMapper::new_direct(
+impl Virtual {
+    pub fn new(vdisks: Vec<DataVDisk>, config: &NodeConfig, cluster: &ClusterConfig) -> Virtual {
+        Virtual::new_direct(
             vdisks,
             &config.name.as_ref().expect("get name").to_string(),
             &config.disks(),
@@ -26,10 +23,10 @@ impl VDiskMapper {
         node_name: &str,
         disks: &[ConfigDiskPath],
         cluster: &ClusterConfig,
-    ) -> VDiskMapper {
+    ) -> Virtual {
         let (nodes, vdisks) = Self::prepare_nodes(vdisks, &cluster);
 
-        VDiskMapper {
+        Virtual {
             vdisks,
             local_node_name: node_name.to_string(),
             disks: disks

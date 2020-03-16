@@ -40,7 +40,7 @@ mod prelude {
         PutOptions,
     };
     pub(crate) use link_manager::LinkManager;
-    pub(crate) use mapper::VDiskMapper;
+    pub(crate) use mapper::Virtual;
     pub(crate) use metrics::{
         BobClientMetrics, MetricsContainerBuilder, CLIENT_GET_COUNTER,
         CLIENT_GET_ERROR_COUNT_COUNTER, CLIENT_GET_TIMER, CLIENT_PUT_COUNTER,

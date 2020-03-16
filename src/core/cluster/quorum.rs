@@ -3,16 +3,12 @@ use crate::core::backend::Exist;
 
 pub(crate) struct Quorum {
     backend: Arc<Backend>,
-    mapper: Arc<VDiskMapper>,
+    mapper: Arc<Virtual>,
     quorum: u8,
 }
 
 impl Quorum {
-    pub(crate) fn new(
-        mapper: Arc<VDiskMapper>,
-        config: &NodeConfig,
-        backend: Arc<Backend>,
-    ) -> Self {
+    pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig, backend: Arc<Backend>) -> Self {
         Self {
             quorum: config.quorum.expect("get quorum config"),
             mapper,
@@ -357,7 +353,7 @@ pub(crate) mod tests {
         backend::Backend,
         bob_client::BobClient,
         data::{BobData, BobKey, BobMeta, Node, VDisk, VDiskId},
-        mapper::VDiskMapper,
+        mapper::Virtual,
     };
     use std::sync::Arc;
     use sup::*;
@@ -460,7 +456,7 @@ pub(crate) mod tests {
         cluster: &ClusterConfig,
         map: &[(&str, Call, Arc<CountCall>)],
     ) -> (Quorum, Arc<Backend>) {
-        let mapper = Arc::new(VDiskMapper::new(vdisks, &node, &cluster));
+        let mapper = Arc::new(Virtual::new(vdisks, &node, &cluster));
         mapper.nodes().iter().for_each(|n| {
             let mut client = BobClient::default();
             let (_, func, call) = map

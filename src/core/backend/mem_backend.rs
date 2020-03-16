@@ -63,7 +63,7 @@ impl MemDisk {
         Self { name, vdisks }
     }
 
-    pub(crate) fn new(name: String, mapper: &VDiskMapper) -> Self {
+    pub(crate) fn new(name: String, mapper: &Virtual) -> Self {
         let vdisks = mapper
             .get_vdisks_by_disk(&name)
             .iter()
@@ -136,7 +136,7 @@ pub(crate) struct MemBackend {
 }
 
 impl MemBackend {
-    pub(crate) fn new(mapper: &VDiskMapper) -> Self {
+    pub(crate) fn new(mapper: &Virtual) -> Self {
         let disks = mapper
             .local_disks()
             .iter()

@@ -12,7 +12,7 @@ pub(crate) struct PearlBackend {
 }
 
 impl PearlBackend {
-    pub(crate) fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
+    pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
 
