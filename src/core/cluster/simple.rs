@@ -44,26 +44,20 @@ impl Cluster for Quorum {
 
         debug!("PUT[{}]: Nodes for fan out: {:?}", key, &target_nodes);
 
-        let reqs = LinkManager::call_nodes(&target_nodes, |mut mock_bob_client| {
-            mock_bob_client
-                .put(
+        let l_quorum = self.quorum as usize;
+        let task = async move {
+            let reqs = LinkManager::call_nodes(&target_nodes, |mut mock_bob_client| {
+                Box::pin(mock_bob_client.put(
                     key,
-                    &data,
+                    data.clone(),
                     PutOptions {
                         remote_nodes: vec![], //TODO check
                         force_node: true,
                         overwrite: false,
                     },
-                )
-                .0
-        });
-
-        let l_quorum = self.quorum as usize;
-        let task = async move {
-            let results = reqs
-                .inspect(|r| debug!("PUT[{}] cluster ans: {:?}", key, r))
-                .collect::<Vec<_>>()
-                .await;
+                ))
+            });
+            let results = reqs.await;
             let total_count = results.len();
             let errors = results.iter().filter(|r| r.is_err()).collect::<Vec<_>>();
             let ok_count = total_count - errors.len();
@@ -88,15 +82,12 @@ impl Cluster for Quorum {
         let target_nodes = self.get_target_nodes(key);
 
         debug!("GET[{}]: Nodes for fan out: {:?}", key, &target_nodes);
-        let reqs = LinkManager::call_nodes(&target_nodes, |mut conn| {
-            conn.get(key, GetOptions::new_normal()).0
-        });
 
         let task = async move {
-            let results = reqs
-                .inspect(|r| debug!("GET[{}] cluster ans: {:?}", key, r))
-                .collect::<Vec<_>>()
-                .await;
+            let reqs = LinkManager::call_nodes(&target_nodes, |mut conn| {
+                conn.get(key, GetOptions::new_normal()).0
+            });
+            let results = reqs.await;
             let ok_results = results
                 .iter()
                 .filter_map(|r| r.as_ref().ok())
@@ -122,7 +113,7 @@ impl Cluster for Quorum {
             async move {
                 let mut exist = vec![false; len];
                 for (nodes, (keys, indexes)) in keys_by_nodes {
-                    let res: Vec<ExistResult> = LinkManager::exist_on_nodes(&nodes, keys).await;
+                    let res: Vec<ExistResult> = LinkManager::exist_on_nodes(&nodes, &keys).await;
                     for result in res {
                         if let Ok(result) = result {
                             for (&r, &ind) in result.inner().exist.iter().zip(&indexes) {

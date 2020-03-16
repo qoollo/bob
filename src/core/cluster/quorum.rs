@@ -75,9 +75,10 @@ impl Quorum {
     ) -> Result<(), (usize, String)> {
         let mut ret = vec![];
         for (node, options) in requests {
-            let result =
-                LinkManager::call_node(&node, |mut conn| conn.put(key, &data, options.clone()).0)
-                    .await;
+            let result = LinkManager::call_node(&node, |client| {
+                Box::pin(client.put(key, data.clone(), options.clone()))
+            })
+            .await;
             trace!(
                 "PUT[{}] sup put to node: {:?}, result: {:?}",
                 key,
@@ -122,9 +123,7 @@ impl Quorum {
         target_nodes: &[Node],
         options: GetOptions,
     ) -> Vec<BobClientGetResult> {
-        LinkManager::call_nodes(target_nodes, |mut conn| conn.get(key, options.clone()).0)
-            .collect()
-            .await
+        LinkManager::call_nodes(target_nodes, |conn| conn.get(key, options.clone()).0).await
     }
 
     fn group_keys_by_nodes(
@@ -151,17 +150,14 @@ impl Cluster for Quorum {
         let target_nodes = self.get_target_nodes(key);
         debug!("PUT[{}]: Nodes for fan out: {:?}", key, &target_nodes);
 
-        let reqs = LinkManager::call_nodes(&target_nodes, |mut conn| {
-            conn.put(key, &data, PutOptions::new_client()).0
-        })
-        .inspect(move |r| trace!("PUT[{}] Response from cluster {:?}", key, r))
-        .collect::<Vec<_>>();
-
         let l_quorum = self.quorum as usize;
         let mapper = self.mapper.clone();
         let vdisk_id = self.mapper.get_vdisk(key).id(); // remove search vdisk (not vdisk id)
         let backend = self.backend.clone();
         let task = async move {
+            let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
+                Box::pin(conn.put(key, data.clone(), PutOptions::new_client()))
+            });
             let acc = reqs.await;
             debug!("PUT[{}] cluster ans: {:?}", key, acc);
 
@@ -334,7 +330,7 @@ impl Cluster for Quorum {
             async move {
                 let mut exist = vec![false; len];
                 for (nodes, (keys, indexes)) in keys_by_nodes {
-                    let cluster_results = LinkManager::exist_on_nodes(&nodes, keys).await;
+                    let cluster_results = LinkManager::exist_on_nodes(&nodes, &keys).await;
                     for result in cluster_results {
                         if let Ok(result) = result {
                             for (&r, &ind) in result.inner().exist.iter().zip(&indexes) {

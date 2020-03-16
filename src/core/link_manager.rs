@@ -2,82 +2,69 @@ use super::prelude::*;
 
 #[derive(Debug)]
 pub(crate) struct LinkManager {
-    repo: Arc<Vec<Node>>,
+    nodes: Arc<Vec<Node>>,
     check_interval: Duration,
 }
 
-pub(crate) type ClusterCallType<T> = Result<NodeOutput<T>, NodeOutput<BackendError>>;
-pub(crate) type ClusterCallFuture<T> = Pin<Box<dyn Future<Output = ClusterCallType<T>> + Send>>;
+pub(crate) type ClusterCallOutput<T> = Result<NodeOutput<T>, NodeOutput<BackendError>>;
+pub(crate) type ClusterCallFuture<'a, T> =
+    Pin<Box<dyn Future<Output = ClusterCallOutput<T>> + Send + 'a>>;
 
 impl LinkManager {
-    pub(crate) fn new(nodes: &[Node], check_interval: Duration) -> LinkManager {
+    pub(crate) fn new(nodes: Vec<Node>, check_interval: Duration) -> LinkManager {
         LinkManager {
-            repo: Arc::new(nodes.to_vec()),
+            nodes: Arc::new(nodes),
             check_interval,
         }
     }
 
     pub(crate) fn spawn_checker(&self, client_factory: Factory) {
-        let local_repo = self.repo.clone();
+        let nodes = self.nodes.clone();
         let mut interval = interval(self.check_interval);
         let task = async move {
             loop {
                 interval.tick().await;
-                for node in local_repo.iter() {
-                    node.check(client_factory.clone()).await.expect("check");
+                for node in nodes.iter() {
+                    node.check(&client_factory).await.expect("check");
                 }
             }
         };
         tokio::spawn(task);
     }
 
-    pub(crate) fn call_nodes<F, T>(
-        nodes: &[Node],
-        mut f: F,
-    ) -> FuturesUnordered<ClusterCallFuture<T>>
+    pub(crate) async fn call_nodes<'a, F, T>(nodes: &[Node], f: F) -> Vec<ClusterCallOutput<T>>
     where
-        F: FnMut(BobClient) -> ClusterCallFuture<T> + Send,
-        T: 'static + Send,
+        F: FnMut(&'_ BobClient) -> ClusterCallFuture<'_, T> + Send + Clone,
+        T: Send,
     {
-        nodes
+        let futures: FuturesUnordered<_> = nodes
             .iter()
-            .map(move |nl| {
-                let client = nl.get_connection();
-                match client {
-                    Some(conn) => f(conn).boxed(),
-                    None => future::err(NodeOutput::new(
-                        nl.name().to_owned(),
-                        BackendError::Failed(format!("No active connection {:?}", nl)),
-                    ))
-                    .boxed(),
-                }
-            })
-            .collect()
+            .map(|node| Self::call_node(node, f.clone()))
+            .collect();
+        futures.collect().await
     }
 
-    pub(crate) fn call_node<F, T>(node: &Node, mut f: F) -> ClusterCallFuture<T>
+    pub(crate) async fn call_node<'a, F, T>(node: &Node, mut f: F) -> ClusterCallOutput<T>
     where
-        F: FnMut(BobClient) -> ClusterCallFuture<T>,
-        T: 'static + Send,
+        F: FnMut(&'_ BobClient) -> ClusterCallFuture<'_, T> + Send + Clone,
+        T: Send,
     {
         match node.get_connection() {
-            Some(conn) => f(conn).boxed(),
-            None => future::err(NodeOutput::new(
+            Some(conn) => f(&conn).await,
+            None => Err(NodeOutput::new(
                 node.name().to_owned(),
                 BackendError::Failed(format!("No active connection {:?}", node)),
-            ))
-            .boxed(),
+            )),
         }
     }
 
     pub(crate) async fn exist_on_nodes(
         nodes: &[Node],
-        keys: Vec<BobKey>,
+        keys: &[BobKey],
     ) -> Vec<Result<NodeOutput<BackendExistResult>, NodeOutput<BackendError>>> {
-        Self::call_nodes(&nodes, |mut conn| {
-            conn.exist(keys.clone(), GetOptions::new_all()).0
+        Self::call_nodes(nodes, |client| {
+            Box::pin(client.exist(keys.to_vec(), GetOptions::new_all()))
         })
-        .collect()
         .await
     }
 }

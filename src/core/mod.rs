@@ -61,7 +61,7 @@ pub(crate) mod test_utils {
     use super::prelude::*;
     use super::{
         backend::{BackendGetResult, BackendPingResult, BackendPutResult},
-        bob_client::{Get, PingResult, Put},
+        bob_client::{Get, PingResult, PutResult},
         data::{BobData, BobMeta, Node, NodeOutput},
         BackendError,
     };
@@ -75,12 +75,12 @@ pub(crate) mod test_utils {
         Err(NodeOutput::new(node_name, BackendError::Internal))
     }
 
-    pub(crate) fn put_ok(node_name: String) -> Put {
-        Put({ ready(Ok(NodeOutput::new(node_name, BackendPutResult {}))).boxed() })
+    pub(crate) fn put_ok(node_name: String) -> PutResult {
+        Ok(NodeOutput::new(node_name, BackendPutResult {}))
     }
 
-    pub(crate) fn put_err(node_name: String) -> Put {
-        Put({ ready(Err(NodeOutput::new(node_name, BackendError::Internal))).boxed() })
+    pub(crate) fn put_err(node_name: String) -> PutResult {
+        Err(NodeOutput::new(node_name, BackendError::Internal))
     }
 
     pub(crate) fn get_ok(node_name: String, timestamp: i64) -> Get {
