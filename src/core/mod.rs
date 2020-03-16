@@ -11,14 +11,14 @@ pub mod server;
 
 pub(crate) use super::prelude::*;
 pub(crate) use backend::{
-    init_pearl, BackendExistResult, BackendGetResult, BackendOperation, BackendPingResult,
-    BackendPutResult, Exist as BackendExist, Get as BackendGet, Put as BackendPut,
+    init_pearl, Backend, BackendExistResult, BackendGetResult, BackendOperation, BackendPingResult,
+    BackendPutResult, Error as BackendError, Exist as BackendExist, Get as BackendGet,
+    Put as BackendPut,
 };
 
 mod prelude {
     pub(crate) use super::*;
 
-    pub(crate) use backend::{Backend, Error as BackendError};
     pub(crate) use bob_client::{BobClient, Factory, GetResult as BobClientGetResult};
     pub(crate) use cluster::{get_cluster, Cluster};
     pub(crate) use configs::{
@@ -54,4 +54,71 @@ mod prelude {
         transport::{Channel, Endpoint},
         Code, Request, Response, Status,
     };
+}
+
+#[cfg(test)]
+pub(crate) mod test_utils {
+    use super::prelude::*;
+    use super::{
+        backend::{BackendGetResult, BackendPingResult, BackendPutResult},
+        bob_client::{Get, PingResult, Put},
+        data::{BobData, BobMeta, ClusterResult, Node},
+        BackendError,
+    };
+    use futures::future::ready;
+
+    pub(crate) fn ping_ok(node: Node) -> PingResult {
+        Ok(ClusterResult {
+            node,
+            result: BackendPingResult {},
+        })
+    }
+    pub(crate) fn ping_err(node: Node) -> PingResult {
+        Err(ClusterResult {
+            node,
+            result: BackendError::Internal,
+        })
+    }
+
+    pub(crate) fn put_ok(node: Node) -> Put {
+        Put({
+            ready(Ok(ClusterResult {
+                node,
+                result: BackendPutResult {},
+            }))
+            .boxed()
+        })
+    }
+
+    pub(crate) fn put_err(node: Node) -> Put {
+        Put({
+            ready(Err(ClusterResult {
+                node,
+                result: BackendError::Internal,
+            }))
+            .boxed()
+        })
+    }
+
+    pub(crate) fn get_ok(node: Node, timestamp: i64) -> Get {
+        Get({
+            ready(Ok(ClusterResult {
+                node,
+                result: BackendGetResult {
+                    data: BobData::new(vec![], BobMeta::new_value(timestamp)),
+                },
+            }))
+            .boxed()
+        })
+    }
+
+    pub(crate) fn get_err(node: Node) -> Get {
+        Get({
+            ready(Err(ClusterResult {
+                node,
+                result: BackendError::Internal,
+            }))
+            .boxed()
+        })
+    }
 }

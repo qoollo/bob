@@ -372,7 +372,7 @@ pub(crate) mod tests {
     use sup::*;
 
     mod sup {
-        use crate::core::{bob_client::tests, bob_client::BobClient, data::Node};
+        use crate::core::{bob_client::BobClient, data::Node, test_utils};
         use std::sync::{
             atomic::{AtomicU64, Ordering},
             Arc,
@@ -383,20 +383,20 @@ pub(crate) mod tests {
 
             client
                 .expect_ping()
-                .returning(move || tests::ping_ok(cl.clone()));
+                .returning(move || test_utils::ping_ok(cl.clone()));
         }
 
         pub(crate) fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             client.expect_put().returning(move |_key, _data, _options| {
                 call.put_inc();
-                tests::put_ok(node.clone())
+                test_utils::put_ok(node.clone())
             });
         }
 
         pub(crate) fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             client.expect_put().returning(move |_key, _data, _options| {
                 call.put_inc();
-                tests::put_err(node.clone())
+                test_utils::put_err(node.clone())
             });
         }
 
@@ -408,14 +408,14 @@ pub(crate) mod tests {
         ) {
             client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
-                tests::get_ok(node.clone(), timestamp)
+                test_utils::get_ok(node.clone(), timestamp)
             });
         }
 
         pub(crate) fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
-                tests::get_err(node.clone())
+                test_utils::get_err(node.clone())
             });
         }
 

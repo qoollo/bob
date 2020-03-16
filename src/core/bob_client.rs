@@ -1,12 +1,9 @@
+#[allow(clippy::ptr_arg)] // requires to avoid warnings on mock macro
+
 pub(crate) mod b_client {
     use super::super::prelude::*;
-    use super::PingResult;
-    use super::{Exist, ExistResult, Get, Put};
-    use crate::grpc::{Blob, BlobMeta};
-    use crate::grpc::{GetOptions, GetRequest, PutOptions, PutRequest};
+    use super::{Exist, ExistResult, Get, PingResult, Put};
     use mockall::mock;
-    use std::time::Duration;
-    use tonic::Request;
 
     /// Client for interaction with bob backend
     #[derive(Clone)]
@@ -272,69 +269,5 @@ impl Debug for Factory {
             .field("operation_timeout", &self.operation_timeout)
             .field("metrics", &"<dyn MetricsContainerBuilder>")
             .finish()
-    }
-}
-
-mod tests {
-    use super::*;
-    use crate::core::{
-        backend::{BackendPingResult, BackendPutResult},
-        data::{BobData, BobMeta, ClusterResult, Node},
-    };
-    use futures::future::ready;
-
-    pub(crate) fn ping_ok(node: Node) -> PingResult {
-        Ok(ClusterResult {
-            node,
-            result: BackendPingResult {},
-        })
-    }
-    pub(crate) fn ping_err(node: Node) -> PingResult {
-        Err(ClusterResult {
-            node,
-            result: BackendError::Internal,
-        })
-    }
-
-    pub(crate) fn put_ok(node: Node) -> Put {
-        Put({
-            ready(Ok(ClusterResult {
-                node,
-                result: BackendPutResult {},
-            }))
-            .boxed()
-        })
-    }
-
-    pub(crate) fn put_err(node: Node) -> Put {
-        Put({
-            ready(Err(ClusterResult {
-                node,
-                result: BackendError::Internal,
-            }))
-            .boxed()
-        })
-    }
-
-    pub(crate) fn get_ok(node: Node, timestamp: i64) -> Get {
-        Get({
-            ready(Ok(ClusterResult {
-                node,
-                result: BackendGetResult {
-                    data: BobData::new(vec![], BobMeta::new_value(timestamp)),
-                },
-            }))
-            .boxed()
-        })
-    }
-
-    pub(crate) fn get_err(node: Node) -> Get {
-        Get({
-            ready(Err(ClusterResult {
-                node,
-                result: BackendError::Internal,
-            }))
-            .boxed()
-        })
     }
 }
