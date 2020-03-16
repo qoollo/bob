@@ -13,7 +13,7 @@ pub(crate) struct PearlKey {
 impl PearlKey {
     pub fn new(bob_key: BobKey) -> Self {
         Self {
-            key: bob_key.key.to_be_bytes().to_vec(),
+            key: bob_key.to_be_bytes().to_vec(),
         }
     }
 }
@@ -38,8 +38,8 @@ impl PearlData {
 
     pub(crate) fn new(data: BobData) -> Self {
         Self {
-            data: data.data,
-            timestamp: data.meta.timestamp,
+            timestamp: data.meta().timestamp(),
+            data: data.into_inner(),
         }
     }
 
@@ -54,10 +54,7 @@ impl PearlData {
         match tmp.try_into() {
             Ok(bytes) => {
                 let timestamp = i64::from_be_bytes(bytes);
-                Ok(BobData::new(
-                    bob_data.to_vec(),
-                    BobMeta::new_value(timestamp),
-                ))
+                Ok(BobData::new(bob_data.to_vec(), BobMeta::new(timestamp)))
             }
             Err(e) => Err(Error::Storage(format!("parse error: {}", e))),
         }

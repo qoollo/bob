@@ -18,7 +18,7 @@ pub enum Error {
 
 impl Error {
     /// check if backend error causes `bob_client` reconnect
-    pub fn is_service(&self) -> bool {
+    pub(crate) fn is_service(&self) -> bool {
         match self {
             Self::Timeout | Self::Failed(_) => true,
             _ => false,
@@ -26,7 +26,7 @@ impl Error {
     }
 
     /// check if put error causes pearl restart
-    pub fn is_put_error_need_restart(err: Option<&Self>) -> bool {
+    pub(crate) fn is_put_error_need_restart(err: Option<&Self>) -> bool {
         match err {
             Some(Self::DuplicateKey) | Some(Self::VDiskIsNotReady) | None => false,
             _ => true,
@@ -34,7 +34,7 @@ impl Error {
     }
 
     /// check if put error causes put to local alien
-    pub fn is_put_error_need_alien(&self) -> bool {
+    pub(crate) fn is_put_error_need_alien(&self) -> bool {
         match self {
             Self::DuplicateKey => false,
             _ => true,
@@ -42,7 +42,7 @@ impl Error {
     }
 
     /// check if get error causes pearl restart
-    pub fn is_get_error_need_restart(err: Option<&Self>) -> bool {
+    pub(crate) fn is_get_error_need_restart(err: Option<&Self>) -> bool {
         match err {
             Some(Self::KeyNotFound(_)) | Some(Self::VDiskIsNotReady) | None => false,
             _ => true,
@@ -50,7 +50,7 @@ impl Error {
     }
 
     /// hide backend errors
-    pub fn convert_backend(self) -> Self {
+    pub(crate) fn convert_backend(self) -> Self {
         match self {
             Self::DuplicateKey | Self::KeyNotFound(_) => self,
             _ => Self::Internal,
@@ -104,10 +104,10 @@ impl From<Status> for Error {
         match name {
             None => None,
             Some(name) => match name {
-                "KeyNotFound" => parse_next(words, |n| Self::KeyNotFound(BobKey { key: n })),
+                "KeyNotFound" => parse_next(words, |key| Self::KeyNotFound(key)),
                 "DuplicateKey" => Some(Self::DuplicateKey),
                 "Timeout" => Some(Self::Timeout),
-                "VDiskNoFound" => parse_next(words, |n| Self::VDiskNoFound(VDiskId::new(n))),
+                "VDiskNoFound" => parse_next(words, |n| Self::VDiskNoFound(n)),
                 "Storage" => Some(Self::Storage(rest_words(words, length))),
                 "VDiskIsNotReady" => Some(Self::VDiskIsNotReady),
                 "Failed" => Some(Self::Failed(rest_words(words, length))),

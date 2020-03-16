@@ -1,10 +1,10 @@
 use super::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct BackendOperation {
-    pub vdisk_id: VDiskId,
+pub(crate) struct BackendOperation {
+    pub(crate) vdisk_id: VDiskId,
     disk_path: Option<DiskPath>,
-    pub remote_node_name: Option<String>, // save data to alien/<remote_node_name>
+    pub(crate) remote_node_name: Option<String>, // save data to alien/<remote_node_name>
 }
 
 impl std::fmt::Display for BackendOperation {
@@ -21,7 +21,7 @@ impl std::fmt::Display for BackendOperation {
 }
 
 impl BackendOperation {
-    pub fn new_alien(vdisk_id: VDiskId) -> Self {
+    pub(crate) fn new_alien(vdisk_id: VDiskId) -> Self {
         Self {
             vdisk_id,
             disk_path: None,
@@ -29,7 +29,7 @@ impl BackendOperation {
         }
     }
 
-    pub fn new_local(vdisk_id: VDiskId, path: DiskPath) -> Self {
+    pub(crate) fn new_local(vdisk_id: VDiskId, path: DiskPath) -> Self {
         Self {
             vdisk_id,
             disk_path: Some(path),
@@ -37,7 +37,7 @@ impl BackendOperation {
         }
     }
 
-    pub fn clone_alien(&self) -> Self {
+    pub(crate) fn clone_alien(&self) -> Self {
         Self {
             vdisk_id: self.vdisk_id.clone(),
             disk_path: None,
@@ -46,22 +46,22 @@ impl BackendOperation {
     }
 
     #[inline]
-    pub fn set_remote_folder(&mut self, name: &str) {
+    pub(crate) fn set_remote_folder(&mut self, name: &str) {
         self.remote_node_name = Some(name.to_string())
     }
 
     #[inline]
-    pub fn is_data_alien(&self) -> bool {
+    pub(crate) fn is_data_alien(&self) -> bool {
         self.disk_path.is_none()
     }
 
     #[inline]
-    pub fn disk_name_local(&self) -> String {
-        self.disk_path.clone().expect("disk path not set").name
+    pub(crate) fn disk_name_local(&self) -> String {
+        self.disk_path.as_ref().expect("no path").name().to_owned()
     }
 
     #[inline]
-    pub fn remote_node_name(&self) -> String {
+    pub(crate) fn remote_node_name(&self) -> String {
         self.remote_node_name
             .clone()
             .expect("remote node name not set")
@@ -69,16 +69,16 @@ impl BackendOperation {
 }
 
 #[derive(Debug, Clone)]
-pub struct BackendPutResult;
+pub(crate) struct BackendPutResult;
 
 #[derive(Debug, Clone)]
-pub struct BackendGetResult {
-    pub data: BobData,
+pub(crate) struct BackendGetResult {
+    pub(crate) data: BobData,
 }
 
 #[derive(Debug, Clone)]
-pub struct BackendExistResult {
-    pub exist: Vec<bool>,
+pub(crate) struct BackendExistResult {
+    pub(crate) exist: Vec<bool>,
 }
 
 impl Display for BackendGetResult {
@@ -88,18 +88,18 @@ impl Display for BackendGetResult {
 }
 
 #[derive(Debug)]
-pub struct BackendPingResult;
+pub(crate) struct BackendPingResult;
 
-pub type GetResult = Result<BackendGetResult, Error>;
-pub struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send>>);
+pub(crate) type GetResult = Result<BackendGetResult, Error>;
+pub(crate) struct Get(pub(crate) Pin<Box<dyn Future<Output = GetResult> + Send>>);
 
-pub type PutResult = Result<BackendPutResult, Error>;
-pub struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
+pub(crate) type PutResult = Result<BackendPutResult, Error>;
+pub(crate) struct Put(pub(crate) Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
-pub type RunResult = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
+pub(crate) type RunResult = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
 
-pub type ExistResult = Result<BackendExistResult, Error>;
-pub struct Exist(pub Pin<Box<dyn Future<Output = ExistResult>>>);
+pub(crate) type ExistResult = Result<BackendExistResult, Error>;
+pub(crate) struct Exist(pub(crate) Pin<Box<dyn Future<Output = ExistResult>>>);
 
 pub(crate) trait BackendStorage: Debug {
     fn run_backend(&self) -> RunResult;
@@ -119,13 +119,13 @@ pub(crate) trait BackendStorage: Debug {
 }
 
 #[derive(Debug)]
-pub struct Backend {
+pub(crate) struct Backend {
     backend: Arc<dyn BackendStorage + Send + Sync>,
     mapper: Arc<VDiskMapper>,
 }
 
 impl Backend {
-    pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
+    pub(crate) fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
         let backend: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
@@ -135,15 +135,15 @@ impl Backend {
     }
 
     #[inline]
-    pub async fn run_backend(&self) -> Result<(), Error> {
+    pub(crate) async fn run_backend(&self) -> Result<(), Error> {
         self.backend.run_backend().await
     }
 
-    pub async fn put(&self, key: BobKey, data: BobData, options: BobOptions) -> PutResult {
+    pub(crate) async fn put(&self, key: BobKey, data: BobData, options: BobOptions) -> PutResult {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         if options.have_remote_node() {
             // write to all remote_nodes
-            for node_name in options.remote_nodes {
+            for node_name in options.remote_nodes() {
                 let mut op = BackendOperation::new_alien(vdisk_id.clone());
                 op.set_remote_folder(&node_name);
 
@@ -164,7 +164,7 @@ impl Backend {
     }
 
     #[inline]
-    pub async fn put_local(
+    pub(crate) async fn put_local(
         &self,
         key: BobKey,
         data: BobData,
@@ -213,7 +213,7 @@ impl Backend {
         }
     }
 
-    pub async fn get(&self, key: BobKey, options: &BobOptions) -> GetResult {
+    pub(crate) async fn get(&self, key: BobKey, options: &BobOptions) -> GetResult {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
         // we cannot get data from alien if it belong this node
@@ -249,7 +249,7 @@ impl Backend {
         result.map_err(Error::convert_backend)
     }
 
-    pub async fn get_local(&self, key: BobKey, op: BackendOperation) -> GetResult {
+    pub(crate) async fn get_local(&self, key: BobKey, op: BackendOperation) -> GetResult {
         Self::get_single(self.backend.clone(), key, op)
             .await
             .map_err(Error::convert_backend)
@@ -269,7 +269,7 @@ impl Backend {
         }
     }
 
-    pub async fn exist(&self, keys: &[BobKey], options: &BobOptions) -> ExistResult {
+    pub(crate) async fn exist(&self, keys: &[BobKey], options: &BobOptions) -> ExistResult {
         let mut exist = vec![false; keys.len()];
         let keys_by_id_and_path = self.group_keys_by_operations(keys, options);
         for (operation, (keys, indexes)) in keys_by_id_and_path {
@@ -315,7 +315,7 @@ impl Backend {
         }
     }
 
-    pub fn mapper(&self) -> &VDiskMapper {
+    pub(crate) fn mapper(&self) -> &VDiskMapper {
         &self.mapper
     }
 

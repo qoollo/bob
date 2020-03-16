@@ -46,7 +46,7 @@ impl LinkManager {
                 match client {
                     Some(conn) => f(conn).boxed(),
                     None => future::err(NodeOutput::new(
-                        nl.name(),
+                        nl.name().to_owned(),
                         BackendError::Failed(format!("No active connection {:?}", nl)),
                     ))
                     .boxed(),
@@ -63,7 +63,7 @@ impl LinkManager {
         match node.get_connection() {
             Some(conn) => f(conn).boxed(),
             None => future::err(NodeOutput::new(
-                node.name(),
+                node.name().to_owned(),
                 BackendError::Failed(format!("No active connection {:?}", node)),
             ))
             .boxed(),

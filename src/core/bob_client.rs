@@ -7,7 +7,7 @@ pub(crate) mod b_client {
 
     /// Client for interaction with bob backend
     #[derive(Clone)]
-    pub struct RealBobClient {
+    pub(crate) struct RealBobClient {
         node: Node,
         operation_timeout: Duration,
         client: BobApiClient<Channel>,
@@ -19,7 +19,7 @@ pub(crate) mod b_client {
         /// # Errors
         /// Fails if can't connect to endpoint
         #[allow(dead_code)]
-        pub async fn create(
+        pub(crate) async fn create(
             node: Node,
             operation_timeout: Duration,
             metrics: BobClientMetrics,
@@ -48,12 +48,12 @@ pub(crate) mod b_client {
         pub(crate) fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put {
             debug!("real client put called");
             let request = Request::new(PutRequest {
-                key: Some(BlobKey { key: key.key }),
+                key: Some(BlobKey { key }),
                 data: Some(Blob {
-                    data: d.data.clone(),
                     meta: Some(BlobMeta {
-                        timestamp: d.meta.timestamp,
+                        timestamp: d.meta().timestamp(),
                     }),
+                    data: d.inner().to_vec(),
                 }),
                 options: Some(options),
             });
@@ -70,14 +70,14 @@ pub(crate) mod b_client {
                     client.put(request).map(|res| {
                         res.expect("client put request");
                         metrics.put_timer_stop(timer);
-                        NodeOutput::new(node.name(), BackendPutResult {})
+                        NodeOutput::new(node.name().to_owned(), BackendPutResult {})
                     }),
                 )
                 .await
                 .map_err(|_| {
                     metrics.put_error_count();
                     metrics.put_timer_stop(timer);
-                    NodeOutput::new(node.name(), BackendError::Timeout)
+                    NodeOutput::new(node.name().to_owned(), BackendError::Timeout)
                 })
             };
             Put(res.boxed())
@@ -100,7 +100,7 @@ pub(crate) mod b_client {
                 let res = timeout(
                     t,
                     client.get(Request::new(GetRequest {
-                        key: Some(BlobKey { key: key.key }),
+                        key: Some(BlobKey { key }),
                         options: Some(options),
                     })),
                 )
@@ -110,11 +110,11 @@ pub(crate) mod b_client {
                     metrics.get_timer_stop(timer);
                     let ans = r.into_inner();
                     NodeOutput::new(
-                        n1.name(),
+                        n1.name().to_owned(),
                         BackendGetResult {
                             data: BobData::new(
                                 ans.data,
-                                BobMeta::new(ans.meta.expect("get blob meta")),
+                                BobMeta::new(ans.meta.expect("get blob meta").timestamp),
                             ),
                         },
                     )
@@ -123,7 +123,7 @@ pub(crate) mod b_client {
                 .map_err(|e| {
                     metrics2.get_error_count();
                     metrics2.get_timer_stop(timer);
-                    NodeOutput::new(n2.name(), e)
+                    NodeOutput::new(n2.name().to_owned(), e)
                 })
             }
             .boxed();
@@ -131,13 +131,13 @@ pub(crate) mod b_client {
         }
 
         #[allow(dead_code)]
-        pub(crate) async fn ping(&mut self) -> PingResult {
+        pub(crate) async fn ping(&self) -> PingResult {
             let mut client = self.client.clone();
             timeout(self.operation_timeout, client.ping(Request::new(Null {})))
                 .await
                 .expect("client ping with timeout")
-                .map(|_| NodeOutput::new(self.node.name(), BackendPingResult {}))
-                .map_err(|_| NodeOutput::new(self.node.name(), BackendError::Timeout))
+                .map(|_| NodeOutput::new(self.node.name().to_owned(), BackendPingResult {}))
+                .map_err(|_| NodeOutput::new(self.node.name().to_owned(), BackendError::Timeout))
         }
 
         #[allow(dead_code)]
@@ -147,11 +147,11 @@ pub(crate) mod b_client {
             Exist(Box::pin(async move {
                 let exist_response = client
                     .exist(Request::new(ExistRequest {
-                        keys: keys.into_iter().map(|k| BlobKey { key: k.key }).collect(),
+                        keys: keys.into_iter().map(|key| BlobKey { key }).collect(),
                         options: Some(options),
                     }))
                     .await;
-                Self::get_exist_result(node.name(), exist_response)
+                Self::get_exist_result(node.name().to_owned(), exist_response)
             }))
         }
 
@@ -177,7 +177,7 @@ pub(crate) mod b_client {
                     ) -> Result<Self, String>;
             fn put(&mut self, key: BobKey, d: &BobData, options: PutOptions) -> Put;
             fn get(&mut self, key: BobKey, options: GetOptions) -> Get;
-            async fn ping(&mut self) -> PingResult;
+            async fn ping(&self) -> PingResult;
             fn node(&self) -> &Node;
             fn exist(&mut self, keys: Vec<BobKey>, options: GetOptions) -> Exist;
         }
@@ -202,22 +202,22 @@ cfg_if! {
     if #[cfg(test)] {
         pub(crate) use self::b_client::MockBobClient as BobClient;
     } else {
-        pub use self::b_client::RealBobClient as BobClient;
+        pub(crate) use self::b_client::RealBobClient as BobClient;
     }
 }
 
 use super::prelude::*;
 
 pub(crate) type PutResult = Result<NodeOutput<BackendPutResult>, NodeOutput<BackendError>>;
-pub(crate) struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
+pub(crate) struct Put(pub(crate) Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
 pub(crate) type GetResult = Result<NodeOutput<BackendGetResult>, NodeOutput<BackendError>>;
-pub(crate) struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send>>);
+pub(crate) struct Get(pub(crate) Pin<Box<dyn Future<Output = GetResult> + Send>>);
 
 pub(crate) type PingResult = Result<NodeOutput<BackendPingResult>, NodeOutput<BackendError>>;
 
 pub(crate) type ExistResult = Result<NodeOutput<BackendExistResult>, NodeOutput<BackendError>>;
-pub(crate) struct Exist(pub Pin<Box<dyn Future<Output = ExistResult> + Send>>);
+pub(crate) struct Exist(pub(crate) Pin<Box<dyn Future<Output = ExistResult> + Send>>);
 
 /// Bob metrics factory
 #[derive(Clone)]

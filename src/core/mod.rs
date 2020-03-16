@@ -25,8 +25,7 @@ mod prelude {
         ClusterConfig, DiskPath as ConfigDiskPath, Node as ClusterNodeConfig, NodeConfig,
     };
     pub(crate) use data::{
-        print_vec, BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, Node, NodeOutput,
-        VDiskId,
+        BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, Node, NodeOutput, VDiskId,
     };
     pub(crate) use dipstick::{
         AtomicBucket, Counter, Graphite, InputKind, InputScope, MetricName, MetricValue, Output,
@@ -88,7 +87,7 @@ pub(crate) mod test_utils {
             ready(Ok(NodeOutput::new(
                 node_name,
                 BackendGetResult {
-                    data: BobData::new(vec![], BobMeta::new_value(timestamp)),
+                    data: BobData::new(vec![], BobMeta::new(timestamp)),
                 },
             )))
             .boxed()

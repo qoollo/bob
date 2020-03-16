@@ -2,8 +2,8 @@ use super::prelude::*;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeDisk {
-    pub path: Option<String>,
-    pub name: Option<String>,
+    pub(crate) path: Option<String>,
+    pub(crate) name: Option<String>,
 }
 
 impl NodeDisk {
@@ -53,15 +53,15 @@ impl Validatable for NodeDisk {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Node {
-    pub name: Option<String>,
-    pub address: Option<String>,
+    pub(crate) name: Option<String>,
+    pub(crate) address: Option<String>,
     #[serde(default)]
     pub disks: Vec<NodeDisk>,
 
     #[serde(skip)]
-    pub host: RefCell<String>,
+    pub(crate) host: RefCell<String>,
     #[serde(skip)]
-    pub port: Cell<u16>,
+    pub(crate) port: Cell<u16>,
 }
 
 impl Node {
@@ -76,12 +76,12 @@ impl Node {
     }
 
     #[inline]
-    pub fn host(&self) -> String {
+    pub(crate) fn host(&self) -> String {
         self.host.borrow().clone()
     }
 
     #[inline]
-    pub fn port(&self) -> u16 {
+    pub(crate) fn port(&self) -> u16 {
         self.port.get()
     }
 
@@ -170,7 +170,7 @@ impl Replica {
     }
 
     #[must_use]
-    pub fn disk(&self) -> &str {
+    pub(crate) fn disk(&self) -> &str {
         self.disk.as_ref().expect("replica disk")
     }
 }
@@ -335,7 +335,7 @@ impl Validatable for Config {
 pub struct ConfigYaml {}
 
 impl ConfigYaml {
-    pub fn convert(cluster: &Config) -> Result<Vec<DataVDisk>, String> {
+    pub(crate) fn convert(cluster: &Config) -> Result<Vec<DataVDisk>, String> {
         let mut node_map = HashMap::new();
         for node in &cluster.nodes {
             let disk_map = node
@@ -348,25 +348,22 @@ impl ConfigYaml {
 
         let mut result: Vec<DataVDisk> = Vec::with_capacity(cluster.vdisks.len());
         for vdisk in &cluster.vdisks {
-            let mut disk = DataVDisk::new(VDiskId::new(vdisk.id() as u32), vdisk.replicas.len());
+            let mut disk = DataVDisk::new(vdisk.id() as u32, vdisk.replicas.len());
 
             for replica in &vdisk.replicas {
                 let finded_node = node_map.get(&replica.node).expect("get replica node");
                 let path = (*finded_node.1.get(&replica.disk).expect("get disk")).to_string();
 
-                let node_disk = DataNodeDisk {
-                    disk_path: path,
-                    disk_name: replica.disk().to_string(),
-                    node_name: finded_node.0.name(),
-                };
-                disk.replicas.push(node_disk);
+                let node_disk =
+                    DataNodeDisk::new(path, replica.disk().to_string(), finded_node.0.name());
+                disk.push_replica(node_disk);
             }
             result.push(disk);
         }
         Ok(result)
     }
 
-    pub fn convert_to_data(cluster: &Config) -> Result<Vec<DataVDisk>, String> {
+    pub(crate) fn convert_to_data(cluster: &Config) -> Result<Vec<DataVDisk>, String> {
         Self::convert(cluster)
     }
 
@@ -384,7 +381,7 @@ impl ConfigYaml {
         }
     }
 
-    pub fn get_from_string(file: &str) -> Result<(Vec<DataVDisk>, Config), String> {
+    pub(crate) fn get_from_string(file: &str) -> Result<(Vec<DataVDisk>, Config), String> {
         let config = YamlBobConfigReader::parse::<Config>(file)?;
         debug!("config: {:?}", config);
         if let Err(e) = config.validate() {
@@ -400,11 +397,11 @@ impl ConfigYaml {
     }
 }
 
-pub mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[must_use]
-    pub fn cluster_config(count_nodes: u8, count_vdisks: u8, count_replicas: u8) -> Config {
+    pub(crate) fn cluster_config(count_nodes: u8, count_vdisks: u8, count_replicas: u8) -> Config {
         let nodes = (0..count_nodes)
             .map(|id| {
                 let name = id.to_string();

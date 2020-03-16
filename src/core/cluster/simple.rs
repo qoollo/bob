@@ -2,13 +2,13 @@ use super::prelude::*;
 use crate::core::backend::Exist;
 use crate::core::bob_client::ExistResult;
 
-pub struct Quorum {
+pub(crate) struct Quorum {
     mapper: Arc<VDiskMapper>,
     quorum: u8,
 }
 
 impl Quorum {
-    pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
+    pub(crate) fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig) -> Self {
         Self {
             quorum: config.quorum.expect("get quorum config"),
             mapper,
@@ -17,7 +17,7 @@ impl Quorum {
 
     #[inline]
     fn get_target_nodes(&self, key: BobKey) -> Vec<Node> {
-        self.mapper.get_vdisk(key).nodes.clone()
+        self.mapper.get_vdisk(key).nodes().to_vec()
     }
 
     fn group_keys_by_nodes(
@@ -42,11 +42,7 @@ impl Cluster for Quorum {
     fn put_clustered_async(&self, key: BobKey, data: BobData) -> BackendPut {
         let target_nodes = self.get_target_nodes(key);
 
-        debug!(
-            "PUT[{}]: Nodes for fan out: {:?}",
-            key,
-            print_vec(&target_nodes)
-        );
+        debug!("PUT[{}]: Nodes for fan out: {:?}", key, &target_nodes);
 
         let reqs = LinkManager::call_nodes(&target_nodes, |mut mock_bob_client| {
             mock_bob_client
@@ -91,11 +87,7 @@ impl Cluster for Quorum {
     fn get_clustered_async(&self, key: BobKey) -> BackendGet {
         let target_nodes = self.get_target_nodes(key);
 
-        debug!(
-            "GET[{}]: Nodes for fan out: {:?}",
-            key,
-            print_vec(&target_nodes)
-        );
+        debug!("GET[{}]: Nodes for fan out: {:?}", key, &target_nodes);
         let reqs = LinkManager::call_nodes(&target_nodes, |mut conn| {
             conn.get(key, GetOptions::new_normal()).0
         });
@@ -123,7 +115,7 @@ impl Cluster for Quorum {
         let keys_by_nodes = self.group_keys_by_nodes(keys);
         debug!(
             "EXIST Nodes for fan out: {:?}",
-            print_vec(&keys_by_nodes.keys().flat_map(|v| v).collect::<Vec<_>>())
+            &keys_by_nodes.keys().flat_map(|v| v).collect::<Vec<_>>()
         );
         let len = keys.len();
         Exist(

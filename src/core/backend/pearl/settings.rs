@@ -19,7 +19,7 @@ impl Settings {
             mapper
                 .get_disk_by_name(&pearl_config.alien_disk())
                 .expect("cannot find alien disk in config")
-                .path,
+                .path(),
             pearl_config.settings().alien_root_dir_name()
         )
         .into();
@@ -38,15 +38,15 @@ impl Settings {
         for disk in self.mapper.local_disks().iter() {
             let mut vdisks: Vec<_> = self
                 .mapper
-                .get_vdisks_by_disk(&disk.name)
+                .get_vdisks_by_disk(disk.name())
                 .iter()
                 .map(|vdisk_id| {
-                    let path = self.normal_path(&disk.path, &vdisk_id);
+                    let path = self.normal_path(disk.path(), vdisk_id);
                     PearlGroup::new(
                         self.clone(),
                         vdisk_id.clone(),
                         config.name(),
-                        disk.name.clone(),
+                        disk.name().to_owned(),
                         path,
                         config.pearl(),
                     )
@@ -150,8 +150,8 @@ impl Settings {
             .mapper
             .nodes()
             .iter()
-            .find(|node| node.name == file_name);
-        node.map(|n| (entry, n.name())).ok_or({
+            .find(|node| node.name() == file_name);
+        node.map(|n| (entry, n.name().to_owned())).ok_or({
             debug!("cannot find node with name: {:?}", file_name);
             Error::Failed(format!("cannot find node with name: {:?}", file_name))
         })
@@ -162,10 +162,10 @@ impl Settings {
             warn!("cannot parse file name: {:?}", entry);
             Error::Failed(format!("cannot parse file name: {:?}", entry))
         })?;
-        let vdisk_id = VDiskId::new(file_name.parse().map_err(|_| {
+        let vdisk_id: VDiskId = file_name.parse().map_err(|_| {
             warn!("cannot parse file name: {:?} as vdisk id", entry);
             Error::Failed(format!("cannot parse file name: {:?}", entry))
-        })?);
+        })?;
 
         let vdisk = self
             .mapper
@@ -228,9 +228,10 @@ impl Settings {
             "start: {}, end: {}, check: {}",
             pearl.start_timestamp,
             pearl.end_timestamp,
-            data.meta.timestamp
+            data.meta().timestamp()
         );
-        pearl.start_timestamp <= data.meta.timestamp && data.meta.timestamp < pearl.end_timestamp
+        pearl.start_timestamp <= data.meta().timestamp()
+            && data.meta().timestamp() < pearl.end_timestamp
     }
 
     #[inline]
@@ -239,7 +240,7 @@ impl Settings {
     ) -> Option<BackendGetResult> {
         records
             .into_iter()
-            .max_by(|x, y| x.data.meta.timestamp.cmp(&y.data.meta.timestamp))
+            .max_by(|x, y| x.data.meta().timestamp().cmp(&y.data.meta().timestamp()))
     }
 
     pub(crate) fn is_actual_pearl(&self, pearl: &PearlTimestampHolder) -> bool {

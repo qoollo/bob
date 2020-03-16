@@ -83,7 +83,7 @@ struct MetricsContainer<TOutput> {
     prefix: String,
 }
 impl<TOutput: Output + Send + Sync + Clone + 'static> MetricsContainer<TOutput> {
-    pub fn new(output: TOutput, duration: Duration, prefix: &str) -> Self {
+    pub(crate) fn new(output: TOutput, duration: Duration, prefix: &str) -> Self {
         MetricsContainer {
             output,
             duration,

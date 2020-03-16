@@ -4,7 +4,7 @@ use super::mem_backend::MemDisk;
 
 const VDISKS_COUNT: u32 = 10;
 
-pub fn new_direct(paths: &[String], vdisks_count: u32) -> MemBackend {
+pub(crate) fn new_direct(paths: &[String], vdisks_count: u32) -> MemBackend {
     let b = paths
         .iter()
         .map(|p| (p.clone(), MemDisk::new_direct(p.clone(), vdisks_count)))
@@ -17,16 +17,13 @@ pub fn new_direct(paths: &[String], vdisks_count: u32) -> MemBackend {
 
 #[tokio::test]
 async fn test_mem_put_wrong_disk() {
-    let backend = new_direct(&["name".to_string()], VDISKS_COUNT);
+    let backend = new_direct(&["name".to_owned()], VDISKS_COUNT);
 
     let retval = backend
         .put(
-            BackendOperation::new_local(VDiskId::new(0), DiskPath::new("invalid name", "")),
-            BobKey { key: 1 },
-            BobData {
-                data: vec![0],
-                meta: BobMeta::new_stub(),
-            },
+            BackendOperation::new_local(0, DiskPath::new("invalid name".to_owned(), "".to_owned())),
+            1,
+            BobData::new(vec![0], BobMeta::stub()),
         )
         .0
         .await;
@@ -35,51 +32,45 @@ async fn test_mem_put_wrong_disk() {
 
 #[tokio::test]
 async fn test_mem_put_get() {
-    let backend = new_direct(&["name".to_string()], VDISKS_COUNT);
+    let backend = new_direct(&["name".to_owned()], VDISKS_COUNT);
 
     backend
         .put(
-            BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "")),
-            BobKey { key: 1 },
-            BobData {
-                data: vec![1],
-                meta: BobMeta::new_stub(),
-            },
+            BackendOperation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            1,
+            BobData::new(vec![1], BobMeta::stub()),
         )
         .0
         .await
         .unwrap();
     let retval = backend
         .get(
-            BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "")),
-            BobKey { key: 1 },
+            BackendOperation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            1,
         )
         .0
         .await
         .unwrap();
-    assert_eq!(retval.data.data, vec![1]);
+    assert_eq!(retval.data.into_inner(), vec![1]);
 }
 
 #[tokio::test]
 async fn test_mem_get_wrong_disk() {
-    let backend = new_direct(&["name".to_string()], VDISKS_COUNT);
+    let backend = new_direct(&["name".to_owned()], VDISKS_COUNT);
 
     backend
         .put(
-            BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "")),
-            BobKey { key: 1 },
-            BobData {
-                data: vec![1],
-                meta: BobMeta::new_stub(),
-            },
+            BackendOperation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            1,
+            BobData::new(vec![1], BobMeta::stub()),
         )
         .0
         .await
         .unwrap();
     let retval = backend
         .get(
-            BackendOperation::new_local(VDiskId::new(0), DiskPath::new("invalid name", "")),
-            BobKey { key: 1 },
+            BackendOperation::new_local(0, DiskPath::new("invalid name".to_owned(), "".to_owned())),
+            1,
         )
         .0
         .await;
@@ -88,12 +79,12 @@ async fn test_mem_get_wrong_disk() {
 
 #[tokio::test]
 async fn test_mem_get_no_data() {
-    let backend = new_direct(&["name".to_string()], VDISKS_COUNT);
-    let key = BobKey { key: 1 };
+    let backend = new_direct(&["name".to_owned()], VDISKS_COUNT);
+    let key = 1;
 
     let retval = backend
         .get(
-            BackendOperation::new_local(VDiskId::new(0), DiskPath::new("name", "")),
+            BackendOperation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
             key,
         )
         .0

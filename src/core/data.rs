@@ -1,4 +1,9 @@
 use super::prelude::*;
+use std::hash::{Hash, Hasher};
+
+pub type BobKey = u64;
+
+pub type VDiskId = u32;
 
 impl PutOptions {
     pub(crate) fn new_client() -> Self {
@@ -56,13 +61,13 @@ impl From<i32> for GetSource {
 }
 
 #[derive(Debug)]
-pub struct NodeOutput<T> {
+pub(crate) struct NodeOutput<T> {
     node_name: String,
     inner: T,
 }
 
 impl<T> NodeOutput<T> {
-    pub fn new(node_name: String, inner: T) -> Self {
+    pub(crate) fn new(node_name: String, inner: T) -> Self {
         Self { node_name, inner }
     }
 
@@ -79,97 +84,81 @@ impl<T> NodeOutput<T> {
     }
 }
 
-#[derive(Clone)]
-pub struct BobData {
-    pub data: Vec<u8>,
-    pub meta: BobMeta,
+#[derive(Clone, Debug)]
+pub(crate) struct BobData {
+    inner: Vec<u8>,
+    meta: BobMeta,
 }
 
 impl BobData {
-    pub fn new(data: Vec<u8>, meta: BobMeta) -> Self {
-        BobData { data, meta }
+    pub(crate) fn new(inner: Vec<u8>, meta: BobMeta) -> Self {
+        BobData { inner, meta }
+    }
+
+    pub(crate) fn inner(&self) -> &[u8] {
+        &self.inner
+    }
+
+    pub(crate) fn into_inner(self) -> Vec<u8> {
+        self.inner
+    }
+
+    pub(crate) fn meta(&self) -> &BobMeta {
+        &self.meta
     }
 }
 
-impl std::fmt::Display for BobData {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "(len: {}, meta: {})", self.data.len(), self.meta)
-    }
-}
-
-impl std::fmt::Debug for BobData {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "(len: {}, meta: {})", self.data.len(), self.meta)
+impl Display for BobData {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        f.debug_struct("BobData")
+            .field("len", &self.inner.len())
+            .field("meta", self.meta())
+            .finish()
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct BobMeta {
-    pub timestamp: i64,
+pub(crate) struct BobMeta {
+    timestamp: i64,
 }
 impl BobMeta {
-    pub fn new(data: BlobMeta) -> Self {
-        BobMeta {
-            timestamp: data.timestamp,
-        }
+    pub(crate) fn new(timestamp: i64) -> Self {
+        Self { timestamp }
     }
 
-    pub fn new_value(timestamp: i64) -> Self {
-        BobMeta { timestamp }
+    #[inline]
+    pub(crate) fn timestamp(&self) -> i64 {
+        self.timestamp
     }
 
-    pub fn new_stub() -> Self {
+    pub(crate) fn stub() -> Self {
         BobMeta { timestamp: 1 }
-    }
-}
-
-impl std::fmt::Display for BobMeta {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.timestamp)
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct BobKey {
-    pub key: u64,
-}
-
-impl BobKey {
-    pub fn new(key: u64) -> Self {
-        BobKey { key }
-    }
-}
-
-impl std::fmt::Display for BobKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.key)
     }
 }
 
 bitflags! {
     #[derive(Default)]
-    pub struct BobFlags: u8 {
+    pub(crate) struct BobFlags: u8 {
         const FORCE_NODE = 0x01;
     }
 }
 
 #[derive(Debug)]
-pub struct BobOptions {
-    pub flags: BobFlags,
-    pub remote_nodes: Vec<String>,
+pub(crate) struct BobOptions {
+    flags: BobFlags,
+    remote_nodes: Vec<String>,
     get_source: Option<GetSource>,
 }
 
 impl BobOptions {
     pub(crate) fn new_put(options: Option<PutOptions>) -> Self {
-        let mut flags: BobFlags = Default::default();
-        let mut remote_nodes = vec![];
-        if let Some(vopts) = options {
+        let mut flags = BobFlags::default();
+        let remote_nodes = options.map_or(Vec::new(), |vopts| {
             if vopts.force_node {
                 flags |= BobFlags::FORCE_NODE;
             }
-            remote_nodes = vopts.remote_nodes;
-        }
+            vopts.remote_nodes
+        });
         BobOptions {
             flags,
             remote_nodes,
@@ -178,19 +167,27 @@ impl BobOptions {
     }
 
     pub(crate) fn new_get(options: Option<GetOptions>) -> Self {
-        let mut flags: BobFlags = Default::default();
-        let mut get_source = None;
-        if let Some(vopts) = options {
+        let mut flags = BobFlags::default();
+
+        let get_source = options.map(|vopts| {
             if vopts.force_node {
                 flags |= BobFlags::FORCE_NODE;
             }
-            get_source = Some(GetSource::from(vopts.source));
-        }
+            GetSource::from(vopts.source)
+        });
         BobOptions {
             flags,
             remote_nodes: vec![],
             get_source,
         }
+    }
+
+    pub(crate) fn remote_nodes(&self) -> &[String] {
+        &self.remote_nodes
+    }
+
+    pub(crate) fn flags(&self) -> BobFlags {
+        self.flags
     }
 
     #[inline]
@@ -199,50 +196,23 @@ impl BobOptions {
     }
 
     pub(crate) fn get_normal(&self) -> bool {
-        if let Some(value) = self.get_source {
-            if value == GetSource::All || value == GetSource::Normal {
-                return true;
-            }
-        }
-        false
+        self.get_source.map_or(false, |value| {
+            value == GetSource::All || value == GetSource::Normal
+        })
     }
 
     pub(crate) fn get_alien(&self) -> bool {
-        if let Some(value) = self.get_source {
-            if value == GetSource::All || value == GetSource::Alien {
-                return true;
-            }
-        }
-        false
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct VDiskId {
-    id: u32,
-}
-
-impl VDiskId {
-    pub fn new(id: u32) -> VDiskId {
-        VDiskId { id }
-    }
-
-    pub fn as_u32(&self) -> u32 {
-        self.id
-    }
-}
-
-impl std::fmt::Display for VDiskId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.id)
+        self.get_source.map_or(false, |value| {
+            value == GetSource::All || value == GetSource::Alien
+        })
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct VDisk {
-    pub id: VDiskId,
-    pub replicas: Vec<NodeDisk>,
-    pub nodes: Vec<Node>,
+    id: VDiskId,
+    replicas: Vec<NodeDisk>,
+    nodes: Vec<Node>,
 }
 
 impl VDisk {
@@ -252,6 +222,22 @@ impl VDisk {
             replicas: Vec::with_capacity(capacity),
             nodes: vec![],
         }
+    }
+
+    pub(crate) fn id(&self) -> VDiskId {
+        self.id
+    }
+
+    pub(crate) fn replicas(&self) -> &[NodeDisk] {
+        &self.replicas
+    }
+
+    pub(crate) fn nodes(&self) -> &[Node] {
+        &self.nodes
+    }
+
+    pub(crate) fn push_replica(&mut self, value: NodeDisk) {
+        self.replicas.push(value)
     }
 
     pub(crate) fn set_nodes(&mut self, nodes: &[Node]) {
@@ -264,41 +250,27 @@ impl VDisk {
     }
 }
 
-impl std::fmt::Display for VDisk {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "#{}-{}",
-            self.id,
-            self.replicas
-                .iter()
-                .map(|nd| nd.to_string())
-                .collect::<Vec<_>>()
-                .join(",")
-        )
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
-pub struct DiskPath {
-    pub name: String,
-    pub path: String,
+pub(crate) struct DiskPath {
+    name: String,
+    path: String,
 }
 
 impl DiskPath {
-    pub fn new(name: &str, path: &str) -> DiskPath {
-        DiskPath {
-            name: name.to_string(),
-            path: path.to_string(),
-        }
+    pub(crate) fn new(name: String, path: String) -> DiskPath {
+        DiskPath { name, path }
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn path(&self) -> &str {
+        &self.path
     }
 }
 
-impl std::fmt::Display for DiskPath {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "#{}-{}", self.name, self.path)
-    }
-}
+// @TODO maybe merge NodeDisk and DiskPath
 impl From<&NodeDisk> for DiskPath {
     fn from(node: &NodeDisk) -> Self {
         DiskPath {
@@ -309,19 +281,31 @@ impl From<&NodeDisk> for DiskPath {
 }
 
 #[derive(Debug, Clone)]
-pub struct NodeDisk {
-    pub disk_path: String,
-    pub disk_name: String,
-    pub node_name: String,
+pub(crate) struct NodeDisk {
+    disk_path: String,
+    disk_name: String,
+    node_name: String,
 }
 
-impl std::fmt::Display for NodeDisk {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "{}-{}:{}",
-            self.node_name, self.disk_name, self.disk_path
-        )
+impl NodeDisk {
+    pub(crate) fn new(disk_path: String, disk_name: String, node_name: String) -> Self {
+        Self {
+            disk_path,
+            disk_name,
+            node_name,
+        }
+    }
+
+    pub(crate) fn disk_path(&self) -> &str {
+        &self.disk_path
+    }
+
+    pub(crate) fn disk_name(&self) -> &str {
+        &self.disk_name
+    }
+
+    pub(crate) fn node_name(&self) -> &str {
+        &self.node_name
     }
 }
 
@@ -331,42 +315,39 @@ impl PartialEq for NodeDisk {
     }
 }
 
-pub fn print_vec<T: Display>(coll: &[T]) -> String {
-    coll.iter()
-        .map(|vd| vd.to_string())
-        .collect::<Vec<_>>()
-        .join(",")
-}
-
 #[derive(Clone)]
-pub struct Node {
-    pub name: String,
-    pub host: String,
-    pub port: u16,
-
-    pub index: u16,
-    conn: Arc<Mutex<Option<BobClient>>>,
+pub(crate) struct Node {
+    name: String,
+    host: String,
+    port: u16,
+    index: u16,
+    conn: Arc<Mutex<Option<BobClient>>>, // @TODO move to async mutex
 }
 
 impl Node {
-    pub fn name(&self) -> String {
-        self.name.clone()
-    }
-    pub fn new(name: &str, host: &str, port: u16) -> Self {
-        Node {
-            name: name.to_string(),
-            host: host.to_string(),
+    pub(crate) fn new(name: String, host: String, port: u16, index: u16) -> Self {
+        Self {
+            name,
+            host,
             port,
-            index: 0,
+            index,
             conn: Arc::new(Mutex::new(None)),
         }
     }
 
-    pub fn get_address(&self) -> String {
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn index(&self) -> u16 {
+        self.index
+    }
+
+    pub(crate) fn get_address(&self) -> String {
         format!("http://{}:{}", self.host, self.port)
     }
 
-    pub fn get_uri(&self) -> http::Uri {
+    pub(crate) fn get_uri(&self) -> http::Uri {
         self.get_address().parse().expect("parse uri")
     }
 
@@ -375,29 +356,30 @@ impl Node {
     }
 
     pub(crate) fn set_connection(&self, client: BobClient) {
+        debug!("acquire mutex lock on connection");
         *self.conn.lock().expect("lock mutex") = Some(client);
     }
 
     pub(crate) fn clear_connection(&self) {
-        debug!("clear connection");
+        debug!("acquire mutex lock on connection");
         *self.conn.lock().expect("lock mutex") = None;
     }
 
     pub(crate) fn get_connection(&self) -> Option<BobClient> {
+        debug!("acquire mutex lock on connection");
         self.conn.lock().expect("lock mutex").clone()
     }
 
     pub(crate) async fn check(self, client_fatory: Factory) -> Result<(), String> {
-        let connection = self.get_connection();
-        if let Some(mut conn) = connection {
-            conn.ping()
-                .await
-                .map(|_| debug!("All good with pinging node {:?}", self))
-                .map_err(|e| {
-                    debug!("Got broken connection to node {:?}", self);
-                    self.clear_connection();
-                    format!("{:?}", e)
-                })
+        if let Some(conn) = self.get_connection() {
+            if let Err(e) = conn.ping().await {
+                debug!("Got broken connection to node {:?}", self);
+                self.clear_connection();
+                Err(format!("{:?}", e))
+            } else {
+                debug!("All good with pinging node {:?}", self);
+                Ok(())
+            }
         } else {
             debug!("will connect to {:?}", self);
             client_fatory
@@ -410,19 +392,8 @@ impl Node {
     }
 }
 
-impl From<&ClusterNodeConfig> for Node {
-    fn from(node: &ClusterNodeConfig) -> Self {
-        Node::new(&node.name(), &node.host(), node.port())
-    }
-}
-impl std::fmt::Display for Node {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}={}:{}", self.name, self.host, self.port)
-    }
-}
-
-impl std::hash::Hash for Node {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for Node {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.host.hash(state);
         self.port.hash(state);
     }
@@ -434,6 +405,7 @@ impl Debug for Node {
     }
 }
 
+// @TODO get off partialeq trait
 impl PartialEq for Node {
     fn eq(&self, other: &Node) -> bool {
         self.host == other.host && self.port == other.port
