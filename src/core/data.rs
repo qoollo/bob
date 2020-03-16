@@ -56,12 +56,12 @@ impl From<i32> for GetSource {
 }
 
 #[derive(Debug)]
-pub struct ClusterResult<T> {
+pub struct NodeOutput<T> {
     node_name: String,
     inner: T,
 }
 
-impl<T> ClusterResult<T> {
+impl<T> NodeOutput<T> {
     pub fn new(node_name: String, inner: T) -> Self {
         Self { node_name, inner }
     }

@@ -102,7 +102,7 @@ impl Quorum {
     fn get_filter_result(
         key: BobKey,
         results: Vec<BobClientGetResult>,
-    ) -> (Option<ClusterResult<BackendGetResult>>, String) {
+    ) -> (Option<NodeOutput<BackendGetResult>>, String) {
         let sup = results
             .iter()
             .filter_map(|res| {

@@ -70,14 +70,14 @@ pub(crate) mod b_client {
                     client.put(request).map(|res| {
                         res.expect("client put request");
                         metrics.put_timer_stop(timer);
-                        ClusterResult::new(node.name(), BackendPutResult {})
+                        NodeOutput::new(node.name(), BackendPutResult {})
                     }),
                 )
                 .await
                 .map_err(|_| {
                     metrics.put_error_count();
                     metrics.put_timer_stop(timer);
-                    ClusterResult::new(node.name(), BackendError::Timeout)
+                    NodeOutput::new(node.name(), BackendError::Timeout)
                 })
             };
             Put(res.boxed())
@@ -109,7 +109,7 @@ pub(crate) mod b_client {
                 res.map(move |r| {
                     metrics.get_timer_stop(timer);
                     let ans = r.into_inner();
-                    ClusterResult::new(
+                    NodeOutput::new(
                         n1.name(),
                         BackendGetResult {
                             data: BobData::new(
@@ -123,7 +123,7 @@ pub(crate) mod b_client {
                 .map_err(|e| {
                     metrics2.get_error_count();
                     metrics2.get_timer_stop(timer);
-                    ClusterResult::new(n2.name(), e)
+                    NodeOutput::new(n2.name(), e)
                 })
             }
             .boxed();
@@ -136,8 +136,8 @@ pub(crate) mod b_client {
             timeout(self.operation_timeout, client.ping(Request::new(Null {})))
                 .await
                 .expect("client ping with timeout")
-                .map(|_| ClusterResult::new(self.node.name(), BackendPingResult {}))
-                .map_err(|_| ClusterResult::new(self.node.name(), BackendError::Timeout))
+                .map(|_| NodeOutput::new(self.node.name(), BackendPingResult {}))
+                .map_err(|_| NodeOutput::new(self.node.name(), BackendError::Timeout))
         }
 
         #[allow(dead_code)]
@@ -160,13 +160,13 @@ pub(crate) mod b_client {
             exist_response: Result<Response<ExistResponse>, Status>,
         ) -> ExistResult {
             match exist_response {
-                Ok(response) => Ok(ClusterResult::new(
+                Ok(response) => Ok(NodeOutput::new(
                     node_name,
                     BackendExistResult {
                         exist: response.into_inner().exist,
                     },
                 )),
-                Err(error) => Err(ClusterResult::new(node_name, BackendError::from(error))),
+                Err(error) => Err(NodeOutput::new(node_name, BackendError::from(error))),
             }
         }
     }
@@ -208,16 +208,15 @@ cfg_if! {
 
 use super::prelude::*;
 
-pub(crate) type PutResult = Result<ClusterResult<BackendPutResult>, ClusterResult<BackendError>>;
+pub(crate) type PutResult = Result<NodeOutput<BackendPutResult>, NodeOutput<BackendError>>;
 pub(crate) struct Put(pub Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
-pub(crate) type GetResult = Result<ClusterResult<BackendGetResult>, ClusterResult<BackendError>>;
+pub(crate) type GetResult = Result<NodeOutput<BackendGetResult>, NodeOutput<BackendError>>;
 pub(crate) struct Get(pub Pin<Box<dyn Future<Output = GetResult> + Send>>);
 
-pub(crate) type PingResult = Result<ClusterResult<BackendPingResult>, ClusterResult<BackendError>>;
+pub(crate) type PingResult = Result<NodeOutput<BackendPingResult>, NodeOutput<BackendError>>;
 
-pub(crate) type ExistResult =
-    Result<ClusterResult<BackendExistResult>, ClusterResult<BackendError>>;
+pub(crate) type ExistResult = Result<NodeOutput<BackendExistResult>, NodeOutput<BackendError>>;
 pub(crate) struct Exist(pub Pin<Box<dyn Future<Output = ExistResult> + Send>>);
 
 /// Bob metrics factory

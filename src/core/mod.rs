@@ -25,7 +25,7 @@ mod prelude {
         ClusterConfig, DiskPath as ConfigDiskPath, Node as ClusterNodeConfig, NodeConfig,
     };
     pub(crate) use data::{
-        print_vec, BobData, BobFlags, BobKey, BobMeta, BobOptions, ClusterResult, DiskPath, Node,
+        print_vec, BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, Node, NodeOutput,
         VDiskId,
     };
     pub(crate) use dipstick::{
@@ -62,30 +62,30 @@ pub(crate) mod test_utils {
     use super::{
         backend::{BackendGetResult, BackendPingResult, BackendPutResult},
         bob_client::{Get, PingResult, Put},
-        data::{BobData, BobMeta, ClusterResult, Node},
+        data::{BobData, BobMeta, Node, NodeOutput},
         BackendError,
     };
     use futures::future::ready;
 
     pub(crate) fn ping_ok(node_name: String) -> PingResult {
-        Ok(ClusterResult::new(node_name, BackendPingResult {}))
+        Ok(NodeOutput::new(node_name, BackendPingResult {}))
     }
 
     pub(crate) fn ping_err(node_name: String) -> PingResult {
-        Err(ClusterResult::new(node_name, BackendError::Internal))
+        Err(NodeOutput::new(node_name, BackendError::Internal))
     }
 
     pub(crate) fn put_ok(node_name: String) -> Put {
-        Put({ ready(Ok(ClusterResult::new(node_name, BackendPutResult {}))).boxed() })
+        Put({ ready(Ok(NodeOutput::new(node_name, BackendPutResult {}))).boxed() })
     }
 
     pub(crate) fn put_err(node_name: String) -> Put {
-        Put({ ready(Err(ClusterResult::new(node_name, BackendError::Internal))).boxed() })
+        Put({ ready(Err(NodeOutput::new(node_name, BackendError::Internal))).boxed() })
     }
 
     pub(crate) fn get_ok(node_name: String, timestamp: i64) -> Get {
         Get({
-            ready(Ok(ClusterResult::new(
+            ready(Ok(NodeOutput::new(
                 node_name,
                 BackendGetResult {
                     data: BobData::new(vec![], BobMeta::new_value(timestamp)),
@@ -96,6 +96,6 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn get_err(node_name: String) -> Get {
-        Get({ ready(Err(ClusterResult::new(node_name, BackendError::Internal))).boxed() })
+        Get({ ready(Err(NodeOutput::new(node_name, BackendError::Internal))).boxed() })
     }
 }
