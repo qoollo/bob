@@ -85,7 +85,7 @@ fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
 }
 
 fn collect_disks_info(bob: &BobSrv) -> Vec<VDisk> {
-    let mapper = bob.grinder.backend.mapper();
+    let mapper = bob.grinder.backend().mapper();
     mapper.vdisks().iter().map(data_vdisk_to_scheme).collect()
 }
 
@@ -95,7 +95,7 @@ fn get_vdisk_by_id(bob: &BobSrv, id: u32) -> Option<VDisk> {
 }
 
 fn find_vdisk(bob: &BobSrv, id: u32) -> Option<&DataVDisk> {
-    let mapper = bob.grinder.backend.mapper();
+    let mapper = bob.grinder.backend().mapper();
     mapper.vdisks().iter().find(|disk| disk.id() == id)
 }
 
@@ -118,7 +118,7 @@ fn not_acceptable_backend() -> Status {
 }
 
 fn find_group<'a>(bob: &'a State<BobSrv>, vdisk_id: u32) -> Result<&'a PearlGroup, StatusExt> {
-    let backend = bob.grinder.backend.backend();
+    let backend = bob.grinder.backend().backend();
     debug!("get backend: OK");
     let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
     debug!("get vdisks groups: OK");
@@ -134,7 +134,7 @@ fn find_group<'a>(bob: &'a State<BobSrv>, vdisk_id: u32) -> Result<&'a PearlGrou
 
 #[get("/status")]
 fn status(bob: State<BobSrv>) -> Json<Node> {
-    let mapper = bob.grinder.backend.mapper();
+    let mapper = bob.grinder.backend().mapper();
     let name = mapper.local_node_name().to_owned();
     let address = mapper.local_node_address();
     let vdisks = collect_disks_info(&bob);

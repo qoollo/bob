@@ -370,7 +370,7 @@ impl Node {
         self.conn.lock().expect("lock mutex").clone()
     }
 
-    pub(crate) async fn check(self, client_fatory: Factory) -> Result<(), String> {
+    pub(crate) async fn check(&self, client_fatory: Factory) -> Result<(), String> {
         if let Some(conn) = self.get_connection() {
             if let Err(e) = conn.ping().await {
                 debug!("Got broken connection to node {:?}", self);

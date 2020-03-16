@@ -20,8 +20,8 @@ impl BobSrv {
     }
 
     #[inline]
-    pub async fn get_periodic_tasks(&self, client_factory: Factory) -> Result<(), ()> {
-        self.grinder.get_periodic_tasks(client_factory).await
+    pub fn run_periodic_tasks(&self, client_factory: Factory) {
+        self.grinder.run_periodic_tasks(client_factory);
     }
 
     fn put_is_valid(req: &PutRequest) -> bool {
