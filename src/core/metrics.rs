@@ -15,7 +15,7 @@ metrics! {
 metrics! {
     CLIENT: Proxy = "client" => {
         pub CLIENT_PUT_COUNTER: Counter = "put_count";
-        pub CLINET_PUT_ERROR_COUNT_COUNTER: Counter = "put_error_count";
+        pub CLIENT_PUT_ERROR_COUNT_COUNTER: Counter = "put_error_count";
         pub CLIENT_PUT_TIMER: Timer = "put_timer";
 
         pub CLIENT_GET_COUNTER: Counter = "get_count";

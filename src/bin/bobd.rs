@@ -116,8 +116,7 @@ async fn main() {
     bob.run_api_server(http_api_port);
 
     let factory = Factory::new(node.operation_timeout(), metrics);
-    let b = bob.clone();
-    tokio::spawn(async move { b.get_periodic_tasks(factory).map(|r| r.unwrap()).await });
+    bob.run_periodic_tasks(factory);
     let new_service = BobApiServer::new(bob);
 
     Server::builder()

@@ -1,5 +1,6 @@
 use super::prelude::*;
 
+#[derive(Debug)]
 pub(crate) struct LinkManager {
     repo: Arc<Vec<Node>>,
     check_interval: Duration,
@@ -16,19 +17,18 @@ impl LinkManager {
         }
     }
 
-    pub(crate) async fn get_checker_future(&self, client_factory: Factory) -> Result<(), ()> {
+    pub(crate) fn spawn_checker(&self, client_factory: Factory) {
         let local_repo = self.repo.clone();
-        interval(self.check_interval)
-            .map(move |_| {
-                local_repo.iter().for_each(|v| {
-                    let q = v.clone().check(client_factory.clone()).map(|_| {});
-                    tokio::spawn(q);
-                });
-            })
-            .collect::<Vec<_>>()
-            .boxed()
-            .await;
-        Ok(())
+        let mut interval = interval(self.check_interval);
+        let task = async move {
+            loop {
+                interval.tick().await;
+                for node in local_repo.iter() {
+                    node.check(client_factory.clone()).await.expect("check");
+                }
+            }
+        };
+        tokio::spawn(task);
     }
 
     pub(crate) fn call_nodes<F, T>(
