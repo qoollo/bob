@@ -1,32 +1,32 @@
 use super::prelude::*;
 
 #[derive(Debug, Clone)]
-pub enum Action {
+pub(crate) enum Action {
     Attach,
     Detach,
 }
 
 #[derive(Debug, Serialize)]
-pub struct Node {
+pub(crate) struct Node {
     name: String,
     address: String,
     vdisks: Vec<VDisk>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct VDisk {
+pub(crate) struct VDisk {
     id: u32,
     replicas: Vec<Replica>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct Replica {
+pub(crate) struct Replica {
     node: String,
     disk: String,
     path: String,
 }
 #[derive(Debug, Serialize, Clone)]
-pub struct VDiskPartitions {
+pub(crate) struct VDiskPartitions {
     vdisk_id: u32,
     node_name: String,
     disk_name: String,
@@ -34,7 +34,7 @@ pub struct VDiskPartitions {
 }
 
 #[derive(Debug, Serialize, Clone)]
-pub struct Partition {
+pub(crate) struct Partition {
     vdisk_id: u32,
     node_name: String,
     disk_name: String,
@@ -42,7 +42,7 @@ pub struct Partition {
 }
 
 #[derive(Debug)]
-pub struct StatusExt {
+pub(crate) struct StatusExt {
     status: Status,
     ok: bool,
     msg: String,
@@ -54,7 +54,7 @@ fn runtime() -> Runtime {
     Runtime::new().expect("create runtime")
 }
 
-pub fn spawn(bob: BobSrv, port: u16) {
+pub(crate) fn spawn(bob: BobSrv, port: u16) {
     let routes = routes![
         status,
         vdisks,

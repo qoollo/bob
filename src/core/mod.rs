@@ -19,7 +19,7 @@ mod prelude {
     pub(crate) use super::*;
 
     pub(crate) use backend::{Backend, Error as BackendError};
-    pub(crate) use bob_client::{BobClient, BobClientFactory, GetResult as BobClientGetResult};
+    pub(crate) use bob_client::{BobClient, Factory, GetResult as BobClientGetResult};
     pub(crate) use cluster::{get_cluster, Cluster};
     pub(crate) use configs::{
         ClusterConfig, DiskPath as ConfigDiskPath, Node as ClusterNodeConfig, NodeConfig,

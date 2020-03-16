@@ -1,22 +1,22 @@
 use super::prelude::*;
 
-pub struct LinkManager {
+pub(crate) struct LinkManager {
     repo: Arc<Vec<Node>>,
     check_interval: Duration,
 }
 
-pub type ClusterCallType<T> = Result<ClusterResult<T>, ClusterResult<BackendError>>;
-pub type ClusterCallFuture<T> = Pin<Box<dyn Future<Output = ClusterCallType<T>> + Send>>;
+pub(crate) type ClusterCallType<T> = Result<ClusterResult<T>, ClusterResult<BackendError>>;
+pub(crate) type ClusterCallFuture<T> = Pin<Box<dyn Future<Output = ClusterCallType<T>> + Send>>;
 
 impl LinkManager {
-    pub fn new(nodes: &[Node], check_interval: Duration) -> LinkManager {
+    pub(crate) fn new(nodes: &[Node], check_interval: Duration) -> LinkManager {
         LinkManager {
             repo: Arc::new(nodes.to_vec()),
             check_interval,
         }
     }
 
-    pub async fn get_checker_future(&self, client_factory: BobClientFactory) -> Result<(), ()> {
+    pub(crate) async fn get_checker_future(&self, client_factory: Factory) -> Result<(), ()> {
         let local_repo = self.repo.clone();
         interval(self.check_interval)
             .map(move |_| {
@@ -31,7 +31,10 @@ impl LinkManager {
         Ok(())
     }
 
-    pub fn call_nodes<F, T>(nodes: &[Node], mut f: F) -> FuturesUnordered<ClusterCallFuture<T>>
+    pub(crate) fn call_nodes<F, T>(
+        nodes: &[Node],
+        mut f: F,
+    ) -> FuturesUnordered<ClusterCallFuture<T>>
     where
         F: FnMut(BobClient) -> ClusterCallFuture<T> + Send,
         T: 'static + Send,
@@ -52,7 +55,7 @@ impl LinkManager {
             .collect()
     }
 
-    pub fn call_node<F, T>(node: &Node, mut f: F) -> ClusterCallFuture<T>
+    pub(crate) fn call_node<F, T>(node: &Node, mut f: F) -> ClusterCallFuture<T>
     where
         F: FnMut(BobClient) -> ClusterCallFuture<T>,
         T: 'static + Send,
@@ -67,7 +70,7 @@ impl LinkManager {
         }
     }
 
-    pub async fn exist_on_nodes(
+    pub(crate) async fn exist_on_nodes(
         nodes: &[Node],
         keys: Vec<BobKey>,
     ) -> Vec<Result<ClusterResult<BackendExistResult>, ClusterResult<BackendError>>> {

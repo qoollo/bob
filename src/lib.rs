@@ -1,7 +1,7 @@
 #![feature(proc_macro_hygiene, decl_macro, drain_filter)]
 #![warn(clippy::pedantic)]
-#![deny(missing_debug_implementations)]
-#![deny(missing_docs)]
+#![warn(missing_debug_implementations)]
+#![warn(missing_docs)]
 
 //! Library requires tokio runtime
 
@@ -19,12 +19,10 @@ extern crate dipstick;
 extern crate rocket;
 
 mod api;
-mod core_inner;
+mod core;
 
 pub use self::api::grpc;
-pub use self::core_inner::{
-    backend, bob_client as client, configs, grinder, mapper, metrics, server,
-};
+pub use self::core::{backend, bob_client as client, configs, grinder, mapper, metrics, server};
 
 mod prelude {
     pub(crate) use super::*;

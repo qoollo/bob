@@ -1,6 +1,6 @@
 use super::prelude::*;
-use crate::core_inner::backend::Exist;
-use crate::core_inner::bob_client::ExistResult;
+use crate::core::backend::Exist;
+use crate::core::bob_client::ExistResult;
 
 pub struct Quorum {
     mapper: Arc<VDiskMapper>,

@@ -1,4 +1,4 @@
-use bob::client::BobClientFactory;
+use bob::client::Factory;
 use bob::configs::cluster::ConfigYaml as ClusterConfigYaml;
 use bob::configs::node::{DiskPath, NodeConfigYaml};
 use bob::grinder::Grinder;
@@ -104,9 +104,7 @@ async fn main() {
 
     let metrics = metrics::init_counters(&node, addr.to_string());
 
-    let bob = BobSrv {
-        grinder: std::sync::Arc::new(Grinder::new(mapper, &node)),
-    };
+    let bob = BobSrv::new(Grinder::new(mapper, &node));
 
     info!("Start backend");
     bob.run_backend().await.unwrap();
@@ -117,7 +115,7 @@ async fn main() {
         .expect("expect http_api_port port");
     bob.run_api_server(http_api_port);
 
-    let factory = BobClientFactory::new(node.operation_timeout(), metrics);
+    let factory = Factory::new(node.operation_timeout(), metrics);
     let b = bob.clone();
     tokio::spawn(async move { b.get_periodic_tasks(factory).map(|r| r.unwrap()).await });
     let new_service = BobApiServer::new(bob);

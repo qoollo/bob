@@ -1,14 +1,18 @@
 use super::prelude::*;
-use crate::core_inner::backend::Exist;
+use crate::core::backend::Exist;
 
-pub struct Quorum {
+pub(crate) struct Quorum {
     backend: Arc<Backend>,
     mapper: Arc<VDiskMapper>,
     quorum: u8,
 }
 
 impl Quorum {
-    pub fn new(mapper: Arc<VDiskMapper>, config: &NodeConfig, backend: Arc<Backend>) -> Self {
+    pub(crate) fn new(
+        mapper: Arc<VDiskMapper>,
+        config: &NodeConfig,
+        backend: Arc<Backend>,
+    ) -> Self {
         Self {
             quorum: config.quorum.expect("get quorum config"),
             mapper,
@@ -352,13 +356,13 @@ impl Cluster for Quorum {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use super::*;
-    use crate::core_inner::cluster::Cluster;
-    use crate::core_inner::configs::cluster::tests::cluster_config;
-    use crate::core_inner::configs::{node::tests::node_config, node::NodeConfigYaml};
-    use crate::core_inner::configs::{ClusterConfig, ClusterConfigYaml, NodeConfig};
-    use crate::core_inner::{
+    use crate::core::cluster::Cluster;
+    use crate::core::configs::cluster::tests::cluster_config;
+    use crate::core::configs::{node::tests::node_config, node::NodeConfigYaml};
+    use crate::core::configs::{ClusterConfig, ClusterConfigYaml, NodeConfig};
+    use crate::core::{
         backend::Backend,
         bob_client::BobClient,
         data::{BobData, BobKey, BobMeta, Node, VDisk, VDiskId},
@@ -368,13 +372,13 @@ pub mod tests {
     use sup::*;
 
     mod sup {
-        use crate::core_inner::{bob_client::tests, bob_client::BobClient, data::Node};
+        use crate::core::{bob_client::tests, bob_client::BobClient, data::Node};
         use std::sync::{
             atomic::{AtomicU64, Ordering},
             Arc,
         };
 
-        pub fn ping_ok(client: &mut BobClient, node: Node) {
+        pub(crate) fn ping_ok(client: &mut BobClient, node: Node) {
             let cl = node;
 
             client
@@ -382,21 +386,21 @@ pub mod tests {
                 .returning(move || tests::ping_ok(cl.clone()));
         }
 
-        pub fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
+        pub(crate) fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             client.expect_put().returning(move |_key, _data, _options| {
                 call.put_inc();
                 tests::put_ok(node.clone())
             });
         }
 
-        pub fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
+        pub(crate) fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             client.expect_put().returning(move |_key, _data, _options| {
                 call.put_inc();
                 tests::put_err(node.clone())
             });
         }
 
-        pub fn get_ok_timestamp(
+        pub(crate) fn get_ok_timestamp(
             client: &mut BobClient,
             node: Node,
             call: Arc<CountCall>,
@@ -408,39 +412,39 @@ pub mod tests {
             });
         }
 
-        pub fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
+        pub(crate) fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
             client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
                 tests::get_err(node.clone())
             });
         }
 
-        pub struct CountCall {
+        pub(crate) struct CountCall {
             put_count: AtomicU64,
             get_count: AtomicU64,
         }
 
         impl CountCall {
-            pub fn new() -> Self {
+            pub(crate) fn new() -> Self {
                 Self {
                     put_count: AtomicU64::new(0),
                     get_count: AtomicU64::new(0),
                 }
             }
 
-            pub fn put_inc(&self) {
+            pub(crate) fn put_inc(&self) {
                 self.put_count.fetch_add(1, Ordering::SeqCst);
             }
 
-            pub fn put_count(&self) -> u64 {
+            pub(crate) fn put_count(&self) -> u64 {
                 self.put_count.load(Ordering::Relaxed)
             }
 
-            pub fn get_inc(&self) {
+            pub(crate) fn get_inc(&self) {
                 self.get_count.fetch_add(1, Ordering::SeqCst);
             }
 
-            pub fn get_count(&self) -> u64 {
+            pub(crate) fn get_count(&self) -> u64 {
                 self.get_count.load(Ordering::Relaxed)
             }
         }

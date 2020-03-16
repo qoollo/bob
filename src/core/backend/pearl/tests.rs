@@ -1,7 +1,7 @@
 use super::prelude::*;
 
-use crate::core_inner::backend::pearl::core::PearlBackend;
-use crate::core_inner::configs::{node::NodeConfigYaml, ClusterConfigYaml};
+use crate::core::backend::pearl::core::PearlBackend;
+use crate::core::configs::{node::NodeConfigYaml, ClusterConfigYaml};
 use std::fs::remove_dir_all;
 
 static DISK_NAME: &str = "disk1";

@@ -1,7 +1,7 @@
 use super::prelude::*;
 
 pub struct Grinder {
-    pub backend: Arc<Backend>,
+    pub(crate) backend: Arc<Backend>,
 
     link_manager: Arc<LinkManager>,
     cluster: Arc<dyn Cluster + Send + Sync>,
@@ -20,11 +20,11 @@ impl Grinder {
         }
     }
 
-    pub async fn run_backend(&self) -> Result<(), BackendError> {
+    pub(crate) async fn run_backend(&self) -> Result<(), BackendError> {
         self.backend.run_backend().await
     }
 
-    pub async fn put(
+    pub(crate) async fn put(
         &self,
         key: BobKey,
         data: BobData,
@@ -65,7 +65,7 @@ impl Grinder {
         }
     }
 
-    pub async fn get(
+    pub(crate) async fn get(
         &self,
         key: BobKey,
         opts: &BobOptions,
@@ -105,7 +105,7 @@ impl Grinder {
         }
     }
 
-    pub async fn exist(
+    pub(crate) async fn exist(
         &self,
         keys: &[BobKey],
         opts: &BobOptions,
@@ -118,7 +118,7 @@ impl Grinder {
     }
 
     #[inline]
-    pub async fn get_periodic_tasks(&self, client_factory: BobClientFactory) -> Result<(), ()> {
+    pub(crate) async fn get_periodic_tasks(&self, client_factory: Factory) -> Result<(), ()> {
         self.link_manager.get_checker_future(client_factory).await
     }
 }
