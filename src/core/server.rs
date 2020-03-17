@@ -1,24 +1,38 @@
 use super::prelude::*;
 
-#[derive(Clone)]
-pub struct BobSrv {
-    pub(crate) grinder: Arc<Grinder>,
+/// Struct contains `Grinder` and receives incomming GRPC requests
+#[derive(Clone, Debug)]
+pub struct Server {
+    grinder: Arc<Grinder>,
 }
 
-impl BobSrv {
+impl Server {
+    /// Creates new bob server
+    #[must_use]
     pub fn new(grinder: Grinder) -> Self {
         Self {
             grinder: Arc::new(grinder),
         }
     }
+
+    pub(crate) fn grinder(&self) -> &Grinder {
+        self.grinder.as_ref()
+    }
+
+    /// Call to run HTTP API server, not required for normal functioning
     pub fn run_api_server(&self, port: u16) {
         api::http::spawn(self.clone(), port);
     }
 
+    /// Start backend component, required before starting bob service
+    /// # Errors
+    /// Returns errror if there are any issues with starting backend,
+    /// e.g. any fs I/O errors
     pub async fn run_backend(&self) -> Result<(), BackendError> {
         self.grinder.run_backend().await
     }
 
+    /// Spawns background tasks, required before starting bob service
     #[inline]
     pub fn run_periodic_tasks(&self, client_factory: Factory) {
         self.grinder.run_periodic_tasks(client_factory);
@@ -33,33 +47,31 @@ impl BobSrv {
     }
 }
 
+fn put_get_inner(req: PutRequest) -> Option<(BlobKey, Blob, i64, Option<PutOptions>)> {
+    let key = req.key?;
+    let blob = req.data?;
+    let timestamp = blob.meta.as_ref()?.timestamp;
+    let options = req.options;
+    Some((key, blob, timestamp, options))
+}
+
 type ApiResult<T> = Result<Response<T>, Status>;
-// type PutFuture = Result<Response<OpStatus>, Status>;
-// type GetFuture = Result<Response<Blob>, Status>;
-// type PingFuture = Result<Response<Null>, Status>;
 
 #[tonic::async_trait]
-impl BobApi for BobSrv {
+impl BobApi for Server {
     async fn put(&self, req: Request<PutRequest>) -> ApiResult<OpStatus> {
         let sw = Stopwatch::start_new();
         let put_request = req.into_inner();
 
-        if Self::put_is_valid(&put_request) {
-            let key = put_request
-                .key
-                .clone()
-                .map(|blob_key| blob_key.key)
-                .expect("get key from request");
-            let blob = put_request.data.clone().expect("get data from request");
-            let data = BobData::new(
-                blob.data,
-                BobMeta::new(blob.meta.expect("get blob meta").timestamp),
-            );
+        if let Some((blob_key, blob, timestamp, options)) = put_get_inner(put_request) {
+            let key = blob_key.key;
+            let meta = BobMeta::new(timestamp);
+            let data = BobData::new(blob.data.clone(), meta);
 
             trace!("PUT[{}] data size: {}", key, data.inner().len());
             let put_result = self
                 .grinder
-                .put(key, data, BobOptions::new_put(put_request.options))
+                .put(key, data, BobOptions::new_put(options))
                 .await;
             let elapsed = sw.elapsed_ms();
             put_result

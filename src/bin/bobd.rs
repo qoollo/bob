@@ -5,7 +5,7 @@ use bob::grinder::Grinder;
 use bob::grpc::bob_api_server::BobApiServer;
 use bob::mapper::Virtual;
 use bob::metrics;
-use bob::server::BobSrv;
+use bob::server::Server as BobServer;
 use clap::{App, Arg};
 use futures::future::FutureExt;
 use std::net::SocketAddr;
@@ -104,7 +104,7 @@ async fn main() {
 
     let metrics = metrics::init_counters(&node, &addr.to_string());
 
-    let bob = BobSrv::new(Grinder::new(mapper, &node));
+    let bob = BobServer::new(Grinder::new(mapper, &node));
 
     info!("Start backend");
     bob.run_backend().await.unwrap();

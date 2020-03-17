@@ -54,7 +54,7 @@ fn runtime() -> Runtime {
     Runtime::new().expect("create runtime")
 }
 
-pub(crate) fn spawn(bob: BobSrv, port: u16) {
+pub(crate) fn spawn(bob: BobServer, port: u16) {
     let routes = routes![
         status,
         vdisks,
@@ -84,18 +84,18 @@ fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
     }
 }
 
-fn collect_disks_info(bob: &BobSrv) -> Vec<VDisk> {
-    let mapper = bob.grinder.backend().mapper();
+fn collect_disks_info(bob: &BobServer) -> Vec<VDisk> {
+    let mapper = bob.grinder().backend().mapper();
     mapper.vdisks().iter().map(data_vdisk_to_scheme).collect()
 }
 
 #[inline]
-fn get_vdisk_by_id(bob: &BobSrv, id: u32) -> Option<VDisk> {
+fn get_vdisk_by_id(bob: &BobServer, id: u32) -> Option<VDisk> {
     find_vdisk(bob, id).map(data_vdisk_to_scheme)
 }
 
-fn find_vdisk(bob: &BobSrv, id: u32) -> Option<&DataVDisk> {
-    let mapper = bob.grinder.backend().mapper();
+fn find_vdisk(bob: &BobServer, id: u32) -> Option<&DataVDisk> {
+    let mapper = bob.grinder().backend().mapper();
     mapper.vdisks().iter().find(|disk| disk.id() == id)
 }
 
@@ -117,8 +117,8 @@ fn not_acceptable_backend() -> Status {
     status
 }
 
-fn find_group<'a>(bob: &'a State<BobSrv>, vdisk_id: u32) -> Result<&'a PearlGroup, StatusExt> {
-    let backend = bob.grinder.backend().backend();
+fn find_group<'a>(bob: &'a State<BobServer>, vdisk_id: u32) -> Result<&'a PearlGroup, StatusExt> {
+    let backend = bob.grinder().backend().backend();
     debug!("get backend: OK");
     let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
     debug!("get vdisks groups: OK");
@@ -133,8 +133,8 @@ fn find_group<'a>(bob: &'a State<BobSrv>, vdisk_id: u32) -> Result<&'a PearlGrou
 }
 
 #[get("/status")]
-fn status(bob: State<BobSrv>) -> Json<Node> {
-    let mapper = bob.grinder.backend().mapper();
+fn status(bob: State<BobServer>) -> Json<Node> {
+    let mapper = bob.grinder().backend().mapper();
     let name = mapper.local_node_name().to_owned();
     let address = mapper.local_node_address();
     let vdisks = collect_disks_info(&bob);
@@ -147,18 +147,18 @@ fn status(bob: State<BobSrv>) -> Json<Node> {
 }
 
 #[get("/vdisks")]
-fn vdisks(bob: State<BobSrv>) -> Json<Vec<VDisk>> {
+fn vdisks(bob: State<BobServer>) -> Json<Vec<VDisk>> {
     let vdisks = collect_disks_info(&bob);
     Json(vdisks)
 }
 
 #[get("/vdisks/<vdisk_id>")]
-fn vdisk_by_id(bob: State<BobSrv>, vdisk_id: u32) -> Option<Json<VDisk>> {
+fn vdisk_by_id(bob: State<BobServer>, vdisk_id: u32) -> Option<Json<VDisk>> {
     get_vdisk_by_id(&bob, vdisk_id).map(Json)
 }
 
 #[get("/vdisks/<vdisk_id>/partitions")]
-fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>, StatusExt> {
+fn partitions(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<VDiskPartitions>, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     debug!("group with provided vdisk_id found");
     let pearls = group.pearls();
@@ -178,7 +178,7 @@ fn partitions(bob: State<BobSrv>, vdisk_id: u32) -> Result<Json<VDiskPartitions>
 
 #[get("/vdisks/<vdisk_id>/partitions/<partition_id>")]
 fn partition_by_id(
-    bob: State<'_, BobSrv>,
+    bob: State<'_, BobServer>,
     vdisk_id: u32,
     partition_id: i64,
 ) -> Result<Json<Partition>, StatusExt> {
@@ -218,7 +218,7 @@ fn partition_by_id(
 
 #[post("/vdisks/<vdisk_id>/partitions/<partition_id>/<action>")]
 fn change_partition_state(
-    bob: State<BobSrv>,
+    bob: State<BobServer>,
     vdisk_id: u32,
     partition_id: i64,
     action: Action,
@@ -249,7 +249,7 @@ fn change_partition_state(
 
 #[delete("/vdisks/<vdisk_id>/partitions/<partition_id>")]
 fn delete_partition(
-    bob: State<BobSrv>,
+    bob: State<BobServer>,
     vdisk_id: u32,
     partition_id: i64,
 ) -> Result<StatusExt, StatusExt> {
@@ -289,7 +289,7 @@ fn delete_partition(
 }
 
 #[get("/alien")]
-fn alien(_bob: State<BobSrv>) -> &'static str {
+fn alien(_bob: State<BobServer>) -> &'static str {
     "alien"
 }
 
