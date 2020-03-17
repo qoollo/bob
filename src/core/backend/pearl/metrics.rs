@@ -12,7 +12,7 @@ metrics! {
     }
 }
 
-pub(crate) fn init_pearl(prefix: &str, metrics: &Arc<dyn MetricsContainerBuilder + Send + Sync>) {
+pub(crate) fn init_pearl(prefix: String, metrics: &(dyn MetricsContainerBuilder)) {
     let bucket = metrics.init_bucket(prefix);
     PEARL.target(bucket);
 }
