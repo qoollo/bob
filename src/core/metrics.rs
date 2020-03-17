@@ -109,81 +109,78 @@ impl<T: Output> MetricsContainer<T> {
     }
 }
 
+/// A trait for generic metrics builders
 pub trait ContainerBuilder {
+    /// Initializes `BobClient` container with given name
     fn get_metrics(&self, name: &str) -> BobClient;
-    fn init_bucket(&self, prefix: &str) -> AtomicBucket;
+    /// Initializes bucket with given prefix
+    fn init_bucket(&self, prefix: String) -> AtomicBucket;
 }
-impl<TOutput: Output + Send + Sync + Clone + 'static> ContainerBuilder
-    for MetricsContainer<TOutput>
-{
+
+impl<T: Output + Clone> ContainerBuilder for MetricsContainer<T> {
     fn get_metrics(&self, name: &str) -> BobClient {
         let prefix = self.prefix.clone() + ".to." + name;
-        BobClient::new(&self.init_bucket(&prefix))
+        BobClient::new(&self.init_bucket(prefix))
     }
 
-    fn init_bucket(&self, prefix: &str) -> AtomicBucket {
-        let bucket = AtomicBucket::new().named(prefix.to_string());
-
+    fn init_bucket(&self, prefix: String) -> AtomicBucket {
+        let bucket = AtomicBucket::new().named(prefix);
         bucket.stats(stats_all_bob);
         bucket.drain(self.output.clone());
-
         bucket.flush_every(self.duration);
         bucket
     }
 }
 
-//////  init counters
-
-fn prepare_metrics_addres(address: String) -> String {
+fn prepare_metrics_addres(address: &str) -> String {
     address.replace(".", "_") + "."
 }
 
 fn default_metrics() -> Arc<dyn ContainerBuilder + Send + Sync> {
-    Arc::new(MetricsContainer::new(
-        Void::new(),
-        Duration::from_secs(100_000),
-        "".to_owned(),
-    ))
+    let cont = MetricsContainer::new(Void::new(), Duration::from_secs(100_000), "".to_owned());
+    Arc::new(cont)
 }
 
+/// initializes bob counters with given config and address of the local node
 pub fn init_counters(
     node_config: &NodeConfig,
-    local_address: String,
+    local_address: &str,
 ) -> Arc<dyn ContainerBuilder + Send + Sync> {
-    let prefix = prepare_metrics_addres(local_address);
+    let prefix = prepare_metrics_addres(&local_address);
 
-    let mut metrics: Arc<dyn ContainerBuilder + Send + Sync> = default_metrics();
+    let mut metrics = default_metrics();
     if let Some(config) = &node_config.metrics {
         if let Some(graphite) = &config.graphite {
             let mut gr = Graphite::send_to(graphite).expect("cannot init metrics for Graphite");
             if let Some(name) = &config.name {
                 gr = gr.named(name);
             }
-            metrics = Arc::new(MetricsContainer::new(
-                gr,
-                Duration::from_secs(1),
-                prefix.clone(),
-            ));
+            let container = MetricsContainer::new(gr, Duration::from_secs(1), prefix.clone());
+            info!(
+                "metrics container initialized with update interval: {}ms",
+                container.duration.as_millis()
+            );
+            metrics = Arc::new(container);
         }
     }
-
-    init_grinder(&(prefix.clone() + "cluster"), &metrics);
-    init_bob_client(&(prefix.clone() + "backend"), &metrics);
-    init_pearl(&(prefix.clone() + "pearl"), &metrics);
-
+    init_grinder(prefix.clone() + "cluster", metrics.as_ref());
+    init_bob_client(prefix.clone() + "backend", metrics.as_ref());
+    init_pearl(prefix + "pearl", metrics.as_ref());
     metrics
 }
 
-fn init_grinder(prefix: &str, metrics: &Arc<dyn ContainerBuilder + Send + Sync>) {
+fn init_grinder(prefix: String, metrics: &(dyn ContainerBuilder)) {
     let bucket = metrics.init_bucket(prefix);
     GRINDER.target(bucket);
 }
 
-fn init_bob_client(prefix: &str, metrics: &Arc<dyn ContainerBuilder + Send + Sync>) {
+fn init_bob_client(prefix: String, metrics: &(dyn ContainerBuilder)) {
     let bucket = metrics.init_bucket(prefix);
     CLIENT.target(bucket);
 }
 
+#[allow(clippy::needless_pass_by_value)] // It's a callback, can't change its args
+#[allow(clippy::cast_possible_truncation)] // Currently no other way to cast f64 to isize
 fn stats_all_bob(
     kind: InputKind,
     name: MetricName,

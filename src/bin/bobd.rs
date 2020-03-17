@@ -102,7 +102,7 @@ async fn main() {
         addr = finded.address().parse().unwrap();
     }
 
-    let metrics = metrics::init_counters(&node, addr.to_string());
+    let metrics = metrics::init_counters(&node, &addr.to_string());
 
     let bob = BobSrv::new(Grinder::new(mapper, &node));
 
