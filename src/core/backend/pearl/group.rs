@@ -147,8 +147,9 @@ impl Group {
     async fn put_common(holder: Holder, key: BobKey, data: BobData) -> PutResult {
         let result = holder.write(key, data).await;
         if let Err(e) = result {
-            if e.is_put_error_need_restart() && holder.try_reinit().await? {
-                holder.reinit_storage()?;
+            if e.is_put_error_need_restart() {
+                holder.try_reinit().await?;
+                holder.prepare_storage().await;
             }
         }
         Ok(())
@@ -190,8 +191,9 @@ impl Group {
     async fn get_common(holder: Holder, key: BobKey) -> GetResult {
         let result = holder.read(key).await.map(|data| BackendGetResult { data });
         if let Err(e) = &result {
-            if e.is_get_error_need_restart() && holder.try_reinit().await? {
-                holder.reinit_storage()?;
+            if e.is_get_error_need_restart() {
+                holder.try_reinit().await?;
+                holder.prepare_storage().await;
             }
         }
         result

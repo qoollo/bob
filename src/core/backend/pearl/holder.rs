@@ -137,7 +137,7 @@ impl Holder {
                         error!("can't close pearl storage: {:?}", e);
                         // we can't do anything
                     }
-                    Ok(true)
+                    Ok(())
                 };
                 task.boxed()
             }
@@ -153,19 +153,9 @@ impl Holder {
             let storage = state.get();
             Ok(storage.contains(pearl_key).await)
         } else {
-            trace!(
-                "Vdisk: {} is not ready for reading, state: {:?}",
-                self.vdisk,
-                state
-            );
+            trace!("Vdisk: {} not ready for reading: {:?}", self.vdisk, state);
             Err(Error::VDiskIsNotReady)
         }
-    }
-
-    pub fn reinit_storage(self) -> BackendResult<()> {
-        debug!("Vdisk: {} try reinit Pearl", self.vdisk);
-        tokio::spawn(async move { self.prepare_storage().await });
-        Ok(())
     }
 
     pub async fn prepare_storage(&self) {
