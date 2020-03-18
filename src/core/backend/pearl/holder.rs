@@ -19,7 +19,7 @@ impl PearlHolder {
         }
     }
 
-    pub async fn update(&self, storage: Storage<PearlKey>) {
+    pub async fn update(&self, storage: Storage<Key>) {
         trace!("try update Pearl id: {}", self.vdisk);
         self.storage
             .write_sync_mut(|st| {
@@ -38,7 +38,7 @@ impl PearlHolder {
             if state.is_ready() {
                 let storage = state.get();
                 trace!("Vdisk: {}, write key: {}", self.vdisk, key);
-                Self::write_disk(storage, PearlKey::new(key), data.clone()).boxed()
+                Self::write_disk(storage, Key::from(key), data.clone()).boxed()
             } else {
                 trace!(
                     "Vdisk: {} is not ready for writing, state: {}",
@@ -51,11 +51,11 @@ impl PearlHolder {
         task.await
     }
 
-    async fn write_disk(storage: PearlStorage, key: PearlKey, data: BobData) -> BackendResult<()> {
+    async fn write_disk(storage: PearlStorage, key: Key, data: BobData) -> BackendResult<()> {
         PEARL_PUT_COUNTER.count(1);
         let timer = PEARL_PUT_TIMER.start();
         storage
-            .write(key, PearlData::new(data).bytes())
+            .write(key, Data::from(data).to_vec())
             .await
             .unwrap_or_else(|e| {
                 PEARL_PUT_ERROR_COUNTER.count(1);
@@ -76,11 +76,11 @@ impl PearlHolder {
                     let q = async move {
                         let timer = PEARL_GET_TIMER.start();
                         storage
-                            .read(PearlKey::new(key))
+                            .read(Key::from(key))
                             .await
                             .map(|r| {
                                 PEARL_GET_TIMER.stop(timer);
-                                PearlData::parse(&r)
+                                Data::from_bytes(&r)
                             })
                             .map_err(|e| {
                                 PEARL_GET_ERROR_COUNTER.count(1);
@@ -137,7 +137,7 @@ impl PearlHolder {
         let state = self.storage.storage.read().await;
         if state.is_ready() {
             trace!("Vdisk: {}, check key: {}", self.vdisk, key);
-            let pearl_key = PearlKey::new(key);
+            let pearl_key = Key::from(key);
             let storage = state.get();
             Ok(storage.contains(pearl_key).await)
         } else {

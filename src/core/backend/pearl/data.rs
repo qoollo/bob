@@ -1,62 +1,54 @@
 use super::prelude::*;
 
-pub(crate) type BackendResult<T> = Result<T, Error>;
-pub(crate) type FutureResult<TRet> = Pin<Box<dyn Future<Output = BackendResult<TRet>> + Send>>;
-
-pub(crate) type PearlStorage = Storage<PearlKey>;
-
 #[derive(Clone, Debug)]
-pub(crate) struct PearlKey {
-    pub key: Vec<u8>,
-}
+pub(crate) struct Key(Vec<u8>);
 
-impl PearlKey {
-    pub fn new(bob_key: BobKey) -> Self {
-        Self {
-            key: bob_key.to_be_bytes().to_vec(),
-        }
+impl From<u64> for Key {
+    fn from(key: u64) -> Self {
+        Self(key.to_be_bytes().to_vec())
     }
 }
 
-impl Key for PearlKey {
+impl KeyTrait for Key {
     const LEN: u16 = 8;
 }
 
-impl AsRef<[u8]> for PearlKey {
+impl AsRef<[u8]> for Key {
     fn as_ref(&self) -> &[u8] {
-        &self.key
+        &self.0
     }
 }
 
-pub(crate) struct PearlData {
+pub(crate) struct Data {
     data: Vec<u8>,
     timestamp: i64,
 }
 
-impl PearlData {
+impl Data {
     const TIMESTAMP_LEN: usize = 8;
 
-    pub(crate) fn new(data: BobData) -> Self {
-        Self {
-            timestamp: data.meta().timestamp(),
-            data: data.into_inner(),
-        }
-    }
-
-    pub(crate) fn bytes(&mut self) -> Vec<u8> {
+    pub(crate) fn to_vec(&self) -> Vec<u8> {
         let mut result = self.timestamp.to_be_bytes().to_vec();
-        result.append(&mut self.data);
+        result.extend_from_slice(&self.data);
         result
     }
 
-    pub(crate) fn parse(data: &[u8]) -> Result<BobData, Error> {
-        let (tmp, bob_data) = data.split_at(Self::TIMESTAMP_LEN);
-        match tmp.try_into() {
-            Ok(bytes) => {
-                let timestamp = i64::from_be_bytes(bytes);
-                Ok(BobData::new(bob_data.to_vec(), BobMeta::new(timestamp)))
-            }
-            Err(e) => Err(Error::Storage(format!("parse error: {}", e))),
+    pub(crate) fn from_bytes(data: &[u8]) -> Result<BobData, Error> {
+        let (ts, bob_data) = data.split_at(Self::TIMESTAMP_LEN);
+        let bytes = ts
+            .try_into()
+            .map_err(|e| Error::Storage(format!("parse error: {}", e)))?;
+        let timestamp = i64::from_be_bytes(bytes);
+        let meta = BobMeta::new(timestamp);
+        Ok(BobData::new(bob_data.to_vec(), meta))
+    }
+}
+
+impl From<BobData> for Data {
+    fn from(data: BobData) -> Self {
+        Self {
+            timestamp: data.meta().timestamp(),
+            data: data.into_inner(),
         }
     }
 }

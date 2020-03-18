@@ -1,5 +1,9 @@
 use super::prelude::*;
 
+pub(crate) type BackendResult<T> = std::result::Result<T, Error>;
+pub(crate) type FutureResult<T> = Pin<Box<dyn Future<Output = BackendResult<T>> + Send>>;
+pub(crate) type PearlStorage = Storage<Key>;
+
 #[derive(Clone, Debug)]
 pub(crate) struct Pearl {
     settings: Arc<Settings>,
