@@ -1,48 +1,21 @@
 use super::prelude::*;
-use crate::core::backend::core::ExistResult;
 
-/// Wrap pearl holder and add timestamp info
+// Composition of pearls
 #[derive(Clone, Debug)]
-pub(crate) struct PearlTimestampHolder {
-    pub pearl: PearlHolder,
-    pub start_timestamp: i64,
-    pub end_timestamp: i64,
-} //TODO add path and fix Display
-
-impl PearlTimestampHolder {
-    pub(crate) fn new(pearl: PearlHolder, start_timestamp: i64, end_timestamp: i64) -> Self {
-        Self {
-            pearl,
-            start_timestamp,
-            end_timestamp,
-        }
-    }
-}
-
-impl Display for PearlTimestampHolder {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        write!(f, "{}", self.start_timestamp)
-    }
-}
-
-/// Composition of pearls. Add put/get api
-#[derive(Clone, Debug)]
-pub(crate) struct PearlGroup {
-    /// all pearls
-    pearls: Arc<RwLock<Vec<PearlTimestampHolder>>>,
+pub(crate) struct Group {
+    // all pearls
+    holders: Arc<RwLock<Vec<Holder>>>,
     // holds state when we create new pearl
     pearl_sync: Arc<SyncState>,
-
     settings: Arc<Settings>,
     config: PearlConfig,
-
+    directory_path: PathBuf,
     vdisk_id: VDiskId,
     node_name: String,
-    pub directory_path: PathBuf,
     disk_name: String,
 }
 
-impl PearlGroup {
+impl Group {
     pub fn new(
         settings: Arc<Settings>,
         vdisk_id: VDiskId,
@@ -52,7 +25,7 @@ impl PearlGroup {
         config: PearlConfig,
     ) -> Self {
         Self {
-            pearls: Arc::new(RwLock::new(vec![])),
+            holders: Arc::new(RwLock::new(vec![])),
             pearl_sync: Arc::new(SyncState::new()),
             settings,
             vdisk_id,
@@ -108,31 +81,26 @@ impl PearlGroup {
     }
 
     async fn run_pearls(&self) -> BackendResult<()> {
-        let holders = self.pearls.write().await;
+        let holders = self.holders.write().await;
 
         for holder in holders.iter() {
-            let pearl = holder.pearl.clone();
-            pearl.prepare_storage().await;
+            holder.prepare_storage().await;
         }
         Ok(())
     }
 
-    pub fn create_pearl_by_path(&self, path: PathBuf) -> PearlHolder {
-        PearlHolder::new(self.vdisk_id.clone(), path, self.config.clone())
-    }
-
-    pub async fn add(&self, pearl: PearlTimestampHolder) {
-        let mut pearls = self.pearls.write().await;
+    pub async fn add(&self, pearl: Holder) {
+        let mut pearls = self.holders.write().await;
         pearls.push(pearl);
     }
 
-    pub async fn add_range(&self, new_pearls: Vec<PearlTimestampHolder>) {
-        let mut pearls = self.pearls.write().await;
+    pub async fn add_range(&self, new_pearls: Vec<Holder>) {
+        let mut pearls = self.holders.write().await;
         pearls.extend(new_pearls);
     }
 
     /// find in all pearls actual pearl and try create new
-    async fn try_get_current_pearl(&self, data: &BobData) -> BackendResult<PearlTimestampHolder> {
+    async fn try_get_current_pearl(&self, data: &BobData) -> BackendResult<Holder> {
         self.find_current_pearl(data)
             .or_else(|e| {
                 debug!("cannot find pearl: {}", e);
@@ -143,8 +111,8 @@ impl PearlGroup {
     }
 
     /// find in all pearls actual pearl
-    async fn find_current_pearl(&self, data: &BobData) -> BackendResult<PearlTimestampHolder> {
-        let pearls = self.pearls.read().await;
+    async fn find_current_pearl(&self, data: &BobData) -> BackendResult<Holder> {
+        let pearls = self.holders.read().await;
         pearls
             .iter()
             .find(|pearl| Settings::is_actual(pearl, &data))
@@ -174,8 +142,8 @@ impl PearlGroup {
         Ok(())
     }
 
-    async fn save_pearl(&self, holder: PearlTimestampHolder) -> BackendResult<()> {
-        let pearl = holder.pearl.clone();
+    async fn save_pearl(&self, holder: Holder) -> BackendResult<()> {
+        let pearl = holder.clone();
         self.add(holder).await;
         pearl.prepare_storage().await;
         Ok(())
@@ -184,10 +152,10 @@ impl PearlGroup {
     pub async fn put(&self, key: BobKey, data: BobData) -> PutResult {
         let holder = self.try_get_current_pearl(&data).await?;
 
-        Self::put_common(holder.pearl, key, data).await
+        Self::put_common(holder, key, data).await
     }
 
-    async fn put_common(holder: PearlHolder, key: BobKey, data: BobData) -> PutResult {
+    async fn put_common(holder: Holder, key: BobKey, data: BobData) -> PutResult {
         let result = holder.write(key, data).await.map(|_| BackendPutResult {});
         if Error::is_put_error_need_restart(result.as_ref().err()) && holder.try_reinit().await? {
             holder.reinit_storage()?;
@@ -196,21 +164,21 @@ impl PearlGroup {
     }
 
     pub async fn get(&self, key: BobKey) -> GetResult {
-        let holders = self.pearls.read().await;
+        let holders = self.holders.read().await;
         let mut has_error = false;
         let mut results = vec![];
         for holder in holders.iter() {
-            let get = Self::get_common(holder.pearl.clone(), key).await;
+            let get = Self::get_common(holder.clone(), key).await;
             match get {
                 Ok(data) => {
-                    trace!("get data: {} from: {}", data, holder);
+                    trace!("get data: {} from: {:?}", data, holder);
                     results.push(data);
                 }
                 Err(err) if err != BackendError::KeyNotFound(key) => {
                     has_error = true;
-                    debug!("get error: {}, from : {}", err, holder);
+                    debug!("get error: {}, from : {:?}", err, holder);
                 }
-                _ => debug!("key not found from: {}", holder),
+                _ => debug!("key not found from: {:?}", holder),
             }
         }
         if results.is_empty() {
@@ -231,7 +199,7 @@ impl PearlGroup {
         }
     }
 
-    async fn get_common(pearl: PearlHolder, key: BobKey) -> GetResult {
+    async fn get_common(pearl: Holder, key: BobKey) -> GetResult {
         let result = pearl.read(key).await.map(|data| BackendGetResult { data });
         if Error::is_get_error_need_restart(result.as_ref().err()) && pearl.try_reinit().await? {
             pearl.reinit_storage()?;
@@ -241,17 +209,17 @@ impl PearlGroup {
 
     pub async fn exist(&self, keys: &[BobKey]) -> ExistResult {
         let mut exist = vec![false; keys.len()];
-        let holders = self.pearls.read().await;
+        let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
             for holder in holders.iter() {
-                exist[ind] = holder.pearl.exist(key).await.unwrap_or(false);
+                exist[ind] = holder.exist(key).await.unwrap_or(false);
             }
         }
         Ok(BackendExistResult { exist })
     }
 
-    pub fn pearls(&self) -> Arc<RwLock<Vec<PearlTimestampHolder>>> {
-        self.pearls.clone()
+    pub fn pearls(&self) -> Arc<RwLock<Vec<Holder>>> {
+        self.holders.clone()
     }
 
     pub fn node_name(&self) -> &str {
@@ -267,14 +235,14 @@ impl PearlGroup {
     }
 
     pub async fn attach(&self, start_timestamp: i64) -> BackendResult<()> {
-        let mut pearls = self.pearls.write().await;
-        if pearls
+        let mut holders = self.holders.write().await;
+        if holders
             .iter()
-            .all(|pearl| pearl.start_timestamp != start_timestamp)
+            .all(|holder| holder.start_timestamp() != start_timestamp)
         {
             let pearl_timestamp_holder = self.create_pearl_by_timestamp(start_timestamp);
-            pearl_timestamp_holder.pearl.clone().prepare_storage().await;
-            pearls.push(pearl_timestamp_holder);
+            pearl_timestamp_holder.clone().prepare_storage().await;
+            holders.push(pearl_timestamp_holder);
             Ok(())
         } else {
             let msg = format!("pearl:{} already exists", start_timestamp);
@@ -282,12 +250,12 @@ impl PearlGroup {
             Err(Error::PearlChangeState(msg))
         }
     }
-    pub async fn detach(&self, start_timestamp: i64) -> BackendResult<PearlTimestampHolder> {
-        let mut pearls = self.pearls.write().await;
+    pub async fn detach(&self, start_timestamp: i64) -> BackendResult<Holder> {
+        let mut pearls = self.holders.write().await;
         debug!("write lock acquired");
         if let Some(pearl) = pearls.iter_mut().find(|pearl| {
-            debug!("{}", pearl.start_timestamp);
-            pearl.start_timestamp == start_timestamp
+            debug!("{}", pearl.start_timestamp());
+            pearl.start_timestamp() == start_timestamp
         }) {
             if self.settings.is_actual_pearl(&pearl) {
                 let msg = format!(
@@ -297,9 +265,7 @@ impl PearlGroup {
                 warn!("{}", msg);
                 Err(Error::PearlChangeState(msg))
             } else {
-                let pearl: &mut PearlTimestampHolder = pearl;
-                let pearl_holder: &mut PearlHolder = &mut pearl.pearl;
-                let lock_guard: &LockGuard<PearlSync> = &pearl_holder.storage;
+                let lock_guard: &LockGuard<PearlSync> = &pearl.storage;
                 let rwlock: &RwLock<PearlSync> = lock_guard.storage.as_ref();
                 {
                     let pearl_sync: RwLockWriteGuard<_> = rwlock.write().await;
@@ -309,7 +275,7 @@ impl PearlGroup {
                     }
                 }
                 let mut pearls_to_return = pearls
-                    .drain_filter(|pearl| pearl.start_timestamp == start_timestamp)
+                    .drain_filter(|pearl| pearl.start_timestamp() == start_timestamp)
                     .collect::<Vec<_>>();
                 pearls_to_return
                     .pop()
@@ -324,30 +290,32 @@ impl PearlGroup {
         }
     }
 
-    pub fn create_pearl_timestamp_holder(&self, start_timestamp: i64) -> PearlTimestampHolder {
+    pub fn create_pearl_holder(&self, start_timestamp: i64) -> Holder {
         let end_timestamp = start_timestamp + self.settings.get_timestamp_period();
         let mut path = self.directory_path.clone();
         path.push(format!("{}/", start_timestamp));
 
-        PearlTimestampHolder::new(
-            self.create_pearl_by_path(path),
+        Holder::new(
             start_timestamp,
             end_timestamp,
+            self.vdisk_id,
+            path,
+            self.config.clone(),
         )
     }
 
-    pub(crate) fn create_pearl_by_timestamp(&self, time: i64) -> PearlTimestampHolder {
+    pub(crate) fn create_pearl_by_timestamp(&self, time: i64) -> Holder {
         let start_timestamp =
             Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period(), time);
-        self.create_pearl_timestamp_holder(start_timestamp)
+        self.create_pearl_holder(start_timestamp)
     }
 
-    pub(crate) fn create_current_pearl(&self) -> PearlTimestampHolder {
+    pub(crate) fn create_current_pearl(&self) -> Holder {
         let start_timestamp = self.settings.get_current_timestamp_start();
-        self.create_pearl_timestamp_holder(start_timestamp)
+        self.create_pearl_holder(start_timestamp)
     }
 
-    pub(crate) fn read_vdisk_directory(&self) -> BackendResult<Vec<PearlTimestampHolder>> {
+    pub(crate) fn read_vdisk_directory(&self) -> BackendResult<Vec<Holder>> {
         Stuff::check_or_create_directory(&self.directory_path)?;
 
         let mut pearls = vec![];
@@ -362,8 +330,8 @@ impl PearlGroup {
                     .parse()
                     .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry))
                     .expect("parse file name");
-                let pearl_holder = self.create_pearl_timestamp_holder(start_timestamp);
-                trace!("read pearl: {}", pearl_holder);
+                let pearl_holder = self.create_pearl_holder(start_timestamp);
+                trace!("read pearl: {:?}", pearl_holder);
                 pearls.push(pearl_holder);
             }
         }
@@ -371,9 +339,9 @@ impl PearlGroup {
     }
 }
 
-impl Display for PearlGroup {
+impl Display for Group {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        f.debug_struct("PearlGroup")
+        f.debug_struct("Group")
             .field("vdisk_id", &self.vdisk_id)
             .field("node_name", &self.node_name)
             .field("directory_path", &self.directory_path)

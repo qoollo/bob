@@ -113,7 +113,7 @@ pub(crate) trait BackendStorage: Debug {
     fn exist(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist;
     fn exist_alien(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist;
 
-    fn vdisks_groups(&self) -> Option<&[PearlGroup]> {
+    fn vdisks_groups(&self) -> Option<&[Group]> {
         None
     }
 }

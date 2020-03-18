@@ -33,7 +33,7 @@ impl Settings {
         }
     }
 
-    pub(crate) fn read_group_from_disk(self: Arc<Self>, config: &NodeConfig) -> Vec<PearlGroup> {
+    pub(crate) fn read_group_from_disk(self: Arc<Self>, config: &NodeConfig) -> Vec<Group> {
         let mut result = vec![];
         for disk in self.mapper.local_disks().iter() {
             let mut vdisks: Vec<_> = self
@@ -42,7 +42,7 @@ impl Settings {
                 .iter()
                 .map(|vdisk_id| {
                     let path = self.normal_path(disk.path(), vdisk_id);
-                    PearlGroup::new(
+                    Group::new(
                         self.clone(),
                         vdisk_id.clone(),
                         config.name(),
@@ -60,7 +60,7 @@ impl Settings {
     pub(crate) fn read_alien_directory(
         self: Arc<Self>,
         config: &NodeConfig,
-    ) -> BackendResult<Vec<PearlGroup>> {
+    ) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
 
         let node_names = Self::get_all_subdirectories(&self.alien_folder)?;
@@ -72,7 +72,7 @@ impl Settings {
                     if let Ok((vdisk_id, id)) = self.try_parse_vdisk_id(vdisk_id) {
                         if self.mapper.is_vdisk_on_node(&name, id.clone()) {
                             let pearl = config.pearl();
-                            let group = PearlGroup::new(
+                            let group = Group::new(
                                 self.clone(),
                                 id.clone(),
                                 name.clone(),
@@ -97,13 +97,13 @@ impl Settings {
     pub(crate) fn create_group(
         self: Arc<Self>,
         operation: &BackendOperation,
-    ) -> BackendResult<PearlGroup> {
+    ) -> BackendResult<Group> {
         let id = operation.vdisk_id.clone();
         let path = self.alien_path(&id, &operation.remote_node_name());
 
         Stuff::check_or_create_directory(&path)?;
 
-        let group = PearlGroup::new(
+        let group = Group::new(
             self.clone(),
             id,
             operation.remote_node_name(),
@@ -223,15 +223,15 @@ impl Settings {
     }
 
     #[inline]
-    pub(crate) fn is_actual(pearl: &PearlTimestampHolder, data: &BobData) -> bool {
+    pub(crate) fn is_actual(pearl: &Holder, data: &BobData) -> bool {
         trace!(
             "start: {}, end: {}, check: {}",
-            pearl.start_timestamp,
-            pearl.end_timestamp,
+            pearl.start_timestamp(),
+            pearl.end_timestamp(),
             data.meta().timestamp()
         );
-        pearl.start_timestamp <= data.meta().timestamp()
-            && data.meta().timestamp() < pearl.end_timestamp
+        pearl.start_timestamp() <= data.meta().timestamp()
+            && data.meta().timestamp() < pearl.end_timestamp()
     }
 
     #[inline]
@@ -243,7 +243,7 @@ impl Settings {
             .max_by(|x, y| x.data.meta().timestamp().cmp(&y.data.meta().timestamp()))
     }
 
-    pub(crate) fn is_actual_pearl(&self, pearl: &PearlTimestampHolder) -> bool {
-        pearl.start_timestamp == self.get_current_timestamp_start()
+    pub(crate) fn is_actual_pearl(&self, pearl: &Holder) -> bool {
+        pearl.start_timestamp() == self.get_current_timestamp_start()
     }
 }

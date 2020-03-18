@@ -2,21 +2,39 @@ use super::prelude::*;
 
 /// Struct hold pearl and add put/get/restart api
 #[derive(Clone, Debug)]
-pub(crate) struct PearlHolder {
+pub(crate) struct Holder {
+    start_timestamp: i64,
+    end_timestamp: i64,
     vdisk: VDiskId,
     disk_path: PathBuf,
     config: PearlConfig,
     pub(crate) storage: Arc<LockGuard<PearlSync>>,
 }
 
-impl PearlHolder {
-    pub fn new(vdisk: VDiskId, disk_path: PathBuf, config: PearlConfig) -> Self {
+impl Holder {
+    pub(crate) fn new(
+        start_timestamp: i64,
+        end_timestamp: i64,
+        vdisk: VDiskId,
+        disk_path: PathBuf,
+        config: PearlConfig,
+    ) -> Self {
         Self {
-            disk_path,
+            start_timestamp,
+            end_timestamp,
             vdisk,
+            disk_path,
             config,
             storage: Arc::new(LockGuard::new(PearlSync::new())),
         }
+    }
+
+    pub(crate) fn start_timestamp(&self) -> i64 {
+        self.start_timestamp
+    }
+
+    pub(crate) fn end_timestamp(&self) -> i64 {
+        self.end_timestamp
     }
 
     pub async fn update(&self, storage: Storage<Key>) {
@@ -152,11 +170,11 @@ impl PearlHolder {
 
     pub fn reinit_storage(self) -> BackendResult<()> {
         debug!("Vdisk: {} try reinit Pearl", self.vdisk);
-        tokio::spawn(self.prepare_storage().map(|_| {}));
+        tokio::spawn(async move { self.prepare_storage().await });
         Ok(())
     }
 
-    pub async fn prepare_storage(self) {
+    pub async fn prepare_storage(&self) {
         let path = &self.disk_path;
         let config = self.config.clone();
         let t = config.fail_retry_timeout();

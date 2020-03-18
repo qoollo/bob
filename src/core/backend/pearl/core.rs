@@ -7,8 +7,8 @@ pub(crate) type PearlStorage = Storage<Key>;
 #[derive(Clone, Debug)]
 pub(crate) struct Pearl {
     settings: Arc<Settings>,
-    vdisks_groups: Arc<Vec<PearlGroup>>,
-    alien_vdisks_groups: Arc<LockGuard<Vec<PearlGroup>>>,
+    vdisks_groups: Arc<Vec<Group>>,
+    alien_vdisks_groups: Arc<LockGuard<Vec<Group>>>,
     pearl_sync: Arc<SyncState>, // holds state when we create new alien pearl dir
 }
 
@@ -35,12 +35,12 @@ impl Pearl {
         }
     }
 
-    async fn put_common(pearl: PearlGroup, key: BobKey, data: BobData) -> PutResult {
+    async fn put_common(pearl: Group, key: BobKey, data: BobData) -> PutResult {
         debug!("PUT[{}] try to: {}", key, pearl);
         pearl.put(key, data).await
     }
 
-    async fn get_common(pearl: PearlGroup, key: BobKey) -> GetResult {
+    async fn get_common(pearl: Group, key: BobKey) -> GetResult {
         debug!("GET[{}] try from: {}", key, pearl);
         pearl.get(key).await
     }
@@ -68,7 +68,7 @@ impl Pearl {
         }
     }
 
-    async fn find_alien_pearl(&self, operation: BackendOperation) -> BackendResult<PearlGroup> {
+    async fn find_alien_pearl(&self, operation: BackendOperation) -> BackendResult<Group> {
         self.alien_vdisks_groups
             .read(|pearls| {
                 let operation = operation.clone();
@@ -97,7 +97,7 @@ impl BackendStorage for Pearl {
             for vdisk_group in vdisks_groups.iter() {
                 vdisk_group.run().await;
             }
-            let task = |pearl_groups: Vec<PearlGroup>| {
+            let task = |pearl_groups: Vec<Group>| {
                 async move {
                     for group in pearl_groups {
                         group.run().await;
@@ -245,7 +245,7 @@ impl BackendStorage for Pearl {
         Exist(task.boxed())
     }
 
-    fn vdisks_groups(&self) -> Option<&[PearlGroup]> {
+    fn vdisks_groups(&self) -> Option<&[Group]> {
         Some(&self.vdisks_groups)
     }
 }

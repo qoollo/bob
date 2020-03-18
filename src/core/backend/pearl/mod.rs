@@ -10,7 +10,7 @@ mod stuff;
 mod tests;
 
 pub(crate) use self::core::{BackendResult, FutureResult, Pearl, PearlStorage};
-pub(crate) use self::group::PearlGroup;
+pub(crate) use self::group::Group;
 pub(crate) use self::metrics::init_pearl;
 pub(crate) use super::prelude::*;
 
@@ -21,8 +21,7 @@ mod prelude {
     pub(crate) use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
     pub(crate) use configs::PearlConfig;
     pub(crate) use data::{Data, Key};
-    pub(crate) use group::PearlTimestampHolder;
-    pub(crate) use holder::{PearlHolder, PearlSync};
+    pub(crate) use holder::{Holder, PearlSync};
     pub(crate) use metrics::{
         PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
         PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,

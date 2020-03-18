@@ -165,7 +165,7 @@ fn partitions(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<VDiskPartitio
     let pearls = runtime().block_on(pearls.read());
     debug!("get pearl holders: OK");
     let pearls: &[_] = pearls.as_ref();
-    let partitions = pearls.iter().map(|pearl| pearl.start_timestamp).collect();
+    let partitions = pearls.iter().map(|pearl| pearl.start_timestamp()).collect();
     let ps = VDiskPartitions {
         node_name: group.node_name().to_owned(),
         disk_name: group.disk_name().to_owned(),
@@ -192,7 +192,7 @@ fn partition_by_id(
     let pearls = rt.block_on(pearls.read());
     pearls
         .iter()
-        .map(|pearl| pearl.start_timestamp)
+        .map(|pearl| pearl.start_timestamp())
         .find_map(|timestamp| {
             if timestamp == partition_id {
                 Some(Partition {
@@ -257,7 +257,6 @@ fn delete_partition(
     let pearl = futures::executor::block_on(group.detach(partition_id));
     if let Ok(holder) = pearl {
         holder
-            .pearl
             .drop_directory()
             .map(|_| {
                 StatusExt::new(
