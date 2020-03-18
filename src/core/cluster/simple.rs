@@ -67,7 +67,7 @@ impl Cluster for Quorum {
             );
             // TODO: send actuall list of vdisk it has been written on
             if ok_count >= l_quorum {
-                Ok(BackendPutResult {})
+                Ok(())
             } else {
                 Err(backend::Error::Failed(format!(
                     "failed: total requests: {}, ok: {}, quorum: {}, errors: {:?}",

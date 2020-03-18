@@ -69,9 +69,6 @@ impl BackendOperation {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct BackendPutResult;
-
-#[derive(Debug, Clone)]
 pub(crate) struct BackendGetResult {
     pub(crate) data: BobData,
 }
@@ -93,7 +90,7 @@ pub(crate) struct BackendPingResult;
 pub(crate) type GetResult = Result<BackendGetResult, Error>;
 pub(crate) struct Get(pub(crate) Pin<Box<dyn Future<Output = GetResult> + Send>>);
 
-pub(crate) type PutResult = Result<BackendPutResult, Error>;
+pub(crate) type PutResult = Result<(), Error>;
 pub(crate) struct Put(pub(crate) Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
 pub(crate) type RunResult = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
@@ -160,7 +157,7 @@ impl Backend {
             );
             return Err(Error::Internal);
         }
-        Ok(BackendPutResult {})
+        Ok(())
     }
 
     #[inline]

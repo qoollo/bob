@@ -84,9 +84,9 @@ impl Group {
         }
     }
 
-    pub async fn add(&self, pearl: Holder) {
-        let mut pearls = self.holders.write().await;
-        pearls.push(pearl);
+    pub async fn add(&self, holder: Holder) {
+        let mut holders = self.holders.write().await;
+        holders.push(holder);
     }
 
     pub async fn add_range(&self, new: Vec<Holder>) {
@@ -94,23 +94,22 @@ impl Group {
         holders.extend(new);
     }
 
-    /// find in all pearls actual pearl and try create new
-    async fn try_get_current_pearl(&self, data: &BobData) -> BackendResult<Holder> {
-        self.find_current_pearl(data)
+    // find in all pearls actual pearl and try create new
+    async fn get_actual_holder(&self, data: &BobData) -> BackendResult<Holder> {
+        self.find_actual_holder(data)
             .or_else(|e| {
                 debug!("cannot find pearl: {}", e);
-                self.create_current_write_pearl(data)
-                    .and_then(|_| self.find_current_pearl(data))
+                self.create_write_pearl(data.meta().timestamp())
             })
             .await
     }
 
-    /// find in all pearls actual pearl
-    async fn find_current_pearl(&self, data: &BobData) -> BackendResult<Holder> {
-        let pearls = self.holders.read().await;
-        pearls
+    // find in all pearls actual pearl
+    async fn find_actual_holder(&self, data: &BobData) -> BackendResult<Holder> {
+        let holders = self.holders.read().await;
+        holders
             .iter()
-            .find(|pearl| Settings::is_actual(pearl, &data))
+            .find(|holder| holder.is_actual(data.meta().timestamp()))
             .cloned()
             .ok_or_else(|| {
                 Error::Failed(format!(
@@ -120,42 +119,42 @@ impl Group {
             })
     }
 
-    /// create pearl for current write
-    async fn create_current_write_pearl(&self, data: &BobData) -> BackendResult<()> {
-        // check if pearl is currently creating
-        if self.pearl_sync.try_init().await? {
-            // check if pearl created
-            if self.find_current_pearl(&data).await.is_err() {
-                let pearl = self.create_pearl_by_timestamp(data.meta().timestamp());
-                self.save_pearl(pearl).await?;
+    // @TODO limit try init attempts
+    // create pearl for current write
+    async fn create_write_pearl(&self, timestamp: i64) -> BackendResult<Holder> {
+        loop {
+            if self.pearl_sync.try_init().await? {
+                let pearl = self.create_pearl_by_timestamp(timestamp);
+                self.save_pearl(pearl.clone()).await;
+                self.pearl_sync.mark_as_created().await?;
+                return Ok(pearl);
+            } else {
+                let t = self.settings.config.settings().create_pearl_wait_delay();
+                warn!("pearl init failed, retry in {}ms", t.as_millis());
+                delay_for(t).await;
             }
-            self.pearl_sync.mark_as_created().await?;
-        } else {
-            let t = self.settings.config.settings().create_pearl_wait_delay();
-            delay_for(t).await;
         }
-        Ok(())
     }
 
-    async fn save_pearl(&self, holder: Holder) -> BackendResult<()> {
-        let pearl = holder.clone();
+    async fn save_pearl(&self, holder: Holder) {
+        holder.prepare_storage().await;
         self.add(holder).await;
-        pearl.prepare_storage().await;
-        Ok(())
     }
 
     pub async fn put(&self, key: BobKey, data: BobData) -> PutResult {
-        let holder = self.try_get_current_pearl(&data).await?;
+        let holder = self.get_actual_holder(&data).await?;
 
         Self::put_common(holder, key, data).await
     }
 
     async fn put_common(holder: Holder, key: BobKey, data: BobData) -> PutResult {
-        let result = holder.write(key, data).await.map(|_| BackendPutResult {});
-        if Error::is_put_error_need_restart(result.as_ref().err()) && holder.try_reinit().await? {
-            holder.reinit_storage()?;
+        let result = holder.write(key, data).await;
+        if let Err(e) = result {
+            if e.is_put_error_need_restart() && holder.try_reinit().await? {
+                holder.reinit_storage()?;
+            }
         }
-        result
+        Ok(())
     }
 
     pub async fn get(&self, key: BobKey) -> GetResult {
@@ -169,11 +168,11 @@ impl Group {
                     trace!("get data: {} from: {:?}", data, holder);
                     results.push(data);
                 }
-                Err(err) if err != BackendError::KeyNotFound(key) => {
+                Err(BackendError::KeyNotFound(key)) => debug!("{} not found in {:?}", key, holder),
+                Err(err) => {
                     has_error = true;
-                    debug!("get error: {}, from : {:?}", err, holder);
+                    error!("get error: {}, from : {:?}", err, holder);
                 }
-                _ => debug!("key not found from: {:?}", holder),
             }
         }
         if results.is_empty() {
@@ -185,24 +184,23 @@ impl Group {
                 Err(Error::KeyNotFound(key))
             }
         } else {
-            debug!(
-                "get data with the max meta timestamp, from {} results",
-                results.len()
-            );
+            debug!("get with max timestamp, from {} results", results.len());
             Ok(Settings::choose_most_recent_data(results)
                 .expect("results cannot be empty, because of the previous check"))
         }
     }
 
-    async fn get_common(pearl: Holder, key: BobKey) -> GetResult {
-        let result = pearl.read(key).await.map(|data| BackendGetResult { data });
-        if Error::is_get_error_need_restart(result.as_ref().err()) && pearl.try_reinit().await? {
-            pearl.reinit_storage()?;
+    async fn get_common(holder: Holder, key: BobKey) -> GetResult {
+        let result = holder.read(key).await.map(|data| BackendGetResult { data });
+        if let Err(e) = &result {
+            if e.is_get_error_need_restart() && holder.try_reinit().await? {
+                holder.reinit_storage()?;
+            }
         }
         result
     }
 
-    pub async fn exist(&self, keys: &[BobKey]) -> ExistResult {
+    pub async fn exist(&self, keys: &[BobKey]) -> BackendExistResult {
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
@@ -210,7 +208,7 @@ impl Group {
                 exist[ind] = holder.exist(key).await.unwrap_or(false);
             }
         }
-        Ok(BackendExistResult { exist })
+        BackendExistResult { exist }
     }
 
     pub fn pearls(&self) -> Arc<RwLock<Vec<Holder>>> {

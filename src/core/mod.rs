@@ -19,8 +19,7 @@ pub mod server;
 pub(crate) use super::prelude::*;
 pub(crate) use backend::{
     init_pearl, Backend, BackendExistResult, BackendGetResult, BackendOperation, BackendPingResult,
-    BackendPutResult, Error as BackendError, Exist as BackendExist, Get as BackendGet,
-    Put as BackendPut,
+    Error as BackendError, Exist as BackendExist, Get as BackendGet, Put as BackendPut,
 };
 
 mod prelude {
@@ -72,7 +71,7 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn put_ok(node_name: String) -> PutResult {
-        Ok(NodeOutput::new(node_name, BackendPutResult {}))
+        Ok(NodeOutput::new(node_name, ()))
     }
 
     pub(crate) fn put_err(node_name: String) -> PutResult {

@@ -168,7 +168,7 @@ impl Cluster for Quorum {
                 key, total_ops, ok_count, l_quorum
             );
             if ok_count == total_ops {
-                Ok(BackendPutResult {})
+                Ok(())
             } else {
                 let mut additionl_remote_writes = match ok_count {
                     0 => l_quorum, //TODO take value from config
@@ -237,7 +237,7 @@ impl Cluster for Quorum {
                     err
                 );
                 if sup_ok_count + ok_count >= l_quorum {
-                    Ok(BackendPutResult {})
+                    Ok(())
                 } else {
                     Err(BackendError::Failed(format!(
                         "failed: total: {}, ok: {}, quorum: {}, errors: {}",

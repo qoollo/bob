@@ -223,7 +223,7 @@ impl BackendStorage for Pearl {
         let keys = keys.to_vec();
         let task = async move {
             if let Some(group) = vdisk_group {
-                group.exist(&keys).await
+                Ok(group.exist(&keys).await)
             } else {
                 Err(BackendError::Internal)
             }
@@ -237,7 +237,7 @@ impl BackendStorage for Pearl {
         let task = async move {
             let vdisk_group = backend.find_alien_pearl(operation.clone()).await;
             if let Ok(group) = vdisk_group {
-                group.exist(&keys).await
+                Ok(group.exist(&keys).await)
             } else {
                 Err(BackendError::Internal)
             }

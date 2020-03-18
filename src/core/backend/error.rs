@@ -26,9 +26,9 @@ impl Error {
     }
 
     /// check if put error causes pearl restart
-    pub(crate) fn is_put_error_need_restart(err: Option<&Self>) -> bool {
-        match err {
-            Some(Self::DuplicateKey) | Some(Self::VDiskIsNotReady) | None => false,
+    pub(crate) fn is_put_error_need_restart(&self) -> bool {
+        match self {
+            Self::DuplicateKey | Self::VDiskIsNotReady => false,
             _ => true,
         }
     }
@@ -42,9 +42,9 @@ impl Error {
     }
 
     /// check if get error causes pearl restart
-    pub(crate) fn is_get_error_need_restart(err: Option<&Self>) -> bool {
-        match err {
-            Some(Self::KeyNotFound(_)) | Some(Self::VDiskIsNotReady) | None => false,
+    pub(crate) fn is_get_error_need_restart(&self) -> bool {
+        match self {
+            Self::KeyNotFound(_) | Self::VDiskIsNotReady => false,
             _ => true,
         }
     }
