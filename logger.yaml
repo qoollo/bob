@@ -41,7 +41,7 @@ loggers:
   # bob - core module
   bob:
     # level applies only to bob
-    level: info
+    level: warn
     appenders:
       - requests
       - stdout
@@ -64,4 +64,6 @@ loggers:
       - stdout
   # inner module of the dipstick (dev)
   dipstick::core::scheduler:
+    level: off
+  h2:
     level: off

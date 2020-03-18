@@ -1,11 +1,8 @@
 use super::prelude::*;
 
-// Composition of pearls
 #[derive(Clone, Debug)]
 pub(crate) struct Group {
-    // all pearls
     holders: Arc<RwLock<Vec<Holder>>>,
-    // holds state when we create new pearl
     pearl_sync: Arc<SyncState>,
     settings: Arc<Settings>,
     directory_path: PathBuf,
@@ -109,7 +106,7 @@ impl Group {
         let holders = self.holders.read().await;
         holders
             .iter()
-            .find(|holder| holder.is_actual(data.meta().timestamp()))
+            .find(|holder| holder.gets_into_interval(data.meta().timestamp()))
             .cloned()
             .ok_or_else(|| {
                 Error::Failed(format!(

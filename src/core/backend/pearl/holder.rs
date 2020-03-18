@@ -41,6 +41,10 @@ impl Holder {
         self.start_timestamp() == current_start
     }
 
+    pub(crate) fn gets_into_interval(&self, timestamp: i64) -> bool {
+        self.start_timestamp() <= timestamp && timestamp < self.end_timestamp
+    }
+
     pub async fn update(&self, storage: Storage<Key>) {
         trace!("try update Pearl id: {}", self.vdisk);
         self.storage
