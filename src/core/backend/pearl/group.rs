@@ -66,7 +66,7 @@ impl Group {
         debug!("{}: count holders: {}", self, holders.len());
         if holders
             .iter()
-            .all(|holder| holder.is_actual(self.settings.get_current_timestamp_start()))
+            .all(|holder| holder.is_actual(self.settings.get_actual_timestamp_start()))
         {
             self.create_current_pearl();
         }
@@ -211,7 +211,7 @@ impl Group {
         BackendExistResult { exist }
     }
 
-    pub fn pearls(&self) -> Arc<RwLock<Vec<Holder>>> {
+    pub fn holders(&self) -> Arc<RwLock<Vec<Holder>>> {
         self.holders.clone()
     }
 
@@ -228,54 +228,51 @@ impl Group {
     }
 
     pub async fn attach(&self, start_timestamp: i64) -> BackendResult<()> {
-        let mut holders = self.holders.write().await;
+        let holders = self.holders.read().await;
         if holders
             .iter()
-            .all(|holder| holder.start_timestamp() != start_timestamp)
+            .any(|holder| holder.start_timestamp() == start_timestamp)
         {
-            let pearl_timestamp_holder = self.create_pearl_by_timestamp(start_timestamp);
-            pearl_timestamp_holder.clone().prepare_storage().await;
-            holders.push(pearl_timestamp_holder);
-            Ok(())
-        } else {
             let msg = format!("pearl:{} already exists", start_timestamp);
             warn!("{}", msg);
             Err(Error::PearlChangeState(msg))
+        } else {
+            let holder = self.create_pearl_by_timestamp(start_timestamp);
+            self.save_pearl(holder).await;
+            Ok(())
         }
     }
+
     pub async fn detach(&self, start_timestamp: i64) -> BackendResult<Holder> {
-        let mut pearls = self.holders.write().await;
+        let mut holders = self.holders.write().await;
         debug!("write lock acquired");
-        if let Some(pearl) = pearls.iter_mut().find(|pearl| {
-            debug!("{}", pearl.start_timestamp());
-            pearl.start_timestamp() == start_timestamp
+        if let Some(holder) = holders.iter().find(|holder| {
+            debug!("{}", holder.start_timestamp());
+            holder.start_timestamp() == start_timestamp
         }) {
-            if self.settings.is_actual_pearl(&pearl) {
-                let msg = format!(
-                    "current active pearl:{} cannot be detached",
-                    start_timestamp
-                );
+            if holder.is_actual(self.settings.get_actual_timestamp_start()) {
+                let msg = format!("active pearl:{} cannot be detached", start_timestamp);
                 warn!("{}", msg);
                 Err(Error::PearlChangeState(msg))
             } else {
-                let lock_guard: &LockGuard<PearlSync> = &pearl.storage;
-                let rwlock: &RwLock<PearlSync> = lock_guard.storage.as_ref();
+                let lock_guard = &holder.storage;
+                let rwlock = lock_guard.storage.as_ref();
                 {
-                    let pearl_sync: RwLockWriteGuard<_> = rwlock.write().await;
-                    let storage: &Storage<_> = pearl_sync.storage.as_ref().expect("pearl storage");
+                    let pearl_sync = rwlock.write().await;
+                    let storage = pearl_sync.storage.as_ref().expect("pearl storage");
                     if let Err(e) = storage.close().await {
                         warn!("pearl closed: {:?}", e);
                     }
                 }
-                let mut pearls_to_return = pearls
-                    .drain_filter(|pearl| pearl.start_timestamp() == start_timestamp)
+                let mut holders_to_return = holders
+                    .drain_filter(|holder| holder.start_timestamp() == start_timestamp)
                     .collect::<Vec<_>>();
-                pearls_to_return
-                    .pop()
-                    .ok_or(Error::PearlChangeState(format!(
+                holders_to_return.pop().ok_or_else(|| {
+                    Error::PearlChangeState(format!(
                         "error detaching pearl with timestamp {}",
                         start_timestamp
-                    )))
+                    ))
+                })
             }
         } else {
             let msg = format!("pearl:{} not found", start_timestamp);
@@ -304,14 +301,14 @@ impl Group {
     }
 
     pub(crate) fn create_current_pearl(&self) -> Holder {
-        let start_timestamp = self.settings.get_current_timestamp_start();
+        let start_timestamp = self.settings.get_actual_timestamp_start();
         self.create_pearl_holder(start_timestamp)
     }
 
     pub(crate) fn read_vdisk_directory(&self) -> BackendResult<Vec<Holder>> {
         Stuff::check_or_create_directory(&self.directory_path)?;
 
-        let mut pearls = vec![];
+        let mut holders = vec![];
         let pearl_directories = Settings::get_all_subdirectories(&self.directory_path)?;
         for entry in pearl_directories {
             if let Ok(file_name) = entry
@@ -324,11 +321,10 @@ impl Group {
                     .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry))
                     .expect("parse file name");
                 let pearl_holder = self.create_pearl_holder(start_timestamp);
-                trace!("read pearl: {:?}", pearl_holder);
-                pearls.push(pearl_holder);
+                holders.push(pearl_holder);
             }
         }
-        Ok(pearls)
+        Ok(holders)
     }
 }
 

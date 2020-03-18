@@ -215,7 +215,7 @@ impl Settings {
     }
 
     #[inline]
-    pub fn get_current_timestamp_start(&self) -> i64 {
+    pub fn get_actual_timestamp_start(&self) -> i64 {
         Stuff::get_start_timestamp_by_std_time(self.timestamp_period, SystemTime::now())
     }
 
@@ -241,6 +241,6 @@ impl Settings {
     }
 
     pub(crate) fn is_actual_pearl(&self, pearl: &Holder) -> bool {
-        pearl.start_timestamp() == self.get_current_timestamp_start()
+        pearl.start_timestamp() == self.get_actual_timestamp_start()
     }
 }

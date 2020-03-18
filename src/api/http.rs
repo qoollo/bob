@@ -161,8 +161,8 @@ fn vdisk_by_id(bob: State<BobServer>, vdisk_id: u32) -> Option<Json<VDisk>> {
 fn partitions(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<VDiskPartitions>, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     debug!("group with provided vdisk_id found");
-    let pearls = group.pearls();
-    let pearls = runtime().block_on(pearls.read());
+    let holders = group.holders();
+    let pearls = runtime().block_on(holders.read());
     debug!("get pearl holders: OK");
     let pearls: &[_] = pearls.as_ref();
     let partitions = pearls.iter().map(|pearl| pearl.start_timestamp()).collect();
@@ -184,12 +184,12 @@ fn partition_by_id(
 ) -> Result<Json<Partition>, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     debug!("group with provided vdisk_id found");
-    let pearls = group.pearls();
+    let holders = group.holders();
     debug!("get pearl holders: OK");
     // TODO: run web server on same runtime as bob
     error!("HOT FIX: run web server on same runtime as bob");
     let mut rt = Runtime::new().expect("create runtime");
-    let pearls = rt.block_on(pearls.read());
+    let pearls = rt.block_on(holders.read());
     pearls
         .iter()
         .map(|pearl| pearl.start_timestamp())
