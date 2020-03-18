@@ -1,12 +1,19 @@
+/// Component responsible for working with I/O.
 pub mod backend;
+/// GRPC client to deal with backend.
 pub mod bob_client;
-pub mod cluster;
+pub(crate) mod cluster;
+/// Configuration tools.
 pub mod configs;
-pub mod data;
+pub(crate) mod data;
+/// Component to manage cluster I/O and connections.
 pub mod grinder;
-pub mod link_manager;
+pub(crate) mod link_manager;
+/// Component to map storage space on disks.
 pub mod mapper;
+/// Tools for tracking bob different indicators.
 pub mod metrics;
+/// GRPC server to receive and process requests from clients.
 pub mod server;
 
 pub(crate) use super::prelude::*;
@@ -21,9 +28,7 @@ mod prelude {
 
     pub(crate) use bob_client::{BobClient, Factory, GetResult as BobClientGetResult};
     pub(crate) use cluster::{get_cluster, Cluster};
-    pub(crate) use configs::{
-        ClusterConfig, DiskPath as ConfigDiskPath, Node as ClusterNodeConfig, NodeConfig,
-    };
+    pub(crate) use configs::{ClusterConfig, NodeConfig};
     pub(crate) use data::{
         BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, Node, NodeOutput, VDisk, VDiskId,
     };
@@ -58,21 +63,12 @@ mod prelude {
 
 #[cfg(test)]
 pub(crate) mod test_utils {
+    use super::bob_client::{Get, PingResult, PutResult};
     use super::prelude::*;
-    use super::{
-        backend::{BackendGetResult, BackendPingResult, BackendPutResult},
-        bob_client::{Get, PingResult, PutResult},
-        data::{BobData, BobMeta, Node, NodeOutput},
-        BackendError,
-    };
     use futures::future::ready;
 
     pub(crate) fn ping_ok(node_name: String) -> PingResult {
         Ok(NodeOutput::new(node_name, BackendPingResult {}))
-    }
-
-    pub(crate) fn ping_err(node_name: String) -> PingResult {
-        Err(NodeOutput::new(node_name, BackendError::Internal))
     }
 
     pub(crate) fn put_ok(node_name: String) -> PutResult {
@@ -84,15 +80,11 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn get_ok(node_name: String, timestamp: i64) -> Get {
-        Get({
-            ready(Ok(NodeOutput::new(
-                node_name,
-                BackendGetResult {
-                    data: BobData::new(vec![], BobMeta::new(timestamp)),
-                },
-            )))
-            .boxed()
-        })
+        let data = BobData::new(vec![], BobMeta::new(timestamp));
+        let res = BackendGetResult { data };
+        let output = Ok(NodeOutput::new(node_name, res));
+        let fut = ready(output);
+        Get(fut.boxed())
     }
 
     pub(crate) fn get_err(node_name: String) -> Get {

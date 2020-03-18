@@ -19,6 +19,6 @@ pub mod prelude {
             Config, Rocket, State,
         },
         rocket_contrib::json::Json,
-        server::BobSrv,
+        server::Server as BobServer,
     };
 }
