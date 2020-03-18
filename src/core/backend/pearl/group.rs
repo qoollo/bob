@@ -252,7 +252,7 @@ impl Group {
                 warn!("{}", msg);
                 Err(Error::PearlChangeState(msg))
             } else {
-                let lock_guard = &holder.storage;
+                let lock_guard = holder.storage();
                 let rwlock = lock_guard.storage.as_ref();
                 {
                     let pearl_sync = rwlock.write().await;

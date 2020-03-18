@@ -8,7 +8,7 @@ pub(crate) struct Holder {
     vdisk: VDiskId,
     disk_path: PathBuf,
     config: PearlConfig,
-    pub(crate) storage: Arc<LockGuard<PearlSync>>,
+    storage: Arc<LockGuard<PearlSync>>,
 }
 
 impl Holder {
@@ -33,20 +33,19 @@ impl Holder {
         self.start_timestamp
     }
 
-    pub(crate) fn end_timestamp(&self) -> i64 {
-        self.end_timestamp
+    pub(crate) fn storage(&self) -> &LockGuard<PearlSync> {
+        &self.storage
     }
 
     pub(crate) fn is_actual(&self, current_start: i64) -> bool {
-        self.start_timestamp() == current_start
+        self.start_timestamp == current_start
     }
 
     pub(crate) fn gets_into_interval(&self, timestamp: i64) -> bool {
-        self.start_timestamp() <= timestamp && timestamp < self.end_timestamp
+        self.start_timestamp <= timestamp && timestamp < self.end_timestamp
     }
 
     pub async fn update(&self, storage: Storage<Key>) {
-        trace!("try update Pearl id: {}", self.vdisk);
         self.storage
             .write_sync_mut(|st| {
                 st.set(storage.clone());
@@ -60,23 +59,20 @@ impl Holder {
     }
 
     pub async fn write(&self, key: BobKey, data: BobData) -> BackendResult<()> {
-        let task = self.storage.read(|state| {
+        let task = |state: PearlSync| {
             if state.is_ready() {
                 let storage = state.get();
                 trace!("Vdisk: {}, write key: {}", self.vdisk, key);
                 Self::write_disk(storage, Key::from(key), data.clone()).boxed()
             } else {
-                trace!(
-                    "Vdisk: {} is not ready for writing, state: {}",
-                    self.vdisk,
-                    state
-                );
+                trace!("Vdisk: {} isn't ready for writing: {}", self.vdisk, state);
                 future::err(Error::VDiskIsNotReady).boxed()
             }
-        });
-        task.await
+        };
+        self.storage.read(task).await
     }
 
+    // @TODO remove redundant return result
     async fn write_disk(storage: PearlStorage, key: Key, data: BobData) -> BackendResult<()> {
         PEARL_PUT_COUNTER.count(1);
         let timer = PEARL_PUT_TIMER.start();
@@ -85,7 +81,7 @@ impl Holder {
             .await
             .unwrap_or_else(|e| {
                 PEARL_PUT_ERROR_COUNTER.count(1);
-                trace!("error on write: {:?}", e);
+                error!("error on write: {:?}", e);
                 //TODO check duplicate
             });
         PEARL_PUT_TIMER.stop(timer);
@@ -93,70 +89,60 @@ impl Holder {
     }
 
     pub async fn read(&self, key: BobKey) -> Result<BobData, Error> {
-        self.storage
-            .read(|state| {
-                if state.is_ready() {
-                    let storage = state.get();
-                    trace!("Vdisk: {}, read key: {}", self.vdisk, key);
-                    PEARL_GET_COUNTER.count(1);
-                    let q = async move {
-                        let timer = PEARL_GET_TIMER.start();
-                        storage
-                            .read(Key::from(key))
-                            .await
-                            .map(|r| {
-                                PEARL_GET_TIMER.stop(timer);
-                                Data::from_bytes(&r)
-                            })
-                            .map_err(|e| {
-                                PEARL_GET_ERROR_COUNTER.count(1);
-                                trace!("error on read: {:?}", e);
-                                match e.kind() {
-                                    ErrorKind::RecordNotFound => Error::KeyNotFound(key),
-                                    _ => Error::Storage(format!("{:?}", e)),
-                                }
-                            })?
-                    };
-                    q.boxed()
-                } else {
-                    trace!(
-                        "Vdisk: {} is not ready for reading, state: {}",
-                        self.vdisk,
-                        state
-                    );
-                    future::err(Error::VDiskIsNotReady).boxed()
-                }
-            })
-            .await
+        let task = |state: PearlSync| {
+            if state.is_ready() {
+                let storage = state.get();
+                trace!("Vdisk: {}, read key: {}", self.vdisk, key);
+                PEARL_GET_COUNTER.count(1);
+                let task = async move {
+                    let timer = PEARL_GET_TIMER.start();
+                    storage
+                        .read(Key::from(key))
+                        .await
+                        .map(|r| {
+                            PEARL_GET_TIMER.stop(timer);
+                            Data::from_bytes(&r)
+                        })
+                        .map_err(|e| {
+                            PEARL_GET_ERROR_COUNTER.count(1);
+                            trace!("error on read: {:?}", e);
+                            match e.kind() {
+                                ErrorKind::RecordNotFound => Error::KeyNotFound(key),
+                                _ => Error::Storage(format!("{:?}", e)),
+                            }
+                        })?
+                };
+                task.boxed()
+            } else {
+                trace!("Vdisk: {} isn't ready for reading: {}", self.vdisk, state);
+                future::err(Error::VDiskIsNotReady).boxed()
+            }
+        };
+        self.storage.read(task).await
     }
 
-    pub async fn try_reinit(&self) -> BackendResult<bool> {
-        self.storage
-            .write_mut(|state| {
-                if state.is_reinit() {
-                    trace!(
-                        "Vdisk: {} is currently reinitializing, state: {}",
-                        self.vdisk,
-                        state
-                    );
-                    future::err(Error::VDiskIsNotReady).boxed()
-                } else {
-                    state.init();
-                    trace!("Vdisk: {} set as reinit, state: {}", self.vdisk, state);
-                    let storage = state.get();
-                    trace!("Vdisk: {} close old Pearl", self.vdisk);
-                    let q = async move {
-                        let result = storage.close().await;
-                        if let Err(e) = result {
-                            error!("can't close pearl storage: {:?}", e);
-                            // we can't do anything
-                        }
-                        Ok(true)
-                    };
-                    q.boxed()
-                }
-            })
-            .await
+    pub async fn try_reinit(&self) -> BackendResult<()> {
+        let task = |state: &mut PearlSync| {
+            if state.is_reinit() {
+                trace!("Vdisk: {} reinitializing now, state: {}", self.vdisk, state);
+                future::err(Error::VDiskIsNotReady).boxed()
+            } else {
+                state.init();
+                trace!("Vdisk: {} set as reinit, state: {}", self.vdisk, state);
+                let storage = state.get();
+                trace!("Vdisk: {} close old Pearl", self.vdisk);
+                let task = async move {
+                    let result = storage.close().await;
+                    if let Err(e) = result {
+                        error!("can't close pearl storage: {:?}", e);
+                        // we can't do anything
+                    }
+                    Ok(true)
+                };
+                task.boxed()
+            }
+        };
+        self.storage.write_mut(task).await
     }
 
     pub async fn exist(&self, key: BobKey) -> Result<bool, Error> {

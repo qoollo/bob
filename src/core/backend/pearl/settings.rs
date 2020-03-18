@@ -220,18 +220,6 @@ impl Settings {
     }
 
     #[inline]
-    pub(crate) fn is_actual(pearl: &Holder, data: &BobData) -> bool {
-        trace!(
-            "start: {}, end: {}, check: {}",
-            pearl.start_timestamp(),
-            pearl.end_timestamp(),
-            data.meta().timestamp()
-        );
-        pearl.start_timestamp() <= data.meta().timestamp()
-            && data.meta().timestamp() < pearl.end_timestamp()
-    }
-
-    #[inline]
     pub(crate) fn choose_most_recent_data(
         records: Vec<BackendGetResult>,
     ) -> Option<BackendGetResult> {
