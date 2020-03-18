@@ -37,6 +37,10 @@ impl Holder {
         self.end_timestamp
     }
 
+    pub(crate) fn is_actual(&self, current_start: i64) -> bool {
+        self.start_timestamp() == current_start
+    }
+
     pub async fn update(&self, storage: Storage<Key>) {
         trace!("try update Pearl id: {}", self.vdisk);
         self.storage

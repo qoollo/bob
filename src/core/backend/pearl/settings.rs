@@ -48,7 +48,6 @@ impl Settings {
                         config.name(),
                         disk.name().to_owned(),
                         path,
-                        config.pearl(),
                     )
                 })
                 .collect();
@@ -78,7 +77,6 @@ impl Settings {
                                 name.clone(),
                                 pearl.alien_disk(),
                                 vdisk_id.path().clone(),
-                                pearl,
                             );
                             result.push(group);
                         } else {
@@ -109,7 +107,6 @@ impl Settings {
             operation.remote_node_name(),
             self.config.alien_disk(),
             path,
-            self.config.clone(),
         );
         Ok(group)
     }

@@ -8,7 +8,6 @@ pub(crate) struct Group {
     // holds state when we create new pearl
     pearl_sync: Arc<SyncState>,
     settings: Arc<Settings>,
-    config: PearlConfig,
     directory_path: PathBuf,
     vdisk_id: VDiskId,
     node_name: String,
@@ -22,7 +21,6 @@ impl Group {
         node_name: String,
         disk_name: String,
         directory_path: PathBuf,
-        config: PearlConfig,
     ) -> Self {
         Self {
             holders: Arc::new(RwLock::new(vec![])),
@@ -31,7 +29,6 @@ impl Group {
             vdisk_id,
             node_name,
             directory_path,
-            config,
             disk_name,
         }
     }
@@ -48,45 +45,43 @@ impl Group {
         }
     }
 
+    // @TODO limit number of holder creation retry attempts
     pub async fn run(&self) {
-        let t = self.config.fail_retry_timeout();
+        let duration = self.settings.config.fail_retry_timeout();
 
-        let mut pearls = Vec::new();
+        let mut holders = Vec::new();
 
-        debug!("{}: read pearls from disk", self);
-        while let Err(e) = self.read_vdisk_directory().map(|read_pearls| {
-            pearls = read_pearls;
+        debug!("{}: read holders from disk", self);
+        while let Err(e) = self.read_vdisk_directory().map(|read_holders| {
+            holders = read_holders;
         }) {
-            error!("{}: can't create pearls: {:?}", self, e);
-            delay_for(t).await;
+            error!(
+                "{}: can't create pearl holders: {:?}, await for {}ms",
+                self,
+                e,
+                duration.as_millis()
+            );
+            delay_for(duration).await;
         }
-        debug!("{}: count pearls: {}", self, pearls.len());
-
-        debug!("{}: check current pearl for write", self);
-        if pearls
+        debug!("{}: count holders: {}", self, holders.len());
+        if holders
             .iter()
-            .all(|pearl| self.settings.is_actual_pearl(pearl))
+            .all(|holder| holder.is_actual(self.settings.get_current_timestamp_start()))
         {
             self.create_current_pearl();
         }
-
-        debug!("{}: save pearls to group", self);
-        self.add_range(pearls.clone()).await;
-
-        debug!("{}: start pearls", self);
-        while let Err(err) = self.run_pearls().await {
-            error!("{}: can't start pearls: {:?}", self, err);
-            delay_for(t).await;
-        }
+        debug!("{}: save holders to group", self);
+        self.add_range(holders).await;
+        debug!("{}: start holders", self);
+        self.run_pearls().await;
     }
 
-    async fn run_pearls(&self) -> BackendResult<()> {
+    async fn run_pearls(&self) {
         let holders = self.holders.write().await;
 
         for holder in holders.iter() {
             holder.prepare_storage().await;
         }
-        Ok(())
     }
 
     pub async fn add(&self, pearl: Holder) {
@@ -94,9 +89,9 @@ impl Group {
         pearls.push(pearl);
     }
 
-    pub async fn add_range(&self, new_pearls: Vec<Holder>) {
-        let mut pearls = self.holders.write().await;
-        pearls.extend(new_pearls);
+    pub async fn add_range(&self, new: Vec<Holder>) {
+        let mut holders = self.holders.write().await;
+        holders.extend(new);
     }
 
     /// find in all pearls actual pearl and try create new
@@ -136,7 +131,7 @@ impl Group {
             }
             self.pearl_sync.mark_as_created().await?;
         } else {
-            let t = self.config.settings().create_pearl_wait_delay();
+            let t = self.settings.config.settings().create_pearl_wait_delay();
             delay_for(t).await;
         }
         Ok(())
@@ -300,7 +295,7 @@ impl Group {
             end_timestamp,
             self.vdisk_id,
             path,
-            self.config.clone(),
+            self.settings.config.clone(),
         )
     }
 
