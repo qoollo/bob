@@ -51,7 +51,7 @@ impl Holder {
                 st.set(storage.clone());
                 st.ready(); // current pearl disk is ready
                 debug!(
-                    "update Pearl id: {}, mark as ready, state: {}",
+                    "update Pearl id: {}, mark as ready, state: {:?}",
                     self.vdisk, st
                 );
             })
@@ -65,7 +65,7 @@ impl Holder {
                 trace!("Vdisk: {}, write key: {}", self.vdisk, key);
                 Self::write_disk(storage, Key::from(key), data.clone()).boxed()
             } else {
-                trace!("Vdisk: {} isn't ready for writing: {}", self.vdisk, state);
+                trace!("Vdisk: {} isn't ready for writing: {:?}", self.vdisk, state);
                 future::err(Error::VDiskIsNotReady).boxed()
             }
         };
@@ -114,7 +114,7 @@ impl Holder {
                 };
                 task.boxed()
             } else {
-                trace!("Vdisk: {} isn't ready for reading: {}", self.vdisk, state);
+                trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
                 future::err(Error::VDiskIsNotReady).boxed()
             }
         };
@@ -124,11 +124,15 @@ impl Holder {
     pub async fn try_reinit(&self) -> BackendResult<()> {
         let task = |state: &mut PearlSync| {
             if state.is_reinit() {
-                trace!("Vdisk: {} reinitializing now, state: {}", self.vdisk, state);
+                trace!(
+                    "Vdisk: {} reinitializing now, state: {:?}",
+                    self.vdisk,
+                    state
+                );
                 future::err(Error::VDiskIsNotReady).boxed()
             } else {
                 state.init();
-                trace!("Vdisk: {} set as reinit, state: {}", self.vdisk, state);
+                trace!("Vdisk: {} set as reinit, state: {:?}", self.vdisk, state);
                 let storage = state.get();
                 trace!("Vdisk: {} close old Pearl", self.vdisk);
                 let task = async move {
@@ -158,36 +162,36 @@ impl Holder {
         }
     }
 
+    // @TODO limit retry attempts
     pub async fn prepare_storage(&self) {
-        let path = &self.disk_path;
-        let config = self.config.clone();
-        let t = config.fail_retry_timeout();
-
         let mut need_delay = false;
         loop {
             if need_delay {
-                delay_for(t).await;
+                delay_for(self.config.fail_retry_timeout()).await;
             }
             need_delay = true;
 
-            if let Err(e) = Stuff::check_or_create_directory(path) {
-                error!("cannot check path: {:?}, error: {}", path, e);
+            if let Err(e) = Stuff::check_or_create_directory(&self.disk_path) {
+                error!("cannot check path: {:?}, error: {}", self.disk_path, e);
                 continue;
             }
 
-            if let Err(e) = Stuff::drop_pearl_lock_file(path) {
-                error!("cannot delete lock file: {:?}, error: {}", path, e);
+            if let Err(e) = Stuff::drop_pearl_lock_file(&self.disk_path) {
+                error!(
+                    "cannot delete lock file: {:?}, error: {}",
+                    self.disk_path, e
+                );
                 continue;
             }
 
-            let storage = Self::init_pearl_by_path(path, &config);
+            let storage = self.init_pearl_by_path();
             if let Err(e) = storage {
-                error!("cannot build pearl by path: {:?}, error: {:?}", path, e);
+                error!("can't init pearl by path: {:?}, {:?}", self.disk_path, e);
                 continue;
             }
             let mut st = storage.unwrap();
             if let Err(e) = st.init().await {
-                error!("cannot init pearl by path: {:?}, error: {:?}", path, e);
+                error!("cannot init pearl by path: {:?}, {:?}", self.disk_path, e);
                 continue;
             }
             self.update(st).await;
@@ -200,21 +204,25 @@ impl Holder {
         Stuff::drop_directory(&self.disk_path)
     }
 
-    fn init_pearl_by_path(path: &PathBuf, config: &PearlConfig) -> BackendResult<PearlStorage> {
-        let mut builder = Builder::new().work_dir(path);
+    fn init_pearl_by_path(&self) -> BackendResult<PearlStorage> {
+        let mut builder = Builder::new().work_dir(&self.disk_path);
 
-        if config.allow_duplicates.unwrap_or(true) {
+        if self.config.allow_duplicates.unwrap_or(true) {
             builder = builder.allow_duplicates();
         }
 
-        let prefix = config
+        // @TODO add default values to be inserted on deserialisation step
+        let prefix = self
+            .config
             .blob_file_name_prefix
             .clone()
             .unwrap_or_else(|| "bob".to_string());
-        let max_data = config
+        let max_data = self
+            .config
             .max_data_in_blob
             .expect("max_data_in_blob is not set in pearl config");
-        let max_blob_size = config
+        let max_blob_size = self
+            .config
             .max_blob_size
             .expect("'max_blob_size' is not set in pearl config");
         builder
@@ -223,7 +231,7 @@ impl Holder {
             .max_blob_size(max_blob_size)
             .build()
             .map_err(|e| {
-                error!("cannot build pearl by path: {:?}, error: {}", path, e);
+                error!("cannot build pearl by path: {:?}, {}", &self.disk_path, e);
                 Error::Storage(e.to_string())
             })
     }
@@ -231,18 +239,17 @@ impl Holder {
 
 #[derive(Clone, PartialEq, Debug)]
 pub(crate) enum PearlState {
-    /// pearl is started and working
+    // pearl is started and working
     Normal,
-    /// pearl restarting
+    // pearl restarting
     Initializing,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct PearlSync {
-    pub(crate) storage: Option<PearlStorage>,
+    storage: Option<PearlStorage>,
     state: PearlState,
-
-    pub(crate) start_time_test: u8,
+    start_time_test: u8,
 }
 impl PearlSync {
     pub(crate) fn new() -> Self {
@@ -251,6 +258,10 @@ impl PearlSync {
             state: PearlState::Initializing,
             start_time_test: 0,
         }
+    }
+
+    pub(crate) fn storage(&self) -> &PearlStorage {
+        self.storage.as_ref().expect("pearl storage")
     }
 
     #[inline]
@@ -265,22 +276,17 @@ impl PearlSync {
 
     #[inline]
     pub(crate) fn is_ready(&self) -> bool {
-        self.get_state() == PearlState::Normal
+        self.state == PearlState::Normal
     }
 
     #[inline]
     pub(crate) fn is_reinit(&self) -> bool {
-        self.get_state() == PearlState::Initializing
+        self.state == PearlState::Initializing
     }
 
     #[inline]
     pub(crate) fn set_state(&mut self, state: PearlState) {
         self.state = state;
-    }
-
-    #[inline]
-    pub(crate) fn get_state(&self) -> PearlState {
-        self.state.clone()
     }
 
     #[inline]
@@ -292,14 +298,5 @@ impl PearlSync {
     #[inline]
     pub(crate) fn get(&self) -> PearlStorage {
         self.storage.clone().expect("cloned storage")
-    }
-}
-
-impl std::fmt::Display for PearlSync {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.debug_struct("PearlSync")
-            .field("state", &self.state)
-            .field("..", &"some fields ommited")
-            .finish()
     }
 }

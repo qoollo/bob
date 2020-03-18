@@ -258,7 +258,7 @@ impl Group {
                 let rwlock = lock_guard.storage.as_ref();
                 {
                     let pearl_sync = rwlock.write().await;
-                    let storage = pearl_sync.storage.as_ref().expect("pearl storage");
+                    let storage = pearl_sync.storage();
                     if let Err(e) = storage.close().await {
                         warn!("pearl closed: {:?}", e);
                     }
