@@ -9,7 +9,7 @@ mod stuff;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use self::core::PearlBackend;
+pub(crate) use self::core::Pearl;
 pub(crate) use self::group::PearlGroup;
 pub(crate) use self::metrics::init_pearl;
 pub(crate) use super::prelude::*;

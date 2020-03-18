@@ -129,7 +129,7 @@ impl Backend {
         let backend: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
-            BackendType::Pearl => Arc::new(PearlBackend::new(mapper.clone(), config)),
+            BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config)),
         };
         Self { backend, mapper }
     }

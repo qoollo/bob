@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-use crate::core::backend::pearl::core::PearlBackend;
+use crate::core::backend::pearl::core::Pearl as PearlBackend;
 use crate::core::configs::{node::NodeConfigYaml, ClusterConfigYaml};
 use std::fs::remove_dir_all;
 
