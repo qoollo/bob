@@ -315,8 +315,12 @@ fn stat_worker(
         let get_error = stat.get_error_count.load(Ordering::Relaxed);
         let put_spd = put_count_spd as f64 * k;
         let get_spd = get_count_spd as f64 * k;
-        put_speed_values.push(put_spd);
-        get_speed_values.push(get_spd);
+        if put_spd > 0.0 {
+            put_speed_values.push(put_spd);
+        }
+        if get_spd > 0.0 {
+            get_speed_values.push(get_spd);
+        }
         println!(
             "put: {:>6} rps  | get {:>6} rps   | put err: {:5}     | get err: {:5}\r\n\
             put: {:>6.2} kb/s | get: {:>6.2} kb/s | put lat: {:>6.2} ms | get lat: {:>6.2} ms",
