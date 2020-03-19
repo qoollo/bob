@@ -78,7 +78,7 @@ pub(crate) mod test_utils {
         Err(NodeOutput::new(node_name, BackendError::Internal))
     }
 
-    pub(crate) fn get_ok(node_name: String, timestamp: i64) -> Get {
+    pub(crate) fn get_ok(node_name: String, timestamp: u64) -> Get {
         let data = BobData::new(vec![], BobMeta::new(timestamp));
         let res = BackendGetResult { data };
         let output = Ok(NodeOutput::new(node_name, res));

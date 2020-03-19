@@ -44,7 +44,7 @@ impl Group {
 
     // @TODO limit number of holder creation retry attempts
     pub async fn run(&self) {
-        let duration = self.settings.config.fail_retry_timeout();
+        let duration = self.settings.config().fail_retry_timeout();
 
         let mut holders = Vec::new();
 
@@ -118,7 +118,7 @@ impl Group {
 
     // @TODO limit try init attempts
     // create pearl for current write
-    async fn create_write_pearl(&self, timestamp: i64) -> BackendResult<Holder> {
+    async fn create_write_pearl(&self, timestamp: u64) -> BackendResult<Holder> {
         loop {
             if self.pearl_sync.try_init().await? {
                 let pearl = self.create_pearl_by_timestamp(timestamp);
@@ -126,7 +126,7 @@ impl Group {
                 self.pearl_sync.mark_as_created().await?;
                 return Ok(pearl);
             } else {
-                let t = self.settings.config.settings().create_pearl_wait_delay();
+                let t = self.settings.config().settings().create_pearl_wait_delay();
                 warn!("pearl init failed, retry in {}ms", t.as_millis());
                 delay_for(t).await;
             }
@@ -226,7 +226,7 @@ impl Group {
         self.vdisk_id
     }
 
-    pub async fn attach(&self, start_timestamp: i64) -> BackendResult<()> {
+    pub async fn attach(&self, start_timestamp: u64) -> BackendResult<()> {
         let holders = self.holders.read().await;
         if holders
             .iter()
@@ -242,7 +242,7 @@ impl Group {
         }
     }
 
-    pub async fn detach(&self, start_timestamp: i64) -> BackendResult<Holder> {
+    pub async fn detach(&self, start_timestamp: u64) -> BackendResult<Holder> {
         let mut holders = self.holders.write().await;
         debug!("write lock acquired");
         if let Some(holder) = holders.iter().find(|holder| {
@@ -255,7 +255,7 @@ impl Group {
                 Err(Error::PearlChangeState(msg))
             } else {
                 let lock_guard = holder.storage();
-                let rwlock = lock_guard.storage.as_ref();
+                let rwlock = lock_guard.storage();
                 {
                     let pearl_sync = rwlock.write().await;
                     let storage = pearl_sync.storage();
@@ -279,8 +279,8 @@ impl Group {
         }
     }
 
-    pub fn create_pearl_holder(&self, start_timestamp: i64) -> Holder {
-        let end_timestamp = start_timestamp + self.settings.get_timestamp_period();
+    pub fn create_pearl_holder(&self, start_timestamp: u64) -> Holder {
+        let end_timestamp = start_timestamp + self.settings.timestamp_period_as_secs();
         let mut path = self.directory_path.clone();
         path.push(format!("{}/", start_timestamp));
 
@@ -289,11 +289,11 @@ impl Group {
             end_timestamp,
             self.vdisk_id,
             path,
-            self.settings.config.clone(),
+            self.settings.config().clone(),
         )
     }
 
-    pub(crate) fn create_pearl_by_timestamp(&self, time: i64) -> Holder {
+    pub(crate) fn create_pearl_by_timestamp(&self, time: u64) -> Holder {
         let start_timestamp =
             Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period(), time);
         self.create_pearl_holder(start_timestamp)

@@ -7,7 +7,7 @@ use std::fs::remove_dir_all;
 static DISK_NAME: &str = "disk1";
 static PEARL_PATH: &str = "/tmp/d1/";
 const KEY_ID: u64 = 1;
-const TIMESTAMP: i64 = 1;
+const TIMESTAMP: u64 = 1;
 
 fn drop_pearl() {
     let path = PathBuf::from(PEARL_PATH);

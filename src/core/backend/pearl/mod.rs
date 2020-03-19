@@ -21,13 +21,12 @@ mod prelude {
     pub(crate) use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
     pub(crate) use configs::PearlConfig;
     pub(crate) use data::{Data, Key};
-    pub(crate) use holder::{Holder, PearlSync};
+    pub(crate) use holder::Holder;
     pub(crate) use metrics::{
         PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
         PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
     };
     pub(crate) use settings::Settings;
     pub(crate) use stuff::{LockGuard, Stuff, SyncState};
-    pub(crate) use tokio::sync::RwLockWriteGuard;
     pub(crate) use tokio::time::delay_for;
 }

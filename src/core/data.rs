@@ -119,15 +119,15 @@ impl Display for BobData {
 
 #[derive(Debug, Clone)]
 pub(crate) struct BobMeta {
-    timestamp: i64,
+    timestamp: u64,
 }
 impl BobMeta {
-    pub(crate) fn new(timestamp: i64) -> Self {
+    pub(crate) fn new(timestamp: u64) -> Self {
         Self { timestamp }
     }
 
     #[inline]
-    pub(crate) fn timestamp(&self) -> i64 {
+    pub(crate) fn timestamp(&self) -> u64 {
         self.timestamp
     }
 

@@ -3,8 +3,8 @@ use super::prelude::*;
 /// Struct hold pearl and add put/get/restart api
 #[derive(Clone, Debug)]
 pub(crate) struct Holder {
-    start_timestamp: i64,
-    end_timestamp: i64,
+    start_timestamp: u64,
+    end_timestamp: u64,
     vdisk: VDiskId,
     disk_path: PathBuf,
     config: PearlConfig,
@@ -13,8 +13,8 @@ pub(crate) struct Holder {
 
 impl Holder {
     pub(crate) fn new(
-        start_timestamp: i64,
-        end_timestamp: i64,
+        start_timestamp: u64,
+        end_timestamp: u64,
         vdisk: VDiskId,
         disk_path: PathBuf,
         config: PearlConfig,
@@ -29,7 +29,7 @@ impl Holder {
         }
     }
 
-    pub(crate) fn start_timestamp(&self) -> i64 {
+    pub(crate) fn start_timestamp(&self) -> u64 {
         self.start_timestamp
     }
 
@@ -37,11 +37,11 @@ impl Holder {
         &self.storage
     }
 
-    pub(crate) fn is_actual(&self, current_start: i64) -> bool {
+    pub(crate) fn is_actual(&self, current_start: u64) -> bool {
         self.start_timestamp == current_start
     }
 
-    pub(crate) fn gets_into_interval(&self, timestamp: i64) -> bool {
+    pub(crate) fn gets_into_interval(&self, timestamp: u64) -> bool {
         self.start_timestamp <= timestamp && timestamp < self.end_timestamp
     }
 
@@ -150,7 +150,7 @@ impl Holder {
     }
 
     pub async fn exist(&self, key: BobKey) -> Result<bool, Error> {
-        let state = self.storage.storage.read().await;
+        let state = self.storage.storage().read().await;
         if state.is_ready() {
             trace!("Vdisk: {}, check key: {}", self.vdisk, key);
             let pearl_key = Key::from(key);

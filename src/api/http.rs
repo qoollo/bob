@@ -30,7 +30,7 @@ pub(crate) struct VDiskPartitions {
     vdisk_id: u32,
     node_name: String,
     disk_name: String,
-    partitions: Vec<i64>,
+    partitions: Vec<u64>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -38,7 +38,7 @@ pub(crate) struct Partition {
     vdisk_id: u32,
     node_name: String,
     disk_name: String,
-    timestamp: i64,
+    timestamp: u64,
 }
 
 #[derive(Debug)]
@@ -180,7 +180,7 @@ fn partitions(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<VDiskPartitio
 fn partition_by_id(
     bob: State<'_, BobServer>,
     vdisk_id: u32,
-    partition_id: i64,
+    partition_id: u64,
 ) -> Result<Json<Partition>, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     debug!("group with provided vdisk_id found");
@@ -220,7 +220,7 @@ fn partition_by_id(
 fn change_partition_state(
     bob: State<BobServer>,
     vdisk_id: u32,
-    partition_id: i64,
+    partition_id: u64,
     action: Action,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
@@ -251,7 +251,7 @@ fn change_partition_state(
 fn delete_partition(
     bob: State<BobServer>,
     vdisk_id: u32,
-    partition_id: i64,
+    partition_id: u64,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     let pearl = futures::executor::block_on(group.detach(partition_id));

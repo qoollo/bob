@@ -21,7 +21,7 @@ impl AsRef<[u8]> for Key {
 
 pub(crate) struct Data {
     data: Vec<u8>,
-    timestamp: i64,
+    timestamp: u64,
 }
 
 impl Data {
@@ -38,7 +38,7 @@ impl Data {
         let bytes = ts
             .try_into()
             .map_err(|e| Error::Storage(format!("parse error: {}", e)))?;
-        let timestamp = i64::from_be_bytes(bytes);
+        let timestamp = u64::from_be_bytes(bytes);
         let meta = BobMeta::new(timestamp);
         Ok(BobData::new(bob_data.to_vec(), meta))
     }
