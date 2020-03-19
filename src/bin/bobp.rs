@@ -14,7 +14,10 @@ use std::thread::JoinHandle;
 use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::time::delay_for;
 use tonic::transport::{Channel, Endpoint};
-use tonic::{Code, Request};
+use tonic::{Code, Request, Status};
+
+#[macro_use]
+extern crate log;
 
 #[derive(Clone)]
 struct NetConfig {
@@ -149,30 +152,32 @@ impl Statistics {
         self.get_count_single_thread.fetch_add(1, Ordering::Relaxed);
     }
 
-    fn save_get_error(&self, code: Code) {
+    fn save_get_error(&self, status: Status) {
         self.get_errors
             .lock()
             .map(|mut guard| {
                 guard
-                    .entry(code as CodeRepresentation)
+                    .entry(status.code() as CodeRepresentation)
                     .and_modify(|i| *i += 1)
                     .or_insert(1);
             })
             .expect("mutex");
         self.get_error_count.fetch_add(1, Ordering::SeqCst);
+        debug!("{}", status.message())
     }
 
-    fn save_put_error(&self, code: Code) {
+    fn save_put_error(&self, status: Status) {
         self.put_errors
             .lock()
             .map(|mut guard| {
                 guard
-                    .entry(code as CodeRepresentation)
+                    .entry(status.code() as CodeRepresentation)
                     .and_modify(|i| *i += 1)
                     .or_insert(1);
             })
             .expect("mutex");
         self.put_error_count.fetch_add(1, Ordering::SeqCst);
+        debug!("{}", status.message())
     }
 }
 
@@ -421,7 +426,7 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
             client.get(request).await
         };
         if let Err(status) = res {
-            stat.save_get_error(status.code());
+            stat.save_get_error(status);
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
     }
@@ -450,7 +455,7 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
             client.put(req).await
         };
         if let Err(status) = res {
-            stat.save_put_error(status.code());
+            stat.save_put_error(status);
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
     }
@@ -497,7 +502,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
             client.put(put_request).await
         };
         if let Err(status) = put_res {
-            stat.save_put_error(status.code());
+            stat.save_put_error(status);
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
         let get_request = Request::new(GetRequest {
@@ -513,7 +518,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
             client.get(get_request).await
         };
         if let Err(status) = get_res {
-            stat.save_get_error(status.code());
+            stat.save_get_error(status);
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
     }
