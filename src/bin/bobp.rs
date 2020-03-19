@@ -4,16 +4,17 @@ use bob::grpc::{
 };
 use bob::grpc::{Blob, BlobKey, BlobMeta};
 use clap::{App, Arg, ArgMatches};
+use std::collections::HashMap;
 use std::fmt::{Debug, Error, Formatter};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::time::delay_for;
 use tonic::transport::{Channel, Endpoint};
-use tonic::Request;
+use tonic::{Code, Request};
 
 #[derive(Clone)]
 struct NetConfig {
@@ -113,13 +114,15 @@ impl Debug for TaskConfig {
     }
 }
 
+type CodeRepresentation = i32; // Because tonic::Code does not implement hash
+
 #[derive(Default)]
 struct Statistics {
     put_total: AtomicU64,
-    put_error: AtomicU64,
+    put_error_count: AtomicU64,
 
     get_total: AtomicU64,
-    get_error: AtomicU64,
+    get_error_count: AtomicU64,
 
     put_time_ns_single_thread: AtomicU64,
     put_count_single_thread: AtomicU64,
@@ -128,6 +131,9 @@ struct Statistics {
     get_count_single_thread: AtomicU64,
 
     unverified_puts: AtomicU64,
+
+    get_errors: Mutex<HashMap<CodeRepresentation, u64>>,
+    put_errors: Mutex<HashMap<CodeRepresentation, u64>>,
 }
 
 impl Statistics {
@@ -141,6 +147,32 @@ impl Statistics {
         self.get_time_ns_single_thread
             .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
         self.get_count_single_thread.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn save_get_error(&self, code: Code) {
+        self.get_errors
+            .lock()
+            .map(|mut guard| {
+                guard
+                    .entry(code as CodeRepresentation)
+                    .and_modify(|i| *i += 1)
+                    .or_insert(1);
+            })
+            .expect("mutex");
+        self.get_error_count.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn save_put_error(&self, code: Code) {
+        self.put_errors
+            .lock()
+            .map(|mut guard| {
+                guard
+                    .entry(code as CodeRepresentation)
+                    .and_modify(|i| *i += 1)
+                    .or_insert(1);
+            })
+            .expect("mutex");
+        self.put_error_count.fetch_add(1, Ordering::SeqCst);
     }
 }
 
@@ -279,8 +311,8 @@ fn stat_worker(
             stat.get_count_single_thread.load(Ordering::Relaxed),
         ) as f64;
 
-        let put_error = stat.put_error.load(Ordering::Relaxed);
-        let get_error = stat.get_error.load(Ordering::Relaxed);
+        let put_error = stat.put_error_count.load(Ordering::Relaxed);
+        let get_error = stat.get_error_count.load(Ordering::Relaxed);
         let put_spd = put_count_spd as f64 * k;
         let get_spd = get_count_spd as f64 * k;
         put_speed_values.push(put_spd);
@@ -308,7 +340,7 @@ fn stat_worker(
         ((stat.put_total.load(Ordering::Relaxed) + stat.get_total.load(Ordering::Relaxed)) * 1000)
             .checked_div(elapsed.as_millis() as u64)
             .unwrap_or_default(),
-        stat.put_error.load(Ordering::Relaxed) + stat.get_error.load(Ordering::Relaxed),
+        stat.put_error_count.load(Ordering::Relaxed) + stat.get_error_count.load(Ordering::Relaxed),
         average(&put_speed_values),
         average(&get_speed_values),
         finite_or_default(
@@ -323,6 +355,28 @@ fn stat_worker(
         ),
         stat.unverified_puts.load(Ordering::Relaxed),
     );
+    stat.get_errors
+        .lock()
+        .map(|guard| {
+            if !guard.is_empty() {
+                println!("get errors:");
+                for (&code, count) in guard.iter() {
+                    println!("{:?} = {}", Code::from(code), count);
+                }
+            }
+        })
+        .expect("mutex");
+    stat.put_errors
+        .lock()
+        .map(|guard| {
+            if !guard.is_empty() {
+                println!("put errors:");
+                for (&code, count) in guard.iter() {
+                    println!("{:?} = {}", Code::from(code), count);
+                }
+            }
+        })
+        .expect("mutex");
 }
 
 fn average(values: &[f64]) -> f64 {
@@ -362,8 +416,8 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         } else {
             client.get(request).await
         };
-        if res.is_err() {
-            stat.get_error.fetch_add(1, Ordering::SeqCst);
+        if let Err(status) = res {
+            stat.save_get_error(status.code());
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
     }
@@ -391,8 +445,8 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         } else {
             client.put(req).await
         };
-        if res.is_err() {
-            stat.put_error.fetch_add(1, Ordering::SeqCst);
+        if let Err(status) = res {
+            stat.save_put_error(status.code());
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
     }
@@ -438,8 +492,8 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
         } else {
             client.put(put_request).await
         };
-        if put_res.is_err() {
-            stat.put_error.fetch_add(1, Ordering::SeqCst);
+        if let Err(status) = put_res {
+            stat.save_put_error(status.code());
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
         let get_request = Request::new(GetRequest {
@@ -454,8 +508,8 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
         } else {
             client.get(get_request).await
         };
-        if get_res.is_err() {
-            stat.get_error.fetch_add(1, Ordering::SeqCst);
+        if let Err(status) = get_res {
+            stat.save_get_error(status.code());
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
     }
