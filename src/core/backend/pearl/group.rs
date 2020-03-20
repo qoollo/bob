@@ -147,7 +147,8 @@ impl Group {
     async fn put_common(holder: Holder, key: BobKey, data: BobData) -> PutResult {
         let result = holder.write(key, data).await;
         if let Err(e) = result {
-            if e.is_put_error_need_restart() {
+            if !e.is_duplicate() && !e.is_not_ready() {
+                error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
                 holder.prepare_storage().await;
             }
@@ -191,7 +192,7 @@ impl Group {
     async fn get_common(holder: Holder, key: BobKey) -> GetResult {
         let result = holder.read(key).await;
         if let Err(e) = &result {
-            if e.is_get_error_need_restart() {
+            if !e.is_key_not_found() && !e.is_not_ready() {
                 holder.try_reinit().await?;
                 holder.prepare_storage().await;
             }

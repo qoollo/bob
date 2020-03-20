@@ -157,9 +157,7 @@ impl Backend {
         data: BobData,
         operation: BackendOperation,
     ) -> PutResult {
-        self.put_single(key, data, operation)
-            .await
-            .map_err(Error::convert_backend)
+        self.put_single(key, data, operation).await
     }
 
     async fn put_single(
@@ -175,7 +173,7 @@ impl Backend {
             debug!("PUT[{}] to backend: {:?}", key, operation);
             let result = self.inner.put(operation.clone(), key, data.clone()).0.await;
             match result {
-                Err(err) if err.is_put_error_need_alien() => {
+                Err(err) if !err.is_duplicate() => {
                     error!(
                         "PUT[{}][{}] to backend. Error: {:?}",
                         key,
@@ -197,7 +195,8 @@ impl Backend {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
         // we cannot get data from alien if it belong this node
-        let result = if options.get_normal() {
+
+        if options.get_normal() {
             if let Some(path) = disk_path {
                 trace!("GET[{}] try read normal", key);
                 self.get_local(key, BackendOperation::new_local(vdisk_id, path.clone()))
@@ -220,14 +219,11 @@ impl Backend {
                 key, disk_path, options
             );
             Err(Error::Internal)
-        };
-        result.map_err(Error::convert_backend)
+        }
     }
 
     pub(crate) async fn get_local(&self, key: BobKey, op: BackendOperation) -> GetResult {
-        self.get_single(key, op)
-            .await
-            .map_err(Error::convert_backend)
+        self.get_single(key, op).await
     }
 
     async fn get_single(&self, key: BobKey, operation: BackendOperation) -> GetResult {

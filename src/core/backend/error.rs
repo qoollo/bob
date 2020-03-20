@@ -3,57 +3,30 @@ use super::prelude::*;
 #[derive(PartialEq, Debug, Clone)]
 pub enum Error {
     Timeout,
-
     VDiskNotFound(VDiskId),
     Storage(String),
     DuplicateKey,
     KeyNotFound(BobKey),
     VDiskIsNotReady,
-
     Failed(String),
     Internal,
-
     PearlChangeState(String),
 }
 
 impl Error {
-    /// check if backend error causes `bob_client` reconnect
-    pub(crate) fn is_service(&self) -> bool {
-        match self {
-            Self::Timeout | Self::Failed(_) => true,
-            _ => false,
-        }
+    pub(crate) fn is_not_ready(&self) -> bool {
+        self == &Self::VDiskIsNotReady
     }
 
-    /// check if put error causes pearl restart
-    pub(crate) fn is_put_error_need_restart(&self) -> bool {
-        match self {
-            Self::DuplicateKey | Self::VDiskIsNotReady => false,
-            _ => true,
-        }
+    pub(crate) fn is_duplicate(&self) -> bool {
+        self == &Self::DuplicateKey
     }
 
-    /// check if put error causes put to local alien
-    pub(crate) fn is_put_error_need_alien(&self) -> bool {
-        match self {
-            Self::DuplicateKey => false,
-            _ => true,
-        }
-    }
-
-    /// check if get error causes pearl restart
-    pub(crate) fn is_get_error_need_restart(&self) -> bool {
-        match self {
-            Self::KeyNotFound(_) | Self::VDiskIsNotReady => false,
-            _ => true,
-        }
-    }
-
-    /// hide backend errors
-    pub(crate) fn convert_backend(self) -> Self {
-        match self {
-            Self::DuplicateKey | Self::KeyNotFound(_) => self,
-            _ => Self::Internal,
+    pub(crate) fn is_key_not_found(&self) -> bool {
+        if let Self::KeyNotFound(_) = self {
+            true
+        } else {
+            false
         }
     }
 }
@@ -62,8 +35,10 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         match self {
             Self::VDiskNotFound(id) => write!(f, "vdisk: {:?} not found", id),
-            Self::Storage(description) => write!(f, "backend error: {}", description),
-            Self::PearlChangeState(description) => write!(f, "backend error: {}", description),
+            Self::Storage(description) => write!(f, "backend storage error: {}", description),
+            Self::PearlChangeState(description) => {
+                write!(f, "backend pearl change state error: {}", description)
+            }
             err => write!(f, "{:?}", err),
         }
     }
@@ -81,7 +56,7 @@ impl From<IOError> for Error {
 impl Into<Status> for Error {
     fn into(self) -> Status {
         //TODO add custom errors
-        trace!("Error: {}", self.clone());
+        trace!("Error: {}", self);
         match self {
             Self::KeyNotFound(key) => Status::not_found(format!("KeyNotFound {}", key)),
             Self::DuplicateKey => Status::already_exists("DuplicateKey"),
@@ -104,10 +79,10 @@ impl From<Status> for Error {
         match name {
             None => None,
             Some(name) => match name {
-                "KeyNotFound" => parse_next(words, |key| Self::KeyNotFound(key)),
+                "KeyNotFound" => parse_next(words, Self::KeyNotFound),
                 "DuplicateKey" => Some(Self::DuplicateKey),
                 "Timeout" => Some(Self::Timeout),
-                "VDiskNotFound" => parse_next(words, |n| Self::VDiskNotFound(n)),
+                "VDiskNotFound" => parse_next(words, Self::VDiskNotFound),
                 "Storage" => Some(Self::Storage(rest_words(words, length))),
                 "VDiskIsNotReady" => Some(Self::VDiskIsNotReady),
                 "Failed" => Some(Self::Failed(rest_words(words, length))),
@@ -116,7 +91,7 @@ impl From<Status> for Error {
                 _ => None,
             },
         }
-        .unwrap_or(Self::Failed("Can't parse status".to_string()))
+        .unwrap_or_else(|| Self::Failed("Can't parse status".to_string()))
     }
 }
 
