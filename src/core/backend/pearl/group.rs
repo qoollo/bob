@@ -32,13 +32,13 @@ impl Group {
 
     pub fn can_process_operation(&self, operation: &BackendOperation) -> bool {
         if operation.is_data_alien() {
-            if let Some(ref node_name) = operation.remote_node_name {
+            if let Some(node_name) = operation.remote_node_name() {
                 *node_name == self.node_name
             } else {
-                self.vdisk_id == operation.vdisk_id
+                self.vdisk_id == operation.vdisk_id()
             }
         } else {
-            self.disk_name == operation.disk_name_local() && self.vdisk_id == operation.vdisk_id
+            self.disk_name == operation.disk_name_local() && self.vdisk_id == operation.vdisk_id()
         }
     }
 
@@ -163,7 +163,7 @@ impl Group {
             let get = Self::get_common(holder.clone(), key).await;
             match get {
                 Ok(data) => {
-                    trace!("get data: {} from: {:?}", data, holder);
+                    trace!("get data: {:?} from: {:?}", data, holder);
                     results.push(data);
                 }
                 Err(BackendError::KeyNotFound(key)) => debug!("{} not found in {:?}", key, holder),
@@ -189,7 +189,7 @@ impl Group {
     }
 
     async fn get_common(holder: Holder, key: BobKey) -> GetResult {
-        let result = holder.read(key).await.map(|data| BackendGetResult { data });
+        let result = holder.read(key).await;
         if let Err(e) = &result {
             if e.is_get_error_need_restart() {
                 holder.try_reinit().await?;
@@ -199,7 +199,7 @@ impl Group {
         result
     }
 
-    pub async fn exist(&self, keys: &[BobKey]) -> BackendExistResult {
+    pub async fn exist(&self, keys: &[BobKey]) -> Vec<bool> {
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
@@ -207,7 +207,7 @@ impl Group {
                 exist[ind] = holder.exist(key).await.unwrap_or(false);
             }
         }
-        BackendExistResult { exist }
+        exist
     }
 
     pub fn holders(&self) -> Arc<RwLock<Vec<Holder>>> {

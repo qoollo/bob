@@ -48,7 +48,7 @@ impl Pearl {
         // check if pearl is currently creating
         if self.pearl_sync.try_init().await {
             // check if alien created
-            debug!("create alien for: {}", operation);
+            debug!("create alien for: {:?}", operation);
             if self.find_alien_pearl(operation.clone()).await.is_err() {
                 let pearl = self
                     .settings
@@ -70,7 +70,7 @@ impl Pearl {
             .iter()
             .find(|group| group.can_process_operation(&operation))
             .cloned()
-            .ok_or({ Error::Failed(format!("cannot find actual alien folder. {}", operation)) })
+            .ok_or({ Error::Failed(format!("cannot find actual alien folder. {:?}", operation)) })
     }
 }
 
@@ -94,7 +94,7 @@ impl BackendStorage for Pearl {
     }
 
     fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {
-        debug!("PUT[{}] to pearl backend. opeartion: {}", key, operation);
+        debug!("PUT[{}] to pearl backend. opeartion: {:?}", key, operation);
         let vdisk_group = self
             .vdisks_groups
             .iter()
@@ -112,10 +112,10 @@ impl BackendStorage for Pearl {
             Put(task.boxed())
         } else {
             debug!(
-                "PUT[{}] to pearl backend. Cannot find group, operation: {}",
+                "PUT[{}] to pearl backend. Cannot find group, operation: {:?}",
                 key, operation
             );
-            Put(future::err(Error::VDiskNotFound(operation.vdisk_id)).boxed())
+            Put(future::err(Error::VDiskNotFound(operation.vdisk_id())).boxed())
         }
     }
 
@@ -125,7 +125,7 @@ impl BackendStorage for Pearl {
         let task = async move {
             let mut vdisk_group = backend.find_alien_pearl(operation.clone()).await;
             if vdisk_group.is_err() {
-                debug!("need create alien for: {}", operation.clone());
+                debug!("need create alien for: {:?}", operation);
                 backend
                     .create_alien_pearl(operation.clone())
                     .await
@@ -140,17 +140,20 @@ impl BackendStorage for Pearl {
                 res
             } else {
                 debug!(
-                    "PUT[alien][{}] to pearl backend. Cannot find group, operation: {}",
+                    "PUT[alien][{}] to pearl backend. Cannot find group, operation: {:?}",
                     key, operation
                 );
-                Err(Error::VDiskNotFound(operation.vdisk_id))
+                Err(Error::VDiskNotFound(operation.vdisk_id()))
             }
         };
         Put(task.boxed())
     }
 
     fn get(&self, operation: BackendOperation, key: BobKey) -> Get {
-        debug!("Get[{}] from pearl backend. operation: {}", key, operation);
+        debug!(
+            "Get[{}] from pearl backend. operation: {:?}",
+            key, operation
+        );
         let vdisks_groups = self.vdisks_groups.clone();
         let vdisk_group = vdisks_groups
             .iter()
@@ -165,10 +168,10 @@ impl BackendStorage for Pearl {
                 res
             } else {
                 debug!(
-                    "GET[{}] to pearl backend. Cannot find storage, operation: {}",
+                    "GET[{}] to pearl backend. Cannot find storage, operation: {:?}",
                     key, operation
                 );
-                Err(Error::VDiskNotFound(operation.vdisk_id))
+                Err(Error::VDiskNotFound(operation.vdisk_id()))
             }
         };
         Get(task.boxed())
@@ -187,7 +190,7 @@ impl BackendStorage for Pearl {
                 res
             } else {
                 debug!(
-                    "GET[alien][{}] to pearl backend. Cannot find storage, operation: {}",
+                    "GET[alien][{}] to pearl backend. Cannot find storage, operation: {:?}",
                     key, operation
                 );
                 Err(Error::KeyNotFound(key))

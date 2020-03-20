@@ -116,13 +116,13 @@ impl Cluster for Quorum {
                     let res: Vec<ExistResult> = LinkManager::exist_on_nodes(&nodes, &keys).await;
                     for result in res {
                         if let Ok(result) = result {
-                            for (&r, &ind) in result.inner().exist.iter().zip(&indexes) {
+                            for (&r, &ind) in result.inner().iter().zip(&indexes) {
                                 exist[ind] |= r;
                             }
                         }
                     }
                 }
-                Ok(BackendExistResult { exist })
+                Ok(exist)
             }
             .boxed(),
         )

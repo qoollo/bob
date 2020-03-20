@@ -71,7 +71,7 @@ impl Grinder {
         &self,
         key: BobKey,
         opts: &BobOptions,
-    ) -> Result<BackendGetResult, BackendError> {
+    ) -> Result<BobData, BackendError> {
         if opts.flags().contains(BobFlags::FORCE_NODE) {
             CLIENT_GET_COUNTER.count(1);
             let time = CLIENT_GET_TIMER.start();
@@ -105,7 +105,7 @@ impl Grinder {
         &self,
         keys: &[BobKey],
         opts: &BobOptions,
-    ) -> Result<BackendExistResult, BackendError> {
+    ) -> Result<Vec<bool>, BackendError> {
         if opts.flags().contains(BobFlags::FORCE_NODE) {
             self.backend.exist(keys, opts).await
         } else {

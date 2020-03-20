@@ -29,7 +29,7 @@ impl VDisk {
             let repo = repo.read().await;
             if let Some(data) = repo.get(&key) {
                 trace!("GET[{}] from vdisk", key);
-                Ok(BackendGetResult { data: data.clone() })
+                Ok(data.clone())
             } else {
                 trace!("GET[{}] from vdisk failed. Cannot find key", key);
                 Err(Error::KeyNotFound(key))
@@ -43,7 +43,7 @@ impl VDisk {
         Exist(Box::pin(async move {
             let repo = repo.read().await;
             let result = keys.iter().map(|k| repo.get(k).is_some()).collect();
-            Ok(BackendExistResult { exist: result })
+            Ok(result)
         }))
     }
 }
@@ -163,7 +163,7 @@ impl BackendStorage for MemBackend {
         debug!("PUT[{}][{}] to backend", key, operation.disk_name_local());
         let disk = self.disks.get(&operation.disk_name_local());
         Put(if let Some(mem_disk) = disk {
-            mem_disk.put(&operation.vdisk_id, key, data).0
+            mem_disk.put(&operation.vdisk_id(), key, data).0
         } else {
             error!(
                 "PUT[{}] Can't find disk {}",
@@ -176,14 +176,14 @@ impl BackendStorage for MemBackend {
 
     fn put_alien(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}] to backend, foreign data", key);
-        Put(self.foreign_data.put(&operation.vdisk_id, key, data).0)
+        Put(self.foreign_data.put(&operation.vdisk_id(), key, data).0)
     }
 
     fn get(&self, operation: BackendOperation, key: BobKey) -> Get {
         debug!("GET[{}][{}] to backend", key, operation.disk_name_local());
         Get(
             if let Some(mem_disk) = self.disks.get(&operation.disk_name_local()) {
-                mem_disk.get(&operation.vdisk_id, key).0
+                mem_disk.get(&operation.vdisk_id(), key).0
             } else {
                 error!(
                     "GET[{}] Can't find disk {}",
@@ -197,14 +197,14 @@ impl BackendStorage for MemBackend {
 
     fn get_alien(&self, operation: BackendOperation, key: BobKey) -> Get {
         debug!("GET[{}] to backend, foreign data", key);
-        Get(self.foreign_data.get(&operation.vdisk_id, key).0)
+        Get(self.foreign_data.get(&operation.vdisk_id(), key).0)
     }
 
     fn exist(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
         debug!("EXIST[{}] to backend", operation.disk_name_local());
         Exist(
             if let Some(mem_disk) = self.disks.get(&operation.disk_name_local()) {
-                mem_disk.exist(&operation.vdisk_id, keys).0
+                mem_disk.exist(&operation.vdisk_id(), keys).0
             } else {
                 error!("EXIST Can't find disk {}", operation.disk_name_local());
                 future::err(Error::Internal).boxed()
@@ -214,6 +214,6 @@ impl BackendStorage for MemBackend {
 
     fn exist_alien(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
         debug!("EXIST to backend, foreign data");
-        Exist(self.foreign_data.exist(&operation.vdisk_id, keys).0)
+        Exist(self.foreign_data.exist(&operation.vdisk_id(), keys).0)
     }
 }

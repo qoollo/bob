@@ -82,8 +82,7 @@ pub(crate) mod b_client {
 
         #[allow(dead_code)]
         pub(crate) fn get(&self, key: BobKey, options: GetOptions) -> Get {
-            let n1 = self.node.clone();
-            let n2 = self.node.clone();
+            let node_name = self.node.name().to_owned();
             let mut client = self.client.clone();
             let t = self.operation_timeout;
 
@@ -103,24 +102,18 @@ pub(crate) mod b_client {
                 )
                 .await
                 .expect("client get with timeout");
-                res.map(move |r| {
+                res.map(|r| {
                     metrics.get_timer_stop(timer);
                     let ans = r.into_inner();
-                    NodeOutput::new(
-                        n1.name().to_owned(),
-                        BackendGetResult {
-                            data: BobData::new(
-                                ans.data,
-                                BobMeta::new(ans.meta.expect("get blob meta").timestamp),
-                            ),
-                        },
-                    )
+                    let meta = BobMeta::new(ans.meta.expect("get blob meta").timestamp);
+                    let inner = BobData::new(ans.data, meta);
+                    NodeOutput::new(node_name.clone(), inner)
                 })
                 .map_err(BackendError::from)
                 .map_err(|e| {
                     metrics2.get_error_count();
                     metrics2.get_timer_stop(timer);
-                    NodeOutput::new(n2.name().to_owned(), e)
+                    NodeOutput::new(node_name, e)
                 })
             }
             .boxed();
@@ -133,7 +126,7 @@ pub(crate) mod b_client {
             timeout(self.operation_timeout, client.ping(Request::new(Null {})))
                 .await
                 .expect("client ping with timeout")
-                .map(|_| NodeOutput::new(self.node.name().to_owned(), BackendPingResult {}))
+                .map(|_| NodeOutput::new(self.node.name().to_owned(), ()))
                 .map_err(|_| NodeOutput::new(self.node.name().to_owned(), BackendError::Timeout))
         }
 
@@ -155,12 +148,7 @@ pub(crate) mod b_client {
             exist_response: Result<Response<ExistResponse>, Status>,
         ) -> ExistResult {
             match exist_response {
-                Ok(response) => Ok(NodeOutput::new(
-                    node_name,
-                    BackendExistResult {
-                        exist: response.into_inner().exist,
-                    },
-                )),
+                Ok(response) => Ok(NodeOutput::new(node_name, response.into_inner().exist)),
                 Err(error) => Err(NodeOutput::new(node_name, BackendError::from(error))),
             }
         }
@@ -205,12 +193,12 @@ use super::prelude::*;
 
 pub(crate) type PutResult = Result<NodeOutput<()>, NodeOutput<BackendError>>;
 
-pub(crate) type GetResult = Result<NodeOutput<BackendGetResult>, NodeOutput<BackendError>>;
+pub(crate) type GetResult = Result<NodeOutput<BobData>, NodeOutput<BackendError>>;
 pub(crate) struct Get(pub(crate) Pin<Box<dyn Future<Output = GetResult> + Send>>);
 
-pub(crate) type PingResult = Result<NodeOutput<BackendPingResult>, NodeOutput<BackendError>>;
+pub(crate) type PingResult = Result<NodeOutput<()>, NodeOutput<BackendError>>;
 
-pub(crate) type ExistResult = Result<NodeOutput<BackendExistResult>, NodeOutput<BackendError>>;
+pub(crate) type ExistResult = Result<NodeOutput<Vec<bool>>, NodeOutput<BackendError>>;
 
 /// Bob metrics factory
 #[derive(Clone)]

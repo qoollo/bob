@@ -51,7 +51,7 @@ async fn test_mem_put_get() {
         .0
         .await
         .unwrap();
-    assert_eq!(retval.data.into_inner(), vec![1]);
+    assert_eq!(retval.into_inner(), vec![1]);
 }
 
 #[tokio::test]

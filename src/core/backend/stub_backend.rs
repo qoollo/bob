@@ -29,27 +29,21 @@ impl BackendStorage for StubBackend {
 
     fn get(&self, _operation: BackendOperation, key: BobKey) -> Get {
         debug!("GET[{}]: hi from backend", key);
-        Get(future::ok(BackendGetResult {
-            data: BobData::new(vec![0], BobMeta::stub()),
-        })
-        .boxed())
+        Get(future::ok(BobData::new(vec![0], BobMeta::stub())).boxed())
     }
 
     fn get_alien(&self, _operation: BackendOperation, key: BobKey) -> Get {
         debug!("GET[{}]: hi from backend", key);
-        Get(future::ok(BackendGetResult {
-            data: BobData::new(vec![0], BobMeta::stub()),
-        })
-        .boxed())
+        Get(future::ok(BobData::new(vec![0], BobMeta::stub())).boxed())
     }
 
     fn exist(&self, _operation: BackendOperation, _keys: &[BobKey]) -> Exist {
         debug!("EXIST: hi from backend");
-        Exist(future::ok(BackendExistResult { exist: vec![] }).boxed())
+        Exist(future::ok(vec![]).boxed())
     }
 
     fn exist_alien(&self, _operation: BackendOperation, _keys: &[BobKey]) -> Exist {
         debug!("EXIST: hi from backend");
-        Exist(future::ok(BackendExistResult { exist: vec![] }).boxed())
+        Exist(future::ok(vec![]).boxed())
     }
 }

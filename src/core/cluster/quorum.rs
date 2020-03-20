@@ -49,7 +49,7 @@ impl Quorum {
         let mut add_nodes = vec![];
         for failed_node in failed_nodes {
             let mut op = operation.clone();
-            op.set_remote_folder(&failed_node);
+            op.set_remote_folder(failed_node.clone());
 
             if let Err(e) = backend.put_local(key.clone(), data.clone(), op).await {
                 debug!("PUT[{}] local support put result: {:?}", key, e);
@@ -99,7 +99,7 @@ impl Quorum {
     fn get_filter_result(
         key: BobKey,
         results: Vec<BobClientGetResult>,
-    ) -> (Option<NodeOutput<BackendGetResult>>, String) {
+    ) -> (Option<NodeOutput<BobData>>, String) {
         let sup = results
             .iter()
             .filter_map(|res| {
@@ -110,7 +110,7 @@ impl Quorum {
         let recent_successful = results
             .into_iter()
             .filter_map(Result::ok)
-            .max_by_key(|r| r.inner().data.meta().timestamp());
+            .max_by_key(|r| r.inner().meta().timestamp());
         (recent_successful, sup)
     }
 
@@ -272,7 +272,7 @@ impl Cluster for Quorum {
                     "GET[{}] take data from node: {}, timestamp: {}",
                     key,
                     answer.node_name(),
-                    answer.inner().data.meta().timestamp()
+                    answer.inner().meta().timestamp()
                 ); // TODO move meta
                 return Ok(answer.into_inner());
             } else if errors.is_empty() {
@@ -302,7 +302,7 @@ impl Cluster for Quorum {
                     "GET[{}] take data from node: {}, timestamp: {}",
                     key,
                     answer.node_name(),
-                    answer.inner().data.meta().timestamp()
+                    answer.inner().meta().timestamp()
                 ); // @TODO move meta
                 Ok(answer.into_inner())
             } else {
@@ -329,13 +329,13 @@ impl Cluster for Quorum {
                     let cluster_results = LinkManager::exist_on_nodes(&nodes, &keys).await;
                     for result in cluster_results {
                         if let Ok(result) = result {
-                            for (&r, &ind) in result.inner().exist.iter().zip(&indexes) {
+                            for (&r, &ind) in result.inner().iter().zip(&indexes) {
                                 exist[ind] |= r;
                             }
                         }
                     }
                 }
-                Ok(BackendExistResult { exist })
+                Ok(exist)
             }
             .boxed(),
         )
@@ -880,7 +880,7 @@ pub(crate) mod tests {
         let result = quorum.get_clustered_async(110).0.await;
 
         assert!(result.is_ok());
-        assert_eq!(1, result.unwrap().data.meta().timestamp());
+        assert_eq!(1, result.unwrap().meta().timestamp());
         assert_eq!(1, calls[0].1.get_count());
     }
 
@@ -905,7 +905,7 @@ pub(crate) mod tests {
         let result = quorum.get_clustered_async(110).0.await;
 
         assert!(result.is_ok());
-        assert_eq!(1, result.unwrap().data.meta().timestamp());
+        assert_eq!(1, result.unwrap().meta().timestamp());
         assert_eq!(1, calls[0].1.get_count());
     }
 }

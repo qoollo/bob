@@ -103,9 +103,9 @@ impl BobApi for Server {
             let elapsed = sw.elapsed_ms();
             debug!("GET[{}]-OK dt: {}ms", key, elapsed);
             let meta = Some(BlobMeta {
-                timestamp: get_res.data.meta().timestamp(),
+                timestamp: get_res.meta().timestamp(),
             });
-            let data = get_res.data.into_inner();
+            let data = get_res.into_inner();
             let blob = Blob { meta, data };
             let response = Response::new(blob);
             Ok(response)
@@ -129,8 +129,7 @@ impl BobApi for Server {
             .grinder
             .exist(&keys, &options)
             .await
-            .map_err::<Status, _>(|e| e.into())?
-            .exist;
+            .map_err::<Status, _>(|e| e.into())?;
         let elapsed = sw.elapsed();
         debug!("EXISTS-OK dt: {:?}", elapsed);
         let response = ExistResponse { exist };

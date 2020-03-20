@@ -80,13 +80,13 @@ async fn test_write_multiple_read() {
     assert!(write.is_ok());
 
     let mut read = backend.get(operation.clone(), KEY_ID).0.await;
-    assert_eq!(TIMESTAMP, read.unwrap().data.meta().timestamp());
+    assert_eq!(TIMESTAMP, read.unwrap().meta().timestamp());
     read = backend.get(operation.clone(), KEY_ID).0.await;
-    assert_eq!(TIMESTAMP, read.unwrap().data.meta().timestamp());
+    assert_eq!(TIMESTAMP, read.unwrap().meta().timestamp());
 
     let res = backend.get(operation.clone(), KEY_ID).0.await;
-    assert_eq!(TIMESTAMP, res.unwrap().data.meta().timestamp());
+    assert_eq!(TIMESTAMP, res.unwrap().meta().timestamp());
     let res = backend.get(operation, KEY_ID).0.await;
-    assert_eq!(TIMESTAMP, res.unwrap().data.meta().timestamp());
+    assert_eq!(TIMESTAMP, res.unwrap().meta().timestamp());
     drop_pearl();
 }

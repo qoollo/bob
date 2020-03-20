@@ -18,8 +18,8 @@ pub mod server;
 
 pub(crate) use super::prelude::*;
 pub(crate) use backend::{
-    init_pearl, Backend, BackendExistResult, BackendGetResult, BackendOperation, BackendPingResult,
-    Error as BackendError, Exist as BackendExist, Get as BackendGet, Put as BackendPut,
+    init_pearl, Backend, BackendOperation, Error as BackendError, Exist as BackendExist,
+    Get as BackendGet, Put as BackendPut,
 };
 
 mod prelude {
@@ -67,7 +67,7 @@ pub(crate) mod test_utils {
     use futures::future::ready;
 
     pub(crate) fn ping_ok(node_name: String) -> PingResult {
-        Ok(NodeOutput::new(node_name, BackendPingResult {}))
+        Ok(NodeOutput::new(node_name, ()))
     }
 
     pub(crate) fn put_ok(node_name: String) -> PutResult {
@@ -79,9 +79,8 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn get_ok(node_name: String, timestamp: u64) -> Get {
-        let data = BobData::new(vec![], BobMeta::new(timestamp));
-        let res = BackendGetResult { data };
-        let output = Ok(NodeOutput::new(node_name, res));
+        let inner = BobData::new(vec![], BobMeta::new(timestamp));
+        let output = Ok(NodeOutput::new(node_name, inner));
         let fut = ready(output);
         Get(fut.boxed())
     }

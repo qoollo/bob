@@ -90,14 +90,14 @@ impl Settings {
         self: Arc<Self>,
         operation: &BackendOperation,
     ) -> BackendResult<Group> {
-        let path = self.alien_path(operation.vdisk_id, &operation.remote_node_name());
+        let path = self.alien_path(operation.vdisk_id(), operation.remote_node_name().unwrap());
 
         Stuff::check_or_create_directory(&path)?;
 
         let group = Group::new(
             self.clone(),
-            operation.vdisk_id,
-            operation.remote_node_name(),
+            operation.vdisk_id(),
+            operation.remote_node_name().unwrap().to_owned(),
             self.config.alien_disk(),
             path,
         );
@@ -213,11 +213,9 @@ impl Settings {
     }
 
     #[inline]
-    pub(crate) fn choose_most_recent_data(
-        records: Vec<BackendGetResult>,
-    ) -> Option<BackendGetResult> {
+    pub(crate) fn choose_most_recent_data(records: Vec<BobData>) -> Option<BobData> {
         records
             .into_iter()
-            .max_by(|x, y| x.data.meta().timestamp().cmp(&y.data.meta().timestamp()))
+            .max_by(|x, y| x.meta().timestamp().cmp(&y.meta().timestamp()))
     }
 }
