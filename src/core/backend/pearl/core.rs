@@ -1,7 +1,6 @@
 use super::prelude::*;
 
 pub(crate) type BackendResult<T> = std::result::Result<T, Error>;
-pub(crate) type FutureResult<'a, T> = Pin<Box<dyn Future<Output = BackendResult<T>> + Send + 'a>>;
 pub(crate) type PearlStorage = Storage<Key>;
 
 #[derive(Clone, Debug)]
