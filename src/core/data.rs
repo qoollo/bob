@@ -84,7 +84,7 @@ impl<T> NodeOutput<T> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct BobData {
     inner: Vec<u8>,
     meta: BobMeta,
@@ -108,7 +108,7 @@ impl BobData {
     }
 }
 
-impl Display for BobData {
+impl Debug for BobData {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         f.debug_struct("BobData")
             .field("len", &self.inner.len())
