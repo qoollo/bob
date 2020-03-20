@@ -1,14 +1,14 @@
 use super::prelude::*;
 
 pub(crate) type BackendResult<T> = std::result::Result<T, Error>;
-pub(crate) type FutureResult<T> = Pin<Box<dyn Future<Output = BackendResult<T>> + Send>>;
+pub(crate) type FutureResult<'a, T> = Pin<Box<dyn Future<Output = BackendResult<T>> + Send + 'a>>;
 pub(crate) type PearlStorage = Storage<Key>;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Pearl {
     settings: Arc<Settings>,
     vdisks_groups: Arc<Vec<Group>>,
-    alien_vdisks_groups: Arc<LockGuard<Vec<Group>>>,
+    alien_vdisks_groups: Arc<RwLock<Vec<Group>>>,
     pearl_sync: Arc<SyncState>, // holds state when we create new alien pearl dir
 }
 
@@ -25,7 +25,7 @@ impl Pearl {
             .read_alien_directory(config)
             .expect("vec of pearl groups");
         trace!("count alien vdisk groups: {}", alien.len());
-        let alien_vdisks_groups = Arc::new(LockGuard::new(alien)); //TODO
+        let alien_vdisks_groups = Arc::new(RwLock::new(alien)); //TODO
 
         Self {
             settings,
@@ -47,7 +47,7 @@ impl Pearl {
 
     async fn create_alien_pearl(&self, operation: BackendOperation) -> BackendResult<()> {
         // check if pearl is currently creating
-        if self.pearl_sync.try_init().await? {
+        if self.pearl_sync.try_init().await {
             // check if alien created
             debug!("create alien for: {}", operation);
             if self.find_alien_pearl(operation.clone()).await.is_err() {
@@ -56,34 +56,22 @@ impl Pearl {
                     .clone()
                     .create_group(&operation)
                     .expect("pearl group");
-                self.alien_vdisks_groups
-                    .write_sync_mut(|groups| {
-                        groups.push(pearl.clone());
-                    })
-                    .await;
+                let mut groups = self.alien_vdisks_groups.write().await;
+                groups.push(pearl.clone());
             }
-            self.pearl_sync.mark_as_created().await
-        } else {
-            Ok(())
+            self.pearl_sync.mark_as_created().await;
         }
+        Ok(())
     }
 
     async fn find_alien_pearl(&self, operation: BackendOperation) -> BackendResult<Group> {
-        self.alien_vdisks_groups
-            .read(|pearls| {
-                let operation = operation.clone();
-                async move {
-                    pearls
-                        .iter()
-                        .find(|group| group.can_process_operation(&operation))
-                        .cloned()
-                        .ok_or({
-                            Error::Failed(format!("cannot find actual alien folder. {}", operation))
-                        })
-                }
-                .boxed()
-            })
-            .await
+        let operation = operation.clone();
+        let pearls = self.alien_vdisks_groups.read().await;
+        pearls
+            .iter()
+            .find(|group| group.can_process_operation(&operation))
+            .cloned()
+            .ok_or({ Error::Failed(format!("cannot find actual alien folder. {}", operation)) })
     }
 }
 
@@ -97,16 +85,11 @@ impl BackendStorage for Pearl {
             for vdisk_group in vdisks_groups.iter() {
                 vdisk_group.run().await;
             }
-            let task = |pearl_groups: Vec<Group>| {
-                async move {
-                    for group in pearl_groups {
-                        group.run().await;
-                    }
-                    Ok(())
-                }
-                .boxed()
-            };
-            alien_vdisks_groups.read(task).await
+            let pearl_groups = alien_vdisks_groups.read().await;
+            for group in pearl_groups.iter() {
+                group.run().await;
+            }
+            Ok(())
         }
         .boxed()
     }

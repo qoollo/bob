@@ -120,10 +120,10 @@ impl Group {
     // create pearl for current write
     async fn create_write_pearl(&self, timestamp: u64) -> BackendResult<Holder> {
         loop {
-            if self.pearl_sync.try_init().await? {
+            if self.pearl_sync.try_init().await {
                 let pearl = self.create_pearl_by_timestamp(timestamp);
                 self.save_pearl(pearl.clone()).await;
-                self.pearl_sync.mark_as_created().await?;
+                self.pearl_sync.mark_as_created().await;
                 return Ok(pearl);
             } else {
                 let t = self.settings.config().settings().create_pearl_wait_delay();
@@ -254,10 +254,9 @@ impl Group {
                 warn!("{}", msg);
                 Err(Error::PearlChangeState(msg))
             } else {
-                let lock_guard = holder.storage();
-                let rwlock = lock_guard.storage();
                 {
-                    let pearl_sync = rwlock.write().await;
+                    let lock_guard = holder.storage();
+                    let pearl_sync = lock_guard.write().await;
                     let storage = pearl_sync.storage();
                     if let Err(e) = storage.close().await {
                         warn!("pearl closed: {:?}", e);

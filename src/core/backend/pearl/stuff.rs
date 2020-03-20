@@ -2,82 +2,29 @@ use super::prelude::*;
 use std::fs::remove_dir_all;
 
 #[derive(Debug)]
-pub(crate) struct LockGuard<T> {
-    storage: Arc<RwLock<T>>,
-}
-
-impl<T: Send + Clone> LockGuard<T> {
-    pub(crate) fn new(data: T) -> Self {
-        Self {
-            storage: Arc::new(RwLock::new(data)),
-        }
-    }
-
-    pub(crate) fn storage(&self) -> &RwLock<T> {
-        &self.storage
-    }
-
-    pub(crate) async fn read<F, TRet>(&self, f: F) -> BackendResult<TRet>
-    where
-        F: Fn(T) -> FutureResult<TRet> + Send + Sync,
-    {
-        let storage = self.storage.read().await;
-        f(storage.clone()).await
-    }
-
-    pub(crate) async fn write_sync_mut<F, Ret>(&self, f: F) -> Ret
-    where
-        F: Fn(&mut T) -> Ret + Send + Sync,
-    {
-        let mut storage = self.storage.write().await;
-        f(&mut storage)
-    }
-
-    pub(crate) async fn write_mut<F, TRet>(&self, f: F) -> BackendResult<TRet>
-    where
-        F: Fn(&mut T) -> FutureResult<TRet> + Send + Sync,
-    {
-        let mut st = self.storage.write().await;
-
-        f(&mut st)
-            .map_err(|e| {
-                error!("lock error: {:?}", e);
-                Error::Storage(format!("lock error: {:?}", e))
-            })
-            .await
-    }
-}
-
-#[derive(Debug)]
 pub(crate) struct SyncState {
-    state: LockGuard<StateWrapper>,
+    state: RwLock<StateWrapper>,
 }
 impl SyncState {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            state: LockGuard::new(StateWrapper::new()),
+            state: RwLock::new(StateWrapper::new()),
         }
     }
-    pub async fn mark_as_created(&self) -> BackendResult<()> {
-        self.state
-            .write_mut(|st| {
-                st.created();
-                future::ok(()).boxed()
-            })
-            .await
+    pub(crate) async fn mark_as_created(&self) {
+        let mut st = self.state.write().await;
+        st.created();
     }
 
-    pub async fn try_init(&self) -> BackendResult<bool> {
-        self.state
-            .write_mut(|st| {
-                if st.is_creating() {
-                    trace!("New object is currently creating, state: {}", st);
-                    return future::ok(false).boxed();
-                }
-                st.start();
-                future::ok(true).boxed()
-            })
-            .await
+    pub(crate) async fn try_init(&self) -> bool {
+        let mut st = self.state.write().await;
+        if st.is_creating() {
+            trace!("New object is currently creating, state: {:?}", st);
+            false
+        } else {
+            st.start();
+            true
+        }
     }
 }
 
@@ -93,24 +40,24 @@ struct StateWrapper {
 }
 
 impl StateWrapper {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             state: CreationState::No,
         }
     }
 
     #[inline]
-    pub fn is_creating(&self) -> bool {
+    pub(crate) fn is_creating(&self) -> bool {
         self.state == CreationState::Creating
     }
 
     #[inline]
-    pub fn start(&mut self) {
+    pub(crate) fn start(&mut self) {
         self.state = CreationState::Creating;
     }
 
     #[inline]
-    pub fn created(&mut self) {
+    pub(crate) fn created(&mut self) {
         self.state = CreationState::No;
     }
 }
