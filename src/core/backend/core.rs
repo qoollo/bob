@@ -70,21 +70,24 @@ impl BackendOperation {
 }
 
 pub(crate) type GetResult = Result<BobData, Error>;
-pub(crate) struct Get(pub(crate) Pin<Box<dyn Future<Output = GetResult> + Send>>);
-
+pub(crate) type Get = Pin<Box<dyn Future<Output = GetResult> + Send>>;
 pub(crate) type PutResult = Result<(), Error>;
-pub(crate) struct Put(pub(crate) Pin<Box<dyn Future<Output = PutResult> + Send>>);
-
-pub(crate) type RunResult = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
-
+pub(crate) type Put = Pin<Box<dyn Future<Output = PutResult> + Send>>;
+pub(crate) type RunResult = Result<(), Error>;
+pub(crate) type Run = Pin<Box<dyn Future<Output = RunResult> + Send>>;
 pub(crate) type ExistResult = Result<Vec<bool>, Error>;
-pub(crate) struct Exist(pub(crate) Pin<Box<dyn Future<Output = ExistResult> + Send>>);
+pub(crate) type Exist = Pin<Box<dyn Future<Output = ExistResult> + Send>>;
 
 pub(crate) trait BackendStorage: Debug {
-    fn run_backend(&self) -> RunResult;
+    fn run_backend(&self) -> Run;
 
     fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put;
-    fn put_alien(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put;
+    fn put_alien(
+        &self,
+        operation: BackendOperation,
+        key: BobKey,
+        data: BobData,
+    ) -> Pin<Box<dyn Future<Output = PutResult> + Send>>;
 
     fn get(&self, operation: BackendOperation, key: BobKey) -> Get;
     fn get_alien(&self, operation: BackendOperation, key: BobKey) -> Get;
@@ -122,7 +125,7 @@ impl Backend {
     }
 
     #[inline]
-    pub(crate) async fn run_backend(&self) -> Result<(), Error> {
+    pub(crate) async fn run_backend(&self) -> RunResult {
         self.inner.run_backend().await
     }
 
@@ -168,10 +171,10 @@ impl Backend {
     ) -> PutResult {
         if operation.is_data_alien() {
             debug!("PUT[{}] to backend, alien data: {:?}", key, operation);
-            self.inner.put_alien(operation, key, data).0.await
+            self.inner.put_alien(operation, key, data).await
         } else {
             debug!("PUT[{}] to backend: {:?}", key, operation);
-            let result = self.inner.put(operation.clone(), key, data.clone()).0.await;
+            let result = self.inner.put(operation.clone(), key, data.clone()).await;
             match result {
                 Err(err) if !err.is_duplicate() => {
                     error!(
@@ -183,7 +186,7 @@ impl Backend {
                     // write to alien/<local name>
                     let mut op = operation.clone_alien();
                     op.set_remote_folder(self.mapper.local_node_name().to_owned());
-                    self.inner.put_alien(op, key, data).0.await.map_err(|_| err)
+                    self.inner.put_alien(op, key, data).await.map_err(|_| err)
                     // @TODO return both errors| we must return 'local' error if both ways are failed
                 }
                 _ => result,
@@ -229,10 +232,10 @@ impl Backend {
     async fn get_single(&self, key: BobKey, operation: BackendOperation) -> GetResult {
         if operation.is_data_alien() {
             debug!("GET[{}] to backend, foreign data", key);
-            self.inner.get_alien(operation, key).0.await
+            self.inner.get_alien(operation, key).await
         } else {
             debug!("GET[{}][{}] to backend", key, operation.disk_name_local());
-            self.inner.get(operation, key).0.await
+            self.inner.get(operation, key).await
         }
     }
 
@@ -240,7 +243,7 @@ impl Backend {
         let mut exist = vec![false; keys.len()];
         let keys_by_id_and_path = self.group_keys_by_operations(keys, options);
         for (operation, (keys, indexes)) in keys_by_id_and_path {
-            let result = self.inner.exist(operation, &keys).0.await;
+            let result = self.inner.exist(operation, &keys).await;
             if let Ok(result) = result {
                 for (&res, ind) in result.iter().zip(indexes) {
                     exist[ind] = res;

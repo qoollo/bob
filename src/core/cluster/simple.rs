@@ -75,7 +75,7 @@ impl Cluster for Quorum {
                 )))
             }
         };
-        BackendPut(task.boxed())
+        task.boxed()
     }
 
     fn get_clustered_async(&self, key: BobKey) -> BackendGet {
@@ -83,9 +83,9 @@ impl Cluster for Quorum {
 
         debug!("GET[{}]: Nodes for fan out: {:?}", key, &target_nodes);
 
-        let task = async move {
+        async move {
             let reqs = LinkManager::call_nodes(&target_nodes, |mut conn| {
-                conn.get(key, GetOptions::new_normal()).0
+                conn.get(key, GetOptions::new_normal()).boxed()
             });
             let results = reqs.await;
             let ok_results = results
@@ -98,8 +98,8 @@ impl Cluster for Quorum {
             } else {
                 Err(BackendError::KeyNotFound(key))
             }
-        };
-        BackendGet(task.boxed())
+        }
+        .boxed()
     }
 
     fn exist_clustered_async(&self, keys: &[BobKey]) -> Exist {
@@ -109,22 +109,20 @@ impl Cluster for Quorum {
             &keys_by_nodes.keys().flat_map(|v| v).collect::<Vec<_>>()
         );
         let len = keys.len();
-        Exist(
-            async move {
-                let mut exist = vec![false; len];
-                for (nodes, (keys, indexes)) in keys_by_nodes {
-                    let res: Vec<ExistResult> = LinkManager::exist_on_nodes(&nodes, &keys).await;
-                    for result in res {
-                        if let Ok(result) = result {
-                            for (&r, &ind) in result.inner().iter().zip(&indexes) {
-                                exist[ind] |= r;
-                            }
+        async move {
+            let mut exist = vec![false; len];
+            for (nodes, (keys, indexes)) in keys_by_nodes {
+                let res: Vec<ExistResult> = LinkManager::exist_on_nodes(&nodes, &keys).await;
+                for result in res {
+                    if let Ok(result) = result {
+                        for (&r, &ind) in result.inner().iter().zip(&indexes) {
+                            exist[ind] |= r;
                         }
                     }
                 }
-                Ok(exist)
             }
-            .boxed(),
-        )
+            Ok(exist)
+        }
+        .boxed()
     }
 }

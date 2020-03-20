@@ -57,7 +57,7 @@ impl Grinder {
             GRINDER_PUT_COUNTER.count(1);
             let time = GRINDER_PUT_TIMER.start();
 
-            let result = self.cluster.put_clustered_async(key, data).0.await;
+            let result = self.cluster.put_clustered_async(key, data).await;
             if result.is_err() {
                 GRINDER_PUT_ERROR_COUNT_COUNTER.count(1);
             }
@@ -92,7 +92,7 @@ impl Grinder {
             let time = GRINDER_GET_TIMER.start();
 
             debug!("GET[{}] will route to cluster", key);
-            let result = self.cluster.get_clustered_async(key).0.await;
+            let result = self.cluster.get_clustered_async(key).await;
             if result.is_err() {
                 GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
             }
@@ -109,7 +109,7 @@ impl Grinder {
         if opts.flags().contains(BobFlags::FORCE_NODE) {
             self.backend.exist(keys, opts).await
         } else {
-            self.cluster.exist_clustered_async(keys).0.await
+            self.cluster.exist_clustered_async(keys).await
         }
     }
 

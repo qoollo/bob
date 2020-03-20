@@ -7,7 +7,9 @@ mod stub_backend;
 #[cfg(test)]
 mod mem_tests;
 
-pub(crate) use self::core::{Backend, BackendOperation, Exist, Get, GetResult, Put, PutResult};
+pub(crate) use self::core::{
+    Backend, BackendOperation, Exist, Get, GetResult, Put, PutResult, Run,
+};
 pub(crate) use self::error::Error;
 pub(crate) use self::mem_backend::MemBackend;
 pub(crate) use self::pearl::{init_pearl, Group, Pearl};

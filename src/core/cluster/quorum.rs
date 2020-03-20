@@ -119,7 +119,7 @@ impl Quorum {
         target_nodes: &[Node],
         options: GetOptions,
     ) -> Vec<BobClientGetResult> {
-        LinkManager::call_nodes(target_nodes, |conn| conn.get(key, options.clone()).0).await
+        LinkManager::call_nodes(target_nodes, |conn| conn.get(key, options.clone()).boxed()).await
     }
 
     fn group_keys_by_nodes(
@@ -191,10 +191,7 @@ impl Cluster for Quorum {
 
                 let mut sup_nodes = Self::get_support_nodes(
                     mapper.nodes(),
-                    &target_nodes
-                        .iter()
-                        .map(|node| node.index())
-                        .collect::<Vec<_>>(),
+                    &target_nodes.iter().map(Node::index).collect::<Vec<_>>(),
                     additionl_remote_writes,
                 );
                 debug!("PUT[{}] sup put nodes: {:?}", key, &sup_nodes);
@@ -249,7 +246,7 @@ impl Cluster for Quorum {
                 }
             }
         };
-        BackendPut(task.boxed())
+        task.boxed()
     }
 
     //todo check no data (no error)
@@ -262,7 +259,7 @@ impl Cluster for Quorum {
 
         debug!("GET[{}]: Nodes for fan out: {:?}", key, &target_nodes);
 
-        let task = async move {
+        async move {
             let results = Self::get_all(key, &target_nodes, GetOptions::new_all()).await;
             debug!("GET[{}] cluster ans: {:?}", key, results);
 
@@ -311,8 +308,7 @@ impl Cluster for Quorum {
                 Err(BackendError::KeyNotFound(key))
             }
         }
-        .boxed();
-        BackendGet(task)
+        .boxed()
     }
 
     fn exist_clustered_async(&self, keys: &[BobKey]) -> Exist {
@@ -322,23 +318,21 @@ impl Cluster for Quorum {
             &keys_by_nodes.keys().flatten().collect::<Vec<_>>()
         );
         let len = keys.len();
-        Exist(
-            async move {
-                let mut exist = vec![false; len];
-                for (nodes, (keys, indexes)) in keys_by_nodes {
-                    let cluster_results = LinkManager::exist_on_nodes(&nodes, &keys).await;
-                    for result in cluster_results {
-                        if let Ok(result) = result {
-                            for (&r, &ind) in result.inner().iter().zip(&indexes) {
-                                exist[ind] |= r;
-                            }
+        let mut exist = vec![false; len];
+        async move {
+            for (nodes, (keys, indexes)) in keys_by_nodes {
+                let cluster_results = LinkManager::exist_on_nodes(&nodes, &keys).await;
+                for result in cluster_results {
+                    if let Ok(result) = result {
+                        for (&r, &ind) in result.inner().iter().zip(&indexes) {
+                            exist[ind] |= r;
                         }
                     }
                 }
-                Ok(exist)
             }
-            .boxed(),
-        )
+            Ok(exist)
+        }
+        .boxed()
     }
 }
 
@@ -534,7 +528,6 @@ pub(crate) mod tests {
         let key = 1;
         let result = quorum
             .put_clustered_async(key, BobData::new(vec![], BobMeta::new(11)))
-            .0
             .await;
 
         assert!(result.is_ok());
@@ -563,7 +556,6 @@ pub(crate) mod tests {
         let key = 2;
         let result = quorum
             .put_clustered_async(key, BobData::new(vec![], BobMeta::new(11)))
-            .0
             .await;
 
         assert!(result.is_ok());
@@ -596,7 +588,6 @@ pub(crate) mod tests {
 
         let mut result = quorum
             .put_clustered_async(3, BobData::new(vec![], BobMeta::new(11)))
-            .0
             .await;
 
         assert!(result.is_ok());
@@ -605,7 +596,6 @@ pub(crate) mod tests {
 
         result = quorum
             .put_clustered_async(4, BobData::new(vec![], BobMeta::new(11)))
-            .0
             .await;
 
         assert!(result.is_ok());
@@ -639,7 +629,6 @@ pub(crate) mod tests {
 
         let result = quorum
             .put_clustered_async(5, BobData::new(vec![], BobMeta::new(11)))
-            .0
             .await;
 
         assert!(result.is_err());
@@ -670,7 +659,6 @@ pub(crate) mod tests {
 
         let result = quorum
             .put_clustered_async(5, BobData::new(vec![], BobMeta::new(11)))
-            .0
             .await;
 
         assert!(result.is_ok());
@@ -702,7 +690,6 @@ pub(crate) mod tests {
 
         let result = quorum
             .put_clustered_async(0, BobData::new(vec![], BobMeta::new(11)))
-            .0
             .await;
 
         assert!(result.is_ok());
@@ -735,7 +722,6 @@ pub(crate) mod tests {
 
         let result = quorum
             .put_clustered_async(0, BobData::new(vec![], BobMeta::new(11)))
-            .0
             .await;
 
         assert!(result.is_err());
@@ -768,7 +754,6 @@ pub(crate) mod tests {
 
         let result = quorum
             .put_clustered_async(0, BobData::new(vec![], BobMeta::new(11)))
-            .0
             .await;
 
         assert!(result.is_ok());
@@ -801,7 +786,6 @@ pub(crate) mod tests {
 
         let result = quorum
             .put_clustered_async(0, BobData::new(vec![], BobMeta::new(11)))
-            .0
             .await;
 
         assert!(result.is_ok());
@@ -832,7 +816,7 @@ pub(crate) mod tests {
             .collect();
         let (quorum, _) = create_cluster(vdisks, node, &cluster, &actions);
 
-        let result = quorum.get_clustered_async(101).0.await;
+        let result = quorum.get_clustered_async(101).await;
 
         assert!(result.is_ok());
         assert_eq!(1, calls[0].1.get_count());
@@ -853,7 +837,7 @@ pub(crate) mod tests {
             .collect();
         let (quorum, _) = create_cluster(vdisks, node, &cluster, &actions);
 
-        let result = quorum.get_clustered_async(102).0.await;
+        let result = quorum.get_clustered_async(102).await;
 
         assert!(result.is_err());
         assert_eq!(1, calls[0].1.get_count());
@@ -877,7 +861,7 @@ pub(crate) mod tests {
             .collect();
         let (quorum, _) = create_cluster(vdisks, node, &cluster, &actions);
 
-        let result = quorum.get_clustered_async(110).0.await;
+        let result = quorum.get_clustered_async(110).await;
 
         assert!(result.is_ok());
         assert_eq!(1, result.unwrap().meta().timestamp());
@@ -902,7 +886,7 @@ pub(crate) mod tests {
             .collect();
         let (quorum, _) = create_cluster(vdisks, node, &cluster, &actions);
 
-        let result = quorum.get_clustered_async(110).0.await;
+        let result = quorum.get_clustered_async(110).await;
 
         assert!(result.is_ok());
         assert_eq!(1, result.unwrap().meta().timestamp());

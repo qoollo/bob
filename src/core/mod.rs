@@ -62,9 +62,8 @@ mod prelude {
 
 #[cfg(test)]
 pub(crate) mod test_utils {
-    use super::bob_client::{Get, PingResult, PutResult};
+    use super::bob_client::{GetResult, PingResult, PutResult};
     use super::prelude::*;
-    use futures::future::ready;
 
     pub(crate) fn ping_ok(node_name: String) -> PingResult {
         Ok(NodeOutput::new(node_name, ()))
@@ -78,14 +77,12 @@ pub(crate) mod test_utils {
         Err(NodeOutput::new(node_name, BackendError::Internal))
     }
 
-    pub(crate) fn get_ok(node_name: String, timestamp: u64) -> Get {
+    pub(crate) fn get_ok(node_name: String, timestamp: u64) -> GetResult {
         let inner = BobData::new(vec![], BobMeta::new(timestamp));
-        let output = Ok(NodeOutput::new(node_name, inner));
-        let fut = ready(output);
-        Get(fut.boxed())
+        Ok(NodeOutput::new(node_name, inner))
     }
 
-    pub(crate) fn get_err(node_name: String) -> Get {
-        Get({ ready(Err(NodeOutput::new(node_name, BackendError::Internal))).boxed() })
+    pub(crate) fn get_err(node_name: String) -> GetResult {
+        Err(NodeOutput::new(node_name, BackendError::Internal))
     }
 }

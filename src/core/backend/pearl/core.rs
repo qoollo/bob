@@ -34,14 +34,14 @@ impl Pearl {
         }
     }
 
-    async fn put_common(pearl: Group, key: BobKey, data: BobData) -> PutResult {
+    fn put_common(pearl: Group, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}] try to: {}", key, pearl);
-        pearl.put(key, data).await
+        async move { pearl.put(key, data).await }.boxed()
     }
 
-    async fn get_common(pearl: Group, key: BobKey) -> GetResult {
+    fn get_common(pearl: Group, key: BobKey) -> Get {
         debug!("GET[{}] try from: {}", key, pearl);
-        pearl.get(key).await
+        async move { pearl.get(key).await }.boxed()
     }
 
     async fn create_alien_pearl(&self, operation: BackendOperation) -> BackendResult<()> {
@@ -75,7 +75,7 @@ impl Pearl {
 }
 
 impl BackendStorage for Pearl {
-    fn run_backend(&self) -> RunResult {
+    fn run_backend(&self) -> Run {
         debug!("run pearl backend");
         let vdisks_groups = self.vdisks_groups.clone();
         let alien_vdisks_groups = self.alien_vdisks_groups.clone();
@@ -109,13 +109,13 @@ impl BackendStorage for Pearl {
                 }
                 res
             };
-            Put(task.boxed())
+            task.boxed()
         } else {
             debug!(
                 "PUT[{}] to pearl backend. Cannot find group, operation: {:?}",
                 key, operation
             );
-            Put(future::err(Error::VDiskNotFound(operation.vdisk_id())).boxed())
+            future::err(Error::VDiskNotFound(operation.vdisk_id())).boxed()
         }
     }
 
@@ -146,7 +146,7 @@ impl BackendStorage for Pearl {
                 Err(Error::VDiskNotFound(operation.vdisk_id()))
             }
         };
-        Put(task.boxed())
+        task.boxed()
     }
 
     fn get(&self, operation: BackendOperation, key: BobKey) -> Get {
@@ -174,7 +174,7 @@ impl BackendStorage for Pearl {
                 Err(Error::VDiskNotFound(operation.vdisk_id()))
             }
         };
-        Get(task.boxed())
+        task.boxed()
     }
 
     fn get_alien(&self, operation: BackendOperation, key: BobKey) -> Get {
@@ -196,7 +196,7 @@ impl BackendStorage for Pearl {
                 Err(Error::KeyNotFound(key))
             }
         };
-        Get(task.boxed())
+        task.boxed()
     }
 
     fn exist(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
@@ -213,7 +213,7 @@ impl BackendStorage for Pearl {
                 Err(BackendError::Internal)
             }
         };
-        Exist(task.boxed())
+        task.boxed()
     }
 
     fn exist_alien(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
@@ -227,7 +227,7 @@ impl BackendStorage for Pearl {
                 Err(BackendError::Internal)
             }
         };
-        Exist(task.boxed())
+        task.boxed()
     }
 
     fn vdisks_groups(&self) -> Option<&[Group]> {
