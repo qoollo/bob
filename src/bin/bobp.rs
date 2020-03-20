@@ -505,7 +505,7 @@ fn create_blob(task_conf: &TaskConfig) -> Blob {
         timestamp: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("msg: &str")
-            .as_secs() as i64,
+            .as_secs(),
     };
     Blob {
         data: vec![0_u8; task_conf.payload_size as usize],

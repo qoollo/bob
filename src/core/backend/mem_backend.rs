@@ -19,7 +19,7 @@ impl VDisk {
             trace!("PUT[{}] to vdisk", key);
             let mut repo = repo.write().await;
             repo.insert(key, data);
-            Ok(BackendPutResult {})
+            Ok(())
         }))
     }
 

@@ -15,7 +15,7 @@ impl BackendStorage for StubBackend {
             key,
             data.meta()
         );
-        Put(future::ok(BackendPutResult {}).boxed())
+        Put(future::ok(()).boxed())
     }
 
     fn put_alien(&self, _operation: BackendOperation, key: BobKey, data: BobData) -> Put {
@@ -24,7 +24,7 @@ impl BackendStorage for StubBackend {
             key,
             data.meta()
         );
-        Put(future::ok(BackendPutResult {}).boxed())
+        Put(future::ok(()).boxed())
     }
 
     fn get(&self, _operation: BackendOperation, key: BobKey) -> Get {

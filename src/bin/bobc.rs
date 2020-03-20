@@ -50,7 +50,7 @@ async fn put(key: u64, size: usize) {
                 timestamp: SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .expect("msg: &str")
-                    .as_secs() as i64,
+                    .as_secs(),
             }),
         }),
         options: None,

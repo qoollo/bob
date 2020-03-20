@@ -69,9 +69,6 @@ impl BackendOperation {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct BackendPutResult;
-
-#[derive(Debug, Clone)]
 pub(crate) struct BackendGetResult {
     pub(crate) data: BobData,
 }
@@ -93,7 +90,7 @@ pub(crate) struct BackendPingResult;
 pub(crate) type GetResult = Result<BackendGetResult, Error>;
 pub(crate) struct Get(pub(crate) Pin<Box<dyn Future<Output = GetResult> + Send>>);
 
-pub(crate) type PutResult = Result<BackendPutResult, Error>;
+pub(crate) type PutResult = Result<(), Error>;
 pub(crate) struct Put(pub(crate) Pin<Box<dyn Future<Output = PutResult> + Send>>);
 
 pub(crate) type RunResult = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
@@ -113,7 +110,7 @@ pub(crate) trait BackendStorage: Debug {
     fn exist(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist;
     fn exist_alien(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist;
 
-    fn vdisks_groups(&self) -> Option<&[PearlGroup]> {
+    fn vdisks_groups(&self) -> Option<&[Group]> {
         None
     }
 }
@@ -129,7 +126,7 @@ impl Backend {
         let backend: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
-            BackendType::Pearl => Arc::new(PearlBackend::new(mapper.clone(), config)),
+            BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config)),
         };
         Self { backend, mapper }
     }
@@ -160,7 +157,7 @@ impl Backend {
             );
             return Err(Error::Internal);
         }
-        Ok(BackendPutResult {})
+        Ok(())
     }
 
     #[inline]

@@ -69,7 +69,7 @@ pub(crate) mod b_client {
                 client.put(request).map(|res| {
                     res.expect("client put request");
                     metrics.put_timer_stop(timer);
-                    NodeOutput::new(node.name().to_owned(), BackendPutResult {})
+                    NodeOutput::new(node.name().to_owned(), ())
                 }),
             )
             .await
@@ -203,7 +203,7 @@ cfg_if! {
 
 use super::prelude::*;
 
-pub(crate) type PutResult = Result<NodeOutput<BackendPutResult>, NodeOutput<BackendError>>;
+pub(crate) type PutResult = Result<NodeOutput<()>, NodeOutput<BackendError>>;
 
 pub(crate) type GetResult = Result<NodeOutput<BackendGetResult>, NodeOutput<BackendError>>;
 pub(crate) struct Get(pub(crate) Pin<Box<dyn Future<Output = GetResult> + Send>>);

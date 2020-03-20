@@ -10,7 +10,7 @@ pub mod grpc {
 pub mod prelude {
     pub(crate) use super::*;
     pub(crate) use {
-        backend::PearlGroup,
+        backend::Group as PearlGroup,
         rocket::{
             http::RawStr,
             http::Status,

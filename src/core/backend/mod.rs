@@ -8,12 +8,12 @@ mod stub_backend;
 mod mem_tests;
 
 pub(crate) use self::core::{
-    Backend, BackendExistResult, BackendGetResult, BackendOperation, BackendPingResult,
-    BackendPutResult, Exist, Get, GetResult, Put, PutResult,
+    Backend, BackendExistResult, BackendGetResult, BackendOperation, BackendPingResult, Exist,
+    ExistResult, Get, GetResult, Put, PutResult,
 };
 pub(crate) use self::error::Error;
 pub(crate) use self::mem_backend::MemBackend;
-pub(crate) use self::pearl::{init_pearl, PearlBackend, PearlGroup};
+pub(crate) use self::pearl::{init_pearl, Group, Pearl};
 pub(crate) use self::stub_backend::StubBackend;
 pub(crate) use super::prelude::*;
 

@@ -4,7 +4,7 @@ use super::prelude::*;
 pub enum Error {
     Timeout,
 
-    VDiskNoFound(VDiskId),
+    VDiskNotFound(VDiskId),
     Storage(String),
     DuplicateKey,
     KeyNotFound(BobKey),
@@ -26,9 +26,9 @@ impl Error {
     }
 
     /// check if put error causes pearl restart
-    pub(crate) fn is_put_error_need_restart(err: Option<&Self>) -> bool {
-        match err {
-            Some(Self::DuplicateKey) | Some(Self::VDiskIsNotReady) | None => false,
+    pub(crate) fn is_put_error_need_restart(&self) -> bool {
+        match self {
+            Self::DuplicateKey | Self::VDiskIsNotReady => false,
             _ => true,
         }
     }
@@ -42,9 +42,9 @@ impl Error {
     }
 
     /// check if get error causes pearl restart
-    pub(crate) fn is_get_error_need_restart(err: Option<&Self>) -> bool {
-        match err {
-            Some(Self::KeyNotFound(_)) | Some(Self::VDiskIsNotReady) | None => false,
+    pub(crate) fn is_get_error_need_restart(&self) -> bool {
+        match self {
+            Self::KeyNotFound(_) | Self::VDiskIsNotReady => false,
             _ => true,
         }
     }
@@ -61,7 +61,7 @@ impl Error {
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         match self {
-            Self::VDiskNoFound(id) => write!(f, "vdisk: {:?} not found", id),
+            Self::VDiskNotFound(id) => write!(f, "vdisk: {:?} not found", id),
             Self::Storage(description) => write!(f, "backend error: {}", description),
             Self::PearlChangeState(description) => write!(f, "backend error: {}", description),
             err => write!(f, "{:?}", err),
@@ -86,7 +86,7 @@ impl Into<Status> for Error {
             Self::KeyNotFound(key) => Status::not_found(format!("KeyNotFound {}", key)),
             Self::DuplicateKey => Status::already_exists("DuplicateKey"),
             Self::Timeout => Status::deadline_exceeded("Timeout"),
-            Self::VDiskNoFound(id) => Status::not_found(format!("VDiskNoFound {}", id)),
+            Self::VDiskNotFound(id) => Status::not_found(format!("VDiskNotFound {}", id)),
             Self::Storage(msg) => Status::internal(format!("Storage {}", msg)),
             Self::VDiskIsNotReady => Status::internal("VDiskIsNotReady"),
             Self::Failed(msg) => Status::internal(format!("Failed {}", msg)),
@@ -107,7 +107,7 @@ impl From<Status> for Error {
                 "KeyNotFound" => parse_next(words, |key| Self::KeyNotFound(key)),
                 "DuplicateKey" => Some(Self::DuplicateKey),
                 "Timeout" => Some(Self::Timeout),
-                "VDiskNoFound" => parse_next(words, |n| Self::VDiskNoFound(n)),
+                "VDiskNotFound" => parse_next(words, |n| Self::VDiskNotFound(n)),
                 "Storage" => Some(Self::Storage(rest_words(words, length))),
                 "VDiskIsNotReady" => Some(Self::VDiskIsNotReady),
                 "Failed" => Some(Self::Failed(rest_words(words, length))),

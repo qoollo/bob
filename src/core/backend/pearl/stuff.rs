@@ -2,78 +2,29 @@ use super::prelude::*;
 use std::fs::remove_dir_all;
 
 #[derive(Debug)]
-pub(crate) struct LockGuard<TGuard> {
-    pub storage: Arc<RwLock<TGuard>>, //@TODO remove pub
-}
-
-impl<TGuard: Send + Clone> LockGuard<TGuard> {
-    pub(crate) fn new(data: TGuard) -> Self {
-        Self {
-            storage: Arc::new(RwLock::new(data)),
-        }
-    }
-
-    pub(crate) async fn read<F, TRet>(&self, f: F) -> BackendResult<TRet>
-    where
-        F: Fn(TGuard) -> FutureResult<TRet> + Send + Sync,
-    {
-        let storage = self.storage.read().await;
-        f(storage.clone()).await
-    }
-
-    pub(crate) async fn write_sync_mut<F, Ret>(&self, f: F) -> Ret
-    where
-        F: Fn(&mut TGuard) -> Ret + Send + Sync,
-    {
-        let mut storage = self.storage.write().await;
-        f(&mut storage)
-    }
-
-    pub(crate) async fn write_mut<F, TRet>(&self, f: F) -> BackendResult<TRet>
-    where
-        F: Fn(&mut TGuard) -> FutureResult<TRet> + Send + Sync,
-    {
-        let mut st = self.storage.write().await;
-
-        f(&mut st)
-            .map_err(|e| {
-                error!("lock error: {:?}", e);
-                Error::Storage(format!("lock error: {:?}", e))
-            })
-            .await
-    }
-}
-
-#[derive(Debug)]
 pub(crate) struct SyncState {
-    state: LockGuard<StateWrapper>,
+    state: RwLock<StateWrapper>,
 }
 impl SyncState {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            state: LockGuard::new(StateWrapper::new()),
+            state: RwLock::new(StateWrapper::new()),
         }
     }
-    pub async fn mark_as_created(&self) -> BackendResult<()> {
-        self.state
-            .write_mut(|st| {
-                st.created();
-                future::ok(()).boxed()
-            })
-            .await
+    pub(crate) async fn mark_as_created(&self) {
+        let mut st = self.state.write().await;
+        st.created();
     }
 
-    pub async fn try_init(&self) -> BackendResult<bool> {
-        self.state
-            .write_mut(|st| {
-                if st.is_creating() {
-                    trace!("New object is currently creating, state: {}", st);
-                    return future::ok(false).boxed();
-                }
-                st.start();
-                future::ok(true).boxed()
-            })
-            .await
+    pub(crate) async fn try_init(&self) -> bool {
+        let mut st = self.state.write().await;
+        if st.is_creating() {
+            trace!("New object is currently creating, state: {:?}", st);
+            false
+        } else {
+            st.start();
+            true
+        }
     }
 }
 
@@ -89,24 +40,24 @@ struct StateWrapper {
 }
 
 impl StateWrapper {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             state: CreationState::No,
         }
     }
 
     #[inline]
-    pub fn is_creating(&self) -> bool {
+    pub(crate) fn is_creating(&self) -> bool {
         self.state == CreationState::Creating
     }
 
     #[inline]
-    pub fn start(&mut self) {
+    pub(crate) fn start(&mut self) {
         self.state = CreationState::Creating;
     }
 
     #[inline]
-    pub fn created(&mut self) {
+    pub(crate) fn created(&mut self) {
         self.state = CreationState::No;
     }
 }
@@ -167,7 +118,7 @@ impl Stuff {
             .map_err(|e| Error::Storage(format!("error deleting directory {:?}, {}", path, e)))
     }
 
-    pub(crate) fn get_start_timestamp_by_std_time(period: Duration, time: SystemTime) -> i64 {
+    pub(crate) fn get_start_timestamp_by_std_time(period: Duration, time: SystemTime) -> u64 {
         ChronoDuration::from_std(period)
             .map(|period| Self::get_start_timestamp(period, DateTime::from(time)))
             .map_err(|e| {
@@ -176,20 +127,25 @@ impl Stuff {
             .expect("convert std time to chrono")
     }
 
-    pub(crate) fn get_start_timestamp_by_timestamp(period: Duration, time: i64) -> i64 {
+    // @TODO remove cast as u64
+    pub(crate) fn get_start_timestamp_by_timestamp(period: Duration, time: u64) -> u64 {
         ChronoDuration::from_std(period)
             .map_err(|e| {
                 trace!("smth wrong with time: {:?}, error: {}", period, e);
                 Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
             })
             .map(|period| {
-                let time = DateTime::from_utc(NaiveDateTime::from_timestamp(time, 0), Utc);
+                let time = DateTime::from_utc(
+                    NaiveDateTime::from_timestamp(time.try_into().unwrap(), 0),
+                    Utc,
+                );
                 Self::get_start_timestamp(period, time)
             })
-            .expect("convert std time to chrono")
+            .expect("convert std time to chrono") as u64
     }
 
-    fn get_start_timestamp(period: ChronoDuration, time: DateTime<Utc>) -> i64 {
+    // @TODO remove cast as u64
+    fn get_start_timestamp(period: ChronoDuration, time: DateTime<Utc>) -> u64 {
         let mut start_time = match period {
             period if period <= ChronoDuration::days(1) => time.date().and_hms(0, 0, 0),
             period if period <= ChronoDuration::weeks(1) => {
@@ -202,16 +158,6 @@ impl Stuff {
         while !(start_time <= time && time < start_time + period) {
             start_time = start_time + period;
         }
-        start_time.timestamp()
-    }
-
-    pub(crate) fn get_period_timestamp(period: Duration) -> i64 {
-        ChronoDuration::from_std(period)
-            .map_err(|e| {
-                trace!("smth wrong with time: {:?}, error: {}", period, e);
-                Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
-            })
-            .map(|period| period.num_seconds())
-            .expect("convert std time to chrono")
+        start_time.timestamp().try_into().unwrap()
     }
 }

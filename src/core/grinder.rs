@@ -36,7 +36,7 @@ impl Grinder {
         key: BobKey,
         data: BobData,
         opts: BobOptions,
-    ) -> Result<BackendPutResult, BackendError> {
+    ) -> Result<(), BackendError> {
         if opts.flags().contains(BobFlags::FORCE_NODE) {
             debug!(
                 "PUT[{}] FORCE_NODE=true - will handle it by local node. Put params: {:?}",

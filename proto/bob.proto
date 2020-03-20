@@ -44,7 +44,7 @@ message Blob {
 
 // Blob metadata
 message BlobMeta {
-    int64 timestamp = 1; // timestamp for data version
+    uint64 timestamp = 1; // timestamp for data version
 }
 
 // Operation status

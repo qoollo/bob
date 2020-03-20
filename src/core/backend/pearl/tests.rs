@@ -1,13 +1,13 @@
 use super::prelude::*;
 
-use crate::core::backend::pearl::core::PearlBackend;
+use crate::core::backend::pearl::core::Pearl as PearlBackend;
 use crate::core::configs::{node::NodeConfigYaml, ClusterConfigYaml};
 use std::fs::remove_dir_all;
 
 static DISK_NAME: &str = "disk1";
 static PEARL_PATH: &str = "/tmp/d1/";
 const KEY_ID: u64 = 1;
-const TIMESTAMP: i64 = 1;
+const TIMESTAMP: u64 = 1;
 
 fn drop_pearl() {
     let path = PathBuf::from(PEARL_PATH);
@@ -73,64 +73,20 @@ async fn test_write_multiple_read() {
     let vdisk_id = 0;
     let backend = backend();
     backend.run_backend().await.unwrap();
-
-    let write = backend
-        .put(
-            BackendOperation::new_local(
-                vdisk_id.clone(),
-                DiskPath::new(DISK_NAME.to_owned(), "".to_owned()),
-            ),
-            KEY_ID,
-            BobData::new(vec![], BobMeta::new(TIMESTAMP)),
-        )
-        .0
-        .await;
+    let path = DiskPath::new(DISK_NAME.to_owned(), "".to_owned());
+    let operation = BackendOperation::new_local(vdisk_id, path);
+    let data = BobData::new(vec![], BobMeta::new(TIMESTAMP));
+    let write = backend.put(operation.clone(), KEY_ID, data).0.await;
     assert!(write.is_ok());
 
-    let mut read = backend
-        .get(
-            BackendOperation::new_local(
-                vdisk_id.clone(),
-                DiskPath::new(DISK_NAME.to_owned(), "".to_owned()),
-            ),
-            KEY_ID,
-        )
-        .0
-        .await;
+    let mut read = backend.get(operation.clone(), KEY_ID).0.await;
     assert_eq!(TIMESTAMP, read.unwrap().data.meta().timestamp());
-    read = backend
-        .get(
-            BackendOperation::new_local(
-                vdisk_id.clone(),
-                DiskPath::new(DISK_NAME.to_owned(), "".to_owned()),
-            ),
-            KEY_ID,
-        )
-        .0
-        .await;
+    read = backend.get(operation.clone(), KEY_ID).0.await;
     assert_eq!(TIMESTAMP, read.unwrap().data.meta().timestamp());
 
-    let result1 = backend
-        .get(
-            BackendOperation::new_local(
-                vdisk_id.clone(),
-                DiskPath::new(DISK_NAME.to_owned(), "".to_owned()),
-            ),
-            KEY_ID,
-        )
-        .0
-        .await;
-    let result2 = backend
-        .get(
-            BackendOperation::new_local(
-                vdisk_id.clone(),
-                DiskPath::new(DISK_NAME.to_owned(), "".to_owned()),
-            ),
-            KEY_ID,
-        )
-        .0
-        .await;
-    assert_eq!(TIMESTAMP, result1.unwrap().data.meta().timestamp());
-    assert_eq!(TIMESTAMP, result2.unwrap().data.meta().timestamp());
+    let res = backend.get(operation.clone(), KEY_ID).0.await;
+    assert_eq!(TIMESTAMP, res.unwrap().data.meta().timestamp());
+    let res = backend.get(operation, KEY_ID).0.await;
+    assert_eq!(TIMESTAMP, res.unwrap().data.meta().timestamp());
     drop_pearl();
 }

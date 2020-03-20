@@ -39,7 +39,7 @@ impl Server {
     }
 }
 
-fn put_extract(req: PutRequest) -> Option<(u64, Vec<u8>, i64, Option<PutOptions>)> {
+fn put_extract(req: PutRequest) -> Option<(u64, Vec<u8>, u64, Option<PutOptions>)> {
     let key = req.key?.key;
     let blob = req.data?;
     let timestamp = blob.meta.as_ref()?.timestamp;

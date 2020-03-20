@@ -168,7 +168,7 @@ impl Cluster for Quorum {
                 key, total_ops, ok_count, l_quorum
             );
             if ok_count == total_ops {
-                Ok(BackendPutResult {})
+                Ok(())
             } else {
                 let mut additionl_remote_writes = match ok_count {
                     0 => l_quorum, //TODO take value from config
@@ -237,7 +237,7 @@ impl Cluster for Quorum {
                     err
                 );
                 if sup_ok_count + ok_count >= l_quorum {
-                    Ok(BackendPutResult {})
+                    Ok(())
                 } else {
                     Err(BackendError::Failed(format!(
                         "failed: total: {}, ok: {}, quorum: {}, errors: {}",
@@ -391,7 +391,7 @@ pub(crate) mod tests {
             client: &mut BobClient,
             node: Node,
             call: Arc<CountCall>,
-            timestamp: i64,
+            timestamp: u64,
         ) {
             client.expect_get().returning(move |_key, _options| {
                 call.get_inc();
@@ -476,7 +476,7 @@ pub(crate) mod tests {
         create_node(name, (op.0, op.1, 0))
     }
 
-    fn create_node(name: &str, op: (bool, bool, i64)) -> (&str, Call, Arc<CountCall>) {
+    fn create_node(name: &str, op: (bool, bool, u64)) -> (&str, Call, Arc<CountCall>) {
         (
             name,
             Box::new(
@@ -484,7 +484,7 @@ pub(crate) mod tests {
                     let f = |client: &mut BobClient,
                              n: Node,
                              c: Arc<CountCall>,
-                             op: (bool, bool, i64)| {
+                             op: (bool, bool, u64)| {
                         ping_ok(client, n.clone());
                         if op.0 {
                             put_ok(client, n.clone(), c.clone());
