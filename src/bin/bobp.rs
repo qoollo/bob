@@ -8,10 +8,11 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Error, Formatter};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
-use std::thread::JoinHandle;
 use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 use tokio::time::delay_for;
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request, Status};
@@ -152,30 +153,24 @@ impl Statistics {
         self.get_count_single_thread.fetch_add(1, Ordering::Relaxed);
     }
 
-    fn save_get_error(&self, status: Status) {
-        self.get_errors
-            .lock()
-            .map(|mut guard| {
-                guard
-                    .entry(status.code() as CodeRepresentation)
-                    .and_modify(|i| *i += 1)
-                    .or_insert(1);
-            })
-            .expect("mutex");
+    async fn save_get_error(&self, status: Status) {
+        let mut guard = self.get_errors.lock().await;
+        guard
+            .entry(status.code() as CodeRepresentation)
+            .and_modify(|i| *i += 1)
+            .or_insert(1);
+
         self.get_error_count.fetch_add(1, Ordering::SeqCst);
         debug!("{}", status.message())
     }
 
-    fn save_put_error(&self, status: Status) {
-        self.put_errors
-            .lock()
-            .map(|mut guard| {
-                guard
-                    .entry(status.code() as CodeRepresentation)
-                    .and_modify(|i| *i += 1)
-                    .or_insert(1);
-            })
-            .expect("mutex");
+    async fn save_put_error(&self, status: Status) {
+        let mut guard = self.put_errors.lock().await;
+        guard
+            .entry(status.code() as CodeRepresentation)
+            .and_modify(|i| *i += 1)
+            .or_insert(1);
+
         self.put_error_count.fetch_add(1, Ordering::SeqCst);
         debug!("{}", status.message())
     }
@@ -271,10 +266,12 @@ async fn main() {
         }
     }
     stop_token.store(true, Ordering::Relaxed);
-    stat_thread.join().unwrap();
+    if let Err(e) = stat_thread.await {
+        eprintln!("error awaiting stat thread: {:?}", e);
+    }
 }
 
-fn stat_worker(
+async fn stat_worker(
     stop_token: Arc<AtomicBool>,
     period_ms: u64,
     stat: Arc<Statistics>,
@@ -364,28 +361,20 @@ fn stat_worker(
         ),
         stat.unverified_puts.load(Ordering::Relaxed),
     );
-    stat.get_errors
-        .lock()
-        .map(|guard| {
-            if !guard.is_empty() {
-                println!("get errors:");
-                for (&code, count) in guard.iter() {
-                    println!("{:?} = {}", Code::from(code), count);
-                }
-            }
-        })
-        .expect("mutex");
-    stat.put_errors
-        .lock()
-        .map(|guard| {
-            if !guard.is_empty() {
-                println!("put errors:");
-                for (&code, count) in guard.iter() {
-                    println!("{:?} = {}", Code::from(code), count);
-                }
-            }
-        })
-        .expect("mutex");
+    let guard = stat.get_errors.lock().await;
+    if !guard.is_empty() {
+        println!("get errors:");
+        for (&code, count) in guard.iter() {
+            println!("{:?} = {}", Code::from(code), count);
+        }
+    }
+    let guard = stat.put_errors.lock().await;
+    if !guard.is_empty() {
+        println!("put errors:");
+        for (&code, count) in guard.iter() {
+            println!("{:?} = {}", Code::from(code), count);
+        }
+    }
 }
 
 fn average(values: &[f64]) -> f64 {
@@ -426,7 +415,7 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
             client.get(request).await
         };
         if let Err(status) = res {
-            stat.save_get_error(status);
+            stat.save_get_error(status).await;
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
     }
@@ -455,7 +444,7 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
             client.put(req).await
         };
         if let Err(status) = res {
-            stat.save_put_error(status);
+            stat.save_put_error(status).await;
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
     }
@@ -502,7 +491,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
             client.put(put_request).await
         };
         if let Err(status) = put_res {
-            stat.save_put_error(status);
+            stat.save_put_error(status).await;
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
         let get_request = Request::new(GetRequest {
@@ -518,7 +507,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
             client.get(get_request).await
         };
         if let Err(status) = get_res {
-            stat.save_get_error(status);
+            stat.save_get_error(status).await;
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
     }
@@ -558,9 +547,7 @@ fn spawn_statistics_thread(
     let stop_token = stop_token.clone();
     let stat = benchmark_conf.statistics.clone();
     let bytes_amount = benchmark_conf.request_amount_bytes;
-    thread::spawn(move || {
-        stat_worker(stop_token, 1000, stat, bytes_amount);
-    })
+    tokio::spawn(stat_worker(stop_token, 1000, stat, bytes_amount))
 }
 
 fn create_blob(task_conf: &TaskConfig) -> Blob {
