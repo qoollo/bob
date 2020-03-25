@@ -76,17 +76,17 @@ async fn test_write_multiple_read() {
     let path = DiskPath::new(DISK_NAME.to_owned(), "".to_owned());
     let operation = BackendOperation::new_local(vdisk_id, path);
     let data = BobData::new(vec![], BobMeta::new(TIMESTAMP));
-    let write = backend.put(operation.clone(), KEY_ID, data).0.await;
+    let write = backend.put(operation.clone(), KEY_ID, data).await;
     assert!(write.is_ok());
 
-    let mut read = backend.get(operation.clone(), KEY_ID).0.await;
-    assert_eq!(TIMESTAMP, read.unwrap().data.meta().timestamp());
-    read = backend.get(operation.clone(), KEY_ID).0.await;
-    assert_eq!(TIMESTAMP, read.unwrap().data.meta().timestamp());
+    let mut read = backend.get(operation.clone(), KEY_ID).await;
+    assert_eq!(TIMESTAMP, read.unwrap().meta().timestamp());
+    read = backend.get(operation.clone(), KEY_ID).await;
+    assert_eq!(TIMESTAMP, read.unwrap().meta().timestamp());
 
-    let res = backend.get(operation.clone(), KEY_ID).0.await;
-    assert_eq!(TIMESTAMP, res.unwrap().data.meta().timestamp());
-    let res = backend.get(operation, KEY_ID).0.await;
-    assert_eq!(TIMESTAMP, res.unwrap().data.meta().timestamp());
+    let res = backend.get(operation.clone(), KEY_ID).await;
+    assert_eq!(TIMESTAMP, res.unwrap().meta().timestamp());
+    let res = backend.get(operation, KEY_ID).await;
+    assert_eq!(TIMESTAMP, res.unwrap().meta().timestamp());
     drop_pearl();
 }

@@ -1,22 +1,30 @@
 use super::prelude::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct BackendOperation {
-    pub(crate) vdisk_id: VDiskId,
+    vdisk_id: VDiskId,
     disk_path: Option<DiskPath>,
-    pub(crate) remote_node_name: Option<String>, // save data to alien/<remote_node_name>
+    remote_node_name: Option<String>, // save data to alien/<remote_node_name>
 }
 
-impl std::fmt::Display for BackendOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "[id: {}, path: {:?}, node: {:?} alien: {}]",
-            self.vdisk_id,
-            self.disk_path,
-            self.remote_node_name,
-            self.is_data_alien()
-        )
+impl BackendOperation {
+    pub(crate) fn vdisk_id(&self) -> VDiskId {
+        self.vdisk_id
+    }
+
+    pub(crate) fn remote_node_name(&self) -> Option<&str> {
+        self.remote_node_name.as_deref()
+    }
+}
+
+impl Debug for BackendOperation {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        f.debug_struct("BackendOperation")
+            .field("id", &self.vdisk_id)
+            .field("path", &self.disk_path)
+            .field("node", &self.remote_node_name)
+            .field("alien", &self.is_data_alien())
+            .finish()
     }
 }
 
@@ -39,15 +47,15 @@ impl BackendOperation {
 
     pub(crate) fn clone_alien(&self) -> Self {
         Self {
-            vdisk_id: self.vdisk_id.clone(),
+            vdisk_id: self.vdisk_id,
             disk_path: None,
-            remote_node_name: self.remote_node_name.clone(),
+            remote_node_name: Some(self.remote_node_name.as_ref().unwrap().to_owned()),
         }
     }
 
     #[inline]
-    pub(crate) fn set_remote_folder(&mut self, name: &str) {
-        self.remote_node_name = Some(name.to_string())
+    pub(crate) fn set_remote_folder(&mut self, name: String) {
+        self.remote_node_name = Some(name);
     }
 
     #[inline]
@@ -59,50 +67,27 @@ impl BackendOperation {
     pub(crate) fn disk_name_local(&self) -> String {
         self.disk_path.as_ref().expect("no path").name().to_owned()
     }
-
-    #[inline]
-    pub(crate) fn remote_node_name(&self) -> String {
-        self.remote_node_name
-            .clone()
-            .expect("remote node name not set")
-    }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct BackendGetResult {
-    pub(crate) data: BobData,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct BackendExistResult {
-    pub(crate) exist: Vec<bool>,
-}
-
-impl Display for BackendGetResult {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        write!(f, "{:?}", self)
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct BackendPingResult;
-
-pub(crate) type GetResult = Result<BackendGetResult, Error>;
-pub(crate) struct Get(pub(crate) Pin<Box<dyn Future<Output = GetResult> + Send>>);
-
+pub(crate) type GetResult = Result<BobData, Error>;
+pub(crate) type Get = Pin<Box<dyn Future<Output = GetResult> + Send>>;
 pub(crate) type PutResult = Result<(), Error>;
-pub(crate) struct Put(pub(crate) Pin<Box<dyn Future<Output = PutResult> + Send>>);
-
-pub(crate) type RunResult = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
-
-pub(crate) type ExistResult = Result<BackendExistResult, Error>;
-pub(crate) struct Exist(pub(crate) Pin<Box<dyn Future<Output = ExistResult> + Send>>);
+pub(crate) type Put = Pin<Box<dyn Future<Output = PutResult> + Send>>;
+pub(crate) type RunResult = Result<(), Error>;
+pub(crate) type Run = Pin<Box<dyn Future<Output = RunResult> + Send>>;
+pub(crate) type ExistResult = Result<Vec<bool>, Error>;
+pub(crate) type Exist = Pin<Box<dyn Future<Output = ExistResult> + Send>>;
 
 pub(crate) trait BackendStorage: Debug {
-    fn run_backend(&self) -> RunResult;
+    fn run_backend(&self) -> Run;
 
     fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put;
-    fn put_alien(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put;
+    fn put_alien(
+        &self,
+        operation: BackendOperation,
+        key: BobKey,
+        data: BobData,
+    ) -> Pin<Box<dyn Future<Output = PutResult> + Send>>;
 
     fn get(&self, operation: BackendOperation, key: BobKey) -> Get;
     fn get_alien(&self, operation: BackendOperation, key: BobKey) -> Get;
@@ -117,23 +102,31 @@ pub(crate) trait BackendStorage: Debug {
 
 #[derive(Debug)]
 pub(crate) struct Backend {
-    backend: Arc<dyn BackendStorage + Send + Sync>,
+    inner: Arc<dyn BackendStorage + Send + Sync>,
     mapper: Arc<Virtual>,
 }
 
 impl Backend {
     pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
-        let backend: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
+        let inner: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
             BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config)),
         };
-        Self { backend, mapper }
+        Self { inner, mapper }
+    }
+
+    pub(crate) fn mapper(&self) -> &Virtual {
+        &self.mapper
+    }
+
+    pub(crate) fn inner(&self) -> &dyn BackendStorage {
+        self.inner.as_ref()
     }
 
     #[inline]
-    pub(crate) async fn run_backend(&self) -> Result<(), Error> {
-        self.backend.run_backend().await
+    pub(crate) async fn run_backend(&self) -> RunResult {
+        self.inner.run_backend().await
     }
 
     pub(crate) async fn put(&self, key: BobKey, data: BobData, options: BobOptions) -> PutResult {
@@ -141,23 +134,23 @@ impl Backend {
         if options.have_remote_node() {
             // write to all remote_nodes
             for node_name in options.remote_nodes() {
-                let mut op = BackendOperation::new_alien(vdisk_id.clone());
-                op.set_remote_folder(&node_name);
+                let mut op = BackendOperation::new_alien(vdisk_id);
+                op.set_remote_folder(node_name.to_owned());
 
                 //TODO make it parallel?
                 self.put_single(key, data.clone(), op).await?;
             }
+            Ok(())
         } else if let Some(path) = disk_path {
             self.put_single(key, data, BackendOperation::new_local(vdisk_id, path))
-                .await?;
+                .await
         } else {
             error!(
-                "PUT[{}] dont now what to with data: op: {:?}. Data is not local and alien",
+                "PUT[{}] dont now what to do with data: op: {:?}. Data is not local and alien",
                 key, options
             );
-            return Err(Error::Internal);
+            Err(Error::Internal)
         }
-        Ok(())
     }
 
     #[inline]
@@ -167,9 +160,7 @@ impl Backend {
         data: BobData,
         operation: BackendOperation,
     ) -> PutResult {
-        self.put_single(key, data, operation)
-            .await
-            .map_err(Error::convert_backend)
+        self.put_single(key, data, operation).await
     }
 
     async fn put_single(
@@ -179,17 +170,13 @@ impl Backend {
         operation: BackendOperation,
     ) -> PutResult {
         if operation.is_data_alien() {
-            debug!("PUT[{}] to backend, alien data: {}", key, operation);
-            self.backend.put_alien(operation, key, data).0.await
+            debug!("PUT[{}] to backend, alien data: {:?}", key, operation);
+            self.inner.put_alien(operation, key, data).await
         } else {
-            debug!("PUT[{}] to backend: {}", key, operation);
-            let result = self
-                .backend
-                .put(operation.clone(), key, data.clone())
-                .0
-                .await;
+            debug!("PUT[{}] to backend: {:?}", key, operation);
+            let result = self.inner.put(operation.clone(), key, data.clone()).await;
             match result {
-                Err(err) if err.is_put_error_need_alien() => {
+                Err(err) if !err.is_duplicate() => {
                     error!(
                         "PUT[{}][{}] to backend. Error: {:?}",
                         key,
@@ -198,12 +185,9 @@ impl Backend {
                     );
                     // write to alien/<local name>
                     let mut op = operation.clone_alien();
-                    op.set_remote_folder(&self.mapper.local_node_name());
-                    self.backend
-                        .put_alien(op, key, data)
-                        .0
-                        .await
-                        .map_err(|_| err) //we must return 'local' error if both ways are failed
+                    op.set_remote_folder(self.mapper.local_node_name().to_owned());
+                    self.inner.put_alien(op, key, data).await.map_err(|_| err)
+                    // @TODO return both errors| we must return 'local' error if both ways are failed
                 }
                 _ => result,
             }
@@ -214,16 +198,14 @@ impl Backend {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
         // we cannot get data from alien if it belong this node
-        let result = if options.get_normal() {
-            if let Some(path) = disk_path.clone() {
+
+        if options.get_normal() {
+            if let Some(path) = disk_path {
                 trace!("GET[{}] try read normal", key);
-                self.get_local(key, BackendOperation::new_local(vdisk_id, path))
+                self.get_local(key, BackendOperation::new_local(vdisk_id, path.clone()))
                     .await
             } else {
-                error!(
-                    "GET[{}] we must read data normaly but cannot find in config right path",
-                    key
-                );
+                error!("GET[{}] we read data but can't find path in config", key);
                 Err(Error::Internal)
             }
         }
@@ -232,37 +214,28 @@ impl Backend {
             //TODO check is alien? how? add field to grpc
             trace!("GET[{}] try read alien", key);
             //TODO read from all vdisk ids
-            let op = BackendOperation::new_alien(vdisk_id.clone());
-            // op.set_remote_folder(&self.mapper.local_node_name());
-
-            Self::get_single(self.backend.clone(), key, op).await
+            let op = BackendOperation::new_alien(vdisk_id);
+            self.get_single(key, op).await
         } else {
             error!(
-                "GET[{}] we cannot read data from anywhere. path: {:?}, options: {:?}",
+                "GET[{}] can't read from anywhere {:?}, {:?}",
                 key, disk_path, options
             );
             Err(Error::Internal)
-        };
-        result.map_err(Error::convert_backend)
+        }
     }
 
     pub(crate) async fn get_local(&self, key: BobKey, op: BackendOperation) -> GetResult {
-        Self::get_single(self.backend.clone(), key, op)
-            .await
-            .map_err(Error::convert_backend)
+        self.get_single(key, op).await
     }
 
-    async fn get_single(
-        backend: Arc<dyn BackendStorage + Send + Sync>,
-        key: BobKey,
-        operation: BackendOperation,
-    ) -> GetResult {
+    async fn get_single(&self, key: BobKey, operation: BackendOperation) -> GetResult {
         if operation.is_data_alien() {
             debug!("GET[{}] to backend, foreign data", key);
-            backend.get_alien(operation, key).0.await
+            self.inner.get_alien(operation, key).await
         } else {
             debug!("GET[{}][{}] to backend", key, operation.disk_name_local());
-            backend.get(operation, key).0.await
+            self.inner.get(operation, key).await
         }
     }
 
@@ -270,14 +243,14 @@ impl Backend {
         let mut exist = vec![false; keys.len()];
         let keys_by_id_and_path = self.group_keys_by_operations(keys, options);
         for (operation, (keys, indexes)) in keys_by_id_and_path {
-            let result = self.backend.exist(operation, &keys).0.await;
+            let result = self.inner.exist(operation, &keys).await;
             if let Ok(result) = result {
-                for (&res, ind) in result.exist.iter().zip(indexes) {
+                for (&res, ind) in result.iter().zip(indexes) {
                     exist[ind] = res;
                 }
             }
         }
-        Ok(BackendExistResult { exist })
+        Ok(exist)
     }
 
     fn group_keys_by_operations(
@@ -310,13 +283,5 @@ impl Backend {
         } else {
             None
         }
-    }
-
-    pub(crate) fn mapper(&self) -> &Virtual {
-        &self.mapper
-    }
-
-    pub(crate) fn backend(&self) -> &dyn BackendStorage {
-        self.backend.as_ref()
     }
 }

@@ -61,7 +61,7 @@ impl LinkManager {
     pub(crate) async fn exist_on_nodes(
         nodes: &[Node],
         keys: &[BobKey],
-    ) -> Vec<Result<NodeOutput<BackendExistResult>, NodeOutput<BackendError>>> {
+    ) -> Vec<Result<NodeOutput<Vec<bool>>, NodeOutput<BackendError>>> {
         Self::call_nodes(nodes, |client| {
             Box::pin(client.exist(keys.to_vec(), GetOptions::new_all()))
         })

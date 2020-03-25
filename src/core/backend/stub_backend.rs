@@ -5,7 +5,7 @@ use crate::core::backend::core::Exist;
 pub struct StubBackend {}
 
 impl BackendStorage for StubBackend {
-    fn run_backend(&self) -> RunResult {
+    fn run_backend(&self) -> Run {
         future::ok(()).boxed()
     }
 
@@ -15,7 +15,7 @@ impl BackendStorage for StubBackend {
             key,
             data.meta()
         );
-        Put(future::ok(()).boxed())
+        future::ok(()).boxed()
     }
 
     fn put_alien(&self, _operation: BackendOperation, key: BobKey, data: BobData) -> Put {
@@ -24,32 +24,26 @@ impl BackendStorage for StubBackend {
             key,
             data.meta()
         );
-        Put(future::ok(()).boxed())
+        future::ok(()).boxed()
     }
 
     fn get(&self, _operation: BackendOperation, key: BobKey) -> Get {
         debug!("GET[{}]: hi from backend", key);
-        Get(future::ok(BackendGetResult {
-            data: BobData::new(vec![0], BobMeta::stub()),
-        })
-        .boxed())
+        future::ok(BobData::new(vec![0], BobMeta::stub())).boxed()
     }
 
     fn get_alien(&self, _operation: BackendOperation, key: BobKey) -> Get {
         debug!("GET[{}]: hi from backend", key);
-        Get(future::ok(BackendGetResult {
-            data: BobData::new(vec![0], BobMeta::stub()),
-        })
-        .boxed())
+        future::ok(BobData::new(vec![0], BobMeta::stub())).boxed()
     }
 
     fn exist(&self, _operation: BackendOperation, _keys: &[BobKey]) -> Exist {
         debug!("EXIST: hi from backend");
-        Exist(future::ok(BackendExistResult { exist: vec![] }).boxed())
+        future::ok(vec![]).boxed()
     }
 
     fn exist_alien(&self, _operation: BackendOperation, _keys: &[BobKey]) -> Exist {
         debug!("EXIST: hi from backend");
-        Exist(future::ok(BackendExistResult { exist: vec![] }).boxed())
+        future::ok(vec![]).boxed()
     }
 }

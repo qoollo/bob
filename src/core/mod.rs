@@ -18,8 +18,8 @@ pub mod server;
 
 pub(crate) use super::prelude::*;
 pub(crate) use backend::{
-    init_pearl, Backend, BackendExistResult, BackendGetResult, BackendOperation, BackendPingResult,
-    Error as BackendError, Exist as BackendExist, Get as BackendGet, Put as BackendPut,
+    init_pearl, Backend, BackendOperation, Error as BackendError, Exist as BackendExist,
+    Get as BackendGet, Put as BackendPut,
 };
 
 mod prelude {
@@ -62,12 +62,11 @@ mod prelude {
 
 #[cfg(test)]
 pub(crate) mod test_utils {
-    use super::bob_client::{Get, PingResult, PutResult};
+    use super::bob_client::{GetResult, PingResult, PutResult};
     use super::prelude::*;
-    use futures::future::ready;
 
     pub(crate) fn ping_ok(node_name: String) -> PingResult {
-        Ok(NodeOutput::new(node_name, BackendPingResult {}))
+        Ok(NodeOutput::new(node_name, ()))
     }
 
     pub(crate) fn put_ok(node_name: String) -> PutResult {
@@ -78,15 +77,12 @@ pub(crate) mod test_utils {
         Err(NodeOutput::new(node_name, BackendError::Internal))
     }
 
-    pub(crate) fn get_ok(node_name: String, timestamp: u64) -> Get {
-        let data = BobData::new(vec![], BobMeta::new(timestamp));
-        let res = BackendGetResult { data };
-        let output = Ok(NodeOutput::new(node_name, res));
-        let fut = ready(output);
-        Get(fut.boxed())
+    pub(crate) fn get_ok(node_name: String, timestamp: u64) -> GetResult {
+        let inner = BobData::new(vec![], BobMeta::new(timestamp));
+        Ok(NodeOutput::new(node_name, inner))
     }
 
-    pub(crate) fn get_err(node_name: String) -> Get {
-        Get({ ready(Err(NodeOutput::new(node_name, BackendError::Internal))).boxed() })
+    pub(crate) fn get_err(node_name: String) -> GetResult {
+        Err(NodeOutput::new(node_name, BackendError::Internal))
     }
 }

@@ -8,8 +8,7 @@ mod stub_backend;
 mod mem_tests;
 
 pub(crate) use self::core::{
-    Backend, BackendExistResult, BackendGetResult, BackendOperation, BackendPingResult, Exist,
-    ExistResult, Get, GetResult, Put, PutResult,
+    Backend, BackendOperation, Exist, Get, GetResult, Put, PutResult, Run,
 };
 pub(crate) use self::error::Error;
 pub(crate) use self::mem_backend::MemBackend;
@@ -20,7 +19,7 @@ pub(crate) use super::prelude::*;
 mod prelude {
     pub(crate) use super::*;
 
-    pub(crate) use super::core::{BackendStorage, RunResult};
+    pub(crate) use super::core::BackendStorage;
     pub(crate) use configs::BackendType;
     pub(crate) use data::{BobMeta, BobOptions};
     pub(crate) use mapper::Virtual;

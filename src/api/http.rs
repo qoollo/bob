@@ -118,7 +118,7 @@ fn not_acceptable_backend() -> Status {
 }
 
 fn find_group<'a>(bob: &'a State<BobServer>, vdisk_id: u32) -> Result<&'a PearlGroup, StatusExt> {
-    let backend = bob.grinder().backend().backend();
+    let backend = bob.grinder().backend().inner();
     debug!("get backend: OK");
     let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
     debug!("get vdisks groups: OK");
