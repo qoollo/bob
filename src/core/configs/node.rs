@@ -253,9 +253,11 @@ impl NodeConfig {
     pub fn log_config(&self) -> String {
         self.log_config.clone().expect("config log config")
     }
-    pub(crate) fn cluster_policy(&self) -> String {
-        self.cluster_policy.clone().expect("config cluster policy")
+
+    pub(crate) fn cluster_policy(&self) -> &str {
+        self.cluster_policy.as_ref().expect("config cluster policy")
     }
+
     pub fn bind(&self) -> String {
         self.bind_ref.borrow().to_string()
     }
