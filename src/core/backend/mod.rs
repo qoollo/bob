@@ -19,7 +19,7 @@ pub(crate) use super::prelude::*;
 mod prelude {
     pub(crate) use super::*;
 
-    pub(crate) use super::core::{BackendStorage, RunResult};
+    pub(crate) use super::core::BackendStorage;
     pub(crate) use configs::BackendType;
     pub(crate) use data::{BobMeta, BobOptions};
     pub(crate) use mapper::Virtual;
