@@ -17,6 +17,8 @@ extern crate cfg_if;
 extern crate dipstick;
 #[macro_use]
 extern crate rocket;
+#[macro_use]
+extern crate async_trait;
 
 mod api;
 mod core;

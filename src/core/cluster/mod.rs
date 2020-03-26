@@ -10,10 +10,11 @@ mod prelude {
 use quorum::Quorum;
 use simple::Quorum as SimpleQuorum;
 
+#[async_trait]
 pub(crate) trait Cluster {
-    fn put_clustered_async(&self, key: BobKey, data: BobData) -> BackendPut;
-    fn get_clustered_async(&self, key: BobKey) -> BackendGet;
-    fn exist_clustered_async(&self, keys: &[BobKey]) -> BackendExist;
+    async fn put(&self, key: BobKey, data: BobData) -> PutResult;
+    async fn get(&self, key: BobKey) -> GetResult;
+    async fn exist(&self, keys: &[BobKey]) -> ExistResult;
 }
 
 pub(crate) fn get_cluster(

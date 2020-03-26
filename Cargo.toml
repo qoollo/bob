@@ -34,6 +34,7 @@ tower-balance = "0.3.0"
 tower-load = "0.3.0"
 rocket = "0.4.4"
 rocket_contrib = "0.4.4"
+async-trait = "0.1.26"
 
 [build-dependencies]
 tonic-build = "0.1.1"
