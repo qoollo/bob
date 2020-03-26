@@ -2,7 +2,7 @@ use super::prelude::*;
 
 pub(crate) struct Quorum {
     mapper: Arc<Virtual>,
-    quorum: u8,
+    quorum: usize,
 }
 
 impl Quorum {
@@ -78,7 +78,7 @@ impl Cluster for Quorum {
         let target_nodes = self.get_target_nodes(key);
         debug!("GET[{}]: Nodes for fan out: {:?}", key, &target_nodes);
         let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
-            conn.get(key, GetOptions::new_normal()).boxed()
+            conn.get(key, GetOptions::new_local()).boxed()
         });
         let results = reqs.await;
         let ok_results = results

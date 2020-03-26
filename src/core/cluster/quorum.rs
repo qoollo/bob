@@ -3,11 +3,11 @@ use super::prelude::*;
 pub(crate) struct Quorum {
     backend: Arc<Backend>,
     mapper: Arc<Virtual>,
-    quorum: u8,
+    quorum: usize,
 }
 
 impl Quorum {
-    pub(crate) fn new(backend: Arc<Backend>, mapper: Arc<Virtual>, quorum: u8) -> Self {
+    pub(crate) fn new(backend: Arc<Backend>, mapper: Arc<Virtual>, quorum: usize) -> Self {
         Self {
             backend,
             mapper,
@@ -16,23 +16,27 @@ impl Quorum {
     }
 
     #[inline]
-    fn get_target_nodes(&self, key: BobKey) -> Vec<Node> {
-        self.mapper.get_vdisk_for_key(key).nodes().to_vec()
+    fn get_target_nodes(&self, key: BobKey) -> &[Node] {
+        self.mapper.get_vdisk_for_key(key).nodes()
     }
 
     fn get_support_nodes<'a>(
-        nodes: &'a [Node],
-        target_indexes: &[u16],
+        &'a self,
+        mut target_indexes: impl Iterator<Item = u16>,
         count: usize,
     ) -> Result<Vec<&'a Node>, BackendError> {
-        if nodes.len() < target_indexes.len() + count {
+        let (len, _) = target_indexes.size_hint();
+        debug!("iterator size lower bound: {}", len);
+        if self.mapper.nodes().len() < len + count {
             let msg = "cannot find enough support nodes".to_owned();
             error!("{}", msg);
             Err(BackendError::Failed(msg))
         } else {
-            let sup = nodes
+            let sup = self
+                .mapper
+                .nodes()
                 .iter()
-                .filter(|node| target_indexes.iter().all(|&i| i != node.index()))
+                .filter(|node| target_indexes.all(|i| i != node.index()))
                 .take(count)
                 .collect();
             Ok(sup)
@@ -40,20 +44,20 @@ impl Quorum {
     }
 
     async fn put_local_all(
-        backend: Arc<Backend>,
-        failed_nodes: Vec<String>,
+        &self,
+        node_names: Vec<String>,
         key: BobKey,
         data: BobData,
         operation: BackendOperation,
     ) -> Result<(), PutOptions> {
         let mut add_nodes = vec![];
-        for failed_node in failed_nodes {
+        for node_name in node_names {
             let mut op = operation.clone();
-            op.set_remote_folder(failed_node.clone());
+            op.set_remote_folder(node_name.clone());
 
-            if let Err(e) = backend.put_local(key, data.clone(), op).await {
+            if let Err(e) = self.backend.put_local(key, data.clone(), op).await {
                 debug!("PUT[{}] local support put result: {:?}", key, e);
-                add_nodes.push(failed_node);
+                add_nodes.push(node_name);
             }
         }
 
@@ -121,7 +125,7 @@ impl Quorum {
         let mut keys_by_nodes: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
         for (ind, &key) in keys.iter().enumerate() {
             keys_by_nodes
-                .entry(self.get_target_nodes(key))
+                .entry(self.get_target_nodes(key).to_vec())
                 .and_modify(|(keys, indexes)| {
                     keys.push(key);
                     indexes.push(ind);
@@ -135,55 +139,49 @@ impl Quorum {
 #[async_trait]
 impl Cluster for Quorum {
     async fn put(&self, key: BobKey, data: BobData) -> PutResult {
+        debug!("get nodes of the target vdisk");
         let target_nodes = self.get_target_nodes(key);
         debug!("PUT[{}]: Nodes for fan out: {:?}", key, &target_nodes);
+        debug!("call put on target nodes (on target vdisk)");
+        let results = LinkManager::call_nodes(&target_nodes, |conn| {
+            Box::pin(conn.put(key, data.clone(), PutOptions::new_local()))
+        })
+        .await;
+        debug!("PUT[{}] rcv {} cluster answers", key, results.len());
 
-        let l_quorum = self.quorum as usize;
-        let vdisk_id = self.mapper.get_vdisk_for_key(key).id(); // remove search vdisk (not vdisk id)
-        let backend = self.backend.clone();
-        let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
-            Box::pin(conn.put(key, data.clone(), PutOptions::new_client()))
-        });
-        let acc = reqs.await;
-        debug!("PUT[{}] cluster ans: {:?}", key, acc);
+        let total_ops = results.len();
+        debug!("filter out ok results");
+        let errors = results
+            .into_iter()
+            .filter_map(Result::err)
+            .collect::<Vec<_>>();
+        let ok_count = total_ops - errors.len();
 
-        let total_ops = acc.len();
-        debug!("total operations: {}", total_ops);
-        debug!("all results: {:?}", acc);
-        let failed = acc.into_iter().filter_map(Result::err).collect::<Vec<_>>();
-        let ok_count = total_ops - failed.len();
-
-        debug!(
-            "PUT[{}] total reqs: {} succ reqs: {} quorum: {}",
-            key, total_ops, ok_count, l_quorum
-        );
+        debug!("ok: {}/{} quorum: {}", ok_count, total_ops, self.quorum);
         if ok_count == total_ops {
             Ok(())
         } else {
             let mut additionl_remote_writes = match ok_count {
-                0 => l_quorum, //TODO take value from config
-                value if value < l_quorum => 1,
+                0 => self.quorum, //@TODO take value from config
+                value if value < self.quorum => 1,
                 _ => 0,
             };
 
-            let local_put = Self::put_local_all(
-                backend,
-                failed.iter().map(|n| n.node_name().to_owned()).collect(),
-                key,
-                data.clone(),
-                BackendOperation::new_alien(vdisk_id),
-            )
-            .await;
+            let vdisk_id = self.mapper.id_from_key(key);
+            debug!("get names of the failed nodes");
+            let node_names = errors.iter().map(|n| n.node_name().to_owned()).collect();
+            debug!("create operation Backend alien");
+            let operation = BackendOperation::new_alien(vdisk_id);
+            let local_put = self
+                .put_local_all(node_names, key, data.clone(), operation)
+                .await;
 
             if local_put.is_err() {
+                debug!("local put failed, add another remote node");
                 additionl_remote_writes += 1;
             }
-
-            let mut sup_nodes = Self::get_support_nodes(
-                self.mapper.nodes(),
-                &target_nodes.iter().map(Node::index).collect::<Vec<_>>(),
-                additionl_remote_writes,
-            )?;
+            let target_indexes = target_nodes.iter().map(Node::index);
+            let mut sup_nodes = self.get_support_nodes(target_indexes, additionl_remote_writes)?;
             debug!("PUT[{}] sup put nodes: {:?}", key, &sup_nodes);
 
             let mut queries = Vec::new();
@@ -194,7 +192,7 @@ impl Cluster for Quorum {
             }
 
             if additionl_remote_writes > 0 {
-                let nodes = failed
+                let nodes = errors
                     .into_iter()
                     .map(|res| res.node_name().to_owned())
                     .collect::<Vec<_>>();
@@ -219,17 +217,17 @@ impl Cluster for Quorum {
                 key,
                 sup_ok_count,
                 ok_count,
-                l_quorum,
+                self.quorum,
                 err
             );
-            if sup_ok_count + ok_count >= l_quorum {
+            if sup_ok_count + ok_count >= self.quorum {
                 Ok(())
             } else {
                 Err(BackendError::Failed(format!(
                     "failed: total: {}, ok: {}, quorum: {}, errors: {}",
                     total_ops,
                     ok_count + sup_ok_count,
-                    l_quorum,
+                    self.quorum,
                     err
                 )))
             }
@@ -239,14 +237,12 @@ impl Cluster for Quorum {
     //todo check no data (no error)
     async fn get(&self, key: BobKey) -> GetResult {
         let all_nodes = self.get_target_nodes(key);
-
-        let mapper = self.mapper.clone();
         let l_quorim = self.quorum as usize;
-        let target_nodes = all_nodes.iter().take(l_quorim).cloned().collect::<Vec<_>>();
+        let target_nodes = all_nodes.chunks(l_quorim).next().unwrap();
 
         debug!("GET[{}]: Nodes for fan out: {:?}", key, &target_nodes);
 
-        let results = Self::get_all(key, &target_nodes, GetOptions::new_all()).await;
+        let results = Self::get_all(key, target_nodes, GetOptions::new_all()).await;
         debug!("GET[{}] cluster ans: {:?}", key, results);
 
         let (result, errors) = Self::get_filter_result(key, results); // @TODO refactoring of the error logs
@@ -264,15 +260,12 @@ impl Cluster for Quorum {
         }
         debug!("GET[{}] no success result", key);
 
-        let mut sup_nodes: Vec<_> = Self::get_support_nodes(
-            mapper.nodes(),
-            &all_nodes.iter().map(Node::index).collect::<Vec<_>>(),
-            1,
-        )?
-        .into_iter()
-        .cloned()
-        .collect(); // @TODO take from config
-        sup_nodes.extend(all_nodes.into_iter().skip(l_quorim));
+        let mut sup_nodes: Vec<_> = self
+            .get_support_nodes(all_nodes.iter().map(Node::index), 1)?
+            .into_iter()
+            .cloned()
+            .collect(); // @TODO take from config
+        sup_nodes.extend(all_nodes.iter().skip(l_quorim).cloned());
 
         debug!("GET[{}]: Sup nodes for fan out: {:?}", key, &sup_nodes);
 
@@ -407,7 +400,7 @@ mod tests {
         count_nodes: u8,
         count_vdisks: u8,
         count_replicas: u8,
-        quorum: u8,
+        quorum: usize,
     ) -> (Vec<VDisk>, NodeConfig, ClusterConfig) {
         let node = node_config("0", quorum);
         let cluster = cluster_config(count_nodes, count_vdisks, count_replicas);
