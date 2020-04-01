@@ -92,7 +92,7 @@ impl Quorum {
         }
     }
 
-    fn get_filter_result(
+    fn filter_get_results(
         key: BobKey,
         results: Vec<BobClientGetResult>,
     ) -> (Option<NodeOutput<BobData>>, String) {
@@ -106,7 +106,7 @@ impl Quorum {
         let recent_successful = results
             .into_iter()
             .filter_map(Result::ok)
-            .max_by_key(|r| r.inner().meta().timestamp());
+            .max_by_key(NodeOutput::timestamp);
         (recent_successful, sup)
     }
 
@@ -212,24 +212,18 @@ impl Cluster for Quorum {
                 sup_ok_count = sup_ok_count_l;
                 err = err_l;
             }
-            trace!(
-                "PUT[{}] sup_ok: {}, ok_count: {}, quorum: {}, errors: {}",
-                key,
-                sup_ok_count,
-                ok_count,
-                self.quorum,
-                err
-            );
             if sup_ok_count + ok_count >= self.quorum {
                 Ok(())
             } else {
-                Err(BackendError::Failed(format!(
+                let msg = format!(
                     "failed: total: {}, ok: {}, quorum: {}, errors: {}",
                     total_ops,
                     ok_count + sup_ok_count,
                     self.quorum,
                     err
-                )))
+                );
+                let e = BackendError::Failed(msg);
+                Err(e)
             }
         }
     }
@@ -237,21 +231,20 @@ impl Cluster for Quorum {
     //todo check no data (no error)
     async fn get(&self, key: BobKey) -> GetResult {
         let all_nodes = self.get_target_nodes(key);
-        let l_quorim = self.quorum as usize;
-        let target_nodes = all_nodes.chunks(l_quorim).next().unwrap();
-
+        debug!("query {} nodes to send get request", self.quorum);
+        let target_nodes = all_nodes.chunks(self.quorum).next().unwrap();
         debug!("GET[{}]: Nodes for fan out: {:?}", key, &target_nodes);
 
         let results = Self::get_all(key, target_nodes, GetOptions::new_all()).await;
         debug!("GET[{}] cluster ans: {:?}", key, results);
 
-        let (result, errors) = Self::get_filter_result(key, results); // @TODO refactoring of the error logs
+        let (result, errors) = Self::filter_get_results(key, results); // @TODO refactoring of the error logs
         if let Some(answer) = result {
             debug!(
                 "GET[{}] take data from node: {}, timestamp: {}",
                 key,
                 answer.node_name(),
-                answer.inner().meta().timestamp()
+                answer.timestamp()
             ); // TODO move meta
             return Ok(answer.into_inner());
         } else if errors.is_empty() {
@@ -265,21 +258,21 @@ impl Cluster for Quorum {
             .into_iter()
             .cloned()
             .collect(); // @TODO take from config
-        sup_nodes.extend(all_nodes.iter().skip(l_quorim).cloned());
+        sup_nodes.extend(all_nodes.iter().skip(self.quorum).cloned());
 
         debug!("GET[{}]: Sup nodes for fan out: {:?}", key, &sup_nodes);
 
         let second_attempt = Self::get_all(key, &sup_nodes, GetOptions::new_alien()).await;
         debug!("GET[{}] cluster ans sup: {:?}", key, second_attempt);
 
-        let (result_sup, errors) = Self::get_filter_result(key, second_attempt);
+        let (result_sup, errors) = Self::filter_get_results(key, second_attempt);
         if let Some(answer) = result_sup {
             debug!(
                 "GET[{}] take data from node: {}, timestamp: {}",
                 key,
                 answer.node_name(),
-                answer.inner().meta().timestamp()
-            ); // @TODO move meta
+                answer.timestamp()
+            );
             Ok(answer.into_inner())
         } else {
             debug!("errors: {}", errors);
@@ -312,23 +305,13 @@ impl Cluster for Quorum {
 
 #[cfg(test)]
 mod tests {
-    use super::{backend, BackendOperation, Quorum};
-    use crate::core::{
-        backend::Backend,
-        bob_client::BobClient,
-        cluster::Cluster,
-        configs::{
-            cluster::tests::cluster_config, node::tests::node_config, node::NodeConfigYaml,
-            ClusterConfig, ClusterConfigYaml, NodeConfig,
-        },
-        data::{BobData, BobMeta, Node, VDisk},
-        mapper::Virtual,
-        test_utils,
+    use super::super::prelude::*;
+    use crate::core::configs::{
+        cluster::tests::cluster_config,
+        node::{tests::node_config, NodeConfigYaml},
+        ClusterConfigYaml,
     };
-    use std::sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    };
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     fn ping_ok(client: &mut BobClient, node: Node) {
         let cl = node;

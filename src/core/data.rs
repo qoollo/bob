@@ -84,6 +84,12 @@ impl<T> NodeOutput<T> {
     }
 }
 
+impl NodeOutput<BobData> {
+    pub(crate) fn timestamp(&self) -> u64 {
+        self.inner.meta().timestamp()
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct BobData {
     inner: Vec<u8>,
