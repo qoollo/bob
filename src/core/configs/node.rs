@@ -227,7 +227,7 @@ pub(crate) enum BackendType {
 pub struct NodeConfig {
     pub(crate) log_config: Option<String>,
     pub(crate) name: Option<String>,
-    pub(crate) quorum: Option<u8>,
+    pub(crate) quorum: Option<usize>,
     pub(crate) operation_timeout: Option<String>,
     pub(crate) check_interval: Option<String>,
     pub(crate) cluster_policy: Option<String>,
@@ -253,9 +253,11 @@ impl NodeConfig {
     pub fn log_config(&self) -> String {
         self.log_config.clone().expect("config log config")
     }
-    pub(crate) fn cluster_policy(&self) -> String {
-        self.cluster_policy.clone().expect("config cluster policy")
+
+    pub(crate) fn cluster_policy(&self) -> &str {
+        self.cluster_policy.as_ref().expect("config cluster policy")
     }
+
     pub fn bind(&self) -> String {
         self.bind_ref.borrow().to_string()
     }
@@ -486,7 +488,7 @@ impl NodeConfigYaml {
 
 pub(crate) mod tests {
     use super::*;
-    pub(crate) fn node_config(name: &str, quorum: u8) -> NodeConfig {
+    pub(crate) fn node_config(name: &str, quorum: usize) -> NodeConfig {
         NodeConfig {
             log_config: Some("".to_string()),
             name: Some(name.to_string()),

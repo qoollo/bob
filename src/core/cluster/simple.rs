@@ -1,18 +1,13 @@
 use super::prelude::*;
-use crate::core::backend::Exist;
-use crate::core::bob_client::ExistResult;
 
 pub(crate) struct Quorum {
     mapper: Arc<Virtual>,
-    quorum: u8,
+    quorum: usize,
 }
 
 impl Quorum {
-    pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
-        Self {
-            quorum: config.quorum.expect("get quorum config"),
-            mapper,
-        }
+    pub(crate) fn new(mapper: Arc<Virtual>, quorum: usize) -> Self {
+        Self { quorum, mapper }
     }
 
     #[inline]
@@ -38,91 +33,81 @@ impl Quorum {
     }
 }
 
+#[async_trait]
 impl Cluster for Quorum {
-    fn put_clustered_async(&self, key: BobKey, data: BobData) -> BackendPut {
+    async fn put(&self, key: BobKey, data: BobData) -> PutResult {
         let target_nodes = self.get_target_nodes(key);
 
         debug!("PUT[{}]: Nodes for fan out: {:?}", key, &target_nodes);
 
         let l_quorum = self.quorum as usize;
-        let task = async move {
-            let reqs = LinkManager::call_nodes(&target_nodes, |mut mock_bob_client| {
-                Box::pin(mock_bob_client.put(
-                    key,
-                    data.clone(),
-                    PutOptions {
-                        remote_nodes: vec![], //TODO check
-                        force_node: true,
-                        overwrite: false,
-                    },
-                ))
-            });
-            let results = reqs.await;
-            let total_count = results.len();
-            let errors = results.iter().filter(|r| r.is_err()).collect::<Vec<_>>();
-            let ok_count = total_count - errors.len();
-            debug!(
-                "PUT[{}] total requests: {} ok: {} quorum: {}",
-                key, total_count, ok_count, l_quorum
-            );
-            // TODO: send actuall list of vdisk it has been written on
-            if ok_count >= l_quorum {
-                Ok(())
-            } else {
-                Err(backend::Error::Failed(format!(
-                    "failed: total requests: {}, ok: {}, quorum: {}, errors: {:?}",
-                    total_count, ok_count, l_quorum, errors
-                )))
-            }
-        };
-        task.boxed()
-    }
-
-    fn get_clustered_async(&self, key: BobKey) -> BackendGet {
-        let target_nodes = self.get_target_nodes(key);
-
-        debug!("GET[{}]: Nodes for fan out: {:?}", key, &target_nodes);
-
-        async move {
-            let reqs = LinkManager::call_nodes(&target_nodes, |mut conn| {
-                conn.get(key, GetOptions::new_normal()).boxed()
-            });
-            let results = reqs.await;
-            let ok_results = results
-                .iter()
-                .filter_map(|r| r.as_ref().ok())
-                .collect::<Vec<_>>();
-
-            if let Some(cluster_result) = ok_results.get(0) {
-                Ok(cluster_result.inner().clone())
-            } else {
-                Err(BackendError::KeyNotFound(key))
-            }
+        let reqs = LinkManager::call_nodes(&target_nodes, |mock_bob_client| {
+            Box::pin(mock_bob_client.put(
+                key,
+                data.clone(),
+                PutOptions {
+                    remote_nodes: vec![], //TODO check
+                    force_node: true,
+                    overwrite: false,
+                },
+            ))
+        });
+        let results = reqs.await;
+        let total_count = results.len();
+        let errors = results.iter().filter(|r| r.is_err()).collect::<Vec<_>>();
+        let ok_count = total_count - errors.len();
+        debug!(
+            "PUT[{}] total requests: {} ok: {} quorum: {}",
+            key, total_count, ok_count, l_quorum
+        );
+        // TODO: send actuall list of vdisk it has been written on
+        if ok_count >= l_quorum {
+            Ok(())
+        } else {
+            Err(backend::Error::Failed(format!(
+                "failed: total requests: {}, ok: {}, quorum: {}, errors: {:?}",
+                total_count, ok_count, l_quorum, errors
+            )))
         }
-        .boxed()
     }
 
-    fn exist_clustered_async(&self, keys: &[BobKey]) -> Exist {
+    async fn get(&self, key: BobKey) -> GetResult {
+        let target_nodes = self.get_target_nodes(key);
+        debug!("GET[{}]: Nodes for fan out: {:?}", key, &target_nodes);
+        let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
+            conn.get(key, GetOptions::new_local()).boxed()
+        });
+        let results = reqs.await;
+        let ok_results = results
+            .iter()
+            .filter_map(|r| r.as_ref().ok())
+            .collect::<Vec<_>>();
+
+        if let Some(cluster_result) = ok_results.get(0) {
+            Ok(cluster_result.inner().clone())
+        } else {
+            Err(BackendError::KeyNotFound(key))
+        }
+    }
+
+    async fn exist(&self, keys: &[BobKey]) -> ExistResult {
         let keys_by_nodes = self.group_keys_by_nodes(keys);
         debug!(
             "EXIST Nodes for fan out: {:?}",
-            &keys_by_nodes.keys().flat_map(|v| v).collect::<Vec<_>>()
+            &keys_by_nodes.keys().flatten().collect::<Vec<_>>()
         );
         let len = keys.len();
-        async move {
-            let mut exist = vec![false; len];
-            for (nodes, (keys, indexes)) in keys_by_nodes {
-                let res: Vec<ExistResult> = LinkManager::exist_on_nodes(&nodes, &keys).await;
-                for result in res {
-                    if let Ok(result) = result {
-                        for (&r, &ind) in result.inner().iter().zip(&indexes) {
-                            exist[ind] |= r;
-                        }
+        let mut exist = vec![false; len];
+        for (nodes, (keys, indexes)) in keys_by_nodes {
+            let res: Vec<_> = LinkManager::exist_on_nodes(&nodes, &keys).await;
+            for result in res {
+                if let Ok(result) = result {
+                    for (&r, &ind) in result.inner().iter().zip(&indexes) {
+                        exist[ind] |= r;
                     }
                 }
             }
-            Ok(exist)
         }
-        .boxed()
+        Ok(exist)
     }
 }

@@ -85,7 +85,7 @@ impl Virtual {
         &self.nodes
     }
 
-    fn id_from_key(&self, key: BobKey) -> VDiskId {
+    pub(crate) fn id_from_key(&self, key: BobKey) -> VDiskId {
         (key % self.vdisks.len() as u64)
             .try_into()
             .expect("u64 to u32")

@@ -6,7 +6,7 @@ pub type BobKey = u64;
 pub type VDiskId = u32;
 
 impl PutOptions {
-    pub(crate) fn new_client() -> Self {
+    pub(crate) fn new_local() -> Self {
         PutOptions {
             remote_nodes: vec![],
             force_node: true,
@@ -24,7 +24,7 @@ impl PutOptions {
 }
 
 impl GetOptions {
-    pub(crate) fn new_normal() -> Self {
+    pub(crate) fn new_local() -> Self {
         GetOptions {
             force_node: true,
             source: GetSource::Normal as i32,
@@ -81,6 +81,12 @@ impl<T> NodeOutput<T> {
 
     pub(crate) fn into_inner(self) -> T {
         self.inner
+    }
+}
+
+impl NodeOutput<BobData> {
+    pub(crate) fn timestamp(&self) -> u64 {
+        self.inner.meta().timestamp()
     }
 }
 
@@ -146,14 +152,14 @@ bitflags! {
 #[derive(Debug)]
 pub(crate) struct BobOptions {
     flags: BobFlags,
-    remote_nodes: Vec<String>,
+    remote_nodes: Option<Vec<String>>,
     get_source: Option<GetSource>,
 }
 
 impl BobOptions {
     pub(crate) fn new_put(options: Option<PutOptions>) -> Self {
         let mut flags = BobFlags::default();
-        let remote_nodes = options.map_or(Vec::new(), |vopts| {
+        let remote_nodes = options.map(|vopts| {
             if vopts.force_node {
                 flags |= BobFlags::FORCE_NODE;
             }
@@ -177,22 +183,17 @@ impl BobOptions {
         });
         BobOptions {
             flags,
-            remote_nodes: vec![],
+            remote_nodes: None,
             get_source,
         }
     }
 
-    pub(crate) fn remote_nodes(&self) -> &[String] {
-        &self.remote_nodes
+    pub(crate) fn remote_nodes(&self) -> Option<&[String]> {
+        self.remote_nodes.as_deref()
     }
 
     pub(crate) fn flags(&self) -> BobFlags {
         self.flags
-    }
-
-    #[inline]
-    pub(crate) fn have_remote_node(&self) -> bool {
-        !self.remote_nodes.is_empty()
     }
 
     pub(crate) fn get_normal(&self) -> bool {

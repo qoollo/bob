@@ -131,9 +131,9 @@ impl Backend {
 
     pub(crate) async fn put(&self, key: BobKey, data: BobData, options: BobOptions) -> PutResult {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        if options.have_remote_node() {
+        if let Some(node_names) = options.remote_nodes() {
             // write to all remote_nodes
-            for node_name in options.remote_nodes() {
+            for node_name in node_names {
                 let mut op = BackendOperation::new_alien(vdisk_id);
                 op.set_remote_folder(node_name.to_owned());
 
