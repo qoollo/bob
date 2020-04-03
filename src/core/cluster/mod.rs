@@ -23,7 +23,7 @@ pub(crate) fn get_cluster(
     backend: Arc<Backend>,
 ) -> Arc<dyn Cluster + Send + Sync> {
     match config.cluster_policy() {
-        "simple" => Arc::new(SimpleQuorum::new(mapper, config)),
+        "simple" => Arc::new(SimpleQuorum::new(mapper, config.quorum.expect("quorum"))),
         "quorum" => Arc::new(Quorum::new(backend, mapper, config.quorum.expect("quorum"))),
         p => panic!("unknown cluster policy: {}", p),
     }

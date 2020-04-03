@@ -6,11 +6,8 @@ pub(crate) struct Quorum {
 }
 
 impl Quorum {
-    pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
-        Self {
-            quorum: config.quorum.expect("get quorum config"),
-            mapper,
-        }
+    pub(crate) fn new(mapper: Arc<Virtual>, quorum: usize) -> Self {
+        Self { quorum, mapper }
     }
 
     #[inline]
