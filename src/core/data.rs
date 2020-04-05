@@ -322,7 +322,7 @@ pub(crate) struct Node {
     host: String,
     port: u16,
     index: u16,
-    conn: Arc<RwLock<Option<BobClient>>>, // @TODO move to async mutex
+    conn: Arc<RwLock<Option<BobClient>>>,
 }
 
 impl Node {
