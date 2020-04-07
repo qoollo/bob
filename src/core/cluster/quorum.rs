@@ -399,15 +399,15 @@ mod tests {
         map: &[(&str, Call, Arc<CountCall>)],
     ) -> (Quorum, Arc<Backend>) {
         let mapper = Arc::new(Virtual::new(vdisks, &node, &cluster));
-        for n in mapper.nodes().iter() {
+        for node in mapper.nodes().iter() {
             let mut client = BobClient::default();
             let (_, func, call) = map
                 .iter()
-                .find(|(name, _, _)| *name == n.name())
+                .find(|(name, _, _)| *name == node.name())
                 .expect("find node with name");
-            func(&mut client, n.clone(), call.clone());
+            func(&mut client, node.clone(), call.clone());
 
-            n.set_connection(client).await;
+            node.set_connection(client).await;
         }
 
         let backend = Arc::new(Backend::new(mapper.clone(), &node));
