@@ -383,13 +383,9 @@ impl Node {
             }
         } else {
             debug!("will connect to {:?}", self);
-            let client = client_fatory.produce(self.clone()).await;
-            if let Ok(client) = client {
-                self.set_connection(client).await;
-                Ok(())
-            } else {
-                client.map(|_| ())
-            }
+            let client = client_fatory.produce(self.clone()).await?;
+            self.set_connection(client).await;
+            Ok(())
         }
     }
 }
