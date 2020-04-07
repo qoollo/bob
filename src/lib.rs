@@ -42,9 +42,10 @@ mod prelude {
         net::SocketAddr,
         path::{Path, PathBuf},
         pin::Pin,
-        sync::{Arc, Mutex},
+        sync::Arc,
         thread,
         time::{Duration, SystemTime},
     };
     pub(crate) use tokio::runtime::Runtime;
+    pub(crate) use tokio::sync::RwLock;
 }

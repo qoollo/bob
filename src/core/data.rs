@@ -322,7 +322,7 @@ pub(crate) struct Node {
     host: String,
     port: u16,
     index: u16,
-    conn: Arc<Mutex<Option<BobClient>>>, // @TODO move to async mutex
+    conn: Arc<RwLock<Option<BobClient>>>,
 }
 
 impl Node {
@@ -332,7 +332,7 @@ impl Node {
             host,
             port,
             index,
-            conn: Arc::new(Mutex::new(None)),
+            conn: Arc::default(),
         }
     }
 
@@ -356,26 +356,26 @@ impl Node {
         format!("{}:{}", self.host.replace(".", "_"), self.port)
     }
 
-    pub(crate) fn set_connection(&self, client: BobClient) {
+    pub(crate) async fn set_connection(&self, client: BobClient) {
         debug!("acquire mutex lock on connection");
-        *self.conn.lock().expect("lock mutex") = Some(client);
+        *self.conn.write().await = Some(client);
     }
 
-    pub(crate) fn clear_connection(&self) {
+    pub(crate) async fn clear_connection(&self) {
         debug!("acquire mutex lock on connection");
-        *self.conn.lock().expect("lock mutex") = None;
+        *self.conn.write().await = None;
     }
 
-    pub(crate) fn get_connection(&self) -> Option<BobClient> {
+    pub(crate) async fn get_connection(&self) -> Option<BobClient> {
         debug!("acquire mutex lock on connection");
-        self.conn.lock().expect("lock mutex").clone()
+        self.conn.read().await.clone()
     }
 
     pub(crate) async fn check(&self, client_fatory: &Factory) -> Result<(), String> {
-        if let Some(conn) = self.get_connection() {
+        if let Some(conn) = self.get_connection().await {
             if let Err(e) = conn.ping().await {
                 debug!("Got broken connection to node {:?}", self);
-                self.clear_connection();
+                self.clear_connection().await;
                 Err(format!("{:?}", e))
             } else {
                 debug!("All good with pinging node {:?}", self);
@@ -383,12 +383,9 @@ impl Node {
             }
         } else {
             debug!("will connect to {:?}", self);
-            client_fatory
-                .produce(self.clone())
-                .await
-                .map(move |client| {
-                    self.set_connection(client);
-                })
+            let client = client_fatory.produce(self.clone()).await?;
+            self.set_connection(client).await;
+            Ok(())
         }
     }
 }
