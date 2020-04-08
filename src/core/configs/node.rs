@@ -298,7 +298,7 @@ impl NodeConfig {
         }
     }
     pub(crate) fn prepare(&self, node: &Node) -> Result<(), String> {
-        self.bind_ref.replace(node.address());
+        self.bind_ref.replace(node.address().to_owned());
 
         self.disks_ref.replace(
             node.disks()

@@ -75,14 +75,16 @@ impl Node {
         self.name.as_ref().expect("node name")
     }
 
+    /// Returns slice of disk configs [`NodeDisk`]
     #[inline]
     pub fn disks(&self) -> &[NodeDisk] {
         &self.disks
     }
 
+    /// Returns node address, panics if no address was set in config.
     #[inline]
-    pub fn address(&self) -> String {
-        self.address.clone().expect("clone address")
+    pub fn address(&self) -> &str {
+        self.address.as_ref().expect("clone address")
     }
 
     #[inline]
@@ -167,13 +169,17 @@ impl Validatable for Node {
     }
 }
 
+/// Struct represents replica info for virtual disk.
 #[derive(Debug, PartialEq, Serialize, Deserialize, Eq, PartialOrd, Ord, Clone)]
 pub struct Replica {
+    /// Name of the replica Node.
     pub node: Option<String>,
+    /// Disk name on the replica Node.
     pub disk: Option<String>,
 }
 
 impl Replica {
+    /// Returns node name, panics if no name was set in config.
     #[must_use]
     pub fn node(&self) -> &str {
         self.node.as_ref().expect("replica node")
@@ -184,6 +190,7 @@ impl Replica {
         self.disk.as_ref().expect("replica disk")
     }
 }
+
 impl Validatable for Replica {
     fn validate(&self) -> Result<(), String> {
         match &self.node {
@@ -217,6 +224,7 @@ impl Validatable for Replica {
     }
 }
 
+/// Config for virtual disks, stores replicas locations.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct VDisk {
     id: Option<i32>,
@@ -225,6 +233,7 @@ pub struct VDisk {
 }
 
 impl VDisk {
+    /// Creates new instance of the [`VDisk`] with given id. To add replicas use [`push_replicas`].
     pub fn new(id: i32) -> Self {
         Self {
             id: Some(id),
@@ -232,15 +241,18 @@ impl VDisk {
         }
     }
 
+    /// Returns [`VDisk`] id, panics if vdisk was initialized from config and no id was set.
     #[must_use]
     pub fn id(&self) -> i32 {
         self.id.expect("VDisk id")
     }
 
+    /// Returns slice with replicas of the [`VDisk`]
     pub fn replicas(&self) -> &[Replica] {
         &self.replicas
     }
 
+    /// Adds new replica to the [`VDisk`]
     pub fn push_replica(&mut self, replica: Replica) {
         self.replicas.push(replica)
     }
@@ -273,6 +285,7 @@ impl Validatable for VDisk {
     }
 }
 
+/// Config with cluster structure description.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
