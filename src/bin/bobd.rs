@@ -91,7 +91,7 @@ async fn main() {
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
         let disks: Vec<DiskPath> = finded
-            .disks
+            .disks()
             .iter()
             .map(|d| DiskPath {
                 name: d.name().to_owned(),

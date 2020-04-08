@@ -2,8 +2,8 @@ use super::prelude::*;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeDisk {
-    pub(crate) path: Option<String>,
-    pub(crate) name: Option<String>,
+    path: Option<String>,
+    name: Option<String>,
 }
 
 impl NodeDisk {
@@ -53,21 +53,26 @@ impl Validatable for NodeDisk {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Node {
-    pub(crate) name: Option<String>,
-    pub(crate) address: Option<String>,
+    name: Option<String>,
+    address: Option<String>,
     #[serde(default)]
-    pub disks: Vec<NodeDisk>,
+    disks: Vec<NodeDisk>,
 
     #[serde(skip)]
-    pub(crate) host: RefCell<String>,
+    host: RefCell<String>,
     #[serde(skip)]
-    pub(crate) port: Cell<u16>,
+    port: Cell<u16>,
 }
 
 impl Node {
     #[inline]
     pub fn name(&self) -> String {
         self.name.clone().expect("clone name")
+    }
+
+    #[inline]
+    pub fn disks(&self) -> &[NodeDisk] {
+        &self.disks
     }
 
     #[inline]
@@ -170,7 +175,7 @@ impl Replica {
     }
 
     #[must_use]
-    pub(crate) fn disk(&self) -> &str {
+    fn disk(&self) -> &str {
         self.disk.as_ref().expect("replica disk")
     }
 }
@@ -209,15 +214,30 @@ impl Validatable for Replica {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct VDisk {
-    pub id: Option<i32>,
+    id: Option<i32>,
     #[serde(default)]
-    pub replicas: Vec<Replica>,
+    replicas: Vec<Replica>,
 }
 
 impl VDisk {
+    pub fn new(id: i32) -> Self {
+        Self {
+            id: Some(id),
+            replicas: Vec::new(),
+        }
+    }
+
     #[must_use]
     pub fn id(&self) -> i32 {
         self.id.expect("VDisk id")
+    }
+
+    pub fn replicas(&self) -> &[Replica] {
+        &self.replicas
+    }
+
+    pub fn push_replica(&mut self, replica: Replica) {
+        self.replicas.push(replica)
     }
 }
 

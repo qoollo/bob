@@ -346,9 +346,9 @@ vdisks:
 ";
         let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
         assert_eq!(1, d.nodes.len());
-        assert_eq!(1, d.nodes[0].disks.len());
+        assert_eq!(1, d.nodes[0].disks().len());
         assert_eq!(1, d.vdisks.len());
-        assert_eq!(1, d.vdisks[0].replicas.len());
+        assert_eq!(1, d.vdisks[0].replicas().len());
 
         assert!(d.validate().is_ok());
     }
@@ -480,8 +480,8 @@ vdisks:
         let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
         assert!(d.validate().is_ok());
 
-        assert_eq!(111, d.nodes[0].port.get());
-        assert_eq!("0.0.0.0", d.nodes[0].host.borrow().to_string());
+        assert_eq!(111, d.nodes[0].port());
+        assert_eq!("0.0.0.0", d.nodes[0].host());
     }
 
     #[test]

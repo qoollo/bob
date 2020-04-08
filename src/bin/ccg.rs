@@ -128,13 +128,6 @@ fn get_used_nodes_names(replicas: &[Replica]) -> Vec<String> {
     replicas.iter().map(|r| r.node().to_string()).collect()
 }
 
-fn new_vdisk(id: i32) -> VDisk {
-    VDisk {
-        id: Some(id),
-        replicas: Vec::new(),
-    }
-}
-
 #[derive(Debug)]
 struct Center {
     racks: Vec<Rack>,
@@ -175,15 +168,15 @@ impl Center {
     }
 
     fn create_vdisk(&self, id: i32, replicas_count: usize) -> VDisk {
-        let mut vdisk = new_vdisk(id);
+        let mut vdisk = VDisk::new(id);
         let (node, disk) = self.next_disk().expect("no disks in setup");
-        vdisk.replicas.push(replica_from_pair(node, disk));
+        vdisk.push_replica(replica_from_pair(node, disk));
 
-        while vdisk.replicas.len() < replicas_count {
+        while vdisk.replicas().len() < replicas_count {
             let rack = self.next_rack().expect("no racks in setup");
-            let banned_nodes = get_used_nodes_names(&vdisk.replicas);
+            let banned_nodes = get_used_nodes_names(vdisk.replicas());
             let (node, disk) = rack.next_disk(&banned_nodes).expect("no disks in setup");
-            vdisk.replicas.push(replica_from_pair(node, disk));
+            vdisk.push_replica(replica_from_pair(node, disk));
             debug!("replica added: {} {}", node.name, disk.name);
         }
         vdisk
@@ -312,7 +305,7 @@ fn get_structure(config: &Config) -> Center {
         .map(|node| {
             Node::new(
                 node.name(),
-                node.disks.iter().map(|d| Disk::new(d.name())).collect(),
+                node.disks().iter().map(|d| Disk::new(d.name())).collect(),
             )
         })
         .collect();
@@ -353,7 +346,7 @@ fn get_vdisks_count(nodes: &[ClusterNode]) -> Option<usize> {
 }
 
 fn get_pairs_count(nodes: &[ClusterNode]) -> usize {
-    nodes.iter().fold(0, |acc, n| acc + n.disks.len())
+    nodes.iter().fold(0, |acc, n| acc + n.disks().len())
 }
 
 fn write_to_file(mut output: String, name: String) {

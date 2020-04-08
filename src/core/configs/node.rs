@@ -280,6 +280,7 @@ impl NodeConfig {
     pub(crate) fn disks(&self) -> Vec<DiskPath> {
         self.disks_ref.borrow().clone()
     }
+
     pub(crate) fn backend_type(&self) -> BackendType {
         self.backend_result().expect("clone backend type")
     }
@@ -297,15 +298,14 @@ impl NodeConfig {
         }
     }
     pub(crate) fn prepare(&self, node: &Node) -> Result<(), String> {
-        self.bind_ref
-            .replace(node.address.clone().expect("clone node address"));
+        self.bind_ref.replace(node.address());
 
         self.disks_ref.replace(
-            node.disks
+            node.disks()
                 .iter()
                 .map(|disk| DiskPath {
-                    name: disk.name.clone().expect("clone disk name"),
-                    path: disk.path.clone().expect("clone disk path"),
+                    name: disk.name().to_owned(),
+                    path: disk.path().to_owned(),
                 })
                 .collect::<Vec<_>>(),
         );
@@ -424,7 +424,7 @@ impl NodeConfigYaml {
         let finded = cluster
             .nodes
             .iter()
-            .find(|n| n.name == node.name)
+            .find(|n| n.name() == node.name())
             .ok_or_else(|| {
                 debug!("cannot find node: {} in cluster config", node.name());
                 format!("cannot find node: {} in cluster config", node.name())
@@ -432,9 +432,15 @@ impl NodeConfigYaml {
         if node.backend_result().is_ok() && node.backend_type() == BackendType::Pearl {
             let pearl = node.pearl.as_ref().expect("get node pearl");
             finded
-                .disks
+                .disks()
                 .iter()
-                .find(|d| d.name == pearl.alien_disk)
+                .find(|d| {
+                    pearl
+                        .alien_disk
+                        .as_ref()
+                        .map(|name| name == d.name())
+                        .unwrap_or(false)
+                })
                 .ok_or_else(|| {
                     debug!(
                         "cannot find disk {:?} for node {:?} in cluster config",
