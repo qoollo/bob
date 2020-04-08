@@ -1,5 +1,6 @@
 use super::prelude::*;
 
+/// Structure represents disk on the node. Contains path to disk and name.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeDisk {
     path: Option<String>,
@@ -7,11 +8,13 @@ pub struct NodeDisk {
 }
 
 impl NodeDisk {
+    /// Returns disk name, panics if no name was set in config.
     #[must_use]
     pub fn name(&self) -> &str {
         self.name.as_ref().expect("node disk name")
     }
 
+    /// Returns disk path, panics if no path was set in config.
     #[must_use]
     pub fn path(&self) -> &str {
         self.path.as_ref().expect("node disk path")
@@ -51,6 +54,7 @@ impl Validatable for NodeDisk {
     }
 }
 
+/// Node config struct, with name, address and [`NodeDisk`]s.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Node {
     name: Option<String>,
@@ -65,9 +69,10 @@ pub struct Node {
 }
 
 impl Node {
+    /// Returns node name, panics if no name was set in config.
     #[inline]
-    pub fn name(&self) -> String {
-        self.name.clone().expect("clone name")
+    pub fn name(&self) -> &str {
+        self.name.as_ref().expect("node name")
     }
 
     #[inline]
@@ -372,10 +377,10 @@ impl ConfigYaml {
 
             for replica in &vdisk.replicas {
                 let finded_node = node_map.get(&replica.node).expect("get replica node");
+                let node_name = finded_node.0.name().to_owned();
                 let path = (*finded_node.1.get(&replica.disk).expect("get disk")).to_string();
 
-                let node_disk =
-                    DataNodeDisk::new(path, replica.disk().to_string(), finded_node.0.name());
+                let node_disk = DataNodeDisk::new(path, replica.disk().to_string(), node_name);
                 disk.push_replica(node_disk);
             }
             result.push(disk);

@@ -35,12 +35,8 @@ impl Virtual {
             .iter()
             .enumerate()
             .map(|(i, conf)| {
-                Node::new(
-                    conf.name(),
-                    conf.host(),
-                    conf.port(),
-                    i.try_into().expect("usize to u16"),
-                )
+                let index = i.try_into().expect("usize to u16");
+                Node::new(conf.name().to_owned(), conf.host(), conf.port(), index)
             })
             .collect();
 
