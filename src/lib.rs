@@ -36,11 +36,11 @@ mod prelude {
     pub(crate) use std::{
         cell::{Cell, RefCell},
         collections::HashMap,
-        convert::TryInto,
+        convert::{TryFrom, TryInto},
         fmt::{Debug, Display, Formatter, Result as FmtResult},
         fs::{create_dir_all, read_dir, read_to_string, remove_file, DirEntry, Metadata},
         io::{Cursor, Error as IOError, ErrorKind, Result as IOResult},
-        net::SocketAddr,
+        net::{IpAddr, SocketAddr},
         path::{Path, PathBuf},
         pin::Pin,
         sync::{Arc, Mutex},

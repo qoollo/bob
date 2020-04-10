@@ -1,10 +1,12 @@
+/// Cluster structure configuration.
 pub mod cluster;
 mod cluster_tests;
+/// Node confifuration.
 pub mod node;
 mod reader;
 
-pub(crate) use self::cluster::{Config as ClusterConfig, ConfigYaml as ClusterConfigYaml, Node};
-pub(crate) use self::node::{BackendType, DiskPath, NodeConfig, PearlConfig};
+pub(crate) use self::cluster::{Config as ClusterConfig, Node};
+pub(crate) use self::node::{BackendType, NodeConfig, PearlConfig};
 use super::prelude::*;
 
 mod prelude {

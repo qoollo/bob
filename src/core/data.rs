@@ -217,11 +217,11 @@ pub struct VDisk {
 }
 
 impl VDisk {
-    pub(crate) fn new(id: VDiskId, capacity: usize) -> Self {
+    pub(crate) fn new(id: VDiskId) -> Self {
         VDisk {
             id,
-            replicas: Vec::with_capacity(capacity),
-            nodes: vec![],
+            replicas: Vec::new(),
+            nodes: Vec::new(),
         }
     }
 

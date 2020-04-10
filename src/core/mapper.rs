@@ -31,12 +31,17 @@ impl Virtual {
         cluster: &ClusterConfig,
     ) -> (Vec<Node>, Vec<DataVDisk>) {
         let nodes: Vec<_> = cluster
-            .nodes
+            .nodes()
             .iter()
             .enumerate()
             .map(|(i, conf)| {
                 let index = i.try_into().expect("usize to u16");
-                Node::new(conf.name().to_owned(), conf.host(), conf.port(), index)
+                Node::new(
+                    conf.name().to_owned(),
+                    conf.uri().host().unwrap().to_owned(),
+                    conf.uri().port_u16().unwrap(),
+                    index,
+                )
             })
             .collect();
 

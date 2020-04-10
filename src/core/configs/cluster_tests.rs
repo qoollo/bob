@@ -345,10 +345,10 @@ vdisks:
           disk: disk1
 ";
         let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
-        assert_eq!(1, d.nodes.len());
-        assert_eq!(1, d.nodes[0].disks().len());
-        assert_eq!(1, d.vdisks.len());
-        assert_eq!(1, d.vdisks[0].replicas().len());
+        assert_eq!(1, d.nodes().len());
+        assert_eq!(1, d.nodes()[0].disks().len());
+        assert_eq!(1, d.vdisks().len());
+        assert_eq!(1, d.vdisks()[0].replicas().len());
 
         assert!(d.validate().is_ok());
     }
@@ -449,7 +449,7 @@ vdisks:
         let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
         assert!(d.validate().is_ok());
 
-        let vdisks = ClusterConfigYaml::convert_to_data(&d).unwrap();
+        let vdisks = d.convert().unwrap();
         assert_eq!(2, vdisks.len());
         assert_eq!(0, vdisks[0].id());
         assert_eq!(1, vdisks[0].replicas().len());
@@ -480,8 +480,8 @@ vdisks:
         let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
         assert!(d.validate().is_ok());
 
-        assert_eq!(111, d.nodes[0].port());
-        assert_eq!("0.0.0.0", d.nodes[0].host());
+        assert_eq!(111, d.nodes()[0].uri().port().unwrap());
+        assert_eq!("0.0.0.0", d.nodes()[0].uri().host().unwrap());
     }
 
     #[test]

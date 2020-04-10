@@ -298,7 +298,7 @@ impl NodeConfig {
         }
     }
     pub(crate) fn prepare(&self, node: &Node) -> Result<(), String> {
-        self.bind_ref.replace(node.address().to_owned());
+        self.bind_ref.replace(node.address().to_string());
 
         self.disks_ref.replace(
             node.disks()
@@ -422,7 +422,7 @@ pub struct NodeConfigYaml {}
 impl NodeConfigYaml {
     pub(crate) fn check(cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
         let finded = cluster
-            .nodes
+            .nodes()
             .iter()
             .find(|n| n.name() == node.name())
             .ok_or_else(|| {
