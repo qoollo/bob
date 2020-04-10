@@ -288,8 +288,10 @@ impl Validatable for VDisk {
 /// Config with cluster structure description.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Config {
+    /// List of all nodes in cluster.
     #[serde(default)]
     pub nodes: Vec<Node>,
+    /// List of all virtual disks in cluster.
     #[serde(default)]
     pub vdisks: Vec<VDisk>,
 }
@@ -370,6 +372,8 @@ impl Validatable for Config {
     }
 }
 
+/// Stub struct, provides convert operations utilities.
+#[derive(Debug)]
 pub struct ConfigYaml {}
 
 impl ConfigYaml {
@@ -405,6 +409,7 @@ impl ConfigYaml {
         Self::convert(cluster)
     }
 
+    /// Loads config from disk, and validates it.
     pub fn get(filename: &str) -> Result<(Vec<DataVDisk>, Config), String> {
         let config = YamlBobConfigReader::get::<Config>(filename)?;
         match config.validate() {
@@ -419,6 +424,7 @@ impl ConfigYaml {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn get_from_string(file: &str) -> Result<(Vec<DataVDisk>, Config), String> {
         let config = YamlBobConfigReader::parse::<Config>(file)?;
         debug!("config: {:?}", config);
@@ -435,6 +441,7 @@ impl ConfigYaml {
     }
 }
 
+#[cfg(test)]
 pub(crate) mod tests {
     use super::*;
 
