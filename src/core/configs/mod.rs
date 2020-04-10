@@ -6,7 +6,7 @@ pub mod node;
 mod reader;
 
 pub(crate) use self::cluster::{Config as ClusterConfig, Node};
-pub(crate) use self::node::{BackendType, NodeConfig, PearlConfig};
+pub(crate) use self::node::{BackendType, NodeConfig, Pearl as PearlConfig};
 use super::prelude::*;
 
 mod prelude {

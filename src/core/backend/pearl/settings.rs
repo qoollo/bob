@@ -64,12 +64,12 @@ impl Settings {
                 for vdisk_id in vdisks {
                     if let Ok((entry, vdisk_id)) = self.try_parse_vdisk_id(vdisk_id) {
                         if self.mapper.is_vdisk_on_node(&node_name, vdisk_id) {
-                            let pearl = config.pearl();
+                            let disk_name = config.pearl().alien_disk().to_owned();
                             let group = Group::new(
                                 self.clone(),
                                 vdisk_id,
                                 node_name.clone(),
-                                pearl.alien_disk(),
+                                disk_name,
                                 entry.path(),
                             );
                             result.push(group);
@@ -90,7 +90,8 @@ impl Settings {
         self: Arc<Self>,
         operation: &BackendOperation,
     ) -> BackendResult<Group> {
-        let path = self.alien_path(operation.vdisk_id(), operation.remote_node_name().unwrap());
+        let node_name = operation.remote_node_name().unwrap();
+        let path = self.alien_path(operation.vdisk_id(), node_name);
 
         Stuff::check_or_create_directory(&path)?;
 
@@ -98,7 +99,7 @@ impl Settings {
             self.clone(),
             operation.vdisk_id(),
             operation.remote_node_name().unwrap().to_owned(),
-            self.config.alien_disk(),
+            self.config.alien_disk().to_owned(),
             path,
         );
         Ok(group)

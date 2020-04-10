@@ -1,5 +1,7 @@
 use super::prelude::*;
 
+const PLACEHOLDER: &str = "~";
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub(crate) struct BackendSettings {
     root_dir_name: String,
@@ -97,130 +99,143 @@ impl BackendSettings {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub(crate) struct MetricsConfig {
-    name: Option<String>,
-    graphite: Option<String>,
+    name: String,
+    graphite: String,
 }
 
 impl MetricsConfig {
     pub(crate) fn graphite(&self) -> &str {
-        self.graphite.as_ref().unwrap()
+        &self.graphite
+    }
+
+    fn check_unset(&self) -> Result<(), String> {
+        if self.name == PLACEHOLDER || self.graphite == PLACEHOLDER {
+            let msg = format!("some of the fields present, but empty");
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
+        }
     }
 }
 
 impl Validatable for MetricsConfig {
     fn validate(&self) -> Result<(), String> {
-        if let Some(name) = &self.name {
-            if name.is_empty() {
-                debug!("field 'name' for 'metrics config' is empty");
-                return Err("field 'name' for 'metrics config' is empty".to_string());
-            }
+        self.check_unset()?;
+        if self.name.is_empty() {
+            debug!("field 'name' for 'metrics config' is empty");
+            return Err("field 'name' for 'metrics config' is empty".to_string());
         }
 
-        if let Some(value) = self.graphite.as_ref() {
-            value.parse::<SocketAddr>().map_err(|_| {
-                debug!(
-                    "field 'graphite': {} for 'metrics config' is invalid",
-                    value
-                );
-                format!(
-                    "field 'graphite': {} for 'metrics config' is invalid",
-                    value
-                )
-            })?;
+        if let Err(e) = self.graphite.parse::<SocketAddr>() {
+            let msg = format!("field 'graphite': {} for 'metrics config' is invalid", e);
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
         }
-
-        Ok(())
     }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub(crate) struct PearlConfig {
-    max_blob_size: Option<u64>,
-    max_data_in_blob: Option<u64>,
-    blob_file_name_prefix: Option<String>,
-    fail_retry_timeout: Option<String>,
-    alien_disk: Option<String>,
-    allow_duplicates: Option<bool>,
-
-    settings: Option<BackendSettings>,
+pub(crate) struct Pearl {
+    #[serde(default = "Pearl::default_max_blob_size")]
+    max_blob_size: u64,
+    #[serde(default = "Pearl::default_max_data_in_blob")]
+    max_data_in_blob: u64,
+    #[serde(default = "Pearl::default_blob_file_name_prefix")]
+    blob_file_name_prefix: String,
+    #[serde(default = "Pearl::default_fail_retry_timeout")]
+    fail_retry_timeout: String,
+    alien_disk: String,
+    #[serde(default = "Pearl::default_allow_duplicates")]
+    allow_duplicates: bool,
+    settings: BackendSettings,
 }
 
-impl PearlConfig {
-    pub(crate) fn alien_disk(&self) -> String {
-        self.alien_disk.clone().expect("clone alien disk")
+impl Pearl {
+    pub(crate) fn alien_disk(&self) -> &str {
+        &self.alien_disk
+    }
+
+    fn default_fail_retry_timeout() -> String {
+        "100ms".to_string()
     }
 
     pub(crate) fn fail_retry_timeout(&self) -> Duration {
         self.fail_retry_timeout
-            .clone()
-            .expect("clone fail retry timeout")
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
     }
 
-    pub(crate) fn settings(&self) -> BackendSettings {
-        self.settings.clone().expect("clone settings")
+    pub(crate) fn settings(&self) -> &BackendSettings {
+        &self.settings
     }
 
     fn prepare(&self) {
         self.fail_retry_timeout(); // TODO check unwrap
     }
 
+    fn default_allow_duplicates() -> bool {
+        true
+    }
+
     pub(crate) fn allow_duplicates(&self) -> bool {
-        self.allow_duplicates.unwrap_or(true)
+        self.allow_duplicates
+    }
+
+    fn default_blob_file_name_prefix() -> String {
+        "bob".to_string()
     }
 
     pub(crate) fn blob_file_name_prefix(&self) -> &str {
-        self.blob_file_name_prefix.as_ref().unwrap()
+        &self.blob_file_name_prefix
+    }
+
+    fn default_max_data_in_blob() -> u64 {
+        1_000_000
     }
 
     pub(crate) fn max_data_in_blob(&self) -> u64 {
-        self.max_data_in_blob.unwrap()
+        self.max_data_in_blob
+    }
+
+    fn default_max_blob_size() -> u64 {
+        1_000_000
     }
 
     pub(crate) fn max_blob_size(&self) -> u64 {
-        self.max_blob_size.unwrap()
+        self.max_blob_size
+    }
+
+    fn check_unset(&self) -> Result<(), String> {
+        if self.alien_disk == PLACEHOLDER
+            || self.blob_file_name_prefix == PLACEHOLDER
+            || self.fail_retry_timeout == PLACEHOLDER
+        {
+            let msg = format!("some of the fields present, but empty");
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
+        }
     }
 }
 
-impl Validatable for PearlConfig {
+impl Validatable for Pearl {
     fn validate(&self) -> Result<(), String> {
-        self.max_blob_size.ok_or_else(|| {
-            debug!("field 'max_blob_size' for 'config' is not set");
-            "field 'max_blob_size' for 'config' is not set".to_string()
-        })?;
-        match &self.alien_disk {
-            None => {
-                debug!("field 'alien_disk' for 'config' is not set");
-                return Err("field 'alien_disk' for 'config' is not set".to_string());
-            }
-            Some(alien_disk) => {
-                if alien_disk.is_empty() {
-                    debug!("field 'alien_disk' for 'config' is empty");
-                    return Err("field 'alien_disk' for 'config' is empty".to_string());
-                }
-            }
-        };
-        match &self.fail_retry_timeout {
-            None => {
-                debug!("field 'fail_retry_timeout' for 'config' is not set");
-                return Err("field 'fail_retry_timeout' for 'config' is not set".to_string());
-            }
-            Some(timeout) => {
-                if timeout.parse::<HumanDuration>().is_err() {
-                    debug!("field 'fail_retry_timeout' for 'config' is not valid");
-                    return Err("field 'fail_retry_timeout' for 'config' is not valid".to_string());
-                }
-            }
-        };
+        self.check_unset()?;
+        if self.alien_disk.is_empty() {
+            debug!("field 'alien_disk' for 'config' is empty");
+            return Err("field 'alien_disk' for 'config' is empty".to_string());
+        }
 
-        match &self.settings {
-            None => {
-                debug!("field 'settings' for 'config' is not set");
-                Err("field 'settings' for 'config' is not set".to_string())
-            }
-            Some(settings) => settings.validate(),
+        if self.fail_retry_timeout.parse::<HumanDuration>().is_err() {
+            debug!("field 'fail_retry_timeout' for 'config' is not valid");
+            Err("field 'fail_retry_timeout' for 'config' is not valid".to_string())
+        } else {
+            self.settings.validate()
         }
     }
 }
@@ -248,7 +263,7 @@ pub struct NodeConfig {
     cluster_policy: Option<String>,
 
     backend_type: Option<String>,
-    pearl: Option<PearlConfig>,
+    pearl: Option<Pearl>,
     metrics: Option<MetricsConfig>,
 
     #[serde(skip)]
@@ -266,7 +281,7 @@ impl NodeConfig {
         self.quorum.unwrap()
     }
 
-    pub(crate) fn pearl(&self) -> PearlConfig {
+    pub(crate) fn pearl(&self) -> Pearl {
         self.pearl.clone().expect("config pearl")
     }
 
@@ -461,13 +476,7 @@ impl NodeConfigYaml {
             finded
                 .disks()
                 .iter()
-                .find(|d| {
-                    pearl
-                        .alien_disk
-                        .as_ref()
-                        .map(|name| name == d.name())
-                        .unwrap_or(false)
-                })
+                .find(|d| pearl.alien_disk == d.name())
                 .ok_or_else(|| {
                     debug!(
                         "cannot find disk {:?} for node {:?} in cluster config",
