@@ -149,20 +149,15 @@ pub fn init_counters(
     let prefix = prepare_metrics_addres(&local_address);
 
     let mut metrics = default_metrics();
-    if let Some(config) = &node_config.metrics {
-        if let Some(graphite) = &config.graphite {
-            let mut gr = Graphite::send_to(graphite).expect("cannot init metrics for Graphite");
-            if let Some(name) = &config.name {
-                gr = gr.named(name);
-            }
-            let container = MetricsContainer::new(gr, Duration::from_secs(1), prefix.clone());
-            info!(
-                "metrics container initialized with update interval: {}ms",
-                container.duration.as_millis()
-            );
-            metrics = Arc::new(container);
-        }
-    }
+    let mut gr = Graphite::send_to(node_config.metrics().graphite())
+        .expect("cannot init metrics for Graphite");
+    gr = gr.named(node_config.name());
+    let container = MetricsContainer::new(gr, Duration::from_secs(1), prefix.clone());
+    info!(
+        "metrics container initialized with update interval: {}ms",
+        container.duration.as_millis()
+    );
+    metrics = Arc::new(container);
     init_grinder(prefix.clone() + "cluster", metrics.as_ref());
     init_bob_client(prefix.clone() + "backend", metrics.as_ref());
     init_pearl(prefix + "pearl", metrics.as_ref());

@@ -412,7 +412,7 @@ mod tests {
 
         let backend = Arc::new(Backend::new(mapper.clone(), &node));
         (
-            Quorum::new(backend.clone(), mapper, node.quorum.expect("quorum")),
+            Quorum::new(backend.clone(), mapper, node.quorum()),
             backend,
         )
     }

@@ -2,91 +2,71 @@ use super::prelude::*;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub(crate) struct BackendSettings {
-    pub(crate) root_dir_name: Option<String>,
-    pub(crate) alien_root_dir_name: Option<String>,
-    pub(crate) timestamp_period: Option<String>,
-    pub(crate) create_pearl_wait_delay: Option<String>,
+    root_dir_name: String,
+    alien_root_dir_name: String,
+    timestamp_period: String,
+    create_pearl_wait_delay: String,
 }
 
 impl Validatable for BackendSettings {
     fn validate(&self) -> Result<(), String> {
-        if let Some(root_dir_name) = &self.root_dir_name {
-            if root_dir_name.is_empty() {
-                debug!("field 'root_dir_name' for 'backend settings config' is empty");
-                return Err(
-                    "field 'root_dir_name' for 'backend settings config' is empty".to_string(),
-                );
-            }
+        self.check_unset()?;
+        if self.root_dir_name.is_empty() {
+            let msg = format!("field 'root_dir_name' for backend settings config is empty");
+            error!("{}", msg);
+            return Err(msg);
         }
-        if let Some(alien_root_dir_name) = &self.alien_root_dir_name {
-            if alien_root_dir_name.is_empty() {
-                debug!("field 'alien_root_dir_name' for 'backend settings config' is empty");
-                return Err(
-                    "field 'alien_root_dir_name' for 'backend settings config' is empty"
-                        .to_string(),
-                );
-            }
+
+        if self.alien_root_dir_name.is_empty() {
+            let msg = format!("field 'alien_root_dir_name' for 'backend settings config' is empty");
+            error!("{}", msg);
+            return Err(msg);
         }
-        match &self.timestamp_period {
-            None => {
-                debug!("field 'timestamp_period' for 'backend settings config' is not set");
-                return Err(
-                    "field 'timestamp_period' for 'backend settings config' is not set".to_string(),
+
+        if let Err(e) = self.timestamp_period.parse::<HumanDuration>() {
+            let msg = format!(
+                "field 'timestamp_period' for 'backend settings config' is not valid: {}",
+                e
+            );
+            error!("{}", msg);
+            return Err(msg);
+        } else {
+            let period = chrono::Duration::from_std(self.timestamp_period())
+                .expect("smth wrong with time: {:?}, error: {}");
+            if period > chrono::Duration::weeks(1) {
+                let msg = format!(
+                    "field 'timestamp_period' for 'backend settings config' is greater then week"
                 );
-            }
-            Some(period) => {
-                if period.parse::<HumanDuration>().is_err() {
-                    debug!("field 'timestamp_period' for 'backend settings config' is not valid");
-                    return Err(
-                        "field 'timestamp_period' for 'backend settings config' is not valid"
-                            .to_string(),
-                    );
-                } else {
-                    let period: chrono::Duration =
-                        chrono::Duration::from_std(self.timestamp_period()).map_err(|e| {
-                            trace!("smth wrong with time: {:?}, error: {}", period, e);
-                            format!("smth wrong with time: {:?}, error: {}", period, e)
-                        })?;
-                    if period > chrono::Duration::weeks(1) {
-                        return Err("field 'timestamp_period' for 'backend settings config' is greater then week".to_string());
-                    }
-                }
+                error!("{}", msg);
+                return Err(msg);
             }
         };
-        match &self.create_pearl_wait_delay {
-            None => {
-                debug!("field 'create_pearl_wait_delay' for 'backend settings config' is not set");
-                return Err(
-                    "field 'create_pearl_wait_delay' for 'backend settings config' is not set"
-                        .to_string(),
-                );
-            }
-            Some(timeout) => {
-                if timeout.parse::<HumanDuration>().is_err() {
-                    debug!("field 'create_pearl_wait_delay' for 'backend settings config' is not valid");
-                    return Err("field 'create_pearl_wait_delay' for 'backend settings config' is not valid".to_string());
-                }
-            }
-        };
-        Ok(())
+        if self
+            .create_pearl_wait_delay
+            .parse::<HumanDuration>()
+            .is_err()
+        {
+            let msg =
+                format!("field 'create_pearl_wait_delay' for backend settings config is not valid");
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
+        }
     }
 }
 
 impl BackendSettings {
-    pub(crate) fn root_dir_name(&self) -> String {
-        self.root_dir_name.clone().expect("clone root dir name")
+    pub(crate) fn root_dir_name(&self) -> &str {
+        &self.root_dir_name
     }
 
-    pub(crate) fn alien_root_dir_name(&self) -> String {
-        self.alien_root_dir_name
-            .clone()
-            .expect("clone alien root dir name")
+    pub(crate) fn alien_root_dir_name(&self) -> &str {
+        &self.alien_root_dir_name
     }
 
     pub(crate) fn timestamp_period(&self) -> Duration {
         self.timestamp_period
-            .clone()
-            .expect("clone timestamp period")
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
@@ -94,18 +74,37 @@ impl BackendSettings {
 
     pub(crate) fn create_pearl_wait_delay(&self) -> Duration {
         self.create_pearl_wait_delay
-            .clone()
-            .expect("clone create pearl wait delay")
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
+    }
+
+    fn check_unset(&self) -> Result<(), String> {
+        let placeholder = "~";
+        if self.alien_root_dir_name == placeholder
+            || self.create_pearl_wait_delay == placeholder
+            || self.root_dir_name == placeholder
+            || self.timestamp_period == placeholder
+        {
+            let msg = format!("some of the fields present, but empty");
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
+        }
     }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub(crate) struct MetricsConfig {
-    pub(crate) name: Option<String>,
-    pub(crate) graphite: Option<String>,
+    name: Option<String>,
+    graphite: Option<String>,
+}
+
+impl MetricsConfig {
+    pub(crate) fn graphite(&self) -> &str {
+        self.graphite.as_ref().unwrap()
+    }
 }
 
 impl Validatable for MetricsConfig {
@@ -136,14 +135,14 @@ impl Validatable for MetricsConfig {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub(crate) struct PearlConfig {
-    pub(crate) max_blob_size: Option<u64>,
-    pub(crate) max_data_in_blob: Option<u64>,
-    pub(crate) blob_file_name_prefix: Option<String>,
-    pub(crate) fail_retry_timeout: Option<String>,
-    pub(crate) alien_disk: Option<String>,
-    pub(crate) allow_duplicates: Option<bool>,
+    max_blob_size: Option<u64>,
+    max_data_in_blob: Option<u64>,
+    blob_file_name_prefix: Option<String>,
+    fail_retry_timeout: Option<String>,
+    alien_disk: Option<String>,
+    allow_duplicates: Option<bool>,
 
-    pub(crate) settings: Option<BackendSettings>,
+    settings: Option<BackendSettings>,
 }
 
 impl PearlConfig {
@@ -164,8 +163,24 @@ impl PearlConfig {
         self.settings.clone().expect("clone settings")
     }
 
-    pub(crate) fn prepare(&self) {
+    fn prepare(&self) {
         self.fail_retry_timeout(); // TODO check unwrap
+    }
+
+    pub(crate) fn allow_duplicates(&self) -> bool {
+        self.allow_duplicates.unwrap_or(true)
+    }
+
+    pub(crate) fn blob_file_name_prefix(&self) -> &str {
+        self.blob_file_name_prefix.as_ref().unwrap()
+    }
+
+    pub(crate) fn max_data_in_blob(&self) -> u64 {
+        self.max_data_in_blob.unwrap()
+    }
+
+    pub(crate) fn max_blob_size(&self) -> u64 {
+        self.max_blob_size.unwrap()
     }
 }
 
@@ -225,21 +240,21 @@ pub(crate) enum BackendType {
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct NodeConfig {
-    pub(crate) log_config: Option<String>,
-    pub(crate) name: Option<String>,
-    pub(crate) quorum: Option<usize>,
-    pub(crate) operation_timeout: Option<String>,
-    pub(crate) check_interval: Option<String>,
-    pub(crate) cluster_policy: Option<String>,
+    log_config: Option<String>,
+    name: Option<String>,
+    quorum: Option<usize>,
+    operation_timeout: Option<String>,
+    check_interval: Option<String>,
+    cluster_policy: Option<String>,
 
-    pub(crate) backend_type: Option<String>,
-    pub(crate) pearl: Option<PearlConfig>,
-    pub(crate) metrics: Option<MetricsConfig>,
+    backend_type: Option<String>,
+    pearl: Option<PearlConfig>,
+    metrics: Option<MetricsConfig>,
 
     #[serde(skip)]
-    pub(crate) bind_ref: RefCell<String>,
+    bind_ref: RefCell<String>,
     #[serde(skip)]
-    pub(crate) disks_ref: RefCell<Vec<DiskPath>>,
+    disks_ref: RefCell<Vec<DiskPath>>,
 }
 
 impl NodeConfig {
@@ -247,9 +262,18 @@ impl NodeConfig {
         self.name.clone().expect("config name")
     }
 
+    pub(crate) fn quorum(&self) -> usize {
+        self.quorum.unwrap()
+    }
+
     pub(crate) fn pearl(&self) -> PearlConfig {
         self.pearl.clone().expect("config pearl")
     }
+
+    pub(crate) fn metrics(&self) -> &MetricsConfig {
+        self.metrics.as_ref().unwrap()
+    }
+
     pub fn log_config(&self) -> String {
         self.log_config.clone().expect("config log config")
     }
@@ -269,6 +293,7 @@ impl NodeConfig {
             .expect("parse humantime duration")
             .into()
     }
+
     pub(crate) fn check_interval(&self) -> Duration {
         self.check_interval
             .as_ref()
@@ -277,6 +302,7 @@ impl NodeConfig {
             .expect("parse humantime duration")
             .into()
     }
+
     pub(crate) fn disks(&self) -> Vec<DiskPath> {
         self.disks_ref.borrow().clone()
     }
@@ -284,6 +310,7 @@ impl NodeConfig {
     pub(crate) fn backend_type(&self) -> BackendType {
         self.backend_result().expect("clone backend type")
     }
+
     fn backend_result(&self) -> Result<BackendType, String> {
         match self
             .backend_type
@@ -297,7 +324,7 @@ impl NodeConfig {
             value => Err(format!("unknown backend type: {}", value)),
         }
     }
-    pub(crate) fn prepare(&self, node: &Node) -> Result<(), String> {
+    fn prepare(&self, node: &Node) -> Result<(), String> {
         self.bind_ref.replace(node.address().to_string());
 
         self.disks_ref.replace(

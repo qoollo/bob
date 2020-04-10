@@ -11,7 +11,7 @@ pub(crate) struct Settings {
 
 impl Settings {
     pub(crate) fn new(config: &NodeConfig, mapper: Arc<Virtual>) -> Self {
-        let config = config.pearl.clone().expect("get pearl config");
+        let config = config.pearl().clone();
         let disk_path = mapper
             .get_disk(&config.alien_disk())
             .expect("cannot find alien disk in config")
@@ -20,7 +20,7 @@ impl Settings {
             format!("{}/{}/", disk_path, config.settings().alien_root_dir_name()).into();
 
         Self {
-            bob_prefix_path: config.settings().root_dir_name(),
+            bob_prefix_path: config.settings().root_dir_name().to_owned(),
             alien_folder,
             timestamp_period: config.settings().timestamp_period(),
             mapper,

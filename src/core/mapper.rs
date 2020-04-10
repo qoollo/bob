@@ -15,7 +15,7 @@ impl Virtual {
     pub fn new(vdisks: Vec<DataVDisk>, config: &NodeConfig, cluster: &ClusterConfig) -> Self {
         let (nodes, vdisks) = Self::prepare_nodes(vdisks, cluster);
         Self {
-            local_node_name: config.name.as_ref().expect("get name").to_owned(),
+            local_node_name: config.name().to_owned(),
             disks: config
                 .disks()
                 .iter()

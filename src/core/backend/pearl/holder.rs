@@ -193,24 +193,14 @@ impl Holder {
     fn init_pearl_by_path(&self) -> BackendResult<PearlStorage> {
         let mut builder = Builder::new().work_dir(&self.disk_path);
 
-        if self.config.allow_duplicates.unwrap_or(true) {
+        if self.config.allow_duplicates() {
             builder = builder.allow_duplicates();
         }
 
         // @TODO add default values to be inserted on deserialisation step
-        let prefix = self
-            .config
-            .blob_file_name_prefix
-            .clone()
-            .unwrap_or_else(|| "bob".to_string());
-        let max_data = self
-            .config
-            .max_data_in_blob
-            .expect("max_data_in_blob is not set in pearl config");
-        let max_blob_size = self
-            .config
-            .max_blob_size
-            .expect("'max_blob_size' is not set in pearl config");
+        let prefix = self.config.blob_file_name_prefix().clone();
+        let max_data = self.config.max_data_in_blob();
+        let max_blob_size = self.config.max_blob_size();
         builder
             .blob_file_name_prefix(prefix)
             .max_data_in_blob(max_data)
