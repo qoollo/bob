@@ -611,32 +611,6 @@ pearl:
     }
 
     #[test]
-    fn test_node_pearl_config_no_field() {
-        let s = "
-log_config: logger.yaml
-name: no
-quorum: 1
-operation_timeout: 12h 5min 2ns
-check_interval: 100ms
-cluster_policy: quorum # quorum
-backend_type: pearl
-pearl:
-#  max_blob_size: 1
-  max_data_in_blob: 1
-#  blob_file_name_prefix: bob
-  fail_retry_timeout: 100ms
-  alien_disk: disk1
-  settings:                     # describes how create and manage bob directories. required for 'pearl'
-    root_dir_name: bob            # root dir for bob storage. required for 'pearl'
-    alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
-    timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
-    create_pearl_wait_delay: 100ms
-";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
-
-    #[test]
     fn test_node_pearl_config_invalid_retry_time() {
         let s = "
 log_config: logger.yaml
@@ -651,32 +625,6 @@ pearl:
   max_data_in_blob: 1
 #  blob_file_name_prefix: bob
   fail_retry_timeout: 100
-  alien_disk: disk1
-  settings:                     # describes how create and manage bob directories. required for 'pearl'
-    root_dir_name: bob            # root dir for bob storage. required for 'pearl'
-    alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
-    timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
-    create_pearl_wait_delay: 100ms
-";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
-
-    #[test]
-    fn test_node_pearl_config_no_retry_time() {
-        let s = "
-log_config: logger.yaml
-name: no
-quorum: 1
-operation_timeout: 12h 5min 2ns
-check_interval: 100ms
-cluster_policy: quorum # quorum
-backend_type: pearl
-pearl:
-  max_blob_size: 1
-  max_data_in_blob: 1
-#  blob_file_name_prefix: bob
-#  fail_retry_timeout: 100
   alien_disk: disk1
   settings:                     # describes how create and manage bob directories. required for 'pearl'
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
@@ -800,92 +748,6 @@ vdisks:
         assert!(NodeConfigYaml::check_cluster(&cl, &d).is_err());
     }
 
-    #[test]
-    fn test_node_config_check_valid_pearl_disk() {
-        let s = "
-log_config: logger.yaml
-name: n1
-quorum: 1
-operation_timeout: 12h 5min 2ns
-check_interval: 100sec
-cluster_policy: quorum # quorum
-backend_type: pearl
-pearl:
-#  max_blob_size: 1
-  max_data_in_blob: 1
-#  blob_file_name_prefix: bob
-  fail_retry_timeout: 100ms
-  alien_disk: disk1
-  settings:                     # describes how create and manage bob directories. required for 'pearl'
-    root_dir_name: bob            # root dir for bob storage. required for 'pearl'
-    alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
-    timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
-    create_pearl_wait_delay: 100ms
-";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
-        assert!(d.validate().is_err());
-        let s1 = "
-nodes:
-    - name: n1
-      address: 0.0.0.0:11111111
-      disks:
-        - name: disk1
-          path: /tmp/d1
-        - name: disk2
-          path: /tmp/d2
-vdisks:
-    - id: 0
-      replicas:
-        - node: n1
-          disk: disk1
-";
-        let cl: ClusterConfig = YamlBobConfigReader::parse(s1).unwrap();
-        assert!(NodeConfigYaml::check_cluster(&cl, &d).is_ok());
-    }
-
-    #[test]
-    fn test_node_config_check_invalid_pearl_disk() {
-        let s = "
-log_config: logger.yaml
-name: n1
-quorum: 1
-operation_timeout: 12h 5min 2ns
-check_interval: 100sec
-cluster_policy: quorum # quorum
-backend_type: pearl
-pearl:
-#  max_blob_size: 1
-  max_data_in_blob: 1
-#  blob_file_name_prefix: bob
-  fail_retry_timeout: 100ms
-  alien_disk: disk112312312312321
-  settings:                     # describes how create and manage bob directories. required for 'pearl'
-    root_dir_name: bob            # root dir for bob storage. required for 'pearl'
-    alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
-    timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
-    create_pearl_wait_delay: 100ms
-";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
-        assert!(d.validate().is_err());
-
-        let s1 = "
-nodes:
-    - name: n1
-      address: 0.0.0.0:11111111
-      disks:
-        - name: disk1
-          path: /tmp/d1
-        - name: disk2
-          path: /tmp/d2
-vdisks:
-    - id: 0
-      replicas:
-        - node: n1
-          disk: disk1
-";
-        let cl: ClusterConfig = YamlBobConfigReader::parse(s1).unwrap();
-        assert!(NodeConfigYaml::check_cluster(&cl, &d).is_err());
-    }
     #[test]
     fn test_node_config_with_metrics() {
         let s = "
