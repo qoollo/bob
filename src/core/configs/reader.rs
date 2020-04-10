@@ -35,6 +35,7 @@ impl YamlBobConfigReader {
     where
         T: for<'de> Deserialize<'de> + Validatable,
     {
+        dbg!(&config);
         let result: Result<T, _> = serde_yaml::from_str(config);
         match result {
             Ok(conf) => Ok(conf),

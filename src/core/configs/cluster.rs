@@ -27,7 +27,8 @@ impl NodeDisk {
 
 impl Validatable for NodeDisk {
     fn validate(&self) -> Result<(), String> {
-        if self.name.is_empty() || self.path.is_empty() {
+        // For some reason serde yaml deserializes "field: # no value" into '~'
+        if self.name.is_empty() || self.path.is_empty() || self.name == "~" || self.path == "~" {
             let msg = format!("node disks must contain not empty fields 'name' and 'path'");
             error!("NodeDisk validation failed: {}", msg);
             Err(msg)
@@ -86,10 +87,25 @@ impl Node {
 }
 impl Validatable for Node {
     fn validate(&self) -> Result<(), String> {
-        if self.name.is_empty() || self.address.is_empty() {
-            let msg = format!("node must contain not empty fields 'name' and 'address'");
+        if self.name.is_empty() || self.name == "~" {
+            let msg = format!("node must contain not empty field 'name'");
             error!("{}", msg);
             return Err(msg);
+        }
+
+        match self.address.parse::<Uri>() {
+            Ok(uri) => {
+                if uri.port_u16().is_none() {
+                    let msg = format!("{}: node uri missing port", uri);
+                    error!("{}", msg);
+                    return Err(msg);
+                }
+            }
+            Err(e) => {
+                let msg = format!("{}: node uri parse failed: {}", self.address, e);
+                error!("{}", msg);
+                return Err(msg);
+            }
         }
 
         Self::aggregate(&self.disks)?;
@@ -352,75 +368,6 @@ impl Validatable for Config {
     }
 }
 
-/// Stub struct, provides convert operations utilities.
-// #[derive(Debug)]
-// pub struct ConfigYaml {}
-
-// impl ConfigYaml {
-//     pub(crate) fn convert(cluster: &Config) -> Result<Vec<DataVDisk>, String> {
-//         let mut result = Vec::new();
-//         for vdisk in &cluster.vdisks {
-//             let capacity = vdisk.replicas.len();
-//             let mut disk = DataVDisk::new(vdisk.id(), capacity);
-//             for replica in vdisk.replicas() {
-//                 let disk_name = replica.disk().to_string();
-//                 let node: &Node = cluster
-//                     .nodes
-//                     .iter()
-//                     .find(|node| node.name() == replica.node())
-//                     .expect("unknown node name in replica");
-//                 let node_name = replica.node().to_owned();
-//                 let disk_path = node
-//                     .disks()
-//                     .iter()
-//                     .find(|disk| disk.name() == disk_name)
-//                     .unwrap()
-//                     .path()
-//                     .to_owned();
-//                 let node_disk = DataNodeDisk::new(disk_path, disk_name, node_name);
-//                 disk.push_replica(node_disk);
-//             }
-//             result.push(disk);
-//         }
-//         Ok(result)
-//     }
-
-//     pub(crate) fn convert_to_data(cluster: &Config) -> Result<Vec<DataVDisk>, String> {
-//         Self::convert(cluster)
-//     }
-
-//     /// Loads config from disk, and validates it.
-//     pub fn get(filename: &str) -> Result<(Vec<DataVDisk>, Config), String> {
-//         let config = YamlBobConfigReader::get::<Config>(filename)?;
-//         match config.validate() {
-//             Ok(_) => Ok((
-//                 Self::convert_to_data(&config).expect("convert config to data"),
-//                 config,
-//             )),
-//             Err(e) => {
-//                 debug!("config is not valid: {}", e);
-//                 Err(format!("config is not valid: {}", e))
-//             }
-//         }
-//     }
-
-//     #[cfg(test)]
-//     pub(crate) fn get_from_string(file: &str) -> Result<(Vec<DataVDisk>, Config), String> {
-//         let config = YamlBobConfigReader::parse::<Config>(file)?;
-//         debug!("config: {:?}", config);
-//         if let Err(e) = config.validate() {
-//             debug!("config is not valid: {}", e);
-//             Err(format!("config is not valid: {}", e))
-//         } else {
-//             debug!("config is valid");
-//             Ok((
-//                 Self::convert_to_data(&config).expect("convert config to data"),
-//                 config,
-//             ))
-//         }
-//     }
-// }
-
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -434,15 +381,17 @@ pub(crate) mod tests {
         let nodes = (0..count_nodes)
             .map(|id| {
                 let name = id.to_string();
-                Node {
+                let node = Node {
                     name: name.clone(),
-                    address: "1".to_string(),
+                    address: "0.0.0.0:0".to_string(),
                     disks: vec![NodeDisk {
                         name: name.clone(),
                         path: name,
                     }],
                     uri: RefCell::new(Uri::default()),
-                }
+                };
+                node.prepare().unwrap();
+                node
             })
             .collect();
 

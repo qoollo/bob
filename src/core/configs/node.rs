@@ -492,6 +492,7 @@ impl NodeConfigYaml {
     }
 }
 
+#[cfg(test)]
 pub(crate) mod tests {
     use super::*;
     pub(crate) fn node_config(name: &str, quorum: usize) -> NodeConfig {

@@ -47,8 +47,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
-        assert!(d.validate().is_err());
+        assert!(YamlBobConfigReader::parse::<ClusterConfig>(s).is_err());
     }
 
     #[test]
@@ -192,8 +191,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
-        assert!(d.validate().is_err());
+        assert!(YamlBobConfigReader::parse::<ClusterConfig>(s).is_err());
     }
 
     #[test]
@@ -319,14 +317,13 @@ vdisks:
     - id:
       replicas:
         - node: n1
-          disk: disk1        # empty
+          disk: disk1
     - id:      # empty
       replicas:
         - node: n1
-          disk: disk1        # empty
+          disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
-        assert!(d.validate().is_err());
+        assert!(YamlBobConfigReader::parse::<ClusterConfig>(s).is_err());
     }
 
     #[test]
@@ -486,27 +483,6 @@ vdisks:
 
     #[test]
     fn test_ip_parsing2() {
-        let s = "
-nodes:
-    - name: n1
-      address: 0.0.0:111
-      disks:
-        - name: disk1
-          path: /tmp/d1
-        - name: disk2
-          path: /tmp/d2
-vdisks:
-    - id: 0
-      replicas:
-        - node: n1
-          disk: disk1
-";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
-        assert!(d.validate().is_err());
-    }
-
-    #[test]
-    fn test_ip_parsing3() {
         let s = "
 nodes:
     - name: n1
