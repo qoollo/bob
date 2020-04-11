@@ -267,7 +267,8 @@ pub struct NodeConfig {
 }
 
 impl NodeConfig {
-    pub(crate) fn name(&self) -> &str {
+    /// Get node name.
+    pub fn name(&self) -> &str {
         &self.name
     }
 
@@ -312,8 +313,9 @@ impl NodeConfig {
             .into()
     }
 
-    pub(crate) fn disks(&self) -> Vec<DiskPath> {
-        self.disks_ref.borrow().clone()
+    /// Get reference to collection of disks [`DiskPath`]
+    pub fn disks(&self) -> Ref<Vec<DiskPath>> {
+        self.disks_ref.borrow()
     }
 
     pub(crate) fn backend_type(&self) -> BackendType {

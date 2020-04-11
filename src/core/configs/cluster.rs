@@ -1,32 +1,13 @@
 use super::prelude::*;
 
-// @TODO move deps
-
-/// Structure represents disk on the node. Contains path to disk and name.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct NodeDisk {
-    path: String,
-    name: String,
-}
-
-impl NodeDisk {
-    /// Returns disk name, empty if name wasn't set in config.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Returns disk path, empty if path wasn't set in config.
-    #[must_use]
-    pub fn path(&self) -> &str {
-        &self.path
-    }
-}
-
-impl Validatable for NodeDisk {
+impl Validatable for DiskPath {
     fn validate(&self) -> Result<(), String> {
         // For some reason serde yaml deserializes "field: # no value" into '~'
-        if self.name.is_empty() || self.path.is_empty() || self.name == "~" || self.path == "~" {
+        if self.name().is_empty()
+            || self.path().is_empty()
+            || self.name() == "~"
+            || self.path() == "~"
+        {
             let msg = format!("node disks must contain not empty fields 'name' and 'path'");
             error!("NodeDisk validation failed: {}", msg);
             Err(msg)
@@ -37,12 +18,12 @@ impl Validatable for NodeDisk {
     }
 }
 
-/// Node config struct, with name, address and [`NodeDisk`]s.
+/// Node config struct, with name, address and [`DiskPath`]s.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Node {
     name: String,
     address: String,
-    disks: Vec<NodeDisk>,
+    disks: Vec<DiskPath>,
 
     #[serde(skip)]
     uri: RefCell<Uri>,
@@ -55,9 +36,9 @@ impl Node {
         &self.name
     }
 
-    /// Returns slice of disk configs [`NodeDisk`]
+    /// Returns slice of disk configs [`DiskPath`].
     #[inline]
-    pub fn disks(&self) -> &[NodeDisk] {
+    pub fn disks(&self) -> &[DiskPath] {
         &self.disks
     }
 
@@ -389,7 +370,7 @@ impl Validatable for Config {
         for vdisk in &self.vdisks {
             for replica in &vdisk.replicas {
                 if let Some(node) = self.nodes.iter().find(|x| x.name == replica.node) {
-                    if node.disks.iter().all(|x| x.name != replica.disk) {
+                    if node.disks.iter().all(|x| x.name() != replica.disk) {
                         let msg = format!(
                             "cannot find in node: {:?}, disk with name: {:?} for vdisk: {:?}",
                             replica.node, replica.disk, vdisk.id
@@ -428,10 +409,7 @@ pub(crate) mod tests {
                 let node = Node {
                     name: name.clone(),
                     address: "0.0.0.0:0".to_string(),
-                    disks: vec![NodeDisk {
-                        name: name.clone(),
-                        path: name,
-                    }],
+                    disks: vec![DiskPath::new(name.clone(), name)],
                     uri: RefCell::new(Uri::default()),
                 };
                 node.prepare().unwrap();

@@ -251,8 +251,9 @@ impl VDisk {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
-pub(crate) struct DiskPath {
+/// Structure represents disk on the node. Contains path to disk and name.
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize)]
+pub struct DiskPath {
     name: String,
     path: String,
 }
@@ -262,7 +263,7 @@ impl DiskPath {
         DiskPath { name, path }
     }
 
-    pub(crate) fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
