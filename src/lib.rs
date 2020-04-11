@@ -34,13 +34,13 @@ mod prelude {
         bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest,
     };
     pub(crate) use std::{
-        cell::{Cell, RefCell},
+        cell::{Ref, RefCell},
         collections::HashMap,
-        convert::{TryFrom, TryInto},
+        convert::TryInto,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
         fs::{create_dir_all, read_dir, read_to_string, remove_file, DirEntry, Metadata},
         io::{Cursor, Error as IOError, ErrorKind, Result as IOResult},
-        net::{IpAddr, SocketAddr},
+        net::SocketAddr,
         path::{Path, PathBuf},
         pin::Pin,
         sync::{Arc, Mutex},

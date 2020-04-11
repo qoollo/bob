@@ -41,7 +41,7 @@ impl Settings {
                 Group::new(
                     self.clone(),
                     vdisk_id,
-                    config.name(),
+                    config.name().to_owned(),
                     disk.name().to_owned(),
                     path,
                 )

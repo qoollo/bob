@@ -16,11 +16,7 @@ impl Virtual {
         let (nodes, vdisks) = Self::prepare_nodes(vdisks, cluster);
         Self {
             local_node_name: config.name().to_owned(),
-            disks: config
-                .disks()
-                .iter()
-                .map(|d| DiskPath::new(d.name.clone(), d.path.clone()))
-                .collect(),
+            disks: config.disks(),
             vdisks,
             nodes,
         }

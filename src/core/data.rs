@@ -348,7 +348,7 @@ impl Node {
         format!("http://{}:{}", self.host, self.port)
     }
 
-    pub(crate) fn get_uri(&self) -> http::Uri {
+    pub(crate) fn get_uri(&self) -> Uri {
         self.get_address().parse().expect("parse uri")
     }
 

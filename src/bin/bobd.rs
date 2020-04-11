@@ -1,6 +1,5 @@
 use bob::client::Factory;
 use bob::configs::cluster::Config;
-use bob::configs::node::NodeConfigYaml;
 use bob::grinder::Grinder;
 use bob::grpc::bob_api_server::BobApiServer;
 use bob::mapper::Virtual;
@@ -75,7 +74,7 @@ async fn main() {
 
     let node_config = matches.value_of("node").unwrap();
     println!("Node config: {:?}", node_config);
-    let node = NodeConfigYaml::get(node_config, &cluster).unwrap();
+    let node = cluster.get(node_config).unwrap();
 
     log4rs::init_file(node.log_config(), Default::default()).unwrap();
 

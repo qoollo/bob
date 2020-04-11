@@ -82,11 +82,10 @@ impl BackendSettings {
     }
 
     fn check_unset(&self) -> Result<(), String> {
-        let placeholder = "~";
-        if self.alien_root_dir_name == placeholder
-            || self.create_pearl_wait_delay == placeholder
-            || self.root_dir_name == placeholder
-            || self.timestamp_period == placeholder
+        if self.alien_root_dir_name == PLACEHOLDER
+            || self.create_pearl_wait_delay == PLACEHOLDER
+            || self.root_dir_name == PLACEHOLDER
+            || self.timestamp_period == PLACEHOLDER
         {
             let msg = format!("some of the fields present, but empty");
             error!("{}", msg);
@@ -240,12 +239,6 @@ impl Validatable for Pearl {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct DiskPath {
-    pub name: String,
-    pub path: String,
-}
-
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub(crate) enum BackendType {
     InMemory = 0,
@@ -253,16 +246,17 @@ pub(crate) enum BackendType {
     Pearl,
 }
 
+/// Node configuration struct, stored in node.yaml.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct NodeConfig {
-    log_config: Option<String>,
-    name: Option<String>,
-    quorum: Option<usize>,
-    operation_timeout: Option<String>,
-    check_interval: Option<String>,
-    cluster_policy: Option<String>,
+    log_config: String,
+    name: String,
+    quorum: usize,
+    operation_timeout: String,
+    check_interval: String,
+    cluster_policy: String,
 
-    backend_type: Option<String>,
+    backend_type: String,
     pearl: Option<Pearl>,
     metrics: Option<MetricsConfig>,
 
@@ -273,37 +267,39 @@ pub struct NodeConfig {
 }
 
 impl NodeConfig {
-    pub(crate) fn name(&self) -> String {
-        self.name.clone().expect("config name")
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 
     pub(crate) fn quorum(&self) -> usize {
-        self.quorum.unwrap()
+        self.quorum
     }
 
-    pub(crate) fn pearl(&self) -> Pearl {
-        self.pearl.clone().expect("config pearl")
+    pub(crate) fn pearl(&self) -> &Pearl {
+        self.pearl.as_ref().expect("get pearl config")
     }
 
     pub(crate) fn metrics(&self) -> &MetricsConfig {
-        self.metrics.as_ref().unwrap()
+        self.metrics.as_ref().expect("metrics config")
     }
 
-    pub fn log_config(&self) -> String {
-        self.log_config.clone().expect("config log config")
+    /// Get log config file path.
+    pub fn log_config(&self) -> &str {
+        &self.log_config
     }
 
     pub(crate) fn cluster_policy(&self) -> &str {
-        self.cluster_policy.as_ref().expect("config cluster policy")
+        &self.cluster_policy
     }
 
-    pub fn bind(&self) -> String {
-        self.bind_ref.borrow().to_string()
+    /// Get reference to bind address.
+    pub fn bind(&self) -> Ref<String> {
+        self.bind_ref.borrow()
     }
+
+    /// Get grpc request operation timeout, parsed from humantime format.
     pub fn operation_timeout(&self) -> Duration {
         self.operation_timeout
-            .as_ref()
-            .expect("get config operation timeout")
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
@@ -311,8 +307,6 @@ impl NodeConfig {
 
     pub(crate) fn check_interval(&self) -> Duration {
         self.check_interval
-            .as_ref()
-            .expect("get config check interval")
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
@@ -326,190 +320,36 @@ impl NodeConfig {
         self.backend_result().expect("clone backend type")
     }
 
-    fn backend_result(&self) -> Result<BackendType, String> {
-        match self
-            .backend_type
-            .as_ref()
-            .expect("match backend type")
-            .as_str()
-        {
+    pub(crate) fn backend_result(&self) -> Result<BackendType, String> {
+        match self.backend_type.as_str() {
             "in_memory" => Ok(BackendType::InMemory),
             "stub" => Ok(BackendType::Stub),
             "pearl" => Ok(BackendType::Pearl),
             value => Err(format!("unknown backend type: {}", value)),
         }
     }
-    fn prepare(&self, node: &Node) -> Result<(), String> {
-        self.bind_ref.replace(node.address().to_string());
 
-        self.disks_ref.replace(
-            node.disks()
-                .iter()
-                .map(|disk| DiskPath {
-                    name: disk.name().to_owned(),
-                    path: disk.path().to_owned(),
-                })
-                .collect::<Vec<_>>(),
-        );
+    pub(crate) fn prepare(&self, node: &Node) -> Result<(), String> {
+        self.bind_ref.replace(node.address().to_owned());
+
+        let t = node
+            .disks()
+            .iter()
+            .map(|disk| DiskPath::new(disk.name().to_owned(), disk.path().to_owned()))
+            .collect::<Vec<_>>();
+        self.disks_ref.replace(t);
 
         self.backend_result()?;
 
         if self.backend_type() == BackendType::Pearl {
-            self.pearl.as_ref().expect("prepare pearl").prepare();
+            if let Some(pearl) = &self.pearl {
+                pearl.prepare();
+            }
         }
         Ok(())
     }
-}
-impl Validatable for NodeConfig {
-    fn validate(&self) -> Result<(), String> {
-        match &self.backend_type {
-            None => {
-                debug!("field 'backend_type' for 'config' is not set");
-                return Err("field 'backend_type' for 'config' is not set".to_string());
-            }
-            Some(_) => {
-                if self.backend_result().is_ok() && self.backend_type() == BackendType::Pearl {
-                    match &self.pearl {
-                        None => {
-                            debug!("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set");
-                            Err("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set".to_string())
-                        }
-                        Some(pearl) => pearl.validate(),
-                    }?;
-                };
-            }
-        };
-        match &self.operation_timeout {
-            None => {
-                debug!("field 'timeout' for 'config' is not set");
-                return Err("field 'timeout' for 'config' is not set".to_string());
-            }
-            Some(timeout) => {
-                timeout.parse::<HumanDuration>().map_err(|_| {
-                    debug!("field 'timeout' for 'config' is not valid");
-                    "field 'timeout' for 'config' is not valid".to_string()
-                })?;
-            }
-        };
-        match &self.check_interval {
-            None => {
-                debug!("field 'check_interval' for 'config' is not set");
-                return Err("field 'check_interval' for 'config' is not set".to_string());
-            }
-            Some(check_interval) => {
-                check_interval.parse::<HumanDuration>().map_err(|_| {
-                    debug!("field 'check_interval' for 'config' is not valid");
-                    "field 'check_interval' for 'config' is not valid".to_string()
-                })?;
-            }
-        };
-        match &self.name {
-            None => {
-                debug!("field 'name' for 'config' is not set");
-                return Err("field 'name' for 'config' is not set".to_string());
-            }
-            Some(name) => {
-                if name.is_empty() {
-                    debug!("field 'name' for 'config' is empty");
-                    return Err("field 'name' for 'config' is empty".to_string());
-                }
-            }
-        };
-        match &self.cluster_policy {
-            None => {
-                debug!("field 'cluster_policy' for 'config' is not set");
-                return Err("field 'cluster_policy' for 'config' is not set".to_string());
-            }
-            Some(cluster_policy) => {
-                if cluster_policy.is_empty() {
-                    debug!("field 'cluster_policy' for 'config' is empty");
-                    return Err("field 'cluster_policy' for 'config' is empty".to_string());
-                }
-            }
-        };
-        match &self.log_config {
-            None => {
-                debug!("field 'log_config' for 'config' is not set");
-                return Err("field 'log_config' for 'config' is not set".to_string());
-            }
-            Some(log_config) => {
-                if log_config.is_empty() {
-                    debug!("field 'log_config' for 'config' is empty");
-                    return Err("field 'log_config' for 'config' is empty".to_string());
-                }
-            }
-        };
-        match self.quorum {
-            None => {
-                debug!("field 'quorum' for 'config' is not set");
-                return Err("field 'quorum' for 'config' is not set".to_string());
-            }
-            Some(quorum) => {
-                if quorum == 0 {
-                    debug!("field 'quorum' for 'config' must be greater than 0");
-                    return Err("field 'quorum' for 'config' must be greater than 0".to_string());
-                }
-            }
-        };
-        if let Some(metrics) = &self.metrics {
-            metrics.validate()
-        } else {
-            Ok(())
-        }
-    }
-}
 
-pub struct NodeConfigYaml {}
-
-impl NodeConfigYaml {
-    pub(crate) fn check(cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
-        let finded = cluster
-            .nodes()
-            .iter()
-            .find(|n| n.name() == node.name())
-            .ok_or_else(|| {
-                debug!("cannot find node: {} in cluster config", node.name());
-                format!("cannot find node: {} in cluster config", node.name())
-            })?;
-        if node.backend_result().is_ok() && node.backend_type() == BackendType::Pearl {
-            let pearl = node.pearl.as_ref().expect("get node pearl");
-            finded
-                .disks()
-                .iter()
-                .find(|d| pearl.alien_disk == d.name())
-                .ok_or_else(|| {
-                    debug!(
-                        "cannot find disk {:?} for node {:?} in cluster config",
-                        pearl.alien_disk, node.name
-                    );
-                    format!(
-                        "cannot find disk {:?} for node {:?} in cluster config",
-                        pearl.alien_disk, node.name
-                    )
-                })?;
-        }
-        node.prepare(finded)
-    }
-
-    pub(crate) fn check_cluster(cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
-        Self::check(cluster, node) //TODO
-    }
-
-    pub fn get(filename: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
-        let config = YamlBobConfigReader::get::<NodeConfig>(filename)?;
-
-        match config.validate() {
-            Ok(_) => {
-                Self::check_cluster(cluster, &config)?;
-                Ok(config)
-            }
-            Err(e) => {
-                debug!("config is not valid: {}", e);
-                Err(format!("config is not valid: {}", e))
-            }
-        }
-    }
-
+    #[cfg(test)]
     pub(crate) fn get_from_string(
         file: &str,
         cluster: &ClusterConfig,
@@ -521,9 +361,71 @@ impl NodeConfigYaml {
             Err(format!("config is not valid: {}", e))
         } else {
             debug!("config is valid");
-            Self::check_cluster(cluster, &config)?;
+            cluster.check(&config)?;
             debug!("cluster config is valid");
             Ok(config)
+        }
+    }
+
+    fn check_unset(&self) -> Result<(), String> {
+        if self.backend_type == PLACEHOLDER
+            || self.check_interval == PLACEHOLDER
+            || self.cluster_policy == PLACEHOLDER
+            || self.log_config == PLACEHOLDER
+            || self.name == PLACEHOLDER
+            || self.operation_timeout == PLACEHOLDER
+        {
+            let msg = format!("some of the fields present, but empty");
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl Validatable for NodeConfig {
+    fn validate(&self) -> Result<(), String> {
+        self.check_unset()?;
+        if self.backend_result().is_ok() && self.backend_type() == BackendType::Pearl {
+            if let Some(pearl) = &self.pearl {
+                pearl.validate()?;
+            } else {
+                let msg = format!("selected pearl backend, but pearl config not set");
+                error!("{}", msg);
+                return Err(msg);
+            }
+        }
+        self.operation_timeout
+            .parse::<HumanDuration>()
+            .map_err(|_| {
+                debug!("field 'timeout' for 'config' is not valid");
+                "field 'timeout' for 'config' is not valid".to_string()
+            })?;
+        self.check_interval.parse::<HumanDuration>().map_err(|_| {
+            debug!("field 'check_interval' for 'config' is not valid");
+            "field 'check_interval' for 'config' is not valid".to_string()
+        })?;
+        if self.name.is_empty() {
+            debug!("field 'name' for 'config' is empty");
+            return Err("field 'name' for 'config' is empty".to_string());
+        }
+        if self.cluster_policy.is_empty() {
+            debug!("field 'cluster_policy' for 'config' is empty");
+            return Err("field 'cluster_policy' for 'config' is empty".to_string());
+        }
+        if self.log_config.is_empty() {
+            debug!("field 'log_config' for 'config' is empty");
+            return Err("field 'log_config' for 'config' is empty".to_string());
+        }
+        if self.quorum == 0 {
+            debug!("field 'quorum' for 'config' must be greater than 0");
+            return Err("field 'quorum' for 'config' must be greater than 0".to_string());
+        }
+        if let Some(metrics) = &self.metrics {
+            metrics.validate()
+        } else {
+            Ok(())
         }
     }
 }
@@ -533,13 +435,13 @@ pub(crate) mod tests {
     use super::*;
     pub(crate) fn node_config(name: &str, quorum: usize) -> NodeConfig {
         NodeConfig {
-            log_config: Some("".to_string()),
-            name: Some(name.to_string()),
-            quorum: Some(quorum),
-            operation_timeout: Some("3sec".to_string()),
-            check_interval: Some("3sec".to_string()),
-            cluster_policy: Some("quorum".to_string()),
-            backend_type: Some("in_memory".to_string()),
+            log_config: "".to_string(),
+            name: name.to_string(),
+            quorum: quorum,
+            operation_timeout: "3sec".to_string(),
+            check_interval: "3sec".to_string(),
+            cluster_policy: "quorum".to_string(),
+            backend_type: "in_memory".to_string(),
             pearl: None,
             metrics: None,
             bind_ref: RefCell::default(),

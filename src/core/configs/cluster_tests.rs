@@ -2,7 +2,7 @@
 mod tests {
     use super::super::prelude::*;
 
-    use crate::core::configs::node::NodeConfigYaml;
+    use crate::core::configs::node::NodeConfig;
 
     #[test]
     fn test_node_disk_name_is_empty() {
@@ -666,7 +666,7 @@ vdisks:
           disk: disk1
 ";
         let cl: ClusterConfig = YamlBobConfigReader::parse(s1).unwrap();
-        assert!(NodeConfigYaml::check_cluster(&cl, &d).is_err());
+        assert!(cl.check(&d).is_err());
     }
 
     #[test]
@@ -713,7 +713,7 @@ vdisks:
           disk: disk1
 ";
         let cl: ClusterConfig = YamlBobConfigReader::parse(s1).unwrap();
-        assert!(NodeConfigYaml::check_cluster(&cl, &d).is_ok());
+        assert!(cl.check(&d).is_ok());
     }
 
     #[test]
@@ -745,7 +745,7 @@ vdisks:
           disk: disk1
 ";
         let cl: ClusterConfig = YamlBobConfigReader::parse(s1).unwrap();
-        assert!(NodeConfigYaml::check_cluster(&cl, &d).is_err());
+        assert!(cl.check(&d).is_err());
     }
 
     #[test]

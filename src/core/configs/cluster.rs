@@ -1,8 +1,6 @@
 use super::prelude::*;
 
 // @TODO move deps
-use http::Uri;
-use std::cell::Ref;
 
 /// Structure represents disk on the node. Contains path to disk and name.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -282,6 +280,52 @@ impl Config {
                 Err(format!("config is not valid: {}", e))
             }
         }
+    }
+
+    /// Read and validate node config file.
+    pub fn get(&self, filename: &str) -> Result<NodeConfig, String> {
+        let config = YamlBobConfigReader::get::<NodeConfig>(filename)?;
+
+        match config.validate() {
+            Ok(_) => {
+                self.check(&config)?;
+                Ok(config)
+            }
+            Err(e) => {
+                debug!("config is not valid: {}", e);
+                Err(format!("config is not valid: {}", e))
+            }
+        }
+    }
+
+    pub(crate) fn check(&self, node: &NodeConfig) -> Result<(), String> {
+        let finded = self
+            .nodes()
+            .iter()
+            .find(|n| n.name() == node.name())
+            .ok_or_else(|| {
+                debug!("cannot find node: {} in cluster config", node.name());
+                format!("cannot find node: {} in cluster config", node.name())
+            })?;
+        if node.backend_result().is_ok() && node.backend_type() == BackendType::Pearl {
+            finded
+                .disks()
+                .iter()
+                .find(|d| node.pearl().alien_disk() == d.name())
+                .ok_or_else(|| {
+                    debug!(
+                        "cannot find disk {:?} for node {:?} in cluster config",
+                        node.pearl().alien_disk(),
+                        node.name()
+                    );
+                    format!(
+                        "cannot find disk {:?} for node {:?} in cluster config",
+                        node.pearl().alien_disk(),
+                        node.name()
+                    )
+                })?;
+        }
+        node.prepare(finded)
     }
 
     #[cfg(test)]

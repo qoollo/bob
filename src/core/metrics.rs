@@ -136,11 +136,6 @@ fn prepare_metrics_addres(address: &str) -> String {
     address.replace(".", "_") + "."
 }
 
-fn default_metrics() -> Arc<dyn ContainerBuilder + Send + Sync> {
-    let cont = MetricsContainer::new(Void::new(), Duration::from_secs(100_000), "".to_owned());
-    Arc::new(cont)
-}
-
 /// initializes bob counters with given config and address of the local node
 pub fn init_counters(
     node_config: &NodeConfig,
@@ -148,7 +143,6 @@ pub fn init_counters(
 ) -> Arc<dyn ContainerBuilder + Send + Sync> {
     let prefix = prepare_metrics_addres(&local_address);
 
-    let mut metrics = default_metrics();
     let mut gr = Graphite::send_to(node_config.metrics().graphite())
         .expect("cannot init metrics for Graphite");
     gr = gr.named(node_config.name());
@@ -157,7 +151,7 @@ pub fn init_counters(
         "metrics container initialized with update interval: {}ms",
         container.duration.as_millis()
     );
-    metrics = Arc::new(container);
+    let metrics = Arc::new(container);
     init_grinder(prefix.clone() + "cluster", metrics.as_ref());
     init_bob_client(prefix.clone() + "backend", metrics.as_ref());
     init_pearl(prefix + "pearl", metrics.as_ref());
