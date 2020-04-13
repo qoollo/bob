@@ -27,6 +27,7 @@ impl Quorum {
     ) -> Result<Vec<&'a Node>, BackendError> {
         let (len, _) = target_indexes.size_hint();
         debug!("iterator size lower bound: {}", len);
+        trace!("nodes available: {}", self.mapper.nodes().len());
         if self.mapper.nodes().len() < len + count {
             let msg = "cannot find enough support nodes".to_owned();
             error!("{}", msg);
@@ -161,7 +162,7 @@ impl Cluster for Quorum {
         if ok_count == total_ops {
             Ok(())
         } else {
-            let mut additionl_remote_writes = match ok_count {
+            let mut additional_remote_writes = match ok_count {
                 0 => self.quorum, //@TODO take value from config
                 value if value < self.quorum => 1,
                 _ => 0,
@@ -178,10 +179,10 @@ impl Cluster for Quorum {
 
             if local_put.is_err() {
                 debug!("local put failed, add another remote node");
-                additionl_remote_writes += 1;
+                additional_remote_writes += 1;
             }
             let target_indexes = target_nodes.iter().map(Node::index);
-            let mut sup_nodes = self.get_support_nodes(target_indexes, additionl_remote_writes)?;
+            let mut sup_nodes = self.get_support_nodes(target_indexes, additional_remote_writes)?;
             debug!("PUT[{}] sup put nodes: {:?}", key, &sup_nodes);
 
             let mut queries = Vec::new();
@@ -191,7 +192,7 @@ impl Cluster for Quorum {
                 queries.push((item, op));
             }
 
-            if additionl_remote_writes > 0 {
+            if additional_remote_writes > 0 {
                 let nodes = errors
                     .into_iter()
                     .map(|res| res.node_name().to_owned())

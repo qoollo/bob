@@ -152,19 +152,21 @@ bitflags! {
 #[derive(Debug)]
 pub(crate) struct BobOptions {
     flags: BobFlags,
-    remote_nodes: Option<Vec<String>>,
+    remote_nodes: Vec<String>,
     get_source: Option<GetSource>,
 }
 
 impl BobOptions {
     pub(crate) fn new_put(options: Option<PutOptions>) -> Self {
         let mut flags = BobFlags::default();
-        let remote_nodes = options.map(|vopts| {
-            if vopts.force_node {
-                flags |= BobFlags::FORCE_NODE;
-            }
-            vopts.remote_nodes
-        });
+        let remote_nodes = options
+            .map(|vopts| {
+                if vopts.force_node {
+                    flags |= BobFlags::FORCE_NODE;
+                }
+                vopts.remote_nodes
+            })
+            .unwrap_or_default();
         BobOptions {
             flags,
             remote_nodes,
@@ -183,13 +185,13 @@ impl BobOptions {
         });
         BobOptions {
             flags,
-            remote_nodes: None,
+            remote_nodes: Vec::new(),
             get_source,
         }
     }
 
-    pub(crate) fn remote_nodes(&self) -> Option<&[String]> {
-        self.remote_nodes.as_deref()
+    pub(crate) fn remote_nodes(&self) -> &[String] {
+        &self.remote_nodes
     }
 
     pub(crate) fn flags(&self) -> BobFlags {

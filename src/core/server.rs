@@ -58,19 +58,45 @@ type ApiResult<T> = Result<Response<T>, Status>;
 #[tonic::async_trait]
 impl BobApi for Server {
     async fn put(&self, req: Request<PutRequest>) -> ApiResult<OpStatus> {
+        trace!("- - - - - SERVER PUT START - - - - -");
         let sw = Stopwatch::start_new();
+        trace!(
+            "process incoming put request /{:.3}ms/",
+            sw.elapsed().as_secs_f64() * 1000.0
+        );
         let put_request = req.into_inner();
+        trace!(
+            "convert request into inner, /{:.3}ms/",
+            sw.elapsed().as_secs_f64() * 1000.0
+        );
 
         if let Some((key, inner, timestamp, options)) = put_extract(put_request) {
+            trace!(
+                "extract params from request, /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
             let meta = BobMeta::new(timestamp);
             let data = BobData::new(inner, meta);
 
-            trace!("PUT[{}] data size: {}", key, data.inner().len());
+            trace!(
+                "PUT[{}] data size: {}, /{:.3}ms/",
+                key,
+                data.inner().len(),
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
             let put_result = self
                 .grinder
                 .put(key, data, BobOptions::new_put(options))
                 .await;
+            trace!(
+                "grinder processed put request, /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
             let elapsed = sw.elapsed_ms();
+            trace!(
+                "- - - - - SERVER PUT FINISH - - - - -, /{:.3}ms",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
             put_result
                 .map(|back_res| {
                     debug!("PUT[{}]-OK local:{:?} ok dt: {}ms", key, back_res, elapsed);
