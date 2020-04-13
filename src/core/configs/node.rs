@@ -226,13 +226,15 @@ impl Validatable for Pearl {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
         if self.alien_disk.is_empty() {
-            debug!("field 'alien_disk' for 'config' is empty");
-            return Err("field 'alien_disk' for 'config' is empty".to_string());
+            let msg = format!("field 'alien_disk' for 'config' is empty");
+            error!("{}", msg);
+            return Err(msg);
         }
 
         if self.fail_retry_timeout.parse::<HumanDuration>().is_err() {
-            debug!("field 'fail_retry_timeout' for 'config' is not valid");
-            Err("field 'fail_retry_timeout' for 'config' is not valid".to_string())
+            let msg = format!("field 'fail_retry_timeout' for 'config' is not valid");
+            error!("{}", msg);
+            Err(msg)
         } else {
             self.settings.validate()
         }
@@ -359,10 +361,8 @@ impl NodeConfig {
         let config = YamlBobConfigReader::parse::<NodeConfig>(file)?;
         debug!("config: {:?}", config);
         if let Err(e) = config.validate() {
-            debug!("config is not valid: {}", e);
             Err(format!("config is not valid: {}", e))
         } else {
-            debug!("config is valid");
             cluster.check(&config)?;
             debug!("cluster config is valid");
             Ok(config)
@@ -401,30 +401,32 @@ impl Validatable for NodeConfig {
         self.operation_timeout
             .parse::<HumanDuration>()
             .map_err(|_| {
-                debug!("field 'timeout' for 'config' is not valid");
-                "field 'timeout' for 'config' is not valid".to_string()
+                let msg = format!("field 'timeout' for 'config' is not valid");
+                error!("{}", msg);
+                msg
             })?;
         self.check_interval.parse::<HumanDuration>().map_err(|_| {
-            debug!("field 'check_interval' for 'config' is not valid");
-            "field 'check_interval' for 'config' is not valid".to_string()
+            let msg = format!("field 'check_interval' for 'config' is not valid");
+            error!("{}", msg);
+            msg
         })?;
         if self.name.is_empty() {
-            debug!("field 'name' for 'config' is empty");
-            return Err("field 'name' for 'config' is empty".to_string());
-        }
-        if self.cluster_policy.is_empty() {
-            debug!("field 'cluster_policy' for 'config' is empty");
-            return Err("field 'cluster_policy' for 'config' is empty".to_string());
-        }
-        if self.log_config.is_empty() {
-            debug!("field 'log_config' for 'config' is empty");
-            return Err("field 'log_config' for 'config' is empty".to_string());
-        }
-        if self.quorum == 0 {
-            debug!("field 'quorum' for 'config' must be greater than 0");
-            return Err("field 'quorum' for 'config' must be greater than 0".to_string());
-        }
-        if let Some(metrics) = &self.metrics {
+            let msg = format!("field 'name' for 'config' is empty");
+            error!("{}", msg);
+            Err(msg)
+        } else if self.cluster_policy.is_empty() {
+            let msg = format!("field 'cluster_policy' for 'config' is empty");
+            error!("{}", msg);
+            Err(msg)
+        } else if self.log_config.is_empty() {
+            let msg = format!("field 'log_config' for 'config' is empty");
+            error!("{}", msg);
+            Err(msg)
+        } else if self.quorum == 0 {
+            let msg = format!("field 'quorum' for 'config' must be greater than 0");
+            error!("{}", msg);
+            Err(msg)
+        } else if let Some(metrics) = &self.metrics {
             metrics.validate()
         } else {
             Ok(())
