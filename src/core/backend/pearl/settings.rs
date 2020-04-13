@@ -11,7 +11,7 @@ pub(crate) struct Settings {
 
 impl Settings {
     pub(crate) fn new(config: &NodeConfig, mapper: Arc<Virtual>) -> Self {
-        let config = config.pearl.clone().expect("get pearl config");
+        let config = config.pearl().clone();
         let disk_path = mapper
             .get_disk(&config.alien_disk())
             .expect("cannot find alien disk in config")
@@ -20,7 +20,7 @@ impl Settings {
             format!("{}/{}/", disk_path, config.settings().alien_root_dir_name()).into();
 
         Self {
-            bob_prefix_path: config.settings().root_dir_name(),
+            bob_prefix_path: config.settings().root_dir_name().to_owned(),
             alien_folder,
             timestamp_period: config.settings().timestamp_period(),
             mapper,
@@ -41,7 +41,7 @@ impl Settings {
                 Group::new(
                     self.clone(),
                     vdisk_id,
-                    config.name(),
+                    config.name().to_owned(),
                     disk.name().to_owned(),
                     path,
                 )
@@ -64,12 +64,12 @@ impl Settings {
                 for vdisk_id in vdisks {
                     if let Ok((entry, vdisk_id)) = self.try_parse_vdisk_id(vdisk_id) {
                         if self.mapper.is_vdisk_on_node(&node_name, vdisk_id) {
-                            let pearl = config.pearl();
+                            let disk_name = config.pearl().alien_disk().to_owned();
                             let group = Group::new(
                                 self.clone(),
                                 vdisk_id,
                                 node_name.clone(),
-                                pearl.alien_disk(),
+                                disk_name,
                                 entry.path(),
                             );
                             result.push(group);
@@ -90,7 +90,8 @@ impl Settings {
         self: Arc<Self>,
         operation: &BackendOperation,
     ) -> BackendResult<Group> {
-        let path = self.alien_path(operation.vdisk_id(), operation.remote_node_name().unwrap());
+        let node_name = operation.remote_node_name().unwrap();
+        let path = self.alien_path(operation.vdisk_id(), node_name);
 
         Stuff::check_or_create_directory(&path)?;
 
@@ -98,7 +99,7 @@ impl Settings {
             self.clone(),
             operation.vdisk_id(),
             operation.remote_node_name().unwrap().to_owned(),
-            self.config.alien_disk(),
+            self.config.alien_disk().to_owned(),
             path,
         );
         Ok(group)

@@ -15,12 +15,8 @@ impl Virtual {
     pub fn new(vdisks: Vec<DataVDisk>, config: &NodeConfig, cluster: &ClusterConfig) -> Self {
         let (nodes, vdisks) = Self::prepare_nodes(vdisks, cluster);
         Self {
-            local_node_name: config.name.as_ref().expect("get name").to_owned(),
-            disks: config
-                .disks()
-                .iter()
-                .map(|d| DiskPath::new(d.name.clone(), d.path.clone()))
-                .collect(),
+            local_node_name: config.name().to_owned(),
+            disks: config.disks().clone(),
             vdisks,
             nodes,
         }
@@ -31,15 +27,16 @@ impl Virtual {
         cluster: &ClusterConfig,
     ) -> (Vec<Node>, Vec<DataVDisk>) {
         let nodes: Vec<_> = cluster
-            .nodes
+            .nodes()
             .iter()
             .enumerate()
             .map(|(i, conf)| {
+                let index = i.try_into().expect("usize to u16");
                 Node::new(
-                    conf.name(),
-                    conf.host(),
-                    conf.port(),
-                    i.try_into().expect("usize to u16"),
+                    conf.name().to_owned(),
+                    conf.uri().host().unwrap().to_owned(),
+                    conf.uri().port_u16().unwrap(),
+                    index,
                 )
             })
             .collect();

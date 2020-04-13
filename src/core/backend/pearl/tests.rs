@@ -1,7 +1,6 @@
 use super::prelude::*;
 
 use crate::core::backend::pearl::core::Pearl as PearlBackend;
-use crate::core::configs::{node::NodeConfigYaml, ClusterConfigYaml};
 use std::fs::remove_dir_all;
 
 static DISK_NAME: &str = "disk1";
@@ -17,10 +16,11 @@ fn drop_pearl() {
 }
 
 fn create_backend(node_config: &str, cluster_config: &str) -> PearlBackend {
-    let (vdisks, cluster) = ClusterConfigYaml::get_from_string(cluster_config).unwrap();
+    let cluster = ClusterConfig::get_from_string(cluster_config).unwrap();
+    let vdisks = cluster.convert().unwrap();
     debug!("vdisks: {:?}", vdisks);
     debug!("cluster: {:?}", cluster);
-    let node = NodeConfigYaml::get_from_string(node_config, &cluster).unwrap();
+    let node = NodeConfig::get_from_string(node_config, &cluster).unwrap();
     debug!("node: {:?}", node);
 
     let mapper = Arc::new(Virtual::new(vdisks.to_vec(), &node, &cluster));

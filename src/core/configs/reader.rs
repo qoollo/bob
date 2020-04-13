@@ -3,16 +3,17 @@ use super::prelude::*;
 pub trait Validatable {
     fn validate(&self) -> Result<(), String>;
 
-    fn aggregate<T: Validatable>(&self, elements: &[T]) -> Result<(), String> {
+    fn aggregate(elements: &[impl Validatable]) -> Result<(), String> {
         let options = elements
             .iter()
             .map(|elem| elem.validate())
             .filter_map(Result::err)
             .collect::<Vec<String>>();
-        if !options.is_empty() {
-            return Err(options.iter().fold("".to_string(), |acc, x| acc + "\n" + x));
+        if options.is_empty() {
+            Ok(())
+        } else {
+            Err(options.iter().fold(String::new(), |acc, x| acc + x + "\n"))
         }
-        Ok(())
     }
 }
 

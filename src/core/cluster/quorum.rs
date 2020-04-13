@@ -308,8 +308,8 @@ mod tests {
     use super::super::prelude::*;
     use crate::core::configs::{
         cluster::tests::cluster_config,
-        node::{tests::node_config, NodeConfigYaml},
-        ClusterConfigYaml,
+        node::{tests::node_config, NodeConfig},
+        ClusterConfig,
     };
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -380,15 +380,15 @@ mod tests {
     }
 
     fn prepare_configs(
-        count_nodes: u8,
-        count_vdisks: u8,
-        count_replicas: u8,
+        count_nodes: u32,
+        count_vdisks: u32,
+        count_replicas: u32,
         quorum: usize,
     ) -> (Vec<VDisk>, NodeConfig, ClusterConfig) {
         let node = node_config("0", quorum);
         let cluster = cluster_config(count_nodes, count_vdisks, count_replicas);
-        NodeConfigYaml::check(&cluster, &node).expect("check node config");
-        let vdisks = ClusterConfigYaml::convert(&cluster).expect("convert config");
+        cluster.check(&node).expect("check node config");
+        let vdisks = cluster.convert().expect("convert config");
         (vdisks, node, cluster)
     }
 
@@ -411,10 +411,7 @@ mod tests {
         }
 
         let backend = Arc::new(Backend::new(mapper.clone(), &node));
-        (
-            Quorum::new(backend.clone(), mapper, node.quorum.expect("quorum")),
-            backend,
-        )
+        (Quorum::new(backend.clone(), mapper, node.quorum()), backend)
     }
 
     fn create_ok_node(name: &str, op: (bool, bool)) -> (&str, Call, Arc<CountCall>) {

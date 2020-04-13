@@ -1,92 +1,74 @@
 use super::prelude::*;
 
+const PLACEHOLDER: &str = "~";
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub(crate) struct BackendSettings {
-    pub(crate) root_dir_name: Option<String>,
-    pub(crate) alien_root_dir_name: Option<String>,
-    pub(crate) timestamp_period: Option<String>,
-    pub(crate) create_pearl_wait_delay: Option<String>,
+    root_dir_name: String,
+    alien_root_dir_name: String,
+    timestamp_period: String,
+    create_pearl_wait_delay: String,
 }
 
 impl Validatable for BackendSettings {
     fn validate(&self) -> Result<(), String> {
-        if let Some(root_dir_name) = &self.root_dir_name {
-            if root_dir_name.is_empty() {
-                debug!("field 'root_dir_name' for 'backend settings config' is empty");
-                return Err(
-                    "field 'root_dir_name' for 'backend settings config' is empty".to_string(),
-                );
-            }
+        self.check_unset()?;
+        if self.root_dir_name.is_empty() {
+            let msg = format!("field 'root_dir_name' for backend settings config is empty");
+            error!("{}", msg);
+            return Err(msg);
         }
-        if let Some(alien_root_dir_name) = &self.alien_root_dir_name {
-            if alien_root_dir_name.is_empty() {
-                debug!("field 'alien_root_dir_name' for 'backend settings config' is empty");
-                return Err(
-                    "field 'alien_root_dir_name' for 'backend settings config' is empty"
-                        .to_string(),
-                );
-            }
+
+        if self.alien_root_dir_name.is_empty() {
+            let msg = format!("field 'alien_root_dir_name' for 'backend settings config' is empty");
+            error!("{}", msg);
+            return Err(msg);
         }
-        match &self.timestamp_period {
-            None => {
-                debug!("field 'timestamp_period' for 'backend settings config' is not set");
-                return Err(
-                    "field 'timestamp_period' for 'backend settings config' is not set".to_string(),
+
+        if let Err(e) = self.timestamp_period.parse::<HumanDuration>() {
+            let msg = format!(
+                "field 'timestamp_period' for 'backend settings config' is not valid: {}",
+                e
+            );
+            error!("{}", msg);
+            return Err(msg);
+        } else {
+            let period = chrono::Duration::from_std(self.timestamp_period())
+                .expect("smth wrong with time: {:?}, error: {}");
+            if period > chrono::Duration::weeks(1) {
+                let msg = format!(
+                    "field 'timestamp_period' for 'backend settings config' is greater then week"
                 );
-            }
-            Some(period) => {
-                if period.parse::<HumanDuration>().is_err() {
-                    debug!("field 'timestamp_period' for 'backend settings config' is not valid");
-                    return Err(
-                        "field 'timestamp_period' for 'backend settings config' is not valid"
-                            .to_string(),
-                    );
-                } else {
-                    let period: chrono::Duration =
-                        chrono::Duration::from_std(self.timestamp_period()).map_err(|e| {
-                            trace!("smth wrong with time: {:?}, error: {}", period, e);
-                            format!("smth wrong with time: {:?}, error: {}", period, e)
-                        })?;
-                    if period > chrono::Duration::weeks(1) {
-                        return Err("field 'timestamp_period' for 'backend settings config' is greater then week".to_string());
-                    }
-                }
+                error!("{}", msg);
+                return Err(msg);
             }
         };
-        match &self.create_pearl_wait_delay {
-            None => {
-                debug!("field 'create_pearl_wait_delay' for 'backend settings config' is not set");
-                return Err(
-                    "field 'create_pearl_wait_delay' for 'backend settings config' is not set"
-                        .to_string(),
-                );
-            }
-            Some(timeout) => {
-                if timeout.parse::<HumanDuration>().is_err() {
-                    debug!("field 'create_pearl_wait_delay' for 'backend settings config' is not valid");
-                    return Err("field 'create_pearl_wait_delay' for 'backend settings config' is not valid".to_string());
-                }
-            }
-        };
-        Ok(())
+        if self
+            .create_pearl_wait_delay
+            .parse::<HumanDuration>()
+            .is_err()
+        {
+            let msg =
+                format!("field 'create_pearl_wait_delay' for backend settings config is not valid");
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
+        }
     }
 }
 
 impl BackendSettings {
-    pub(crate) fn root_dir_name(&self) -> String {
-        self.root_dir_name.clone().expect("clone root dir name")
+    pub(crate) fn root_dir_name(&self) -> &str {
+        &self.root_dir_name
     }
 
-    pub(crate) fn alien_root_dir_name(&self) -> String {
-        self.alien_root_dir_name
-            .clone()
-            .expect("clone alien root dir name")
+    pub(crate) fn alien_root_dir_name(&self) -> &str {
+        &self.alien_root_dir_name
     }
 
     pub(crate) fn timestamp_period(&self) -> Duration {
         self.timestamp_period
-            .clone()
-            .expect("clone timestamp period")
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
@@ -94,126 +76,169 @@ impl BackendSettings {
 
     pub(crate) fn create_pearl_wait_delay(&self) -> Duration {
         self.create_pearl_wait_delay
-            .clone()
-            .expect("clone create pearl wait delay")
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
+    }
+
+    fn check_unset(&self) -> Result<(), String> {
+        if self.alien_root_dir_name == PLACEHOLDER
+            || self.create_pearl_wait_delay == PLACEHOLDER
+            || self.root_dir_name == PLACEHOLDER
+            || self.timestamp_period == PLACEHOLDER
+        {
+            let msg = format!("some of the fields present, but empty");
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
+        }
     }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub(crate) struct MetricsConfig {
-    pub(crate) name: Option<String>,
-    pub(crate) graphite: Option<String>,
+    name: String,
+    graphite: String,
+}
+
+impl MetricsConfig {
+    pub(crate) fn graphite(&self) -> &str {
+        &self.graphite
+    }
+
+    fn check_unset(&self) -> Result<(), String> {
+        if self.name == PLACEHOLDER || self.graphite == PLACEHOLDER {
+            let msg = format!("some of the fields present, but empty");
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl Validatable for MetricsConfig {
     fn validate(&self) -> Result<(), String> {
-        if let Some(name) = &self.name {
-            if name.is_empty() {
-                debug!("field 'name' for 'metrics config' is empty");
-                return Err("field 'name' for 'metrics config' is empty".to_string());
-            }
+        self.check_unset()?;
+        if self.name.is_empty() {
+            debug!("field 'name' for 'metrics config' is empty");
+            return Err("field 'name' for 'metrics config' is empty".to_string());
         }
 
-        if let Some(value) = self.graphite.as_ref() {
-            value.parse::<SocketAddr>().map_err(|_| {
-                debug!(
-                    "field 'graphite': {} for 'metrics config' is invalid",
-                    value
-                );
-                format!(
-                    "field 'graphite': {} for 'metrics config' is invalid",
-                    value
-                )
-            })?;
+        if let Err(e) = self.graphite.parse::<SocketAddr>() {
+            let msg = format!("field 'graphite': {} for 'metrics config' is invalid", e);
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
         }
-
-        Ok(())
     }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub(crate) struct PearlConfig {
-    pub(crate) max_blob_size: Option<u64>,
-    pub(crate) max_data_in_blob: Option<u64>,
-    pub(crate) blob_file_name_prefix: Option<String>,
-    pub(crate) fail_retry_timeout: Option<String>,
-    pub(crate) alien_disk: Option<String>,
-    pub(crate) allow_duplicates: Option<bool>,
-
-    pub(crate) settings: Option<BackendSettings>,
+pub(crate) struct Pearl {
+    #[serde(default = "Pearl::default_max_blob_size")]
+    max_blob_size: u64,
+    #[serde(default = "Pearl::default_max_data_in_blob")]
+    max_data_in_blob: u64,
+    #[serde(default = "Pearl::default_blob_file_name_prefix")]
+    blob_file_name_prefix: String,
+    #[serde(default = "Pearl::default_fail_retry_timeout")]
+    fail_retry_timeout: String,
+    alien_disk: String,
+    #[serde(default = "Pearl::default_allow_duplicates")]
+    allow_duplicates: bool,
+    settings: BackendSettings,
 }
 
-impl PearlConfig {
-    pub(crate) fn alien_disk(&self) -> String {
-        self.alien_disk.clone().expect("clone alien disk")
+impl Pearl {
+    pub(crate) fn alien_disk(&self) -> &str {
+        &self.alien_disk
+    }
+
+    fn default_fail_retry_timeout() -> String {
+        "100ms".to_string()
     }
 
     pub(crate) fn fail_retry_timeout(&self) -> Duration {
         self.fail_retry_timeout
-            .clone()
-            .expect("clone fail retry timeout")
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
     }
 
-    pub(crate) fn settings(&self) -> BackendSettings {
-        self.settings.clone().expect("clone settings")
+    pub(crate) fn settings(&self) -> &BackendSettings {
+        &self.settings
     }
 
-    pub(crate) fn prepare(&self) {
+    fn prepare(&self) {
         self.fail_retry_timeout(); // TODO check unwrap
     }
-}
 
-impl Validatable for PearlConfig {
-    fn validate(&self) -> Result<(), String> {
-        self.max_blob_size.ok_or_else(|| {
-            debug!("field 'max_blob_size' for 'config' is not set");
-            "field 'max_blob_size' for 'config' is not set".to_string()
-        })?;
-        match &self.alien_disk {
-            None => {
-                debug!("field 'alien_disk' for 'config' is not set");
-                return Err("field 'alien_disk' for 'config' is not set".to_string());
-            }
-            Some(alien_disk) => {
-                if alien_disk.is_empty() {
-                    debug!("field 'alien_disk' for 'config' is empty");
-                    return Err("field 'alien_disk' for 'config' is empty".to_string());
-                }
-            }
-        };
-        match &self.fail_retry_timeout {
-            None => {
-                debug!("field 'fail_retry_timeout' for 'config' is not set");
-                return Err("field 'fail_retry_timeout' for 'config' is not set".to_string());
-            }
-            Some(timeout) => {
-                if timeout.parse::<HumanDuration>().is_err() {
-                    debug!("field 'fail_retry_timeout' for 'config' is not valid");
-                    return Err("field 'fail_retry_timeout' for 'config' is not valid".to_string());
-                }
-            }
-        };
+    fn default_allow_duplicates() -> bool {
+        true
+    }
 
-        match &self.settings {
-            None => {
-                debug!("field 'settings' for 'config' is not set");
-                Err("field 'settings' for 'config' is not set".to_string())
-            }
-            Some(settings) => settings.validate(),
+    pub(crate) fn allow_duplicates(&self) -> bool {
+        self.allow_duplicates
+    }
+
+    fn default_blob_file_name_prefix() -> String {
+        "bob".to_string()
+    }
+
+    pub(crate) fn blob_file_name_prefix(&self) -> &str {
+        &self.blob_file_name_prefix
+    }
+
+    fn default_max_data_in_blob() -> u64 {
+        1_000_000
+    }
+
+    pub(crate) fn max_data_in_blob(&self) -> u64 {
+        self.max_data_in_blob
+    }
+
+    fn default_max_blob_size() -> u64 {
+        1_000_000
+    }
+
+    pub(crate) fn max_blob_size(&self) -> u64 {
+        self.max_blob_size
+    }
+
+    fn check_unset(&self) -> Result<(), String> {
+        if self.alien_disk == PLACEHOLDER
+            || self.blob_file_name_prefix == PLACEHOLDER
+            || self.fail_retry_timeout == PLACEHOLDER
+        {
+            let msg = format!("some of the fields present, but empty");
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
         }
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct DiskPath {
-    pub name: String,
-    pub path: String,
+impl Validatable for Pearl {
+    fn validate(&self) -> Result<(), String> {
+        self.check_unset()?;
+        if self.alien_disk.is_empty() {
+            let msg = format!("field 'alien_disk' for 'config' is empty");
+            error!("{}", msg);
+            return Err(msg);
+        }
+
+        if self.fail_retry_timeout.parse::<HumanDuration>().is_err() {
+            let msg = format!("field 'fail_retry_timeout' for 'config' is not valid");
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            self.settings.validate()
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
@@ -223,251 +248,112 @@ pub(crate) enum BackendType {
     Pearl,
 }
 
+/// Node configuration struct, stored in node.yaml.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct NodeConfig {
-    pub(crate) log_config: Option<String>,
-    pub(crate) name: Option<String>,
-    pub(crate) quorum: Option<usize>,
-    pub(crate) operation_timeout: Option<String>,
-    pub(crate) check_interval: Option<String>,
-    pub(crate) cluster_policy: Option<String>,
+    log_config: String,
+    name: String,
+    quorum: usize,
+    operation_timeout: String,
+    check_interval: String,
+    cluster_policy: String,
 
-    pub(crate) backend_type: Option<String>,
-    pub(crate) pearl: Option<PearlConfig>,
-    pub(crate) metrics: Option<MetricsConfig>,
+    backend_type: String,
+    pearl: Option<Pearl>,
+    metrics: Option<MetricsConfig>,
 
     #[serde(skip)]
-    pub(crate) bind_ref: RefCell<String>,
+    bind_ref: RefCell<String>,
     #[serde(skip)]
-    pub(crate) disks_ref: RefCell<Vec<DiskPath>>,
+    disks_ref: RefCell<Vec<DiskPath>>,
 }
 
 impl NodeConfig {
-    pub(crate) fn name(&self) -> String {
-        self.name.clone().expect("config name")
+    /// Get node name.
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
-    pub(crate) fn pearl(&self) -> PearlConfig {
-        self.pearl.clone().expect("config pearl")
+    pub(crate) fn quorum(&self) -> usize {
+        self.quorum
     }
-    pub fn log_config(&self) -> String {
-        self.log_config.clone().expect("config log config")
+
+    pub(crate) fn pearl(&self) -> &Pearl {
+        self.pearl.as_ref().expect("get pearl config")
+    }
+
+    pub(crate) fn metrics(&self) -> &MetricsConfig {
+        self.metrics.as_ref().expect("metrics config")
+    }
+
+    /// Get log config file path.
+    pub fn log_config(&self) -> &str {
+        &self.log_config
     }
 
     pub(crate) fn cluster_policy(&self) -> &str {
-        self.cluster_policy.as_ref().expect("config cluster policy")
+        &self.cluster_policy
     }
 
-    pub fn bind(&self) -> String {
-        self.bind_ref.borrow().to_string()
+    /// Get reference to bind address.
+    pub fn bind(&self) -> Ref<String> {
+        self.bind_ref.borrow()
     }
+
+    /// Get grpc request operation timeout, parsed from humantime format.
     pub fn operation_timeout(&self) -> Duration {
         self.operation_timeout
-            .as_ref()
-            .expect("get config operation timeout")
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
     }
+
     pub(crate) fn check_interval(&self) -> Duration {
         self.check_interval
-            .as_ref()
-            .expect("get config check interval")
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
     }
-    pub(crate) fn disks(&self) -> Vec<DiskPath> {
-        self.disks_ref.borrow().clone()
+
+    /// Get reference to collection of disks [`DiskPath`]
+    pub fn disks(&self) -> Ref<Vec<DiskPath>> {
+        self.disks_ref.borrow()
     }
+
     pub(crate) fn backend_type(&self) -> BackendType {
         self.backend_result().expect("clone backend type")
     }
-    fn backend_result(&self) -> Result<BackendType, String> {
-        match self
-            .backend_type
-            .as_ref()
-            .expect("match backend type")
-            .as_str()
-        {
+
+    pub(crate) fn backend_result(&self) -> Result<BackendType, String> {
+        match self.backend_type.as_str() {
             "in_memory" => Ok(BackendType::InMemory),
             "stub" => Ok(BackendType::Stub),
             "pearl" => Ok(BackendType::Pearl),
             value => Err(format!("unknown backend type: {}", value)),
         }
     }
-    pub(crate) fn prepare(&self, node: &Node) -> Result<(), String> {
-        self.bind_ref
-            .replace(node.address.clone().expect("clone node address"));
 
-        self.disks_ref.replace(
-            node.disks
-                .iter()
-                .map(|disk| DiskPath {
-                    name: disk.name.clone().expect("clone disk name"),
-                    path: disk.path.clone().expect("clone disk path"),
-                })
-                .collect::<Vec<_>>(),
-        );
+    pub(crate) fn prepare(&self, node: &Node) -> Result<(), String> {
+        self.bind_ref.replace(node.address().to_owned());
+
+        let t = node
+            .disks()
+            .iter()
+            .map(|disk| DiskPath::new(disk.name().to_owned(), disk.path().to_owned()))
+            .collect::<Vec<_>>();
+        self.disks_ref.replace(t);
 
         self.backend_result()?;
 
         if self.backend_type() == BackendType::Pearl {
-            self.pearl.as_ref().expect("prepare pearl").prepare();
+            if let Some(pearl) = &self.pearl {
+                pearl.prepare();
+            }
         }
         Ok(())
     }
-}
-impl Validatable for NodeConfig {
-    fn validate(&self) -> Result<(), String> {
-        match &self.backend_type {
-            None => {
-                debug!("field 'backend_type' for 'config' is not set");
-                return Err("field 'backend_type' for 'config' is not set".to_string());
-            }
-            Some(_) => {
-                if self.backend_result().is_ok() && self.backend_type() == BackendType::Pearl {
-                    match &self.pearl {
-                        None => {
-                            debug!("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set");
-                            Err("choosed 'Pearl' value for field 'backend_type' but 'pearl' config is not set".to_string())
-                        }
-                        Some(pearl) => pearl.validate(),
-                    }?;
-                };
-            }
-        };
-        match &self.operation_timeout {
-            None => {
-                debug!("field 'timeout' for 'config' is not set");
-                return Err("field 'timeout' for 'config' is not set".to_string());
-            }
-            Some(timeout) => {
-                timeout.parse::<HumanDuration>().map_err(|_| {
-                    debug!("field 'timeout' for 'config' is not valid");
-                    "field 'timeout' for 'config' is not valid".to_string()
-                })?;
-            }
-        };
-        match &self.check_interval {
-            None => {
-                debug!("field 'check_interval' for 'config' is not set");
-                return Err("field 'check_interval' for 'config' is not set".to_string());
-            }
-            Some(check_interval) => {
-                check_interval.parse::<HumanDuration>().map_err(|_| {
-                    debug!("field 'check_interval' for 'config' is not valid");
-                    "field 'check_interval' for 'config' is not valid".to_string()
-                })?;
-            }
-        };
-        match &self.name {
-            None => {
-                debug!("field 'name' for 'config' is not set");
-                return Err("field 'name' for 'config' is not set".to_string());
-            }
-            Some(name) => {
-                if name.is_empty() {
-                    debug!("field 'name' for 'config' is empty");
-                    return Err("field 'name' for 'config' is empty".to_string());
-                }
-            }
-        };
-        match &self.cluster_policy {
-            None => {
-                debug!("field 'cluster_policy' for 'config' is not set");
-                return Err("field 'cluster_policy' for 'config' is not set".to_string());
-            }
-            Some(cluster_policy) => {
-                if cluster_policy.is_empty() {
-                    debug!("field 'cluster_policy' for 'config' is empty");
-                    return Err("field 'cluster_policy' for 'config' is empty".to_string());
-                }
-            }
-        };
-        match &self.log_config {
-            None => {
-                debug!("field 'log_config' for 'config' is not set");
-                return Err("field 'log_config' for 'config' is not set".to_string());
-            }
-            Some(log_config) => {
-                if log_config.is_empty() {
-                    debug!("field 'log_config' for 'config' is empty");
-                    return Err("field 'log_config' for 'config' is empty".to_string());
-                }
-            }
-        };
-        match self.quorum {
-            None => {
-                debug!("field 'quorum' for 'config' is not set");
-                return Err("field 'quorum' for 'config' is not set".to_string());
-            }
-            Some(quorum) => {
-                if quorum == 0 {
-                    debug!("field 'quorum' for 'config' must be greater than 0");
-                    return Err("field 'quorum' for 'config' must be greater than 0".to_string());
-                }
-            }
-        };
-        if let Some(metrics) = &self.metrics {
-            metrics.validate()
-        } else {
-            Ok(())
-        }
-    }
-}
 
-pub struct NodeConfigYaml {}
-
-impl NodeConfigYaml {
-    pub(crate) fn check(cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
-        let finded = cluster
-            .nodes
-            .iter()
-            .find(|n| n.name == node.name)
-            .ok_or_else(|| {
-                debug!("cannot find node: {} in cluster config", node.name());
-                format!("cannot find node: {} in cluster config", node.name())
-            })?;
-        if node.backend_result().is_ok() && node.backend_type() == BackendType::Pearl {
-            let pearl = node.pearl.as_ref().expect("get node pearl");
-            finded
-                .disks
-                .iter()
-                .find(|d| d.name == pearl.alien_disk)
-                .ok_or_else(|| {
-                    debug!(
-                        "cannot find disk {:?} for node {:?} in cluster config",
-                        pearl.alien_disk, node.name
-                    );
-                    format!(
-                        "cannot find disk {:?} for node {:?} in cluster config",
-                        pearl.alien_disk, node.name
-                    )
-                })?;
-        }
-        node.prepare(finded)
-    }
-
-    pub(crate) fn check_cluster(cluster: &ClusterConfig, node: &NodeConfig) -> Result<(), String> {
-        Self::check(cluster, node) //TODO
-    }
-
-    pub fn get(filename: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
-        let config = YamlBobConfigReader::get::<NodeConfig>(filename)?;
-
-        match config.validate() {
-            Ok(_) => {
-                Self::check_cluster(cluster, &config)?;
-                Ok(config)
-            }
-            Err(e) => {
-                debug!("config is not valid: {}", e);
-                Err(format!("config is not valid: {}", e))
-            }
-        }
-    }
-
+    #[cfg(test)]
     pub(crate) fn get_from_string(
         file: &str,
         cluster: &ClusterConfig,
@@ -475,28 +361,91 @@ impl NodeConfigYaml {
         let config = YamlBobConfigReader::parse::<NodeConfig>(file)?;
         debug!("config: {:?}", config);
         if let Err(e) = config.validate() {
-            debug!("config is not valid: {}", e);
             Err(format!("config is not valid: {}", e))
         } else {
-            debug!("config is valid");
-            Self::check_cluster(cluster, &config)?;
+            cluster.check(&config)?;
             debug!("cluster config is valid");
             Ok(config)
         }
     }
+
+    fn check_unset(&self) -> Result<(), String> {
+        if self.backend_type == PLACEHOLDER
+            || self.check_interval == PLACEHOLDER
+            || self.cluster_policy == PLACEHOLDER
+            || self.log_config == PLACEHOLDER
+            || self.name == PLACEHOLDER
+            || self.operation_timeout == PLACEHOLDER
+        {
+            let msg = format!("some of the fields present, but empty");
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
+        }
+    }
 }
 
+impl Validatable for NodeConfig {
+    fn validate(&self) -> Result<(), String> {
+        self.check_unset()?;
+        if self.backend_result().is_ok() && self.backend_type() == BackendType::Pearl {
+            if let Some(pearl) = &self.pearl {
+                pearl.validate()?;
+            } else {
+                let msg = format!("selected pearl backend, but pearl config not set");
+                error!("{}", msg);
+                return Err(msg);
+            }
+        }
+        self.operation_timeout
+            .parse::<HumanDuration>()
+            .map_err(|_| {
+                let msg = format!("field 'timeout' for 'config' is not valid");
+                error!("{}", msg);
+                msg
+            })?;
+        self.check_interval.parse::<HumanDuration>().map_err(|_| {
+            let msg = format!("field 'check_interval' for 'config' is not valid");
+            error!("{}", msg);
+            msg
+        })?;
+        if self.name.is_empty() {
+            let msg = format!("field 'name' for 'config' is empty");
+            error!("{}", msg);
+            Err(msg)
+        } else if self.cluster_policy.is_empty() {
+            let msg = format!("field 'cluster_policy' for 'config' is empty");
+            error!("{}", msg);
+            Err(msg)
+        } else if self.log_config.is_empty() {
+            let msg = format!("field 'log_config' for 'config' is empty");
+            error!("{}", msg);
+            Err(msg)
+        } else if self.quorum == 0 {
+            let msg = format!("field 'quorum' for 'config' must be greater than 0");
+            error!("{}", msg);
+            Err(msg)
+        } else if let Some(metrics) = &self.metrics {
+            metrics.validate()
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[cfg(test)]
 pub(crate) mod tests {
     use super::*;
     pub(crate) fn node_config(name: &str, quorum: usize) -> NodeConfig {
         NodeConfig {
-            log_config: Some("".to_string()),
-            name: Some(name.to_string()),
-            quorum: Some(quorum),
-            operation_timeout: Some("3sec".to_string()),
-            check_interval: Some("3sec".to_string()),
-            cluster_policy: Some("quorum".to_string()),
-            backend_type: Some("in_memory".to_string()),
+            log_config: "".to_string(),
+            name: name.to_string(),
+            quorum: quorum,
+            operation_timeout: "3sec".to_string(),
+            check_interval: "3sec".to_string(),
+            cluster_policy: "quorum".to_string(),
+            backend_type: "in_memory".to_string(),
             pearl: None,
             metrics: None,
             bind_ref: RefCell::default(),

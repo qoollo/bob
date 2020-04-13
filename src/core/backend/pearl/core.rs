@@ -70,7 +70,9 @@ impl Pearl {
             .iter()
             .find(|group| group.can_process_operation(&operation))
             .cloned()
-            .ok_or({ Error::Failed(format!("cannot find actual alien folder. {:?}", operation)) })
+            .ok_or_else(|| {
+                Error::Failed(format!("cannot find actual alien folder. {:?}", operation))
+            })
     }
 }
 

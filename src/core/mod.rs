@@ -32,7 +32,7 @@ mod prelude {
     };
     pub(crate) use dipstick::{
         AtomicBucket, Counter, Graphite, InputKind, InputScope, MetricName, MetricValue, Output,
-        Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer, Void,
+        Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer,
     };
     pub(crate) use futures::{
         future, stream::FuturesUnordered, Future, FutureExt, StreamExt, TryFutureExt,
@@ -42,6 +42,7 @@ mod prelude {
         bob_api_server::BobApi, ExistRequest, ExistResponse, GetOptions, GetSource, Null, OpStatus,
         PutOptions,
     };
+    pub(crate) use http::Uri;
     pub(crate) use link_manager::LinkManager;
     pub(crate) use mapper::Virtual;
     pub(crate) use metrics::{

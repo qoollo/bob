@@ -1,13 +1,11 @@
 use bob::client::Factory;
-use bob::configs::cluster::ConfigYaml as ClusterConfigYaml;
-use bob::configs::node::{DiskPath, NodeConfigYaml};
+use bob::configs::cluster::Config;
 use bob::grinder::Grinder;
 use bob::grpc::bob_api_server::BobApiServer;
 use bob::mapper::Virtual;
 use bob::metrics;
 use bob::server::Server as BobServer;
 use clap::{App, Arg};
-use futures::future::FutureExt;
 use std::net::SocketAddr;
 use tonic::transport::Server;
 
@@ -71,11 +69,12 @@ async fn main() {
 
     let cluster_config = matches.value_of("cluster").unwrap();
     println!("Cluster config: {:?}", cluster_config);
-    let (vdisks, cluster) = ClusterConfigYaml::get(cluster_config).unwrap();
+    let cluster = Config::try_get(cluster_config).unwrap();
+    let vdisks = cluster.convert().unwrap();
 
     let node_config = matches.value_of("node").unwrap();
     println!("Node config: {:?}", node_config);
-    let node = NodeConfigYaml::get(node_config, &cluster).unwrap();
+    let node = cluster.get(node_config).unwrap();
 
     log4rs::init_file(node.log_config(), Default::default()).unwrap();
 
@@ -86,18 +85,10 @@ async fn main() {
     if node_name.is_some() {
         let name = node_name.unwrap();
         let finded = cluster
-            .nodes
+            .nodes()
             .iter()
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
-        let disks: Vec<DiskPath> = finded
-            .disks
-            .iter()
-            .map(|d| DiskPath {
-                name: d.name().to_owned(),
-                path: d.path().to_owned(),
-            })
-            .collect();
         mapper = Virtual::new(vdisks.to_vec(), &node, &cluster);
         addr = finded.address().parse().unwrap();
     }

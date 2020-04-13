@@ -217,11 +217,11 @@ pub struct VDisk {
 }
 
 impl VDisk {
-    pub(crate) fn new(id: VDiskId, capacity: usize) -> Self {
+    pub(crate) fn new(id: VDiskId) -> Self {
         VDisk {
             id,
-            replicas: Vec::with_capacity(capacity),
-            nodes: vec![],
+            replicas: Vec::new(),
+            nodes: Vec::new(),
         }
     }
 
@@ -251,8 +251,9 @@ impl VDisk {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
-pub(crate) struct DiskPath {
+/// Structure represents disk on the node. Contains path to disk and name.
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize)]
+pub struct DiskPath {
     name: String,
     path: String,
 }
@@ -262,7 +263,7 @@ impl DiskPath {
         DiskPath { name, path }
     }
 
-    pub(crate) fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
@@ -348,7 +349,7 @@ impl Node {
         format!("http://{}:{}", self.host, self.port)
     }
 
-    pub(crate) fn get_uri(&self) -> http::Uri {
+    pub(crate) fn get_uri(&self) -> Uri {
         self.get_address().parse().expect("parse uri")
     }
 

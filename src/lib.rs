@@ -1,5 +1,6 @@
 #![feature(proc_macro_hygiene, decl_macro, drain_filter)]
 #![warn(clippy::pedantic)]
+#![allow(clippy::used_underscore_binding)]
 #![warn(missing_debug_implementations)]
 #![warn(missing_docs)]
 
@@ -33,7 +34,7 @@ mod prelude {
         bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest,
     };
     pub(crate) use std::{
-        cell::{Cell, RefCell},
+        cell::{Ref, RefCell},
         collections::HashMap,
         convert::TryInto,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
