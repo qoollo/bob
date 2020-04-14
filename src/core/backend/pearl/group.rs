@@ -42,23 +42,30 @@ impl Group {
         }
     }
 
-    // @TODO limit number of holder creation retry attempts
     pub async fn run(&self) {
         let duration = self.settings.config().fail_retry_timeout();
-        let retry_count = self.settings.config().fail_retry_count();
+        let max_retry_count = self.settings.config().fail_retry_count();
         let mut holders = Vec::new();
 
         debug!("{}: read holders from disk", self);
-        while let Err(e) = self.read_vdisk_directory().map(|read_holders| {
-            holders = read_holders;
-        }) {
-            error!(
-                "{}: can't create pearl holders: {:?}, await for {}ms",
-                self,
-                e,
-                duration.as_millis()
-            );
-            delay_for(duration).await;
+        for attempt in 0..max_retry_count {
+            match self.read_vdisk_directory() {
+                Ok(read_holders) => {
+                    holders = read_holders;
+                    break;
+                }
+                Err(e) => {
+                    error!(
+                        "{}: can't create pearl holders: {:?}, await for {}ms, attempt {}/{}",
+                        self,
+                        e,
+                        duration.as_millis(),
+                        attempt + 1,
+                        max_retry_count
+                    );
+                    delay_for(duration).await;
+                }
+            }
         }
         debug!("{}: count holders: {}", self, holders.len());
         if holders
