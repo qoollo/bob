@@ -42,11 +42,10 @@ impl Group {
         }
     }
 
-    pub async fn run(&self) {
+    pub async fn run(&self) -> Result<(), Error> {
         let duration = self.settings.config().fail_retry_timeout();
         let max_retry_count = self.settings.config().fail_retry_count();
-        let mut holders = Vec::new();
-
+        let mut holders = vec![];
         debug!("{}: read holders from disk", self);
         for attempt in 0..max_retry_count {
             match self.read_vdisk_directory() {
@@ -63,6 +62,10 @@ impl Group {
                         attempt + 1,
                         max_retry_count
                     );
+                    // Return last error in case of multiple fails
+                    if attempt == max_retry_count - 1 {
+                        return Err(e);
+                    }
                     delay_for(duration).await;
                 }
             }
@@ -78,6 +81,7 @@ impl Group {
         self.add_range(holders).await;
         debug!("{}: start holders", self);
         self.run_pearls().await;
+        Ok(())
     }
 
     async fn run_pearls(&self) {

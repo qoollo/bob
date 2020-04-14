@@ -84,11 +84,11 @@ impl BackendStorage for Pearl {
 
         async move {
             for vdisk_group in vdisks_groups.iter() {
-                vdisk_group.run().await;
+                vdisk_group.run().await?;
             }
             let pearl_groups = alien_vdisks_groups.read().await;
             for group in pearl_groups.iter() {
-                group.run().await;
+                group.run().await?;
             }
             Ok(())
         }
