@@ -18,18 +18,19 @@ impl LinkManager {
         }
     }
 
-    pub(crate) fn spawn_checker(&self, client_factory: Factory) {
-        let nodes = self.nodes.clone();
-        let mut interval = interval(self.check_interval);
-        let task = async move {
-            loop {
-                interval.tick().await;
-                for node in nodes.iter() {
-                    node.check(&client_factory).await.expect("check");
-                }
+    async fn checker_task(factory: Factory, nodes: Arc<Vec<Node>>, period: Duration) {
+        let mut interval = interval(period);
+        loop {
+            interval.tick().await;
+            for node in nodes.iter() {
+                node.check(&factory).await.expect("check");
             }
-        };
-        tokio::spawn(task);
+        }
+    }
+
+    pub(crate) fn spawn_checker(&self, factory: Factory) {
+        let nodes = self.nodes.clone();
+        tokio::spawn(Self::checker_task(factory, nodes, self.check_interval));
     }
 
     pub(crate) async fn call_nodes<'a, F, T>(nodes: &[Node], f: F) -> Vec<ClusterCallOutput<T>>

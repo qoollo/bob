@@ -190,30 +190,23 @@ fn partition_by_id(
     error!("HOT FIX: run web server on same runtime as bob");
     let mut rt = Runtime::new().expect("create runtime");
     let pearls = rt.block_on(holders.read());
-    pearls
+    let pearl = pearls
         .iter()
-        .map(|pearl| pearl.start_timestamp())
-        .find_map(|timestamp| {
-            if timestamp == partition_id {
-                Some(Partition {
-                    node_name: group.node_name().to_owned(),
-                    disk_name: group.disk_name().to_owned(),
-                    vdisk_id: group.vdisk_id(),
-                    timestamp,
-                })
-            } else {
-                None
-            }
-        })
-        .map(Json)
-        .ok_or_else(|| {
-            let err = format!(
-                "partition with id: {} in vdisk {} not found",
-                partition_id, vdisk_id
-            );
-            warn!("{}", err);
-            StatusExt::new(Status::NotFound, false, err)
-        })
+        .find(|pearl| pearl.start_timestamp() == partition_id);
+    let partition = pearl.map(|p| Partition {
+        node_name: group.node_name().to_owned(),
+        disk_name: group.disk_name().to_owned(),
+        vdisk_id: group.vdisk_id(),
+        timestamp: p.start_timestamp(),
+    });
+    partition.map(Json).ok_or_else(|| {
+        let err = format!(
+            "partition with id: {} in vdisk {} not found",
+            partition_id, vdisk_id
+        );
+        warn!("{}", err);
+        StatusExt::new(Status::NotFound, false, err)
+    })
 }
 
 #[post("/vdisks/<vdisk_id>/partitions/<partition_id>/<action>")]
@@ -256,25 +249,19 @@ fn delete_partition(
     let group = find_group(&bob, vdisk_id)?;
     let pearl = futures::executor::block_on(group.detach(partition_id));
     if let Ok(holder) = pearl {
-        holder
-            .drop_directory()
-            .map(|_| {
-                StatusExt::new(
-                    Status::Ok,
-                    true,
-                    format!("successfully deleted partition {}", partition_id),
-                )
-            })
-            .map_err(|e| {
-                StatusExt::new(
-                    Status::InternalServerError,
-                    true,
-                    format!(
-                        "error removing partition {} on vdisk {}, error: {}",
-                        partition_id, vdisk_id, e
-                    ),
-                )
-            })
+        if let Err(e) = holder.drop_directory() {
+            let msg = format!(
+                "partition delete failed {} on vdisk {}, error: {}",
+                partition_id, vdisk_id, e
+            );
+            Err(StatusExt::new(Status::InternalServerError, true, msg))
+        } else {
+            Ok(StatusExt::new(
+                Status::Ok,
+                true,
+                format!("successfully deleted partition {}", partition_id),
+            ))
+        }
     } else {
         Err(StatusExt::new(
             Status::BadRequest,
