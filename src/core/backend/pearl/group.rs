@@ -45,7 +45,7 @@ impl Group {
     // @TODO limit number of holder creation retry attempts
     pub async fn run(&self) {
         let duration = self.settings.config().fail_retry_timeout();
-
+        let retry_count = self.settings.config().fail_retry_count();
         let mut holders = Vec::new();
 
         debug!("{}: read holders from disk", self);

@@ -146,6 +146,8 @@ pub(crate) struct Pearl {
     blob_file_name_prefix: String,
     #[serde(default = "Pearl::default_fail_retry_timeout")]
     fail_retry_timeout: String,
+    #[serde(default = "Pearl::default_fail_retry_count")]
+    fail_retry_count: u64,
     alien_disk: String,
     #[serde(default = "Pearl::default_allow_duplicates")]
     allow_duplicates: bool,
@@ -166,6 +168,14 @@ impl Pearl {
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
+    }
+
+    fn default_fail_retry_count() -> u64 {
+        3
+    }
+
+    pub(crate) fn fail_retry_count(&self) -> u64 {
+        self.fail_retry_count
     }
 
     pub(crate) fn settings(&self) -> &BackendSettings {
