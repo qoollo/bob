@@ -12,7 +12,7 @@ pub(crate) use self::core::{
 };
 pub(crate) use self::error::Error;
 pub(crate) use self::mem_backend::MemBackend;
-pub(crate) use self::pearl::{init_pearl, Group, Pearl};
+pub(crate) use self::pearl::{init_pearl, Group, Holder, Pearl};
 pub(crate) use self::stub_backend::StubBackend;
 pub(crate) use super::prelude::*;
 

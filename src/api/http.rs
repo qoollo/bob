@@ -165,7 +165,7 @@ fn partitions(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<VDiskPartitio
     let pearls = runtime().block_on(holders.read());
     debug!("get pearl holders: OK");
     let pearls: &[_] = pearls.as_ref();
-    let partitions = pearls.iter().map(|pearl| pearl.start_timestamp()).collect();
+    let partitions = pearls.iter().map(Holder::start_timestamp).collect();
     let ps = VDiskPartitions {
         node_name: group.node_name().to_owned(),
         disk_name: group.disk_name().to_owned(),

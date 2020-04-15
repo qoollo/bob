@@ -4,7 +4,7 @@
 #![warn(missing_debug_implementations)]
 #![warn(missing_docs)]
 
-//! Library requires tokio runtime
+//! Library requires tokio runtime.
 
 #[macro_use]
 extern crate bitflags;

@@ -26,7 +26,7 @@ mod prelude {
 
     pub(crate) use bob_client::{BobClient, Factory, GetResult as BobClientGetResult};
     pub(crate) use cluster::{get_cluster, Cluster};
-    pub(crate) use configs::{ClusterConfig, NodeConfig};
+    pub(crate) use configs::{Cluster as ClusterConfig, Node as NodeConfig};
     pub(crate) use data::{
         BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, Node, NodeOutput, VDisk, VDiskId,
     };

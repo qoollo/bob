@@ -194,7 +194,7 @@ impl Backend {
             match result {
                 Err(err) if !err.is_duplicate() => {
                     error!(
-                        "PUT[{}][{}] to backend. Error: {:?}",
+                        "PUT[{}][{}] local failed: {:?}",
                         key,
                         operation.disk_name_local(),
                         err

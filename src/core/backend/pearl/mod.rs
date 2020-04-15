@@ -11,6 +11,7 @@ mod tests;
 
 pub(crate) use self::core::{BackendResult, Pearl, PearlStorage};
 pub(crate) use self::group::Group;
+pub(crate) use self::holder::Holder;
 pub(crate) use self::metrics::init_pearl;
 pub(crate) use super::prelude::*;
 
@@ -19,7 +20,7 @@ mod prelude {
 
     pub(crate) use ::pearl::{Builder, ErrorKind, Key as KeyTrait, Storage};
     pub(crate) use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
-    pub(crate) use configs::PearlConfig;
+    pub(crate) use configs::Pearl as PearlConfig;
     pub(crate) use data::{Data, Key};
     pub(crate) use holder::Holder;
     pub(crate) use metrics::{

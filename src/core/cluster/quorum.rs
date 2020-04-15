@@ -308,9 +308,7 @@ impl Cluster for Quorum {
 mod tests {
     use super::super::prelude::*;
     use crate::core::configs::{
-        cluster::tests::cluster_config,
-        node::{tests::node_config, NodeConfig},
-        ClusterConfig,
+        cluster::tests::cluster_config, node::tests::node_config, Cluster as ClusterConfig,
     };
     use std::sync::atomic::{AtomicU64, Ordering};
 

@@ -50,7 +50,7 @@ impl Debug for NetConfig {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct TaskConfig {
     low_idx: u64,
     count: u64,
@@ -200,7 +200,7 @@ impl Debug for BenchmarkConfig {
             self.workers_count,
             self.time
                 .map(|t| format!("{:?}", t))
-                .unwrap_or("infinite".to_string()),
+                .unwrap_or_else(|| "infinite".to_string()),
             self.behavior
         )
     }

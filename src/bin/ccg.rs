@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use bob::configs::cluster::{Config, Node as ClusterNode, Replica, VDisk};
+use bob::configs::cluster::{Cluster as ClusterConfig, Node as ClusterNode, Replica, VDisk};
 use chrono::Local;
 use clap::{App, Arg, ArgMatches};
 use env_logger::fmt::Color;
@@ -58,7 +58,7 @@ fn init_logger() {
     debug!("init logger: OK");
 }
 
-fn read_from_file() -> Option<Config> {
+fn read_from_file() -> Option<ClusterConfig> {
     let name = get_name();
     let file = open_file(name)?;
     let content = read_file(file)?;
@@ -99,9 +99,9 @@ fn read_file(mut file: File) -> Option<String> {
     Some(buf)
 }
 
-fn deserialize(content: String) -> Option<Config> {
+fn deserialize(content: String) -> Option<ClusterConfig> {
     serde_yaml::from_str(content.as_str())
-        .map(|c: Config| {
+        .map(|c: ClusterConfig| {
             debug!("deserialize: OK [nodes count: {}]", c.nodes().len());
             c
         })
@@ -109,7 +109,7 @@ fn deserialize(content: String) -> Option<Config> {
         .ok()
 }
 
-fn generate_config(input: Config) -> Option<Config> {
+fn generate_config(input: ClusterConfig) -> Option<ClusterConfig> {
     let replicas_count = get_replicas_count()?;
     let vdisks_count = get_vdisks_count(input.nodes())?;
     let res = simple_gen(input, replicas_count, vdisks_count);
@@ -276,7 +276,11 @@ fn lcm(a: usize, b: usize) -> usize {
     lcm
 }
 
-fn simple_gen(mut config: Config, replicas_count: usize, vdisks_count: usize) -> Config {
+fn simple_gen(
+    mut config: ClusterConfig,
+    replicas_count: usize,
+    vdisks_count: usize,
+) -> ClusterConfig {
     let center = get_structure(&config);
     let vdisks_count = vdisks_count.max(lcm(center.disks_count(), replicas_count));
     debug!("new vdisks count: OK [{}]", vdisks_count);
@@ -291,7 +295,7 @@ fn simple_gen(mut config: Config, replicas_count: usize, vdisks_count: usize) ->
     config
 }
 
-fn get_structure(config: &Config) -> Center {
+fn get_structure(config: &ClusterConfig) -> Center {
     let nodes = config
         .nodes()
         .iter()
