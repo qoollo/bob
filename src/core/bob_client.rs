@@ -47,72 +47,62 @@ pub(crate) mod b_client {
         #[allow(dead_code)]
         pub(crate) async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult {
             debug!("real client put called");
-            let request = Request::new(PutRequest {
+            let meta = BlobMeta {
+                timestamp: d.meta().timestamp(),
+            };
+            let blob = Blob {
+                meta: Some(meta),
+                data: d.into_inner(),
+            };
+            let message = PutRequest {
                 key: Some(BlobKey { key }),
-                data: Some(Blob {
-                    meta: Some(BlobMeta {
-                        timestamp: d.meta().timestamp(),
-                    }),
-                    data: d.into_inner(),
-                }),
+                data: Some(blob),
                 options: Some(options),
-            });
+            };
+            let request = Request::new(message);
             self.metrics.put_count();
             let timer = self.metrics.put_timer();
-
             let mut client = self.client.clone();
-            let metrics = self.metrics.clone();
-            let node = self.node.clone();
-            let t = self.operation_timeout;
-            timeout(
-                t,
-                client.put(request).map(|res| {
-                    res.expect("client put request");
-                    metrics.put_timer_stop(timer);
-                    NodeOutput::new(node.name().to_owned(), ())
-                }),
-            )
-            .await
-            .map_err(|_| {
-                metrics.put_error_count();
-                metrics.put_timer_stop(timer);
-                NodeOutput::new(node.name().to_owned(), BackendError::Timeout)
-            })
+            let node_name = self.node.name().to_owned();
+            let future = client.put(request).map(|res| {
+                res.expect("client put request");
+                self.metrics.put_timer_stop(timer);
+            });
+            if timeout(self.operation_timeout, future).await.is_ok() {
+                Ok(NodeOutput::new(node_name, ()))
+            } else {
+                self.metrics.put_error_count();
+                self.metrics.put_timer_stop(timer);
+                Err(NodeOutput::new(node_name, BackendError::Timeout))
+            }
         }
 
         #[allow(dead_code)]
         pub(crate) async fn get(&self, key: BobKey, options: GetOptions) -> GetResult {
             let node_name = self.node.name().to_owned();
             let mut client = self.client.clone();
-            let t = self.operation_timeout;
+            self.metrics.get_count();
+            let timer = self.metrics.get_timer();
 
-            let metrics = self.metrics.clone();
-            let metrics2 = self.metrics.clone();
-
-            metrics.get_count();
-            let timer = metrics.get_timer();
-
-            let res = timeout(
-                t,
-                client.get(Request::new(GetRequest {
-                    key: Some(BlobKey { key }),
-                    options: Some(options),
-                })),
-            )
-            .await
-            .expect("client get with timeout");
+            let message = GetRequest {
+                key: Some(BlobKey { key }),
+                options: Some(options),
+            };
+            let req = Request::new(message);
+            let res = timeout(self.operation_timeout, client.get(req))
+                .await
+                .map_err(|_| NodeOutput::new(node_name.clone(), BackendError::Timeout))?;
             res.map(|r| {
-                metrics.get_timer_stop(timer);
+                self.metrics.get_timer_stop(timer);
                 let ans = r.into_inner();
                 let meta = BobMeta::new(ans.meta.expect("get blob meta").timestamp);
                 let inner = BobData::new(ans.data, meta);
                 NodeOutput::new(node_name.clone(), inner)
             })
-            .map_err(BackendError::from)
             .map_err(|e| {
-                metrics2.get_error_count();
-                metrics2.get_timer_stop(timer);
-                NodeOutput::new(node_name, e)
+                self.metrics.get_error_count();
+                self.metrics.get_timer_stop(timer);
+                NodeOutput::new(node_name, BackendError::from(e))
             })
         }
 
@@ -128,15 +118,15 @@ pub(crate) mod b_client {
 
         #[allow(dead_code)]
         pub(crate) async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult {
-            let node = self.node.clone();
             let mut client = self.client.clone();
-            let exist_response = client
-                .exist(Request::new(ExistRequest {
-                    keys: keys.into_iter().map(|key| BlobKey { key }).collect(),
-                    options: Some(options),
-                }))
-                .await;
-            Self::get_exist_result(node.name().to_owned(), exist_response)
+            let keys = keys.into_iter().map(|key| BlobKey { key }).collect();
+            let message = ExistRequest {
+                keys,
+                options: Some(options),
+            };
+            let req = Request::new(message);
+            let exist_response = client.exist(req).await;
+            Self::get_exist_result(self.node.name().to_owned(), exist_response)
         }
 
         fn get_exist_result(
@@ -152,8 +142,7 @@ pub(crate) mod b_client {
 
     mock! {
         pub(crate) BobClient {
-            async fn create(node: Node, operation_timeout: Duration, metrics: BobClientMetrics,
-                    ) -> Result<Self, String>;
+            async fn create(node: Node, operation_timeout: Duration, metrics: BobClientMetrics) -> Result<Self, String>;
             async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult;
             async fn get(&self, key: BobKey, options: GetOptions) -> GetResult;
             async fn ping(&self) -> PingResult;

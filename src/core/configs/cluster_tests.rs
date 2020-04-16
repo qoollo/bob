@@ -2,8 +2,6 @@
 mod tests {
     use super::super::prelude::*;
 
-    use crate::core::configs::node::NodeConfig;
-
     #[test]
     fn test_node_disk_name_is_empty() {
         let s = "
@@ -24,7 +22,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -47,7 +45,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        assert!(YamlBobConfigReader::parse::<ClusterConfig>(s).is_err());
+        assert!(YamlBobConfig::parse::<ClusterConfig>(s).is_err());
     }
 
     #[test]
@@ -67,7 +65,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -90,7 +88,7 @@ vdisks:
         - node: n1
           disk: disk2
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
     }
 
@@ -117,7 +115,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -145,7 +143,7 @@ vdisks:
         - node: n1
           disk: disk2
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -168,7 +166,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -191,7 +189,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        assert!(YamlBobConfigReader::parse::<ClusterConfig>(s).is_err());
+        assert!(YamlBobConfig::parse::<ClusterConfig>(s).is_err());
     }
 
     #[test]
@@ -214,7 +212,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -238,7 +236,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -262,7 +260,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -281,7 +279,7 @@ vdisks:
         - node:
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -300,7 +298,7 @@ vdisks:
         - node: n1
           disk:         # empty
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -323,7 +321,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        assert!(YamlBobConfigReader::parse::<ClusterConfig>(s).is_err());
+        assert!(YamlBobConfig::parse::<ClusterConfig>(s).is_err());
     }
 
     #[test]
@@ -341,7 +339,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert_eq!(1, d.nodes().len());
         assert_eq!(1, d.nodes()[0].disks().len());
         assert_eq!(1, d.vdisks().len());
@@ -359,7 +357,7 @@ vdisks:
         - node: disk1
           disk: /tmp/d1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -373,7 +371,7 @@ nodes:
         - name: disk1
           path: /tmp/d1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -392,7 +390,7 @@ vdisks:
         - node: some_name
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -411,7 +409,7 @@ vdisks:
         - node: some_name
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -443,7 +441,7 @@ vdisks:
         - node: n2
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
 
         let vdisks = d.convert().unwrap();
@@ -474,7 +472,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
 
         assert_eq!(111, d.nodes()[0].uri().port().unwrap());
@@ -498,7 +496,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let d: ClusterConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -513,7 +511,7 @@ check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: stub
 ";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
     }
 
@@ -528,7 +526,7 @@ check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: pearl
 ";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -554,7 +552,7 @@ pearl:
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
     }
 
@@ -580,7 +578,7 @@ pearl:
     timestamp_period: 2w      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -606,7 +604,7 @@ pearl:
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
     }
 
@@ -632,7 +630,7 @@ pearl:
     timestamp_period: 1d      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -647,7 +645,7 @@ check_interval: 100sec
 cluster_policy: quorum # quorum
 backend_type: InvalidType
 ";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
 
         let s1 = "
@@ -665,7 +663,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let cl: ClusterConfig = YamlBobConfigReader::parse(s1).unwrap();
+        let cl: ClusterConfig = YamlBobConfig::parse(s1).unwrap();
         assert!(cl.check(&d).is_err());
     }
 
@@ -680,7 +678,7 @@ check_interval: 100mms
 cluster_policy: quorum # quorum
 backend_type: stub
 ";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
 
@@ -695,7 +693,7 @@ check_interval: 100sec
 cluster_policy: quorum # quorum
 backend_type: stub
 ";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
         let s1 = "
 nodes:
@@ -712,7 +710,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let cl: ClusterConfig = YamlBobConfigReader::parse(s1).unwrap();
+        let cl: ClusterConfig = YamlBobConfig::parse(s1).unwrap();
         assert!(cl.check(&d).is_ok());
     }
 
@@ -727,7 +725,7 @@ check_interval: 100sec
 cluster_policy: quorum # quorum
 backend_type: stub
 ";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
         let s1 = "
 nodes:
@@ -744,7 +742,7 @@ vdisks:
         - node: n1
           disk: disk1
 ";
-        let cl: ClusterConfig = YamlBobConfigReader::parse(s1).unwrap();
+        let cl: ClusterConfig = YamlBobConfig::parse(s1).unwrap();
         assert!(cl.check(&d).is_err());
     }
 
@@ -763,7 +761,7 @@ metrics:                      # optional, send metrics
   name: machine               # optional, add base name for metrics
   graphite: 127.0.0.1:2003    # optional, send metrics to graphite
 ";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
     }
     #[test]
@@ -781,7 +779,7 @@ metrics:                      # optional, send metrics
   name: machine               # optional, add base name for metrics
   graphite: 127.0.0.0.1:2003    # optional, send metrics to graphite
 ";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
     }
     #[test]
@@ -799,7 +797,7 @@ metrics:                      # optional, send metrics
  # name: machine               # optional, add base name for metrics
  # graphite: 127.0.0.1:2003    # optional, send metrics to graphite
 ";
-        let d: NodeConfig = YamlBobConfigReader::parse(s).unwrap();
+        let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
     }
 }

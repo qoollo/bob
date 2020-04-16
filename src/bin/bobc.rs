@@ -17,11 +17,8 @@ async fn main() {
         let key = get_key_value(sub_mathes);
         match sc {
             "put" => {
-                let size = sub_mathes
-                    .value_of("size")
-                    .unwrap()
-                    .parse()
-                    .expect("size must be usize");
+                let value = sub_mathes.value_of("size").unwrap();
+                let size = value.parse().expect("size must be usize");
                 info!("PUT key: \"{}\" size: \"{}\"", key, size);
                 put(key, size).await;
             }
@@ -42,19 +39,21 @@ async fn put(key: u64, size: usize) {
         .expect("wrong format of url");
     let mut client = BobApiClient::connect(addr).await.unwrap();
 
-    let put_req = Request::new(PutRequest {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("msg: &str")
+        .as_secs();
+    let meta = BlobMeta { timestamp };
+    let blob = Blob {
+        data: vec![1; size],
+        meta: Some(meta),
+    };
+    let message = PutRequest {
         key: Some(BlobKey { key }),
-        data: Some(Blob {
-            data: vec![1; size],
-            meta: Some(BlobMeta {
-                timestamp: SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .expect("msg: &str")
-                    .as_secs(),
-            }),
-        }),
+        data: Some(blob),
         options: None,
-    });
+    };
+    let put_req = Request::new(message);
 
     let res = client.put(put_req).await;
     info!("{:#?}", res);
@@ -68,10 +67,11 @@ async fn get(key: u64) {
         .expect("wrong format of url");
     let mut client = BobApiClient::connect(addr).await.unwrap();
 
-    let get_req = Request::new(GetRequest {
+    let message = GetRequest {
         key: Some(BlobKey { key }),
         options: None,
-    });
+    };
+    let get_req = Request::new(message);
     let res = client.get(get_req).await;
     match res {
         Ok(res) => {
@@ -93,17 +93,15 @@ fn get_matches<'a>() -> ArgMatches<'a> {
     let uri_arg = Arg::with_name("uri")
         .takes_value(true)
         .default_value("http://localhost:20000");
+    let size_arg = Arg::with_name("size")
+        .takes_value(true)
+        .default_value("90000");
+    let put_sc = SubCommand::with_name("put")
+        .arg(&key_arg)
+        .arg(size_arg)
+        .arg(&uri_arg);
     App::new("bobc")
-        .subcommand(
-            SubCommand::with_name("put")
-                .arg(&key_arg)
-                .arg(
-                    Arg::with_name("size")
-                        .takes_value(true)
-                        .default_value("90000"),
-                )
-                .arg(&uri_arg),
-        )
+        .subcommand(put_sc)
         .subcommand(SubCommand::with_name("get").arg(key_arg).arg(uri_arg))
         .get_matches()
 }

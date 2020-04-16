@@ -130,10 +130,17 @@ impl Backend {
     }
 
     pub(crate) async fn put(&self, key: BobKey, data: BobData, options: BobOptions) -> PutResult {
+        trace!(">>>>>>- - - - - BACKEND PUT START - - - - -");
+        let sw = Stopwatch::start_new();
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        if let Some(node_names) = options.remote_nodes() {
+        trace!(
+            "get operation {:?}, /{:.3}ms/",
+            disk_path,
+            sw.elapsed().as_secs_f64() * 1000.0
+        );
+        let res = if !options.remote_nodes().is_empty() {
             // write to all remote_nodes
-            for node_name in node_names {
+            for node_name in options.remote_nodes() {
                 let mut op = BackendOperation::new_alien(vdisk_id);
                 op.set_remote_folder(node_name.to_owned());
 
@@ -142,15 +149,24 @@ impl Backend {
             }
             Ok(())
         } else if let Some(path) = disk_path {
-            self.put_single(key, data, BackendOperation::new_local(vdisk_id, path))
-                .await
+            trace!(
+                "remote nodes is empty, /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
+            let res = self
+                .put_single(key, data, BackendOperation::new_local(vdisk_id, path))
+                .await;
+            trace!("put single, /{:.3}ms/", sw.elapsed().as_secs_f64() * 1000.0);
+            res
         } else {
             error!(
                 "PUT[{}] dont now what to do with data: op: {:?}. Data is not local and alien",
                 key, options
             );
             Err(Error::Internal)
-        }
+        };
+        trace!("<<<<<<- - - - - BACKEND PUT FINISH - - - - -");
+        res
     }
 
     #[inline]
@@ -178,7 +194,7 @@ impl Backend {
             match result {
                 Err(err) if !err.is_duplicate() => {
                     error!(
-                        "PUT[{}][{}] to backend. Error: {:?}",
+                        "PUT[{}][{}] local failed: {:?}",
                         key,
                         operation.disk_name_local(),
                         err

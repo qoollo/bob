@@ -17,9 +17,9 @@ pub trait Validatable {
     }
 }
 
-pub struct YamlBobConfigReader {}
+pub struct YamlBobConfig {}
 
-impl YamlBobConfigReader {
+impl YamlBobConfig {
     pub fn read(filename: &str) -> Result<String, String> {
         let result: Result<String, _> = read_to_string(filename);
         match result {

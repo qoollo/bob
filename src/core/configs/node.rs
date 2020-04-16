@@ -14,13 +14,14 @@ impl Validatable for BackendSettings {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
         if self.root_dir_name.is_empty() {
-            let msg = format!("field 'root_dir_name' for backend settings config is empty");
+            let msg = "field \'root_dir_name\' for backend settings config is empty".to_string();
             error!("{}", msg);
             return Err(msg);
         }
 
         if self.alien_root_dir_name.is_empty() {
-            let msg = format!("field 'alien_root_dir_name' for 'backend settings config' is empty");
+            let msg =
+                "field 'alien_root_dir_name' for 'backend settings config' is empty".to_string();
             error!("{}", msg);
             return Err(msg);
         }
@@ -36,9 +37,9 @@ impl Validatable for BackendSettings {
             let period = chrono::Duration::from_std(self.timestamp_period())
                 .expect("smth wrong with time: {:?}, error: {}");
             if period > chrono::Duration::weeks(1) {
-                let msg = format!(
+                let msg =
                     "field 'timestamp_period' for 'backend settings config' is greater then week"
-                );
+                        .to_string();
                 error!("{}", msg);
                 return Err(msg);
             }
@@ -48,8 +49,8 @@ impl Validatable for BackendSettings {
             .parse::<HumanDuration>()
             .is_err()
         {
-            let msg =
-                format!("field 'create_pearl_wait_delay' for backend settings config is not valid");
+            let msg = "field \'create_pearl_wait_delay\' for backend settings config is not valid"
+                .to_string();
             error!("{}", msg);
             Err(msg)
         } else {
@@ -87,7 +88,7 @@ impl BackendSettings {
             || self.root_dir_name == PLACEHOLDER
             || self.timestamp_period == PLACEHOLDER
         {
-            let msg = format!("some of the fields present, but empty");
+            let msg = "some of the fields present, but empty".to_string();
             error!("{}", msg);
             Err(msg)
         } else {
@@ -109,7 +110,7 @@ impl MetricsConfig {
 
     fn check_unset(&self) -> Result<(), String> {
         if self.name == PLACEHOLDER || self.graphite == PLACEHOLDER {
-            let msg = format!("some of the fields present, but empty");
+            let msg = "some of the fields present, but empty".to_string();
             error!("{}", msg);
             Err(msg)
         } else {
@@ -213,7 +214,7 @@ impl Pearl {
             || self.blob_file_name_prefix == PLACEHOLDER
             || self.fail_retry_timeout == PLACEHOLDER
         {
-            let msg = format!("some of the fields present, but empty");
+            let msg = "some of the fields present, but empty".to_string();
             error!("{}", msg);
             Err(msg)
         } else {
@@ -226,13 +227,13 @@ impl Validatable for Pearl {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
         if self.alien_disk.is_empty() {
-            let msg = format!("field 'alien_disk' for 'config' is empty");
+            let msg = "field \'alien_disk\' for \'config\' is empty".to_string();
             error!("{}", msg);
             return Err(msg);
         }
 
         if self.fail_retry_timeout.parse::<HumanDuration>().is_err() {
-            let msg = format!("field 'fail_retry_timeout' for 'config' is not valid");
+            let msg = "field \'fail_retry_timeout\' for \'config\' is not valid".to_string();
             error!("{}", msg);
             Err(msg)
         } else {
@@ -250,7 +251,7 @@ pub(crate) enum BackendType {
 
 /// Node configuration struct, stored in node.yaml.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
-pub struct NodeConfig {
+pub struct Node {
     log_config: String,
     name: String,
     quorum: usize,
@@ -333,7 +334,7 @@ impl NodeConfig {
         }
     }
 
-    pub(crate) fn prepare(&self, node: &Node) -> Result<(), String> {
+    pub(crate) fn prepare(&self, node: &ClusterNode) -> Result<(), String> {
         self.bind_ref.replace(node.address().to_owned());
 
         let t = node
@@ -358,7 +359,7 @@ impl NodeConfig {
         file: &str,
         cluster: &ClusterConfig,
     ) -> Result<NodeConfig, String> {
-        let config = YamlBobConfigReader::parse::<NodeConfig>(file)?;
+        let config = YamlBobConfig::parse::<NodeConfig>(file)?;
         debug!("config: {:?}", config);
         if let Err(e) = config.validate() {
             Err(format!("config is not valid: {}", e))
@@ -377,7 +378,7 @@ impl NodeConfig {
             || self.name == PLACEHOLDER
             || self.operation_timeout == PLACEHOLDER
         {
-            let msg = format!("some of the fields present, but empty");
+            let msg = "some of the fields present, but empty".to_string();
             error!("{}", msg);
             Err(msg)
         } else {
@@ -393,7 +394,7 @@ impl Validatable for NodeConfig {
             if let Some(pearl) = &self.pearl {
                 pearl.validate()?;
             } else {
-                let msg = format!("selected pearl backend, but pearl config not set");
+                let msg = "selected pearl backend, but pearl config not set".to_string();
                 error!("{}", msg);
                 return Err(msg);
             }
@@ -401,29 +402,29 @@ impl Validatable for NodeConfig {
         self.operation_timeout
             .parse::<HumanDuration>()
             .map_err(|_| {
-                let msg = format!("field 'timeout' for 'config' is not valid");
+                let msg = "field \'timeout\' for \'config\' is not valid".to_string();
                 error!("{}", msg);
                 msg
             })?;
         self.check_interval.parse::<HumanDuration>().map_err(|_| {
-            let msg = format!("field 'check_interval' for 'config' is not valid");
+            let msg = "field \'check_interval\' for \'config\' is not valid".to_string();
             error!("{}", msg);
             msg
         })?;
         if self.name.is_empty() {
-            let msg = format!("field 'name' for 'config' is empty");
+            let msg = "field \'name\' for \'config\' is empty".to_string();
             error!("{}", msg);
             Err(msg)
         } else if self.cluster_policy.is_empty() {
-            let msg = format!("field 'cluster_policy' for 'config' is empty");
+            let msg = "field \'cluster_policy\' for \'config\' is empty".to_string();
             error!("{}", msg);
             Err(msg)
         } else if self.log_config.is_empty() {
-            let msg = format!("field 'log_config' for 'config' is empty");
+            let msg = "field \'log_config\' for \'config\' is empty".to_string();
             error!("{}", msg);
             Err(msg)
         } else if self.quorum == 0 {
-            let msg = format!("field 'quorum' for 'config' must be greater than 0");
+            let msg = "field \'quorum\' for \'config\' must be greater than 0".to_string();
             error!("{}", msg);
             Err(msg)
         } else if let Some(metrics) = &self.metrics {
@@ -436,12 +437,12 @@ impl Validatable for NodeConfig {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
+    use super::{NodeConfig, RefCell};
     pub(crate) fn node_config(name: &str, quorum: usize) -> NodeConfig {
         NodeConfig {
             log_config: "".to_string(),
             name: name.to_string(),
-            quorum: quorum,
+            quorum,
             operation_timeout: "3sec".to_string(),
             check_interval: "3sec".to_string(),
             cluster_policy: "quorum".to_string(),

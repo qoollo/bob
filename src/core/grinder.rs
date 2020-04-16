@@ -37,7 +37,9 @@ impl Grinder {
         data: BobData,
         opts: BobOptions,
     ) -> Result<(), BackendError> {
+        let sw = Stopwatch::start_new();
         if opts.flags().contains(BobFlags::FORCE_NODE) {
+            trace!(">>>- - - - - GRINDER PUT START - - - - -");
             debug!(
                 "PUT[{}] FORCE_NODE=true - will handle it by local node. Put params: {:?}",
                 key, opts
@@ -46,11 +48,16 @@ impl Grinder {
             let time = CLIENT_PUT_TIMER.start();
 
             let result = self.backend.put(key, data, opts).await;
+            trace!(
+                "backend processed put, /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
             if result.is_err() {
                 CLIENT_PUT_ERROR_COUNT_COUNTER.count(1);
             }
 
             CLIENT_PUT_TIMER.stop(time);
+            trace!("<<<- - - - - GRINDER PUT FINISH - - - - -");
             result
         } else {
             debug!("PUT[{}] will route to cluster", key);
@@ -63,6 +70,7 @@ impl Grinder {
             }
 
             GRINDER_PUT_TIMER.stop(time);
+            trace!(">>>- - - - - GRINDER PUT FINISH - - - - -");
             result
         }
     }

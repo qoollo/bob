@@ -1,5 +1,5 @@
 use bob::client::Factory;
-use bob::configs::cluster::Config;
+use bob::configs::cluster::Cluster as ClusterConfig;
 use bob::grinder::Grinder;
 use bob::grpc::bob_api_server::BobApiServer;
 use bob::mapper::Virtual;
@@ -69,7 +69,7 @@ async fn main() {
 
     let cluster_config = matches.value_of("cluster").unwrap();
     println!("Cluster config: {:?}", cluster_config);
-    let cluster = Config::try_get(cluster_config).unwrap();
+    let cluster = ClusterConfig::try_get(cluster_config).unwrap();
     let vdisks = cluster.convert().unwrap();
 
     let node_config = matches.value_of("node").unwrap();

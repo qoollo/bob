@@ -32,12 +32,9 @@ impl Virtual {
             .enumerate()
             .map(|(i, conf)| {
                 let index = i.try_into().expect("usize to u16");
-                Node::new(
-                    conf.name().to_owned(),
-                    conf.uri().host().unwrap().to_owned(),
-                    conf.uri().port_u16().unwrap(),
-                    index,
-                )
+                let host = conf.uri().host().unwrap().to_owned();
+                let port = conf.uri().port_u16().unwrap();
+                Node::new(conf.name().to_owned(), host, port, index)
             })
             .collect();
 
@@ -101,19 +98,15 @@ impl Virtual {
     }
 
     pub(crate) fn get_vdisks_by_disk(&self, disk: &str) -> Vec<VDiskId> {
-        self.vdisks
-            .iter()
-            .filter_map(|vdisk| {
-                let disk_contains_replica = vdisk.replicas().iter().any(|replica| {
-                    replica.node_name() == self.local_node_name && replica.disk_name() == disk
-                });
-                if disk_contains_replica {
-                    Some(vdisk.id())
-                } else {
-                    None
-                }
-            })
-            .collect()
+        let vdisks = self.vdisks.iter();
+        let vdisks_on_disk = vdisks.filter(|vdisk| {
+            vdisk
+                .replicas()
+                .iter()
+                .filter(|r| r.node_name() == self.local_node_name)
+                .any(|replica| replica.disk_name() == disk)
+        });
+        vdisks_on_disk.map(VDisk::id).collect()
     }
 
     pub(crate) fn get_operation(&self, key: BobKey) -> (VDiskId, Option<DiskPath>) {

@@ -8,7 +8,7 @@ impl Validatable for DiskPath {
             || self.name() == "~"
             || self.path() == "~"
         {
-            let msg = format!("node disks must contain not empty fields 'name' and 'path'");
+            let msg = "node disks must contain not empty fields \'name\' and \'path\'".to_string();
             error!("NodeDisk validation failed: {}", msg);
             Err(msg)
         } else {
@@ -67,7 +67,7 @@ impl Node {
 impl Validatable for Node {
     fn validate(&self) -> Result<(), String> {
         if self.name.is_empty() || self.name == "~" {
-            let msg = format!("node must contain not empty field 'name'");
+            let msg = "node must contain not empty field \'name\'".to_string();
             error!("{}", msg);
             return Err(msg);
         }
@@ -89,11 +89,7 @@ impl Validatable for Node {
 
         Self::aggregate(&self.disks)?;
 
-        let mut names = self
-            .disks
-            .iter()
-            .map(|disk| disk.name())
-            .collect::<Vec<_>>();
+        let mut names = self.disks.iter().map(DiskPath::name).collect::<Vec<_>>();
         names.sort();
         if names.windows(2).any(|pair| pair[0] == pair[1]) {
             let msg = format!("nodes can't use identical names: {}", self.name());
@@ -114,6 +110,7 @@ pub struct Replica {
 
 impl Replica {
     /// Creates new replica struct with given node name and disk name.
+    #[must_use]
     pub fn new(node: String, disk: String) -> Self {
         Self { node, disk }
     }
@@ -133,7 +130,7 @@ impl Replica {
 impl Validatable for Replica {
     fn validate(&self) -> Result<(), String> {
         if self.node.is_empty() || self.disk.is_empty() {
-            let msg = format!("replica must contain not empty fields 'node' and 'disk'");
+            let msg = "replica must contain not empty fields \'node\' and \'disk\'".to_string();
             error!("{}", msg);
             Err(msg)
         } else {
@@ -152,6 +149,7 @@ pub struct VDisk {
 
 impl VDisk {
     /// Creates new instance of the [`VDisk`] with given id. To add replicas use [`push_replicas`].
+    #[must_use]
     pub fn new(id: u32) -> Self {
         Self {
             id,
@@ -166,6 +164,7 @@ impl VDisk {
     }
 
     /// Returns slice with replicas of the [`VDisk`]
+    #[must_use]
     pub fn replicas(&self) -> &[Replica] {
         &self.replicas
     }
@@ -200,20 +199,22 @@ impl Validatable for VDisk {
 
 /// Config with cluster structure description.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct Config {
+pub struct Cluster {
     #[serde(default)]
     nodes: Vec<Node>,
     #[serde(default)]
     vdisks: Vec<VDisk>,
 }
 
-impl Config {
+impl Cluster {
     /// Returns slice with [`Node`]s.
+    #[must_use]
     pub fn nodes(&self) -> &[Node] {
         &self.nodes
     }
 
     /// Returns slice with [`VDisk`]s.
+    #[must_use]
     pub fn vdisks(&self) -> &[VDisk] {
         &self.vdisks
     }
@@ -224,6 +225,9 @@ impl Config {
     }
 
     /// Creates [`DataVDisk`]s from config, required for mapper.
+    /// # Errors
+    /// Returns error description. If can't match node name with replica name.
+    /// And if node disk with replica disk.
     pub fn convert(&self) -> Result<Vec<DataVDisk>, String> {
         let mut result = Vec::new();
         for vdisk in &self.vdisks {
@@ -234,13 +238,19 @@ impl Config {
                     .nodes
                     .iter()
                     .find(|node| node.name() == replica.node())
-                    .expect("unknown node name in replica");
+                    .ok_or("unknown node name in replica")?;
                 let node_name = replica.node().to_owned();
                 let disk_path = node
                     .disks()
                     .iter()
                     .find(|disk| disk.name() == disk_name)
-                    .unwrap()
+                    .ok_or_else(|| {
+                        format!(
+                            "can't find disk with name [{}], check replica section of vdisk [{}]",
+                            disk_name,
+                            vdisk.id()
+                        )
+                    })?
                     .path()
                     .to_owned();
                 let node_disk = DataNodeDisk::new(disk_path, disk_name, node_name);
@@ -252,30 +262,32 @@ impl Config {
     }
 
     /// Loads config from disk, and validates it.
+    /// # Errors
+    /// IO errors and failed validation.
     pub fn try_get(filename: &str) -> Result<Self, String> {
-        let config = YamlBobConfigReader::get::<Config>(filename)?;
+        let config = YamlBobConfig::get::<Cluster>(filename)?;
         match config.validate() {
             Ok(_) => Ok(config),
             Err(e) => {
-                debug!("config is not valid: {}", e);
-                Err(format!("config is not valid: {}", e))
+                let msg = format!("config is not valid: {}", e);
+                error!("{}", msg);
+                Err(msg)
             }
         }
     }
 
     /// Read and validate node config file.
+    /// # Errors
+    /// IO errors, failed validation and cluster structure check.
     pub fn get(&self, filename: &str) -> Result<NodeConfig, String> {
-        let config = YamlBobConfigReader::get::<NodeConfig>(filename)?;
+        let config = YamlBobConfig::get::<NodeConfig>(filename)?;
 
-        match config.validate() {
-            Ok(_) => {
-                self.check(&config)?;
-                Ok(config)
-            }
-            Err(e) => {
-                debug!("config is not valid: {}", e);
-                Err(format!("config is not valid: {}", e))
-            }
+        if let Err(e) = config.validate() {
+            debug!("config is not valid: {}", e);
+            Err(format!("config is not valid: {}", e))
+        } else {
+            self.check(&config)?;
+            Ok(config)
         }
     }
 
@@ -311,7 +323,7 @@ impl Config {
 
     #[cfg(test)]
     pub(crate) fn get_from_string(file: &str) -> Result<Self, String> {
-        let config = YamlBobConfigReader::parse::<Self>(file)?;
+        let config = YamlBobConfig::parse::<Self>(file)?;
         debug!("config: {:?}", config);
         if let Err(e) = config.validate() {
             debug!("config is not valid: {}", e);
@@ -323,15 +335,15 @@ impl Config {
     }
 }
 
-impl Validatable for Config {
+impl Validatable for Cluster {
     fn validate(&self) -> Result<(), String> {
         if self.nodes.is_empty() {
-            let msg = format!("bob requires at least one node to start");
+            let msg = "bob requires at least one node to start".to_string();
             error!("{}", msg);
             return Err(msg);
         }
         if self.vdisks.is_empty() {
-            let msg = format!("bob requires at least one virtual disk to start");
+            let msg = "bob requires at least one virtual disk to start".to_string();
             error!("{}", msg);
             return Err(msg);
         }
@@ -395,14 +407,14 @@ impl Validatable for Config {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
+    use super::{Cluster, DiskPath, Node, RefCell, Replica, Uri, VDisk};
 
     #[must_use]
     pub(crate) fn cluster_config(
         count_nodes: u32,
         count_vdisks: u32,
         count_replicas: u32,
-    ) -> Config {
+    ) -> Cluster {
         let nodes = (0..count_nodes)
             .map(|id| {
                 let name = id.to_string();
@@ -432,6 +444,6 @@ pub(crate) mod tests {
             })
             .collect();
 
-        Config { nodes, vdisks }
+        Cluster { nodes, vdisks }
     }
 }

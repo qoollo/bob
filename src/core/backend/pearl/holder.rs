@@ -198,7 +198,7 @@ impl Holder {
         }
 
         // @TODO add default values to be inserted on deserialisation step
-        let prefix = self.config.blob_file_name_prefix().clone();
+        let prefix = self.config.blob_file_name_prefix();
         let max_data = self.config.max_data_in_blob();
         let max_blob_size = self.config.max_blob_size();
         builder
