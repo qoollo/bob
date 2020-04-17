@@ -42,23 +42,33 @@ impl Group {
         }
     }
 
-    // @TODO limit number of holder creation retry attempts
-    pub async fn run(&self) {
+    pub async fn run(&self) -> Result<(), Error> {
         let duration = self.settings.config().fail_retry_timeout();
-
-        let mut holders = Vec::new();
-
+        let max_retry_count = self.settings.config().fail_retry_count();
+        let mut holders = vec![];
         debug!("{}: read holders from disk", self);
-        while let Err(e) = self.read_vdisk_directory().map(|read_holders| {
-            holders = read_holders;
-        }) {
-            error!(
-                "{}: can't create pearl holders: {:?}, await for {}ms",
-                self,
-                e,
-                duration.as_millis()
-            );
-            delay_for(duration).await;
+        for attempt in 0..max_retry_count {
+            match self.read_vdisk_directory() {
+                Ok(read_holders) => {
+                    holders = read_holders;
+                    break;
+                }
+                Err(e) => {
+                    error!(
+                        "{}: can't create pearl holders: {:?}, await for {}ms, attempt {}/{}",
+                        self,
+                        e,
+                        duration.as_millis(),
+                        attempt + 1,
+                        max_retry_count
+                    );
+                    // Return last error in case of multiple fails
+                    if attempt == max_retry_count - 1 {
+                        return Err(e);
+                    }
+                    delay_for(duration).await;
+                }
+            }
         }
         debug!("{}: count holders: {}", self, holders.len());
         if holders
@@ -71,6 +81,7 @@ impl Group {
         self.add_range(holders).await;
         debug!("{}: start holders", self);
         self.run_pearls().await;
+        Ok(())
     }
 
     async fn run_pearls(&self) {
