@@ -474,9 +474,7 @@ vdisks:
 ";
         let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
-
-        assert_eq!(111, d.nodes()[0].uri().port().unwrap());
-        assert_eq!("0.0.0.0", d.nodes()[0].uri().host().unwrap());
+        assert_eq!("0.0.0.0:111", d.nodes()[0].address());
     }
 
     #[test]

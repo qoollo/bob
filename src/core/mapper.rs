@@ -12,8 +12,8 @@ pub struct Virtual {
 
 impl Virtual {
     /// Creates new instance of the Virtual disk mapper
-    pub fn new(vdisks: Vec<DataVDisk>, config: &NodeConfig, cluster: &ClusterConfig) -> Self {
-        let (nodes, vdisks) = Self::prepare_nodes(vdisks, cluster);
+    pub async fn new(vdisks: Vec<DataVDisk>, config: &NodeConfig, cluster: &ClusterConfig) -> Self {
+        let (nodes, vdisks) = Self::prepare_nodes(vdisks, cluster).await;
         Self {
             local_node_name: config.name().to_owned(),
             disks: config.disks().clone(),
@@ -22,21 +22,16 @@ impl Virtual {
         }
     }
 
-    fn prepare_nodes(
+    async fn prepare_nodes(
         mut vdisks: Vec<DataVDisk>,
         cluster: &ClusterConfig,
     ) -> (Vec<Node>, Vec<DataVDisk>) {
-        let nodes: Vec<_> = cluster
-            .nodes()
-            .iter()
-            .enumerate()
-            .map(|(i, conf)| {
-                let index = i.try_into().expect("usize to u16");
-                let host = conf.uri().host().unwrap().to_owned();
-                let port = conf.uri().port_u16().unwrap();
-                Node::new(conf.name().to_owned(), host, port, index)
-            })
-            .collect();
+        let mut nodes = Vec::new();
+        for (i, conf) in cluster.nodes().iter().enumerate() {
+            let index = i.try_into().expect("usize to u16");
+            let address = conf.address();
+            nodes.push(Node::new(conf.name().to_owned(), address, index).await);
+        }
 
         vdisks.iter_mut().for_each(|vdisk| vdisk.set_nodes(&nodes));
         (nodes, vdisks)

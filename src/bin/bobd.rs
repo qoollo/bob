@@ -6,7 +6,7 @@ use bob::mapper::Virtual;
 use bob::metrics;
 use bob::server::Server as BobServer;
 use clap::{App, Arg};
-use std::net::SocketAddr;
+use std::net::ToSocketAddrs;
 use tonic::transport::Server;
 
 #[macro_use]
@@ -78,8 +78,8 @@ async fn main() {
 
     log4rs::init_file(node.log_config(), Default::default()).unwrap();
 
-    let mut mapper = Virtual::new(vdisks.to_vec(), &node, &cluster);
-    let mut addr: SocketAddr = node.bind().parse().unwrap();
+    let mut mapper = Virtual::new(vdisks.to_vec(), &node, &cluster).await;
+    let mut addr = node.bind().to_socket_addrs().unwrap().next().unwrap();
 
     let node_name = matches.value_of("name");
     if node_name.is_some() {
@@ -89,8 +89,8 @@ async fn main() {
             .iter()
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
-        mapper = Virtual::new(vdisks.to_vec(), &node, &cluster);
-        addr = finded.address().parse().unwrap();
+        mapper = Virtual::new(vdisks.to_vec(), &node, &cluster).await;
+        addr = finded.address().to_socket_addrs().unwrap().next().unwrap();
     }
 
     let metrics = metrics::init_counters(&node, &addr.to_string());

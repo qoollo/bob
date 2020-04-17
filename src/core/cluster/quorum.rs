@@ -397,7 +397,7 @@ mod tests {
         cluster: &ClusterConfig,
         map: &[(&str, Call, Arc<CountCall>)],
     ) -> (Quorum, Arc<Backend>) {
-        let mapper = Arc::new(Virtual::new(vdisks, &node, &cluster));
+        let mapper = Arc::new(Virtual::new(vdisks, &node, &cluster).await);
         for node in mapper.nodes().iter() {
             let mut client = BobClient::default();
             let (_, func, call) = map

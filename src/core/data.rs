@@ -322,18 +322,18 @@ impl PartialEq for NodeDisk {
 #[derive(Clone)]
 pub(crate) struct Node {
     name: String,
-    host: String,
-    port: u16,
+    address: SocketAddr,
     index: u16,
     conn: Arc<RwLock<Option<BobClient>>>,
 }
 
 impl Node {
-    pub(crate) fn new(name: String, host: String, port: u16, index: u16) -> Self {
+    pub(crate) async fn new(name: String, address: &str, index: u16) -> Self {
+        let mut address = lookup_host(address).await.expect("DNS resolution failed");
+        let address = address.next().expect("address is empty");
         Self {
             name,
-            host,
-            port,
+            address,
             index,
             conn: Arc::default(),
         }
@@ -348,7 +348,7 @@ impl Node {
     }
 
     pub(crate) fn get_address(&self) -> String {
-        format!("http://{}:{}", self.host, self.port)
+        format!("http://{}", self.address)
     }
 
     pub(crate) fn get_uri(&self) -> Uri {
@@ -356,7 +356,7 @@ impl Node {
     }
 
     pub(crate) fn counter_display(&self) -> String {
-        format!("{}:{}", self.host.replace(".", "_"), self.port)
+        self.address.to_string().replace(".", "_")
     }
 
     pub(crate) async fn set_connection(&self, client: BobClient) {
@@ -395,21 +395,20 @@ impl Node {
 
 impl Hash for Node {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.host.hash(state);
-        self.port.hash(state);
+        self.address.hash(state);
     }
 }
 
 impl Debug for Node {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        write!(f, "{}={}:{}", self.name, self.host, self.port)
+        write!(f, "{}={}", self.name, self.address)
     }
 }
 
 // @TODO get off partialeq trait
 impl PartialEq for Node {
     fn eq(&self, other: &Node) -> bool {
-        self.host == other.host && self.port == other.port
+        self.address == other.address
     }
 }
 

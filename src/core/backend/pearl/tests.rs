@@ -15,7 +15,7 @@ fn drop_pearl() {
     }
 }
 
-fn create_backend(node_config: &str, cluster_config: &str) -> PearlBackend {
+async fn create_backend(node_config: &str, cluster_config: &str) -> PearlBackend {
     let cluster = ClusterConfig::get_from_string(cluster_config).unwrap();
     let vdisks = cluster.convert().unwrap();
     debug!("vdisks: {:?}", vdisks);
@@ -23,12 +23,12 @@ fn create_backend(node_config: &str, cluster_config: &str) -> PearlBackend {
     let node = NodeConfig::get_from_string(node_config, &cluster).unwrap();
     debug!("node: {:?}", node);
 
-    let mapper = Arc::new(Virtual::new(vdisks.to_vec(), &node, &cluster));
+    let mapper = Arc::new(Virtual::new(vdisks.to_vec(), &node, &cluster).await);
     debug!("mapper: {:?}", mapper);
     PearlBackend::new(mapper, &node)
 }
 
-fn backend() -> PearlBackend {
+async fn backend() -> PearlBackend {
     let node_config = "
 log_config: logger.yaml
 name: local_node
@@ -64,14 +64,14 @@ vdisks:
 ";
     debug!("node_config: {}", node_config);
     debug!("cluster_config: {}", cluster_config);
-    create_backend(node_config, cluster_config)
+    create_backend(node_config, cluster_config).await
 }
 
 #[tokio::test]
 async fn test_write_multiple_read() {
     drop_pearl();
     let vdisk_id = 0;
-    let backend = backend();
+    let backend = backend().await;
     backend.run_backend().await.unwrap();
     let path = DiskPath::new(DISK_NAME.to_owned(), "".to_owned());
     let operation = BackendOperation::new_local(vdisk_id, path);

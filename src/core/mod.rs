@@ -53,7 +53,10 @@ mod prelude {
         GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER,
     };
     pub(crate) use stopwatch::Stopwatch;
-    pub(crate) use tokio::time::{interval, timeout};
+    pub(crate) use tokio::{
+        net::lookup_host,
+        time::{interval, timeout},
+    };
     pub(crate) use tonic::{
         transport::{Channel, Endpoint},
         Code, Request, Response, Status,

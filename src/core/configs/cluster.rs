@@ -24,46 +24,31 @@ pub struct Node {
     name: String,
     address: String,
     disks: Vec<DiskPath>,
-
-    #[serde(skip)]
-    uri: RefCell<Uri>,
 }
 
 impl Node {
     /// Returns node name, empty if name wasn't set in config.
     #[inline]
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
     /// Returns slice of disk configs [`DiskPath`].
     #[inline]
+    #[must_use]
     pub fn disks(&self) -> &[DiskPath] {
         &self.disks
     }
 
     /// Returns node address, empty if address wasn't set in config.
     #[inline]
+    #[must_use]
     pub fn address(&self) -> &str {
         &self.address
     }
-
-    #[inline]
-    pub(crate) fn uri(&self) -> Ref<Uri> {
-        self.uri.borrow()
-    }
-
-    fn prepare(&self) -> Result<(), String> {
-        if let Ok(uri) = self.address().parse() {
-            *self.uri.borrow_mut() = uri;
-            Ok(())
-        } else {
-            let msg = format!("invalid, node[{}] address: {}", self.name(), self.address());
-            error!("{}", msg);
-            Err(msg)
-        }
-    }
 }
+
 impl Validatable for Node {
     fn validate(&self) -> Result<(), String> {
         if self.name.is_empty() || self.name == "~" {
@@ -370,15 +355,6 @@ impl Validatable for Cluster {
             return Err("config contains duplicates nodes names".to_string());
         }
 
-        let err = self
-            .nodes
-            .iter()
-            .filter_map(|x| x.prepare().err())
-            .fold(String::new(), |acc, x| acc + "\n" + &x);
-        if !err.is_empty() {
-            return Err(err);
-        }
-
         for vdisk in &self.vdisks {
             for replica in &vdisk.replicas {
                 if let Some(node) = self.nodes.iter().find(|x| x.name == replica.node) {
@@ -407,7 +383,7 @@ impl Validatable for Cluster {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::{Cluster, DiskPath, Node, RefCell, Replica, Uri, VDisk};
+    use super::{Cluster, DiskPath, Node, Replica, VDisk};
 
     #[must_use]
     pub(crate) fn cluster_config(
@@ -418,14 +394,11 @@ pub(crate) mod tests {
         let nodes = (0..count_nodes)
             .map(|id| {
                 let name = id.to_string();
-                let node = Node {
+                Node {
                     name: name.clone(),
                     address: "0.0.0.0:0".to_string(),
                     disks: vec![DiskPath::new(name.clone(), name)],
-                    uri: RefCell::new(Uri::default()),
-                };
-                node.prepare().unwrap();
-                node
+                }
             })
             .collect();
 
