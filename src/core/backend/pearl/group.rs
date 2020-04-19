@@ -128,20 +128,26 @@ impl Group {
             })
     }
 
-    // @TODO limit try init attempts
     // create pearl for current write
     async fn create_write_pearl(&self, timestamp: u64) -> BackendResult<Holder> {
-        loop {
-            if self.pearl_sync.try_init().await {
-                let pearl = self.create_pearl_by_timestamp(timestamp);
-                self.save_pearl(pearl.clone()).await?;
-                self.pearl_sync.mark_as_created().await;
-                return Ok(pearl);
-            } else {
-                let t = self.settings.config().settings().create_pearl_wait_delay();
-                warn!("pearl init failed, retry in {}ms", t.as_millis());
-                delay_for(t).await;
-            }
+        self.settings
+            .config()
+            .try_multiple_times_async(
+                || self.try_create_write_pearl(timestamp),
+                "pearl init failed",
+                self.settings.config().settings().create_pearl_wait_delay(),
+            )
+            .await
+    }
+
+    async fn try_create_write_pearl(&self, timestamp: u64) -> Result<Holder, Error> {
+        if self.pearl_sync.try_init().await {
+            let pearl = self.create_pearl_by_timestamp(timestamp);
+            self.save_pearl(pearl.clone()).await?;
+            self.pearl_sync.mark_as_created().await;
+            Ok(pearl)
+        } else {
+            Err(Error::Failed("failed to init pearl sync".to_string()))
         }
     }
 

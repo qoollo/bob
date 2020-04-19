@@ -150,30 +150,37 @@ impl Holder {
 
     pub async fn prepare_storage(&self) -> Result<(), Error> {
         self.config
-            .try_with_attempts_async(|| self.init_holder(), "can't initialize holder")
+            .try_multiple_times_async(
+                || self.init_holder(),
+                "can't initialize holder",
+                self.config.fail_retry_timeout(),
+            )
             .await
     }
 
     async fn init_holder(&self) -> Result<(), Error> {
         self.config
-            .try_with_attempts(
+            .try_multiple_times(
                 || Stuff::check_or_create_directory(&self.disk_path),
                 &format!("cannot check path: {:?}", self.disk_path),
+                self.config.fail_retry_timeout(),
             )
             .await?;
 
         self.config
-            .try_with_attempts(
+            .try_multiple_times(
                 || Stuff::drop_pearl_lock_file(&self.disk_path),
                 &format!("cannot delete lock file: {:?}", self.disk_path),
+                self.config.fail_retry_timeout(),
             )
             .await?;
 
         let storage = self
             .config
-            .try_with_attempts(
+            .try_multiple_times(
                 || self.init_pearl_by_path(),
                 &format!("can't init pearl by path: {:?}", self.disk_path),
+                self.config.fail_retry_timeout(),
             )
             .await?;
         self.init_pearl(storage).await?;
