@@ -1,4 +1,5 @@
 use super::prelude::*;
+use tokio::time::delay_for;
 
 const PLACEHOLDER: &str = "~";
 
@@ -230,6 +231,48 @@ impl Pearl {
         } else {
             Ok(())
         }
+    }
+
+    pub async fn try_with_attempts<F, T, E>(&self, f: F, error_prefix: &str) -> Result<T, E>
+    where
+        F: Fn() -> Result<T, E>,
+        E: Debug,
+    {
+        let a = || async { f() };
+        self.try_with_attempts_async(a, error_prefix).await
+    }
+
+    pub async fn try_with_attempts_async<F, T, E, Fut>(
+        &self,
+        f: F,
+        error_prefix: &str,
+    ) -> Result<T, E>
+    where
+        F: Fn() -> Fut,
+        Fut: Future<Output = Result<T, E>>,
+        E: Debug,
+    {
+        let retry_count = self.fail_retry_count();
+        let retry_delay = self.fail_retry_timeout();
+        for attempt in 0..retry_count {
+            match f().await {
+                Ok(value) => return Ok(value),
+                Err(e) => {
+                    error!(
+                        "{}, attempt {}/{}, error {:?}",
+                        error_prefix,
+                        attempt + 1,
+                        retry_count,
+                        e
+                    );
+                    if attempt == retry_count - 1 {
+                        return Err(e);
+                    }
+                }
+            }
+            delay_for(retry_delay).await
+        }
+        unreachable!()
     }
 }
 

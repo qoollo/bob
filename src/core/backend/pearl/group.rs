@@ -80,16 +80,17 @@ impl Group {
         debug!("{}: save holders to group", self);
         self.add_range(holders).await;
         debug!("{}: start holders", self);
-        self.run_pearls().await;
+        self.run_pearls().await?;
         Ok(())
     }
 
-    async fn run_pearls(&self) {
+    async fn run_pearls(&self) -> Result<(), Error> {
         let holders = self.holders.write().await;
 
         for holder in holders.iter() {
-            holder.prepare_storage().await;
+            holder.prepare_storage().await?;
         }
+        Ok(())
     }
 
     pub async fn add(&self, holder: Holder) {
@@ -133,7 +134,7 @@ impl Group {
         loop {
             if self.pearl_sync.try_init().await {
                 let pearl = self.create_pearl_by_timestamp(timestamp);
-                self.save_pearl(pearl.clone()).await;
+                self.save_pearl(pearl.clone()).await?;
                 self.pearl_sync.mark_as_created().await;
                 return Ok(pearl);
             } else {
@@ -144,9 +145,10 @@ impl Group {
         }
     }
 
-    async fn save_pearl(&self, holder: Holder) {
-        holder.prepare_storage().await;
+    async fn save_pearl(&self, holder: Holder) -> Result<(), Error> {
+        holder.prepare_storage().await?;
         self.add(holder).await;
+        Ok(())
     }
 
     pub async fn put(&self, key: BobKey, data: BobData) -> PutResult {
@@ -161,7 +163,7 @@ impl Group {
             if !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
-                holder.prepare_storage().await;
+                holder.prepare_storage().await?;
             }
         }
         Ok(())
@@ -205,7 +207,7 @@ impl Group {
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {
                 holder.try_reinit().await?;
-                holder.prepare_storage().await;
+                holder.prepare_storage().await?;
             }
         }
         result
@@ -249,7 +251,7 @@ impl Group {
             Err(Error::PearlChangeState(msg))
         } else {
             let holder = self.create_pearl_by_timestamp(start_timestamp);
-            self.save_pearl(holder).await;
+            self.save_pearl(holder).await?;
             Ok(())
         }
     }

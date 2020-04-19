@@ -148,41 +148,46 @@ impl Holder {
         }
     }
 
-    // @TODO limit retry attempts
-    pub async fn prepare_storage(&self) {
-        let mut need_delay = false;
-        loop {
-            if need_delay {
-                delay_for(self.config.fail_retry_timeout()).await;
-            }
-            need_delay = true;
+    pub async fn prepare_storage(&self) -> Result<(), Error> {
+        self.config
+            .try_with_attempts_async(|| self.init_holder(), "can't initialize holder")
+            .await
+    }
 
-            if let Err(e) = Stuff::check_or_create_directory(&self.disk_path) {
-                error!("cannot check path: {:?}, error: {}", self.disk_path, e);
-                continue;
-            }
+    async fn init_holder(&self) -> Result<(), Error> {
+        self.config
+            .try_with_attempts(
+                || Stuff::check_or_create_directory(&self.disk_path),
+                &format!("cannot check path: {:?}", self.disk_path),
+            )
+            .await?;
 
-            if let Err(e) = Stuff::drop_pearl_lock_file(&self.disk_path) {
-                error!(
-                    "cannot delete lock file: {:?}, error: {}",
-                    self.disk_path, e
-                );
-                continue;
-            }
+        self.config
+            .try_with_attempts(
+                || Stuff::drop_pearl_lock_file(&self.disk_path),
+                &format!("cannot delete lock file: {:?}", self.disk_path),
+            )
+            .await?;
 
-            let storage = self.init_pearl_by_path();
-            if let Err(e) = storage {
-                error!("can't init pearl by path: {:?}, {:?}", self.disk_path, e);
-                continue;
+        let storage = self
+            .config
+            .try_with_attempts(
+                || self.init_pearl_by_path(),
+                &format!("can't init pearl by path: {:?}", self.disk_path),
+            )
+            .await?;
+        self.init_pearl(storage).await?;
+        debug!("Vdisk: {} Pearl is ready for work", self.vdisk);
+        Ok(())
+    }
+
+    async fn init_pearl(&self, mut storage: Storage<Key>) -> Result<(), Error> {
+        match storage.init().await {
+            Ok(_) => {
+                self.update(storage).await;
+                Ok(())
             }
-            let mut st = storage.unwrap();
-            if let Err(e) = st.init().await {
-                error!("cannot init pearl by path: {:?}, {:?}", self.disk_path, e);
-                continue;
-            }
-            self.update(st).await;
-            debug!("Vdisk: {} Pearl is ready for work", self.vdisk);
-            break;
+            Err(e) => Err(Error::Storage(format!("pearl error: {:?}", e))),
         }
     }
 
