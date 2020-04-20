@@ -109,11 +109,20 @@ pub(crate) mod b_client {
         #[allow(dead_code)]
         pub(crate) async fn ping(&self) -> PingResult {
             let mut client = self.client.clone();
-            timeout(self.operation_timeout, client.ping(Request::new(Null {})))
-                .await
-                .expect("client ping with timeout")
-                .map(|_| NodeOutput::new(self.node.name().to_owned(), ()))
-                .map_err(|_| NodeOutput::new(self.node.name().to_owned(), BackendError::Timeout))
+            if let Ok(res) =
+                timeout(self.operation_timeout, client.ping(Request::new(Null {}))).await
+            {
+                res.map(|_| NodeOutput::new(self.node.name().to_owned(), ()))
+                    .map_err(|_| {
+                        NodeOutput::new(self.node.name().to_owned(), BackendError::Timeout)
+                    })
+            } else {
+                warn!("node {} ping timeout, reset connection", self.node.name());
+                Err(NodeOutput::new(
+                    self.node.name().to_owned(),
+                    BackendError::Timeout,
+                ))
+            }
         }
 
         #[allow(dead_code)]

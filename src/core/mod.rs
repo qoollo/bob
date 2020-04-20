@@ -53,6 +53,7 @@ mod prelude {
         GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER,
     };
     pub(crate) use stopwatch::Stopwatch;
+    pub(crate) use termion::color;
     pub(crate) use tokio::{
         net::lookup_host,
         time::{interval, timeout},

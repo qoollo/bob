@@ -22,6 +22,7 @@ impl LinkManager {
         let mut interval = interval(period);
         loop {
             interval.tick().await;
+            let mut status = String::from("Node status: ");
             for node in nodes.iter() {
                 if let Err(e) = node.check(&factory).await {
                     error!(
@@ -30,8 +31,12 @@ impl LinkManager {
                         node.address(),
                         e
                     );
+                    status += &format!("{}{:<10} ", color::Fg(color::Red), node.name());
+                } else {
+                    status += &format!("{}{:<10} ", color::Fg(color::Green), node.name());
                 }
             }
+            info!("{}{}", status, color::Fg(color::Reset));
         }
     }
 
