@@ -23,7 +23,14 @@ impl LinkManager {
         loop {
             interval.tick().await;
             for node in nodes.iter() {
-                node.check(&factory).await.expect("check");
+                if let Err(e) = node.check(&factory).await {
+                    error!(
+                        "No connection to {}:[{}] - {}",
+                        node.name(),
+                        node.address(),
+                        e
+                    );
+                }
             }
         }
     }

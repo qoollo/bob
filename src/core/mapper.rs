@@ -47,7 +47,8 @@ impl Virtual {
             .iter()
             .find(|node| node.name() == name)
             .expect("found node with name")
-            .get_address()
+            .address()
+            .to_string()
     }
 
     pub(crate) fn vdisks_count(&self) -> u32 {

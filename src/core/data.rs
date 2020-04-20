@@ -347,12 +347,17 @@ impl Node {
         self.index
     }
 
-    pub(crate) fn get_address(&self) -> String {
-        format!("http://{}", self.address)
+    pub(crate) fn address(&self) -> &SocketAddr {
+        &self.address
     }
 
     pub(crate) fn get_uri(&self) -> Uri {
-        self.get_address().parse().expect("parse uri")
+        Uri::builder()
+            .scheme("http")
+            .authority(self.address.to_string().as_str())
+            .path_and_query("/")
+            .build()
+            .expect("build uri")
     }
 
     pub(crate) fn counter_display(&self) -> String {
