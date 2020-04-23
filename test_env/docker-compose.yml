@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  node1:
+    build:
+        context: .
+        dockerfile: Dockerfile
+    volumes:
+      - ../:/bob
+      - /tmp/bob/:/tmp
+    command: "/bob/target/x86_64-unknown-linux-musl/release/bobd -c /bob/test_env/cluster.yaml -n /bob/test_env/node1.yaml"
+    networks:
+      bobnet:
+        ipv4_address: 192.168.1.100
+    # ports:
+    #   - "20000:20000"
+
+  node2:
+    build:
+        context: .
+        dockerfile: Dockerfile
+    volumes:
+        - ../:/bob
+        - /tmp/bob/:/tmp
+    command: "/bob/target/x86_64-unknown-linux-musl/release/bobd -c /bob/test_env/cluster.yaml -n /bob/test_env/node2.yaml"
+    networks:
+      bobnet:
+        ipv4_address: 192.168.1.200
+    # ports:
+    #   - "20001:20001"
+
+networks:
+  bobnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.1.0/24
+ 

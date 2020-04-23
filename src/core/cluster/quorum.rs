@@ -100,7 +100,7 @@ impl Quorum {
         let sup = results
             .iter()
             .filter_map(|res| {
-                trace!("GET[{}] failed result: {:?}", key, res);
+                trace!("GET[{}] received result: {:?}", key, res);
                 res.as_ref().err().map(|e| format!("{:?}", e))
             })
             .collect();
@@ -232,11 +232,12 @@ impl Cluster for Quorum {
     //todo check no data (no error)
     async fn get(&self, key: BobKey) -> GetResult {
         let all_nodes = self.get_target_nodes(key);
-        debug!("query {} nodes to send get request", self.quorum);
-        let target_nodes = all_nodes.chunks(self.quorum).next().unwrap();
-        debug!("GET[{}]: Nodes for fan out: {:?}", key, &target_nodes);
+        trace!("target nodes: {:?}", all_nodes);
+        debug!("GET[{}]: Nodes for fan out: {:?}", key, &all_nodes);
 
-        let results = Self::get_all(key, target_nodes, GetOptions::new_all()).await;
+        // @TODO currently we send requests to all nodes, ignoring quorum value.
+        // In future we need to call local node in first place and then remaining nodes.
+        let results = Self::get_all(key, all_nodes, GetOptions::new_all()).await;
         debug!("GET[{}] cluster ans: {:?}", key, results);
 
         let (result, errors) = Self::filter_get_results(key, results);
@@ -252,14 +253,14 @@ impl Cluster for Quorum {
             debug!("GET[{}] data not found", key);
             return Err(BackendError::KeyNotFound(key));
         }
+        trace!("appropriate nodes didn't get successful results, lookup in other nodes aliens");
         debug!("GET[{}] no success result", key);
 
-        let mut sup_nodes: Vec<_> = self
-            .get_support_nodes(all_nodes.iter().map(Node::index), 1)?
+        let sup_nodes: Vec<_> = self
+            .get_support_nodes(all_nodes.iter().map(Node::index), 0)?
             .into_iter()
             .cloned()
             .collect(); // @TODO take from config
-        sup_nodes.extend(all_nodes.iter().skip(self.quorum).cloned());
 
         debug!("GET[{}]: Sup nodes for fan out: {:?}", key, &sup_nodes);
 

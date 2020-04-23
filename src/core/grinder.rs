@@ -80,7 +80,13 @@ impl Grinder {
         key: BobKey,
         opts: &BobOptions,
     ) -> Result<BobData, BackendError> {
+        trace!(">>>- - - - - GRINDER GET START - - - - -");
+        let sw = Stopwatch::start_new();
         if opts.flags().contains(BobFlags::FORCE_NODE) {
+            trace!(
+                "pass request to backend, /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
             CLIENT_GET_COUNTER.count(1);
             let time = CLIENT_GET_TIMER.start();
 
@@ -89,22 +95,35 @@ impl Grinder {
                 key, opts
             );
             let result = self.backend.get(key, opts).await;
+            trace!(
+                "backend processed get, /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
             if result.is_err() {
                 CLIENT_GET_ERROR_COUNT_COUNTER.count(1);
             }
 
             CLIENT_GET_TIMER.stop(time);
+            trace!(">>>- - - - - GRINDER PUT FINISHED - - - - -");
             result
         } else {
+            trace!(
+                "pass request to cluster, /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
             GRINDER_GET_COUNTER.count(1);
             let time = GRINDER_GET_TIMER.start();
-
             debug!("GET[{}] will route to cluster", key);
             let result = self.cluster.get(key).await;
+            trace!(
+                "cluster processed get, /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
             if result.is_err() {
                 GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
             }
             GRINDER_GET_TIMER.stop(time);
+            trace!(">>>- - - - - GRINDER PUT FINISHED - - - - -");
             result
         }
     }

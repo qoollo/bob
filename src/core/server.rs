@@ -116,16 +116,36 @@ impl BobApi for Server {
     }
 
     async fn get(&self, req: Request<GetRequest>) -> ApiResult<Blob> {
+        trace!("- - - - - SERVER GET START - - - - -");
         let sw = Stopwatch::start_new();
+        trace!(
+            "process incoming get request /{:.3}ms/",
+            sw.elapsed().as_secs_f64() * 1000.0
+        );
         let get_req = req.into_inner();
+        trace!(
+            "extract options from request /{:.3}ms/",
+            sw.elapsed().as_secs_f64() * 1000.0
+        );
         if let Some((key, options)) = get_extract(get_req) {
+            trace!(
+                "create new bob options /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
             let options = BobOptions::new_get(options);
+            trace!(
+                "pass request to grinder /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
             let get_res = self
                 .grinder
                 .get(key, &options)
                 .await
                 .map_err::<Status, _>(|e| e.into())?;
-
+            trace!(
+                "grinder finished request processing /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
             let elapsed = sw.elapsed_ms();
             debug!("GET[{}]-OK dt: {}ms", key, elapsed);
             let meta = Some(BlobMeta {
@@ -134,6 +154,7 @@ impl BobApi for Server {
             let data = get_res.into_inner();
             let blob = Blob { meta, data };
             let response = Response::new(blob);
+            trace!("- - - - - SERVER GET FINISHED - - - - -");
             Ok(response)
         } else {
             warn!("GET[-] invalid arguments - key is mandatory");
