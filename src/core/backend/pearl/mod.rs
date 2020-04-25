@@ -29,5 +29,4 @@ mod prelude {
     };
     pub(crate) use settings::Settings;
     pub(crate) use stuff::{Stuff, SyncState};
-    pub(crate) use tokio::time::delay_for;
 }

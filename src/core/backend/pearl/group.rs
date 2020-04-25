@@ -43,33 +43,16 @@ impl Group {
     }
 
     pub async fn run(&self) -> Result<(), Error> {
-        let duration = self.settings.config().fail_retry_timeout();
-        let max_retry_count = self.settings.config().fail_retry_count();
-        let mut holders = vec![];
         debug!("{}: read holders from disk", self);
-        for attempt in 0..max_retry_count {
-            match self.read_vdisk_directory() {
-                Ok(read_holders) => {
-                    holders = read_holders;
-                    break;
-                }
-                Err(e) => {
-                    error!(
-                        "{}: can't create pearl holders: {:?}, await for {}ms, attempt {}/{}",
-                        self,
-                        e,
-                        duration.as_millis(),
-                        attempt + 1,
-                        max_retry_count
-                    );
-                    // Return last error in case of multiple fails
-                    if attempt == max_retry_count - 1 {
-                        return Err(e);
-                    }
-                    delay_for(duration).await;
-                }
-            }
-        }
+        let holders = self
+            .settings
+            .config()
+            .try_multiple_times(
+                || self.read_vdisk_directory(),
+                "can't create pearl holders",
+                self.settings.config().fail_retry_timeout(),
+            )
+            .await?;
         debug!("{}: count holders: {}", self, holders.len());
         if holders
             .iter()
@@ -80,16 +63,17 @@ impl Group {
         debug!("{}: save holders to group", self);
         self.add_range(holders).await;
         debug!("{}: start holders", self);
-        self.run_pearls().await;
+        self.run_pearls().await?;
         Ok(())
     }
 
-    async fn run_pearls(&self) {
+    async fn run_pearls(&self) -> Result<(), Error> {
         let holders = self.holders.write().await;
 
         for holder in holders.iter() {
-            holder.prepare_storage().await;
+            holder.prepare_storage().await?;
         }
+        Ok(())
     }
 
     pub async fn add(&self, holder: Holder) {
@@ -127,26 +111,33 @@ impl Group {
             })
     }
 
-    // @TODO limit try init attempts
     // create pearl for current write
     async fn create_write_pearl(&self, timestamp: u64) -> BackendResult<Holder> {
-        loop {
-            if self.pearl_sync.try_init().await {
-                let pearl = self.create_pearl_by_timestamp(timestamp);
-                self.save_pearl(pearl.clone()).await;
-                self.pearl_sync.mark_as_created().await;
-                return Ok(pearl);
-            } else {
-                let t = self.settings.config().settings().create_pearl_wait_delay();
-                warn!("pearl init failed, retry in {}ms", t.as_millis());
-                delay_for(t).await;
-            }
+        self.settings
+            .config()
+            .try_multiple_times_async(
+                || self.try_create_write_pearl(timestamp),
+                "pearl init failed",
+                self.settings.config().settings().create_pearl_wait_delay(),
+            )
+            .await
+    }
+
+    async fn try_create_write_pearl(&self, timestamp: u64) -> Result<Holder, Error> {
+        if self.pearl_sync.try_init().await {
+            let pearl = self.create_pearl_by_timestamp(timestamp);
+            self.save_pearl(pearl.clone()).await?;
+            self.pearl_sync.mark_as_created().await;
+            Ok(pearl)
+        } else {
+            Err(Error::Failed("failed to init pearl sync".to_string()))
         }
     }
 
-    async fn save_pearl(&self, holder: Holder) {
-        holder.prepare_storage().await;
+    async fn save_pearl(&self, holder: Holder) -> Result<(), Error> {
+        holder.prepare_storage().await?;
         self.add(holder).await;
+        Ok(())
     }
 
     pub async fn put(&self, key: BobKey, data: BobData) -> PutResult {
@@ -161,7 +152,7 @@ impl Group {
             if !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
-                holder.prepare_storage().await;
+                holder.prepare_storage().await?;
             }
         }
         Ok(())
@@ -205,7 +196,7 @@ impl Group {
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {
                 holder.try_reinit().await?;
-                holder.prepare_storage().await;
+                holder.prepare_storage().await?;
             }
         }
         result
@@ -249,7 +240,7 @@ impl Group {
             Err(Error::PearlChangeState(msg))
         } else {
             let holder = self.create_pearl_by_timestamp(start_timestamp);
-            self.save_pearl(holder).await;
+            self.save_pearl(holder).await?;
             Ok(())
         }
     }
