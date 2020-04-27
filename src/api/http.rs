@@ -49,7 +49,7 @@ pub(crate) struct StatusExt {
 }
 
 fn runtime() -> Runtime {
-    // TODO: run web server on same runtime as bob
+    // TODO: run web server on same runtime as bob (update to async rocket when it's stable)
     error!("HOT FIX: run web server on same runtime as bob");
     Runtime::new().expect("create runtime")
 }
