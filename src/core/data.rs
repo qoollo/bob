@@ -274,38 +274,28 @@ impl DiskPath {
     }
 }
 
-// @TODO maybe merge NodeDisk and DiskPath
 impl From<&NodeDisk> for DiskPath {
     fn from(node: &NodeDisk) -> Self {
-        DiskPath {
-            name: node.disk_name.clone(),
-            path: node.disk_path.clone(),
-        }
+        node.disk_path.clone()
     }
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct NodeDisk {
-    disk_path: String,
-    disk_name: String,
+    disk_path: DiskPath,
     node_name: String,
 }
 
 impl NodeDisk {
     pub(crate) fn new(disk_path: String, disk_name: String, node_name: String) -> Self {
         Self {
-            disk_path,
-            disk_name,
+            disk_path: DiskPath::new(disk_name, disk_path),
             node_name,
         }
     }
 
-    pub(crate) fn disk_path(&self) -> &str {
+    pub(crate) fn disk_path(&self) -> &DiskPath {
         &self.disk_path
-    }
-
-    pub(crate) fn disk_name(&self) -> &str {
-        &self.disk_name
     }
 
     pub(crate) fn node_name(&self) -> &str {
@@ -315,7 +305,7 @@ impl NodeDisk {
 
 impl PartialEq for NodeDisk {
     fn eq(&self, other: &NodeDisk) -> bool {
-        self.node_name == other.node_name && self.disk_name == other.disk_name
+        self.node_name == other.node_name && self.disk_path.name == other.disk_path.name
     }
 }
 

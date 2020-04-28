@@ -103,8 +103,8 @@ fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {
     replicas
         .iter()
         .map(|r| Replica {
-            path: r.disk_path().to_owned(),
-            disk: r.disk_name().to_owned(),
+            path: r.disk_path().path().to_owned(),
+            disk: r.disk_path().name().to_owned(),
             node: r.node_name().to_owned(),
         })
         .collect()

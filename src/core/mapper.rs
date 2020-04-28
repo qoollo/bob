@@ -100,7 +100,7 @@ impl Virtual {
                 .replicas()
                 .iter()
                 .filter(|r| r.node_name() == self.local_node_name)
-                .any(|replica| replica.disk_name() == disk)
+                .any(|replica| replica.disk_path().name() == disk)
         });
         vdisks_on_disk.map(VDisk::id).collect()
     }
