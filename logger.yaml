@@ -41,7 +41,7 @@ loggers:
   # bob - core module
   bob:
     # level applies only to bob
-    level: trace
+    level: info
     appenders:
       - requests
       - stdout
