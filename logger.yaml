@@ -17,7 +17,7 @@ appenders:
     # [pattern/json] encoder, default - [pattern]
     encoder:
     # [format] described in https://docs.rs/log4rs/0.9.0/log4rs/encode/pattern/index.html
-      pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>30.30}:{L:>3} {h({l})}    {m}\n"
+      pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {h({l})}    {m}\n"
 
   # An appender named "requests" that writes to a file with a custom pattern encoder
   requests:
@@ -64,4 +64,6 @@ loggers:
       - stdout
   # inner module of the dipstick (dev)
   dipstick::core::scheduler:
+    level: off
+  h2:
     level: off

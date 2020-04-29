@@ -1,14 +1,12 @@
-use bob::client::BobClientFactory;
-use bob::configs::cluster::ConfigYaml as ClusterConfigYaml;
-use bob::configs::node::{DiskPath, NodeConfigYaml};
+use bob::client::Factory;
+use bob::configs::cluster::Cluster as ClusterConfig;
 use bob::grinder::Grinder;
 use bob::grpc::bob_api_server::BobApiServer;
-use bob::mapper::VDiskMapper;
+use bob::mapper::Virtual;
 use bob::metrics;
-use bob::server::BobSrv;
+use bob::server::Server as BobServer;
 use clap::{App, Arg};
-use futures::future::FutureExt;
-use std::net::SocketAddr;
+use std::net::ToSocketAddrs;
 use tonic::transport::Server;
 
 #[macro_use]
@@ -71,42 +69,33 @@ async fn main() {
 
     let cluster_config = matches.value_of("cluster").unwrap();
     println!("Cluster config: {:?}", cluster_config);
-    let (vdisks, cluster) = ClusterConfigYaml::get(cluster_config).unwrap();
+    let cluster = ClusterConfig::try_get(cluster_config).unwrap();
+    let vdisks = cluster.convert().unwrap();
 
     let node_config = matches.value_of("node").unwrap();
     println!("Node config: {:?}", node_config);
-    let node = NodeConfigYaml::get(node_config, &cluster).unwrap();
+    let node = cluster.get(node_config).unwrap();
 
     log4rs::init_file(node.log_config(), Default::default()).unwrap();
 
-    let mut mapper = VDiskMapper::new(vdisks.to_vec(), &node, &cluster);
-    let mut addr: SocketAddr = node.bind().parse().unwrap();
+    let mut mapper = Virtual::new(vdisks.to_vec(), &node, &cluster).await;
+    let mut addr = node.bind().to_socket_addrs().unwrap().next().unwrap();
 
     let node_name = matches.value_of("name");
     if node_name.is_some() {
         let name = node_name.unwrap();
         let finded = cluster
-            .nodes
+            .nodes()
             .iter()
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
-        let disks: Vec<DiskPath> = finded
-            .disks
-            .iter()
-            .map(|d| DiskPath {
-                name: d.name().to_owned(),
-                path: d.path().to_owned(),
-            })
-            .collect();
-        mapper = VDiskMapper::new_direct(vdisks.to_vec(), name, &disks, &cluster);
-        addr = finded.address().parse().unwrap();
+        mapper = Virtual::new(vdisks.to_vec(), &node, &cluster).await;
+        addr = finded.address().to_socket_addrs().unwrap().next().unwrap();
     }
 
-    let metrics = metrics::init_counters(&node, addr.to_string());
+    let metrics = metrics::init_counters(&node, &addr.to_string());
 
-    let bob = BobSrv {
-        grinder: std::sync::Arc::new(Grinder::new(mapper, &node)),
-    };
+    let bob = BobServer::new(Grinder::new(mapper, &node));
 
     info!("Start backend");
     bob.run_backend().await.unwrap();
@@ -117,9 +106,8 @@ async fn main() {
         .expect("expect http_api_port port");
     bob.run_api_server(http_api_port);
 
-    let factory = BobClientFactory::new(node.operation_timeout(), metrics);
-    let b = bob.clone();
-    tokio::spawn(async move { b.get_periodic_tasks(factory).map(|r| r.unwrap()).await });
+    let factory = Factory::new(node.operation_timeout(), metrics);
+    bob.run_periodic_tasks(factory);
     let new_service = BobApiServer::new(bob);
 
     Server::builder()

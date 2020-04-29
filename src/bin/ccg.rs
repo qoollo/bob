@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use bob::configs::cluster::{Config, Node as ClusterNode, Replica, VDisk};
+use bob::configs::cluster::{Cluster as ClusterConfig, Node as ClusterNode, Replica, VDisk};
 use chrono::Local;
 use clap::{App, Arg, ArgMatches};
 use env_logger::fmt::Color;
@@ -58,7 +58,7 @@ fn init_logger() {
     debug!("init logger: OK");
 }
 
-fn read_from_file() -> Option<Config> {
+fn read_from_file() -> Option<ClusterConfig> {
     let name = get_name();
     let file = open_file(name)?;
     let content = read_file(file)?;
@@ -99,40 +99,26 @@ fn read_file(mut file: File) -> Option<String> {
     Some(buf)
 }
 
-fn deserialize(content: String) -> Option<Config> {
+fn deserialize(content: String) -> Option<ClusterConfig> {
     serde_yaml::from_str(content.as_str())
-        .map(|c: Config| {
-            debug!("deserialize: OK [nodes count: {}]", c.nodes.len());
+        .map(|c: ClusterConfig| {
+            debug!("deserialize: OK [nodes count: {}]", c.nodes().len());
             c
         })
         .map_err(|e| error!("deserialize: ERR [{}]", e))
         .ok()
 }
 
-fn generate_config(input: Config) -> Option<Config> {
+fn generate_config(input: ClusterConfig) -> Option<ClusterConfig> {
     let replicas_count = get_replicas_count()?;
-    let vdisks_count = get_vdisks_count(&input.nodes)?;
+    let vdisks_count = get_vdisks_count(input.nodes())?;
     let res = simple_gen(input, replicas_count, vdisks_count);
     debug!("generate config: OK");
     Some(res)
 }
 
-fn replica_from_pair(node: &Node, disk: &Disk) -> Replica {
-    Replica {
-        node: Some(node.name.clone()),
-        disk: Some(disk.name.clone()),
-    }
-}
-
 fn get_used_nodes_names(replicas: &[Replica]) -> Vec<String> {
     replicas.iter().map(|r| r.node().to_string()).collect()
-}
-
-fn new_vdisk(id: i32) -> VDisk {
-    VDisk {
-        id: Some(id),
-        replicas: Vec::new(),
-    }
 }
 
 #[derive(Debug)]
@@ -174,16 +160,16 @@ impl Center {
         Some(rack)
     }
 
-    fn create_vdisk(&self, id: i32, replicas_count: usize) -> VDisk {
-        let mut vdisk = new_vdisk(id);
+    fn create_vdisk(&self, id: u32, replicas_count: usize) -> VDisk {
+        let mut vdisk = VDisk::new(id);
         let (node, disk) = self.next_disk().expect("no disks in setup");
-        vdisk.replicas.push(replica_from_pair(node, disk));
+        vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
 
-        while vdisk.replicas.len() < replicas_count {
+        while vdisk.replicas().len() < replicas_count {
             let rack = self.next_rack().expect("no racks in setup");
-            let banned_nodes = get_used_nodes_names(&vdisk.replicas);
+            let banned_nodes = get_used_nodes_names(vdisk.replicas());
             let (node, disk) = rack.next_disk(&banned_nodes).expect("no disks in setup");
-            vdisk.replicas.push(replica_from_pair(node, disk));
+            vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
             debug!("replica added: {} {}", node.name, disk.name);
         }
         vdisk
@@ -290,29 +276,33 @@ fn lcm(a: usize, b: usize) -> usize {
     lcm
 }
 
-fn simple_gen(mut config: Config, replicas_count: usize, vdisks_count: usize) -> Config {
+fn simple_gen(
+    mut config: ClusterConfig,
+    replicas_count: usize,
+    vdisks_count: usize,
+) -> ClusterConfig {
     let center = get_structure(&config);
     let vdisks_count = vdisks_count.max(lcm(center.disks_count(), replicas_count));
     debug!("new vdisks count: OK [{}]", vdisks_count);
     let mut vdisks = Vec::new();
     while vdisks.len() < vdisks_count {
-        let vdisk = center.create_vdisk(vdisks.len() as i32, replicas_count);
+        let vdisk = center.create_vdisk(vdisks.len() as u32, replicas_count);
         debug!("vdisk added: {}", vdisk.id());
         vdisks.push(vdisk);
     }
-    config.vdisks = vdisks;
+    config.vdisks_extend(vdisks);
     debug!("simple gen: OK [\n{:#?}\n]", center);
     config
 }
 
-fn get_structure(config: &Config) -> Center {
+fn get_structure(config: &ClusterConfig) -> Center {
     let nodes = config
-        .nodes
+        .nodes()
         .iter()
         .map(|node| {
             Node::new(
                 node.name(),
-                node.disks.iter().map(|d| Disk::new(d.name())).collect(),
+                node.disks().iter().map(|d| Disk::new(d.name())).collect(),
             )
         })
         .collect();
@@ -353,7 +343,7 @@ fn get_vdisks_count(nodes: &[ClusterNode]) -> Option<usize> {
 }
 
 fn get_pairs_count(nodes: &[ClusterNode]) -> usize {
-    nodes.iter().fold(0, |acc, n| acc + n.disks.len())
+    nodes.iter().fold(0, |acc, n| acc + n.disks().len())
 }
 
 fn write_to_file(mut output: String, name: String) {

@@ -55,7 +55,7 @@ impl Debug for NetConfig {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct TaskConfig {
     low_idx: u64,
     count: u64,
@@ -232,7 +232,7 @@ impl Debug for BenchmarkConfig {
             self.workers_count,
             self.time
                 .map(|t| format!("{:?}", t))
-                .unwrap_or("infinite".to_string()),
+                .unwrap_or_else(|| "infinite".to_string()),
             self.behavior
         )
     }
@@ -555,7 +555,7 @@ fn create_blob(task_conf: &TaskConfig) -> Blob {
         timestamp: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("msg: &str")
-            .as_secs() as i64,
+            .as_secs(),
     };
     Blob {
         data: vec![0_u8; task_conf.payload_size as usize],

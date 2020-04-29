@@ -1,9 +1,10 @@
 #![feature(proc_macro_hygiene, decl_macro, drain_filter)]
-// #![deny(missing_debug_implementations)]
-// #![deny(missing_docs)]
-// #![warn(clippy::pedantic)]
+#![warn(clippy::pedantic)]
+#![allow(clippy::used_underscore_binding)]
+#![warn(missing_debug_implementations)]
+#![warn(missing_docs)]
 
-//! Library requires tokio runtime
+//! Library requires tokio runtime.
 
 #[macro_use]
 extern crate bitflags;
@@ -17,14 +18,14 @@ extern crate cfg_if;
 extern crate dipstick;
 #[macro_use]
 extern crate rocket;
+#[macro_use]
+extern crate async_trait;
 
 mod api;
-mod core_inner;
+mod core;
 
 pub use self::api::grpc;
-pub use self::core_inner::{
-    backend, bob_client as client, configs, grinder, mapper, metrics, server,
-};
+pub use self::core::{backend, bob_client as client, configs, grinder, mapper, metrics, server};
 
 mod prelude {
     pub(crate) use super::*;
@@ -33,7 +34,7 @@ mod prelude {
         bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest,
     };
     pub(crate) use std::{
-        cell::{Cell, RefCell},
+        cell::{Ref, RefCell},
         collections::HashMap,
         convert::TryInto,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
@@ -42,9 +43,10 @@ mod prelude {
         net::SocketAddr,
         path::{Path, PathBuf},
         pin::Pin,
-        sync::{Arc, Mutex},
+        sync::Arc,
         thread,
         time::{Duration, SystemTime},
     };
     pub(crate) use tokio::runtime::Runtime;
+    pub(crate) use tokio::sync::RwLock;
 }
