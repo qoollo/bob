@@ -1,14 +1,14 @@
 [package]
 name = "bob"
-version = "1.4.0"
-authors = ["Kirill Bushminkin <kb@qoollo.com>"]
+version = "1.5.0-alpha.1"
+authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
 [dependencies]
 http = "0.2.1"
 pearl = "0.3.0"
 futures = { version = "0.3.4", features = ["thread-pool"] }
-tokio = { version = "0.2.18", features = ["full"] }
+tokio = { version = "0.2.20", features = ["full"] }
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.8"
@@ -22,7 +22,7 @@ stopwatch = "0.0.7"
 hyper = "0.13.5"
 humantime = "2.0.0"
 chrono = "0.4.11"
-dipstick = "0.7.12"
+dipstick = "0.7.13"
 mockall = "0.7.0"
 cfg-if = "0.1.10"
 env_logger = "0.7"
