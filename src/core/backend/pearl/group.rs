@@ -30,16 +30,26 @@ impl Group {
         }
     }
 
-    pub fn can_process_operation(&self, operation: &BackendOperation) -> bool {
+    pub fn can_process_operation(&self, operation: &Operation) -> bool {
         if operation.is_data_alien() {
-            if let Some(node_name) = operation.remote_node_name() {
-                *node_name == self.node_name
-            } else {
-                self.vdisk_id == operation.vdisk_id()
+            match &operation.remote_node_name() {
+                None => self.vdisk_id == operation.vdisk_id(),
+                Some(node_name) => *node_name == self.node_name,
             }
         } else {
             self.disk_name == operation.disk_name_local() && self.vdisk_id == operation.vdisk_id()
         }
+        // trace!("check {} can process operation {:?}", self, operation);
+        // if operation.is_data_alien() {
+        //     let name_matched = if let Some(node_name) = operation.remote_node_name() {
+        //         *node_name == self.node_name
+        //     } else {
+        //         true
+        //     };
+        //     name_matched && self.vdisk_id == operation.vdisk_id()
+        // } else {
+        //     self.disk_name == operation.disk_name_local() && self.vdisk_id == operation.vdisk_id()
+        // }
     }
 
     pub async fn run(&self) -> Result<(), Error> {

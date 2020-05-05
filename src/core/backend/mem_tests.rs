@@ -21,7 +21,7 @@ async fn test_mem_put_wrong_disk() {
 
     let retval = backend
         .put(
-            BackendOperation::new_local(0, DiskPath::new("invalid name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("invalid name".to_owned(), "".to_owned())),
             1,
             BobData::new(vec![0], BobMeta::stub()),
         )
@@ -35,7 +35,7 @@ async fn test_mem_put_get() {
 
     backend
         .put(
-            BackendOperation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
             1,
             BobData::new(vec![1], BobMeta::stub()),
         )
@@ -43,7 +43,7 @@ async fn test_mem_put_get() {
         .unwrap();
     let retval = backend
         .get(
-            BackendOperation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
             1,
         )
         .await
@@ -57,7 +57,7 @@ async fn test_mem_get_wrong_disk() {
 
     backend
         .put(
-            BackendOperation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
             1,
             BobData::new(vec![1], BobMeta::stub()),
         )
@@ -65,7 +65,7 @@ async fn test_mem_get_wrong_disk() {
         .unwrap();
     let retval = backend
         .get(
-            BackendOperation::new_local(0, DiskPath::new("invalid name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("invalid name".to_owned(), "".to_owned())),
             1,
         )
         .await;
@@ -79,7 +79,7 @@ async fn test_mem_get_no_data() {
 
     let retval = backend
         .get(
-            BackendOperation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
             key,
         )
         .await;

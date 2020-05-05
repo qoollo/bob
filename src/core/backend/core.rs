@@ -1,13 +1,13 @@
 use super::prelude::*;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub(crate) struct BackendOperation {
+pub(crate) struct Operation {
     vdisk_id: VDiskId,
     disk_path: Option<DiskPath>,
     remote_node_name: Option<String>, // save data to alien/<remote_node_name>
 }
 
-impl BackendOperation {
+impl Operation {
     pub(crate) fn vdisk_id(&self) -> VDiskId {
         self.vdisk_id
     }
@@ -17,10 +17,10 @@ impl BackendOperation {
     }
 }
 
-impl Debug for BackendOperation {
+impl Debug for Operation {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        f.debug_struct("BackendOperation")
-            .field("id", &self.vdisk_id)
+        f.debug_struct("Operation")
+            .field("vdisk_id", &self.vdisk_id)
             .field("path", &self.disk_path)
             .field("node", &self.remote_node_name)
             .field("alien", &self.is_data_alien())
@@ -28,7 +28,7 @@ impl Debug for BackendOperation {
     }
 }
 
-impl BackendOperation {
+impl Operation {
     pub(crate) fn new_alien(vdisk_id: VDiskId) -> Self {
         Self {
             vdisk_id,
@@ -81,19 +81,19 @@ pub(crate) type Exist = Pin<Box<dyn Future<Output = ExistResult> + Send>>;
 pub(crate) trait BackendStorage: Debug {
     fn run_backend(&self) -> Run;
 
-    fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put;
+    fn put(&self, operation: Operation, key: BobKey, data: BobData) -> Put;
     fn put_alien(
         &self,
-        operation: BackendOperation,
+        operation: Operation,
         key: BobKey,
         data: BobData,
     ) -> Pin<Box<dyn Future<Output = PutResult> + Send>>;
 
-    fn get(&self, operation: BackendOperation, key: BobKey) -> Get;
-    fn get_alien(&self, operation: BackendOperation, key: BobKey) -> Get;
+    fn get(&self, operation: Operation, key: BobKey) -> Get;
+    fn get_alien(&self, operation: Operation, key: BobKey) -> Get;
 
-    fn exist(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist;
-    fn exist_alien(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist;
+    fn exist(&self, operation: Operation, keys: &[BobKey]) -> Exist;
+    fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> Exist;
 
     fn vdisks_groups(&self) -> Option<&[Group]> {
         None
@@ -141,7 +141,7 @@ impl Backend {
         let res = if !options.remote_nodes().is_empty() {
             // write to all remote_nodes
             for node_name in options.remote_nodes() {
-                let mut op = BackendOperation::new_alien(vdisk_id);
+                let mut op = Operation::new_alien(vdisk_id);
                 op.set_remote_folder(node_name.to_owned());
 
                 //TODO make it parallel?
@@ -154,7 +154,7 @@ impl Backend {
                 sw.elapsed().as_secs_f64() * 1000.0
             );
             let res = self
-                .put_single(key, data, BackendOperation::new_local(vdisk_id, path))
+                .put_single(key, data, Operation::new_local(vdisk_id, path))
                 .await;
             trace!("put single, /{:.3}ms/", sw.elapsed().as_secs_f64() * 1000.0);
             res
@@ -174,17 +174,12 @@ impl Backend {
         &self,
         key: BobKey,
         data: BobData,
-        operation: BackendOperation,
+        operation: Operation,
     ) -> PutResult {
         self.put_single(key, data, operation).await
     }
 
-    async fn put_single(
-        &self,
-        key: BobKey,
-        data: BobData,
-        operation: BackendOperation,
-    ) -> PutResult {
+    async fn put_single(&self, key: BobKey, data: BobData, operation: Operation) -> PutResult {
         if operation.is_data_alien() {
             debug!("PUT[{}] to backend, alien data: {:?}", key, operation);
             self.inner.put_alien(operation, key, data).await
@@ -218,7 +213,7 @@ impl Backend {
         if options.get_normal() {
             if let Some(path) = disk_path {
                 trace!("GET[{}] try read normal", key);
-                self.get_local(key, BackendOperation::new_local(vdisk_id, path.clone()))
+                self.get_local(key, Operation::new_local(vdisk_id, path.clone()))
                     .await
             } else {
                 error!("GET[{}] we read data but can't find path in config", key);
@@ -230,7 +225,7 @@ impl Backend {
             //TODO check is alien? how? add field to grpc
             trace!("GET[{}] try read alien", key);
             //TODO read from all vdisk ids
-            let op = BackendOperation::new_alien(vdisk_id);
+            let op = Operation::new_alien(vdisk_id);
             self.get_single(key, op).await
         } else {
             error!(
@@ -241,11 +236,11 @@ impl Backend {
         }
     }
 
-    pub(crate) async fn get_local(&self, key: BobKey, op: BackendOperation) -> GetResult {
+    pub(crate) async fn get_local(&self, key: BobKey, op: Operation) -> GetResult {
         self.get_single(key, op).await
     }
 
-    async fn get_single(&self, key: BobKey, operation: BackendOperation) -> GetResult {
+    async fn get_single(&self, key: BobKey, operation: Operation) -> GetResult {
         if operation.is_data_alien() {
             debug!("GET[{}] to backend, foreign data", key);
             self.inner.get_alien(operation, key).await
@@ -273,7 +268,7 @@ impl Backend {
         &self,
         keys: &[BobKey],
         options: &BobOptions,
-    ) -> HashMap<BackendOperation, (Vec<BobKey>, Vec<usize>)> {
+    ) -> HashMap<Operation, (Vec<BobKey>, Vec<usize>)> {
         let mut keys_by_operations: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
         for (ind, &key) in keys.iter().enumerate() {
             let operation = self.find_operation(key, options);
@@ -290,12 +285,12 @@ impl Backend {
         keys_by_operations
     }
 
-    fn find_operation(&self, key: BobKey, options: &BobOptions) -> Option<BackendOperation> {
+    fn find_operation(&self, key: BobKey, options: &BobOptions) -> Option<Operation> {
         let (vdisk_id, path) = self.mapper.get_operation(key);
         if options.get_normal() {
-            path.map(|path| BackendOperation::new_local(vdisk_id, path))
+            path.map(|path| Operation::new_local(vdisk_id, path))
         } else if options.get_alien() {
-            Some(BackendOperation::new_alien(vdisk_id))
+            Some(Operation::new_alien(vdisk_id))
         } else {
             None
         }

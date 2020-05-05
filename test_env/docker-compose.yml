@@ -8,10 +8,10 @@ services:
     volumes:
       - ../:/bob
       - /tmp/bob/:/tmp
-    command: "/bob/target/x86_64-unknown-linux-musl/release/bobd -c /bob/test_env/cluster.yaml -n /bob/test_env/node1.yaml"
+    command: "/bob/target/x86_64-unknown-linux-musl/debug/bobd -c /bob/test_env/cluster_4.yaml -n /bob/test_env/node1.yaml"
     networks:
       bobnet:
-        ipv4_address: 192.168.1.100
+        ipv4_address: 192.168.1.10
     # ports:
     #   - "20000:20000"
 
@@ -22,12 +22,36 @@ services:
     volumes:
         - ../:/bob
         - /tmp/bob/:/tmp
-    command: "/bob/target/x86_64-unknown-linux-musl/release/bobd -c /bob/test_env/cluster.yaml -n /bob/test_env/node2.yaml"
+    command: "/bob/target/x86_64-unknown-linux-musl/debug/bobd -c /bob/test_env/cluster_4.yaml -n /bob/test_env/node2.yaml"
     networks:
       bobnet:
-        ipv4_address: 192.168.1.200
+        ipv4_address: 192.168.1.20
     # ports:
     #   - "20001:20001"
+
+  node3:
+    build:
+        context: .
+        dockerfile: Dockerfile
+    volumes:
+        - ../:/bob
+        - /tmp/bob/:/tmp
+    command: "/bob/target/x86_64-unknown-linux-musl/debug/bobd -c /bob/test_env/cluster_4.yaml -n /bob/test_env/node3.yaml"
+    networks:
+      bobnet:
+        ipv4_address: 192.168.1.30
+
+  node4:
+    build:
+        context: .
+        dockerfile: Dockerfile
+    volumes:
+        - ../:/bob
+        - /tmp/bob/:/tmp
+    command: "/bob/target/x86_64-unknown-linux-musl/debug/bobd -c /bob/test_env/cluster_4.yaml -n /bob/test_env/node4.yaml"
+    networks:
+      bobnet:
+        ipv4_address: 192.168.1.40
 
 networks:
   bobnet:
