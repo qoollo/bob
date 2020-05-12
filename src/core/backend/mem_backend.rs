@@ -161,7 +161,7 @@ impl BackendStorage for MemBackend {
         future::ok(()).boxed()
     }
 
-    fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {
+    fn put(&self, operation: Operation, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}][{}] to backend", key, operation.disk_name_local());
         let disk = self.disks.get(&operation.disk_name_local());
         if let Some(mem_disk) = disk {
@@ -176,12 +176,12 @@ impl BackendStorage for MemBackend {
         }
     }
 
-    fn put_alien(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {
+    fn put_alien(&self, operation: Operation, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}] to backend, foreign data", key);
         self.foreign_data.put(operation.vdisk_id(), key, data)
     }
 
-    fn get(&self, operation: BackendOperation, key: BobKey) -> Get {
+    fn get(&self, operation: Operation, key: BobKey) -> Get {
         debug!("GET[{}][{}] to backend", key, operation.disk_name_local());
         if let Some(mem_disk) = self.disks.get(&operation.disk_name_local()) {
             mem_disk.get(operation.vdisk_id(), key)
@@ -196,12 +196,12 @@ impl BackendStorage for MemBackend {
         .boxed()
     }
 
-    fn get_alien(&self, operation: BackendOperation, key: BobKey) -> Get {
+    fn get_alien(&self, operation: Operation, key: BobKey) -> Get {
         debug!("GET[{}] to backend, foreign data", key);
         self.foreign_data.get(operation.vdisk_id(), key)
     }
 
-    fn exist(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
+    fn exist(&self, operation: Operation, keys: &[BobKey]) -> Exist {
         debug!("EXIST[{}] to backend", operation.disk_name_local());
 
         if let Some(mem_disk) = self.disks.get(&operation.disk_name_local()) {
@@ -213,7 +213,7 @@ impl BackendStorage for MemBackend {
         .boxed()
     }
 
-    fn exist_alien(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
+    fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> Exist {
         debug!("EXIST to backend, foreign data");
         self.foreign_data.exist(operation.vdisk_id(), keys)
     }

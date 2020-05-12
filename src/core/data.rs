@@ -329,6 +329,7 @@ pub(crate) struct Node {
 
 impl Node {
     pub(crate) async fn new(name: String, address: &str, index: u16) -> Self {
+        error!("address: [{}]", address);
         let mut address = lookup_host(address).await.expect("DNS resolution failed");
         let address = address.next().expect("address is empty");
         Self {

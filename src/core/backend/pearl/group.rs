@@ -30,13 +30,15 @@ impl Group {
         }
     }
 
-    pub fn can_process_operation(&self, operation: &BackendOperation) -> bool {
+    pub fn can_process_operation(&self, operation: &Operation) -> bool {
+        trace!("check {} can process operation {:?}", self, operation);
         if operation.is_data_alien() {
-            if let Some(node_name) = operation.remote_node_name() {
+            let name_matched = if let Some(node_name) = operation.remote_node_name() {
                 *node_name == self.node_name
             } else {
-                self.vdisk_id == operation.vdisk_id()
-            }
+                true
+            };
+            name_matched && self.vdisk_id == operation.vdisk_id()
         } else {
             self.disk_name == operation.disk_name_local() && self.vdisk_id == operation.vdisk_id()
         }

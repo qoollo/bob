@@ -44,7 +44,7 @@ impl Pearl {
         async move { pearl.get(key).await }.boxed()
     }
 
-    async fn create_alien_pearl(&self, operation: BackendOperation) -> BackendResult<()> {
+    async fn create_alien_pearl(&self, operation: Operation) -> BackendResult<()> {
         // check if pearl is currently creating
         if self.pearl_sync.try_init().await {
             // check if alien created
@@ -63,7 +63,7 @@ impl Pearl {
         Ok(())
     }
 
-    async fn find_alien_pearl(&self, operation: BackendOperation) -> BackendResult<Group> {
+    async fn find_alien_pearl(&self, operation: Operation) -> BackendResult<Group> {
         let operation = operation.clone();
         let pearls = self.alien_vdisks_groups.read().await;
         pearls
@@ -95,7 +95,7 @@ impl BackendStorage for Pearl {
         .boxed()
     }
 
-    fn put(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {
+    fn put(&self, operation: Operation, key: BobKey, data: BobData) -> Put {
         debug!("PUT[{}] to pearl backend. opeartion: {:?}", key, operation);
         let vdisk_group = self
             .vdisks_groups
@@ -121,8 +121,11 @@ impl BackendStorage for Pearl {
         }
     }
 
-    fn put_alien(&self, operation: BackendOperation, key: BobKey, data: BobData) -> Put {
-        debug!("PUT[alien][{}] to pearl backend", key);
+    fn put_alien(&self, operation: Operation, key: BobKey, data: BobData) -> Put {
+        debug!(
+            "PUT[alien][{}] to pearl backend, operation: {:?}",
+            key, operation
+        );
         let backend = self.clone();
         let task = async move {
             let mut vdisk_group = backend.find_alien_pearl(operation.clone()).await;
@@ -151,7 +154,7 @@ impl BackendStorage for Pearl {
         task.boxed()
     }
 
-    fn get(&self, operation: BackendOperation, key: BobKey) -> Get {
+    fn get(&self, operation: Operation, key: BobKey) -> Get {
         debug!(
             "Get[{}] from pearl backend. operation: {:?}",
             key, operation
@@ -179,7 +182,7 @@ impl BackendStorage for Pearl {
         task.boxed()
     }
 
-    fn get_alien(&self, operation: BackendOperation, key: BobKey) -> Get {
+    fn get_alien(&self, operation: Operation, key: BobKey) -> Get {
         debug!("Get[alien][{}] from pearl backend", key);
         let backend = self.clone();
         let task = async move {
@@ -201,7 +204,7 @@ impl BackendStorage for Pearl {
         task.boxed()
     }
 
-    fn exist(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
+    fn exist(&self, operation: Operation, keys: &[BobKey]) -> Exist {
         let vdisk_group = self
             .vdisks_groups
             .iter()
@@ -218,7 +221,7 @@ impl BackendStorage for Pearl {
         task.boxed()
     }
 
-    fn exist_alien(&self, operation: BackendOperation, keys: &[BobKey]) -> Exist {
+    fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> Exist {
         let backend = self.clone();
         let keys = keys.to_vec();
         let task = async move {

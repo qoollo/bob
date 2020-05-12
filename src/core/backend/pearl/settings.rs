@@ -86,10 +86,7 @@ impl Settings {
         Ok(result)
     }
 
-    pub(crate) fn create_group(
-        self: Arc<Self>,
-        operation: &BackendOperation,
-    ) -> BackendResult<Group> {
+    pub(crate) fn create_group(self: Arc<Self>, operation: &Operation) -> BackendResult<Group> {
         let node_name = operation.remote_node_name().unwrap();
         let path = self.alien_path(operation.vdisk_id(), node_name);
 

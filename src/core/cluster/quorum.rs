@@ -49,7 +49,7 @@ impl Quorum {
         node_names: Vec<String>,
         key: BobKey,
         data: BobData,
-        operation: BackendOperation,
+        operation: Operation,
     ) -> Result<(), PutOptions> {
         let mut add_nodes = vec![];
         for node_name in node_names {
@@ -171,8 +171,8 @@ impl Cluster for Quorum {
             let vdisk_id = self.mapper.id_from_key(key);
             debug!("get names of the failed nodes");
             let node_names = errors.iter().map(|n| n.node_name().to_owned()).collect();
-            debug!("create operation Backend alien");
-            let operation = BackendOperation::new_alien(vdisk_id);
+            debug!("create operation Backend alien, id: {}", vdisk_id);
+            let operation = Operation::new_alien(vdisk_id);
             let local_put = self
                 .put_local_all(node_names, key, data.clone(), operation)
                 .await;
@@ -480,7 +480,7 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(1, calls[0].1.put_count());
-        let get = backend.get_local(key, BackendOperation::new_alien(0)).await;
+        let get = backend.get_local(key, Operation::new_alien(0)).await;
         assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
     }
 
@@ -510,7 +510,7 @@ mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let get = backend.get_local(key, BackendOperation::new_alien(0)).await;
+        let get = backend.get_local(key, Operation::new_alien(0)).await;
         assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
     }
 
@@ -546,10 +546,10 @@ mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
         let key = 3;
-        let mut get = backend.get_local(key, BackendOperation::new_alien(0)).await;
+        let mut get = backend.get_local(key, Operation::new_alien(0)).await;
         assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
         let key = 4;
-        get = backend.get_local(key, BackendOperation::new_alien(0)).await;
+        get = backend.get_local(key, Operation::new_alien(0)).await;
         assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
     }
 
@@ -577,7 +577,7 @@ mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let get = backend.get_local(5, BackendOperation::new_alien(0)).await;
+        let get = backend.get_local(5, Operation::new_alien(0)).await;
         assert!(get.is_ok());
     }
 
@@ -605,7 +605,7 @@ mod tests {
         assert_eq!(1, calls[0].1.put_count());
         assert_eq!(1, calls[1].1.put_count());
 
-        let get = backend.get_local(5, BackendOperation::new_alien(0)).await;
+        let get = backend.get_local(5, Operation::new_alien(0)).await;
         assert!(get.is_ok());
     }
 
@@ -635,7 +635,7 @@ mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(1, calls[2].1.put_count());
 
-        let get = backend.get_local(0, BackendOperation::new_alien(0)).await;
+        let get = backend.get_local(0, Operation::new_alien(0)).await;
         assert!(get.is_ok());
     }
 
@@ -665,7 +665,7 @@ mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(1, calls[2].1.put_count());
 
-        let get = backend.get_local(0, BackendOperation::new_alien(0)).await;
+        let get = backend.get_local(0, Operation::new_alien(0)).await;
         assert!(get.is_ok());
     }
 
@@ -695,7 +695,7 @@ mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(0, calls[2].1.put_count());
 
-        let get = backend.get_local(0, BackendOperation::new_alien(0)).await;
+        let get = backend.get_local(0, Operation::new_alien(0)).await;
         assert!(get.is_err());
     }
 
@@ -725,7 +725,7 @@ mod tests {
         assert_eq!(1, calls[1].1.put_count());
         assert_eq!(1, calls[2].1.put_count());
 
-        let get = backend.get_local(0, BackendOperation::new_alien(0)).await;
+        let get = backend.get_local(0, Operation::new_alien(0)).await;
         assert!(get.is_ok());
     }
 

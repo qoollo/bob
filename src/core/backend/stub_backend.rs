@@ -9,7 +9,7 @@ impl BackendStorage for StubBackend {
         future::ok(()).boxed()
     }
 
-    fn put(&self, _operation: BackendOperation, key: BobKey, data: BobData) -> Put {
+    fn put(&self, _operation: Operation, key: BobKey, data: BobData) -> Put {
         debug!(
             "PUT[{}]: hi from backend, timestamp: {:?}",
             key,
@@ -18,7 +18,7 @@ impl BackendStorage for StubBackend {
         future::ok(()).boxed()
     }
 
-    fn put_alien(&self, _operation: BackendOperation, key: BobKey, data: BobData) -> Put {
+    fn put_alien(&self, _operation: Operation, key: BobKey, data: BobData) -> Put {
         debug!(
             "PUT[{}]: hi from backend, timestamp: {:?}",
             key,
@@ -27,22 +27,22 @@ impl BackendStorage for StubBackend {
         future::ok(()).boxed()
     }
 
-    fn get(&self, _operation: BackendOperation, key: BobKey) -> Get {
+    fn get(&self, _operation: Operation, key: BobKey) -> Get {
         debug!("GET[{}]: hi from backend", key);
         future::ok(BobData::new(vec![0], BobMeta::stub())).boxed()
     }
 
-    fn get_alien(&self, _operation: BackendOperation, key: BobKey) -> Get {
+    fn get_alien(&self, _operation: Operation, key: BobKey) -> Get {
         debug!("GET[{}]: hi from backend", key);
         future::ok(BobData::new(vec![0], BobMeta::stub())).boxed()
     }
 
-    fn exist(&self, _operation: BackendOperation, _keys: &[BobKey]) -> Exist {
+    fn exist(&self, _operation: Operation, _keys: &[BobKey]) -> Exist {
         debug!("EXIST: hi from backend");
         future::ok(vec![]).boxed()
     }
 
-    fn exist_alien(&self, _operation: BackendOperation, _keys: &[BobKey]) -> Exist {
+    fn exist_alien(&self, _operation: Operation, _keys: &[BobKey]) -> Exist {
         debug!("EXIST: hi from backend");
         future::ok(vec![]).boxed()
     }
