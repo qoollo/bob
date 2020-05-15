@@ -41,6 +41,11 @@ impl Holder {
         self.start_timestamp == current_start
     }
 
+    pub(crate) async fn records_count(&self) -> usize {
+        let storage = self.storage.read().await;
+        storage.records_count().await
+    }
+
     pub(crate) fn gets_into_interval(&self, timestamp: u64) -> bool {
         self.start_timestamp <= timestamp && timestamp < self.end_timestamp
     }
@@ -250,6 +255,10 @@ impl PearlSync {
 
     pub(crate) fn storage(&self) -> &PearlStorage {
         self.storage.as_ref().expect("pearl storage")
+    }
+
+    pub(crate) async fn records_count(&self) -> usize {
+        self.storage().records_count().await
     }
 
     #[inline]

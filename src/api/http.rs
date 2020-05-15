@@ -39,6 +39,7 @@ pub(crate) struct Partition {
     node_name: String,
     disk_name: String,
     timestamp: u64,
+    records_count: usize,
 }
 
 #[derive(Debug)]
@@ -198,6 +199,7 @@ fn partition_by_id(
         disk_name: group.disk_name().to_owned(),
         vdisk_id: group.vdisk_id(),
         timestamp: p.start_timestamp(),
+        records_count: rt.block_on(p.records_count()),
     });
     partition.map(Json).ok_or_else(|| {
         let err = format!(
