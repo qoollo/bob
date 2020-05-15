@@ -6,14 +6,14 @@ edition = "2018"
 
 [dependencies]
 http = "0.2.1"
-pearl = "0.3.0"
-futures = { version = "0.3.4", features = ["thread-pool"] }
-tokio = { version = "0.2.20", features = ["full"] }
+pearl = "0.3.1"
+futures = { version = "0.3.5", features = ["thread-pool"] }
+tokio = { version = "0.2.21", features = ["full"] }
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.8"
 log = "0.4"
-log4rs = "0.11.0"
+log4rs = "0.12.0"
 clap = "2.33"
 bitflags = "1.2.1"
 prost = "0.6"
@@ -22,11 +22,11 @@ stopwatch = "0.0.7"
 hyper = "0.13.5"
 humantime = "2.0.0"
 chrono = "0.4.11"
-dipstick = "0.7.13"
-mockall = "0.7.0"
+dipstick = "0.8.0"
+mockall = "0.7.1"
 cfg-if = "0.1.10"
 env_logger = "0.7"
-tonic = { version = "0.2.0", features = ["prost"] }
+tonic = { version = "0.2.1", features = ["prost"] }
 tower = "0.3.1"
 tower-make = "0.3.0"
 tower-service = "0.3.0"
@@ -34,7 +34,7 @@ tower-balance = "0.3.0"
 tower-load = "0.3.0"
 rocket = "0.4.4"
 rocket_contrib = "0.4.4"
-async-trait = "0.1.30"
+async-trait = "0.1.31"
 termion = "1.5"
 
 [build-dependencies]

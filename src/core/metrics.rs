@@ -99,7 +99,7 @@ struct MetricsContainer<T> {
     prefix: String,
 }
 
-impl<T: Output> MetricsContainer<T> {
+impl<T: Input> MetricsContainer<T> {
     pub(crate) fn new(output: T, duration: Duration, prefix: String) -> Self {
         MetricsContainer {
             output,
@@ -117,7 +117,7 @@ pub trait ContainerBuilder {
     fn init_bucket(&self, prefix: String) -> AtomicBucket;
 }
 
-impl<T: Output + Clone> ContainerBuilder for MetricsContainer<T> {
+impl<T: Input + Clone> ContainerBuilder for MetricsContainer<T> {
     fn get_metrics(&self, name: &str) -> BobClient {
         let prefix = self.prefix.clone() + ".to." + name;
         BobClient::new(&self.init_bucket(prefix))

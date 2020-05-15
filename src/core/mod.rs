@@ -31,7 +31,7 @@ mod prelude {
         BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, Node, NodeOutput, VDisk, VDiskId,
     };
     pub(crate) use dipstick::{
-        AtomicBucket, Counter, Graphite, InputKind, InputScope, MetricName, MetricValue, Output,
+        AtomicBucket, Counter, Graphite, Input, InputKind, InputScope, MetricName, MetricValue,
         Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer,
     };
     pub(crate) use futures::{
