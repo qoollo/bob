@@ -257,7 +257,7 @@ impl Backend {
             let result = self.inner.exist(operation, &keys).await;
             if let Ok(result) = result {
                 for (&res, ind) in result.iter().zip(indexes) {
-                    exist[ind] = res;
+                    exist[ind] |= res;
                 }
             }
         }
