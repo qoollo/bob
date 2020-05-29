@@ -222,6 +222,7 @@ impl Holder {
             .blob_file_name_prefix(prefix)
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
+            .set_filter_config(BloomConfig::default())
             .build()
             .map_err(|e| {
                 error!("cannot build pearl by path: {:?}, {}", &self.disk_path, e);
