@@ -1,13 +1,15 @@
 use bitflags::_core::cell::RefCell;
 use bob::configs::node::BackendSettings;
-use bob::configs::{Cluster, ClusterNode, Node, Pearl, Replica, VDisk};
+use bob::configs::{Cluster, ClusterNode, MetricsConfig, Node, Pearl, Replica, VDisk};
 use bob::DiskPath;
 use clap::{App, Arg};
+use serde::{Serialize, Serializer};
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::{Read, Stdout, Write};
 use std::net::Ipv4Addr;
 use std::process::{Child, Command, Stdio};
+use std::str::FromStr;
 use std::thread::spawn;
 
 #[macro_use]
@@ -16,7 +18,17 @@ extern crate derive_new;
 extern crate serde_derive;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let configuration = get_configuration()?;
+    let config_dir = "cluster_test";
+    save_configuration(config_dir, &configuration)?;
+    let compose = configuration.create_docker_compose(config_dir, "cluster_test/Dockerfile");
+    let compose_string = serde_yaml::to_string(&compose)?;
+    std::fs::write(format!("{}/docker-compose.yml", config_dir), compose_string)?;
+    Ok(())
+}
+
+fn get_configuration() -> Result<TestClusterConfiguration, Box<dyn Error>> {
     let matches = App::new(env!("CARGO_PKG_NAME"))
         .arg(
             Arg::with_name("config")
@@ -28,12 +40,31 @@ async fn main() {
         )
         .get_matches();
     let config_filename = matches.value_of("config").expect("required");
-    let file_content = std::fs::read_to_string(config_filename);
-    if let Ok(file_content) = file_content {
-        let configuration: Result<TestClusterConfiguration, _> =
-            serde_yaml::from_str(&file_content);
-        if let Ok(configuration) = configuration {}
+    let file_content = std::fs::read_to_string(config_filename)?;
+    let configuration: TestClusterConfiguration = serde_yaml::from_str(&file_content)?;
+    Ok(configuration)
+}
+
+fn save_configuration(
+    base_dir: &str,
+    configuration: &TestClusterConfiguration,
+) -> Result<(), Box<dyn Error>> {
+    let cluster_configuration = configuration.create_cluster_configuration();
+    let cluster_configuration = serde_yaml::to_string(&cluster_configuration)?;
+    std::fs::write(
+        format!(
+            "{}/{}.yaml",
+            base_dir,
+            TestClusterConfiguration::cluster_filename_without_extension()
+        ),
+        cluster_configuration,
+    )?;
+    for i in 0..configuration.nodes_count {
+        let (name, node) = configuration.create_named_node_configuration(i);
+        let node_configuration = serde_yaml::to_string(&node)?;
+        std::fs::write(format!("{}/{}.yaml", base_dir, name), node_configuration)?;
     }
+    Ok(())
 }
 
 #[derive(Deserialize, new)]
@@ -51,9 +82,9 @@ impl TestClusterConfiguration {
         Cluster::new(nodes, vdisks)
     }
 
-    fn create_named_node_config(&self, node_index: u32) -> (String, Node) {
-        Node::new(
-            "logger.yaml".to_string(),
+    fn create_named_node_configuration(&self, node_index: u32) -> (String, Node) {
+        let node = Node::new(
+            "/configs/logger.yaml".to_string(),
             Self::get_node_name(node_index),
             1,
             "3sec".to_string(),
@@ -61,10 +92,63 @@ impl TestClusterConfiguration {
             "simple".to_string(),
             "pearl".to_string(),
             Some(self.get_pearl_config()),
-            None,
+            Some(MetricsConfig::new(
+                "test".to_string(),
+                "127.0.0.1:8888".to_string(),
+            )),
             RefCell::default(),
             RefCell::default(),
-        )
+        );
+        (Self::get_node_name(node_index), node)
+    }
+
+    fn create_docker_compose(&self, config_dir: &str, dockerfile: &str) -> DockerCompose {
+        let build = DockerBuild::new(
+            std::fs::canonicalize(".")
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string(),
+            dockerfile.to_string(),
+        );
+        let volumes = vec![
+            VolumeMapping::new("/tmp".to_string(), "/tmp".to_string()),
+            VolumeMapping::new(
+                std::fs::canonicalize(config_dir)
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+                "/configs".to_string(),
+            ),
+        ];
+        let mut services = HashMap::with_capacity(self.nodes_count as usize);
+        for node in 0..self.nodes_count {
+            let command = format!(
+                "./bobd -c /configs/{}.yaml -n /configs/{}.yaml",
+                Self::cluster_filename_without_extension(),
+                Self::get_node_name(node)
+            );
+            let network =
+                DockerNetwork::new(Ipv4Addr::from_str(&Self::get_node_addr(node)).unwrap());
+            let mut networks = HashMap::with_capacity(1);
+            networks.insert("bobnet".to_string(), network);
+            services.insert(
+                Self::get_node_name(node),
+                DockerService::new(build.clone(), volumes.clone(), command, networks),
+            );
+        }
+        let mut networks = HashMap::with_capacity(1);
+        networks.insert(
+            "bobnet".to_string(),
+            DockerComposeNetwork::new(
+                "bridge".to_string(),
+                IPAMConfiguration::new(vec![SubnetConfiguration::new(
+                    "192.168.17.0/24".to_string(),
+                )]),
+            ),
+        );
+        DockerCompose::new("3.8".to_string(), services, networks)
     }
 
     fn get_pearl_config(&self) -> Pearl {
@@ -89,7 +173,7 @@ impl TestClusterConfiguration {
         let mut result = Vec::with_capacity(self.nodes_count as usize);
         for i in 0..self.nodes_count {
             let name = Self::get_node_name(i);
-            let address = Self::get_node_addr(i);
+            let address = format!("{}:20000", Self::get_node_addr(i));
             let disk_paths = self.create_disk_paths(i);
             result.push(ClusterNode::new(name, address, disk_paths));
         }
@@ -119,7 +203,7 @@ impl TestClusterConfiguration {
     }
 
     fn get_node_addr(node_index: u32) -> String {
-        format!("192.168.1.{}", node_index)
+        format!("192.168.17.{}", node_index + 10)
     }
 
     fn get_disk_path(node_index: u32, disk_index: u32) -> DiskPath {
@@ -145,6 +229,10 @@ impl TestClusterConfiguration {
     const fn base_disk_dir() -> &'static str {
         "/tmp"
     }
+
+    const fn cluster_filename_without_extension() -> &'static str {
+        "cluster"
+    }
 }
 
 #[derive(new)]
@@ -157,6 +245,7 @@ struct TestCluster {
 struct DockerCompose {
     version: String,
     services: HashMap<String, DockerService>,
+    networks: HashMap<String, DockerComposeNetwork>,
 }
 
 #[derive(Serialize, new)]
@@ -167,7 +256,7 @@ struct DockerService {
     networks: HashMap<String, DockerNetwork>,
 }
 
-#[derive(Serialize, new)]
+#[derive(Serialize, new, Clone)]
 struct DockerBuild {
     context: String,
     dockerfile: String,
@@ -186,10 +275,19 @@ impl DockerBuild {
     }
 }
 
-#[derive(Serialize, new)]
+#[derive(new, Clone)]
 struct VolumeMapping {
     host_dir: String,
     docker_dir: String,
+}
+
+impl Serialize for VolumeMapping {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&format!("{}:{}", self.host_dir, self.docker_dir))
+    }
 }
 
 #[derive(Serialize, Clone, Copy, new)]
@@ -197,45 +295,23 @@ struct DockerNetwork {
     ipv4_address: Ipv4Addr,
 }
 
+#[derive(Serialize, new)]
+struct DockerComposeNetwork {
+    driver: String,
+    ipam: IPAMConfiguration,
+}
+
+#[derive(Serialize, new)]
+struct IPAMConfiguration {
+    config: Vec<SubnetConfiguration>,
+}
+
+#[derive(Serialize, new)]
+struct SubnetConfiguration {
+    subnet: String,
+}
+
 mod tests {
-    use crate::{
-        DockerBuild, DockerCompose, DockerNetwork, DockerService, TestClusterConfiguration,
-        VolumeMapping,
-    };
-    use std::collections::HashMap;
-    use std::net::Ipv4Addr;
-    use std::str::FromStr;
-
-    #[test]
-    fn correctly_serializes_compose() {
-        let addr = Ipv4Addr::from_str("192.168.1.1").unwrap();
-        let network = DockerNetwork::new(addr);
-        let mut networks = HashMap::new();
-        networks.insert("test_network".to_string(), network);
-        let volume = VolumeMapping::new("host_test".to_string(), "docker_test".to_string());
-        let docker_build = DockerBuild::new(".".to_string(), "Dockerfile".to_string());
-        let service = DockerService::new(
-            docker_build,
-            vec![volume],
-            "test_command".to_string(),
-            networks,
-        );
-        let mut services = HashMap::new();
-        services.insert("test_service".to_string(), service);
-        let docker_compose = DockerCompose::new("3.8".to_string(), services);
-        let yml = serde_yaml::to_string(&docker_compose);
-        assert!(yml.is_ok());
-    }
-
-    #[test]
-    fn builds_docker() {
-        let docker_build = DockerBuild::new(".".to_string(), "cluster_test/Dockerfile".to_string());
-        let result = docker_build.build();
-        assert!(result.is_ok());
-        let output = result.unwrap().wait_with_output();
-        eprintln!("output = {:?}", output);
-    }
-
     #[test]
     fn creates_cluster_configuration_for_two_nodes() {
         let configuration = TestClusterConfiguration::new(2, 1, 2, 80);

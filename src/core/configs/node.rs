@@ -98,7 +98,7 @@ impl BackendSettings {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
 pub struct MetricsConfig {
     name: String,
     graphite: String,
@@ -309,7 +309,7 @@ pub(crate) enum BackendType {
 }
 
 /// Node configuration struct, stored in node.yaml.
-#[derive(Clone, Debug, PartialEq, Deserialize, new)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, new)]
 pub struct Node {
     log_config: String,
     name: String,

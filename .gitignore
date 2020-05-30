@@ -18,3 +18,6 @@ Cargo.lock
 #**/*.rs.bk
 
 /log
+/cluster_test/node*.yaml
+/cluster_test/cluster*.yaml
+/cluster_test/docker-compose.yml
