@@ -1,4 +1,6 @@
-use bob::configs::{Cluster, ClusterNode, Replica, VDisk};
+use bitflags::_core::cell::RefCell;
+use bob::configs::node::BackendSettings;
+use bob::configs::{Cluster, ClusterNode, Node, Pearl, Replica, VDisk};
 use bob::DiskPath;
 use clap::{App, Arg};
 use std::collections::HashMap;
@@ -47,6 +49,40 @@ impl TestClusterConfiguration {
         let nodes = self.create_nodes();
         let vdisks = self.create_vdisks();
         Cluster::new(nodes, vdisks)
+    }
+
+    fn create_named_node_config(&self, node_index: u32) -> (String, Node) {
+        Node::new(
+            "logger.yaml".to_string(),
+            Self::get_node_name(node_index),
+            1,
+            "3sec".to_string(),
+            "5000ms".to_string(),
+            "simple".to_string(),
+            "pearl".to_string(),
+            Some(self.get_pearl_config()),
+            None,
+            RefCell::default(),
+            RefCell::default(),
+        )
+    }
+
+    fn get_pearl_config(&self) -> Pearl {
+        Pearl::new(
+            1000000,
+            10000,
+            "bob".to_string(),
+            "100ms".to_string(),
+            3,
+            Self::get_disk_name(self.vdisks_count - 1),
+            true,
+            BackendSettings::new(
+                "bob".to_string(),
+                "alien".to_string(),
+                "1d".to_string(),
+                "100ms".to_string(),
+            ),
+        )
     }
 
     fn create_nodes(&self) -> Vec<ClusterNode> {
