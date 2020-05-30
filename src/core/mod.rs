@@ -5,7 +5,7 @@ pub mod bob_client;
 pub(crate) mod cluster;
 /// Configuration tools.
 pub mod configs;
-pub(crate) mod data;
+pub mod data;
 /// Component to manage cluster I/O and connections.
 pub mod grinder;
 pub(crate) mod link_manager;

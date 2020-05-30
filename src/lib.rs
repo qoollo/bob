@@ -20,11 +20,14 @@ extern crate dipstick;
 extern crate rocket;
 #[macro_use]
 extern crate async_trait;
+#[macro_use]
+extern crate derive_new;
 
 mod api;
 mod core;
 
 pub use self::api::grpc;
+pub use self::core::data::DiskPath;
 pub use self::core::{backend, bob_client as client, configs, grinder, mapper, metrics, server};
 
 mod prelude {

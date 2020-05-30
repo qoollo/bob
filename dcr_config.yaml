@@ -1,4 +1,4 @@
 nodes_count: 2
 replicas_count: 2
-disks_count: 2
+vdisks_count: 2
 port: 80

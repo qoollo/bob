@@ -5,7 +5,7 @@ mod cluster_tests;
 pub mod node;
 mod reader;
 
-pub(crate) use self::cluster::{Cluster, Node as ClusterNode};
+pub use self::cluster::{Cluster, Node as ClusterNode, Replica, VDisk};
 pub(crate) use self::node::{BackendType, Node, Pearl};
 use super::prelude::*;
 

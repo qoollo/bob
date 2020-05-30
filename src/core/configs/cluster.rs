@@ -19,7 +19,7 @@ impl Validatable for DiskPath {
 }
 
 /// Node config struct, with name, address and [`DiskPath`]s.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, new)]
 pub struct Node {
     name: String,
     address: String,
@@ -183,7 +183,7 @@ impl Validatable for VDisk {
 }
 
 /// Config with cluster structure description.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, new)]
 pub struct Cluster {
     #[serde(default)]
     nodes: Vec<Node>,
