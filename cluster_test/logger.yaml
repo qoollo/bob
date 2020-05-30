@@ -33,7 +33,7 @@ loggers:
   # bob - core module
   bob:
     # level applies only to bob
-    level: trace
+    level: info
     appenders:
       - stdout
     # [bool] if true, logger won't delete existing configs on start

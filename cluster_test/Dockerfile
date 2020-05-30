@@ -54,5 +54,3 @@ COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-musl/release/bo
 RUN chown bobd:bobd bobd
 
 USER bobd
-
-CMD ["./bobd", "-c", "/configs/cluster.test.yaml", "-n", "/configs/node.test.yaml"]
