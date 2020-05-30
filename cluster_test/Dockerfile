@@ -51,11 +51,8 @@ WORKDIR /home/bob/bin/
 
 COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-musl/release/bobd .
 
-COPY cluster.test.yaml .
-COPY node.test.yaml .
-
 RUN chown bobd:bobd bobd
 
 USER bobd
 
-CMD ["./bobd -c cluster.test.yaml -n node.test.yaml"]
+CMD ["./bobd", "-c", "/configs/cluster.test.yaml", "-n", "/configs/node.test.yaml"]
