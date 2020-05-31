@@ -226,10 +226,12 @@ mod filesystem_constants;
 pub mod docker_compose_wrapper;
 
 mod tests {
+    use super::TestClusterConfiguration;
+
     #[test]
     fn creates_cluster_configuration_for_two_nodes() {
-        let configuration = TestClusterConfiguration::new(2, 1, 2, 80);
-        let cluster = configuration.create_cluster_configuration();
+        let configuration = TestClusterConfiguration::new(2, 2);
+        let cluster = configuration.create_cluster();
         assert_eq!(cluster.nodes().len(), 2, "wrong nodes count");
         assert_eq!(cluster.vdisks().len(), 2, "wrong vdisks count");
     }
