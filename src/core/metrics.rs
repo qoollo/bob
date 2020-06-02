@@ -117,7 +117,7 @@ pub trait ContainerBuilder {
     fn init_bucket(&self, prefix: String) -> AtomicBucket;
 }
 
-impl<T: Input + Clone + dipstick::Output> ContainerBuilder for MetricsContainer<T> {
+impl<T: Input + Clone> ContainerBuilder for MetricsContainer<T> {
     fn get_metrics(&self, name: &str) -> BobClient {
         let prefix = self.prefix.clone() + ".to." + name;
         BobClient::new(&self.init_bucket(prefix))
