@@ -18,7 +18,9 @@ pub(crate) use super::prelude::*;
 mod prelude {
     pub(crate) use super::*;
 
-    pub(crate) use ::pearl::{Builder, ErrorKind, Key as KeyTrait, Storage};
+    pub(crate) use ::pearl::{
+        filter::Config as BloomConfig, Builder, ErrorKind, Key as KeyTrait, Storage,
+    };
     pub(crate) use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
     pub(crate) use configs::Pearl as PearlConfig;
     pub(crate) use data::{Data, Key};

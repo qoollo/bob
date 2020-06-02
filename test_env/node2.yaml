@@ -16,7 +16,7 @@ pearl:
   settings:
     root_dir_name: bob
     alien_root_dir_name: alien
-    timestamp_period: 1m
+    timestamp_period: 10m
     create_pearl_wait_delay: 100ms
 
 metrics:
