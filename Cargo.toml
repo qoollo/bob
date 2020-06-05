@@ -37,7 +37,7 @@ rocket_contrib = "0.4.4"
 async-trait = "0.1.31"
 termion = "1.5"
 derive-new = "0.5.8"
-ctrlc = "*"
+ctrlc = "3.1.4"
 
 [build-dependencies]
 tonic-build = "0.2.0"

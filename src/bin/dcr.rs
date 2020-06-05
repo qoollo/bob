@@ -34,7 +34,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .wait_with_output()
             .expect("failed to wait for compose down otuput");
     })?;
-    arc.lock().unwrap().up(config_dir)?.wait_with_output()?;
+    let child_process = arc.lock().unwrap().up(config_dir)?;
+    child_process.wait_with_output()?;
     Ok(())
 }
 
@@ -46,6 +47,7 @@ fn get_configuration() -> Result<TestClusterConfiguration, Box<dyn Error>> {
                 .takes_value(true)
                 .short("c")
                 .required(true)
+                .default_value("dcr_config.yaml")
                 .long("config"),
         )
         .get_matches();
