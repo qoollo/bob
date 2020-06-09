@@ -1,4 +1,5 @@
 use super::prelude::*;
+use ring::digest::{digest, SHA256};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Group {
@@ -286,15 +287,12 @@ impl Group {
     pub fn create_pearl_holder(&self, start_timestamp: u64) -> Holder {
         let end_timestamp = start_timestamp + self.settings.timestamp_period_as_secs();
         let mut path = self.directory_path.clone();
-        path.push(format!("{}/", start_timestamp));
-
-        Holder::new(
-            start_timestamp,
-            end_timestamp,
-            self.vdisk_id,
-            path,
-            self.settings.config().clone(),
-        )
+        let hash = self.get_node_hash();
+        path.push(format!("{}_{}/", start_timestamp, hash));
+        let mut config = self.settings.config().clone();
+        let prefix = config.blob_file_name_prefix().to_owned();
+        config.set_blob_file_name_prefix(format!("{}_{}", prefix, hash));
+        Holder::new(start_timestamp, end_timestamp, self.vdisk_id, path, config)
     }
 
     pub(crate) fn create_pearl_by_timestamp(&self, time: u64) -> Holder {
@@ -328,6 +326,21 @@ impl Group {
             }
         }
         Ok(holders)
+    }
+
+    fn get_node_hash(&self) -> String {
+        let hash = digest(&SHA256, self.node_name.as_bytes());
+        let hex: Vec<u8> = hash
+            .as_ref()
+            .iter()
+            .flat_map(|&byte| {
+                vec![
+                    ((byte >> 4) & 0b01111u8 | 0b01000000) + 1,
+                    (byte & 0b01111u8 | 0b01000000) + 1,
+                ]
+            })
+            .collect();
+        String::from_utf8(hex).unwrap()
     }
 }
 

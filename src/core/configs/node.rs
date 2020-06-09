@@ -204,6 +204,10 @@ impl Pearl {
         &self.blob_file_name_prefix
     }
 
+    pub(crate) fn set_blob_file_name_prefix(&mut self, s: String) {
+        self.blob_file_name_prefix = s;
+    }
+
     fn default_max_data_in_blob() -> u64 {
         1_000_000
     }
