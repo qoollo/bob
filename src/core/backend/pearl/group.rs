@@ -288,7 +288,8 @@ impl Group {
         let end_timestamp = start_timestamp + self.settings.timestamp_period_as_secs();
         let mut path = self.directory_path.clone();
         let hash = self.get_node_hash();
-        path.push(format!("{}_{}/", start_timestamp, hash));
+        let partition_name = PartitionName::new(start_timestamp, &hash);
+        path.push(format!("{}/", partition_name.to_string()));
         let mut config = self.settings.config().clone();
         let prefix = config.blob_file_name_prefix().to_owned();
         config.set_blob_file_name_prefix(format!("{}_{}", prefix, hash));
@@ -317,12 +318,11 @@ impl Group {
                 .into_string()
                 .map_err(|_| warn!("cannot parse file name: {:?}", entry))
             {
-                let start_timestamp = file_name
-                    .parse()
-                    .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry))
-                    .expect("parse file name");
-                let pearl_holder = self.create_pearl_holder(start_timestamp);
-                holders.push(pearl_holder);
+                let partition_name = PartitionName::try_from_string(&file_name);
+                if let Some(partition_name) = partition_name {
+                    let pearl_holder = self.create_pearl_holder(partition_name.timestamp);
+                    holders.push(pearl_holder);
+                }
             }
         }
         Ok(holders)
@@ -353,5 +353,42 @@ impl Display for Group {
             .field("disk_name", &self.disk_name)
             .field("..", &"some fields ommited")
             .finish()
+    }
+}
+
+struct PartitionName {
+    timestamp: u64,
+    hash: String,
+}
+
+impl PartitionName {
+    fn new(timestamp: u64, hash: &str) -> Self {
+        Self {
+            timestamp,
+            hash: hash.to_string(),
+        }
+    }
+
+    fn try_from_string(s: &str) -> Option<Self> {
+        let (timestamp_string, hash_string) = if let Some(index) = s.find('_') {
+            (&s[0..index], &s[index + 1..])
+        } else {
+            (s, "")
+        };
+        if let Ok(timestamp) = timestamp_string.parse() {
+            Some(Self {
+                timestamp,
+                hash: hash_string.to_string(),
+            })
+        } else {
+            warn!("Failed to parse timestamp from {}", timestamp_string);
+            None
+        }
+    }
+}
+
+impl Display for PartitionName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}_{}", self.timestamp, self.hash)
     }
 }
