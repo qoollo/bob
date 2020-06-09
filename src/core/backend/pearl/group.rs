@@ -10,6 +10,7 @@ pub(crate) struct Group {
     vdisk_id: VDiskId,
     node_name: String,
     disk_name: String,
+    owner_node_name: String,
 }
 
 impl Group {
@@ -19,6 +20,7 @@ impl Group {
         node_name: String,
         disk_name: String,
         directory_path: PathBuf,
+        owner_node_name: String,
     ) -> Self {
         Self {
             holders: Arc::new(RwLock::new(vec![])),
@@ -28,6 +30,7 @@ impl Group {
             node_name,
             directory_path,
             disk_name,
+            owner_node_name,
         }
     }
 

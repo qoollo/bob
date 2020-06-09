@@ -44,6 +44,7 @@ impl Settings {
                     config.name().to_owned(),
                     disk.name().to_owned(),
                     path,
+                    config.name().to_owned(),
                 )
             });
             result.extend(iter);
@@ -71,6 +72,7 @@ impl Settings {
                                 node_name.clone(),
                                 disk_name,
                                 entry.path(),
+                                node_name.clone(),
                             );
                             result.push(group);
                         } else {
@@ -86,18 +88,23 @@ impl Settings {
         Ok(result)
     }
 
-    pub(crate) fn create_group(self: Arc<Self>, operation: &Operation) -> BackendResult<Group> {
-        let node_name = operation.remote_node_name().unwrap();
-        let path = self.alien_path(operation.vdisk_id(), node_name);
+    pub(crate) fn create_group(
+        self: Arc<Self>,
+        operation: &Operation,
+        node_name: &str,
+    ) -> BackendResult<Group> {
+        let remote_node_name = operation.remote_node_name().unwrap();
+        let path = self.alien_path(operation.vdisk_id(), remote_node_name);
 
         Stuff::check_or_create_directory(&path)?;
 
         let group = Group::new(
             self.clone(),
             operation.vdisk_id(),
-            operation.remote_node_name().unwrap().to_owned(),
+            remote_node_name.to_owned(),
             self.config.alien_disk().to_owned(),
             path,
+            node_name.to_owned(),
         );
         Ok(group)
     }
