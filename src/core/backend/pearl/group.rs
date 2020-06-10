@@ -292,7 +292,7 @@ impl Group {
         let mut path = self.directory_path.clone();
         let hash = self.get_node_hash();
         let partition_name = PartitionName::new(start_timestamp, &hash);
-        path.push(format!("{}/", partition_name.to_string()));
+        path.push(partition_name.to_string());
         let mut config = self.settings.config().clone();
         let prefix = config.blob_file_name_prefix().to_owned();
         config.set_blob_file_name_prefix(format!("{}_{}", prefix, hash));
@@ -325,6 +325,8 @@ impl Group {
                 if let Some(partition_name) = partition_name {
                     let pearl_holder = self.create_pearl_holder(partition_name.timestamp);
                     holders.push(pearl_holder);
+                } else {
+                    warn!("failed to parse partition name from {}", file_name);
                 }
             }
         }
@@ -373,20 +375,19 @@ impl PartitionName {
     }
 
     fn try_from_string(s: &str) -> Option<Self> {
-        let (timestamp_string, hash_string) = if let Some(index) = s.find('_') {
-            (&s[0..index], &s[index + 1..])
-        } else {
-            (s, "")
-        };
-        if let Ok(timestamp) = timestamp_string.parse() {
-            Some(Self {
-                timestamp,
-                hash: hash_string.to_string(),
-            })
-        } else {
-            warn!("Failed to parse timestamp from {}", timestamp_string);
-            None
-        }
+        let mut iter = s.split('_');
+        let timestamp_string = iter.next();
+        timestamp_string.and_then(|timestamp_string| {
+            let hash_string = iter.next().unwrap_or("");
+            timestamp_string
+                .parse()
+                .map_err(|_| warn!("failed to parse timestamp"))
+                .ok()
+                .map(|timestamp| Self {
+                    timestamp,
+                    hash: hash_string.to_string(),
+                })
+        })
     }
 }
 
