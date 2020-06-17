@@ -11,6 +11,7 @@ pearl:                             # used only for 'backend_type: pearl'
   allow_duplicates: true           # optional, required for 'pearl', disables search for existing keys before write
   max_data_in_blob: 10000          # optional
   blob_file_name_prefix: bob       # optional
+  hash_chars_count: 10             # count of chars in node name hash
   fail_retry_timeout: 100ms        # mls, retry to reinit pearl backend after fail. required for 'pearl'
   alien_disk: disk1                # required for 'pearl'  
   settings:                        # describes how create and manage bob directories. required for 'pearl'

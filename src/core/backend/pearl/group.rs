@@ -335,18 +335,42 @@ impl Group {
 
     fn get_node_hash(&self) -> String {
         let hash = digest(&SHA256, self.node_name.as_bytes());
-        let hex: Vec<u8> = hash
-            .as_ref()
-            .iter()
-            .flat_map(|&byte| {
-                vec![
-                    ((byte >> 4) & 0b01111u8 | 0b01000000) + 1,
-                    (byte & 0b01111u8 | 0b01000000) + 1,
-                ]
-            })
-            .collect();
+        let hash = hash.as_ref();
+        let mut hex = vec![];
+        for i in (0..hash.len()).step_by(3) {
+            let max = std::cmp::min(i + 3, hash.len());
+            let bytes = &hash[i..max];
+            if !bytes.is_empty() {
+                hex.push(ASCII_TRANSLATION[(bytes[0] >> 2) as usize]);
+                hex.push(
+                    ASCII_TRANSLATION
+                        [((bytes[0] << 4) & 0b110000 | (bytes.get(1).unwrap_or(&0) >> 4)) as usize],
+                );
+                if bytes.len() > 1 {
+                    hex.push(
+                        ASCII_TRANSLATION[(bytes[1] & 0b00001111
+                            | (bytes.get(2).unwrap_or(&0) >> 2 & 0b110000))
+                            as usize],
+                    );
+                    if bytes.len() > 2 {
+                        hex.push(ASCII_TRANSLATION[(bytes[2] & 0b00111111) as usize]);
+                    }
+                }
+            }
+        }
+        hex.truncate(self.settings.config().hash_chars_count() as usize);
         String::from_utf8(hex).unwrap()
     }
+}
+
+lazy_static! {
+    static ref ASCII_TRANSLATION: Vec<u8> = (0..=255)
+        .filter(|&i| (i > 47 && i < 58) // numbers
+            || (i > 64 && i < 91) // upper case letters
+            || (i > 96 && i < 123) // lower case letters
+            || (i == 45) // -
+            || (i == 43)) // +
+        .collect();
 }
 
 impl Display for Group {
