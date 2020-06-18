@@ -337,24 +337,25 @@ impl Group {
         let hash = digest(&SHA256, self.node_name.as_bytes());
         let hash = hash.as_ref();
         let mut hex = vec![];
+        // Translate bytes to simple digit-letter representation
         for i in (0..hash.len()).step_by(3) {
             let max = std::cmp::min(i + 3, hash.len());
             let bytes = &hash[i..max];
             if !bytes.is_empty() {
-                hex.push(ASCII_TRANSLATION[(bytes[0] >> 2) as usize]);
+                hex.push(ASCII_TRANSLATION[(bytes[0] >> 2) as usize]); // First 6 bits of first byte
                 hex.push(
                     ASCII_TRANSLATION
                         [((bytes[0] << 4) & 0b110000 | (bytes.get(1).unwrap_or(&0) >> 4)) as usize],
-                );
+                ); // Last 2 bits of first byte and first 4 bits of second byte
                 if bytes.len() > 1 {
                     hex.push(
                         ASCII_TRANSLATION[(bytes[1] & 0b00001111
                             | (bytes.get(2).unwrap_or(&0) >> 2 & 0b110000))
                             as usize],
-                    );
+                    ); // Last 4 bits of second byte and first 2 bits of third byte
                     if bytes.len() > 2 {
                         hex.push(ASCII_TRANSLATION[(bytes[2] & 0b00111111) as usize]);
-                    }
+                    } // Last 6 bits of third byte
                 }
             }
         }
