@@ -86,7 +86,7 @@ impl Cluster for Quorum {
         if let Some(cluster_result) = ok_results.get(0) {
             Ok(cluster_result.inner().clone())
         } else {
-            Err(BackendError::key_not_found(key))
+            Err(Error::key_not_found(key))
         }
     }
 

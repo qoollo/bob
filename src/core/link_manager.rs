@@ -6,7 +6,7 @@ pub(crate) struct LinkManager {
     check_interval: Duration,
 }
 
-pub(crate) type ClusterCallOutput<T> = Result<NodeOutput<T>, NodeOutput<BackendError>>;
+pub(crate) type ClusterCallOutput<T> = Result<NodeOutput<T>, NodeOutput<Error>>;
 pub(crate) type ClusterCallFuture<'a, T> =
     Pin<Box<dyn Future<Output = ClusterCallOutput<T>> + Send + 'a>>;
 
@@ -66,7 +66,7 @@ impl LinkManager {
             Some(conn) => f(&conn).await,
             None => Err(NodeOutput::new(
                 node.name().to_owned(),
-                BackendError::failed(format!("No active connection {:?}", node)),
+                Error::failed(format!("No active connection {:?}", node)),
             )),
         }
     }
@@ -74,7 +74,7 @@ impl LinkManager {
     pub(crate) async fn exist_on_nodes(
         nodes: &[Node],
         keys: &[BobKey],
-    ) -> Vec<Result<NodeOutput<Vec<bool>>, NodeOutput<BackendError>>> {
+    ) -> Vec<Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>> {
         Self::call_nodes(nodes, |client| {
             Box::pin(client.exist(keys.to_vec(), GetOptions::new_all()))
         })

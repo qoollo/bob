@@ -73,7 +73,7 @@ pub(crate) mod b_client {
             } else {
                 self.metrics.put_error_count();
                 self.metrics.put_timer_stop(timer);
-                Err(NodeOutput::new(node_name, BackendError::timeout()))
+                Err(NodeOutput::new(node_name, Error::timeout()))
             }
         }
 
@@ -91,7 +91,7 @@ pub(crate) mod b_client {
             let request = Request::new(message);
             let res = timeout(self.operation_timeout, client.get(request))
                 .await
-                .map_err(|_| NodeOutput::new(node_name.clone(), BackendError::timeout()))?;
+                .map_err(|_| NodeOutput::new(node_name.clone(), Error::timeout()))?;
             res.map(|r| {
                 self.metrics.get_timer_stop(timer);
                 let ans = r.into_inner();
@@ -102,7 +102,7 @@ pub(crate) mod b_client {
             .map_err(|e| {
                 self.metrics.get_error_count();
                 self.metrics.get_timer_stop(timer);
-                NodeOutput::new(node_name, BackendError::from(e))
+                NodeOutput::new(node_name, Error::from(e))
             })
         }
 
@@ -113,14 +113,12 @@ pub(crate) mod b_client {
                 timeout(self.operation_timeout, client.ping(Request::new(Null {}))).await
             {
                 res.map(|_| NodeOutput::new(self.node.name().to_owned(), ()))
-                    .map_err(|_| {
-                        NodeOutput::new(self.node.name().to_owned(), BackendError::timeout())
-                    })
+                    .map_err(|_| NodeOutput::new(self.node.name().to_owned(), Error::timeout()))
             } else {
                 warn!("node {} ping timeout, reset connection", self.node.name());
                 Err(NodeOutput::new(
                     self.node.name().to_owned(),
-                    BackendError::timeout(),
+                    Error::timeout(),
                 ))
             }
         }
@@ -144,7 +142,7 @@ pub(crate) mod b_client {
         ) -> ExistResult {
             match exist_response {
                 Ok(response) => Ok(NodeOutput::new(node_name, response.into_inner().exist)),
-                Err(error) => Err(NodeOutput::new(node_name, BackendError::from(error))),
+                Err(error) => Err(NodeOutput::new(node_name, Error::from(error))),
             }
         }
     }
@@ -185,13 +183,13 @@ cfg_if! {
 
 use super::prelude::*;
 
-pub(crate) type PutResult = Result<NodeOutput<()>, NodeOutput<BackendError>>;
+pub(crate) type PutResult = Result<NodeOutput<()>, NodeOutput<Error>>;
 
-pub(crate) type GetResult = Result<NodeOutput<BobData>, NodeOutput<BackendError>>;
+pub(crate) type GetResult = Result<NodeOutput<BobData>, NodeOutput<Error>>;
 
-pub(crate) type PingResult = Result<NodeOutput<()>, NodeOutput<BackendError>>;
+pub(crate) type PingResult = Result<NodeOutput<()>, NodeOutput<Error>>;
 
-pub(crate) type ExistResult = Result<NodeOutput<Vec<bool>>, NodeOutput<BackendError>>;
+pub(crate) type ExistResult = Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>;
 
 /// Bob metrics factory
 #[derive(Clone)]

@@ -215,7 +215,7 @@ impl BackendStorage for Pearl {
             if let Some(group) = vdisk_group {
                 Ok(group.exist(&keys).await)
             } else {
-                Err(BackendError::internal())
+                Err(Error::internal())
             }
         };
         task.boxed()
@@ -229,7 +229,7 @@ impl BackendStorage for Pearl {
             if let Ok(group) = vdisk_group {
                 Ok(group.exist(&keys).await)
             } else {
-                Err(BackendError::internal())
+                Err(Error::internal())
             }
         };
         task.boxed()

@@ -24,14 +24,14 @@ impl Quorum {
         &'a self,
         mut target_indexes: impl Iterator<Item = u16>,
         count: usize,
-    ) -> Result<Vec<&'a Node>, BackendError> {
+    ) -> Result<Vec<&'a Node>, Error> {
         let (len, _) = target_indexes.size_hint();
         debug!("iterator size lower bound: {}", len);
         trace!("nodes available: {}", self.mapper.nodes().len());
         if self.mapper.nodes().len() < len + count {
             let msg = "cannot find enough support nodes".to_owned();
             error!("{}", msg);
-            Err(BackendError::failed(msg))
+            Err(Error::failed(msg))
         } else {
             let sup = self
                 .mapper
@@ -223,7 +223,7 @@ impl Cluster for Quorum {
                     self.quorum,
                     err
                 );
-                let e = BackendError::failed(msg);
+                let e = Error::failed(msg);
                 Err(e)
             }
         }
@@ -251,7 +251,7 @@ impl Cluster for Quorum {
             return Ok(answer.into_inner());
         } else if errors.is_empty() {
             debug!("GET[{}] data not found", key);
-            return Err(BackendError::key_not_found(key));
+            return Err(Error::key_not_found(key));
         }
         trace!("appropriate nodes didn't get successful results, lookup in other nodes aliens");
         debug!("GET[{}] no success result", key);
@@ -279,7 +279,7 @@ impl Cluster for Quorum {
         } else {
             debug!("errors: {}", errors);
             debug!("GET[{}] data not found", key);
-            Err(BackendError::key_not_found(key))
+            Err(Error::key_not_found(key))
         }
     }
 

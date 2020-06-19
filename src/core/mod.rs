@@ -6,6 +6,7 @@ pub(crate) mod cluster;
 /// Configuration tools.
 pub mod configs;
 pub(crate) mod data;
+pub(crate) mod error;
 /// Component to manage cluster I/O and connections.
 pub mod grinder;
 pub(crate) mod link_manager;
@@ -16,10 +17,9 @@ pub mod metrics;
 /// GRPC server to receive and process requests from clients.
 pub mod server;
 
+pub(crate) use self::error::Error;
 pub(crate) use super::prelude::*;
-pub(crate) use backend::{
-    init_pearl, Backend, Error as BackendError, ExistResult, GetResult, Operation, PutResult,
-};
+pub(crate) use backend::{init_pearl, Backend, ExistResult, GetResult, Operation, PutResult};
 
 mod prelude {
     pub(crate) use super::*;
@@ -79,7 +79,7 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn put_err(node_name: String) -> PutResult {
-        Err(NodeOutput::new(node_name, BackendError::internal()))
+        Err(NodeOutput::new(node_name, Error::internal()))
     }
 
     pub(crate) fn get_ok(node_name: String, timestamp: u64) -> GetResult {
@@ -88,6 +88,6 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn get_err(node_name: String) -> GetResult {
-        Err(NodeOutput::new(node_name, BackendError::internal()))
+        Err(NodeOutput::new(node_name, Error::internal()))
     }
 }
