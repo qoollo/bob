@@ -106,7 +106,7 @@ impl Group {
             .find(|holder| holder.gets_into_interval(data.meta().timestamp()))
             .cloned()
             .ok_or_else(|| {
-                Error::Failed(format!(
+                Error::failed(format!(
                     "cannot find actual pearl folder. meta: {}",
                     data.meta().timestamp()
                 ))
@@ -132,7 +132,7 @@ impl Group {
             self.pearl_sync.mark_as_created().await;
             Ok(pearl)
         } else {
-            Err(Error::Failed("failed to init pearl sync".to_string()))
+            Err(Error::failed("failed to init pearl sync"))
         }
     }
 
@@ -171,20 +171,23 @@ impl Group {
                     trace!("get data: {:?} from: {:?}", data, holder);
                     results.push(data);
                 }
-                Err(BackendError::KeyNotFound(key)) => debug!("{} not found in {:?}", key, holder),
                 Err(err) => {
-                    has_error = true;
-                    error!("get error: {}, from : {:?}", err, holder);
+                    if err.is_key_not_found() {
+                        debug!("{} not found in {:?}", key, holder)
+                    } else {
+                        has_error = true;
+                        error!("get error: {}, from : {:?}", err, holder);
+                    }
                 }
             }
         }
         if results.is_empty() {
             if has_error {
                 debug!("cannot read from some pearls");
-                Err(Error::Failed("cannot read from some pearls".to_string()))
+                Err(Error::failed("cannot read from some pearls"))
             } else {
                 debug!("not found in any pearl");
-                Err(Error::KeyNotFound(key))
+                Err(Error::key_not_found(key))
             }
         } else {
             debug!("get with max timestamp, from {} results", results.len());
@@ -239,7 +242,7 @@ impl Group {
         {
             let msg = format!("pearl:{} already exists", start_timestamp);
             warn!("{}", msg);
-            Err(Error::PearlChangeState(msg))
+            Err(Error::pearl_change_state(msg))
         } else {
             let holder = self.create_pearl_by_timestamp(start_timestamp);
             self.save_pearl(holder).await?;
@@ -257,7 +260,7 @@ impl Group {
             if holder.is_actual(self.settings.get_actual_timestamp_start()) {
                 let msg = format!("active pearl:{} cannot be detached", start_timestamp);
                 warn!("{}", msg);
-                Err(Error::PearlChangeState(msg))
+                Err(Error::pearl_change_state(msg))
             } else {
                 {
                     let lock_guard = holder.storage();
@@ -271,7 +274,7 @@ impl Group {
                     .drain_filter(|holder| holder.start_timestamp() == start_timestamp)
                     .collect::<Vec<_>>();
                 holders_to_return.pop().ok_or_else(|| {
-                    Error::PearlChangeState(format!(
+                    Error::pearl_change_state(format!(
                         "error detaching pearl with timestamp {}",
                         start_timestamp
                     ))
@@ -279,7 +282,7 @@ impl Group {
             }
         } else {
             let msg = format!("pearl:{} not found", start_timestamp);
-            Err(Error::PearlChangeState(msg))
+            Err(Error::pearl_change_state(msg))
         }
     }
 

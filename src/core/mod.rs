@@ -34,6 +34,7 @@ mod prelude {
         AtomicBucket, Counter, Graphite, Input, InputKind, InputScope, MetricName, MetricValue,
         Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer,
     };
+    pub(crate) use failure::{Backtrace, Context, Fail};
     pub(crate) use futures::{
         future, stream::FuturesUnordered, Future, FutureExt, StreamExt, TryFutureExt,
     };
@@ -78,7 +79,7 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn put_err(node_name: String) -> PutResult {
-        Err(NodeOutput::new(node_name, BackendError::Internal))
+        Err(NodeOutput::new(node_name, BackendError::internal()))
     }
 
     pub(crate) fn get_ok(node_name: String, timestamp: u64) -> GetResult {
@@ -87,6 +88,6 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn get_err(node_name: String) -> GetResult {
-        Err(NodeOutput::new(node_name, BackendError::Internal))
+        Err(NodeOutput::new(node_name, BackendError::internal()))
     }
 }

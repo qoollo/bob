@@ -69,7 +69,7 @@ impl Holder {
             Self::write_disk(storage, Key::from(key), data.clone()).await
         } else {
             trace!("Vdisk: {} isn't ready for writing: {:?}", self.vdisk, state);
-            Err(Error::VDiskIsNotReady)
+            Err(Error::vdisk_is_not_ready())
         }
     }
 
@@ -107,13 +107,13 @@ impl Holder {
                     PEARL_GET_ERROR_COUNTER.count(1);
                     trace!("error on read: {:?}", e);
                     match e.kind() {
-                        ErrorKind::RecordNotFound => Error::KeyNotFound(key),
-                        _ => Error::Storage(format!("{:?}", e)),
+                        ErrorKind::RecordNotFound => Error::key_not_found(key),
+                        _ => Error::storage(e.to_string()),
                     }
                 })?
         } else {
             trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
-            Err(Error::VDiskIsNotReady)
+            Err(Error::vdisk_is_not_ready())
         }
     }
 
@@ -125,7 +125,7 @@ impl Holder {
                 self.vdisk,
                 state
             );
-            Err(Error::VDiskIsNotReady)
+            Err(Error::vdisk_is_not_ready())
         } else {
             state.init();
             trace!("Vdisk: {} set as reinit, state: {:?}", self.vdisk, state);
@@ -149,7 +149,7 @@ impl Holder {
             Ok(storage.contains(pearl_key).await)
         } else {
             trace!("Vdisk: {} not ready for reading: {:?}", self.vdisk, state);
-            Err(Error::VDiskIsNotReady)
+            Err(Error::vdisk_is_not_ready())
         }
     }
 
@@ -199,7 +199,7 @@ impl Holder {
                 self.update(storage).await;
                 Ok(())
             }
-            Err(e) => Err(Error::Storage(format!("pearl error: {:?}", e))),
+            Err(e) => Err(Error::storage(format!("pearl error: {:?}", e))),
         }
     }
 
@@ -226,7 +226,7 @@ impl Holder {
             .build()
             .map_err(|e| {
                 error!("cannot build pearl by path: {:?}, {}", &self.disk_path, e);
-                Error::Storage(e.to_string())
+                Error::storage(e.to_string())
             })
     }
 }

@@ -31,7 +31,7 @@ impl Quorum {
         if self.mapper.nodes().len() < len + count {
             let msg = "cannot find enough support nodes".to_owned();
             error!("{}", msg);
-            Err(BackendError::Failed(msg))
+            Err(BackendError::failed(msg))
         } else {
             let sup = self
                 .mapper
@@ -223,7 +223,7 @@ impl Cluster for Quorum {
                     self.quorum,
                     err
                 );
-                let e = BackendError::Failed(msg);
+                let e = BackendError::failed(msg);
                 Err(e)
             }
         }
@@ -251,7 +251,7 @@ impl Cluster for Quorum {
             return Ok(answer.into_inner());
         } else if errors.is_empty() {
             debug!("GET[{}] data not found", key);
-            return Err(BackendError::KeyNotFound(key));
+            return Err(BackendError::key_not_found(key));
         }
         trace!("appropriate nodes didn't get successful results, lookup in other nodes aliens");
         debug!("GET[{}] no success result", key);
@@ -279,7 +279,7 @@ impl Cluster for Quorum {
         } else {
             debug!("errors: {}", errors);
             debug!("GET[{}] data not found", key);
-            Err(BackendError::KeyNotFound(key))
+            Err(BackendError::key_not_found(key))
         }
     }
 
@@ -481,7 +481,7 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(1, calls[0].1.put_count());
         let get = backend.get_local(key, Operation::new_alien(0)).await;
-        assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
+        assert!(get.err().unwrap().is_key_not_found());
     }
 
     /// 2 node, 1 vdisk, 1 replics in vdisk, quorum = 1
@@ -511,7 +511,7 @@ mod tests {
         assert_eq!(1, calls[1].1.put_count());
 
         let get = backend.get_local(key, Operation::new_alien(0)).await;
-        assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
+        assert!(get.err().unwrap().is_key_not_found());
     }
 
     /// 2 node, 2 vdisk, 1 replics in vdisk, quorum = 1
@@ -547,10 +547,10 @@ mod tests {
         assert_eq!(1, calls[1].1.put_count());
         let key = 3;
         let mut get = backend.get_local(key, Operation::new_alien(0)).await;
-        assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
+        assert!(get.err().unwrap().is_key_not_found());
         let key = 4;
         get = backend.get_local(key, Operation::new_alien(0)).await;
-        assert_eq!(backend::Error::KeyNotFound(key), get.err().unwrap());
+        assert!(get.err().unwrap().is_key_not_found());
     }
 
     /// 2 node, 1 vdisk, 2 replics in vdisk, quorum = 2

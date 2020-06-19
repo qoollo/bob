@@ -119,7 +119,7 @@ impl Settings {
             Err(err) => {
                 let msg = format!("couldn't process path: {:?}, error: {:?} ", path, err);
                 error!("{}", msg);
-                Err(Error::Failed(msg))
+                Err(Error::failed(msg))
             }
         }
     }
@@ -127,7 +127,7 @@ impl Settings {
     fn try_parse_node_name(&self, entry: DirEntry) -> BackendResult<(DirEntry, String)> {
         let file_name = entry.file_name().into_string().map_err(|_| {
             error!("cannot parse file name: {:?}", entry);
-            Error::Failed(format!("cannot parse file name: {:?}", entry))
+            Error::failed(format!("cannot parse file name: {:?}", entry))
         })?;
         if self
             .mapper
@@ -139,7 +139,7 @@ impl Settings {
         } else {
             let msg = format!("cannot find node with name: {:?}", file_name);
             error!("{}", msg);
-            Err(Error::Failed(msg))
+            Err(Error::failed(msg))
         }
     }
 
@@ -147,12 +147,12 @@ impl Settings {
         let file_name = entry.file_name().into_string().map_err(|_| {
             let msg = format!("cannot parse file name: {:?}", entry);
             error!("{}", msg);
-            Error::Failed(msg)
+            Error::failed(msg)
         })?;
         let vdisk_id: VDiskId = file_name.parse().map_err(|_| {
             let msg = format!("cannot parse file name: {:?}", entry);
             error!("{}", msg);
-            Error::Failed(msg)
+            Error::failed(msg)
         })?;
 
         let vdisk = self
@@ -163,7 +163,7 @@ impl Settings {
         vdisk.map(|id| (entry, id)).ok_or({
             let msg = format!("cannot find vdisk with id: {:?}", vdisk_id);
             error!("{}", msg);
-            Error::Failed(msg)
+            Error::failed(msg)
         })
     }
 
@@ -174,12 +174,12 @@ impl Settings {
             } else {
                 let msg = format!("Couldn't get metadata for {:?}", entry.path());
                 error!("{}", msg);
-                Err(Error::Failed(msg))
+                Err(Error::failed(msg))
             }
         } else {
             let msg = format!("couldn't read entry: {:?} ", entry);
             error!("{}", msg);
-            Err(Error::Failed(msg))
+            Err(Error::failed(msg))
         }
     }
 

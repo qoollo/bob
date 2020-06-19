@@ -66,7 +66,7 @@ impl LinkManager {
             Some(conn) => f(&conn).await,
             None => Err(NodeOutput::new(
                 node.name().to_owned(),
-                BackendError::Failed(format!("No active connection {:?}", node)),
+                BackendError::failed(format!("No active connection {:?}", node)),
             )),
         }
     }

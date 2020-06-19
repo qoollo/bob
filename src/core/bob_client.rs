@@ -73,7 +73,7 @@ pub(crate) mod b_client {
             } else {
                 self.metrics.put_error_count();
                 self.metrics.put_timer_stop(timer);
-                Err(NodeOutput::new(node_name, BackendError::Timeout))
+                Err(NodeOutput::new(node_name, BackendError::timeout()))
             }
         }
 
@@ -88,10 +88,10 @@ pub(crate) mod b_client {
                 key: Some(BlobKey { key }),
                 options: Some(options),
             };
-            let req = Request::new(message);
-            let res = timeout(self.operation_timeout, client.get(req))
+            let request = Request::new(message);
+            let res = timeout(self.operation_timeout, client.get(request))
                 .await
-                .map_err(|_| NodeOutput::new(node_name.clone(), BackendError::Timeout))?;
+                .map_err(|_| NodeOutput::new(node_name.clone(), BackendError::timeout()))?;
             res.map(|r| {
                 self.metrics.get_timer_stop(timer);
                 let ans = r.into_inner();
@@ -114,13 +114,13 @@ pub(crate) mod b_client {
             {
                 res.map(|_| NodeOutput::new(self.node.name().to_owned(), ()))
                     .map_err(|_| {
-                        NodeOutput::new(self.node.name().to_owned(), BackendError::Timeout)
+                        NodeOutput::new(self.node.name().to_owned(), BackendError::timeout())
                     })
             } else {
                 warn!("node {} ping timeout, reset connection", self.node.name());
                 Err(NodeOutput::new(
                     self.node.name().to_owned(),
-                    BackendError::Timeout,
+                    BackendError::timeout(),
                 ))
             }
         }

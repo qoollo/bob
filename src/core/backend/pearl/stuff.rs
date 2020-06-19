@@ -79,14 +79,14 @@ impl Stuff {
             trace!("directory: {:?} exists", path);
             Ok(())
         } else {
-            let dir = path.to_str().ok_or_else(|| {
-                Error::Storage("invalid some path, check vdisk or disk names".to_string())
-            })?;
+            let dir = path
+                .to_str()
+                .ok_or_else(|| Error::storage("invalid some path, check vdisk or disk names"))?;
 
             create_dir_all(&path)
                 .map(|_| info!("create directory: {}", dir))
                 .map_err(|e| {
-                    Error::Storage(format!(
+                    Error::storage(format!(
                         "cannot create directory: {}, error: {}",
                         dir,
                         e.to_string()
@@ -102,7 +102,7 @@ impl Stuff {
             remove_file(&file)
                 .map(|_| debug!("deleted lock file from directory: {:?}", file))
                 .map_err(|e| {
-                    Error::Storage(format!(
+                    Error::storage(format!(
                         "cannot delete lock file from directory: {:?}, error: {}",
                         file, e
                     ))
@@ -115,7 +115,7 @@ impl Stuff {
     pub(crate) fn drop_directory(path: &PathBuf) -> BackendResult<()> {
         remove_dir_all(path)
             .map(|_| debug!("deleted directory {:?}", path))
-            .map_err(|e| Error::Storage(format!("error deleting directory {:?}, {}", path, e)))
+            .map_err(|e| Error::storage(format!("error deleting directory {:?}, {}", path, e)))
     }
 
     pub(crate) fn get_start_timestamp_by_std_time(period: Duration, time: SystemTime) -> u64 {
@@ -132,7 +132,7 @@ impl Stuff {
         ChronoDuration::from_std(period)
             .map_err(|e| {
                 trace!("smth wrong with time: {:?}, error: {}", period, e);
-                Error::Failed(format!("smth wrong with time: {:?}, error: {}", period, e))
+                Error::failed(format!("smth wrong with time: {:?}, error: {}", period, e))
             })
             .map(|period| {
                 let time = DateTime::from_utc(

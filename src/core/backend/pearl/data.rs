@@ -37,7 +37,7 @@ impl Data {
         let (ts, bob_data) = data.split_at(Self::TIMESTAMP_LEN);
         let bytes = ts
             .try_into()
-            .map_err(|e| Error::Storage(format!("parse error: {}", e)))?;
+            .map_err(|e| Error::storage(format!("parse error: {}", e)))?;
         let timestamp = u64::from_be_bytes(bytes);
         let meta = BobMeta::new(timestamp);
         Ok(BobData::new(bob_data.to_vec(), meta))
