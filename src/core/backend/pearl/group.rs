@@ -287,10 +287,9 @@ impl Group {
         }
     }
 
-    pub fn create_pearl_holder(&self, start_timestamp: u64) -> Holder {
+    pub fn create_pearl_holder(&self, start_timestamp: u64, hash: String) -> Holder {
         let end_timestamp = start_timestamp + self.settings.timestamp_period_as_secs();
         let mut path = self.directory_path.clone();
-        let hash = self.get_node_hash();
         let partition_name = PartitionName::new(start_timestamp, &hash);
         path.push(partition_name.to_string());
         let mut config = self.settings.config().clone();
@@ -302,12 +301,14 @@ impl Group {
     pub(crate) fn create_pearl_by_timestamp(&self, time: u64) -> Holder {
         let start_timestamp =
             Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period(), time);
-        self.create_pearl_holder(start_timestamp)
+        let hash = self.get_node_hash();
+        self.create_pearl_holder(start_timestamp, hash)
     }
 
     pub(crate) fn create_current_pearl(&self) -> Holder {
         let start_timestamp = self.settings.get_actual_timestamp_start();
-        self.create_pearl_holder(start_timestamp)
+        let hash = self.get_node_hash();
+        self.create_pearl_holder(start_timestamp, hash)
     }
 
     pub(crate) fn read_vdisk_directory(&self) -> BackendResult<Vec<Holder>> {
@@ -323,7 +324,8 @@ impl Group {
             {
                 let partition_name = PartitionName::try_from_string(&file_name);
                 if let Some(partition_name) = partition_name {
-                    let pearl_holder = self.create_pearl_holder(partition_name.timestamp);
+                    let pearl_holder =
+                        self.create_pearl_holder(partition_name.timestamp, partition_name.hash);
                     holders.push(pearl_holder);
                 } else {
                     warn!("failed to parse partition name from {}", file_name);
