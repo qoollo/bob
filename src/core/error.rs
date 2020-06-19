@@ -2,25 +2,23 @@ use super::prelude::*;
 
 #[derive(Debug)]
 pub struct Error {
-    ctx: Context<Kind>,
+    ctx: Kind,
 }
 
 impl Error {
-    fn new(context: Kind) -> Self {
-        Self {
-            ctx: Context::new(context),
-        }
+    fn new(ctx: Kind) -> Self {
+        Self { ctx }
     }
     pub(crate) fn is_not_ready(&self) -> bool {
-        self.ctx.get_context() == &Kind::VDiskIsNotReady
+        self.ctx == Kind::VDiskIsNotReady
     }
 
     pub(crate) fn is_duplicate(&self) -> bool {
-        self.ctx.get_context() == &Kind::DuplicateKey
+        self.ctx == Kind::DuplicateKey
     }
 
     pub(crate) fn is_key_not_found(&self) -> bool {
-        if let Kind::KeyNotFound(_) = self.ctx.get_context() {
+        if let Kind::KeyNotFound(_) = &self.ctx {
             true
         } else {
             false
@@ -29,7 +27,7 @@ impl Error {
 
     #[cfg(test)]
     pub(crate) fn is_internal(&self) -> bool {
-        self.ctx.get_context() == &Kind::Internal
+        self.ctx == Kind::Internal
     }
 
     pub(crate) fn internal() -> Self {
@@ -101,7 +99,7 @@ impl Into<Status> for Error {
     fn into(self) -> Status {
         //TODO add custom errors
         trace!("Error: {}", self);
-        match self.ctx.get_context() {
+        match &self.ctx {
             Kind::KeyNotFound(key) => Status::not_found(format!("KeyNotFound {}", key)),
             Kind::DuplicateKey => Status::already_exists("DuplicateKey"),
             Kind::Timeout => Status::deadline_exceeded("Timeout"),
@@ -148,16 +146,6 @@ where
     T: std::str::FromStr,
 {
     words.next().and_then(|w| w.parse().ok()).map(f)
-}
-
-impl Fail for Error {
-    fn cause(&self) -> Option<&dyn Fail> {
-        self.ctx.cause()
-    }
-
-    fn backtrace(&self) -> Option<&Backtrace> {
-        self.ctx.backtrace()
-    }
 }
 
 #[derive(PartialEq, Debug, Clone)]

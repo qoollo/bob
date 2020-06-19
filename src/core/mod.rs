@@ -34,7 +34,6 @@ mod prelude {
         AtomicBucket, Counter, Graphite, Input, InputKind, InputScope, MetricName, MetricValue,
         Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer,
     };
-    pub(crate) use failure::{Backtrace, Context, Fail};
     pub(crate) use futures::{
         future, stream::FuturesUnordered, Future, FutureExt, StreamExt, TryFutureExt,
     };

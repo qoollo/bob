@@ -36,7 +36,6 @@ rocket = "0.4.4"
 rocket_contrib = "0.4.4"
 async-trait = "0.1.31"
 termion = "1.5"
-failure = "0.1.8"
 
 [build-dependencies]
 tonic-build = "0.2.0"
