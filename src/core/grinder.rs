@@ -27,7 +27,7 @@ impl Grinder {
         &self.backend
     }
 
-    pub(crate) async fn run_backend(&self) -> Result<(), BackendError> {
+    pub(crate) async fn run_backend(&self) -> Result<(), Error> {
         self.backend.run_backend().await
     }
 
@@ -36,7 +36,7 @@ impl Grinder {
         key: BobKey,
         data: BobData,
         opts: BobOptions,
-    ) -> Result<(), BackendError> {
+    ) -> Result<(), Error> {
         let sw = Stopwatch::start_new();
         if opts.flags().contains(BobFlags::FORCE_NODE) {
             trace!(">>>- - - - - GRINDER PUT START - - - - -");
@@ -75,11 +75,7 @@ impl Grinder {
         }
     }
 
-    pub(crate) async fn get(
-        &self,
-        key: BobKey,
-        opts: &BobOptions,
-    ) -> Result<BobData, BackendError> {
+    pub(crate) async fn get(&self, key: BobKey, opts: &BobOptions) -> Result<BobData, Error> {
         trace!(">>>- - - - - GRINDER GET START - - - - -");
         let sw = Stopwatch::start_new();
         if opts.flags().contains(BobFlags::FORCE_NODE) {
@@ -132,7 +128,7 @@ impl Grinder {
         &self,
         keys: &[BobKey],
         opts: &BobOptions,
-    ) -> Result<Vec<bool>, BackendError> {
+    ) -> Result<Vec<bool>, Error> {
         if opts.flags().contains(BobFlags::FORCE_NODE) {
             self.backend.exist(keys, opts).await
         } else {

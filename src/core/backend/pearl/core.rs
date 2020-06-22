@@ -71,7 +71,7 @@ impl Pearl {
             .find(|group| group.can_process_operation(&operation))
             .cloned()
             .ok_or_else(|| {
-                Error::Failed(format!("cannot find actual alien folder. {:?}", operation))
+                Error::failed(format!("cannot find actual alien folder. {:?}", operation))
             })
     }
 }
@@ -117,7 +117,7 @@ impl BackendStorage for Pearl {
                 "PUT[{}] to pearl backend. Cannot find group, operation: {:?}",
                 key, operation
             );
-            future::err(Error::VDiskNotFound(operation.vdisk_id())).boxed()
+            future::err(Error::vdisk_not_found(operation.vdisk_id())).boxed()
         }
     }
 
@@ -148,7 +148,7 @@ impl BackendStorage for Pearl {
                     "PUT[alien][{}] to pearl backend. Cannot find group, operation: {:?}",
                     key, operation
                 );
-                Err(Error::VDiskNotFound(operation.vdisk_id()))
+                Err(Error::vdisk_not_found(operation.vdisk_id()))
             }
         };
         task.boxed()
@@ -176,7 +176,7 @@ impl BackendStorage for Pearl {
                     "GET[{}] to pearl backend. Cannot find storage, operation: {:?}",
                     key, operation
                 );
-                Err(Error::VDiskNotFound(operation.vdisk_id()))
+                Err(Error::vdisk_not_found(operation.vdisk_id()))
             }
         };
         task.boxed()
@@ -198,7 +198,7 @@ impl BackendStorage for Pearl {
                     "GET[alien][{}] to pearl backend. Cannot find storage, operation: {:?}",
                     key, operation
                 );
-                Err(Error::KeyNotFound(key))
+                Err(Error::key_not_found(key))
             }
         };
         task.boxed()
@@ -215,7 +215,7 @@ impl BackendStorage for Pearl {
             if let Some(group) = vdisk_group {
                 Ok(group.exist(&keys).await)
             } else {
-                Err(BackendError::Internal)
+                Err(Error::internal())
             }
         };
         task.boxed()
@@ -229,7 +229,7 @@ impl BackendStorage for Pearl {
             if let Ok(group) = vdisk_group {
                 Ok(group.exist(&keys).await)
             } else {
-                Err(BackendError::Internal)
+                Err(Error::internal())
             }
         };
         task.boxed()

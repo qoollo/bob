@@ -28,7 +28,7 @@ impl Server {
     /// # Errors
     /// Returns errror if there are any issues with starting backend,
     /// e.g. any fs I/O errors
-    pub async fn run_backend(&self) -> Result<(), BackendError> {
+    pub async fn run_backend(&self) -> Result<(), Error> {
         self.grinder.run_backend().await
     }
 
