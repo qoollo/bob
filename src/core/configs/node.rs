@@ -154,6 +154,8 @@ pub struct Pearl {
     #[serde(default = "Pearl::default_allow_duplicates")]
     allow_duplicates: bool,
     settings: BackendSettings,
+    #[serde(default = "Pearl::default_hash_chars_count")]
+    hash_chars_count: u32,
 }
 
 impl Pearl {
@@ -204,6 +206,10 @@ impl Pearl {
         &self.blob_file_name_prefix
     }
 
+    pub(crate) fn set_blob_file_name_prefix(&mut self, s: String) {
+        self.blob_file_name_prefix = s;
+    }
+
     fn default_max_data_in_blob() -> u64 {
         1_000_000
     }
@@ -218,6 +224,14 @@ impl Pearl {
 
     pub(crate) fn max_blob_size(&self) -> u64 {
         self.max_blob_size
+    }
+
+    fn default_hash_chars_count() -> u32 {
+        10
+    }
+
+    pub(crate) fn hash_chars_count(&self) -> u32 {
+        self.hash_chars_count
     }
 
     fn check_unset(&self) -> Result<(), String> {

@@ -26,7 +26,7 @@ async fn test_mem_put_wrong_disk() {
             BobData::new(vec![0], BobMeta::stub()),
         )
         .await;
-    assert_eq!(retval.err().unwrap(), Error::Internal)
+    assert!(retval.err().unwrap().is_internal())
 }
 
 #[tokio::test]
@@ -69,7 +69,7 @@ async fn test_mem_get_wrong_disk() {
             1,
         )
         .await;
-    assert_eq!(retval.err().unwrap(), Error::Internal)
+    assert!(retval.err().unwrap().is_internal())
 }
 
 #[tokio::test]
@@ -83,5 +83,5 @@ async fn test_mem_get_no_data() {
             key,
         )
         .await;
-    assert_eq!(retval.err().unwrap(), Error::KeyNotFound(key))
+    assert!(retval.err().unwrap().is_key_not_found())
 }

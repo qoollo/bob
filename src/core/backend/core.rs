@@ -163,7 +163,7 @@ impl Backend {
                 "PUT[{}] dont now what to do with data: op: {:?}. Data is not local and alien",
                 key, options
             );
-            Err(Error::Internal)
+            Err(Error::internal())
         };
         trace!("<<<<<<- - - - - BACKEND PUT FINISH - - - - -");
         res
@@ -217,7 +217,7 @@ impl Backend {
                     .await
             } else {
                 error!("GET[{}] we read data but can't find path in config", key);
-                Err(Error::Internal)
+                Err(Error::internal())
             }
         }
         //TODO how read from all alien folders?
@@ -232,7 +232,7 @@ impl Backend {
                 "GET[{}] can't read from anywhere {:?}, {:?}",
                 key, disk_path, options
             );
-            Err(Error::Internal)
+            Err(Error::internal())
         }
     }
 

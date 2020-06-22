@@ -38,6 +38,8 @@ async-trait = "0.1.31"
 termion = "1.5"
 derive-new = "0.5.8"
 ctrlc = "3.1.4"
+ring = "0.16.14"
+lazy_static = "1.4.0"
 
 [build-dependencies]
 tonic-build = "0.2.0"

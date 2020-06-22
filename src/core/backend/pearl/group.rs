@@ -1,4 +1,5 @@
 use super::prelude::*;
+use ring::digest::{digest, SHA256};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Group {
@@ -9,6 +10,7 @@ pub(crate) struct Group {
     vdisk_id: VDiskId,
     node_name: String,
     disk_name: String,
+    owner_node_name: String,
 }
 
 impl Group {
@@ -18,6 +20,7 @@ impl Group {
         node_name: String,
         disk_name: String,
         directory_path: PathBuf,
+        owner_node_name: String,
     ) -> Self {
         Self {
             holders: Arc::new(RwLock::new(vec![])),
@@ -27,6 +30,7 @@ impl Group {
             node_name,
             directory_path,
             disk_name,
+            owner_node_name,
         }
     }
 
@@ -106,7 +110,7 @@ impl Group {
             .find(|holder| holder.gets_into_interval(data.meta().timestamp()))
             .cloned()
             .ok_or_else(|| {
-                Error::Failed(format!(
+                Error::failed(format!(
                     "cannot find actual pearl folder. meta: {}",
                     data.meta().timestamp()
                 ))
@@ -132,7 +136,7 @@ impl Group {
             self.pearl_sync.mark_as_created().await;
             Ok(pearl)
         } else {
-            Err(Error::Failed("failed to init pearl sync".to_string()))
+            Err(Error::failed("failed to init pearl sync"))
         }
     }
 
@@ -171,20 +175,23 @@ impl Group {
                     trace!("get data: {:?} from: {:?}", data, holder);
                     results.push(data);
                 }
-                Err(BackendError::KeyNotFound(key)) => debug!("{} not found in {:?}", key, holder),
                 Err(err) => {
-                    has_error = true;
-                    error!("get error: {}, from : {:?}", err, holder);
+                    if err.is_key_not_found() {
+                        debug!("{} not found in {:?}", key, holder)
+                    } else {
+                        has_error = true;
+                        error!("get error: {}, from : {:?}", err, holder);
+                    }
                 }
             }
         }
         if results.is_empty() {
             if has_error {
                 debug!("cannot read from some pearls");
-                Err(Error::Failed("cannot read from some pearls".to_string()))
+                Err(Error::failed("cannot read from some pearls"))
             } else {
                 debug!("not found in any pearl");
-                Err(Error::KeyNotFound(key))
+                Err(Error::key_not_found(key))
             }
         } else {
             debug!("get with max timestamp, from {} results", results.len());
@@ -239,7 +246,7 @@ impl Group {
         {
             let msg = format!("pearl:{} already exists", start_timestamp);
             warn!("{}", msg);
-            Err(Error::PearlChangeState(msg))
+            Err(Error::pearl_change_state(msg))
         } else {
             let holder = self.create_pearl_by_timestamp(start_timestamp);
             self.save_pearl(holder).await?;
@@ -257,7 +264,7 @@ impl Group {
             if holder.is_actual(self.settings.get_actual_timestamp_start()) {
                 let msg = format!("active pearl:{} cannot be detached", start_timestamp);
                 warn!("{}", msg);
-                Err(Error::PearlChangeState(msg))
+                Err(Error::pearl_change_state(msg))
             } else {
                 {
                     let lock_guard = holder.storage();
@@ -271,7 +278,7 @@ impl Group {
                     .drain_filter(|holder| holder.start_timestamp() == start_timestamp)
                     .collect::<Vec<_>>();
                 holders_to_return.pop().ok_or_else(|| {
-                    Error::PearlChangeState(format!(
+                    Error::pearl_change_state(format!(
                         "error detaching pearl with timestamp {}",
                         start_timestamp
                     ))
@@ -279,33 +286,32 @@ impl Group {
             }
         } else {
             let msg = format!("pearl:{} not found", start_timestamp);
-            Err(Error::PearlChangeState(msg))
+            Err(Error::pearl_change_state(msg))
         }
     }
 
-    pub fn create_pearl_holder(&self, start_timestamp: u64) -> Holder {
+    pub fn create_pearl_holder(&self, start_timestamp: u64, hash: String) -> Holder {
         let end_timestamp = start_timestamp + self.settings.timestamp_period_as_secs();
         let mut path = self.directory_path.clone();
-        path.push(format!("{}/", start_timestamp));
-
-        Holder::new(
-            start_timestamp,
-            end_timestamp,
-            self.vdisk_id,
-            path,
-            self.settings.config().clone(),
-        )
+        let partition_name = PartitionName::new(start_timestamp, &hash);
+        path.push(partition_name.to_string());
+        let mut config = self.settings.config().clone();
+        let prefix = config.blob_file_name_prefix().to_owned();
+        config.set_blob_file_name_prefix(format!("{}_{}", prefix, hash));
+        Holder::new(start_timestamp, end_timestamp, self.vdisk_id, path, config)
     }
 
     pub(crate) fn create_pearl_by_timestamp(&self, time: u64) -> Holder {
         let start_timestamp =
             Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period(), time);
-        self.create_pearl_holder(start_timestamp)
+        let hash = self.get_node_hash();
+        self.create_pearl_holder(start_timestamp, hash)
     }
 
     pub(crate) fn create_current_pearl(&self) -> Holder {
         let start_timestamp = self.settings.get_actual_timestamp_start();
-        self.create_pearl_holder(start_timestamp)
+        let hash = self.get_node_hash();
+        self.create_pearl_holder(start_timestamp, hash)
     }
 
     pub(crate) fn read_vdisk_directory(&self) -> BackendResult<Vec<Holder>> {
@@ -319,16 +325,58 @@ impl Group {
                 .into_string()
                 .map_err(|_| warn!("cannot parse file name: {:?}", entry))
             {
-                let start_timestamp = file_name
-                    .parse()
-                    .map_err(|_| warn!("cannot parse file name: {:?} as timestamp", entry))
-                    .expect("parse file name");
-                let pearl_holder = self.create_pearl_holder(start_timestamp);
-                holders.push(pearl_holder);
+                let partition_name = PartitionName::try_from_string(&file_name);
+                if let Some(partition_name) = partition_name {
+                    let pearl_holder =
+                        self.create_pearl_holder(partition_name.timestamp, partition_name.hash);
+                    holders.push(pearl_holder);
+                } else {
+                    warn!("failed to parse partition name from {}", file_name);
+                }
             }
         }
         Ok(holders)
     }
+
+    fn get_node_hash(&self) -> String {
+        let hash = digest(&SHA256, self.node_name.as_bytes());
+        let hash = hash.as_ref();
+        let mut hex = vec![];
+        // Translate bytes to simple digit-letter representation
+        for i in (0..hash.len()).step_by(3) {
+            let max = std::cmp::min(i + 3, hash.len());
+            let bytes = &hash[i..max];
+            if !bytes.is_empty() {
+                hex.push(ASCII_TRANSLATION[(bytes[0] >> 2) as usize]); // First 6 bits of first byte
+                hex.push(
+                    ASCII_TRANSLATION
+                        [((bytes[0] << 4) & 0b110000 | (bytes.get(1).unwrap_or(&0) >> 4)) as usize],
+                ); // Last 2 bits of first byte and first 4 bits of second byte
+                if bytes.len() > 1 {
+                    hex.push(
+                        ASCII_TRANSLATION[(bytes[1] & 0b00001111
+                            | (bytes.get(2).unwrap_or(&0) >> 2 & 0b110000))
+                            as usize],
+                    ); // Last 4 bits of second byte and first 2 bits of third byte
+                    if bytes.len() > 2 {
+                        hex.push(ASCII_TRANSLATION[(bytes[2] & 0b00111111) as usize]);
+                    } // Last 6 bits of third byte
+                }
+            }
+        }
+        hex.truncate(self.settings.config().hash_chars_count() as usize);
+        String::from_utf8(hex).unwrap()
+    }
+}
+
+lazy_static! {
+    static ref ASCII_TRANSLATION: Vec<u8> = (0..=255)
+        .filter(|&i| (i > 47 && i < 58) // numbers
+            || (i > 64 && i < 91) // upper case letters
+            || (i > 96 && i < 123) // lower case letters
+            || (i == 45) // -
+            || (i == 43)) // +
+        .collect();
 }
 
 impl Display for Group {
@@ -340,5 +388,41 @@ impl Display for Group {
             .field("disk_name", &self.disk_name)
             .field("..", &"some fields ommited")
             .finish()
+    }
+}
+
+struct PartitionName {
+    timestamp: u64,
+    hash: String,
+}
+
+impl PartitionName {
+    fn new(timestamp: u64, hash: &str) -> Self {
+        Self {
+            timestamp,
+            hash: hash.to_string(),
+        }
+    }
+
+    fn try_from_string(s: &str) -> Option<Self> {
+        let mut iter = s.split('_');
+        let timestamp_string = iter.next();
+        timestamp_string.and_then(|timestamp_string| {
+            let hash_string = iter.next().unwrap_or("");
+            timestamp_string
+                .parse()
+                .map_err(|_| warn!("failed to parse timestamp"))
+                .ok()
+                .map(|timestamp| Self {
+                    timestamp,
+                    hash: hash_string.to_string(),
+                })
+        })
+    }
+}
+
+impl Display for PartitionName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}_{}", self.timestamp, self.hash)
     }
 }

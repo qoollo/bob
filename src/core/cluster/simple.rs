@@ -64,7 +64,7 @@ impl Cluster for Quorum {
         if ok_count >= l_quorum {
             Ok(())
         } else {
-            Err(backend::Error::Failed(format!(
+            Err(backend::Error::failed(format!(
                 "failed: total requests: {}, ok: {}, quorum: {}, errors: {:?}",
                 total_count, ok_count, l_quorum, errors
             )))
@@ -86,7 +86,7 @@ impl Cluster for Quorum {
         if let Some(cluster_result) = ok_results.get(0) {
             Ok(cluster_result.inner().clone())
         } else {
-            Err(BackendError::KeyNotFound(key))
+            Err(Error::key_not_found(key))
         }
     }
 

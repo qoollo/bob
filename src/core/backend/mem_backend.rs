@@ -32,7 +32,7 @@ impl VDisk {
                 Ok(data.clone())
             } else {
                 trace!("GET[{}] from vdisk failed. Cannot find key", key);
-                Err(Error::KeyNotFound(key))
+                Err(Error::key_not_found(key))
             }
         }
         .boxed()
@@ -90,7 +90,7 @@ impl MemDisk {
                 vdisk_id,
                 self.name
             );
-            future::err(Error::Internal).boxed()
+            future::err(Error::internal()).boxed()
         }
         .boxed()
     }
@@ -111,7 +111,7 @@ impl MemDisk {
                 vdisk_id,
                 self.name
             );
-            future::err(Error::Internal).boxed()
+            future::err(Error::internal()).boxed()
         }
     }
 
@@ -125,7 +125,7 @@ impl MemDisk {
                 vdisk_id,
                 self.name
             );
-            future::err(Error::Internal).boxed()
+            future::err(Error::internal()).boxed()
         }
         .boxed()
     }
@@ -172,7 +172,7 @@ impl BackendStorage for MemBackend {
                 key,
                 operation.disk_name_local()
             );
-            future::err(Error::Internal).boxed()
+            future::err(Error::internal()).boxed()
         }
     }
 
@@ -191,7 +191,7 @@ impl BackendStorage for MemBackend {
                 key,
                 operation.disk_name_local()
             );
-            future::err(Error::Internal).boxed()
+            future::err(Error::internal()).boxed()
         }
         .boxed()
     }
@@ -208,7 +208,7 @@ impl BackendStorage for MemBackend {
             mem_disk.exist(operation.vdisk_id(), keys)
         } else {
             error!("EXIST Can't find disk {}", operation.disk_name_local());
-            future::err(Error::Internal).boxed()
+            future::err(Error::internal()).boxed()
         }
         .boxed()
     }

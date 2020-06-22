@@ -22,6 +22,8 @@ extern crate rocket;
 extern crate async_trait;
 #[macro_use]
 extern crate derive_new;
+#[macro_use]
+extern crate lazy_static;
 
 mod api;
 mod core;
@@ -42,7 +44,7 @@ mod prelude {
         convert::TryInto,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
         fs::{create_dir_all, read_dir, read_to_string, remove_file, DirEntry, Metadata},
-        io::{Cursor, Error as IOError, ErrorKind, Result as IOResult},
+        io::{Cursor, Error as IOError, ErrorKind as IOErrorKind, Result as IOResult},
         net::SocketAddr,
         path::{Path, PathBuf},
         pin::Pin,

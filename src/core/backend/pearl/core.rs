@@ -9,6 +9,7 @@ pub(crate) struct Pearl {
     vdisks_groups: Arc<Vec<Group>>,
     alien_vdisks_groups: Arc<RwLock<Vec<Group>>>,
     pearl_sync: Arc<SyncState>, // holds state when we create new alien pearl dir
+    node_name: String,
 }
 
 impl Pearl {
@@ -31,6 +32,7 @@ impl Pearl {
             vdisks_groups,
             alien_vdisks_groups,
             pearl_sync: Arc::new(SyncState::new()),
+            node_name: config.name().to_string(),
         }
     }
 
@@ -53,7 +55,7 @@ impl Pearl {
                 let pearl = self
                     .settings
                     .clone()
-                    .create_group(&operation)
+                    .create_group(&operation, &self.node_name)
                     .expect("pearl group");
                 let mut groups = self.alien_vdisks_groups.write().await;
                 groups.push(pearl.clone());
@@ -71,7 +73,7 @@ impl Pearl {
             .find(|group| group.can_process_operation(&operation))
             .cloned()
             .ok_or_else(|| {
-                Error::Failed(format!("cannot find actual alien folder. {:?}", operation))
+                Error::failed(format!("cannot find actual alien folder. {:?}", operation))
             })
     }
 }
@@ -117,7 +119,7 @@ impl BackendStorage for Pearl {
                 "PUT[{}] to pearl backend. Cannot find group, operation: {:?}",
                 key, operation
             );
-            future::err(Error::VDiskNotFound(operation.vdisk_id())).boxed()
+            future::err(Error::vdisk_not_found(operation.vdisk_id())).boxed()
         }
     }
 
@@ -148,7 +150,7 @@ impl BackendStorage for Pearl {
                     "PUT[alien][{}] to pearl backend. Cannot find group, operation: {:?}",
                     key, operation
                 );
-                Err(Error::VDiskNotFound(operation.vdisk_id()))
+                Err(Error::vdisk_not_found(operation.vdisk_id()))
             }
         };
         task.boxed()
@@ -176,7 +178,7 @@ impl BackendStorage for Pearl {
                     "GET[{}] to pearl backend. Cannot find storage, operation: {:?}",
                     key, operation
                 );
-                Err(Error::VDiskNotFound(operation.vdisk_id()))
+                Err(Error::vdisk_not_found(operation.vdisk_id()))
             }
         };
         task.boxed()
@@ -198,7 +200,7 @@ impl BackendStorage for Pearl {
                     "GET[alien][{}] to pearl backend. Cannot find storage, operation: {:?}",
                     key, operation
                 );
-                Err(Error::KeyNotFound(key))
+                Err(Error::key_not_found(key))
             }
         };
         task.boxed()
@@ -215,7 +217,7 @@ impl BackendStorage for Pearl {
             if let Some(group) = vdisk_group {
                 Ok(group.exist(&keys).await)
             } else {
-                Err(BackendError::Internal)
+                Err(Error::internal())
             }
         };
         task.boxed()
@@ -229,7 +231,7 @@ impl BackendStorage for Pearl {
             if let Ok(group) = vdisk_group {
                 Ok(group.exist(&keys).await)
             } else {
-                Err(BackendError::Internal)
+                Err(Error::internal())
             }
         };
         task.boxed()
