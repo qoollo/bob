@@ -9,6 +9,7 @@ pub(crate) struct Pearl {
     vdisks_groups: Arc<Vec<Group>>,
     alien_vdisks_groups: Arc<RwLock<Vec<Group>>>,
     pearl_sync: Arc<SyncState>, // holds state when we create new alien pearl dir
+    node_name: String,
 }
 
 impl Pearl {
@@ -31,6 +32,7 @@ impl Pearl {
             vdisks_groups,
             alien_vdisks_groups,
             pearl_sync: Arc::new(SyncState::new()),
+            node_name: config.name().to_string(),
         }
     }
 
@@ -53,7 +55,7 @@ impl Pearl {
                 let pearl = self
                     .settings
                     .clone()
-                    .create_group(&operation)
+                    .create_group(&operation, &self.node_name)
                     .expect("pearl group");
                 let mut groups = self.alien_vdisks_groups.write().await;
                 groups.push(pearl.clone());
