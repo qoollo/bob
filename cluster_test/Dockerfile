@@ -1,9 +1,11 @@
 # build image
-FROM rustlang/rust:nightly as cargo-build
+FROM rust:latest as cargo-build
 
 RUN apt-get update
 
 RUN apt-get install musl-tools -y
+
+RUN rustup default nightly
 
 RUN rustup target add x86_64-unknown-linux-musl
 
@@ -30,7 +32,6 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grp
 RUN mkdir proto
 COPY proto/* proto/
 COPY build.rs .
-RUN ls proto
 RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --target=x86_64-unknown-linux-musl
 
 RUN rm -f target/x86_64-unknown-linux-musl/release/deps/bob*
