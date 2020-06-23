@@ -145,6 +145,7 @@ impl TestClusterConfiguration {
                 "1d".to_string(),
                 "100ms".to_string(),
             ),
+            10,
         )
     }
 
