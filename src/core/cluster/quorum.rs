@@ -113,7 +113,7 @@ impl Quorum {
 
     async fn get_all(
         key: BobKey,
-        target_nodes: &[Node],
+        target_nodes: impl Iterator<Item = &Node>,
         options: GetOptions,
     ) -> Vec<BobClientGetResult> {
         LinkManager::call_nodes(target_nodes, |conn| conn.get(key, options.clone()).boxed()).await
@@ -144,7 +144,7 @@ impl Cluster for Quorum {
         let target_nodes = self.get_target_nodes(key);
         debug!("PUT[{}]: Nodes for fan out: {:?}", key, &target_nodes);
         debug!("call put on target nodes (on target vdisk)");
-        let results = LinkManager::call_nodes(&target_nodes, |conn| {
+        let results = LinkManager::call_nodes(target_nodes.iter(), |conn| {
             Box::pin(conn.put(key, data.clone(), PutOptions::new_local()))
         })
         .await;
@@ -231,14 +231,38 @@ impl Cluster for Quorum {
 
     //todo check no data (no error)
     async fn get(&self, key: BobKey) -> GetResult {
-        let all_nodes = self.get_target_nodes(key);
-        trace!("target nodes: {:?}", all_nodes);
-        debug!("GET[{}]: Nodes for fan out: {:?}", key, &all_nodes);
-
-        // @TODO currently we send requests to all nodes, ignoring quorum value.
-        // In future we need to call local node in first place and then remaining nodes.
-        let results = Self::get_all(key, all_nodes, GetOptions::new_all()).await;
-        debug!("GET[{}] cluster ans: {:?}", key, results);
+        debug!("GET[{}] quorum cluster", key);
+        trace!("GET[{}] ~~~LOOKUP LOCAL NODE~~~", key);
+        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        if let Some(path) = disk_path {
+            debug!("local node has vdisk replica, check local");
+            let op = Operation::new_local(vdisk_id, path);
+            match self.backend.get_local(key, op).await {
+                Ok(data) => {
+                    debug!("GET[{}] key found on local node", key);
+                    return Ok(data);
+                }
+                Err(e) => error!("local node backend returned error: {}", e),
+            }
+        }
+        trace!("GET[{}] ~~~LOOKUP LOCAL NODE ALIEN~~~", key);
+        debug!("GET[{}] check local alien dir", key);
+        let op = Operation::new_alien(vdisk_id);
+        match self.backend.get_local(key, op).await {
+            Ok(data) => {
+                debug!("GET[{}] key found in local node alien", key);
+                return Ok(data);
+            }
+            Err(e) => error!("local node backend returned error: {}", e),
+        };
+        trace!("GET[{}] ~~~LOOKUP REMOTE NODES~~~", key);
+        let local_node = self.mapper.local_node_name();
+        let target_nodes = self
+            .get_target_nodes(key)
+            .iter()
+            .filter(|node| node.name() != local_node);
+        // @TODO don't wait for all answers, return on first success
+        let results = Self::get_all(key, target_nodes, GetOptions::new_all()).await;
 
         let (result, errors) = Self::filter_get_results(key, results);
         if let Some(answer) = result {
@@ -250,37 +274,36 @@ impl Cluster for Quorum {
             ); // TODO move meta
             return Ok(answer.into_inner());
         } else if errors.is_empty() {
-            debug!("GET[{}] data not found", key);
-            return Err(Error::key_not_found(key));
+            debug!("GET[{}] data not found on any node in regular dir", key);
+        } else {
+            error!("{}", errors);
         }
-        trace!("appropriate nodes didn't get successful results, lookup in other nodes aliens");
-        debug!("GET[{}] no success result", key);
+        trace!("GET[{}] ~~~LOOKUP REMOTE NODES ALIEN~~~", key);
 
-        let sup_nodes: Vec<_> = self
-            .get_support_nodes(all_nodes.iter().map(Node::index), 0)?
-            .into_iter()
-            .cloned()
-            .collect(); // @TODO take from config
+        let local_node = self.mapper.local_node_name();
+        let target_nodes = self
+            .mapper
+            .nodes()
+            .iter()
+            .filter(|node| node.name() != local_node);
+        // @TODO don't wait for all answers, return on first success
+        let results = Self::get_all(key, target_nodes, GetOptions::new_alien()).await;
 
-        debug!("GET[{}]: Sup nodes for fan out: {:?}", key, &sup_nodes);
-
-        let second_attempt = Self::get_all(key, &sup_nodes, GetOptions::new_alien()).await;
-        debug!("GET[{}] cluster ans sup: {:?}", key, second_attempt);
-
-        let (result_sup, errors) = Self::filter_get_results(key, second_attempt);
-        if let Some(answer) = result_sup {
+        let (result, errors) = Self::filter_get_results(key, results);
+        if let Some(answer) = result {
             debug!(
                 "GET[{}] take data from node: {}, timestamp: {}",
                 key,
                 answer.node_name(),
                 answer.timestamp()
-            );
-            Ok(answer.into_inner())
+            ); // TODO move meta
+            return Ok(answer.into_inner());
+        } else if errors.is_empty() {
+            debug!("GET[{}] data not found on any node in alien dir", key);
         } else {
-            debug!("errors: {}", errors);
-            debug!("GET[{}] data not found", key);
-            Err(Error::key_not_found(key))
+            error!("{}", errors);
         }
+        Err(Error::key_not_found(key))
     }
 
     async fn exist(&self, keys: &[BobKey]) -> ExistResult {
