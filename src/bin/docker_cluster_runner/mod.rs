@@ -15,6 +15,7 @@ use std::str::FromStr;
 pub struct TestClusterConfiguration {
     nodes_count: u32,
     vdisks_count: u32,
+    level: String,
 }
 
 impl TestClusterConfiguration {
@@ -22,6 +23,7 @@ impl TestClusterConfiguration {
         let cluster = self.create_cluster();
         let cluster_string = serde_yaml::to_string(&cluster)?;
         fs::write(format!("{}/cluster.yaml", directory), cluster_string)?;
+        logger::create_logger_yaml(directory, &self.level)?;
         for node in 0..self.nodes_count {
             let (name, node) = self.create_named_node_configuration(node);
             let node_string = serde_yaml::to_string(&node)?;
@@ -212,7 +214,6 @@ impl TestClusterConfiguration {
 }
 
 pub mod fs_configuration {
-
     #[derive(new)]
     pub struct FSConfiguration {
         pub(super) bob_source_dir: String,
@@ -225,6 +226,8 @@ pub mod fs_configuration {
 mod filesystem_constants;
 
 pub mod docker_compose_wrapper;
+
+mod logger;
 
 mod tests {
     use super::TestClusterConfiguration;

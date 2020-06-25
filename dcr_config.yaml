@@ -1,2 +1,3 @@
 nodes_count: 6
 vdisks_count: 2
+level: trace
