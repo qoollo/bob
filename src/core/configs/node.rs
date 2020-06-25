@@ -3,8 +3,8 @@ use tokio::time::delay_for;
 
 const PLACEHOLDER: &str = "~";
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub(crate) struct BackendSettings {
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
+pub struct BackendSettings {
     root_dir_name: String,
     alien_root_dir_name: String,
     timestamp_period: String,
@@ -98,8 +98,8 @@ impl BackendSettings {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub(crate) struct MetricsConfig {
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
+pub struct MetricsConfig {
     name: String,
     graphite: String,
 }
@@ -138,8 +138,8 @@ impl Validatable for MetricsConfig {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub(crate) struct Pearl {
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
+pub struct Pearl {
     #[serde(default = "Pearl::default_max_blob_size")]
     max_blob_size: u64,
     #[serde(default = "Pearl::default_max_data_in_blob")]
@@ -323,7 +323,7 @@ pub(crate) enum BackendType {
 }
 
 /// Node configuration struct, stored in node.yaml.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, new)]
 pub struct Node {
     log_config: String,
     name: String,
