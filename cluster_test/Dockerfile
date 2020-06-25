@@ -3,11 +3,9 @@ FROM rust:latest as cargo-build
 
 RUN apt-get update
 
-RUN apt-get install musl-tools -y
-
 RUN rustup default nightly
 
-RUN rustup target add x86_64-unknown-linux-musl
+RUN rustup target add x86_64-unknown-linux-gnu
 
 WORKDIR /usr/src/bob
 
@@ -25,32 +23,32 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > src/bin/
 RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > src/bin/ccg.rs
 RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > src/bin/dcr.rs
 
-RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --target=x86_64-unknown-linux-musl
+RUN cargo build --release --target=x86_64-unknown-linux-gnu
 
 # separate stage for proto build
 RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grpc {tonic::include_proto!(\"bob_storage\");}" > src/lib.rs
 RUN mkdir proto
 COPY proto/* proto/
 COPY build.rs .
-RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --target=x86_64-unknown-linux-musl
+RUN cargo build --release --target=x86_64-unknown-linux-gnu
 
-RUN rm -f target/x86_64-unknown-linux-musl/release/deps/bob*
+RUN rm -f target/x86_64-unknown-linux-gnu/release/deps/bob*
 
 # final build
 COPY . .
 
-RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --target=x86_64-unknown-linux-musl
+RUN cargo build --release --target=x86_64-unknown-linux-gnu
 
 # bobd image
-FROM alpine:latest
+FROM ubuntu:latest
 
-RUN addgroup -g 1000 bobd
+RUN groupadd -g 1000 bobd
 
-RUN adduser -D -s /bin/sh -u 1000 -G bobd bobd
+RUN useradd -s /bin/sh -u 1000 -g bobd bobd
 
 WORKDIR /home/bob/bin/
 
-COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-musl/release/bobd .
+COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-gnu/release/bobd .
 
 RUN chown bobd:bobd bobd
 
