@@ -13,6 +13,10 @@ use std::sync::{Arc, Mutex};
 
 mod docker_cluster_runner;
 
+// Docker cluster runner
+// Usage: dcr [-c config.yaml]
+// Default config is dcr_config.yaml
+// Can be gracefully stopped by ctrl+c
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_dir = "cluster_test";
     let fs_configuration = FSConfiguration::new(
