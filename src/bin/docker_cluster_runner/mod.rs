@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn creates_cluster_configuration_for_two_nodes() {
-        let configuration = TestClusterConfiguration::new(2, 2);
+        let configuration = TestClusterConfiguration::new(2, 2, "warn".to_string());
         let cluster = configuration.create_cluster();
         assert_eq!(cluster.nodes().len(), 2, "wrong nodes count");
         assert_eq!(cluster.vdisks().len(), 2, "wrong vdisks count");
