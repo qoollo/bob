@@ -55,7 +55,13 @@ impl TestClusterConfiguration {
             let networks = Self::create_networks_with_single_network(node, network_name.clone());
             services.insert(
                 Self::get_node_name(node),
-                DockerService::new(build.clone(), volumes.clone(), command, networks),
+                DockerService::new(
+                    build.clone(),
+                    volumes.clone(),
+                    command,
+                    networks,
+                    vec![DockerPort::new(8000, 8000 + node)],
+                ),
             );
         }
         let networks = Self::create_networks_with_custom_network(network_name);
