@@ -6,3 +6,5 @@ vdisks_count: 2
 logging_level: warn
 # Optional: ssh pub key for password-less ssh
 ssh_pub_key: ""
+# Quorum of cluster
+quorum: 2

@@ -17,6 +17,7 @@ pub struct TestClusterConfiguration {
     vdisks_count: u32,
     logging_level: String,
     ssh_pub_key: String,
+    quorum: usize,
 }
 
 impl TestClusterConfiguration {
@@ -123,7 +124,7 @@ impl TestClusterConfiguration {
         let node = Node::new(
             format!("{}/logger.yaml", DockerFSConstants::docker_configs_dir()),
             Self::get_node_name(node_index),
-            1,
+            self.quorum,
             "3sec".to_string(),
             "5000ms".to_string(),
             "quorum".to_string(),
