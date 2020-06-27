@@ -62,6 +62,7 @@ COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-gnu/release/bob
 RUN chown bobd:bobd bobd
 
 RUN echo "#!/bin/bash \n\
+mkdir -p ~/.ssh && echo \$SSH_PUB_KEY >> ~/.ssh/authorized_keys \n\
 /usr/sbin/sshd -D &\n\
 su -c \"./bobd -c \$CONFIG_DIR/cluster.yaml -n \$CONFIG_DIR/\$NODE_NAME.yaml\" bobd" >> run.sh
 RUN chmod +x run.sh

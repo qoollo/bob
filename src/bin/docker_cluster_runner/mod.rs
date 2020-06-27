@@ -16,6 +16,7 @@ pub struct TestClusterConfiguration {
     nodes_count: u32,
     vdisks_count: u32,
     logging_level: String,
+    ssh_pub_key: String,
 }
 
 impl TestClusterConfiguration {
@@ -69,6 +70,7 @@ impl TestClusterConfiguration {
                             Some(DockerFSConstants::docker_configs_dir()),
                         ),
                         DockerEnv::new("NODE_NAME".to_string(), Some(Self::get_node_name(node))),
+                        DockerEnv::new("SSH_PUB_KEY".to_string(), Some(self.ssh_pub_key.clone())),
                     ],
                 ),
             );

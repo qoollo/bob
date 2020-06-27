@@ -4,3 +4,5 @@ nodes_count: 2
 vdisks_count: 2
 # Global logging level
 logging_level: warn
+# Optional: ssh pub key for password-less ssh
+ssh_pub_key: ""
