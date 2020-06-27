@@ -41,6 +41,7 @@ pub struct DockerService {
     command: String,
     networks: HashMap<String, DockerNetwork>,
     ports: Vec<DockerPort>,
+    environment: Vec<DockerEnv>,
 }
 
 #[derive(Serialize, new, Clone)]
@@ -97,5 +98,23 @@ impl Serialize for DockerPort {
         S: Serializer,
     {
         serializer.serialize_str(&format!("{}:{}", self.docker_port, self.host_port))
+    }
+}
+
+#[derive(new)]
+pub struct DockerEnv {
+    name: String,
+    value: Option<String>,
+}
+
+impl Serialize for DockerEnv {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    where
+        S: Serializer,
+    {
+        match &self.value {
+            Some(s) => serializer.serialize_str(&format!("{}={}", self.name, s)),
+            None => serializer.serialize_str(&self.name),
+        }
     }
 }

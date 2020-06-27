@@ -42,14 +42,28 @@ RUN cargo build --release --target=x86_64-unknown-linux-gnu
 # bobd image
 FROM ubuntu:latest
 
+# SSH
+RUN apt-get update && apt-get install -y openssh-server sudo
+RUN mkdir /var/run/sshd
+RUN echo 'root:bob' | chpasswd
+RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
+ENV NOTVISIBLE "in users profile"
+RUN echo "export VISIBLE=now" >> /etc/profile
+
 RUN groupadd -g 1000 bobd
-
 RUN useradd -s /bin/sh -u 1000 -g bobd bobd
-
 WORKDIR /home/bob/bin/
 
 COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-gnu/release/bobd .
 
 RUN chown bobd:bobd bobd
 
-USER bobd
+RUN echo "#!/bin/bash \n\
+/usr/sbin/sshd -D &\n\
+su -c \"./bobd -c \$CONFIG_DIR/cluster.yaml -n \$CONFIG_DIR/\$NODE_NAME.yaml\" bobd" >> run.sh
+RUN chmod +x run.sh
+
+ENTRYPOINT ["./run.sh"]
+
+

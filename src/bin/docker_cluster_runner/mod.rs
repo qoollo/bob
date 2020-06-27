@@ -51,16 +51,25 @@ impl TestClusterConfiguration {
         ];
         let mut services = HashMap::with_capacity(self.nodes_count as usize);
         for node in 0..self.nodes_count {
-            let command = Self::create_docker_command(node);
             let networks = Self::create_networks_with_single_network(node, network_name.clone());
             services.insert(
                 Self::get_node_name(node),
                 DockerService::new(
                     build.clone(),
                     volumes.clone(),
-                    command,
+                    "".to_string(),
                     networks,
-                    vec![DockerPort::new(8000, 8000 + node)],
+                    vec![
+                        DockerPort::new(8000, 8000 + node),
+                        DockerPort::new(22, 7022 + node),
+                    ],
+                    vec![
+                        DockerEnv::new(
+                            "CONFIG_DIR".to_string(),
+                            Some(DockerFSConstants::docker_configs_dir()),
+                        ),
+                        DockerEnv::new("NODE_NAME".to_string(), Some(Self::get_node_name(node))),
+                    ],
                 ),
             );
         }
@@ -100,16 +109,6 @@ impl TestClusterConfiguration {
         let mut networks = HashMap::with_capacity(1);
         networks.insert(network_name, network);
         networks
-    }
-
-    fn create_docker_command(node: u32) -> String {
-        let command = format!(
-            "./bobd -c {}/cluster.yaml -n {}/{}.yaml",
-            DockerFSConstants::docker_configs_dir(),
-            DockerFSConstants::docker_configs_dir(),
-            Self::get_node_name(node)
-        );
-        command
     }
 
     fn create_cluster(&self) -> Cluster {
