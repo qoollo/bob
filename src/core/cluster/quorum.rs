@@ -119,6 +119,20 @@ impl Quorum {
         LinkManager::call_nodes(target_nodes, |conn| conn.get(key, options.clone()).boxed()).await
     }
 
+    async fn get_any(
+        key: BobKey,
+        target_nodes: impl Iterator<Item = &Node>,
+        options: GetOptions,
+    ) -> Option<NodeOutput<BobData>> {
+        let requests: FuturesUnordered<_> = target_nodes
+            .map(|node| LinkManager::call_node(node, |conn| conn.get(key, options.clone()).boxed()))
+            .collect();
+        requests
+            .filter_map(|res| future::ready(res.ok()))
+            .next()
+            .await
+    }
+
     fn group_keys_by_nodes(
         &self,
         keys: &[BobKey],
@@ -239,9 +253,10 @@ impl Cluster for Quorum {
             let op = Operation::new_local(vdisk_id, path);
             match self.backend.get_local(key, op).await {
                 Ok(data) => {
-                    debug!("GET[{}] key found on local node", key);
+                    debug!("GET[{}] key found in local node", key);
                     return Ok(data);
                 }
+                Err(e) if e.is_key_not_found() => debug!("GET[{}] not found in local node", key),
                 Err(e) => error!("local node backend returned error: {}", e),
             }
         }
@@ -253,6 +268,7 @@ impl Cluster for Quorum {
                 debug!("GET[{}] key found in local node alien", key);
                 return Ok(data);
             }
+            Err(e) if e.is_key_not_found() => debug!("GET[{}] not found in local alien", key),
             Err(e) => error!("local node backend returned error: {}", e),
         };
         trace!("GET[{}] ~~~LOOKUP REMOTE NODES~~~", key);
@@ -262,9 +278,10 @@ impl Cluster for Quorum {
             .iter()
             .filter(|node| node.name() != local_node);
         // @TODO don't wait for all answers, return on first success
-        let results = Self::get_all(key, target_nodes, GetOptions::new_all()).await;
+        let result = Self::get_any(key, target_nodes, GetOptions::new_local()).await;
+        // let results = Self::get_all(key, target_nodes, GetOptions::new_local()).await;
 
-        let (result, errors) = Self::filter_get_results(key, results);
+        // let (result, errors) = Self::filter_get_results(key, results);
         if let Some(answer) = result {
             debug!(
                 "GET[{}] take data from node: {}, timestamp: {}",
@@ -273,10 +290,8 @@ impl Cluster for Quorum {
                 answer.timestamp()
             ); // TODO move meta
             return Ok(answer.into_inner());
-        } else if errors.is_empty() {
-            debug!("GET[{}] data not found on any node in regular dir", key);
         } else {
-            error!("{}", errors);
+            debug!("GET[{}] data not found on any node in regular dir", key);
         }
         trace!("GET[{}] ~~~LOOKUP REMOTE NODES ALIEN~~~", key);
 
@@ -287,9 +302,10 @@ impl Cluster for Quorum {
             .iter()
             .filter(|node| node.name() != local_node);
         // @TODO don't wait for all answers, return on first success
-        let results = Self::get_all(key, target_nodes, GetOptions::new_alien()).await;
+        let result = Self::get_any(key, target_nodes, GetOptions::new_alien()).await;
+        // let results = Self::get_all(key, target_nodes, GetOptions::new_alien()).await;
 
-        let (result, errors) = Self::filter_get_results(key, results);
+        // let (result, errors) = Self::filter_get_results(key, results);
         if let Some(answer) = result {
             debug!(
                 "GET[{}] take data from node: {}, timestamp: {}",
@@ -298,11 +314,10 @@ impl Cluster for Quorum {
                 answer.timestamp()
             ); // TODO move meta
             return Ok(answer.into_inner());
-        } else if errors.is_empty() {
-            debug!("GET[{}] data not found on any node in alien dir", key);
         } else {
-            error!("{}", errors);
+            debug!("GET[{}] data not found on any node in alien dir", key);
         }
+        info!("GET[{}] Key not found", key);
         Err(Error::key_not_found(key))
     }
 
