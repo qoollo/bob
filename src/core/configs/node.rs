@@ -1,5 +1,4 @@
 use super::prelude::*;
-use tokio::time::delay_for;
 
 const PLACEHOLDER: &str = "~";
 

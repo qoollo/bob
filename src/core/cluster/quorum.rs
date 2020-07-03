@@ -93,32 +93,6 @@ impl Quorum {
         }
     }
 
-    fn filter_get_results(
-        key: BobKey,
-        results: Vec<BobClientGetResult>,
-    ) -> (Option<NodeOutput<BobData>>, String) {
-        let sup = results
-            .iter()
-            .filter_map(|res| {
-                trace!("GET[{}] received result: {:?}", key, res);
-                res.as_ref().err().map(|e| format!("{:?}", e))
-            })
-            .collect();
-        let recent_successful = results
-            .into_iter()
-            .filter_map(Result::ok)
-            .max_by_key(NodeOutput::timestamp);
-        (recent_successful, sup)
-    }
-
-    async fn get_all(
-        key: BobKey,
-        target_nodes: impl Iterator<Item = &Node>,
-        options: GetOptions,
-    ) -> Vec<BobClientGetResult> {
-        LinkManager::call_nodes(target_nodes, |conn| conn.get(key, options.clone()).boxed()).await
-    }
-
     async fn get_any(
         key: BobKey,
         target_nodes: impl Iterator<Item = &Node>,
@@ -148,6 +122,83 @@ impl Quorum {
                 .or_insert_with(|| (vec![key], vec![ind]));
         }
         keys_by_nodes
+    }
+
+    async fn lookup_local_node(
+        &self,
+        key: BobKey,
+        vdisk_id: VDiskId,
+        disk_path: Option<DiskPath>,
+    ) -> Option<BobData> {
+        if let Some(path) = disk_path {
+            debug!("local node has vdisk replica, check local");
+            let op = Operation::new_local(vdisk_id, path);
+            match self.backend.get_local(key, op).await {
+                Ok(data) => {
+                    debug!("GET[{}] key found in local node", key);
+                    return Some(data);
+                }
+                Err(e) if e.is_key_not_found() => debug!("GET[{}] not found in local node", key),
+                Err(e) => error!("local node backend returned error: {}", e),
+            }
+        }
+        None
+    }
+
+    async fn lookup_remote_nodes(&self, key: BobKey) -> Option<BobData> {
+        let local_node = self.mapper.local_node_name();
+        let target_nodes = self
+            .get_target_nodes(key)
+            .iter()
+            .filter(|node| node.name() != local_node);
+        let result = Self::get_any(key, target_nodes, GetOptions::new_local()).await;
+        if let Some(answer) = result {
+            debug!(
+                "GET[{}] take data from node: {}, timestamp: {}",
+                key,
+                answer.node_name(),
+                answer.timestamp()
+            );
+            Some(answer.into_inner())
+        } else {
+            debug!("GET[{}] data not found on any node in regular dir", key);
+            None
+        }
+    }
+
+    async fn lookup_local_alien(&self, key: BobKey, vdisk_id: VDiskId) -> Option<BobData> {
+        let op = Operation::new_alien(vdisk_id);
+        match self.backend.get_local(key, op).await {
+            Ok(data) => {
+                debug!("GET[{}] key found in local node alien", key);
+                return Some(data);
+            }
+            Err(e) if e.is_key_not_found() => debug!("GET[{}] not found in local alien", key),
+            Err(e) => error!("local node backend returned error: {}", e),
+        };
+        None
+    }
+
+    async fn lookup_remote_aliens(&self, key: BobKey) -> Option<BobData> {
+        let local_node = self.mapper.local_node_name();
+        let target_nodes = self
+            .mapper
+            .nodes()
+            .iter()
+            .filter(|node| node.name() != local_node);
+        let result = Self::get_any(key, target_nodes, GetOptions::new_alien()).await;
+        if let Some(answer) = result {
+            debug!(
+                "GET[{}] take data from node: {}, timestamp: {}",
+                key,
+                answer.node_name(),
+                answer.timestamp()
+            );
+            Some(answer.into_inner())
+        } else {
+            debug!("GET[{}] data not found on any node in alien dir", key);
+            None
+        }
     }
 }
 
@@ -245,77 +296,23 @@ impl Cluster for Quorum {
 
     //todo check no data (no error)
     async fn get(&self, key: BobKey) -> GetResult {
-        debug!("GET[{}] quorum cluster", key);
-        trace!("GET[{}] ~~~LOOKUP LOCAL NODE~~~", key);
+        debug!("GET[{}] ~~~LOOKUP LOCAL NODE~~~", key);
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        if let Some(path) = disk_path {
-            debug!("local node has vdisk replica, check local");
-            let op = Operation::new_local(vdisk_id, path);
-            match self.backend.get_local(key, op).await {
-                Ok(data) => {
-                    debug!("GET[{}] key found in local node", key);
-                    return Ok(data);
-                }
-                Err(e) if e.is_key_not_found() => debug!("GET[{}] not found in local node", key),
-                Err(e) => error!("local node backend returned error: {}", e),
-            }
+        if let Some(data) = self.lookup_local_node(key, vdisk_id, disk_path).await {
+            return Ok(data);
         }
-        trace!("GET[{}] ~~~LOOKUP LOCAL NODE ALIEN~~~", key);
-        debug!("GET[{}] check local alien dir", key);
-        let op = Operation::new_alien(vdisk_id);
-        match self.backend.get_local(key, op).await {
-            Ok(data) => {
-                debug!("GET[{}] key found in local node alien", key);
-                return Ok(data);
-            }
-            Err(e) if e.is_key_not_found() => debug!("GET[{}] not found in local alien", key),
-            Err(e) => error!("local node backend returned error: {}", e),
-        };
-        trace!("GET[{}] ~~~LOOKUP REMOTE NODES~~~", key);
-        let local_node = self.mapper.local_node_name();
-        let target_nodes = self
-            .get_target_nodes(key)
-            .iter()
-            .filter(|node| node.name() != local_node);
-        // @TODO don't wait for all answers, return on first success
-        let result = Self::get_any(key, target_nodes, GetOptions::new_local()).await;
-        // let results = Self::get_all(key, target_nodes, GetOptions::new_local()).await;
-
-        // let (result, errors) = Self::filter_get_results(key, results);
-        if let Some(answer) = result {
-            debug!(
-                "GET[{}] take data from node: {}, timestamp: {}",
-                key,
-                answer.node_name(),
-                answer.timestamp()
-            ); // TODO move meta
-            return Ok(answer.into_inner());
-        } else {
-            debug!("GET[{}] data not found on any node in regular dir", key);
+        debug!("GET[{}] ~~~LOOKUP REMOTE NODES~~~", key);
+        if let Some(data) = self.lookup_remote_nodes(key).await {
+            return Ok(data);
         }
-        trace!("GET[{}] ~~~LOOKUP REMOTE NODES ALIEN~~~", key);
+        debug!("GET[{}] ~~~LOOKUP LOCAL NODE ALIEN~~~", key);
+        if let Some(data) = self.lookup_local_alien(key, vdisk_id).await {
+            return Ok(data);
+        }
 
-        let local_node = self.mapper.local_node_name();
-        let target_nodes = self
-            .mapper
-            .nodes()
-            .iter()
-            .filter(|node| node.name() != local_node);
-        // @TODO don't wait for all answers, return on first success
-        let result = Self::get_any(key, target_nodes, GetOptions::new_alien()).await;
-        // let results = Self::get_all(key, target_nodes, GetOptions::new_alien()).await;
-
-        // let (result, errors) = Self::filter_get_results(key, results);
-        if let Some(answer) = result {
-            debug!(
-                "GET[{}] take data from node: {}, timestamp: {}",
-                key,
-                answer.node_name(),
-                answer.timestamp()
-            ); // TODO move meta
-            return Ok(answer.into_inner());
-        } else {
-            debug!("GET[{}] data not found on any node in alien dir", key);
+        debug!("GET[{}] ~~~LOOKUP REMOTE NODES ALIEN~~~", key);
+        if let Some(data) = self.lookup_remote_aliens(key).await {
+            return Ok(data);
         }
         info!("GET[{}] Key not found", key);
         Err(Error::key_not_found(key))

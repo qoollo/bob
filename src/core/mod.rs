@@ -24,7 +24,7 @@ pub(crate) use backend::{init_pearl, Backend, ExistResult, GetResult, Operation,
 mod prelude {
     pub(crate) use super::*;
 
-    pub(crate) use bob_client::{BobClient, Factory, GetResult as BobClientGetResult};
+    pub(crate) use bob_client::{BobClient, Factory};
     pub(crate) use cluster::{get_cluster, Cluster};
     pub(crate) use configs::{Cluster as ClusterConfig, Node as NodeConfig};
     pub(crate) use data::{
@@ -56,7 +56,7 @@ mod prelude {
     pub(crate) use termion::color;
     pub(crate) use tokio::{
         net::lookup_host,
-        time::{interval, timeout},
+        time::{delay_for, interval, timeout},
     };
     pub(crate) use tonic::{
         transport::{Channel, Endpoint},
