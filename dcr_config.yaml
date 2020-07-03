@@ -1,0 +1,6 @@
+# Count of nodes in cluster
+nodes_count: 6
+# Count of vdisks on each node
+vdisks_count: 2
+# Global logging level
+logging_level: trace

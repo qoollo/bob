@@ -261,7 +261,7 @@ pub struct DiskPath {
 }
 
 impl DiskPath {
-    pub(crate) fn new(name: String, path: String) -> DiskPath {
+    pub fn new(name: String, path: String) -> DiskPath {
         DiskPath { name, path }
     }
 
