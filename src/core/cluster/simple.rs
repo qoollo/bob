@@ -41,7 +41,7 @@ impl Cluster for Quorum {
         debug!("PUT[{}]: Nodes for fan out: {:?}", key, &target_nodes);
 
         let l_quorum = self.quorum as usize;
-        let reqs = LinkManager::call_nodes(&target_nodes, |mock_bob_client| {
+        let reqs = LinkManager::call_nodes(target_nodes.iter(), |mock_bob_client| {
             Box::pin(mock_bob_client.put(
                 key,
                 data.clone(),
@@ -74,7 +74,7 @@ impl Cluster for Quorum {
     async fn get(&self, key: BobKey) -> GetResult {
         let target_nodes = self.get_target_nodes(key);
         debug!("GET[{}]: Nodes for fan out: {:?}", key, &target_nodes);
-        let reqs = LinkManager::call_nodes(&target_nodes, |conn| {
+        let reqs = LinkManager::call_nodes(target_nodes.iter(), |conn| {
             conn.get(key, GetOptions::new_local()).boxed()
         });
         let results = reqs.await;

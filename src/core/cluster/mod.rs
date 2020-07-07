@@ -1,9 +1,13 @@
+mod operations;
 mod quorum;
 mod simple;
+#[cfg(test)]
+mod tests;
 
 pub(crate) use super::prelude::*;
 
 mod prelude {
+    pub(crate) use super::operations::*;
     pub(crate) use super::*;
 }
 
