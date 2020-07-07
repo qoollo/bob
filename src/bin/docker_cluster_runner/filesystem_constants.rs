@@ -1,5 +1,5 @@
-const DOCKER_CONFIGS_DIR: &'static str = "/configs";
-const DOCKER_DISKS_DIR: &'static str = "/tmp";
+const DOCKER_CONFIGS_DIR: &str = "/configs";
+const DOCKER_DISKS_DIR: &str = "/tmp";
 
 pub struct DockerFSConstants {}
 

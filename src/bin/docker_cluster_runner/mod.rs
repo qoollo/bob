@@ -47,7 +47,7 @@ impl TestClusterConfiguration {
         );
         let volumes = vec![
             VolumeMapping::new(disks_dir, DockerFSConstants::docker_disks_dir()),
-            VolumeMapping::new(config_dir.clone(), DockerFSConstants::docker_configs_dir()),
+            VolumeMapping::new(config_dir, DockerFSConstants::docker_configs_dir()),
         ];
         let mut services = HashMap::with_capacity(self.nodes_count as usize);
         for node in 0..self.nodes_count {
@@ -229,6 +229,7 @@ pub mod docker_compose_wrapper;
 
 mod logger;
 
+#[cfg(test)]
 mod tests {
     use super::TestClusterConfiguration;
 

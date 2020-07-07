@@ -2,6 +2,7 @@ use super::prelude::*;
 
 const PLACEHOLDER: &str = "~";
 
+/// Contains settings for pearl backend.
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
 pub struct BackendSettings {
     root_dir_name: String,
@@ -97,6 +98,7 @@ impl BackendSettings {
     }
 }
 
+/// Contains params for graphite metrics.
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
 pub struct MetricsConfig {
     name: String,
@@ -137,6 +139,7 @@ impl Validatable for MetricsConfig {
     }
 }
 
+/// Contains params for detailed pearl configuration in pearl backend.
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
 pub struct Pearl {
     #[serde(default = "Pearl::default_max_blob_size")]
@@ -246,6 +249,9 @@ impl Pearl {
         }
     }
 
+    /// Helper for running provided function multiple times.
+    /// # Errors
+    /// Returns errors from provided fn.
     pub async fn try_multiple_times<F, T, E>(
         &self,
         f: F,
@@ -261,7 +267,7 @@ impl Pearl {
             .await
     }
 
-    pub async fn try_multiple_times_async<F, T, E, Fut>(
+    pub(crate) async fn try_multiple_times_async<F, T, E, Fut>(
         &self,
         f: F,
         error_prefix: &str,
