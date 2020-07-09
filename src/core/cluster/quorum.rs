@@ -14,12 +14,44 @@ impl Quorum {
             quorum,
         }
     }
+
+    pub(crate) async fn put_remote_nodes(&self, key: BobKey, data: BobData) -> PutResult {
+        let local_node = self.mapper.local_node_name();
+        let target_nodes = get_target_nodes(&self.mapper, key)
+            .iter()
+            .filter(|node| node.name() != local_node);
+        put_at_least(
+            key,
+            data,
+            target_nodes,
+            self.quorum,
+            PutOptions::new_local(),
+        )
+        .await
+    }
 }
 
 #[async_trait]
 impl Cluster for Quorum {
     async fn put(&self, key: BobKey, data: BobData) -> PutResult {
-        debug!("get nodes of the target vdisk");
+        debug!("PUT[{}] ~~~PUT LOCAL NODE FIRST~~~", key);
+        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        if let Err(e) = put_local_node(&self.backend, key, data.clone(), vdisk_id, disk_path).await
+        {
+            warn!("{}", e);
+        }
+        debug!("GET[{}] ~~~LOOKUP REMOTE NODES~~~", key);
+        if let Err(e) = self.put_remote_nodes(key, data).await {
+            warn!("{}", e);
+        }
+        debug!("GET[{}] ~~~LOOKUP LOCAL NODE ALIEN~~~", key);
+        todo!();
+
+        debug!("GET[{}] ~~~LOOKUP REMOTE NODES ALIEN~~~", key);
+        todo!();
+
+        //-------------------------------------------------------
+        trace!("get nodes of the target vdisk");
         let target_nodes = get_target_nodes(&self.mapper, key);
         debug!("PUT[{}]: Nodes for fan out: {:?}", key, &target_nodes);
         debug!("call put on target nodes (on target vdisk)");

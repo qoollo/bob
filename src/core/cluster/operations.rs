@@ -14,6 +14,16 @@ pub(crate) async fn get_any(
         .await
 }
 
+pub(crate) async fn put_at_least(
+    key: BobKey,
+    data: BobData,
+    target_nodes: impl Iterator<Item = &Node>,
+    at_least: usize,
+    options: PutOptions,
+) -> PutResult {
+    unimplemented!()
+}
+
 pub(crate) fn get_support_nodes<'a>(
     mapper: &'a Virtual,
     mut target_indexes: impl Iterator<Item = u16>,
@@ -184,5 +194,21 @@ pub(crate) async fn put_sup_nodes(
     } else {
         let msg = ret.iter().map(|x| format!("{:?}\n", x)).collect();
         Err((requests.len() - ret.len(), msg))
+    }
+}
+
+pub(crate) async fn put_local_node(
+    backend: &Backend,
+    key: BobKey,
+    data: BobData,
+    vdisk_id: VDiskId,
+    disk_path: Option<DiskPath>,
+) -> PutResult {
+    if let Some(path) = disk_path {
+        debug!("local node has vdisk replica, put local");
+        let op = Operation::new_local(vdisk_id, path);
+        backend.put_local(key, data, op).await
+    } else {
+        Ok(())
     }
 }
