@@ -253,6 +253,7 @@ pub mod docker_compose_wrapper;
 mod logger;
 mod ssh_generation;
 
+#[cfg(test)]
 mod tests {
     use super::TestClusterConfiguration;
 

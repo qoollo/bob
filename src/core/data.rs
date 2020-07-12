@@ -261,10 +261,14 @@ pub struct DiskPath {
 }
 
 impl DiskPath {
+    /// Creates new `DiskPath` with disk's name and path.
+    #[must_use = "memory allocation"]
     pub fn new(name: String, path: String) -> DiskPath {
         DiskPath { name, path }
     }
 
+    /// Returns disk name.
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }

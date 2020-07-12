@@ -41,7 +41,7 @@ impl LoggerConfiguration {
     }
 }
 
-pub fn create_logger_yaml(directory: &str, level_string: &String) -> Result<(), Box<dyn Error>> {
+pub fn create_logger_yaml(directory: &str, level_string: &str) -> Result<(), Box<dyn Error>> {
     let level = LevelFilter::from_str(level_string)?;
     eprintln!("level = {:?}", level);
     let refresh_rate = "30 seconds";

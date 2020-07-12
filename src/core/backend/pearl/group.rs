@@ -290,7 +290,7 @@ impl Group {
         }
     }
 
-    pub fn create_pearl_holder(&self, start_timestamp: u64, hash: String) -> Holder {
+    pub fn create_pearl_holder(&self, start_timestamp: u64, hash: &str) -> Holder {
         let end_timestamp = start_timestamp + self.settings.timestamp_period_as_secs();
         let mut path = self.directory_path.clone();
         let partition_name = PartitionName::new(start_timestamp, &hash);
@@ -305,13 +305,13 @@ impl Group {
         let start_timestamp =
             Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period(), time);
         let hash = self.get_node_hash();
-        self.create_pearl_holder(start_timestamp, hash)
+        self.create_pearl_holder(start_timestamp, &hash)
     }
 
     pub(crate) fn create_current_pearl(&self) -> Holder {
         let start_timestamp = self.settings.get_actual_timestamp_start();
         let hash = self.get_node_hash();
-        self.create_pearl_holder(start_timestamp, hash)
+        self.create_pearl_holder(start_timestamp, &hash)
     }
 
     pub(crate) fn read_vdisk_directory(&self) -> BackendResult<Vec<Holder>> {
@@ -328,7 +328,7 @@ impl Group {
                 let partition_name = PartitionName::try_from_string(&file_name);
                 if let Some(partition_name) = partition_name {
                     let pearl_holder =
-                        self.create_pearl_holder(partition_name.timestamp, partition_name.hash);
+                        self.create_pearl_holder(partition_name.timestamp, &partition_name.hash);
                     holders.push(pearl_holder);
                 } else {
                     warn!("failed to parse partition name from {}", file_name);
@@ -349,17 +349,18 @@ impl Group {
             if !bytes.is_empty() {
                 hex.push(ASCII_TRANSLATION[(bytes[0] >> 2) as usize]); // First 6 bits of first byte
                 hex.push(
-                    ASCII_TRANSLATION
-                        [((bytes[0] << 4) & 0b110000 | (bytes.get(1).unwrap_or(&0) >> 4)) as usize],
+                    ASCII_TRANSLATION[((bytes[0] << 4) & 0b110_000
+                        | (bytes.get(1).unwrap_or(&0) >> 4))
+                        as usize],
                 ); // Last 2 bits of first byte and first 4 bits of second byte
                 if bytes.len() > 1 {
                     hex.push(
-                        ASCII_TRANSLATION[(bytes[1] & 0b00001111
-                            | (bytes.get(2).unwrap_or(&0) >> 2 & 0b110000))
+                        ASCII_TRANSLATION[(bytes[1] & 0b0000_1111
+                            | (bytes.get(2).unwrap_or(&0) >> 2 & 0b110_000))
                             as usize],
                     ); // Last 4 bits of second byte and first 2 bits of third byte
                     if bytes.len() > 2 {
-                        hex.push(ASCII_TRANSLATION[(bytes[2] & 0b00111111) as usize]);
+                        hex.push(ASCII_TRANSLATION[(bytes[2] & 0b0011_1111) as usize]);
                     } // Last 6 bits of third byte
                 }
             }
