@@ -304,13 +304,13 @@ impl Group {
     pub(crate) fn create_pearl_by_timestamp(&self, time: u64) -> Holder {
         let start_timestamp =
             Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period(), time);
-        let hash = self.get_node_hash();
+        let hash = self.get_owner_node_hash();
         self.create_pearl_holder(start_timestamp, &hash)
     }
 
     pub(crate) fn create_current_pearl(&self) -> Holder {
         let start_timestamp = self.settings.get_actual_timestamp_start();
-        let hash = self.get_node_hash();
+        let hash = self.get_owner_node_hash();
         self.create_pearl_holder(start_timestamp, &hash)
     }
 
@@ -338,8 +338,8 @@ impl Group {
         Ok(holders)
     }
 
-    fn get_node_hash(&self) -> String {
-        let hash = digest(&SHA256, self.node_name.as_bytes());
+    fn get_owner_node_hash(&self) -> String {
+        let hash = digest(&SHA256, self.owner_node_name.as_bytes());
         let hash = hash.as_ref();
         let mut hex = vec![];
         // Translate bytes to simple digit-letter representation
