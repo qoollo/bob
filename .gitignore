@@ -20,3 +20,4 @@ Cargo.lock
 /log
 /cluster_test/*.yaml
 /cluster_test/*.yml
+/cluster_test/ssh
