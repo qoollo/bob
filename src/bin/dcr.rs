@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "/tmp".to_string(),
     );
     let configuration = get_configuration()?;
-    configuration.save_cluster_configuration(config_dir)?;
+    configuration.save_cluster_configuration(config_dir, &fs_configuration.ssh_dir())?;
     let compose = configuration.create_docker_compose(fs_configuration, "bobnet".to_string())?;
     let arc = Arc::new(Mutex::new(Box::new(compose)));
     let ctrlc_arc = arc.clone();

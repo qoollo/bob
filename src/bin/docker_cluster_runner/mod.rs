@@ -21,11 +21,19 @@ pub struct TestClusterConfiguration {
 }
 
 impl TestClusterConfiguration {
-    pub fn save_cluster_configuration(&self, directory: &str) -> Result<(), Box<dyn Error>> {
+    pub fn save_cluster_configuration(
+        &self,
+        directory: &str,
+        ssh_directory: &str,
+    ) -> Result<(), Box<dyn Error>> {
         let cluster = self.create_cluster();
         let cluster_string = serde_yaml::to_string(&cluster)?;
         fs::write(format!("{}/cluster.yaml", directory), cluster_string)?;
         logger::create_logger_yaml(directory, &self.logging_level)?;
+        ssh_generation::populate_ssh_directory(
+            ssh_directory.to_string(),
+            Some(self.ssh_pub_key.clone()),
+        )?;
         for node in 0..self.nodes_count {
             let (name, node) = self.create_named_node_configuration(node);
             let node_string = serde_yaml::to_string(&node)?;
@@ -43,6 +51,7 @@ impl TestClusterConfiguration {
         let config_dir =
             Self::convert_to_absolute_path(&fs_configuration.cluster_configuration_dir)?;
         let disks_dir = Self::convert_to_absolute_path(&fs_configuration.disks_dir)?;
+        let ssh_dir = Self::convert_to_absolute_path(&fs_configuration.ssh_dir())?;
         let build = DockerBuild::new(
             bob_dir,
             format!("{}/Dockerfile", fs_configuration.dockerfile_path),
@@ -50,6 +59,7 @@ impl TestClusterConfiguration {
         let volumes = vec![
             VolumeMapping::new(disks_dir, DockerFSConstants::docker_disks_dir()),
             VolumeMapping::new(config_dir.clone(), DockerFSConstants::docker_configs_dir()),
+            VolumeMapping::new(ssh_dir, DockerFSConstants::docker_ssh_dir()),
         ];
         let mut services = HashMap::with_capacity(self.nodes_count as usize);
         for node in 0..self.nodes_count {
@@ -71,7 +81,6 @@ impl TestClusterConfiguration {
                             Some(DockerFSConstants::docker_configs_dir()),
                         ),
                         DockerEnv::new("NODE_NAME".to_string(), Some(Self::get_node_name(node))),
-                        DockerEnv::new("SSH_PUB_KEY".to_string(), Some(self.ssh_pub_key.clone())),
                     ],
                 ),
             );
@@ -229,6 +238,12 @@ pub mod fs_configuration {
         pub(super) dockerfile_path: String,
         pub(super) disks_dir: String,
     }
+
+    impl FSConfiguration {
+        pub fn ssh_dir(&self) -> String {
+            format!("{}/ssh", self.cluster_configuration_dir)
+        }
+    }
 }
 
 mod filesystem_constants;
@@ -236,6 +251,7 @@ mod filesystem_constants;
 pub mod docker_compose_wrapper;
 
 mod logger;
+mod ssh_generation;
 
 mod tests {
     use super::TestClusterConfiguration;
