@@ -21,12 +21,12 @@ bytes = "0.5.5"
 stopwatch = "0.0.7"
 hyper = "0.13.6"
 humantime = "2.0.1"
-chrono = "0.4.12"
+chrono = "0.4.13"
 dipstick = "0.9.0"
 mockall = "0.7.1"
 cfg-if = "0.1.10"
 env_logger = "0.7"
-tonic = { version = "0.2.1", features = ["prost"] }
+tonic = { version = "0.2.2", features = ["prost"] }
 tower = "0.3.1"
 tower-make = "0.3.0"
 tower-service = "0.3.0"
@@ -38,11 +38,11 @@ async-trait = "0.1.36"
 termion = "1.5"
 ring = "0.16.15"
 derive-new = "0.5.8"
-ctrlc = "3.1.4"
+ctrlc = "3.1.5"
 lazy_static = "1.4.0"
 
 [build-dependencies]
-tonic-build = "0.2.0"
+tonic-build = "0.2.2"
 
 [lib]
 name = "bob"

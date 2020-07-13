@@ -1,4 +1,5 @@
 use super::prelude::*;
+use tokio::task::JoinHandle;
 
 pub(crate) async fn get_any(
     key: BobKey,
@@ -20,8 +21,48 @@ pub(crate) async fn put_at_least(
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
     options: PutOptions,
-) -> PutResult {
-    unimplemented!()
+) -> Result<
+    FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>,
+    Option<NodeOutput<Error>>,
+> {
+    let mut handles: FuturesUnordered<_> = target_nodes
+        .map(|node| {
+            let node = node.clone();
+            let data = data.clone();
+            let options = options.clone();
+            tokio::spawn(async move {
+                let res = LinkManager::call_node(&node, |conn| {
+                    conn.put(key, data.clone(), options.clone()).boxed()
+                })
+                .await;
+                if let Err(e) = &res {
+                    error!("{:?}", e);
+                }
+                res
+            })
+        })
+        .collect();
+    let mut ok_count = 0;
+    let mut last_error = None;
+    while let Some(join_res) = handles.next().await {
+        match join_res {
+            Ok(res) => match res {
+                Ok(_) => ok_count += 1,
+                Err(e) => {
+                    error!("{:?}", e);
+                    last_error = Some(e);
+                }
+            },
+            Err(e) => {
+                error!("{:?}", e);
+            }
+        }
+        if ok_count == at_least {
+            return Ok(handles);
+        }
+    }
+    debug!("ok_count/at_least: {}/{}", ok_count, at_least);
+    Err(last_error)
 }
 
 pub(crate) fn get_support_nodes<'a>(

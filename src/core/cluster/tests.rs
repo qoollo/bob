@@ -153,7 +153,7 @@ type Call = Box<dyn Fn(&mut BobClient, Node, Arc<CountCall>)>;
 /// no data local
 #[tokio::test]
 async fn simple_one_node_put_ok() {
-    // log4rs::init_file("./logger.yaml", Default::default()).unwrap();
+    init_logger();
     let (vdisks, node, cluster) = prepare_configs(1, 1, 1, 1);
 
     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![create_ok_node("0", (true, true))];
