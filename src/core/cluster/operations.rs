@@ -23,10 +23,11 @@ pub(crate) async fn put_at_least(
     options: PutOptions,
 ) -> Result<
     FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>,
-    Option<NodeOutput<Error>>,
+    NodeOutput<Error>,
 > {
     let mut handles: FuturesUnordered<_> = target_nodes
         .map(|node| {
+            debug!("PUT[{}] put to {}", key, node.name());
             let node = node.clone();
             let data = data.clone();
             let options = options.clone();
@@ -42,14 +43,15 @@ pub(crate) async fn put_at_least(
             })
         })
         .collect();
+    debug!("total handles count: {}", handles.len());
     let mut ok_count = 0;
     let mut last_error = None;
     while let Some(join_res) = handles.next().await {
+        debug!("handle returned");
         match join_res {
             Ok(res) => match res {
                 Ok(_) => ok_count += 1,
                 Err(e) => {
-                    error!("{:?}", e);
                     last_error = Some(e);
                 }
             },
@@ -58,11 +60,15 @@ pub(crate) async fn put_at_least(
             }
         }
         if ok_count == at_least {
-            return Ok(handles);
+            break;
         }
     }
     debug!("ok_count/at_least: {}/{}", ok_count, at_least);
-    Err(last_error)
+    if let Some(e) = last_error {
+        Err(e)
+    } else {
+        Ok(handles)
+    }
 }
 
 pub(crate) fn get_support_nodes<'a>(
@@ -243,13 +249,9 @@ pub(crate) async fn put_local_node(
     key: BobKey,
     data: BobData,
     vdisk_id: VDiskId,
-    disk_path: Option<DiskPath>,
+    disk_path: DiskPath,
 ) -> PutResult {
-    if let Some(path) = disk_path {
-        debug!("local node has vdisk replica, put local");
-        let op = Operation::new_local(vdisk_id, path);
-        backend.put_local(key, data, op).await
-    } else {
-        Ok(())
-    }
+    debug!("local node has vdisk replica, put local");
+    let op = Operation::new_local(vdisk_id, disk_path);
+    backend.put_local(key, data, op).await
 }
