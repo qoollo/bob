@@ -48,6 +48,7 @@ fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
 }
 
 fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
+    debug!("mock BobClient return error on PUT");
     client.expect_put().returning(move |_key, _data, _options| {
         call.put_inc();
         test_utils::put_err(node.name().to_owned())
@@ -145,6 +146,7 @@ fn create_node(name: &str, op: (bool, bool, u64)) -> (&str, Call, Arc<CountCall>
             if op.0 {
                 put_ok(client, n.clone(), c.clone());
             } else {
+                debug!("node fn set to put_err");
                 put_err(client, n.clone(), c.clone());
             }
             if op.1 {
@@ -424,7 +426,7 @@ async fn three_node_two_vdisk_cluster_one_node_failed_put_ok2() {
 /// one node failed => local write => quorum => put ok
 #[tokio::test]
 async fn three_node_one_vdisk_cluster_one_node_failed_put_ok() {
-    // log4rs::init_file("./logger.yaml", Default::default()).unwrap();
+    init_logger();
     let (vdisks, node, cluster) = prepare_configs(3, 1, 3, 2);
     // debug!("cluster: {:?}", cluster);
     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![

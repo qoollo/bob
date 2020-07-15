@@ -78,6 +78,7 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn put_err(node_name: String) -> PutResult {
+        debug!("return internal error on PUT");
         Err(NodeOutput::new(node_name, Error::internal()))
     }
 
@@ -87,6 +88,7 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn get_err(node_name: String) -> GetResult {
+        debug!("return internal error on GET");
         Err(NodeOutput::new(node_name, Error::internal()))
     }
 }
