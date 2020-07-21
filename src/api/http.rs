@@ -64,7 +64,8 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         partition_by_id,
         change_partition_state,
         delete_partition,
-        alien
+        alien,
+        restart_vdisks_group
     ];
     let task = move || {
         info!("API server started");
@@ -237,6 +238,26 @@ fn change_partition_state(
         Ok(_) => {
             info!("{}", res);
             Ok(StatusExt::new(Status::Ok, true, res))
+        }
+        Err(e) => Err(StatusExt::new(Status::Ok, false, e.to_string())),
+    }
+}
+
+#[post("/vdisks/<vdisk_id>/restart")]
+fn restart_vdisks_group(bob: State<BobServer>, vdisk_id: u32) -> Result<StatusExt, StatusExt> {
+    let group = find_group(&bob, vdisk_id)?;
+    let group = group.clone();
+    error!("HOT FIX: run web server on same runtime as bob");
+    let mut rt = Runtime::new().expect("create runtime");
+    let task = group.restart();
+    match rt.block_on(task) {
+        Ok(_) => {
+            info!("vdisks group {} successfully restarted", vdisk_id);
+            Ok(StatusExt::new(
+                Status::Ok,
+                true,
+                format!("vdisks group {} successfully restarted", vdisk_id),
+            ))
         }
         Err(e) => Err(StatusExt::new(Status::Ok, false, e.to_string())),
     }

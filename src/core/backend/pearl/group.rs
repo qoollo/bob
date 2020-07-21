@@ -73,6 +73,11 @@ impl Group {
         Ok(())
     }
 
+    pub async fn restart(&self) -> Result<(), Error> {
+        self.holders.write().await.clear();
+        self.run().await
+    }
+
     async fn run_pearls(&self) -> Result<(), Error> {
         let holders = self.holders.write().await;
 
