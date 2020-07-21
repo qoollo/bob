@@ -73,7 +73,7 @@ impl Group {
         Ok(())
     }
 
-    pub async fn restart(&self) -> Result<(), Error> {
+    pub async fn remount(&self) -> Result<(), Error> {
         self.holders.write().await.clear();
         self.run().await
     }
