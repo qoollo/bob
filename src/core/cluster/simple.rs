@@ -35,7 +35,7 @@ impl Quorum {
 
 #[async_trait]
 impl Cluster for Quorum {
-    async fn put(&self, key: BobKey, data: BobData) -> PutResult {
+    async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
         let target_nodes = self.get_target_nodes(key);
 
         debug!("PUT[{}]: Nodes for fan out: {:?}", key, &target_nodes);
@@ -71,7 +71,7 @@ impl Cluster for Quorum {
         }
     }
 
-    async fn get(&self, key: BobKey) -> GetResult {
+    async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         let target_nodes = self.get_target_nodes(key);
         debug!("GET[{}]: Nodes for fan out: {:?}", key, &target_nodes);
         let reqs = LinkManager::call_nodes(target_nodes.iter(), |conn| {
@@ -90,7 +90,7 @@ impl Cluster for Quorum {
         }
     }
 
-    async fn exist(&self, keys: &[BobKey]) -> ExistResult {
+    async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
         let keys_by_nodes = self.group_keys_by_nodes(keys);
         debug!(
             "EXIST Nodes for fan out: {:?}",

@@ -146,13 +146,13 @@ impl Group {
         Ok(())
     }
 
-    pub async fn put(&self, key: BobKey, data: BobData) -> PutResult {
+    pub async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
         let holder = self.get_actual_holder(&data).await?;
 
         Self::put_common(holder, key, data).await
     }
 
-    async fn put_common(holder: Holder, key: BobKey, data: BobData) -> PutResult {
+    async fn put_common(holder: Holder, key: BobKey, data: BobData) -> Result<(), Error> {
         let result = holder.write(key, data).await;
         if let Err(e) = result {
             if !e.is_duplicate() && !e.is_not_ready() {
@@ -164,7 +164,7 @@ impl Group {
         Ok(())
     }
 
-    pub async fn get(&self, key: BobKey) -> GetResult {
+    pub async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         let holders = self.holders.read().await;
         let mut has_error = false;
         let mut results = vec![];
@@ -200,7 +200,7 @@ impl Group {
         }
     }
 
-    async fn get_common(holder: Holder, key: BobKey) -> GetResult {
+    async fn get_common(holder: Holder, key: BobKey) -> Result<BobData, Error> {
         let result = holder.read(key).await;
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {

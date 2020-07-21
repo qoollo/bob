@@ -12,41 +12,28 @@ impl VDisk {
         }
     }
 
-    fn put(&self, key: BobKey, data: BobData) -> Put {
-        let repo = self.inner.clone();
-        let task = async move {
-            trace!("PUT[{}] to vdisk", key);
-            let mut repo = repo.write().await;
-            repo.insert(key, data);
-            Ok(())
-        };
-        task.boxed()
+    async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
+        trace!("PUT[{}] to vdisk", key);
+        let mut repo = self.inner.write().await;
+        repo.insert(key, data);
+        Ok(())
     }
 
-    fn get(&self, key: BobKey) -> Get {
-        let repo = self.inner.clone();
-        async move {
-            let repo = repo.read().await;
-            if let Some(data) = repo.get(&key) {
-                trace!("GET[{}] from vdisk", key);
-                Ok(data.clone())
-            } else {
-                trace!("GET[{}] from vdisk failed. Cannot find key", key);
-                Err(Error::key_not_found(key))
-            }
+    async fn get(&self, key: BobKey) -> Result<BobData, Error> {
+        let repo = self.inner.read().await;
+        if let Some(data) = repo.get(&key) {
+            trace!("GET[{}] from vdisk", key);
+            Ok(data.clone())
+        } else {
+            trace!("GET[{}] from vdisk failed. Cannot find key", key);
+            Err(Error::key_not_found(key))
         }
-        .boxed()
     }
 
-    fn exist(&self, keys: &[BobKey]) -> Exist {
-        let keys = keys.to_vec();
-        let repo = self.inner.clone();
-        async move {
-            let repo = repo.read().await;
-            let result = keys.iter().map(|k| repo.get(k).is_some()).collect();
-            Ok(result)
-        }
-        .boxed()
+    async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
+        let repo = self.inner.read().await;
+        let result = keys.iter().map(|k| repo.get(k).is_some()).collect();
+        Ok(result)
     }
 }
 
@@ -74,7 +61,7 @@ impl MemDisk {
         Self { name, vdisks }
     }
 
-    pub(crate) fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Get {
+    pub(crate) async fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Result<BobData, Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             trace!(
                 "GET[{}] from vdisk: {} for disk: {}",
@@ -82,7 +69,7 @@ impl MemDisk {
                 vdisk_id,
                 self.name
             );
-            vdisk.get(key)
+            vdisk.get(key).await
         } else {
             trace!(
                 "GET[{}] from vdisk: {} failed. Cannot find vdisk for disk: {}",
@@ -90,12 +77,16 @@ impl MemDisk {
                 vdisk_id,
                 self.name
             );
-            future::err(Error::internal()).boxed()
+            Err(Error::internal())
         }
-        .boxed()
     }
 
-    pub(crate) fn put(&self, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Put {
+    pub(crate) async fn put(
+        &self,
+        vdisk_id: VDiskId,
+        key: BobKey,
+        data: BobData,
+    ) -> Result<(), Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             trace!(
                 "PUT[{}] to vdisk: {} for disk: {}",
@@ -103,7 +94,7 @@ impl MemDisk {
                 vdisk_id,
                 self.name
             );
-            vdisk.put(key, data)
+            vdisk.put(key, data).await
         } else {
             trace!(
                 "PUT[{}] to vdisk: {} failed. Cannot find vdisk for disk: {}",
@@ -111,23 +102,26 @@ impl MemDisk {
                 vdisk_id,
                 self.name
             );
-            future::err(Error::internal()).boxed()
+            Err(Error::internal())
         }
     }
 
-    pub(crate) fn exist(&self, vdisk_id: VDiskId, keys: &[BobKey]) -> Exist {
+    pub(crate) async fn exist(
+        &self,
+        vdisk_id: VDiskId,
+        keys: &[BobKey],
+    ) -> Result<Vec<bool>, Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             trace!("EXIST from vdisk: {} for disk: {}", vdisk_id, self.name);
-            vdisk.exist(keys)
+            vdisk.exist(keys).await
         } else {
             trace!(
                 "EXIST from vdisk: {} failed. Cannot find vdisk for disk: {}",
                 vdisk_id,
                 self.name
             );
-            future::err(Error::internal()).boxed()
+            Err(Error::internal())
         }
-        .boxed()
     }
 }
 
@@ -156,65 +150,70 @@ impl MemBackend {
     }
 }
 
+#[async_trait]
 impl BackendStorage for MemBackend {
-    fn run_backend(&self) -> Run {
-        future::ok(()).boxed()
+    async fn run_backend(&self) -> Result<(), Error> {
+        debug!("run mem backend");
+        Ok(())
     }
 
-    fn put(&self, operation: Operation, key: BobKey, data: BobData) -> Put {
+    async fn put(&self, operation: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
         debug!("PUT[{}][{}] to backend", key, operation.disk_name_local());
         let disk = self.disks.get(&operation.disk_name_local());
         if let Some(mem_disk) = disk {
-            mem_disk.put(operation.vdisk_id(), key, data)
+            mem_disk.put(operation.vdisk_id(), key, data).await
         } else {
             error!(
                 "PUT[{}] Can't find disk {}",
                 key,
                 operation.disk_name_local()
             );
-            future::err(Error::internal()).boxed()
+            Err(Error::internal())
         }
     }
 
-    fn put_alien(&self, operation: Operation, key: BobKey, data: BobData) -> Put {
+    async fn put_alien(
+        &self,
+        operation: Operation,
+        key: BobKey,
+        data: BobData,
+    ) -> Result<(), Error> {
         debug!("PUT[{}] to backend, foreign data", key);
-        self.foreign_data.put(operation.vdisk_id(), key, data)
+        self.foreign_data.put(operation.vdisk_id(), key, data).await
     }
 
-    fn get(&self, operation: Operation, key: BobKey) -> Get {
+    async fn get(&self, operation: Operation, key: BobKey) -> Result<BobData, Error> {
         debug!("GET[{}][{}] to backend", key, operation.disk_name_local());
         if let Some(mem_disk) = self.disks.get(&operation.disk_name_local()) {
-            mem_disk.get(operation.vdisk_id(), key)
+            mem_disk.get(operation.vdisk_id(), key).await
         } else {
             error!(
                 "GET[{}] Can't find disk {}",
                 key,
                 operation.disk_name_local()
             );
-            future::err(Error::internal()).boxed()
+            Err(Error::internal())
         }
-        .boxed()
     }
 
-    fn get_alien(&self, operation: Operation, key: BobKey) -> Get {
+    async fn get_alien(&self, operation: Operation, key: BobKey) -> Result<BobData, Error> {
         debug!("GET[{}] to backend, foreign data", key);
-        self.foreign_data.get(operation.vdisk_id(), key)
+        self.foreign_data.get(operation.vdisk_id(), key).await
     }
 
-    fn exist(&self, operation: Operation, keys: &[BobKey]) -> Exist {
+    async fn exist(&self, operation: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
         debug!("EXIST[{}] to backend", operation.disk_name_local());
 
         if let Some(mem_disk) = self.disks.get(&operation.disk_name_local()) {
-            mem_disk.exist(operation.vdisk_id(), keys)
+            mem_disk.exist(operation.vdisk_id(), keys).await
         } else {
             error!("EXIST Can't find disk {}", operation.disk_name_local());
-            future::err(Error::internal()).boxed()
+            Err(Error::internal())
         }
-        .boxed()
     }
 
-    fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> Exist {
+    async fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
         debug!("EXIST to backend, foreign data");
-        self.foreign_data.exist(operation.vdisk_id(), keys)
+        self.foreign_data.exist(operation.vdisk_id(), keys).await
     }
 }
