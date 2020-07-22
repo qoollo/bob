@@ -221,7 +221,9 @@ impl Group {
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
             for holder in holders.iter() {
-                exist[ind] = holder.exist(key).await.unwrap_or(false);
+                if !exist[ind] {
+                    exist[ind] = holder.exist(key).await.unwrap_or(false);
+                }
             }
         }
         exist
