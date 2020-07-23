@@ -28,7 +28,7 @@ impl Quorum {
             match res {
                 Ok(()) => {
                     ok_count += 1;
-                    debug!("local node put successful");
+                    debug!("PUT[{}] local node put successful", key);
                 }
                 Err(e) => {
                     fails_count += 1;
@@ -41,13 +41,32 @@ impl Quorum {
         let at_least = self.quorum - ok_count;
         if at_least > 0 {
             debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
-            let (tasks, errors) = self.put_remote_nodes(key, data.clone(), at_least).await;
-            fails_count += errors.len();
-            tokio::spawn(self.background_put(tasks, key, data, fails_count));
+            let (tasks, mut errors) = self.put_remote_nodes(key, data.clone(), at_least).await;
+            if tasks.is_empty() {
+                ok_count += tasks.len() + at_least - errors.len();
+                if errors.is_empty() {
+                    debug!("PUT[{}] no errors, no additional tasks", key);
+                    Ok(())
+                } else if ok_count < self.quorum {
+                    error!("PUT[{}] not enough ok puts, errors: {:?}", key, errors);
+                    let e = errors.remove(errors.len() - 1); // we can't panic because we already checked errors is_empty
+                    Err(e.into_inner())
+                } else {
+                    warn!(
+                        "PUT[{}] at least {} was successful, errors: {:?}",
+                        key, ok_count, errors
+                    );
+                    Ok(())
+                }
+            } else {
+                fails_count += errors.len();
+                tokio::spawn(self.background_put(tasks, key, data, fails_count));
+                Ok(())
+            }
         } else {
             debug!("PUT[{}] ~~~SKIP PUT TO REMOTE NODES~~~", key);
+            Ok(())
         }
-        Ok(())
     }
 
     async fn background_put(
