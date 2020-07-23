@@ -58,7 +58,7 @@ loggers:
   # dipstick - graphite lib
   dipstick:
     # level applies only to dipstick
-    level: error
+    level: off
     appenders:
       - requests
       - stdout

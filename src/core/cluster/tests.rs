@@ -182,10 +182,6 @@ async fn simple_one_node_put_ok() {
 
     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![create_ok_node("0", (true, true))];
 
-    let calls: Vec<_> = actions
-        .iter()
-        .map(|(name, _, call)| ((*name).to_string(), call.clone()))
-        .collect();
     let (quorum, backend) = create_cluster(vdisks, &node, &cluster, &actions).await;
 
     let key = 1;

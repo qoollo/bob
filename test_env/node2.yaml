@@ -1,6 +1,6 @@
 log_config: /bob/logger.yaml
 name: node2
-quorum: 1
+quorum: 2
 operation_timeout: 3sec
 check_interval: 5000ms
 cluster_policy: quorum

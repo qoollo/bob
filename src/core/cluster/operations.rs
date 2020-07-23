@@ -21,10 +21,10 @@ pub(crate) async fn put_at_least(
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
     options: PutOptions,
-) -> Result<
+) -> (
     FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>,
-    NodeOutput<Error>,
-> {
+    Vec<NodeOutput<Error>>,
+) {
     let mut handles: FuturesUnordered<_> = target_nodes
         .map(|node| {
             debug!("PUT[{}] put to {}", key, node.name());
@@ -45,14 +45,15 @@ pub(crate) async fn put_at_least(
         .collect();
     debug!("total handles count: {}", handles.len());
     let mut ok_count = 0;
-    let mut last_error = None;
+    let mut errors = Vec::new();
     while let Some(join_res) = handles.next().await {
         debug!("handle returned");
         match join_res {
             Ok(res) => match res {
                 Ok(_) => ok_count += 1,
                 Err(e) => {
-                    last_error = Some(e);
+                    error!("{:?}", e);
+                    errors.push(e);
                 }
             },
             Err(e) => {
@@ -64,11 +65,8 @@ pub(crate) async fn put_at_least(
         }
     }
     debug!("ok_count/at_least: {}/{}", ok_count, at_least);
-    if let Some(e) = last_error {
-        Err(e)
-    } else {
-        Ok(handles)
-    }
+    debug!("remains: {}, errors: {}", handles.len(), errors.len());
+    (handles, errors)
 }
 
 pub(crate) fn get_support_nodes<'a>(
@@ -250,7 +248,7 @@ pub(crate) async fn put_local_node(
     data: BobData,
     vdisk_id: VDiskId,
     disk_path: DiskPath,
-) -> PutResult {
+) -> Result<(), Error> {
     debug!("local node has vdisk replica, put local");
     let op = Operation::new_local(vdisk_id, disk_path);
     backend.put_local(key, data, op).await

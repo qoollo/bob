@@ -1,143 +1,431 @@
 ---
-    nodes:
-      - name: node1
-        address: 192.168.1.10:20000
-        disks:
-          - name: disk1
-            path: /tmp/bob/node1/disk1
-          - name: disk2
-            path: /tmp/bob/node1/disk2
-          - name: disk3
-            path: /tmp/bob/node1/disk3
-          - name: disk4
-            path: /tmp/bob/node1/disk4
-      - name: node2
-        address: 192.168.1.20:20000
-        disks:
-          - name: disk1
-            path: /tmp/bob/node2/disk1
-          - name: disk2
-            path: /tmp/bob/node2/disk2
-          - name: disk3
-            path: /tmp/bob/node2/disk3
-          - name: disk4
-            path: /tmp/bob/node2/disk4
-      - name: node3
-        address: 192.168.1.30:20000
-        disks:
-          - name: disk1
-            path: /tmp/bob/node3/disk1
-          - name: disk2
-            path: /tmp/bob/node3/disk2
-          - name: disk3
-            path: /tmp/bob/node3/disk3
-          - name: disk4
-            path: /tmp/bob/node3/disk4
-      - name: node4
-        address: 192.168.1.40:20000
-        disks:
-          - name: disk1
-            path: /tmp/bob/node4/disk1
-          - name: disk2
-            path: /tmp/bob/node4/disk2
-          - name: disk3
-            path: /tmp/bob/node4/disk3
-          - name: disk4
-            path: /tmp/bob/node4/disk4
-    vdisks:
-      - id: 0
-        replicas:
-          - node: node1
-            disk: disk1
-          - node: node2
-            disk: disk1
-      - id: 1
-        replicas:
-          - node: node1
-            disk: disk2
-          - node: node2
-            disk: disk2
-      - id: 2
-        replicas:
-          - node: node1
-            disk: disk3
-          - node: node2
-            disk: disk3
-      - id: 3
-        replicas:
-          - node: node1
-            disk: disk4
-          - node: node2
-            disk: disk4
-      - id: 4
-        replicas:
-          - node: node3
-            disk: disk1
-          - node: node4
-            disk: disk1
-      - id: 5
-        replicas:
-          - node: node3
-            disk: disk2
-          - node: node4
-            disk: disk2
-      - id: 6
-        replicas:
-          - node: node3
-            disk: disk3
-          - node: node4
-            disk: disk3
-      - id: 7
-        replicas:
-          - node: node3
-            disk: disk4
-          - node: node4
-            disk: disk4
-      - id: 8
-        replicas:
-          - node: node1
-            disk: disk1
-          - node: node2
-            disk: disk1
-      - id: 9
-        replicas:
-          - node: node1
-            disk: disk2
-          - node: node2
-            disk: disk2
-      - id: 10
-        replicas:
-          - node: node1
-            disk: disk3
-          - node: node2
-            disk: disk3
-      - id: 11
-        replicas:
-          - node: node1
-            disk: disk4
-          - node: node2
-            disk: disk4
-      - id: 12
-        replicas:
-          - node: node3
-            disk: disk1
-          - node: node4
-            disk: disk1
-      - id: 13
-        replicas:
-          - node: node3
-            disk: disk2
-          - node: node4
-            disk: disk2
-      - id: 14
-        replicas:
-          - node: node3
-            disk: disk3
-          - node: node4
-            disk: disk3
-      - id: 15
-        replicas:
-          - node: node3
-            disk: disk4
-          - node: node4
-            disk: disk4
+nodes:
+  - name: node1
+    address: "192.168.1.10:20000"
+    disks:
+      - name: disk1
+        path: /tmp/bob/node1/disk1
+      - name: disk2
+        path: /tmp/bob/node1/disk2
+      - name: disk3
+        path: /tmp/bob/node1/disk3
+      - name: disk4
+        path: /tmp/bob/node1/disk4
+  - name: node2
+    address: "192.168.1.20:20000"
+    disks:
+      - name: disk1
+        path: /tmp/bob/node2/disk1
+      - name: disk2
+        path: /tmp/bob/node2/disk2
+      - name: disk3
+        path: /tmp/bob/node2/disk3
+      - name: disk4
+        path: /tmp/bob/node2/disk4
+  - name: node3
+    address: "192.168.1.30:20000"
+    disks:
+      - name: disk1
+        path: /tmp/bob/node3/disk1
+      - name: disk2
+        path: /tmp/bob/node3/disk2
+      - name: disk3
+        path: /tmp/bob/node3/disk3
+      - name: disk4
+        path: /tmp/bob/node3/disk4
+  - name: node4
+    address: "192.168.1.40:20000"
+    disks:
+      - name: disk1
+        path: /tmp/bob/node4/disk1
+      - name: disk2
+        path: /tmp/bob/node4/disk2
+      - name: disk3
+        path: /tmp/bob/node4/disk3
+      - name: disk4
+        path: /tmp/bob/node4/disk4
+vdisks:
+  - id: 0
+    replicas:
+      - node: node1
+        disk: disk1
+      - node: node2
+        disk: disk1
+      - node: node3
+        disk: disk1
+  - id: 1
+    replicas:
+      - node: node1
+        disk: disk2
+      - node: node2
+        disk: disk2
+      - node: node3
+        disk: disk2
+  - id: 2
+    replicas:
+      - node: node1
+        disk: disk3
+      - node: node2
+        disk: disk3
+      - node: node3
+        disk: disk3
+  - id: 3
+    replicas:
+      - node: node1
+        disk: disk4
+      - node: node2
+        disk: disk4
+      - node: node3
+        disk: disk4
+  - id: 4
+    replicas:
+      - node: node4
+        disk: disk1
+      - node: node1
+        disk: disk1
+      - node: node2
+        disk: disk1
+  - id: 5
+    replicas:
+      - node: node4
+        disk: disk2
+      - node: node1
+        disk: disk2
+      - node: node2
+        disk: disk2
+  - id: 6
+    replicas:
+      - node: node4
+        disk: disk3
+      - node: node1
+        disk: disk3
+      - node: node2
+        disk: disk3
+  - id: 7
+    replicas:
+      - node: node4
+        disk: disk4
+      - node: node1
+        disk: disk4
+      - node: node2
+        disk: disk4
+  - id: 8
+    replicas:
+      - node: node3
+        disk: disk1
+      - node: node4
+        disk: disk1
+      - node: node1
+        disk: disk1
+  - id: 9
+    replicas:
+      - node: node3
+        disk: disk2
+      - node: node4
+        disk: disk2
+      - node: node1
+        disk: disk2
+  - id: 10
+    replicas:
+      - node: node3
+        disk: disk3
+      - node: node4
+        disk: disk3
+      - node: node1
+        disk: disk3
+  - id: 11
+    replicas:
+      - node: node3
+        disk: disk4
+      - node: node4
+        disk: disk4
+      - node: node1
+        disk: disk4
+  - id: 12
+    replicas:
+      - node: node2
+        disk: disk1
+      - node: node3
+        disk: disk1
+      - node: node4
+        disk: disk1
+  - id: 13
+    replicas:
+      - node: node2
+        disk: disk2
+      - node: node3
+        disk: disk2
+      - node: node4
+        disk: disk2
+  - id: 14
+    replicas:
+      - node: node2
+        disk: disk3
+      - node: node3
+        disk: disk3
+      - node: node4
+        disk: disk3
+  - id: 15
+    replicas:
+      - node: node2
+        disk: disk4
+      - node: node3
+        disk: disk4
+      - node: node4
+        disk: disk4
+  - id: 16
+    replicas:
+      - node: node1
+        disk: disk1
+      - node: node2
+        disk: disk1
+      - node: node3
+        disk: disk1
+  - id: 17
+    replicas:
+      - node: node1
+        disk: disk2
+      - node: node2
+        disk: disk2
+      - node: node3
+        disk: disk2
+  - id: 18
+    replicas:
+      - node: node1
+        disk: disk3
+      - node: node2
+        disk: disk3
+      - node: node3
+        disk: disk3
+  - id: 19
+    replicas:
+      - node: node1
+        disk: disk4
+      - node: node2
+        disk: disk4
+      - node: node3
+        disk: disk4
+  - id: 20
+    replicas:
+      - node: node4
+        disk: disk1
+      - node: node1
+        disk: disk1
+      - node: node2
+        disk: disk1
+  - id: 21
+    replicas:
+      - node: node4
+        disk: disk2
+      - node: node1
+        disk: disk2
+      - node: node2
+        disk: disk2
+  - id: 22
+    replicas:
+      - node: node4
+        disk: disk3
+      - node: node1
+        disk: disk3
+      - node: node2
+        disk: disk3
+  - id: 23
+    replicas:
+      - node: node4
+        disk: disk4
+      - node: node1
+        disk: disk4
+      - node: node2
+        disk: disk4
+  - id: 24
+    replicas:
+      - node: node3
+        disk: disk1
+      - node: node4
+        disk: disk1
+      - node: node1
+        disk: disk1
+  - id: 25
+    replicas:
+      - node: node3
+        disk: disk2
+      - node: node4
+        disk: disk2
+      - node: node1
+        disk: disk2
+  - id: 26
+    replicas:
+      - node: node3
+        disk: disk3
+      - node: node4
+        disk: disk3
+      - node: node1
+        disk: disk3
+  - id: 27
+    replicas:
+      - node: node3
+        disk: disk4
+      - node: node4
+        disk: disk4
+      - node: node1
+        disk: disk4
+  - id: 28
+    replicas:
+      - node: node2
+        disk: disk1
+      - node: node3
+        disk: disk1
+      - node: node4
+        disk: disk1
+  - id: 29
+    replicas:
+      - node: node2
+        disk: disk2
+      - node: node3
+        disk: disk2
+      - node: node4
+        disk: disk2
+  - id: 30
+    replicas:
+      - node: node2
+        disk: disk3
+      - node: node3
+        disk: disk3
+      - node: node4
+        disk: disk3
+  - id: 31
+    replicas:
+      - node: node2
+        disk: disk4
+      - node: node3
+        disk: disk4
+      - node: node4
+        disk: disk4
+  - id: 32
+    replicas:
+      - node: node1
+        disk: disk1
+      - node: node2
+        disk: disk1
+      - node: node3
+        disk: disk1
+  - id: 33
+    replicas:
+      - node: node1
+        disk: disk2
+      - node: node2
+        disk: disk2
+      - node: node3
+        disk: disk2
+  - id: 34
+    replicas:
+      - node: node1
+        disk: disk3
+      - node: node2
+        disk: disk3
+      - node: node3
+        disk: disk3
+  - id: 35
+    replicas:
+      - node: node1
+        disk: disk4
+      - node: node2
+        disk: disk4
+      - node: node3
+        disk: disk4
+  - id: 36
+    replicas:
+      - node: node4
+        disk: disk1
+      - node: node1
+        disk: disk1
+      - node: node2
+        disk: disk1
+  - id: 37
+    replicas:
+      - node: node4
+        disk: disk2
+      - node: node1
+        disk: disk2
+      - node: node2
+        disk: disk2
+  - id: 38
+    replicas:
+      - node: node4
+        disk: disk3
+      - node: node1
+        disk: disk3
+      - node: node2
+        disk: disk3
+  - id: 39
+    replicas:
+      - node: node4
+        disk: disk4
+      - node: node1
+        disk: disk4
+      - node: node2
+        disk: disk4
+  - id: 40
+    replicas:
+      - node: node3
+        disk: disk1
+      - node: node4
+        disk: disk1
+      - node: node1
+        disk: disk1
+  - id: 41
+    replicas:
+      - node: node3
+        disk: disk2
+      - node: node4
+        disk: disk2
+      - node: node1
+        disk: disk2
+  - id: 42
+    replicas:
+      - node: node3
+        disk: disk3
+      - node: node4
+        disk: disk3
+      - node: node1
+        disk: disk3
+  - id: 43
+    replicas:
+      - node: node3
+        disk: disk4
+      - node: node4
+        disk: disk4
+      - node: node1
+        disk: disk4
+  - id: 44
+    replicas:
+      - node: node2
+        disk: disk1
+      - node: node3
+        disk: disk1
+      - node: node4
+        disk: disk1
+  - id: 45
+    replicas:
+      - node: node2
+        disk: disk2
+      - node: node3
+        disk: disk2
+      - node: node4
+        disk: disk2
+  - id: 46
+    replicas:
+      - node: node2
+        disk: disk3
+      - node: node3
+        disk: disk3
+      - node: node4
+        disk: disk3
+  - id: 47
+    replicas:
+      - node: node2
+        disk: disk4
+      - node: node3
+        disk: disk4
+      - node: node4
+        disk: disk4

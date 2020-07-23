@@ -16,9 +16,9 @@ use simple::Quorum as SimpleQuorum;
 
 #[async_trait]
 pub(crate) trait Cluster {
-    async fn put(&self, key: BobKey, data: BobData) -> PutResult;
-    async fn get(&self, key: BobKey) -> GetResult;
-    async fn exist(&self, keys: &[BobKey]) -> ExistResult;
+    async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error>;
+    async fn get(&self, key: BobKey) -> Result<BobData, Error>;
+    async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 }
 
 pub(crate) fn get_cluster(

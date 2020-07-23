@@ -19,7 +19,7 @@ pub mod server;
 
 pub(crate) use self::error::Error;
 pub(crate) use super::prelude::*;
-pub(crate) use backend::{init_pearl, Backend, ExistResult, GetResult, Operation, PutResult};
+pub(crate) use backend::{init_pearl, Backend, Operation};
 
 mod prelude {
     pub(crate) use super::*;

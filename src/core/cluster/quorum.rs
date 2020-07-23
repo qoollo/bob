@@ -17,7 +17,7 @@ impl Quorum {
         }
     }
 
-    async fn put_at_least(self, key: BobKey, data: BobData) -> PutResult {
+    async fn put_at_least(self, key: BobKey, data: BobData) -> Result<(), Error> {
         debug!("PUT[{}] ~~~PUT LOCAL NODE FIRST~~~", key);
         let mut ok_count = 0;
         let mut fails_count = 0;
@@ -38,21 +38,16 @@ impl Quorum {
         } else {
             debug!("skip local put");
         }
-        debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
-        let res = self
-            .put_remote_nodes(key, data.clone(), self.quorum - ok_count)
-            .await;
-        match res {
-            Ok(rest_tasks) => {
-                tokio::spawn(self.background_put(rest_tasks, key, data, fails_count));
-                Ok(())
-            }
-            Err(last_error) => {
-                error!("{:?}", last_error);
-                // tokio::spawn(self.background_put_alien(key, data, fails_count));
-                Err(last_error.into_inner())
-            }
+        let at_least = self.quorum - ok_count;
+        if at_least > 0 {
+            debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
+            let (tasks, errors) = self.put_remote_nodes(key, data.clone(), at_least).await;
+            fails_count += errors.len();
+            tokio::spawn(self.background_put(tasks, key, data, fails_count));
+        } else {
+            debug!("PUT[{}] ~~~SKIP PUT TO REMOTE NODES~~~", key);
         }
+        Ok(())
     }
 
     async fn background_put(
@@ -87,10 +82,10 @@ impl Quorum {
         key: BobKey,
         data: BobData,
         at_least: usize,
-    ) -> Result<
+    ) -> (
         FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>,
-        NodeOutput<Error>,
-    > {
+        Vec<NodeOutput<Error>>,
+    ) {
         let local_node = self.mapper.local_node_name();
         let target_nodes = get_target_nodes(&self.mapper, key)
             .iter()
@@ -104,7 +99,7 @@ impl Quorum {
         key: BobKey,
         data: BobData,
         count: usize,
-    ) -> PutResult {
+    ) -> Result<(), Error> {
         let vdisk_id = self.mapper.id_from_key(key);
         let operation = Operation::new_alien(vdisk_id);
         let local_put =
@@ -145,12 +140,12 @@ impl Quorum {
 
 #[async_trait]
 impl Cluster for Quorum {
-    async fn put(&self, key: BobKey, data: BobData) -> PutResult {
+    async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
         self.clone().put_at_least(key, data).await
     }
 
     //todo check no data (no error)
-    async fn get(&self, key: BobKey) -> GetResult {
+    async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         debug!("GET[{}] ~~~LOOKUP LOCAL NODE~~~", key);
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         if let Some(data) = lookup_local_node(&self.backend, key, vdisk_id, disk_path).await {
@@ -173,7 +168,7 @@ impl Cluster for Quorum {
         Err(Error::key_not_found(key))
     }
 
-    async fn exist(&self, keys: &[BobKey]) -> ExistResult {
+    async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
         let keys_by_nodes = group_keys_by_nodes(&self.mapper, keys);
         debug!(
             "EXIST Nodes for fan out: {:?}",
