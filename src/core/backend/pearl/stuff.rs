@@ -16,7 +16,7 @@ impl SyncState {
         st.created();
     }
 
-    pub(crate) async fn try_init(&self) -> bool {
+    pub(crate) async fn is_ready(&self) -> bool {
         let mut st = self.state.write().await;
         if st.is_creating() {
             trace!("New object is currently creating, state: {:?}", st);

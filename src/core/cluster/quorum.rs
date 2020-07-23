@@ -18,7 +18,7 @@ impl Quorum {
 
 #[async_trait]
 impl Cluster for Quorum {
-    async fn put(&self, key: BobKey, data: BobData) -> PutResult {
+    async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
         debug!("get nodes of the target vdisk");
         let target_nodes = get_target_nodes(&self.mapper, key);
         debug!("PUT[{}]: Nodes for fan out: {:?}", key, &target_nodes);
@@ -109,7 +109,7 @@ impl Cluster for Quorum {
     }
 
     //todo check no data (no error)
-    async fn get(&self, key: BobKey) -> GetResult {
+    async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         debug!("GET[{}] ~~~LOOKUP LOCAL NODE~~~", key);
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         if let Some(data) = lookup_local_node(&self.backend, key, vdisk_id, disk_path).await {
@@ -132,7 +132,7 @@ impl Cluster for Quorum {
         Err(Error::key_not_found(key))
     }
 
-    async fn exist(&self, keys: &[BobKey]) -> ExistResult {
+    async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
         let keys_by_nodes = group_keys_by_nodes(&self.mapper, keys);
         debug!(
             "EXIST Nodes for fan out: {:?}",
