@@ -64,7 +64,8 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         partition_by_id,
         change_partition_state,
         delete_partition,
-        alien
+        alien,
+        remount_vdisks_group
     ];
     let task = move || {
         info!("API server started");
@@ -242,6 +243,26 @@ fn change_partition_state(
     }
 }
 
+#[post("/vdisks/<vdisk_id>/remount")]
+fn remount_vdisks_group(bob: State<BobServer>, vdisk_id: u32) -> Result<StatusExt, StatusExt> {
+    let group = find_group(&bob, vdisk_id)?;
+    let group = group.clone();
+    error!("HOT FIX: run web server on same runtime as bob");
+    let mut rt = Runtime::new().expect("create runtime");
+    let task = group.remount();
+    match rt.block_on(task) {
+        Ok(_) => {
+            info!("vdisks group {} successfully restarted", vdisk_id);
+            Ok(StatusExt::new(
+                Status::Ok,
+                true,
+                format!("vdisks group {} successfully restarted", vdisk_id),
+            ))
+        }
+        Err(e) => Err(StatusExt::new(Status::Ok, false, e.to_string())),
+    }
+}
+
 #[delete("/vdisks/<vdisk_id>/partitions/<partition_id>")]
 fn delete_partition(
     bob: State<BobServer>,
@@ -249,20 +270,25 @@ fn delete_partition(
     partition_id: u64,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
-    let pearl = futures::executor::block_on(group.detach(partition_id));
-    if let Ok(holder) = pearl {
-        if let Err(e) = holder.drop_directory() {
-            let msg = format!(
-                "partition delete failed {} on vdisk {}, error: {}",
-                partition_id, vdisk_id, e
-            );
-            Err(StatusExt::new(Status::InternalServerError, true, msg))
+    let pearls = futures::executor::block_on(group.detach(partition_id));
+    if let Ok(holders) = pearls {
+        let mut result = String::new();
+        for holder in holders {
+            if let Err(e) = holder.drop_directory() {
+                let msg = format!(
+                    "partition delete failed {} on vdisk {}, error: {}",
+                    partition_id, vdisk_id, e
+                );
+                result.push_str(&msg);
+            } else {
+                result.push_str(&format!("successfully deleted partition {}", partition_id));
+            }
+            result.push('\n');
+        }
+        if !result.is_empty() {
+            Err(StatusExt::new(Status::InternalServerError, true, result))
         } else {
-            Ok(StatusExt::new(
-                Status::Ok,
-                true,
-                format!("successfully deleted partition {}", partition_id),
-            ))
+            Ok(StatusExt::new(Status::Ok, true, result))
         }
     } else {
         Err(StatusExt::new(
