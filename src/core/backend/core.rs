@@ -73,19 +73,14 @@ impl Operation {
 pub(crate) trait BackendStorage: Debug {
     async fn run_backend(&self) -> Result<(), Error>;
 
-    async fn put(&self, operation: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
-    async fn put_alien(
-        &self,
-        operation: Operation,
-        key: BobKey,
-        data: BobData,
-    ) -> Result<(), Error>;
+    async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
+    async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
 
-    async fn get(&self, operation: Operation, key: BobKey) -> Result<BobData, Error>;
-    async fn get_alien(&self, operation: Operation, key: BobKey) -> Result<BobData, Error>;
+    async fn get(&self, op: Operation, key: BobKey) -> Result<BobData, Error>;
+    async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error>;
 
-    async fn exist(&self, operation: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
-    async fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
+    async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
+    async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 
     fn vdisks_groups(&self) -> Option<&[Group]> {
         None

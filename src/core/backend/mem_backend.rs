@@ -14,14 +14,12 @@ impl VDisk {
 
     async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
         trace!("PUT[{}] to vdisk", key);
-        let mut repo = self.inner.write().await;
-        repo.insert(key, data);
+        self.inner.write().await.insert(key, data);
         Ok(())
     }
 
     async fn get(&self, key: BobKey) -> Result<BobData, Error> {
-        let repo = self.inner.read().await;
-        if let Some(data) = repo.get(&key) {
+        if let Some(data) = self.inner.read().await.get(&key) {
             trace!("GET[{}] from vdisk", key);
             Ok(data.clone())
         } else {
@@ -45,10 +43,7 @@ pub(crate) struct MemDisk {
 
 impl MemDisk {
     pub(crate) fn new_direct(name: String, vdisks_count: u32) -> Self {
-        let mut vdisks = HashMap::new();
-        for i in 0..vdisks_count {
-            vdisks.insert(i, VDisk::new());
-        }
+        let vdisks = (0..vdisks_count).map(|i| (i, VDisk::new())).collect();
         Self { name, vdisks }
     }
 
@@ -57,26 +52,16 @@ impl MemDisk {
             .get_vdisks_by_disk(&name)
             .iter()
             .map(|id| (*id, VDisk::new()))
-            .collect::<HashMap<_, _>>();
+            .collect();
         Self { name, vdisks }
     }
 
     pub(crate) async fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Result<BobData, Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
-            trace!(
-                "GET[{}] from vdisk: {} for disk: {}",
-                key,
-                vdisk_id,
-                self.name
-            );
+            trace!("GET[{}] from: {} for disk: {}", key, vdisk_id, self.name);
             vdisk.get(key).await
         } else {
-            trace!(
-                "GET[{}] from vdisk: {} failed. Cannot find vdisk for disk: {}",
-                key,
-                vdisk_id,
-                self.name
-            );
+            trace!("GET[{}] Cannot find vdisk for disk: {}", key, self.name);
             Err(Error::internal())
         }
     }
@@ -88,20 +73,10 @@ impl MemDisk {
         data: BobData,
     ) -> Result<(), Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
-            trace!(
-                "PUT[{}] to vdisk: {} for disk: {}",
-                key,
-                vdisk_id,
-                self.name
-            );
+            trace!("PUT[{}] to vdisk: {} for: {}", key, vdisk_id, self.name);
             vdisk.put(key, data).await
         } else {
-            trace!(
-                "PUT[{}] to vdisk: {} failed. Cannot find vdisk for disk: {}",
-                key,
-                vdisk_id,
-                self.name
-            );
+            trace!("PUT[{}] Cannot find vdisk for disk: {}", key, self.name);
             Err(Error::internal())
         }
     }
@@ -115,11 +90,7 @@ impl MemDisk {
             trace!("EXIST from vdisk: {} for disk: {}", vdisk_id, self.name);
             vdisk.exist(keys).await
         } else {
-            trace!(
-                "EXIST from vdisk: {} failed. Cannot find vdisk for disk: {}",
-                vdisk_id,
-                self.name
-            );
+            trace!("EXIST Cannot find vdisk for disk: {}", self.name);
             Err(Error::internal())
         }
     }
@@ -136,13 +107,9 @@ impl MemBackend {
         let disks = mapper
             .local_disks()
             .iter()
-            .map(|node_disk| {
-                (
-                    node_disk.name().to_owned(),
-                    MemDisk::new(node_disk.name().to_owned(), &mapper),
-                )
-            })
-            .collect::<HashMap<_, _>>();
+            .map(DiskPath::name)
+            .map(|name| (name.to_string(), MemDisk::new(name.to_string(), &mapper)))
+            .collect();
         Self {
             disks,
             foreign_data: MemDisk::new_direct("foreign".to_string(), mapper.vdisks_count()),
@@ -157,57 +124,45 @@ impl BackendStorage for MemBackend {
         Ok(())
     }
 
-    async fn put(&self, operation: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
-        debug!("PUT[{}][{}] to backend", key, operation.disk_name_local());
-        let disk = self.disks.get(&operation.disk_name_local());
+    async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
+        let disk_name = op.disk_name_local();
+        debug!("PUT[{}][{}] to backend", key, disk_name);
+        let disk = self.disks.get(&disk_name);
         if let Some(mem_disk) = disk {
-            mem_disk.put(operation.vdisk_id(), key, data).await
+            mem_disk.put(op.vdisk_id(), key, data).await
         } else {
-            error!(
-                "PUT[{}] Can't find disk {}",
-                key,
-                operation.disk_name_local()
-            );
+            error!("PUT[{}] Can't find disk {}", key, disk_name);
             Err(Error::internal())
         }
     }
 
-    async fn put_alien(
-        &self,
-        operation: Operation,
-        key: BobKey,
-        data: BobData,
-    ) -> Result<(), Error> {
+    async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
         debug!("PUT[{}] to backend, foreign data", key);
-        self.foreign_data.put(operation.vdisk_id(), key, data).await
+        self.foreign_data.put(op.vdisk_id(), key, data).await
     }
 
-    async fn get(&self, operation: Operation, key: BobKey) -> Result<BobData, Error> {
-        debug!("GET[{}][{}] to backend", key, operation.disk_name_local());
-        if let Some(mem_disk) = self.disks.get(&operation.disk_name_local()) {
-            mem_disk.get(operation.vdisk_id(), key).await
+    async fn get(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
+        debug!("GET[{}][{}] to backend", key, op.disk_name_local());
+        if let Some(mem_disk) = self.disks.get(&op.disk_name_local()) {
+            mem_disk.get(op.vdisk_id(), key).await
         } else {
-            error!(
-                "GET[{}] Can't find disk {}",
-                key,
-                operation.disk_name_local()
-            );
+            error!("GET[{}] Can't find disk {}", key, op.disk_name_local());
             Err(Error::internal())
         }
     }
 
-    async fn get_alien(&self, operation: Operation, key: BobKey) -> Result<BobData, Error> {
+    async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
         debug!("GET[{}] to backend, foreign data", key);
-        self.foreign_data.get(operation.vdisk_id(), key).await
+        self.foreign_data.get(op.vdisk_id(), key).await
     }
 
-    async fn exist(&self, operation: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
-        debug!("EXIST[{}] to backend", operation.disk_name_local());
+    async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
+        debug!("EXIST[{}] to backend", op.disk_name_local());
 
-        if let Some(mem_disk) = self.disks.get(&operation.disk_name_local()) {
-            mem_disk.exist(operation.vdisk_id(), keys).await
+        if let Some(mem_disk) = self.disks.get(&op.disk_name_local()) {
+            mem_disk.exist(op.vdisk_id(), keys).await
         } else {
-            error!("EXIST Can't find disk {}", operation.disk_name_local());
+            error!("EXIST Can't find disk {}", op.disk_name_local());
             Err(Error::internal())
         }
     }

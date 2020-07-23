@@ -6,10 +6,12 @@ mod stub_backend;
 #[cfg(test)]
 mod mem_tests;
 
-pub(crate) use self::core::{Backend, Operation};
-pub(crate) use self::mem_backend::MemBackend;
-pub(crate) use self::pearl::{init_pearl, Group, Holder, Pearl};
-pub(crate) use self::stub_backend::StubBackend;
+pub(crate) use self::{
+    core::{Backend, Operation},
+    mem_backend::MemBackend,
+    pearl::{init_pearl, Group, Holder, Pearl},
+    stub_backend::StubBackend,
+};
 pub(crate) use super::prelude::*;
 
 mod prelude {

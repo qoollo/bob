@@ -130,7 +130,7 @@ impl Group {
     }
 
     async fn try_create_write_pearl(&self, timestamp: u64) -> Result<Holder, Error> {
-        if self.pearl_sync.try_init().await {
+        if self.pearl_sync.is_ready().await {
             let pearl = self.create_pearl_by_timestamp(timestamp);
             self.save_pearl(pearl.clone()).await?;
             self.pearl_sync.mark_as_created().await;
@@ -148,7 +148,6 @@ impl Group {
 
     pub async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
         let holder = self.get_actual_holder(&data).await?;
-
         Self::put_common(holder, key, data).await
     }
 
