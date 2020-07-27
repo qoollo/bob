@@ -42,16 +42,46 @@ impl Quorum {
         debug!("PUT[{}] need at least {} additional puts", key, at_least);
 
         debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
-        let (tasks, errors) = self.put_remote_nodes(key, data.clone(), at_least).await;
+        let (tasks, mut errors) = self.put_remote_nodes(key, data.clone(), at_least).await;
         remote_ok_count += at_least - errors.len();
-        if tasks.is_empty() && remote_ok_count + local_put_ok >= self.quorum {
-            Ok(())
+        let failed_nodes = errors
+            .iter()
+            .map(|e| e.node_name().to_string())
+            .collect::<Vec<_>>();
+        let q = self.clone();
+        if remote_ok_count + local_put_ok >= self.quorum {
+            if tasks.is_empty() {
+                Ok(())
+            } else {
+                debug!("PUT[{}] spawn {} background put tasks", key, tasks.len());
+                warn!("PUT[{}]  failed nodes: {:?}", key, failed_nodes);
+                tokio::spawn(q.background_put(tasks, key, data, failed_nodes));
+                Ok(())
+            }
         } else {
-            debug!("PUT[{}] spawn {} background put tasks", key, tasks.len());
-            let q = self.clone();
-            let failed_nodes = errors.iter().map(|e| e.node_name().to_string()).collect();
-            tokio::spawn(q.background_put(tasks, key, data, failed_nodes));
-            Ok(())
+            warn!(
+                "PUT[{}] quorum was not reached. ok {}, quorum {}, errors: {:?}",
+                key,
+                remote_ok_count + local_put_ok,
+                self.quorum,
+                errors
+            );
+            if let Err(err) = self.put_aliens(failed_nodes, key, data).await {
+                if errors.is_empty() {
+                    error!("PUT[{}] smth wrong with cluster/node configuration", key);
+                    error!(
+                        "PUT[{}] local_put_ok: {}, remote_ok_count: {}, quorum: {},no errors",
+                        key, local_put_ok, remote_ok_count, self.quorum
+                    );
+                    Err(err)
+                } else {
+                    let err = errors.remove(errors.len() - 1).into_inner();
+                    Err(err)
+                }
+            } else {
+                warn!("PUT[{}] succeed, but some data get into alien", key);
+                Ok(())
+            }
         }
     }
 

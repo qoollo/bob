@@ -32,14 +32,10 @@ pub(crate) async fn put_at_least(
             let data = data.clone();
             let options = options.clone();
             tokio::spawn(async move {
-                let res = LinkManager::call_node(&node, |conn| {
+                LinkManager::call_node(&node, |conn| {
                     conn.put(key, data.clone(), options.clone()).boxed()
                 })
-                .await;
-                if let Err(e) = &res {
-                    error!("{:?}", e);
-                }
-                res
+                .await
             })
         })
         .collect();
