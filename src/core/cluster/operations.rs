@@ -46,21 +46,25 @@ pub(crate) async fn put_at_least(
     debug!("total handles count: {}", handles.len());
     let mut ok_count = 0;
     let mut errors = Vec::new();
-    while let Some(join_res) = handles.next().await {
-        debug!("handle returned");
-        match join_res {
-            Ok(res) => match res {
-                Ok(_) => ok_count += 1,
+    while ok_count < at_least {
+        if let Some(join_res) = handles.next().await {
+            debug!("handle returned");
+            match join_res {
+                Ok(res) => match res {
+                    Ok(_) => ok_count += 1,
+                    Err(e) => {
+                        error!("{:?}", e);
+                        errors.push(e);
+                    }
+                },
                 Err(e) => {
                     error!("{:?}", e);
-                    errors.push(e);
                 }
-            },
-            Err(e) => {
-                error!("{:?}", e);
             }
-        }
-        if ok_count == at_least {
+            if ok_count == at_least {
+                break;
+            }
+        } else {
             break;
         }
     }
@@ -204,6 +208,7 @@ pub(crate) async fn put_local_all(
     for node_name in node_names {
         let mut op = operation.clone();
         op.set_remote_folder(node_name.clone());
+        debug!("PUT[{}] put to local alien: {:?}", key, node_name);
 
         if let Err(e) = backend.put_local(key, data.clone(), op).await {
             debug!("PUT[{}] local support put result: {:?}", key, e);
@@ -229,6 +234,7 @@ pub(crate) async fn put_sup_nodes(
             Box::pin(client.put(key, data.clone(), options.clone()))
         })
         .await;
+        debug!("{:?}", result);
         if let Err(e) = result {
             ret.push(e);
         }

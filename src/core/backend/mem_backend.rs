@@ -13,17 +13,17 @@ impl VDisk {
     }
 
     async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
-        trace!("PUT[{}] to vdisk", key);
+        debug!("PUT[{}] to vdisk", key);
         self.inner.write().await.insert(key, data);
         Ok(())
     }
 
     async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         if let Some(data) = self.inner.read().await.get(&key) {
-            trace!("GET[{}] from vdisk", key);
+            debug!("GET[{}] from vdisk", key);
             Ok(data.clone())
         } else {
-            trace!("GET[{}] from vdisk failed. Cannot find key", key);
+            debug!("GET[{}] from vdisk failed. Cannot find key", key);
             Err(Error::key_not_found(key))
         }
     }
@@ -58,10 +58,10 @@ impl MemDisk {
 
     pub(crate) async fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Result<BobData, Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
-            trace!("GET[{}] from: {} for disk: {}", key, vdisk_id, self.name);
+            debug!("GET[{}] from: {} for disk: {}", key, vdisk_id, self.name);
             vdisk.get(key).await
         } else {
-            trace!("GET[{}] Cannot find vdisk for disk: {}", key, self.name);
+            debug!("GET[{}] Cannot find vdisk for disk: {}", key, self.name);
             Err(Error::internal())
         }
     }
@@ -153,6 +153,7 @@ impl BackendStorage for MemBackend {
 
     async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
         debug!("GET[{}] to backend, foreign data", key);
+        debug!("{:?}", self.foreign_data);
         self.foreign_data.get(op.vdisk_id(), key).await
     }
 

@@ -83,11 +83,11 @@ impl Cluster for Quorum {
             .filter_map(|r| r.as_ref().ok())
             .collect::<Vec<_>>();
 
-        if let Some(cluster_result) = ok_results.get(0) {
-            Ok(cluster_result.inner().clone())
-        } else {
-            Err(Error::key_not_found(key))
-        }
+        ok_results
+            .get(0)
+            .map_or(Err(Error::key_not_found(key)), |cluster_result| {
+                Ok(cluster_result.inner().clone())
+            })
     }
 
     async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {

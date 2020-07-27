@@ -159,14 +159,12 @@ pub(crate) struct BobOptions {
 impl BobOptions {
     pub(crate) fn new_put(options: Option<PutOptions>) -> Self {
         let mut flags = BobFlags::default();
-        let remote_nodes = if let Some(vopts) = options {
+        let remote_nodes = options.map_or(Vec::new(), |vopts| {
             if vopts.force_node {
                 flags |= BobFlags::FORCE_NODE;
             }
             vopts.remote_nodes
-        } else {
-            Vec::new()
-        };
+        });
         BobOptions {
             flags,
             remote_nodes,
