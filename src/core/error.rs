@@ -18,11 +18,7 @@ impl Error {
     }
 
     pub(crate) fn is_key_not_found(&self) -> bool {
-        if let Kind::KeyNotFound(_) = &self.ctx {
-            true
-        } else {
-            false
-        }
+        matches!(&self.ctx, Kind::KeyNotFound(_))
     }
 
     #[cfg(test)]
