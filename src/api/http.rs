@@ -285,10 +285,10 @@ fn delete_partition(
             }
             result.push('\n');
         }
-        if !result.is_empty() {
-            Err(StatusExt::new(Status::InternalServerError, true, result))
-        } else {
+        if result.is_empty() {
             Ok(StatusExt::new(Status::Ok, true, result))
+        } else {
+            Err(StatusExt::new(Status::InternalServerError, true, result))
         }
     } else {
         Err(StatusExt::new(

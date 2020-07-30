@@ -505,10 +505,10 @@ impl Validatable for NodeConfig {
             let msg = "field \'quorum\' for \'config\' must be greater than 0".to_string();
             error!("{}", msg);
             Err(msg)
-        } else if let Some(metrics) = &self.metrics {
-            metrics.validate()
         } else {
-            Ok(())
+            self.metrics
+                .as_ref()
+                .map_or(Ok(()), |metrics| metrics.validate())
         }
     }
 }
