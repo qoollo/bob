@@ -29,13 +29,11 @@ pub(crate) async fn put_at_least(
         .map(|node| {
             debug!("PUT[{}] put to {}", key, node.name());
             let node = node.clone();
-            let data = data.clone();
             let options = options.clone();
+            let data2 = data.clone();
             tokio::spawn(async move {
-                LinkManager::call_node(&node, |conn| {
-                    conn.put(key, data.clone(), options.clone()).boxed()
-                })
-                .await
+                LinkManager::call_node(&node, |conn| conn.put(key, data2, options.clone()).boxed())
+                    .await
             })
         })
         .collect();
