@@ -26,15 +26,12 @@ impl Quorum {
         if let Some(path) = disk_path {
             debug!("disk path is present, try put local");
             let res = put_local_node(&self.backend, key, data.clone(), vdisk_id, path).await;
-            match res {
-                Ok(()) => {
-                    local_put_ok += 1;
-                    at_least -= 1;
-                    debug!("PUT[{}] local node put successful", key);
-                }
-                Err(e) => {
-                    error!("{}", e);
-                }
+            if let Err(e) = res {
+                error!("{}", e);
+            } else {
+                local_put_ok += 1;
+                at_least -= 1;
+                debug!("PUT[{}] local node put successful", key);
             }
         } else {
             debug!("skip local put");
@@ -148,6 +145,10 @@ impl Quorum {
         )
         .await;
         if local_put.is_err() {
+            debug!(
+                "PUT[{}] local put failed, need additional remote alien put",
+                key
+            );
             failed_nodes.push(self.mapper.local_node_name().to_string());
         }
         let target_nodes = get_target_nodes(&self.mapper, key);
