@@ -146,7 +146,10 @@ impl Holder {
             trace!("Vdisk: {}, check key: {}", self.vdisk, key);
             let pearl_key = Key::from(key);
             let storage = state.get();
-            Ok(storage.contains(pearl_key).await)
+            storage.contains(pearl_key).await.map_err(|e| {
+                error!("{}", e);
+                Error::internal()
+            })
         } else {
             trace!("Vdisk: {} not ready for reading: {:?}", self.vdisk, state);
             Err(Error::vdisk_is_not_ready())
@@ -218,12 +221,13 @@ impl Holder {
         let prefix = self.config.blob_file_name_prefix();
         let max_data = self.config.max_data_in_blob();
         let max_blob_size = self.config.max_blob_size();
+        let ioring = rio::new()?;
         builder
             .blob_file_name_prefix(prefix)
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
             .set_filter_config(BloomConfig::default())
-            .build()
+            .build(ioring)
             .map_err(|e| {
                 error!("cannot build pearl by path: {:?}, {}", &self.disk_path, e);
                 Error::storage(e.to_string())

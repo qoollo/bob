@@ -85,8 +85,8 @@ impl Cluster for Quorum {
 
         ok_results
             .get(0)
-            .map_or(Err(Error::key_not_found(key)), |cluster_result| {
-                Ok(cluster_result.inner().clone())
+            .map_or(Err(Error::key_not_found(key)), |res| {
+                Ok(res.inner().clone())
             })
     }
 
