@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 http = "0.2.1"
-pearl = "0.4.0"
+pearl = {git = "https://github.com/qoollo/pearl", branch = "master"}
 futures = { version = "0.3.5", features = ["thread-pool"] }
 tokio = { version = "0.2.22", features = ["full"] }
 serde = "1.0"
@@ -40,7 +40,7 @@ ring = "0.16.15"
 derive-new = "0.5.8"
 ctrlc = "3.1.6"
 lazy_static = "1.4.0"
-rio = "0.9"
+rio = { git="https://github.com/agend/rio/", branch="fix_compiling_for_musl" }
 
 [build-dependencies]
 tonic-build = "0.3.0"
