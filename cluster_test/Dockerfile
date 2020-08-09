@@ -64,7 +64,6 @@ RUN echo "#!/bin/bash \n\
 cp ~/local_ssh/* ~/.ssh/ \n\
 chmod 600 -R ~/.ssh \n\
 chown -R root ~/.ssh \n\
-ls -la ~/.ssh \n\
 eval $(ssh-agent) \n\
 ssh-add ~/.ssh/id_rsa \n\
 /usr/sbin/sshd -D &\n\

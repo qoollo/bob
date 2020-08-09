@@ -1,3 +1,4 @@
+use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use std::collections::HashMap;
 use std::error::Error;
@@ -42,6 +43,8 @@ pub struct DockerService {
     networks: HashMap<String, DockerNetwork>,
     ports: Vec<DockerPort>,
     environment: Vec<DockerEnv>,
+    security_opt: Vec<SecurityOpt>,
+    ulimits: ULimits,
 }
 
 #[derive(Serialize, new, Clone)]
@@ -117,4 +120,23 @@ impl Serialize for DockerEnv {
             None => serializer.serialize_str(&self.name),
         }
     }
+}
+
+#[derive(new)]
+pub struct SecurityOpt {
+    seccomp: String,
+}
+
+impl Serialize for SecurityOpt {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&format!("seccomp:{}", self.seccomp))
+    }
+}
+
+#[derive(Serialize, new)]
+pub struct ULimits {
+    memlock: i32,
 }
