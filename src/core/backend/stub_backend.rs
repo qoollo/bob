@@ -1,49 +1,58 @@
 use super::prelude::*;
-use crate::core::backend::core::Exist;
 
 #[derive(Clone, Debug)]
 pub struct StubBackend {}
 
+#[async_trait]
 impl BackendStorage for StubBackend {
-    fn run_backend(&self) -> Run {
-        future::ok(()).boxed()
+    async fn run_backend(&self) -> Result<(), Error> {
+        Ok(())
     }
 
-    fn put(&self, _operation: Operation, key: BobKey, data: BobData) -> Put {
+    async fn put(&self, _operation: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
         debug!(
             "PUT[{}]: hi from backend, timestamp: {:?}",
             key,
             data.meta()
         );
-        future::ok(()).boxed()
+        Ok(())
     }
 
-    fn put_alien(&self, _operation: Operation, key: BobKey, data: BobData) -> Put {
+    async fn put_alien(
+        &self,
+        _operation: Operation,
+        key: BobKey,
+        data: BobData,
+    ) -> Result<(), Error> {
         debug!(
             "PUT[{}]: hi from backend, timestamp: {:?}",
             key,
             data.meta()
         );
-        future::ok(()).boxed()
+        Ok(())
     }
 
-    fn get(&self, _operation: Operation, key: BobKey) -> Get {
+    async fn get(&self, _operation: Operation, key: BobKey) -> Result<BobData, Error> {
         debug!("GET[{}]: hi from backend", key);
-        future::ok(BobData::new(vec![0], BobMeta::stub())).boxed()
+        Ok(BobData::new(vec![0], BobMeta::stub()))
     }
 
-    fn get_alien(&self, _operation: Operation, key: BobKey) -> Get {
+    async fn get_alien(&self, operation: Operation, key: BobKey) -> Result<BobData, Error> {
         debug!("GET[{}]: hi from backend", key);
-        future::ok(BobData::new(vec![0], BobMeta::stub())).boxed()
+        self.get(operation, key).await
     }
 
-    fn exist(&self, _operation: Operation, _keys: &[BobKey]) -> Exist {
+    async fn exist(&self, _operation: Operation, _keys: &[BobKey]) -> Result<Vec<bool>, Error> {
         debug!("EXIST: hi from backend");
-        future::ok(vec![]).boxed()
+        Ok(vec![])
     }
 
-    fn exist_alien(&self, _operation: Operation, _keys: &[BobKey]) -> Exist {
+    async fn exist_alien(
+        &self,
+        _operation: Operation,
+        _keys: &[BobKey],
+    ) -> Result<Vec<bool>, Error> {
         debug!("EXIST: hi from backend");
-        future::ok(vec![]).boxed()
+        Ok(vec![])
     }
 }

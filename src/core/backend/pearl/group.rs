@@ -37,11 +37,9 @@ impl Group {
     pub fn can_process_operation(&self, operation: &Operation) -> bool {
         trace!("check {} can process operation {:?}", self, operation);
         if operation.is_data_alien() {
-            let name_matched = if let Some(node_name) = operation.remote_node_name() {
-                *node_name == self.node_name
-            } else {
-                true
-            };
+            let name_matched = operation
+                .remote_node_name()
+                .map_or(true, |node_name| *node_name == self.node_name);
             name_matched && self.vdisk_id == operation.vdisk_id()
         } else {
             self.disk_name == operation.disk_name_local() && self.vdisk_id == operation.vdisk_id()
@@ -71,6 +69,11 @@ impl Group {
         debug!("{}: start holders", self);
         self.run_pearls().await?;
         Ok(())
+    }
+
+    pub async fn remount(&self) -> Result<(), Error> {
+        self.holders.write().await.clear();
+        self.run().await
     }
 
     async fn run_pearls(&self) -> Result<(), Error> {
@@ -130,7 +133,7 @@ impl Group {
     }
 
     async fn try_create_write_pearl(&self, timestamp: u64) -> Result<Holder, Error> {
-        if self.pearl_sync.try_init().await {
+        if self.pearl_sync.is_ready().await {
             let pearl = self.create_pearl_by_timestamp(timestamp);
             self.save_pearl(pearl.clone()).await?;
             self.pearl_sync.mark_as_created().await;
@@ -146,13 +149,12 @@ impl Group {
         Ok(())
     }
 
-    pub async fn put(&self, key: BobKey, data: BobData) -> PutResult {
+    pub async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
         let holder = self.get_actual_holder(&data).await?;
-
         Self::put_common(holder, key, data).await
     }
 
-    async fn put_common(holder: Holder, key: BobKey, data: BobData) -> PutResult {
+    async fn put_common(holder: Holder, key: BobKey, data: BobData) -> Result<(), Error> {
         let result = holder.write(key, data).await;
         if let Err(e) = result {
             if !e.is_duplicate() && !e.is_not_ready() {
@@ -164,7 +166,7 @@ impl Group {
         Ok(())
     }
 
-    pub async fn get(&self, key: BobKey) -> GetResult {
+    pub async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         let holders = self.holders.read().await;
         let mut has_error = false;
         let mut results = vec![];
@@ -200,7 +202,7 @@ impl Group {
         }
     }
 
-    async fn get_common(holder: Holder, key: BobKey) -> GetResult {
+    async fn get_common(holder: Holder, key: BobKey) -> Result<BobData, Error> {
         let result = holder.read(key).await;
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {
@@ -216,7 +218,9 @@ impl Group {
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
             for holder in holders.iter() {
-                exist[ind] = holder.exist(key).await.unwrap_or(false);
+                if !exist[ind] {
+                    exist[ind] = holder.exist(key).await.unwrap_or(false);
+                }
             }
         }
         exist
@@ -254,40 +258,29 @@ impl Group {
         }
     }
 
-    pub async fn detach(&self, start_timestamp: u64) -> BackendResult<Holder> {
+    pub async fn detach(&self, start_timestamp: u64) -> BackendResult<Vec<Holder>> {
         let mut holders = self.holders.write().await;
         debug!("write lock acquired");
-        if let Some(holder) = holders.iter().find(|holder| {
-            debug!("{}", holder.start_timestamp());
-            holder.start_timestamp() == start_timestamp
-        }) {
-            if holder.is_actual(self.settings.get_actual_timestamp_start()) {
-                let msg = format!("active pearl:{} cannot be detached", start_timestamp);
-                warn!("{}", msg);
-                Err(Error::pearl_change_state(msg))
-            } else {
-                {
-                    let lock_guard = holder.storage();
-                    let pearl_sync = lock_guard.write().await;
-                    let storage = pearl_sync.storage();
-                    if let Err(e) = storage.close().await {
-                        warn!("pearl closed: {:?}", e);
-                    }
-                }
-                let mut holders_to_return = holders
-                    .drain_filter(|holder| holder.start_timestamp() == start_timestamp)
-                    .collect::<Vec<_>>();
-                holders_to_return.pop().ok_or_else(|| {
-                    Error::pearl_change_state(format!(
-                        "error detaching pearl with timestamp {}",
-                        start_timestamp
-                    ))
-                })
-            }
-        } else {
+        let holders = holders
+            .drain_filter(|holder| {
+                debug!("{}", holder.start_timestamp());
+                holder.start_timestamp() == start_timestamp
+                    && !holder.is_actual(self.settings.get_actual_timestamp_start())
+            })
+            .collect::<Vec<_>>();
+        if holders.is_empty() {
             let msg = format!("pearl:{} not found", start_timestamp);
-            Err(Error::pearl_change_state(msg))
+            return Err(Error::pearl_change_state(msg));
         }
+        for holder in &holders {
+            let lock_guard = holder.storage();
+            let pearl_sync = lock_guard.write().await;
+            let storage = pearl_sync.storage();
+            if let Err(e) = storage.close().await {
+                warn!("pearl closed: {:?}", e);
+            }
+        }
+        Ok(holders)
     }
 
     pub fn create_pearl_holder(&self, start_timestamp: u64, hash: &str) -> Holder {

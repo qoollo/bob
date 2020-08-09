@@ -69,31 +69,18 @@ impl Operation {
     }
 }
 
-pub(crate) type GetResult = Result<BobData, Error>;
-pub(crate) type Get = Pin<Box<dyn Future<Output = GetResult> + Send>>;
-pub(crate) type PutResult = Result<(), Error>;
-pub(crate) type Put = Pin<Box<dyn Future<Output = PutResult> + Send>>;
-pub(crate) type RunResult = Result<(), Error>;
-pub(crate) type Run = Pin<Box<dyn Future<Output = RunResult> + Send>>;
-pub(crate) type ExistResult = Result<Vec<bool>, Error>;
-pub(crate) type Exist = Pin<Box<dyn Future<Output = ExistResult> + Send>>;
-
+#[async_trait]
 pub(crate) trait BackendStorage: Debug {
-    fn run_backend(&self) -> Run;
+    async fn run_backend(&self) -> Result<(), Error>;
 
-    fn put(&self, operation: Operation, key: BobKey, data: BobData) -> Put;
-    fn put_alien(
-        &self,
-        operation: Operation,
-        key: BobKey,
-        data: BobData,
-    ) -> Pin<Box<dyn Future<Output = PutResult> + Send>>;
+    async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
+    async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
 
-    fn get(&self, operation: Operation, key: BobKey) -> Get;
-    fn get_alien(&self, operation: Operation, key: BobKey) -> Get;
+    async fn get(&self, op: Operation, key: BobKey) -> Result<BobData, Error>;
+    async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error>;
 
-    fn exist(&self, operation: Operation, keys: &[BobKey]) -> Exist;
-    fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> Exist;
+    async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
+    async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 
     fn vdisks_groups(&self) -> Option<&[Group]> {
         None
@@ -125,11 +112,16 @@ impl Backend {
     }
 
     #[inline]
-    pub(crate) async fn run_backend(&self) -> RunResult {
+    pub(crate) async fn run_backend(&self) -> Result<(), Error> {
         self.inner.run_backend().await
     }
 
-    pub(crate) async fn put(&self, key: BobKey, data: BobData, options: BobOptions) -> PutResult {
+    pub(crate) async fn put(
+        &self,
+        key: BobKey,
+        data: BobData,
+        options: BobOptions,
+    ) -> Result<(), Error> {
         trace!(">>>>>>- - - - - BACKEND PUT START - - - - -");
         let sw = Stopwatch::start_new();
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
@@ -175,11 +167,16 @@ impl Backend {
         key: BobKey,
         data: BobData,
         operation: Operation,
-    ) -> PutResult {
+    ) -> Result<(), Error> {
         self.put_single(key, data, operation).await
     }
 
-    async fn put_single(&self, key: BobKey, data: BobData, operation: Operation) -> PutResult {
+    async fn put_single(
+        &self,
+        key: BobKey,
+        data: BobData,
+        operation: Operation,
+    ) -> Result<(), Error> {
         if operation.is_data_alien() {
             debug!("PUT[{}] to backend, alien data: {:?}", key, operation);
             self.inner.put_alien(operation, key, data).await
@@ -205,7 +202,7 @@ impl Backend {
         }
     }
 
-    pub(crate) async fn get(&self, key: BobKey, options: &BobOptions) -> GetResult {
+    pub(crate) async fn get(&self, key: BobKey, options: &BobOptions) -> Result<BobData, Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
         // we cannot get data from alien if it belong this node
@@ -236,11 +233,11 @@ impl Backend {
         }
     }
 
-    pub(crate) async fn get_local(&self, key: BobKey, op: Operation) -> GetResult {
+    pub(crate) async fn get_local(&self, key: BobKey, op: Operation) -> Result<BobData, Error> {
         self.get_single(key, op).await
     }
 
-    async fn get_single(&self, key: BobKey, operation: Operation) -> GetResult {
+    async fn get_single(&self, key: BobKey, operation: Operation) -> Result<BobData, Error> {
         if operation.is_data_alien() {
             debug!("GET[{}] to backend, foreign data", key);
             self.inner.get_alien(operation, key).await
@@ -250,7 +247,11 @@ impl Backend {
         }
     }
 
-    pub(crate) async fn exist(&self, keys: &[BobKey], options: &BobOptions) -> ExistResult {
+    pub(crate) async fn exist(
+        &self,
+        keys: &[BobKey],
+        options: &BobOptions,
+    ) -> Result<Vec<bool>, Error> {
         let mut exist = vec![false; keys.len()];
         let keys_by_id_and_path = self.group_keys_by_operations(keys, options);
         for (operation, (keys, indexes)) in keys_by_id_and_path {
