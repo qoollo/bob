@@ -19,7 +19,7 @@ mod prelude {
     pub(crate) use super::*;
 
     pub(crate) use ::pearl::{
-        filter::Config as BloomConfig, Builder, ErrorKind, Key as KeyTrait, Storage,
+        filter::Config as BloomConfig, Builder, ErrorKind, Key as KeyTrait, Storage, Error as PearlError
     };
     pub(crate) use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
     pub(crate) use configs::Pearl as PearlConfig;
