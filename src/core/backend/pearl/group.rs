@@ -1,6 +1,4 @@
 use super::prelude::*;
-use ring::digest::{digest, SHA256};
-use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Group {

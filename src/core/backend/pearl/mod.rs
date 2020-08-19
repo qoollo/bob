@@ -19,7 +19,8 @@ mod prelude {
     pub(crate) use super::*;
 
     pub(crate) use ::pearl::{
-        filter::Config as BloomConfig, Builder, ErrorKind, Key as KeyTrait, Storage, Error as PearlError
+        filter::Config as BloomConfig, Builder, Error as PearlError, ErrorKind, Key as KeyTrait,
+        Storage,
     };
     pub(crate) use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
     pub(crate) use configs::Pearl as PearlConfig;
@@ -31,4 +32,7 @@ mod prelude {
     };
     pub(crate) use settings::Settings;
     pub(crate) use stuff::{Stuff, SyncState};
+
+    pub(crate) use ring::digest::{digest, SHA256};
+    pub(crate) use std::collections::HashMap;
 }
