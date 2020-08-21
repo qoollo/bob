@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 http = "0.2.1"
-pearl = {git = "https://github.com/qoollo/pearl", branch = "master"}
+pearl = "0.5.0"
 futures = { version = "0.3.5", features = ["thread-pool"] }
 tokio = { version = "0.2.22", features = ["full"] }
 serde = "1.0"
@@ -21,12 +21,12 @@ bytes = "0.5.6"
 stopwatch = "0.0.7"
 hyper = "0.13.7"
 humantime = "2.0.1"
-chrono = "0.4.13"
+chrono = "0.4.15"
 dipstick = "0.9.0"
 mockall = "0.7.2"
 cfg-if = "0.1.10"
 env_logger = "0.7"
-tonic = { version = "0.3.0", features = ["prost"] }
+tonic = { version = "0.3.1", features = ["prost"] }
 tower = "0.3.1"
 tower-make = "0.3.0"
 tower-service = "0.3.0"
@@ -34,16 +34,15 @@ tower-balance = "0.3.0"
 tower-load = "0.3.0"
 rocket = "0.4.5"
 rocket_contrib = "0.4.5"
-async-trait = "0.1.36"
+async-trait = "0.1.38"
 termion = "1.5"
 ring = "0.16.15"
 derive-new = "0.5.8"
 ctrlc = "3.1.6"
 lazy_static = "1.4.0"
-rio = { git="https://github.com/agend/rio/", branch="fix_compiling_for_musl" }
 
 [build-dependencies]
-tonic-build = "0.3.0"
+tonic-build = "0.3.1"
 
 [lib]
 name = "bob"
