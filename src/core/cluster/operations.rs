@@ -1,4 +1,5 @@
 use super::prelude::*;
+use tokio::task::JoinHandle;
 
 pub(crate) async fn get_any(
     key: BobKey,
@@ -12,6 +13,58 @@ pub(crate) async fn get_any(
         .filter_map(|res| future::ready(res.ok()))
         .next()
         .await
+}
+
+pub(crate) async fn put_at_least(
+    key: BobKey,
+    data: BobData,
+    target_nodes: impl Iterator<Item = &Node>,
+    at_least: usize,
+    options: PutOptions,
+) -> (
+    FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>,
+    Vec<NodeOutput<Error>>,
+) {
+    let mut handles: FuturesUnordered<_> = target_nodes
+        .map(|node| {
+            debug!("PUT[{}] put to {}", key, node.name());
+            let node = node.clone();
+            let options = options.clone();
+            let data2 = data.clone();
+            tokio::spawn(async move {
+                LinkManager::call_node(&node, |conn| conn.put(key, data2, options.clone()).boxed())
+                    .await
+            })
+        })
+        .collect();
+    debug!("total handles count: {}", handles.len());
+    let mut ok_count = 0;
+    let mut errors = Vec::new();
+    while ok_count < at_least {
+        if let Some(join_res) = handles.next().await {
+            debug!("handle returned");
+            match join_res {
+                Ok(res) => match res {
+                    Ok(_) => ok_count += 1,
+                    Err(e) => {
+                        error!("{:?}", e);
+                        errors.push(e);
+                    }
+                },
+                Err(e) => {
+                    error!("{:?}", e);
+                }
+            }
+            if ok_count == at_least {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    debug!("ok_count/at_least: {}/{}", ok_count, at_least);
+    debug!("remains: {}, errors: {}", handles.len(), errors.len());
+    (handles, errors)
 }
 
 pub(crate) fn get_support_nodes<'a>(
@@ -149,6 +202,7 @@ pub(crate) async fn put_local_all(
     for node_name in node_names {
         let mut op = operation.clone();
         op.set_remote_folder(node_name.clone());
+        debug!("PUT[{}] put to local alien: {:?}", key, node_name);
 
         if let Err(e) = backend.put_local(key, data.clone(), op).await {
             debug!("PUT[{}] local support put result: {:?}", key, e);
@@ -174,6 +228,7 @@ pub(crate) async fn put_sup_nodes(
             Box::pin(client.put(key, data.clone(), options.clone()))
         })
         .await;
+        debug!("{:?}", result);
         if let Err(e) = result {
             ret.push(e);
         }
@@ -185,4 +240,16 @@ pub(crate) async fn put_sup_nodes(
         let msg = ret.iter().map(|x| format!("{:?}\n", x)).collect();
         Err((requests.len() - ret.len(), msg))
     }
+}
+
+pub(crate) async fn put_local_node(
+    backend: &Backend,
+    key: BobKey,
+    data: BobData,
+    vdisk_id: VDiskId,
+    disk_path: DiskPath,
+) -> Result<(), Error> {
+    debug!("local node has vdisk replica, put local");
+    let op = Operation::new_local(vdisk_id, disk_path);
+    backend.put_local(key, data, op).await
 }
