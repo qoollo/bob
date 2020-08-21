@@ -137,13 +137,7 @@ impl Group {
                 indexes.insert(ts, holder_index);
             }
         }
-        let index = self
-            .created_holder_indexes
-            .read()
-            .await
-            .get(&ts)
-            .unwrap()
-            .clone();
+        let index = *self.created_holder_indexes.read().await.get(&ts).unwrap();
         Ok(self.holders.read().await[index].clone())
     }
 
