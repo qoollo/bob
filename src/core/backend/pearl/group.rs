@@ -123,7 +123,8 @@ impl Group {
 
     // create pearl for current write
     async fn create_write_pearl(&self, ts: u64) -> BackendResult<Holder> {
-        let created_holder_index = self.created_holder_indexes.read().await.get(&ts).copied();
+        let mut indexes = self.created_holder_indexes.write().await;
+        let created_holder_index = indexes.get(&ts).copied();
         if let Some(index) = created_holder_index {
             Ok(self.holders.read().await[index].clone())
         } else {
@@ -137,10 +138,7 @@ impl Group {
                 )
                 .await?;
             debug!("group create write pearl holder index {}", holder_index);
-            self.created_holder_indexes
-                .write()
-                .await
-                .insert(ts, holder_index);
+            indexes.insert(ts, holder_index);
             debug!("group create write pearl holder inserted");
             Ok(self.holders.read().await[holder_index].clone())
         }
