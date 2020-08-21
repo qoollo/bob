@@ -122,22 +122,25 @@ impl Group {
 
     // create pearl for current write
     async fn create_write_pearl(&self, ts: u64) -> BackendResult<Holder> {
-        if !self.created_holder_indexes.read().await.contains_key(&ts) {
-            let mut indexes = self.created_holder_indexes.write().await;
-            if !indexes.contains_key(&ts) {
-                let holder_index = self
-                    .settings
-                    .config()
-                    .try_multiple_times_async(
-                        || self.try_create_write_pearl(ts),
-                        "pearl init failed",
-                        self.settings.config().settings().create_pearl_wait_delay(),
-                    )
-                    .await?;
-                indexes.insert(ts, holder_index);
-            }
-        }
-        let index = *self.created_holder_indexes.read().await.get(&ts).unwrap();
+        let index = if let Some(index) = self.created_holder_indexes.read().await.get(&ts).copied()
+        {
+            index
+        } else {
+            let holder_index = self
+                .settings
+                .config()
+                .try_multiple_times_async(
+                    || self.try_create_write_pearl(ts),
+                    "pearl init failed",
+                    self.settings.config().settings().create_pearl_wait_delay(),
+                )
+                .await?;
+            self.created_holder_indexes
+                .write()
+                .await
+                .insert(ts, holder_index);
+            holder_index
+        };
         Ok(self.holders.read().await[index].clone())
     }
 
