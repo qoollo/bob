@@ -1,36 +1,6 @@
 use super::prelude::*;
 use crate::core::configs::{cluster::tests::cluster_config, node::tests::node_config};
-use env_logger::fmt::{Color, Formatter as EnvFormatter};
-use log::{Level, Record};
-use std::{
-    io::Write,
-    sync::atomic::{AtomicU64, Ordering},
-};
-
-#[allow(dead_code)]
-fn init_logger() {
-    let _ = env_logger::builder()
-        .filter_level(log::LevelFilter::Debug)
-        .format(logger_format)
-        .try_init();
-}
-
-fn logger_format(buf: &mut EnvFormatter, record: &Record) -> IOResult<()> {
-    let mut style = buf.style();
-    let color = match record.level() {
-        Level::Trace => Color::Cyan,
-        Level::Debug => Color::Magenta,
-        Level::Info => Color::Green,
-        Level::Warn => Color::Yellow,
-        Level::Error => Color::Red,
-    };
-    style.set_color(color);
-    let level = style.value(record.level());
-    let args = record.args();
-    let line = record.line().map_or("_".to_string(), |l| l.to_string());
-    let path = record.module_path().unwrap_or("_");
-    writeln!(buf, "[{:>24}::{} {}]: {}", path, line, level, args)
-}
+use std::sync::atomic::{AtomicU64, Ordering};
 
 fn ping_ok(client: &mut BobClient, node: Node) {
     let cl = node;
@@ -177,7 +147,7 @@ type Call = Box<dyn Fn(&mut BobClient, Node, Arc<CountCall>)>;
 /// no data local
 #[tokio::test]
 async fn simple_one_node_put_ok() {
-    init_logger();
+    test_utils::init_logger();
     let (vdisks, node, cluster) = prepare_configs(1, 1, 1, 1);
 
     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![create_ok_node("0", (true, true))];
@@ -201,7 +171,7 @@ async fn simple_one_node_put_ok() {
 /// no data local
 #[tokio::test]
 async fn simple_two_node_one_vdisk_cluster_put_ok() {
-    init_logger();
+    test_utils::init_logger();
     let (vdisks, node, cluster) = prepare_configs(2, 1, 2, 1);
 
     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
@@ -235,7 +205,7 @@ async fn simple_two_node_one_vdisk_cluster_put_ok() {
 /// no data local
 #[tokio::test]
 async fn simple_two_node_two_vdisk_one_replica_cluster_put_ok() {
-    init_logger();
+    test_utils::init_logger();
     let (vdisks, node, cluster) = prepare_configs(2, 2, 1, 1);
 
     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
@@ -273,7 +243,7 @@ async fn simple_two_node_two_vdisk_one_replica_cluster_put_ok() {
 /// one node failed => write one data local => no quorum => put err
 #[tokio::test]
 async fn two_node_one_vdisk_cluster_one_node_failed_put_err() {
-    init_logger();
+    test_utils::init_logger();
     let (vdisks, node, cluster) = prepare_configs(2, 1, 2, 2);
     // debug!("cluster: {:?}", cluster);
     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
@@ -303,7 +273,7 @@ async fn two_node_one_vdisk_cluster_one_node_failed_put_err() {
 /// one node failed => write one data local => quorum => put ok
 #[tokio::test]
 async fn two_node_one_vdisk_cluster_one_node_failed_put_ok() {
-    init_logger();
+    test_utils::init_logger();
     let (vdisks, node, cluster) = prepare_configs(2, 1, 2, 1);
     // debug!("cluster: {:?}", cluster);
     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
@@ -364,7 +334,7 @@ async fn three_node_two_vdisk_cluster_one_node_failed_put_ok() {
 /// one node failed => write one data local + one sup node(failed) => quorum => put err
 #[tokio::test]
 async fn three_node_two_vdisk_cluster_one_node_failed_put_err() {
-    init_logger();
+    test_utils::init_logger();
     let (vdisks, node, cluster) = prepare_configs(3, 2, 2, 2);
     // debug!("cluster: {:?}", cluster);
     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
@@ -397,7 +367,7 @@ async fn three_node_two_vdisk_cluster_one_node_failed_put_err() {
 /// one node failed, but call other => quorum => put ok
 #[tokio::test]
 async fn three_node_two_vdisk_cluster_one_node_failed_put_ok2() {
-    init_logger();
+    test_utils::init_logger();
     let (vdisks, node, cluster) = prepare_configs(3, 2, 2, 2);
     // debug!("cluster: {:?}", cluster);
     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
@@ -428,7 +398,7 @@ async fn three_node_two_vdisk_cluster_one_node_failed_put_ok2() {
 /// one node failed => local write => quorum => put ok
 #[tokio::test]
 async fn three_node_one_vdisk_cluster_one_node_failed_put_ok() {
-    init_logger();
+    test_utils::init_logger();
     let (vdisks, node, cluster) = prepare_configs(3, 1, 3, 2);
     // debug!("cluster: {:?}", cluster);
     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
@@ -462,7 +432,7 @@ async fn three_node_one_vdisk_cluster_one_node_failed_put_ok() {
 /// get no data => err
 #[tokio::test]
 async fn simple_one_node_get_err() {
-    // init_logger();
+    // test_utils::init_logger();
     info!("logger initialized");
     let (vdisks, node, cluster) = prepare_configs(1, 1, 1, 1);
     info!("configs prepared");
