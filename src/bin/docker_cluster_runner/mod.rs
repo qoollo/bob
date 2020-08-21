@@ -9,7 +9,10 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use std::net::Ipv4Addr;
+use std::path::Path;
 use std::str::FromStr;
+
+type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 #[derive(Deserialize, new)]
 pub struct TestClusterConfiguration {
@@ -19,16 +22,35 @@ pub struct TestClusterConfiguration {
 }
 
 impl TestClusterConfiguration {
-    pub fn save_cluster_configuration(&self, directory: &str) -> Result<(), Box<dyn Error>> {
+    pub fn save_cluster_configuration(&self, directory: &str) -> Result<()> {
+        self.save_cluster_config(directory)?;
+        self.save_logger_config(directory)?;
+        self.save_nodes_config(directory)?;
+        Ok(())
+    }
+
+    fn save_nodes_config(&self, directory: &str) -> Result<()> {
+        for node in 0..self.nodes_count {
+            self.save_node_config(directory, node)?;
+        }
+        Ok(())
+    }
+
+    fn save_logger_config(&self, directory: &str) -> Result<()> {
+        logger::create_logger_yaml(directory, &self.logging_level)
+    }
+
+    fn save_node_config(&self, directory: &str, node: u32) -> Result<()> {
+        let (name, node) = self.create_named_node_configuration(node);
+        let node_string = serde_yaml::to_string(&node)?;
+        fs::write(format!("{}/{}.yaml", directory, name), node_string)?;
+        Ok(())
+    }
+
+    fn save_cluster_config(&self, directory: &str) -> Result<()> {
         let cluster = self.create_cluster();
         let cluster_string = serde_yaml::to_string(&cluster)?;
         fs::write(format!("{}/cluster.yaml", directory), cluster_string)?;
-        logger::create_logger_yaml(directory, &self.logging_level)?;
-        for node in 0..self.nodes_count {
-            let (name, node) = self.create_named_node_configuration(node);
-            let node_string = serde_yaml::to_string(&node)?;
-            fs::write(format!("{}/{}.yaml", directory, name), node_string)?;
-        }
         Ok(())
     }
 
@@ -36,34 +58,63 @@ impl TestClusterConfiguration {
         &self,
         fs_configuration: FSConfiguration,
         network_name: String,
-    ) -> Result<DockerCompose, Box<dyn Error>> {
-        let bob_dir = Self::convert_to_absolute_path(&fs_configuration.bob_source_dir)?;
-        let config_dir =
-            Self::convert_to_absolute_path(&fs_configuration.cluster_configuration_dir)?;
-        let disks_dir = Self::convert_to_absolute_path(&fs_configuration.disks_dir)?;
-        let build = DockerBuild::new(
-            bob_dir,
-            format!("{}/Dockerfile", fs_configuration.dockerfile_path),
-        );
-        let volumes = vec![
-            VolumeMapping::new(disks_dir, DockerFSConstants::docker_disks_dir()),
-            VolumeMapping::new(config_dir, DockerFSConstants::docker_configs_dir()),
-        ];
+    ) -> Result<DockerCompose> {
         let mut services = HashMap::with_capacity(self.nodes_count as usize);
         for node in 0..self.nodes_count {
-            let command = Self::create_docker_command(node);
-            let networks = Self::create_networks_with_single_network(node, network_name.clone());
             services.insert(
                 Self::get_node_name(node),
-                DockerService::new(build.clone(), volumes.clone(), command, networks),
+                DockerService::new(
+                    Self::get_build_command(&fs_configuration)?,
+                    Self::get_volumes(&fs_configuration)?,
+                    Self::get_docker_command(node),
+                    Self::get_networks_with_single_network(node, &network_name),
+                    Self::get_security_opts(&fs_configuration)?,
+                    Self::get_ulimits(),
+                ),
             );
         }
-        let networks = Self::create_networks_with_custom_network(network_name);
+        let networks = Self::get_networks_with_custom_network(network_name);
         let compose = DockerCompose::new("3.8".to_string(), services, networks);
         Ok(compose)
     }
 
-    fn create_networks_with_custom_network(
+    fn get_ulimits() -> ULimits {
+        ULimits::new(4194304)
+    }
+
+    fn get_security_opts(fs_configuration: &FSConfiguration) -> Result<Vec<SecurityOpt>> {
+        let filename = format!(
+            "{}/profile.json",
+            Self::convert_to_absolute_path(&fs_configuration.dockerfile_path)?
+        );
+        if !Path::new(&filename).exists() {
+            let content = "{ \"syscalls\": [] }";
+            fs::write(&filename, content)?;
+        }
+        Ok(vec![SecurityOpt::new(filename)])
+    }
+
+    fn get_volumes(fs_configuration: &FSConfiguration) -> Result<Vec<VolumeMapping>> {
+        let config_dir =
+            Self::convert_to_absolute_path(&fs_configuration.cluster_configuration_dir)?;
+        let disks_dir = Self::convert_to_absolute_path(&fs_configuration.disks_dir)?;
+        let volumes = vec![
+            VolumeMapping::new(disks_dir, DockerFSConstants::docker_disks_dir()),
+            VolumeMapping::new(config_dir, DockerFSConstants::docker_configs_dir()),
+        ];
+        Ok(volumes)
+    }
+
+    fn get_build_command(fs_configuration: &FSConfiguration) -> Result<DockerBuild> {
+        let bob_dir = Self::convert_to_absolute_path(&fs_configuration.bob_source_dir)?;
+        let build = DockerBuild::new(
+            bob_dir,
+            format!("{}/Dockerfile", fs_configuration.dockerfile_path),
+        );
+        Ok(build)
+    }
+
+    fn get_networks_with_custom_network(
         network_name: String,
     ) -> HashMap<String, DockerComposeNetwork> {
         let mut networks = HashMap::with_capacity(1);
@@ -80,23 +131,23 @@ impl TestClusterConfiguration {
         networks
     }
 
-    fn convert_to_absolute_path(dir: &str) -> Result<String, Box<dyn Error>> {
+    fn convert_to_absolute_path(dir: &str) -> Result<String> {
         fs::canonicalize(dir)
             .map(|p| p.to_str().unwrap().to_string())
             .map_err(|e| e.into())
     }
 
-    fn create_networks_with_single_network(
+    fn get_networks_with_single_network(
         node: u32,
-        network_name: String,
+        network_name: &str,
     ) -> HashMap<String, DockerNetwork> {
         let network = DockerNetwork::new(Ipv4Addr::from_str(&Self::get_node_addr(node)).unwrap());
         let mut networks = HashMap::with_capacity(1);
-        networks.insert(network_name, network);
+        networks.insert(network_name.to_string(), network);
         networks
     }
 
-    fn create_docker_command(node: u32) -> String {
+    fn get_docker_command(node: u32) -> String {
         let command = format!(
             "./bobd -c {}/cluster.yaml -n {}/{}.yaml",
             DockerFSConstants::docker_configs_dir(),

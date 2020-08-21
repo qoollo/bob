@@ -106,7 +106,7 @@ impl Holder {
                 .map_err(|e| {
                     PEARL_GET_ERROR_COUNTER.count(1);
                     trace!("error on read: {:?}", e);
-                    match e.kind() {
+                    match e.downcast_ref::<PearlError>().unwrap().kind() {
                         ErrorKind::RecordNotFound => Error::key_not_found(key),
                         _ => Error::storage(e.to_string()),
                     }
