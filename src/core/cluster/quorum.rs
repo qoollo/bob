@@ -39,7 +39,7 @@ impl Quorum {
         debug!("PUT[{}] need at least {} additional puts", key, at_least);
 
         debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
-        let (tasks, mut errors) = self.put_remote_nodes(key, data.clone(), at_least).await;
+        let (tasks, errors) = self.put_remote_nodes(key, data.clone(), at_least).await;
         remote_ok_count += at_least - errors.len();
         let failed_nodes = errors
             .iter()
@@ -64,15 +64,14 @@ impl Quorum {
                 errors
             );
             if let Err(err) = self.put_aliens(failed_nodes, key, data).await {
-                if errors.is_empty() {
+                if let Some(err) = errors.last() {
+                    Err(err.inner().clone())
+                } else {
                     error!("PUT[{}] smth wrong with cluster/node configuration", key);
                     error!(
                         "PUT[{}] local_put_ok: {}, remote_ok_count: {}, quorum: {},no errors",
                         key, local_put_ok, remote_ok_count, self.quorum
                     );
-                    Err(err)
-                } else {
-                    let err = errors.remove(errors.len() - 1).into_inner();
                     Err(err)
                 }
             } else {
