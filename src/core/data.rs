@@ -368,17 +368,14 @@ impl Node {
     }
 
     pub(crate) async fn set_connection(&self, client: BobClient) {
-        debug!("acquire mutex lock on connection");
         *self.conn.write().await = Some(client);
     }
 
     pub(crate) async fn clear_connection(&self) {
-        debug!("acquire mutex lock on connection");
         *self.conn.write().await = None;
     }
 
     pub(crate) async fn get_connection(&self) -> Option<BobClient> {
-        debug!("acquire mutex lock on connection");
         self.conn.read().await.clone()
     }
 

@@ -1,4 +1,3 @@
-use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use std::collections::HashMap;
 use std::error::Error;

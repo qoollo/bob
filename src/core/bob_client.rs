@@ -64,11 +64,9 @@ pub(crate) mod b_client {
             let timer = self.metrics.put_timer();
             let mut client = self.client.clone();
             let node_name = self.node.name().to_owned();
-            let future = client.put(request).map(|res| {
-                res.expect("client put request");
-                self.metrics.put_timer_stop(timer);
-            });
+            let future = client.put(request);
             if timeout(self.operation_timeout, future).await.is_ok() {
+                self.metrics.put_timer_stop(timer);
                 Ok(NodeOutput::new(node_name, ()))
             } else {
                 self.metrics.put_error_count();
