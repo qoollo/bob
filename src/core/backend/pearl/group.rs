@@ -148,6 +148,7 @@ impl Group {
     }
 
     async fn try_create_write_pearl(&self, timestamp: u64) -> Result<usize, Error> {
+        info!("creating pearl for timestamp {}", timestamp);
         let pearl = self.create_pearl_by_timestamp(timestamp);
         self.save_pearl(pearl.clone()).await
     }
@@ -294,6 +295,7 @@ impl Group {
     pub fn create_pearl_holder(&self, start_timestamp: u64, hash: &str) -> Holder {
         let end_timestamp = start_timestamp + self.settings.timestamp_period_as_secs();
         let mut path = self.directory_path.clone();
+        info!("creating pearl holder {}", path);
         let partition_name = PartitionName::new(start_timestamp, &hash);
         path.push(partition_name.to_string());
         let mut config = self.settings.config().clone();
@@ -305,6 +307,10 @@ impl Group {
     pub(crate) fn create_pearl_by_timestamp(&self, time: u64) -> Holder {
         let start_timestamp =
             Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period(), time);
+        info!(
+            "pearl for timestamp {} will be created with timestamp {}",
+            time, start_timestamp
+        );
         let hash = self.get_owner_node_hash();
         self.create_pearl_holder(start_timestamp, &hash)
     }
