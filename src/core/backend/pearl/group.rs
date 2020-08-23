@@ -80,6 +80,7 @@ impl Group {
 
         for holder in holders.iter() {
             holder.prepare_storage().await?;
+            debug!("backend pearl group run pearls storage prepared");
         }
         Ok(())
     }
@@ -122,29 +123,25 @@ impl Group {
 
     // create pearl for current write
     async fn create_write_pearl(&self, ts: u64) -> BackendResult<Holder> {
-        if !self.created_holder_indexes.read().await.contains_key(&ts) {
-            let mut indexes = self.created_holder_indexes.write().await;
-            if !indexes.contains_key(&ts) {
-                let holder_index = self
-                    .settings
-                    .config()
-                    .try_multiple_times_async(
-                        || self.try_create_write_pearl(ts),
-                        "pearl init failed",
-                        self.settings.config().settings().create_pearl_wait_delay(),
-                    )
-                    .await?;
-                indexes.insert(ts, holder_index);
-            }
+        let mut indexes = self.created_holder_indexes.write().await;
+        let created_holder_index = indexes.get(&ts).copied();
+        if let Some(index) = created_holder_index {
+            Ok(self.holders.read().await[index].clone())
+        } else {
+            let holder_index = self
+                .settings
+                .config()
+                .try_multiple_times_async(
+                    || self.try_create_write_pearl(ts),
+                    "pearl init failed",
+                    self.settings.config().settings().create_pearl_wait_delay(),
+                )
+                .await?;
+            debug!("group create write pearl holder index {}", holder_index);
+            indexes.insert(ts, holder_index);
+            debug!("group create write pearl holder inserted");
+            Ok(self.holders.read().await[holder_index].clone())
         }
-        let index = self
-            .created_holder_indexes
-            .read()
-            .await
-            .get(&ts)
-            .unwrap()
-            .clone();
-        Ok(self.holders.read().await[index].clone())
     }
 
     async fn try_create_write_pearl(&self, timestamp: u64) -> Result<usize, Error> {
@@ -155,6 +152,7 @@ impl Group {
 
     async fn save_pearl(&self, holder: Holder) -> Result<usize, Error> {
         holder.prepare_storage().await?;
+        debug!("backend pearl group save pearl storage prepared");
         Ok(self.add(holder).await)
     }
 
@@ -170,6 +168,7 @@ impl Group {
                 error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
                 holder.prepare_storage().await?;
+                debug!("backend pearl group put common storage prepared");
             }
         }
         Ok(())
@@ -217,6 +216,7 @@ impl Group {
             if !e.is_key_not_found() && !e.is_not_ready() {
                 holder.try_reinit().await?;
                 holder.prepare_storage().await?;
+                debug!("backend pearl group get common storage prepared");
             }
         }
         result

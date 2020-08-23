@@ -75,7 +75,7 @@ impl Validatable for Node {
         Self::aggregate(&self.disks)?;
 
         let mut names = self.disks.iter().map(DiskPath::name).collect::<Vec<_>>();
-        names.sort();
+        names.sort_unstable();
         if names.windows(2).any(|pair| pair[0] == pair[1]) {
             let msg = format!("nodes can't use identical names: {}", self.name());
             error!("{}", msg);
@@ -342,7 +342,7 @@ impl Validatable for Cluster {
         })?;
 
         let mut vdisks_id = self.vdisks.iter().map(|vdisk| vdisk.id).collect::<Vec<_>>();
-        vdisks_id.sort();
+        vdisks_id.sort_unstable();
         if vdisks_id.windows(2).any(|pair| pair[0] == pair[1]) {
             debug!("config contains duplicates vdisks ids");
             return Err("config contains duplicates vdisks ids".to_string());

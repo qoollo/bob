@@ -58,9 +58,9 @@ impl LinkManager {
         futures.collect().await
     }
 
-    pub(crate) async fn call_node<'a, F, T>(node: &Node, mut f: F) -> ClusterCallOutput<T>
+    pub(crate) async fn call_node<'a, F, T>(node: &Node, f: F) -> ClusterCallOutput<T>
     where
-        F: FnMut(&'_ BobClient) -> ClusterCallFuture<'_, T> + Send + Clone,
+        F: FnOnce(&'_ BobClient) -> ClusterCallFuture<'_, T> + Send + Clone,
         T: Send,
     {
         match node.get_connection().await {
