@@ -125,10 +125,10 @@ impl Group {
     async fn create_write_pearl(&self, ts: u64) -> BackendResult<Holder> {
         let mut indexes = self.created_holder_indexes.write().await;
         let created_holder_index = indexes.get(&ts).copied();
-        if let Some(index) = created_holder_index {
-            Ok(self.holders.read().await[index].clone())
+        let index = if let Some(exisiting_index) = created_holder_index {
+            exisiting_index
         } else {
-            let holder_index = self
+            let new_index = self
                 .settings
                 .config()
                 .try_multiple_times_async(
@@ -137,11 +137,12 @@ impl Group {
                     self.settings.config().settings().create_pearl_wait_delay(),
                 )
                 .await?;
-            debug!("group create write pearl holder index {}", holder_index);
-            indexes.insert(ts, holder_index);
+            debug!("group create write pearl holder index {}", new_index);
+            indexes.insert(ts, new_index);
             debug!("group create write pearl holder inserted");
-            Ok(self.holders.read().await[holder_index].clone())
-        }
+            new_index
+        };
+        Ok(self.holders.read().await[index].clone())
     }
 
     async fn try_create_write_pearl(&self, timestamp: u64) -> Result<usize, Error> {
@@ -295,7 +296,7 @@ impl Group {
     pub fn create_pearl_holder(&self, start_timestamp: u64, hash: &str) -> Holder {
         let end_timestamp = start_timestamp + self.settings.timestamp_period_as_secs();
         let mut path = self.directory_path.clone();
-        info!("creating pearl holder {}", path);
+        info!("creating pearl holder {}", path.as_path().display());
         let partition_name = PartitionName::new(start_timestamp, &hash);
         path.push(partition_name.to_string());
         let mut config = self.settings.config().clone();
