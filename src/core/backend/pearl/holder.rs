@@ -157,6 +157,7 @@ impl Holder {
     }
 
     pub async fn prepare_storage(&self) -> Result<(), Error> {
+        debug!("backend pearl holder prepare storage");
         self.config
             .try_multiple_times_async(
                 || self.init_holder(),
@@ -192,7 +193,7 @@ impl Holder {
             )
             .await?;
         self.init_pearl(storage).await?;
-        debug!("Vdisk: {} Pearl is ready for work", self.vdisk);
+        debug!("backend pearl holder init holder ready #{}", self.vdisk);
         Ok(())
     }
 

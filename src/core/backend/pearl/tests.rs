@@ -69,6 +69,7 @@ vdisks:
 
 #[tokio::test]
 async fn test_write_multiple_read() {
+    test_utils::init_logger();
     drop_pearl();
     let vdisk_id = 0;
     let backend = backend().await;

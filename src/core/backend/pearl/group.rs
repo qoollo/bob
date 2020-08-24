@@ -1,16 +1,15 @@
 use super::prelude::*;
-use ring::digest::{digest, SHA256};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Group {
     holders: Arc<RwLock<Vec<Holder>>>,
-    pearl_sync: Arc<SyncState>,
     settings: Arc<Settings>,
     directory_path: PathBuf,
     vdisk_id: VDiskId,
     node_name: String,
     disk_name: String,
     owner_node_name: String,
+    created_holder_indexes: Arc<RwLock<HashMap<u64, usize>>>,
 }
 
 impl Group {
@@ -24,13 +23,13 @@ impl Group {
     ) -> Self {
         Self {
             holders: Arc::new(RwLock::new(vec![])),
-            pearl_sync: Arc::new(SyncState::new()),
             settings,
             vdisk_id,
             node_name,
             directory_path,
             disk_name,
             owner_node_name,
+            created_holder_indexes: Arc::default(),
         }
     }
 
@@ -81,13 +80,15 @@ impl Group {
 
         for holder in holders.iter() {
             holder.prepare_storage().await?;
+            debug!("backend pearl group run pearls storage prepared");
         }
         Ok(())
     }
 
-    pub async fn add(&self, holder: Holder) {
+    pub async fn add(&self, holder: Holder) -> usize {
         let mut holders = self.holders.write().await;
         holders.push(holder);
+        holders.len() - 1
     }
 
     pub async fn add_range(&self, new: Vec<Holder>) {
@@ -121,32 +122,39 @@ impl Group {
     }
 
     // create pearl for current write
-    async fn create_write_pearl(&self, timestamp: u64) -> BackendResult<Holder> {
-        self.settings
-            .config()
-            .try_multiple_times_async(
-                || self.try_create_write_pearl(timestamp),
-                "pearl init failed",
-                self.settings.config().settings().create_pearl_wait_delay(),
-            )
-            .await
-    }
-
-    async fn try_create_write_pearl(&self, timestamp: u64) -> Result<Holder, Error> {
-        if self.pearl_sync.is_ready().await {
-            let pearl = self.create_pearl_by_timestamp(timestamp);
-            self.save_pearl(pearl.clone()).await?;
-            self.pearl_sync.mark_as_created().await;
-            Ok(pearl)
+    async fn create_write_pearl(&self, ts: u64) -> BackendResult<Holder> {
+        let mut indexes = self.created_holder_indexes.write().await;
+        let created_holder_index = indexes.get(&ts).copied();
+        let index = if let Some(exisiting_index) = created_holder_index {
+            exisiting_index
         } else {
-            Err(Error::failed("failed to init pearl sync"))
-        }
+            let new_index = self
+                .settings
+                .config()
+                .try_multiple_times_async(
+                    || self.try_create_write_pearl(ts),
+                    "pearl init failed",
+                    self.settings.config().settings().create_pearl_wait_delay(),
+                )
+                .await?;
+            debug!("group create write pearl holder index {}", new_index);
+            indexes.insert(ts, new_index);
+            debug!("group create write pearl holder inserted");
+            new_index
+        };
+        Ok(self.holders.read().await[index].clone())
     }
 
-    async fn save_pearl(&self, holder: Holder) -> Result<(), Error> {
+    async fn try_create_write_pearl(&self, timestamp: u64) -> Result<usize, Error> {
+        info!("creating pearl for timestamp {}", timestamp);
+        let pearl = self.create_pearl_by_timestamp(timestamp);
+        self.save_pearl(pearl.clone()).await
+    }
+
+    async fn save_pearl(&self, holder: Holder) -> Result<usize, Error> {
         holder.prepare_storage().await?;
-        self.add(holder).await;
-        Ok(())
+        debug!("backend pearl group save pearl storage prepared");
+        Ok(self.add(holder).await)
     }
 
     pub async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
@@ -161,6 +169,7 @@ impl Group {
                 error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
                 holder.prepare_storage().await?;
+                debug!("backend pearl group put common storage prepared");
             }
         }
         Ok(())
@@ -208,6 +217,7 @@ impl Group {
             if !e.is_key_not_found() && !e.is_not_ready() {
                 holder.try_reinit().await?;
                 holder.prepare_storage().await?;
+                debug!("backend pearl group get common storage prepared");
             }
         }
         result
@@ -286,6 +296,7 @@ impl Group {
     pub fn create_pearl_holder(&self, start_timestamp: u64, hash: &str) -> Holder {
         let end_timestamp = start_timestamp + self.settings.timestamp_period_as_secs();
         let mut path = self.directory_path.clone();
+        info!("creating pearl holder {}", path.as_path().display());
         let partition_name = PartitionName::new(start_timestamp, &hash);
         path.push(partition_name.to_string());
         let mut config = self.settings.config().clone();
@@ -297,6 +308,10 @@ impl Group {
     pub(crate) fn create_pearl_by_timestamp(&self, time: u64) -> Holder {
         let start_timestamp =
             Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period(), time);
+        info!(
+            "pearl for timestamp {} will be created with timestamp {}",
+            time, start_timestamp
+        );
         let hash = self.get_owner_node_hash();
         self.create_pearl_holder(start_timestamp, &hash)
     }
