@@ -29,7 +29,10 @@ impl Server {
     /// Returns errror if there are any issues with starting backend,
     /// e.g. any fs I/O errors
     pub async fn run_backend(&self) -> Result<(), Error> {
-        self.grinder.run_backend().await
+        self.grinder
+            .run_backend()
+            .await
+            .map_err(|e| Error::failed(format!("{:#?}", e)))
     }
 
     /// Spawns background tasks, required before starting bob service
