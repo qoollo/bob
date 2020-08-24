@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ErrorTrait)]
 pub struct Error {
     ctx: Kind,
 }
@@ -78,15 +78,6 @@ impl Display for Kind {
                 write!(f, "backend pearl change state error: {}", description)
             }
             err => write!(f, "{:?}", err),
-        }
-    }
-}
-
-impl From<IOError> for Error {
-    fn from(error: IOError) -> Self {
-        match error.kind() {
-            IOErrorKind::TimedOut => Self::timeout(),
-            _ => Self::failed(format!("Ping operation failed: {:?}", error)),
         }
     }
 }

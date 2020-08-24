@@ -29,12 +29,16 @@ extern crate lazy_static;
 mod api;
 mod core;
 
-pub use self::api::grpc;
-pub use self::core::data::DiskPath;
-pub use self::core::{backend, bob_client as client, configs, grinder, mapper, metrics, server};
+pub use self::{
+    api::grpc,
+    core::{
+        backend, bob_client as client, configs, data::DiskPath, grinder, mapper, metrics, server,
+    },
+};
 
 mod prelude {
     pub(crate) use super::*;
+    pub(crate) use anyhow::{Context as AnyhowContext, Result};
     pub(crate) use backend::data::{NodeDisk as DataNodeDisk, VDisk as DataVDisk};
     pub(crate) use grpc::{
         bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest,
@@ -45,7 +49,7 @@ mod prelude {
         convert::TryInto,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
         fs::{create_dir_all, read_dir, read_to_string, remove_file, DirEntry, Metadata},
-        io::{Cursor, Error as IOError, ErrorKind as IOErrorKind, Result as IOResult},
+        io::{Cursor, Result as IOResult},
         net::SocketAddr,
         path::{Path, PathBuf},
         pin::Pin,
@@ -53,6 +57,7 @@ mod prelude {
         thread,
         time::{Duration, SystemTime},
     };
+    pub(crate) use thiserror::Error as ErrorTrait;
     pub(crate) use tokio::runtime::Runtime;
     pub(crate) use tokio::sync::RwLock;
 }

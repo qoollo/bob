@@ -45,7 +45,7 @@ impl Group {
         }
     }
 
-    pub async fn run(&self) -> Result<(), Error> {
+    pub async fn run(&self) -> Result<()> {
         debug!("{}: read holders from disk", self);
         let holders = self
             .settings
@@ -55,7 +55,8 @@ impl Group {
                 "can't create pearl holders",
                 self.settings.config().fail_retry_timeout(),
             )
-            .await?;
+            .await
+            .with_context(|| "backend pearl group read vdisk directory failed")?;
         debug!("{}: count holders: {}", self, holders.len());
         if holders
             .iter()
@@ -66,16 +67,15 @@ impl Group {
         debug!("{}: save holders to group", self);
         self.add_range(holders).await;
         debug!("{}: start holders", self);
-        self.run_pearls().await?;
-        Ok(())
+        self.run_pearls().await
     }
 
-    pub async fn remount(&self) -> Result<(), Error> {
+    pub async fn remount(&self) -> Result<()> {
         self.holders.write().await.clear();
         self.run().await
     }
 
-    async fn run_pearls(&self) -> Result<(), Error> {
+    async fn run_pearls(&self) -> Result<()> {
         let holders = self.holders.write().await;
 
         for holder in holders.iter() {
@@ -97,7 +97,7 @@ impl Group {
     }
 
     // find in all pearls actual pearl and try create new
-    async fn get_actual_holder(&self, data: &BobData) -> BackendResult<Holder> {
+    async fn get_actual_holder(&self, data: &BobData) -> Result<Holder> {
         self.find_actual_holder(data)
             .or_else(|e| {
                 debug!("cannot find pearl: {}", e);
@@ -122,7 +122,7 @@ impl Group {
     }
 
     // create pearl for current write
-    async fn create_write_pearl(&self, ts: u64) -> BackendResult<Holder> {
+    async fn create_write_pearl(&self, ts: u64) -> Result<Holder> {
         let mut indexes = self.created_holder_indexes.write().await;
         let created_holder_index = indexes.get(&ts).copied();
         let index = if let Some(exisiting_index) = created_holder_index {
@@ -145,20 +145,23 @@ impl Group {
         Ok(self.holders.read().await[index].clone())
     }
 
-    async fn try_create_write_pearl(&self, timestamp: u64) -> Result<usize, Error> {
+    async fn try_create_write_pearl(&self, timestamp: u64) -> Result<usize> {
         info!("creating pearl for timestamp {}", timestamp);
         let pearl = self.create_pearl_by_timestamp(timestamp);
         self.save_pearl(pearl.clone()).await
     }
 
-    async fn save_pearl(&self, holder: Holder) -> Result<usize, Error> {
+    async fn save_pearl(&self, holder: Holder) -> Result<usize> {
         holder.prepare_storage().await?;
         debug!("backend pearl group save pearl storage prepared");
         Ok(self.add(holder).await)
     }
 
     pub async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
-        let holder = self.get_actual_holder(&data).await?;
+        let holder = self
+            .get_actual_holder(&data)
+            .await
+            .map_err(|e| Error::failed(format!("{:#?}", e)))?;
         Self::put_common(holder, key, data).await
     }
 
@@ -168,7 +171,10 @@ impl Group {
             if !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
-                holder.prepare_storage().await?;
+                holder
+                    .prepare_storage()
+                    .await
+                    .map_err(|e| Error::storage(format!("{:#?}", e)))?;
                 debug!("backend pearl group put common storage prepared");
             }
         }
@@ -216,7 +222,10 @@ impl Group {
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {
                 holder.try_reinit().await?;
-                holder.prepare_storage().await?;
+                holder
+                    .prepare_storage()
+                    .await
+                    .map_err(|e| Error::storage(format!("{:#?}", e)))?;
                 debug!("backend pearl group get common storage prepared");
             }
         }
@@ -263,7 +272,9 @@ impl Group {
             Err(Error::pearl_change_state(msg))
         } else {
             let holder = self.create_pearl_by_timestamp(start_timestamp);
-            self.save_pearl(holder).await?;
+            self.save_pearl(holder)
+                .await
+                .map_err(|e| Error::storage(format!("{:#?}", e)))?;
             Ok(())
         }
     }

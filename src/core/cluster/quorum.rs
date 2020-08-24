@@ -51,7 +51,6 @@ impl Quorum {
                 Ok(())
             } else {
                 debug!("PUT[{}] spawn {} background put tasks", key, tasks.len());
-                warn!("PUT[{}]  failed nodes: {:?}", key, failed_nodes);
                 tokio::spawn(q.background_put(tasks, key, data, failed_nodes));
                 Ok(())
             }
