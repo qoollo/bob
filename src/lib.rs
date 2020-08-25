@@ -1,4 +1,4 @@
-#![type_length_limit = "3167199"]
+#![type_length_limit = "3233604"]
 #![feature(proc_macro_hygiene, decl_macro, drain_filter)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::used_underscore_binding)]
