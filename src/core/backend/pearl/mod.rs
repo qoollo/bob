@@ -32,4 +32,7 @@ mod prelude {
     };
     pub(crate) use settings::Settings;
     pub(crate) use stuff::{Stuff, SyncState};
+
+    pub(crate) use ring::digest::{digest, SHA256};
+    pub(crate) use std::collections::HashMap;
 }

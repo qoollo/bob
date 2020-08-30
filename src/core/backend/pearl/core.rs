@@ -77,7 +77,7 @@ impl Pearl {
 
 #[async_trait]
 impl BackendStorage for Pearl {
-    async fn run_backend(&self) -> Result<(), Error> {
+    async fn run_backend(&self) -> Result<()> {
         debug!("run pearl backend");
         for vdisk_group in self.vdisks_groups.iter() {
             vdisk_group.run().await?;
@@ -101,7 +101,7 @@ impl BackendStorage for Pearl {
             if let Err(e) = &res {
                 debug!("PUT[{}], error: {:?}", key, e);
             }
-            res
+            res.map_err(|e| Error::failed(format!("{:#?}", e)))
         } else {
             debug!("PUT[{}] Cannot find group, operation: {:?}", key, op);
             Err(Error::vdisk_not_found(op.vdisk_id()))
@@ -117,7 +117,10 @@ impl BackendStorage for Pearl {
         }
         let vdisk_group = self.find_alien_pearl(&op).await;
         match vdisk_group {
-            Ok(group) => group.put(key, data).await,
+            Ok(group) => group
+                .put(key, data)
+                .await
+                .map_err(|e| Error::failed(format!("{:#?}", e))),
             Err(e) => {
                 error!(
                     "PUT[alien][{}] Cannot find group, op: {:?}, err: {}",

@@ -51,7 +51,7 @@ pub(crate) struct StatusExt {
 
 fn runtime() -> Runtime {
     // TODO: run web server on same runtime as bob (update to async rocket when it's stable)
-    error!("HOT FIX: run web server on same runtime as bob");
+    debug!("HOT FIX: run web server on same runtime as bob");
     Runtime::new().expect("create runtime")
 }
 
@@ -189,7 +189,7 @@ fn partition_by_id(
     let holders = group.holders();
     debug!("get pearl holders: OK");
     // TODO: run web server on same runtime as bob
-    error!("HOT FIX: run web server on same runtime as bob");
+    debug!("HOT FIX: run web server on same runtime as bob");
     let mut rt = Runtime::new().expect("create runtime");
     let pearls = rt.block_on(holders.read());
     let pearl = pearls
@@ -222,7 +222,7 @@ fn change_partition_state(
     let group = find_group(&bob, vdisk_id)?;
     let group = group.clone();
     // TODO: run web server on same runtime as bob
-    error!("HOT FIX: run web server on same runtime as bob");
+    debug!("HOT FIX: run web server on same runtime as bob");
     let mut rt = Runtime::new().expect("create runtime");
     let res = format!(
         "partition with id: {} in vdisk {} is successfully {:?}ed",
@@ -247,7 +247,7 @@ fn change_partition_state(
 fn remount_vdisks_group(bob: State<BobServer>, vdisk_id: u32) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     let group = group.clone();
-    error!("HOT FIX: run web server on same runtime as bob");
+    debug!("HOT FIX: run web server on same runtime as bob");
     let mut rt = Runtime::new().expect("create runtime");
     let task = group.remount();
     match rt.block_on(task) {

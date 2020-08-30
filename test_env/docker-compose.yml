@@ -12,6 +12,12 @@ services:
     networks:
       bobnet:
         ipv4_address: 192.168.1.10
+    security_opt: 
+      - seccomp:unconfined
+    ulimits:
+      memlock: 
+        hard: 67108864
+        soft: 67108864
     # ports:
     #   - "20000:20000"
 
@@ -26,6 +32,12 @@ services:
     networks:
       bobnet:
         ipv4_address: 192.168.1.20
+    security_opt: 
+      - seccomp:unconfined
+    ulimits:
+      memlock: 
+        hard: 67108864
+        soft: 67108864
     # ports:
     #   - "20001:20001"
 
@@ -40,6 +52,12 @@ services:
     networks:
       bobnet:
         ipv4_address: 192.168.1.30
+    security_opt: 
+      - seccomp:unconfined
+    ulimits:
+      memlock: 
+        hard: 67108864
+        soft: 67108864
 
   node4:
     build:
@@ -52,6 +70,12 @@ services:
     networks:
       bobnet:
         ipv4_address: 192.168.1.40
+    security_opt: 
+      - seccomp:unconfined
+    ulimits:
+      memlock: 
+        hard: 67108864
+        soft: 67108864
 
 networks:
   bobnet:

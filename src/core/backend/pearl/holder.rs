@@ -156,7 +156,8 @@ impl Holder {
         }
     }
 
-    pub async fn prepare_storage(&self) -> Result<(), Error> {
+    pub async fn prepare_storage(&self) -> Result<()> {
+        debug!("backend pearl holder prepare storage");
         self.config
             .try_multiple_times_async(
                 || self.init_holder(),
@@ -166,7 +167,7 @@ impl Holder {
             .await
     }
 
-    async fn init_holder(&self) -> Result<(), Error> {
+    async fn init_holder(&self) -> Result<()> {
         self.config
             .try_multiple_times(
                 || Stuff::check_or_create_directory(&self.disk_path),
@@ -190,9 +191,10 @@ impl Holder {
                 &format!("can't init pearl by path: {:?}", self.disk_path),
                 self.config.fail_retry_timeout(),
             )
-            .await?;
+            .await
+            .with_context(|| "backend pearl holder init storage failed")?;
         self.init_pearl(storage).await?;
-        debug!("Vdisk: {} Pearl is ready for work", self.vdisk);
+        debug!("backend pearl holder init holder ready #{}", self.vdisk);
         Ok(())
     }
 
@@ -210,7 +212,7 @@ impl Holder {
         Stuff::drop_directory(&self.disk_path)
     }
 
-    fn init_pearl_by_path(&self) -> BackendResult<PearlStorage> {
+    fn init_pearl_by_path(&self) -> Result<PearlStorage> {
         let mut builder = Builder::new().work_dir(&self.disk_path);
 
         if self.config.allow_duplicates() {
@@ -221,17 +223,14 @@ impl Holder {
         let prefix = self.config.blob_file_name_prefix();
         let max_data = self.config.max_data_in_blob();
         let max_blob_size = self.config.max_blob_size();
-        let ioring = rio::new()?;
+        let ioring = rio::new().with_context(|| "io uring creation failed")?;
         builder
             .blob_file_name_prefix(prefix)
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
             .set_filter_config(BloomConfig::default())
             .build(ioring)
-            .map_err(|e| {
-                error!("cannot build pearl by path: {:?}, {}", &self.disk_path, e);
-                Error::storage(e.to_string())
-            })
+            .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
 }
 

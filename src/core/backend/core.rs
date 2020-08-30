@@ -71,7 +71,7 @@ impl Operation {
 
 #[async_trait]
 pub(crate) trait BackendStorage: Debug {
-    async fn run_backend(&self) -> Result<(), Error>;
+    async fn run_backend(&self) -> Result<()>;
 
     async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
     async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
@@ -112,7 +112,7 @@ impl Backend {
     }
 
     #[inline]
-    pub(crate) async fn run_backend(&self) -> Result<(), Error> {
+    pub(crate) async fn run_backend(&self) -> Result<()> {
         self.inner.run_backend().await
     }
 

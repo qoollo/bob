@@ -27,7 +27,7 @@ impl Grinder {
         &self.backend
     }
 
-    pub(crate) async fn run_backend(&self) -> Result<(), Error> {
+    pub(crate) async fn run_backend(&self) -> Result<()> {
         self.backend.run_backend().await
     }
 

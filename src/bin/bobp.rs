@@ -4,7 +4,8 @@ use bob::grpc::{
 use bob::grpc::{Blob, BlobKey, BlobMeta};
 use clap::{App, Arg, ArgMatches};
 use std::collections::HashMap;
-use std::fmt::{Debug, Error, Formatter};
+use std::error::Error;
+use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -44,12 +45,25 @@ impl NetConfig {
 
     async fn build_client(&self) -> BobApiClient<Channel> {
         let endpoint = Endpoint::from(self.get_uri()).tcp_nodelay(true);
-        BobApiClient::connect(endpoint).await.unwrap()
+        loop {
+            match BobApiClient::connect(endpoint.clone()).await {
+                Ok(client) => return client,
+                Err(e) => {
+                    delay_for(Duration::from_millis(1000)).await;
+                    println!(
+                        "{:?}",
+                        e.source()
+                            .and_then(|e| e.downcast_ref::<hyper::Error>())
+                            .unwrap()
+                    );
+                }
+            }
+        }
     }
 }
 
 impl Debug for NetConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "{}:{}", self.target, self.port)
     }
 }
@@ -103,7 +117,7 @@ impl TaskConfig {
 }
 
 impl Debug for TaskConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(
             f,
             "payload size: {}, count: {}",
@@ -222,7 +236,7 @@ impl BenchmarkConfig {
 }
 
 impl Debug for BenchmarkConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(
             f,
             "workers count: {}, time: {}, behaviour: {:?}",
