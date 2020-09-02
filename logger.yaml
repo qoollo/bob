@@ -25,7 +25,7 @@ appenders:
     # [path] to the log file
     path: "./log/logs.log"
     encoder:
-      pattern: "{d} {l} {t} - {m}{n}"
+      pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {l} {m}{n}"
 
 # root logger sets the default global logging level attach appenders to the root
 # Other loggers use this parameters as default
