@@ -6,6 +6,7 @@ use clap::{App, Arg, ArgMatches};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
+use std::ops::Sub;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -141,27 +142,29 @@ struct Statistics {
     get_total: AtomicU64,
     get_error_count: AtomicU64,
 
-    put_time_ns_single_thread: AtomicU64,
-    put_count_single_thread: AtomicU64,
+    put_time_ns_st: AtomicU64,
+    put_count_st: AtomicU64,
 
-    get_time_ns_single_thread: AtomicU64,
-    get_count_single_thread: AtomicU64,
+    get_time_ns_st: AtomicU64,
+    get_count_st: AtomicU64,
 
     get_errors: Mutex<HashMap<CodeRepresentation, u64>>,
     put_errors: Mutex<HashMap<CodeRepresentation, u64>>,
+
+    get_size_bytes: AtomicU64,
 }
 
 impl Statistics {
     fn save_single_thread_put_time(&self, duration: &Duration) {
-        self.put_time_ns_single_thread
+        self.put_time_ns_st
             .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
-        self.put_count_single_thread.fetch_add(1, Ordering::Relaxed);
+        self.put_count_st.fetch_add(1, Ordering::Relaxed);
     }
 
     fn save_single_thread_get_time(&self, duration: &Duration) {
-        self.get_time_ns_single_thread
+        self.get_time_ns_st
             .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
-        self.get_count_single_thread.fetch_add(1, Ordering::Relaxed);
+        self.get_count_st.fetch_add(1, Ordering::Relaxed);
     }
 
     async fn save_get_error(&self, status: Status) {
@@ -249,6 +252,27 @@ impl Debug for BenchmarkConfig {
     }
 }
 
+struct DiffContainer<'a, T: Copy + Sub<Output = T>> {
+    last_value: T,
+    value_getter: Box<dyn Fn() -> T + 'a + Send>,
+}
+
+impl<'a, T: Copy + Sub<Output = T>> DiffContainer<'a, T> {
+    pub fn new(f: Box<dyn Fn() -> T + 'a + Send>) -> Self {
+        DiffContainer {
+            last_value: f(),
+            value_getter: f,
+        }
+    }
+
+    pub fn get_diff(&mut self) -> T {
+        let current = (*self.value_getter)();
+        let diff = current - self.last_value;
+        self.last_value = current;
+        diff
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let matches = get_matches();
@@ -288,46 +312,93 @@ async fn stat_worker(
     stat: Arc<Statistics>,
     request_bytes: u64,
 ) {
+    let (put_speed_values, get_speed_values, elapsed) =
+        print_periodic_stat(stop_token, period_ms, &stat, request_bytes);
+    print_averages(&stat, &put_speed_values, &get_speed_values, elapsed);
+    print_errors_with_codes(stat).await
+}
+
+async fn print_errors_with_codes(stat: Arc<Statistics>) {
+    let guard = stat.get_errors.lock().await;
+    if !guard.is_empty() {
+        println!("get errors:");
+        for (&code, count) in guard.iter() {
+            println!("{:?} = {}", Code::from(code), count);
+        }
+    }
+    let guard = stat.put_errors.lock().await;
+    if !guard.is_empty() {
+        println!("put errors:");
+        for (&code, count) in guard.iter() {
+            println!("{:?} = {}", Code::from(code), count);
+        }
+    }
+}
+
+fn print_averages(
+    stat: &Arc<Statistics>,
+    put_speed_values: &Vec<f64>,
+    get_speed_values: &Vec<f64>,
+    elapsed: Duration,
+) {
+    println!(
+        "avg total: {} rps | total err: {}\r\n\
+        put: {:>6.2} kb/s | get: {:>6.2} kb/s\r\n\
+        put resp time, ms: {:>6.2} | get resp time, ms: {:>6.2}",
+        ((stat.put_total.load(Ordering::Relaxed) + stat.get_total.load(Ordering::Relaxed)) * 1000)
+            .checked_div(elapsed.as_millis() as u64)
+            .unwrap_or_default(),
+        stat.put_error_count.load(Ordering::Relaxed) + stat.get_error_count.load(Ordering::Relaxed),
+        average(&put_speed_values),
+        average(&get_speed_values),
+        finite_or_default(
+            (stat.put_time_ns_st.load(Ordering::Relaxed) as f64)
+                / (stat.put_count_st.load(Ordering::Relaxed) as f64)
+                / 1e9
+        ),
+        finite_or_default(
+            (stat.get_time_ns_st.load(Ordering::Relaxed) as f64)
+                / (stat.get_count_st.load(Ordering::Relaxed) as f64)
+                / 1e9
+        ),
+    );
+}
+
+fn print_periodic_stat(
+    stop_token: Arc<AtomicBool>,
+    period_ms: u64,
+    stat: &Arc<Statistics>,
+    request_bytes: u64,
+) -> (Vec<f64>, Vec<f64>, Duration) {
     let pause = time::Duration::from_millis(period_ms);
-    let mut last_put_count = stat.put_total.load(Ordering::Relaxed);
-    let mut last_get_count = stat.get_total.load(Ordering::Relaxed);
-    let mut last_st_put_time = stat.put_time_ns_single_thread.load(Ordering::Relaxed);
-    let mut last_st_put_count = stat.put_count_single_thread.load(Ordering::Relaxed);
-    let mut last_st_get_time = stat.get_time_ns_single_thread.load(Ordering::Relaxed);
-    let mut last_st_get_count = stat.get_count_single_thread.load(Ordering::Relaxed);
+    let mut put_count = DiffContainer::new(Box::new(|| stat.put_total.load(Ordering::Relaxed)));
+    let mut get_count = DiffContainer::new(Box::new(|| stat.get_total.load(Ordering::Relaxed)));
+    let mut put_time_st =
+        DiffContainer::new(Box::new(|| stat.put_time_ns_st.load(Ordering::Relaxed)));
+    let mut put_count_st =
+        DiffContainer::new(Box::new(|| stat.put_count_st.load(Ordering::Relaxed)));
+    let mut get_time_st =
+        DiffContainer::new(Box::new(|| stat.get_time_ns_st.load(Ordering::Relaxed)));
+    let mut get_count_st =
+        DiffContainer::new(Box::new(|| stat.get_count_st.load(Ordering::Relaxed)));
+    let mut get_size = DiffContainer::new(Box::new(|| stat.get_size_bytes.load(Ordering::Relaxed)));
     let mut put_speed_values = vec![];
     let mut get_speed_values = vec![];
     let k = request_bytes as f64 / period_ms as f64 * 1000.0 / 1024.0;
     let start = Instant::now();
     while !stop_token.load(Ordering::Relaxed) {
         thread::sleep(pause);
-        let put_count_spd = get_diff(&mut last_put_count, stat.put_total.load(Ordering::Relaxed))
-            * 1000
-            / period_ms;
-        let get_count_spd = get_diff(&mut last_get_count, stat.get_total.load(Ordering::Relaxed))
-            * 1000
-            / period_ms;
-        let cur_st_put_time = get_diff(
-            &mut last_st_put_time,
-            stat.put_time_ns_single_thread.load(Ordering::Relaxed),
-        ) as f64;
-        let cur_st_put_count = get_diff(
-            &mut last_st_put_count,
-            stat.put_count_single_thread.load(Ordering::Relaxed),
-        ) as f64;
-        let cur_st_get_time = get_diff(
-            &mut last_st_get_time,
-            stat.get_time_ns_single_thread.load(Ordering::Relaxed),
-        ) as f64;
-        let cur_st_get_count = get_diff(
-            &mut last_st_get_count,
-            stat.get_count_single_thread.load(Ordering::Relaxed),
-        ) as f64;
+        let put_count_spd = put_count.get_diff() * 1000 / period_ms;
+        let get_count_spd = get_count.get_diff() * 1000 / period_ms;
+        let cur_st_put_time = put_time_st.get_diff() as f64;
+        let cur_st_put_count = put_count_st.get_diff() as f64;
+        let cur_st_get_time = get_time_st.get_diff() as f64;
+        let cur_st_get_count = get_count_st.get_diff() as f64;
 
         let put_error = stat.put_error_count.load(Ordering::Relaxed);
         let get_error = stat.get_error_count.load(Ordering::Relaxed);
         let put_spd = put_count_spd as f64 * k;
-        let get_spd = get_count_spd as f64 * k;
+        let get_spd = (get_size.get_diff() as f64 / 1024.0);
         if put_spd > 0.0 {
             put_speed_values.push(put_spd);
         }
@@ -349,51 +420,11 @@ async fn stat_worker(
     }
     let elapsed = start.elapsed();
     println!("Total statistics, elapsed: {:?}", elapsed);
-    println!(
-        "avg total: {} rps | total err: {}\r\n\
-        put: {:>6.2} kb/s | get: {:>6.2} kb/s\r\n\
-        put resp time, ms: {:>6.2} | get resp time, ms: {:>6.2}",
-        ((stat.put_total.load(Ordering::Relaxed) + stat.get_total.load(Ordering::Relaxed)) * 1000)
-            .checked_div(elapsed.as_millis() as u64)
-            .unwrap_or_default(),
-        stat.put_error_count.load(Ordering::Relaxed) + stat.get_error_count.load(Ordering::Relaxed),
-        average(&put_speed_values),
-        average(&get_speed_values),
-        finite_or_default(
-            (stat.put_time_ns_single_thread.load(Ordering::Relaxed) as f64)
-                / (stat.put_count_single_thread.load(Ordering::Relaxed) as f64)
-                / 1e9
-        ),
-        finite_or_default(
-            (stat.get_time_ns_single_thread.load(Ordering::Relaxed) as f64)
-                / (stat.get_count_single_thread.load(Ordering::Relaxed) as f64)
-                / 1e9
-        ),
-    );
-    let guard = stat.get_errors.lock().await;
-    if !guard.is_empty() {
-        println!("get errors:");
-        for (&code, count) in guard.iter() {
-            println!("{:?} = {}", Code::from(code), count);
-        }
-    }
-    let guard = stat.put_errors.lock().await;
-    if !guard.is_empty() {
-        println!("put errors:");
-        for (&code, count) in guard.iter() {
-            println!("{:?} = {}", Code::from(code), count);
-        }
-    }
+    (put_speed_values, get_speed_values, elapsed)
 }
 
 fn average(values: &[f64]) -> f64 {
     finite_or_default(values.iter().sum::<f64>() / values.len() as f64)
-}
-
-fn get_diff(last: &mut u64, current: u64) -> u64 {
-    let diff = current - *last;
-    *last = current;
-    diff
 }
 
 fn finite_or_default(value: f64) -> f64 {
@@ -423,8 +454,13 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         } else {
             client.get(request).await
         };
-        if let Err(status) = res {
-            stat.save_get_error(status).await;
+        match res {
+            Err(status) => stat.save_get_error(status).await,
+            Ok(payload) => {
+                let res = payload.into_inner().data;
+                stat.get_size_bytes
+                    .fetch_add(res.len() as u64, Ordering::SeqCst);
+            }
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
     }
