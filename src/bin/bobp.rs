@@ -337,8 +337,8 @@ async fn print_errors_with_codes(stat: Arc<Statistics>) {
 
 fn print_averages(
     stat: &Arc<Statistics>,
-    put_speed_values: &Vec<f64>,
-    get_speed_values: &Vec<f64>,
+    put_speed_values: &[f64],
+    get_speed_values: &[f64],
     elapsed: Duration,
 ) {
     println!(
@@ -398,7 +398,7 @@ fn print_periodic_stat(
         let put_error = stat.put_error_count.load(Ordering::Relaxed);
         let get_error = stat.get_error_count.load(Ordering::Relaxed);
         let put_spd = put_count_spd as f64 * k;
-        let get_spd = (get_size.get_diff() as f64 / 1024.0);
+        let get_spd = get_size.get_diff() as f64 / 1024.0;
         if put_spd > 0.0 {
             put_speed_values.push(put_spd);
         }
