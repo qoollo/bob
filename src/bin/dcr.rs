@@ -8,6 +8,7 @@ use crate::docker_cluster_runner::fs_configuration::FSConfiguration;
 use crate::docker_cluster_runner::TestClusterConfiguration;
 use clap::{App, Arg};
 use std::error::Error;
+use std::fmt::Display;
 use std::fs;
 use std::sync::{Arc, Mutex};
 
@@ -25,9 +26,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         config_dir.to_string(),
         "/tmp".to_string(),
     );
-    let configuration = get_configuration()?;
-    configuration.save_cluster_configuration(config_dir)?;
-    let compose = configuration.create_docker_compose(fs_configuration, "bobnet".to_string())?;
+    let configuration =
+        get_configuration().map_err(|e| ErrorWrapper::new("configuration get", e.into()))?;
+    configuration
+        .save_cluster_configuration(config_dir)
+        .map_err(|e| ErrorWrapper::new("save cluster configuration", e.into()))?;
+    let compose = configuration
+        .create_docker_compose(fs_configuration, "bobnet".to_string())
+        .map_err(|e| ErrorWrapper::new("create compose configuration", e.into()))?;
     let arc = Arc::new(Mutex::new(Box::new(compose)));
     let ctrlc_arc = arc.clone();
     ctrlc::set_handler(move || {
@@ -37,9 +43,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .expect("failed to run \"down\"")
             .wait_with_output()
             .expect("failed to wait for compose down otuput");
-    })?;
-    let child_process = arc.lock().unwrap().up(config_dir)?;
-    child_process.wait_with_output()?;
+    })
+    .map_err(|e| ErrorWrapper::new("ctrlc handler", e.into()))?;
+    let child_process = arc
+        .lock()
+        .unwrap()
+        .up(config_dir)
+        .map_err(|e| ErrorWrapper::new("run docker_compose", e.into()))?;
+    child_process
+        .wait_with_output()
+        .map_err(|e| ErrorWrapper::new("wait for child process", e.into()))?;
     Ok(())
 }
 
@@ -60,3 +73,27 @@ fn get_configuration() -> Result<TestClusterConfiguration, Box<dyn Error>> {
     let configuration: TestClusterConfiguration = serde_yaml::from_str(&file_content)?;
     Ok(configuration)
 }
+
+#[derive(Debug)]
+struct ErrorWrapper {
+    description: String,
+    inner_error: Box<dyn Error>,
+}
+
+impl ErrorWrapper {
+    fn new(str: &'static str, err: Box<dyn Error>) -> Self {
+        Self {
+            description: str.into(),
+            inner_error: err,
+        }
+    }
+}
+
+impl Display for ErrorWrapper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Error: {}", self.description)?;
+        writeln!(f, "{}", self.inner_error)
+    }
+}
+
+impl Error for ErrorWrapper {}
