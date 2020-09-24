@@ -149,16 +149,24 @@ impl Quorum {
             );
             failed_nodes.push(self.mapper.local_node_name().to_string());
         }
+        trace!("get target nodes for given key");
         let target_nodes = get_target_nodes(&self.mapper, key);
+        trace!("extract indexes of target nodes");
         let target_indexes = target_nodes.iter().map(Node::index);
-        let mut sup_nodes = get_support_nodes(&self.mapper, target_indexes, failed_nodes.len())?;
+        trace!("selection of free nodes available for data writing");
+        let (mut sup_nodes, result) =
+            get_support_nodes(&self.mapper, target_indexes, failed_nodes.len());
         debug!("PUT[{}] sup put nodes: {:?}", key, &sup_nodes);
 
         let mut queries = Vec::new();
 
         if let Err(op) = local_put {
-            let item = sup_nodes.remove(sup_nodes.len() - 1);
-            queries.push((item, op));
+            if sup_nodes.is_empty() {
+                error!("PUT[{}] put local failed, no available support nodes", key);
+            } else {
+                let item = sup_nodes.remove(sup_nodes.len() - 1);
+                queries.push((item, op));
+            }
         }
 
         if !failed_nodes.is_empty() {
@@ -174,11 +182,13 @@ impl Quorum {
         let mut err = String::new();
         debug!("PUT[{}] additional alien requests: {:?}", key, queries);
 
-        if let Err((sup_ok_count_l, err_l)) = put_sup_nodes(key, data, &queries).await {
+        if let Err((sup_ok_count_l, last_error)) = put_sup_nodes(key, data, &queries).await {
             sup_ok_count = sup_ok_count_l;
-            err = err_l;
+            err = last_error;
         }
-        if err.is_empty() {
+        if result.is_err() {
+            result
+        } else if err.is_empty() {
             Ok(())
         } else {
             let msg = format!(

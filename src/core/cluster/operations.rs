@@ -1,5 +1,4 @@
 use super::prelude::*;
-use tokio::task::JoinHandle;
 
 pub(crate) async fn get_any(
     key: BobKey,
@@ -71,23 +70,39 @@ pub(crate) fn get_support_nodes<'a>(
     mapper: &'a Virtual,
     mut target_indexes: impl Iterator<Item = u16>,
     count: usize,
-) -> Result<Vec<&'a Node>, Error> {
-    let (len, _) = target_indexes.size_hint();
+) -> (Vec<&'a Node>, Result<(), Error>) {
+    let len = target_indexes.size_hint().0;
     debug!("iterator size lower bound: {}", len);
     trace!("nodes available: {}", mapper.nodes().len());
-    if mapper.nodes().len() < len + count {
-        let msg = "cannot find enough support nodes".to_owned();
+    let res = if mapper.nodes().len() < len + count {
+        let msg = format!(
+            "cannot find enough support nodes,
+            total nodes count: {},
+            target nodes count for key: {},
+            failed writes count: {}
+            Check connection to all nodes, maybe some are unreachable.
+            Error may be caused by cluster configuration:
+                replica count is close to nodes count.
+            Data will be written to the maximum available number of nodes,
+            but the error requires further investigation of the cause.",
+            mapper.nodes().len(),
+            len,
+            count,
+        );
         error!("{}", msg);
         Err(Error::failed(msg))
     } else {
-        let sup = mapper
+        Ok(())
+    };
+    (
+        mapper
             .nodes()
             .iter()
             .filter(|node| target_indexes.all(|i| i != node.index()))
             .take(count)
-            .collect();
-        Ok(sup)
-    }
+            .collect(),
+        res,
+    )
 }
 
 #[inline]
