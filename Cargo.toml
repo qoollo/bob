@@ -1,13 +1,13 @@
 [package]
 name = "bob"
-version = "1.5.0-alpha.11"
+version = "1.5.0-alpha.13"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
 [dependencies]
 anyhow = "1.0.32"
 http = "0.2.1"
-pearl = "0.5.2-alpha.1"
+pearl = "0.5.2-alpha.3"
 futures = { version = "0.3.5", features = ["thread-pool"] }
 tokio = { version = "0.2.22", features = ["full"] }
 serde = "1.0"
@@ -24,7 +24,7 @@ hyper = "0.13.7"
 humantime = "2.0.1"
 chrono = "0.4.15"
 dipstick = "0.9.0"
-mockall = "0.7.2"
+mockall = "0.8.1"
 cfg-if = "0.1.10"
 env_logger = "0.7"
 tonic = { version = "0.3.1", features = ["prost"] }
@@ -35,7 +35,7 @@ tower-balance = "0.3.0"
 tower-load = "0.3.0"
 rocket = "0.4.5"
 rocket_contrib = "0.4.5"
-async-trait = "0.1.38"
+async-trait = "0.1.40"
 termion = "1.5"
 ring = "0.16.15"
 derive-new = "0.5.8"
