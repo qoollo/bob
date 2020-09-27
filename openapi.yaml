@@ -180,7 +180,7 @@ components:
         address:
           type: string
         vdisks:
-          type: array
+          type: string
           items:
             $ref: '#/components/schemas/VDisk'
       required:
@@ -219,7 +219,7 @@ components:
         partitions:
           type: array
           items:
-            type: integer
+            type: string
     Partition:
       properties:
         vdisk:

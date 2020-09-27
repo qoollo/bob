@@ -30,7 +30,7 @@ pub(crate) struct VDiskPartitions {
     vdisk_id: u32,
     node_name: String,
     disk_name: String,
-    partitions: Vec<u64>,
+    partitions: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -167,7 +167,7 @@ fn partitions(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<VDiskPartitio
     let pearls = runtime().block_on(holders.read());
     debug!("get pearl holders: OK");
     let pearls: &[_] = pearls.as_ref();
-    let partitions = pearls.iter().map(Holder::start_timestamp).collect();
+    let partitions = pearls.iter().map(Holder::get_id).collect();
     let ps = VDiskPartitions {
         node_name: group.node_name().to_owned(),
         disk_name: group.disk_name().to_owned(),
@@ -182,7 +182,7 @@ fn partitions(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<VDiskPartitio
 fn partition_by_id(
     bob: State<'_, BobServer>,
     vdisk_id: u32,
-    partition_id: u64,
+    partition_id: String,
 ) -> Result<Json<Partition>, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     debug!("group with provided vdisk_id found");
@@ -194,7 +194,7 @@ fn partition_by_id(
     let pearls = rt.block_on(holders.read());
     let pearl = pearls
         .iter()
-        .find(|pearl| pearl.start_timestamp() == partition_id);
+        .find(|pearl| pearl.get_id() == partition_id);
     let partition = pearl.map(|p| Partition {
         node_name: group.node_name().to_owned(),
         disk_name: group.disk_name().to_owned(),
