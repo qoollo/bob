@@ -194,7 +194,10 @@ impl Backend {
                     // write to alien/<local name>
                     let mut op = operation.clone_alien();
                     op.set_remote_folder(self.mapper.local_node_name().to_owned());
-                    self.inner.put_alien(op, key, data).await.map_err(|_| err)
+                    self.inner
+                        .put_alien(op, key, data)
+                        .await
+                        .map_err(|e| Error::request_failed_completely(err, e))
                     // @TODO return both errors| we must return 'local' error if both ways are failed
                 }
                 _ => result,
