@@ -82,11 +82,12 @@ paths:
                 type: string
         default:
           $ref: '#/components/responses/DefaultError'
+  /vdisks/{VDiskId}/partitions/by_timestamp/{timestamp}:
     delete:
-      summary: Delete partition
+      summary: Delete partitions by timestamp
       parameters:
         - $ref: '#/components/parameters/VDiskIdParam'
-        - name: partitionId
+        - name: timestamp
           in: path
           required: true
           schema:
@@ -100,12 +101,12 @@ paths:
                 type: string
         default:
           $ref: '#/components/responses/DefaultError'
-  /vdisks/{VDiskId}/partitions/{partitionId}/{action}:
+  /vdisks/{VDiskId}/partitions/by_timestamp/{timestamp}/{action}:
     put:
-      summary: Attach/Detach a partition
+      summary: Attach/Detach a partition by timestamp
       parameters: 
         - $ref: '#/components/parameters/VDiskIdParam'
-        - name: partitionId
+        - name: timestamp
           in: path
           required: true
           schema:

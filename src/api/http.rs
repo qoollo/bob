@@ -212,11 +212,11 @@ fn partition_by_id(
     })
 }
 
-#[post("/vdisks/<vdisk_id>/partitions/<partition_id>/<action>")]
+#[post("/vdisks/<vdisk_id>/partitions/by_timestamp/<timestamp>/<action>")]
 fn change_partition_state(
     bob: State<BobServer>,
     vdisk_id: u32,
-    partition_id: u64,
+    timestamp: u64,
     action: Action,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
@@ -225,13 +225,13 @@ fn change_partition_state(
     debug!("HOT FIX: run web server on same runtime as bob");
     let mut rt = Runtime::new().expect("create runtime");
     let res = format!(
-        "partition with id: {} in vdisk {} is successfully {:?}ed",
-        partition_id, vdisk_id, action
+        "partitions with timestamp {} on vdisk {} is successfully {:?}ed",
+        timestamp, vdisk_id, action
     );
     let task = async move {
         match action {
-            Action::Attach => group.attach(partition_id).await,
-            Action::Detach => group.detach(partition_id).await.map(|_| ()),
+            Action::Attach => group.attach(timestamp).await,
+            Action::Detach => group.detach(timestamp).await.map(|_| ()),
         }
     };
     match rt.block_on(task) {
@@ -263,25 +263,25 @@ fn remount_vdisks_group(bob: State<BobServer>, vdisk_id: u32) -> Result<StatusEx
     }
 }
 
-#[delete("/vdisks/<vdisk_id>/partitions/<partition_id>")]
+#[delete("/vdisks/<vdisk_id>/partitions/by_timestamp/<timestamp>")]
 fn delete_partition(
     bob: State<BobServer>,
     vdisk_id: u32,
-    partition_id: u64,
+    timestamp: u64,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
-    let pearls = futures::executor::block_on(group.detach(partition_id));
+    let pearls = futures::executor::block_on(group.detach(timestamp));
     if let Ok(holders) = pearls {
         let mut result = String::new();
         for holder in holders {
             if let Err(e) = holder.drop_directory() {
                 let msg = format!(
-                    "partition delete failed {} on vdisk {}, error: {}",
-                    partition_id, vdisk_id, e
+                    "partitions with timestamp {} delete failed on vdisk {}, error: {}",
+                    timestamp, vdisk_id, e
                 );
                 result.push_str(&msg);
             } else {
-                result.push_str(&format!("successfully deleted partition {}", partition_id));
+                result.push_str(&format!("successfully deleted partitions with timestamp {}", timestamp));
             }
             result.push('\n');
         }
@@ -295,8 +295,8 @@ fn delete_partition(
             Status::BadRequest,
             true,
             format!(
-                "partition {} not found on vdisk {} or it is active",
-                partition_id, vdisk_id
+                "partitions with timestamp {} not found on vdisk {} or it is active",
+                timestamp, vdisk_id
             ),
         ))
     }
