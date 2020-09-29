@@ -38,7 +38,7 @@ pub use self::{
 
 mod prelude {
     pub(crate) use super::*;
-    pub(crate) use anyhow::{Context as AnyhowContext, Error as AnyhowError, Result};
+    pub(crate) use anyhow::{Context as AnyhowContext, Result};
     pub(crate) use backend::data::{NodeDisk as DataNodeDisk, VDisk as DataVDisk};
     pub(crate) use grpc::{
         bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest,
