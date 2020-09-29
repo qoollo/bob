@@ -132,8 +132,8 @@ impl Settings {
     }
 
     fn try_parse_node_name(&self, entry: DirEntry) -> BackendResult<(DirEntry, String)> {
-        let file_name = entry.file_name().into_string().map_err(|_| {
-            error!("cannot parse file name: {:?}", entry);
+        let file_name = entry.file_name().into_string().map_err(|e| {
+            error!("cannot parse file name: {:?}, {:?}", entry, e);
             Error::failed(format!("cannot parse file name: {:?}", entry))
         })?;
         if self
@@ -151,13 +151,13 @@ impl Settings {
     }
 
     fn try_parse_vdisk_id(&self, entry: DirEntry) -> BackendResult<(DirEntry, VDiskId)> {
-        let file_name = entry.file_name().into_string().map_err(|_| {
-            let msg = format!("cannot parse file name: {:?}", entry);
+        let file_name = entry.file_name().into_string().map_err(|e| {
+            let msg = format!("cannot parse file name: {:?}, {:?}", entry, e);
             error!("{}", msg);
             Error::failed(msg)
         })?;
-        let vdisk_id: VDiskId = file_name.parse().map_err(|_| {
-            let msg = format!("cannot parse file name: {:?}", entry);
+        let vdisk_id: VDiskId = file_name.parse().map_err(|e| {
+            let msg = format!("cannot parse file name: {:?}, {:?}", entry, e);
             error!("{}", msg);
             Error::failed(msg)
         })?;

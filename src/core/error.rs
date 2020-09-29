@@ -62,7 +62,7 @@ impl Error {
         Self::new(Kind::Storage(msg.into()))
     }
 
-    pub(crate) fn request_failed_completely(local: Error, alien: Error) -> Self {
+    pub(crate) fn request_failed_completely(local: &Error, alien: &Error) -> Self {
         let msg = format!("local error: {}\nalien error: {}", local, alien);
         let ctx = Kind::RequestFailedCompletely(msg);
         Self::new(ctx)

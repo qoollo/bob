@@ -184,12 +184,12 @@ impl Backend {
             debug!("PUT[{}] to backend: {:?}", key, operation);
             let result = self.inner.put(operation.clone(), key, data.clone()).await;
             match result {
-                Err(err) if !err.is_duplicate() => {
+                Err(local_err) if !local_err.is_duplicate() => {
                     error!(
                         "PUT[{}][{}] local failed: {:?}",
                         key,
                         operation.disk_name_local(),
-                        err
+                        local_err
                     );
                     // write to alien/<local name>
                     let mut op = operation.clone_alien();
@@ -197,7 +197,9 @@ impl Backend {
                     self.inner
                         .put_alien(op, key, data)
                         .await
-                        .map_err(|e| Error::request_failed_completely(err, e))
+                        .map_err(|alien_err| {
+                            Error::request_failed_completely(&local_err, &alien_err)
+                        })
                     // @TODO return both errors| we must return 'local' error if both ways are failed
                 }
                 _ => result,
