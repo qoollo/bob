@@ -40,6 +40,8 @@ pub struct DockerService {
     volumes: Vec<VolumeMapping>,
     command: String,
     networks: HashMap<String, DockerNetwork>,
+    ports: Vec<DockerPort>,
+    environment: Vec<DockerEnv>,
     security_opt: Vec<SecurityOpt>,
     ulimits: ULimits,
 }
@@ -84,6 +86,39 @@ pub struct IPAMConfiguration {
 #[derive(Serialize, new)]
 pub struct SubnetConfiguration {
     subnet: String,
+}
+
+#[derive(new)]
+pub struct DockerPort {
+    host_port: u32,
+    docker_port: u32,
+}
+
+impl Serialize for DockerPort {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&format!("{}:{}", self.docker_port, self.host_port))
+    }
+}
+
+#[derive(new)]
+pub struct DockerEnv {
+    name: String,
+    value: Option<String>,
+}
+
+impl Serialize for DockerEnv {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    where
+        S: Serializer,
+    {
+        match &self.value {
+            Some(s) => serializer.serialize_str(&format!("{}={}", self.name, s)),
+            None => serializer.serialize_str(&self.name),
+        }
+    }
 }
 
 #[derive(new)]

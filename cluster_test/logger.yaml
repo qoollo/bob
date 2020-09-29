@@ -1,58 +1,22 @@
-# [time] format units, frequently used:
-# msec, ms
-# seconds, second, sec, s
-# minutes, minute, min, m
-# hours, hour, hr, h
-
-# [time] If set, logger will scan the file at the specified rate for changes and
-# automatically reconfigure the logger.
+---
 refresh_rate: 30 seconds
-
-# [list] of appenders
 appenders:
-  # An appender named "stdout" that writes to stdout
   stdout:
-    # [console/file/rolling_file] Appender kind
     kind: console
-    # [pattern/json] encoder, default - [pattern]
     encoder:
-    # [format] described in https://docs.rs/log4rs/0.9.0/log4rs/encode/pattern/index.html
       pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {h({l})}    {m}\n"
-
-# root logger sets the default global logging level attach appenders to the root
-# Other loggers use this parameters as default
 root:
-  # [off/error/warn/info/debug/trace] log level
   level: warn
-  # [list] of appenders
   appenders:
     - stdout
-
-# [list] of additional loggers, use root params as defaut, specified params have higher priority
 loggers:
-  # bob - core module
-  bob:
-    # level applies only to bob
-    level: info
-    appenders:
-      - stdout
-    # [bool] if true, logger won't delete existing configs on start
-    additive: false
-  # pearl - low level IO lib
   pearl:
-    # level applies only to pearl
-    level: error
+    level: warn
     appenders:
       - stdout
     additive: false
-  # dipstick - graphite lib
-  dipstick:
-    # level applies only to dipstick
-    level: error
+  bob:
+    level: warn
     appenders:
       - stdout
-  # inner module of the dipstick (dev)
-  dipstick::core::scheduler:
-    level: off
-  h2:
-    level: off
+    additive: false
