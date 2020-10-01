@@ -49,6 +49,13 @@ pub(crate) struct StatusExt {
     msg: String,
 }
 
+#[derive(Debug, Serialize)]
+pub(crate) struct Dir {
+    name: String,
+    path: String,
+    children: Vec<Dir>,
+}
+
 fn runtime() -> Runtime {
     // TODO: run web server on same runtime as bob (update to async rocket when it's stable)
     debug!("HOT FIX: run web server on same runtime as bob");
@@ -65,7 +72,8 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         change_partition_state,
         delete_partition,
         alien,
-        remount_vdisks_group
+        remount_vdisks_group,
+        get_local_replica_directories
     ];
     let task = move || {
         info!("API server started");
@@ -305,6 +313,64 @@ fn delete_partition(
 #[get("/alien")]
 fn alien(_bob: State<BobServer>) -> &'static str {
     "alien"
+}
+
+#[get("/vdisks/<vdisk_id>/replicas/local/dirs")]
+fn get_local_replica_directories(
+    bob: State<BobServer>,
+    vdisk_id: u32,
+) -> Result<Json<Vec<Dir>>, StatusExt> {
+    let vdisk: VDisk = get_vdisk_by_id(&bob, vdisk_id).ok_or(StatusExt::new(
+        Status::NotFound,
+        false,
+        format!("VDisk {} not found", vdisk_id),
+    ))?;
+    let local_node_name = bob.grinder().backend().mapper().local_node_name();
+    let mut result = vec![];
+    for replica in vdisk
+        .replicas
+        .into_iter()
+        .filter(|r| r.node == local_node_name)
+    {
+        let path = PathBuf::from(replica.path);
+        let dir = create_directory(&path).ok_or(StatusExt::new(
+            Status::InternalServerError,
+            false,
+            format!("Failed to get dirs for replica {:?}", path),
+        ))?;
+        result.push(dir);
+    }
+    Ok(Json(result))
+}
+
+fn create_directory(root_path: &Path) -> Option<Dir> {
+    if let (Some(name), Some(root_path_str)) = (
+        root_path.file_name().and_then(|n| n.to_str()),
+        root_path.to_str(),
+    ) {
+        let children = std::fs::read_dir(root_path)
+            .ok()
+            .map(|children| {
+                children
+                    .filter_map(|child| {
+                        child.ok().and_then(|child| {
+                            if child.path().is_dir() {
+                                create_directory(&child.path())
+                            } else {
+                                None
+                            }
+                        })
+                    })
+                    .collect::<_>()
+            })
+            .unwrap_or(vec![]);
+        return Some(Dir {
+            name: name.to_string(),
+            path: root_path_str.to_string(),
+            children,
+        });
+    }
+    None
 }
 
 impl<'r> FromParam<'r> for Action {

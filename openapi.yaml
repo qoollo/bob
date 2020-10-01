@@ -156,7 +156,20 @@ paths:
                   type: string
         default:
           $ref: '#/components/responses/DefaultError'
-    
+  /vdisks/<vdisk_id>/replicas/local/dirs:
+    get:
+      summary: Returns directories of local replicas of vdisk
+      operationId: getReplicasLocalDirs
+      responses:
+        '200':
+          description: "A JSON array with alien Node names info"
+          content:
+            application/json:
+              schema:
+                ref: '#/components/schemas/Dir
+        default:
+          $ref: '#/components/responses/DefaultError'
+
 components:
   responses:
     DefaultError:
@@ -240,3 +253,14 @@ components:
       required:
         - code
         - message
+    Dir:
+      type: object
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dir'
