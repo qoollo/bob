@@ -27,13 +27,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "/tmp".to_string(),
     );
     let configuration =
-        get_configuration().map_err(|e| ErrorWrapper::new("configuration get", e.into()))?;
+        get_configuration().map_err(|e| ErrorWrapper::new("configuration get", e))?;
     configuration
         .save_cluster_configuration(config_dir)
-        .map_err(|e| ErrorWrapper::new("save cluster configuration", e.into()))?;
+        .map_err(|e| ErrorWrapper::new("save cluster configuration", e))?;
     let compose = configuration
         .create_docker_compose(fs_configuration, "bobnet".to_string())
-        .map_err(|e| ErrorWrapper::new("create compose configuration", e.into()))?;
+        .map_err(|e| ErrorWrapper::new("create compose configuration", e))?;
     let arc = Arc::new(Mutex::new(Box::new(compose)));
     let ctrlc_arc = arc.clone();
     ctrlc::set_handler(move || {
