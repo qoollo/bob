@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .lock()
         .unwrap()
         .up(config_dir)
-        .map_err(|e| ErrorWrapper::new("run docker_compose", e.into()))?;
+        .map_err(|e| ErrorWrapper::new("run docker_compose", e))?;
     child_process
         .wait_with_output()
         .map_err(|e| ErrorWrapper::new("wait for child process", e.into()))?;
