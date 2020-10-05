@@ -5,6 +5,7 @@ mod holder;
 mod metrics;
 mod settings;
 mod stuff;
+mod work_dir;
 
 #[cfg(test)]
 mod tests;
@@ -32,6 +33,7 @@ mod prelude {
     };
     pub(crate) use settings::Settings;
     pub(crate) use stuff::{Stuff, SyncState};
+    pub(crate) use work_dir::WorkDir;
 
     pub(crate) use ring::digest::{digest, SHA256};
     pub(crate) use std::collections::HashMap;

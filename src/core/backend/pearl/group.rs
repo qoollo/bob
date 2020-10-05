@@ -4,7 +4,7 @@ use super::prelude::*;
 pub(crate) struct Group {
     holders: Arc<RwLock<Vec<Holder>>>,
     settings: Arc<Settings>,
-    directory_path: PathBuf,
+    work_dir: WorkDir,
     vdisk_id: VDiskId,
     node_name: String,
     disk_name: String,
