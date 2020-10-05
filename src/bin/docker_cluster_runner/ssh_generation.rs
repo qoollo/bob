@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::fs::{create_dir, metadata, read, write, Permissions};
+use std::fs::{create_dir, read, write};
 use std::path::Path;
 use std::process::Command;
 
@@ -9,7 +9,7 @@ pub fn populate_ssh_directory(
 ) -> Result<(), Box<dyn Error>> {
     let pub_key_filename = format!("{}/id_rsa.pub", directory);
     if !Path::new(&pub_key_filename).exists() {
-        create_dir(&directory);
+        create_dir(&directory)?;
         let _ = Command::new("ssh-keygen")
             .arg("-b")
             .arg("2048")
