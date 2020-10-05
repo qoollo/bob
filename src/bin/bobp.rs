@@ -556,9 +556,15 @@ fn spawn_workers(
         .map(|i| {
             let nc = net_conf.clone();
             let stat_inner = benchmark_conf.statistics.clone();
+            let low_idx = task_conf.low_idx + task_size * i;
+            let count = if i == benchmark_conf.workers_count - 1 {
+                task_conf.count - low_idx
+            } else {
+                task_size
+            };
             let tc = TaskConfig {
-                low_idx: task_conf.low_idx + task_size * i,
-                count: task_size,
+                low_idx,
+                count,
                 payload_size: task_conf.payload_size,
                 direct: task_conf.direct,
                 measure_time: i == 0,

@@ -19,12 +19,18 @@ pub struct TestClusterConfiguration {
     nodes_count: u32,
     vdisks_count: u32,
     logging_level: String,
+    ssh_pub_key: String,
+    quorum: usize,
 }
 
 impl TestClusterConfiguration {
-    pub fn save_cluster_configuration(&self, directory: &str) -> Result<()> {
+    pub fn save_cluster_configuration(&self, directory: &str, ssh_directory: &str) -> Result<()> {
         self.save_cluster_config(directory)?;
         self.save_logger_config(directory)?;
+        ssh_generation::populate_ssh_directory(
+            ssh_directory.to_string(),
+            Some(self.ssh_pub_key.clone()),
+        )?;
         self.save_nodes_config(directory)?;
         Ok(())
     }
@@ -68,6 +74,8 @@ impl TestClusterConfiguration {
                     Self::get_volumes(&fs_configuration)?,
                     Self::get_docker_command(node),
                     Self::get_networks_with_single_network(node, &network_name),
+                    Self::get_ports(node),
+                    Self::get_docker_env(node),
                     Self::get_security_opts(&fs_configuration)?,
                     Self::get_ulimits(),
                 ),
@@ -76,6 +84,23 @@ impl TestClusterConfiguration {
         let networks = Self::get_networks_with_custom_network(network_name);
         let compose = DockerCompose::new("3.8".to_string(), services, networks);
         Ok(compose)
+    }
+
+    fn get_docker_env(node: u32) -> Vec<DockerEnv> {
+        vec![
+            DockerEnv::new(
+                "CONFIG_DIR".to_string(),
+                Some(DockerFSConstants::docker_configs_dir()),
+            ),
+            DockerEnv::new("NODE_NAME".to_string(), Some(Self::get_node_name(node))),
+        ]
+    }
+
+    fn get_ports(node: u32) -> Vec<DockerPort> {
+        vec![
+            DockerPort::new(8000, 8000 + node),
+            DockerPort::new(22, 7022 + node),
+        ]
     }
 
     fn get_ulimits() -> ULimits {
@@ -98,9 +123,11 @@ impl TestClusterConfiguration {
         let config_dir =
             Self::convert_to_absolute_path(&fs_configuration.cluster_configuration_dir)?;
         let disks_dir = Self::convert_to_absolute_path(&fs_configuration.disks_dir)?;
+        let ssh_dir = Self::convert_to_absolute_path(&fs_configuration.ssh_dir())?;
         let volumes = vec![
             VolumeMapping::new(disks_dir, DockerFSConstants::docker_disks_dir()),
             VolumeMapping::new(config_dir, DockerFSConstants::docker_configs_dir()),
+            VolumeMapping::new(ssh_dir, DockerFSConstants::docker_ssh_dir()),
         ];
         Ok(volumes)
     }
@@ -167,7 +194,7 @@ impl TestClusterConfiguration {
         let node = Node::new(
             format!("{}/logger.yaml", DockerFSConstants::docker_configs_dir()),
             Self::get_node_name(node_index),
-            1,
+            self.quorum,
             "3sec".to_string(),
             "5000ms".to_string(),
             "quorum".to_string(),
@@ -272,6 +299,12 @@ pub mod fs_configuration {
         pub(super) dockerfile_path: String,
         pub(super) disks_dir: String,
     }
+
+    impl FSConfiguration {
+        pub fn ssh_dir(&self) -> String {
+            format!("{}/ssh", self.cluster_configuration_dir)
+        }
+    }
 }
 
 mod filesystem_constants;
@@ -279,6 +312,7 @@ mod filesystem_constants;
 pub mod docker_compose_wrapper;
 
 mod logger;
+mod ssh_generation;
 
 #[cfg(test)]
 mod tests {
