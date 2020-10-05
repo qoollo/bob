@@ -32,9 +32,15 @@ impl Holder {
     pub(crate) fn start_timestamp(&self) -> u64 {
         self.start_timestamp
     }
-    
+
     pub(crate) fn get_id(&self) -> String {
-        format!("{}", self.disk_path.file_name().and_then(|s| s.to_str()).unwrap_or("unparsable string"))
+        format!(
+            "{}",
+            self.disk_path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unparsable string")
+        )
     }
 
     pub(crate) fn storage(&self) -> &RwLock<PearlSync> {

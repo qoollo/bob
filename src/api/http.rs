@@ -200,9 +200,7 @@ fn partition_by_id(
     debug!("HOT FIX: run web server on same runtime as bob");
     let mut rt = Runtime::new().expect("create runtime");
     let pearls = rt.block_on(holders.read());
-    let pearl = pearls
-        .iter()
-        .find(|pearl| pearl.get_id() == partition_id);
+    let pearl = pearls.iter().find(|pearl| pearl.get_id() == partition_id);
     let partition = pearl.map(|p| Partition {
         node_name: group.node_name().to_owned(),
         disk_name: group.disk_name().to_owned(),
@@ -289,7 +287,10 @@ fn delete_partition(
                 );
                 result.push_str(&msg);
             } else {
-                result.push_str(&format!("successfully deleted partitions with timestamp {}", timestamp));
+                result.push_str(&format!(
+                    "successfully deleted partitions with timestamp {}",
+                    timestamp
+                ));
             }
             result.push('\n');
         }
