@@ -558,7 +558,7 @@ fn spawn_workers(
             let stat_inner = benchmark_conf.statistics.clone();
             let low_idx = task_conf.low_idx + task_size * i;
             let count = if i == benchmark_conf.workers_count - 1 {
-                task_conf.count - low_idx
+                task_conf.count + task_conf.low_idx - low_idx
             } else {
                 task_size
             };
