@@ -18,7 +18,7 @@ impl Group {
         vdisk_id: VDiskId,
         node_name: String,
         disk_name: String,
-        directory_path: PathBuf,
+        work_dir: PathBuf,
         owner_node_name: String,
     ) -> Self {
         Self {
@@ -26,7 +26,7 @@ impl Group {
             settings,
             vdisk_id,
             node_name,
-            directory_path,
+            work_dir: work_dir.into(),
             disk_name,
             owner_node_name,
             created_holder_indexes: Arc::default(),
@@ -306,7 +306,7 @@ impl Group {
 
     pub fn create_pearl_holder(&self, start_timestamp: u64, hash: &str) -> Holder {
         let end_timestamp = start_timestamp + self.settings.timestamp_period_as_secs();
-        let mut path = self.directory_path.clone();
+        let mut path = self.work_dir.clone();
         info!("creating pearl holder {}", path.as_path().display());
         let partition_name = PartitionName::new(start_timestamp, &hash);
         path.push(partition_name.to_string());
@@ -334,10 +334,10 @@ impl Group {
     }
 
     pub(crate) fn read_vdisk_directory(&self) -> BackendResult<Vec<Holder>> {
-        Stuff::check_or_create_directory(&self.directory_path)?;
+        Stuff::check_or_create_directory(self.work_dir.as_path())?;
 
         let mut holders = vec![];
-        let pearl_directories = Settings::get_all_subdirectories(&self.directory_path)?;
+        let pearl_directories = Settings::get_all_subdirectories(self.work_dir.as_path())?;
         for entry in pearl_directories {
             if let Ok(file_name) = entry
                 .file_name()
@@ -404,7 +404,7 @@ impl Display for Group {
         f.debug_struct("Group")
             .field("vdisk_id", &self.vdisk_id)
             .field("node_name", &self.node_name)
-            .field("directory_path", &self.directory_path)
+            .field("directory_path", &self.work_dir.as_path())
             .field("disk_name", &self.disk_name)
             .field("..", &"some fields ommited")
             .finish()

@@ -95,8 +95,8 @@ impl Stuff {
         }
     }
 
-    pub(crate) fn drop_pearl_lock_file(path: &PathBuf) -> BackendResult<()> {
-        let mut file = path.clone();
+    pub(crate) fn drop_pearl_lock_file(path: &Path) -> BackendResult<()> {
+        let mut file = path.to_path_buf();
         file.push("pearl.lock");
         if file.exists() {
             remove_file(&file)
@@ -112,7 +112,7 @@ impl Stuff {
         }
     }
 
-    pub(crate) fn drop_directory(path: &PathBuf) -> BackendResult<()> {
+    pub(crate) fn drop_directory(path: &Path) -> BackendResult<()> {
         remove_dir_all(path)
             .map(|_| debug!("deleted directory {:?}", path))
             .map_err(|e| Error::storage(format!("error deleting directory {:?}, {}", path, e)))

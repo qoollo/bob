@@ -6,7 +6,7 @@ pub(crate) struct Holder {
     start_timestamp: u64,
     end_timestamp: u64,
     vdisk: VDiskId,
-    disk_path: PathBuf,
+    work_dir: WorkDir,
     config: PearlConfig,
     storage: Arc<RwLock<PearlSync>>,
 }
@@ -16,14 +16,14 @@ impl Holder {
         start_timestamp: u64,
         end_timestamp: u64,
         vdisk: VDiskId,
-        disk_path: PathBuf,
+        work_dir: WorkDir,
         config: PearlConfig,
     ) -> Self {
         Self {
             start_timestamp,
             end_timestamp,
             vdisk,
-            disk_path,
+            work_dir,
             config,
             storage: Arc::new(RwLock::new(PearlSync::new())),
         }
@@ -34,13 +34,7 @@ impl Holder {
     }
 
     pub(crate) fn get_id(&self) -> String {
-        format!(
-            "{}",
-            self.disk_path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unparsable string")
-        )
+        format!("{}", self.work_dir.file_name().unwrap_or("file name N/A"))
     }
 
     pub(crate) fn storage(&self) -> &RwLock<PearlSync> {
@@ -180,16 +174,16 @@ impl Holder {
     async fn init_holder(&self) -> Result<()> {
         self.config
             .try_multiple_times(
-                || Stuff::check_or_create_directory(&self.disk_path),
-                &format!("cannot check path: {:?}", self.disk_path),
+                || Stuff::check_or_create_directory(self.work_dir.as_path()),
+                &format!("cannot check path: {:?}", self.work_dir),
                 self.config.fail_retry_timeout(),
             )
             .await?;
 
         self.config
             .try_multiple_times(
-                || Stuff::drop_pearl_lock_file(&self.disk_path),
-                &format!("cannot delete lock file: {:?}", self.disk_path),
+                || Stuff::drop_pearl_lock_file(self.work_dir.as_path()),
+                &format!("cannot delete lock file: {:?}", self.work_dir),
                 self.config.fail_retry_timeout(),
             )
             .await?;
@@ -198,7 +192,7 @@ impl Holder {
             .config
             .try_multiple_times(
                 || self.init_pearl_by_path(),
-                &format!("can't init pearl by path: {:?}", self.disk_path),
+                &format!("can't init pearl by path: {:?}", self.work_dir),
                 self.config.fail_retry_timeout(),
             )
             .await
@@ -219,11 +213,11 @@ impl Holder {
     }
 
     pub(crate) fn drop_directory(&self) -> BackendResult<()> {
-        Stuff::drop_directory(&self.disk_path)
+        Stuff::drop_directory(self.work_dir.as_path())
     }
 
     fn init_pearl_by_path(&self) -> Result<PearlStorage> {
-        let mut builder = Builder::new().work_dir(&self.disk_path);
+        let mut builder = Builder::new().work_dir(self.work_dir.as_path());
 
         if self.config.allow_duplicates() {
             builder = builder.allow_duplicates();
@@ -240,7 +234,7 @@ impl Holder {
             .max_blob_size(max_blob_size)
             .set_filter_config(BloomConfig::default())
             .build(ioring)
-            .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
+            .with_context(|| format!("cannot build pearl by path: {:?}", self.work_dir.as_path()))
     }
 }
 
