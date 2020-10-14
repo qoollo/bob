@@ -67,11 +67,11 @@ pub(crate) async fn put_at_least(
     (handles, errors)
 }
 
-pub(crate) fn get_support_nodes<'a>(
-    mapper: &'a Virtual,
+pub(crate) fn get_support_nodes(
+    mapper: &'_ Virtual,
     mut target_indexes: impl Iterator<Item = u16>,
     count: usize,
-) -> Result<Vec<&'a Node>, Error> {
+) -> Result<Vec<&'_ Node>, Error> {
     let (len, _) = target_indexes.size_hint();
     debug!("iterator size lower bound: {}", len);
     trace!("nodes available: {}", mapper.nodes().len());
@@ -92,7 +92,10 @@ pub(crate) fn get_support_nodes<'a>(
 
 #[inline]
 pub(crate) fn get_target_nodes(mapper: &Virtual, key: BobKey) -> &[Node] {
-    mapper.get_vdisk_for_key(key).nodes()
+    mapper
+        .get_vdisk_for_key(key)
+        .expect("vdisk for key not found")
+        .nodes()
 }
 
 pub(crate) fn group_keys_by_nodes(

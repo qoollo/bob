@@ -34,13 +34,11 @@ impl Holder {
     }
 
     pub(crate) fn get_id(&self) -> String {
-        format!(
-            "{}",
-            self.disk_path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unparsable string")
-        )
+        self.disk_path
+            .file_name()
+            .and_then(std::ffi::OsStr::to_str)
+            .unwrap_or("unparsable string")
+            .to_owned()
     }
 
     pub(crate) fn storage(&self) -> &RwLock<PearlSync> {
