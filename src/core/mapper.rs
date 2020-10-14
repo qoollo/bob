@@ -105,6 +105,27 @@ impl Virtual {
         self.vdisks.get(&id).expect("vdisk not found").nodes()
     }
 
+    pub(crate) fn get_support_nodes(&self, key: BobKey, count: usize) -> Vec<&Node> {
+        trace!("get target nodes for given key");
+        let target_nodes = self.get_target_nodes_for_key(key);
+        trace!("extract indexes of target nodes");
+        let mut target_indexes = target_nodes.iter().map(Node::index);
+        let len = target_indexes.size_hint().0;
+        debug!("iterator size lower bound: {}", len);
+        trace!("nodes available: {}", self.nodes.len());
+        self.nodes
+            .iter()
+            .filter_map(|(id, node)| {
+                if target_indexes.all(|i| &i != id) {
+                    Some(node)
+                } else {
+                    None
+                }
+            })
+            .take(count)
+            .collect()
+    }
+
     pub(crate) fn vdisk_id_from_key(&self, key: BobKey) -> VDiskID {
         (key % self.vdisks.len() as u64)
             .try_into()

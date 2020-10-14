@@ -66,51 +66,6 @@ pub(crate) async fn put_at_least(
     (handles, errors)
 }
 
-pub(crate) fn get_support_nodes(
-    mapper: &'_ Virtual,
-    mut target_indexes: impl Iterator<Item = u16>,
-    count: usize,
-) -> (Vec<&'_ Node>, Result<(), Error>) {
-    let len = target_indexes.size_hint().0;
-    debug!("iterator size lower bound: {}", len);
-    trace!("nodes available: {}", mapper.nodes().len());
-    let res = if mapper.nodes().len() < len + count {
-        let msg = format!(
-            "cannot find enough support nodes,
-            total nodes count: {},
-            target nodes count for key: {},
-            failed writes count: {}
-            Check connection to all nodes, maybe some are unreachable.
-            Error may be caused by cluster configuration:
-                replica count is close to nodes count.
-            Data will be written to the maximum available number of nodes,
-            but the error requires further investigation of the cause.",
-            mapper.nodes().len(),
-            len,
-            count,
-        );
-        error!("{}", msg);
-        Err(Error::failed(msg))
-    } else {
-        Ok(())
-    };
-    (
-        mapper
-            .nodes()
-            .iter()
-            .filter_map(|(id, node)| {
-                if target_indexes.all(|i| &i != id) {
-                    Some(node)
-                } else {
-                    None
-                }
-            })
-            .take(count)
-            .collect(),
-        res,
-    )
-}
-
 pub(crate) fn group_keys_by_nodes(
     mapper: &Virtual,
     keys: &[BobKey],
@@ -210,6 +165,7 @@ pub(crate) async fn put_local_all(
     key: BobKey,
     data: BobData,
     operation: Operation,
+    count: usize,
 ) -> Result<(), PutOptions> {
     let mut add_nodes = vec![];
     for node_name in node_names {

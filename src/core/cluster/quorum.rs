@@ -134,52 +134,56 @@ impl Quorum {
         key: BobKey,
         data: BobData,
     ) -> Result<(), Error> {
-        let vdisk_id = self.mapper.vdisk_id_from_key(key);
-        let operation = Operation::new_alien(vdisk_id);
-        // let local_put = put_local_all(&self.backend,failed_nodes.clone(),key,data.clone(),operation,).await;
-        // if local_put.is_err() {debug!("PUT[{}] local put failed, need additional remote alien put",key);failed_nodes.push(self.mapper.local_node_name().to_string());}
-        unimplemented!();
-        trace!("get target nodes for given key");
-        let target_nodes = self.mapper.get_vdisk_for_key(key).nodes();
-        trace!("extract indexes of target nodes");
-        let target_indexes = target_nodes.iter().map(Node::index);
-        trace!("selection of free nodes available for data writing");
-        let (mut sup_nodes, result) =
-            get_support_nodes(&self.mapper, target_indexes, failed_nodes.len());
-        debug!("PUT[{}] sup put nodes: {:?}", key, &sup_nodes);
-
-        let mut queries = Vec::new();
-
-        // if let Err(op) = local_put {
-        if sup_nodes.is_empty() {
-            error!("PUT[{}] put local failed, no available support nodes", key);
-        } else {
-            let item = sup_nodes.remove(sup_nodes.len() - 1);
-            // queries.push((item, op));
-            unimplemented!()
-        }
-        // }
-
-        if !failed_nodes.is_empty() {
-            let put_options = PutOptions::new_alien(failed_nodes);
-            queries.extend(
-                sup_nodes
-                    .into_iter()
-                    .map(|node| (node, put_options.clone())),
+        debug!("PUT[{}] ~~~TRY PUT TO REMOTE ALIENS FIRST~~~", key);
+        if failed_nodes.is_empty() {
+            warn!(
+                "PUT[{}] trying to aliens, but there are no failed nodes: unreachable",
+                key
             );
+            return Err(Error::internal());
         }
-
-        let mut sup_ok_count = queries.len();
-        let mut err = String::new();
+        trace!("selection of free nodes available for data writing");
+        let sup_nodes = self.mapper.get_support_nodes(key, failed_nodes.len());
+        debug!("PUT[{}] sup put nodes: {:?}", key, &sup_nodes);
+        let put_options = PutOptions::new_alien(failed_nodes.clone());
+        let queries: Vec<_> = sup_nodes
+            .into_iter()
+            .map(|node| (node, put_options.clone()))
+            .collect();
         debug!("PUT[{}] additional alien requests: {:?}", key, queries);
-
-        if let Err((sup_ok_count_l, last_error)) = put_sup_nodes(key, data, &queries).await {
-            sup_ok_count = sup_ok_count_l;
+        let mut sup_ok_count = 0;
+        let mut err = String::new();
+        if let Err((result_ok_count, last_error)) = put_sup_nodes(key, data.clone(), &queries).await
+        {
+            sup_ok_count = result_ok_count;
+            unimplemented!();
             err = last_error;
         }
-        if result.is_err() {
-            result
-        } else if err.is_empty() {
+        if queries.len() < failed_nodes.len() {
+            for i in 0..failed_nodes.len() - queries.len() {
+                let vdisk_id = self.mapper.vdisk_id_from_key(key);
+                let operation = Operation::new_alien(vdisk_id);
+                let local_put = put_local_all(
+                    &self.backend,
+                    failed_nodes.clone(),
+                    key,
+                    data.clone(),
+                    operation,
+                    failed_nodes.len() - queries.len(),
+                )
+                .await;
+                if let Err(e) = local_put {
+                    error!(
+                        "PUT[{}] local put failed, smth wrong with backend: {:?}",
+                        key, e
+                    );
+                    return Err(Error::internal());
+                } else {
+                    debug!("PUT[{}] successful local put: #{} copy", key, i)
+                }
+            }
+        }
+        if err.is_empty() {
             Ok(())
         } else {
             let msg = format!(
