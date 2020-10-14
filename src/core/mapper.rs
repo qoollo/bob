@@ -1,16 +1,19 @@
-use super::prelude::*;
+use super::{data::NodeID, prelude::*};
 
 /// Hash map with IDs as keys and `VDisk`s as values.
-pub type VDiskMap = HashMap<VDiskID, DataVDisk>;
+pub type VDisksMap = HashMap<VDiskID, DataVDisk>;
+
+pub(crate) type NodesMap = HashMap<NodeID, Node>;
 
 /// Struct for managing distribution of replicas on disks and nodes.
 /// Through the virtual intermediate object, called `VDisk` - "virtual disk"
 #[derive(Debug, Clone)]
 pub struct Virtual {
     local_node_name: String,
+    local_node_address: String,
     disks: Vec<DiskPath>,
-    vdisks: VDiskMap,
-    nodes: Vec<Node>,
+    vdisks: VDisksMap,
+    nodes: NodesMap,
 }
 
 impl Virtual {
@@ -18,21 +21,39 @@ impl Virtual {
     pub async fn new(config: &NodeConfig, cluster: &ClusterConfig) -> Self {
         let mut vdisks = cluster.create_vdisks_map().unwrap();
         let nodes = Self::prepare_nodes(&mut vdisks, cluster).await;
+        let local_node_name = config.name().to_owned();
+        let local_node_address = nodes
+            .values()
+            .find(|node| *node.name() == local_node_name)
+            .expect("found node with name")
+            .address()
+            .to_string();
         Self {
-            local_node_name: config.name().to_owned(),
+            local_node_name,
+            local_node_address,
             disks: config.disks().clone(),
             vdisks,
             nodes,
         }
     }
 
-    async fn prepare_nodes(vdisks: &mut VDiskMap, cluster: &ClusterConfig) -> Vec<Node> {
-        let mut nodes = Vec::new();
-        for (i, conf) in cluster.nodes().iter().enumerate() {
-            let index = i.try_into().expect("usize to u16");
-            let address = conf.address();
-            nodes.push(Node::new(conf.name().to_owned(), address, index).await);
-        }
+    async fn prepare_nodes(vdisks: &mut VDisksMap, cluster: &ClusterConfig) -> NodesMap {
+        let nodes = cluster
+            .nodes()
+            .iter()
+            .enumerate()
+            .map(|(i, conf)| {
+                let index = i.try_into().expect("usize to u16");
+                let address = conf.address();
+                let name = conf.name().to_owned();
+                async move {
+                    let node = Node::new(name, address, index).await;
+                    (index, node)
+                }
+            })
+            .collect::<FuturesUnordered<_>>()
+            .collect()
+            .await;
 
         vdisks
             .values_mut()
@@ -44,14 +65,8 @@ impl Virtual {
         &self.local_node_name
     }
 
-    pub(crate) fn local_node_address(&self) -> String {
-        let name = self.local_node_name();
-        self.nodes
-            .iter()
-            .find(|node| node.name() == name)
-            .expect("found node with name")
-            .address()
-            .to_string()
+    pub(crate) fn local_node_address(&self) -> &str {
+        &self.local_node_address
     }
 
     pub(crate) fn vdisks_count(&self) -> u32 {
@@ -66,7 +81,7 @@ impl Virtual {
         &self.disks
     }
 
-    pub(crate) fn vdisks(&self) -> &VDiskMap {
+    pub(crate) fn vdisks(&self) -> &VDisksMap {
         &self.vdisks
     }
 
@@ -74,7 +89,7 @@ impl Virtual {
         self.disks.iter().find(|d| d.name() == name)
     }
 
-    pub(crate) fn nodes(&self) -> &[Node] {
+    pub(crate) fn nodes(&self) -> &NodesMap {
         &self.nodes
     }
 

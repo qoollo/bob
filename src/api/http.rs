@@ -146,7 +146,7 @@ fn find_group<'a>(bob: &'a State<BobServer>, vdisk_id: u32) -> Result<&'a PearlG
 fn status(bob: State<BobServer>) -> Json<Node> {
     let mapper = bob.grinder().backend().mapper();
     let name = mapper.local_node_name().to_owned();
-    let address = mapper.local_node_address();
+    let address = mapper.local_node_address().to_owned();
     let vdisks = collect_disks_info(&bob);
     let node = Node {
         name,

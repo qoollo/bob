@@ -83,7 +83,13 @@ pub(crate) fn get_support_nodes(
         let sup = mapper
             .nodes()
             .iter()
-            .filter(|node| target_indexes.all(|i| i != node.index()))
+            .filter_map(|(id, node)| {
+                if target_indexes.all(|i| &i != id) {
+                    Some(node)
+                } else {
+                    None
+                }
+            })
             .take(count)
             .collect();
         Ok(sup)
@@ -157,7 +163,7 @@ pub(crate) async fn lookup_remote_aliens(mapper: &Virtual, key: BobKey) -> Optio
     let local_node = mapper.local_node_name();
     let target_nodes = mapper
         .nodes()
-        .iter()
+        .values()
         .filter(|node| node.name() != local_node);
     let result = get_any(key, target_nodes, GetOptions::new_alien()).await;
     if let Some(answer) = result {
