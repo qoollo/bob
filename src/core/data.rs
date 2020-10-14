@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 
 pub type BobKey = u64;
 
-pub type VDiskId = u32;
+pub type VDiskID = u32;
 
 impl PutOptions {
     pub(crate) fn new_local() -> Self {
@@ -211,13 +211,13 @@ impl BobOptions {
 
 #[derive(Debug, Clone)]
 pub struct VDisk {
-    id: VDiskId,
+    id: VDiskID,
     replicas: Vec<NodeDisk>,
     nodes: Vec<Node>,
 }
 
 impl VDisk {
-    pub(crate) fn new(id: VDiskId) -> Self {
+    pub(crate) fn new(id: VDiskID) -> Self {
         VDisk {
             id,
             replicas: Vec::new(),
@@ -225,7 +225,7 @@ impl VDisk {
         }
     }
 
-    pub(crate) fn id(&self) -> VDiskId {
+    pub(crate) fn id(&self) -> VDiskID {
         self.id
     }
 
@@ -241,8 +241,8 @@ impl VDisk {
         self.replicas.push(value)
     }
 
-    pub(crate) fn set_nodes(&mut self, nodes: &[Node]) {
-        nodes.iter().for_each(|node| {
+    pub(crate) fn set_nodes(&mut self, nodes: &HashMap<NodeID, Node>) {
+        nodes.iter().for_each(|(id, node)| {
             if self.replicas.iter().any(|r| r.node_name == node.name) {
                 //TODO check if some duplicates
                 self.nodes.push(node.clone());
@@ -325,9 +325,11 @@ impl PartialEq for NodeDisk {
 pub(crate) struct Node {
     name: String,
     address: SocketAddr,
-    index: u16,
+    index: NodeID,
     conn: Arc<RwLock<Option<BobClient>>>,
 }
+
+pub type NodeID = u16;
 
 impl Node {
     pub(crate) async fn new(name: String, address: &str, index: u16) -> Self {

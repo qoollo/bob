@@ -5,7 +5,7 @@ use super::prelude::*;
 pub(crate) struct Holder {
     start_timestamp: u64,
     end_timestamp: u64,
-    vdisk: VDiskId,
+    vdisk: VDiskID,
     disk_path: PathBuf,
     config: PearlConfig,
     storage: Arc<RwLock<PearlSync>>,
@@ -15,7 +15,7 @@ impl Holder {
     pub(crate) fn new(
         start_timestamp: u64,
         end_timestamp: u64,
-        vdisk: VDiskId,
+        vdisk: VDiskID,
         disk_path: PathBuf,
         config: PearlConfig,
     ) -> Self {

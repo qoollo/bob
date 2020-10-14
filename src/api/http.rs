@@ -88,7 +88,11 @@ fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
 
 fn collect_disks_info(bob: &BobServer) -> Vec<VDisk> {
     let mapper = bob.grinder().backend().mapper();
-    mapper.vdisks().iter().map(data_vdisk_to_scheme).collect()
+    mapper
+        .vdisks()
+        .into_iter()
+        .map(data_vdisk_to_scheme)
+        .collect()
 }
 
 #[inline]
@@ -98,7 +102,7 @@ fn get_vdisk_by_id(bob: &BobServer, id: u32) -> Option<VDisk> {
 
 fn find_vdisk(bob: &BobServer, id: u32) -> Option<&DataVDisk> {
     let mapper = bob.grinder().backend().mapper();
-    mapper.vdisks().iter().find(|disk| disk.id() == id)
+    mapper.get_vdisk(&id)
 }
 
 fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {
@@ -138,7 +142,7 @@ fn find_group<'a>(bob: &'a State<BobServer>, vdisk_id: u32) -> Result<&'a PearlG
 fn status(bob: State<BobServer>) -> Json<Node> {
     let mapper = bob.grinder().backend().mapper();
     let name = mapper.local_node_name().to_owned();
-    let address = mapper.local_node_address();
+    let address = mapper.local_node_address().to_owned();
     let vdisks = collect_disks_info(&bob);
     let node = Node {
         name,

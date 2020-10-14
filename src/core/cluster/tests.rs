@@ -74,7 +74,7 @@ fn prepare_configs(
     count_vdisks: u32,
     count_replicas: u32,
     quorum: usize,
-) -> (Vec<VDisk>, NodeConfig, ClusterConfig) {
+) -> (HashMap<VDiskID, VDisk>, NodeConfig, ClusterConfig) {
     let node = node_config("0", quorum);
     let cluster = cluster_config(count_nodes, count_vdisks, count_replicas);
     cluster.check(&node).expect("check node config");
@@ -83,13 +83,13 @@ fn prepare_configs(
 }
 
 async fn create_cluster(
-    vdisks: Vec<VDisk>,
+    vdisks: HashMap<VDiskID, VDisk>,
     node: &NodeConfig,
     cluster: &ClusterConfig,
     map: &[(&str, Call, Arc<CountCall>)],
 ) -> (Quorum, Arc<Backend>) {
     let mapper = Arc::new(Virtual::new(vdisks, &node, &cluster).await);
-    for node in mapper.nodes().iter() {
+    for node in mapper.nodes().values() {
         let mut client = BobClient::default();
         let (_, func, call) = map
             .iter()

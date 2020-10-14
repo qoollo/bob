@@ -2,13 +2,13 @@ use super::prelude::*;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Operation {
-    vdisk_id: VDiskId,
+    vdisk_id: VDiskID,
     disk_path: Option<DiskPath>,
     remote_node_name: Option<String>, // save data to alien/<remote_node_name>
 }
 
 impl Operation {
-    pub(crate) fn vdisk_id(&self) -> VDiskId {
+    pub(crate) fn vdisk_id(&self) -> VDiskID {
         self.vdisk_id
     }
 
@@ -29,7 +29,7 @@ impl Debug for Operation {
 }
 
 impl Operation {
-    pub(crate) fn new_alien(vdisk_id: VDiskId) -> Self {
+    pub(crate) fn new_alien(vdisk_id: VDiskID) -> Self {
         Self {
             vdisk_id,
             disk_path: None,
@@ -37,7 +37,7 @@ impl Operation {
         }
     }
 
-    pub(crate) fn new_local(vdisk_id: VDiskId, path: DiskPath) -> Self {
+    pub(crate) fn new_local(vdisk_id: VDiskID, path: DiskPath) -> Self {
         Self {
             vdisk_id,
             disk_path: Some(path),

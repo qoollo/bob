@@ -10,7 +10,8 @@ pub struct Grinder {
 impl Grinder {
     /// Creates new instance of the Grinder
     pub fn new(mapper: Virtual, config: &NodeConfig) -> Grinder {
-        let link_manager = Arc::new(LinkManager::new(mapper.nodes(), config.check_interval()));
+        let nodes = mapper.nodes().values().cloned().collect::<Vec<_>>();
+        let link_manager = Arc::new(LinkManager::new(nodes.as_slice(), config.check_interval()));
         let mapper = Arc::new(mapper);
         let backend = Arc::new(Backend::new(mapper.clone(), config));
         Grinder {

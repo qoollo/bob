@@ -134,21 +134,9 @@ impl Quorum {
     ) -> Result<(), Error> {
         let vdisk_id = self.mapper.id_from_key(key);
         let operation = Operation::new_alien(vdisk_id);
-        let local_put = put_local_all(
-            &self.backend,
-            failed_nodes.clone(),
-            key,
-            data.clone(),
-            operation,
-        )
-        .await;
-        if local_put.is_err() {
-            debug!(
-                "PUT[{}] local put failed, need additional remote alien put",
-                key
-            );
-            failed_nodes.push(self.mapper.local_node_name().to_string());
-        }
+        // let local_put = put_local_all(&self.backend,failed_nodes.clone(),key,data.clone(),operation,).await;
+        // if local_put.is_err() {debug!("PUT[{}] local put failed, need additional remote alien put",key);failed_nodes.push(self.mapper.local_node_name().to_string());}
+        unimplemented!();
         trace!("get target nodes for given key");
         let target_nodes = get_target_nodes(&self.mapper, key);
         trace!("extract indexes of target nodes");
@@ -160,14 +148,15 @@ impl Quorum {
 
         let mut queries = Vec::new();
 
-        if let Err(op) = local_put {
-            if sup_nodes.is_empty() {
-                error!("PUT[{}] put local failed, no available support nodes", key);
-            } else {
-                let item = sup_nodes.remove(sup_nodes.len() - 1);
-                queries.push((item, op));
-            }
+        // if let Err(op) = local_put {
+        if sup_nodes.is_empty() {
+            error!("PUT[{}] put local failed, no available support nodes", key);
+        } else {
+            let item = sup_nodes.remove(sup_nodes.len() - 1);
+            // queries.push((item, op));
+            unimplemented!()
         }
+        // }
 
         if !failed_nodes.is_empty() {
             let put_options = PutOptions::new_alien(failed_nodes);
