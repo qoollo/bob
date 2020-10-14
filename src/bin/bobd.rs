@@ -70,7 +70,6 @@ async fn main() {
     let cluster_config = matches.value_of("cluster").unwrap();
     println!("Cluster config: {:?}", cluster_config);
     let cluster = ClusterConfig::try_get(cluster_config).unwrap();
-    let vdisks = cluster.convert().unwrap();
 
     let node_config = matches.value_of("node").unwrap();
     println!("Node config: {:?}", node_config);
@@ -78,7 +77,7 @@ async fn main() {
 
     log4rs::init_file(node.log_config(), Default::default()).unwrap();
 
-    let mut mapper = Virtual::new(vdisks.clone(), &node, &cluster).await;
+    let mut mapper = Virtual::new(&node, &cluster).await;
     let mut addr = node.bind().to_socket_addrs().unwrap().next().unwrap();
 
     let node_name = matches.value_of("name");
@@ -89,7 +88,7 @@ async fn main() {
             .iter()
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
-        mapper = Virtual::new(vdisks, &node, &cluster).await;
+        mapper = Virtual::new(&node, &cluster).await;
         addr = finded.address().to_socket_addrs().unwrap().next().unwrap();
     }
 

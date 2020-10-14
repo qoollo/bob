@@ -1,5 +1,10 @@
 use super::{data::NodeID, prelude::*};
 
+/// Hash map with IDs as keys and `VDisk`s as values.
+pub type VDisksMap = HashMap<VDiskID, DataVDisk>;
+
+pub(crate) type NodesMap = HashMap<NodeID, Node>;
+
 /// Struct for managing distribution of replicas on disks and nodes.
 /// Through the virtual intermediate object, called `VDisk` - "virtual disk"
 #[derive(Debug, Clone)]
@@ -7,55 +12,53 @@ pub struct Virtual {
     local_node_name: String,
     local_node_address: String,
     disks: Vec<DiskPath>,
-    vdisks: HashMap<VDiskID, DataVDisk>,
-    nodes: HashMap<NodeID, Node>,
+    vdisks: VDisksMap,
+    nodes: NodesMap,
 }
 
 impl Virtual {
     /// Creates new instance of the Virtual disk mapper
-    pub async fn new(
-        vdisks: HashMap<VDiskID, DataVDisk>,
-        config: &NodeConfig,
-        cluster: &ClusterConfig,
-    ) -> Self {
-        let (nodes, vdisks) = Self::prepare_nodes(vdisks, cluster).await;
+    pub async fn new(config: &NodeConfig, cluster: &ClusterConfig) -> Self {
+        let mut vdisks = cluster.create_vdisks_map().unwrap();
+        let nodes = Self::prepare_nodes(&mut vdisks, cluster).await;
         let local_node_name = config.name().to_owned();
-        let local_node_address = cluster
-            .nodes()
-            .iter()
-            .find(|conf| conf.name() == &local_node_name)
-            .expect("not found local node in cluster conifg")
-            .name()
-            .to_owned();
+        let local_node_address = nodes
+            .values()
+            .find(|node| *node.name() == local_node_name)
+            .expect("found node with name")
+            .address()
+            .to_string();
         Self {
-            local_node_address,
             local_node_name,
+            local_node_address,
             disks: config.disks().clone(),
             vdisks,
             nodes,
         }
     }
 
-    async fn prepare_nodes(
-        mut vdisks: HashMap<VDiskID, DataVDisk>,
-        cluster: &ClusterConfig,
-    ) -> (HashMap<NodeID, Node>, HashMap<VDiskID, DataVDisk>) {
+    async fn prepare_nodes(vdisks: &mut VDisksMap, cluster: &ClusterConfig) -> NodesMap {
         let nodes = cluster
             .nodes()
             .iter()
             .enumerate()
             .map(|(i, conf)| {
                 let index = i.try_into().expect("usize to u16");
-                Node::new(conf.name().to_owned(), conf.address(), index)
-                    .map(move |node| (index, node))
+                let address = conf.address();
+                let name = conf.name().to_owned();
+                async move {
+                    let node = Node::new(name, address, index).await;
+                    (index, node)
+                }
             })
             .collect::<FuturesUnordered<_>>()
             .collect()
             .await;
+
         vdisks
             .values_mut()
             .for_each(|vdisk| vdisk.set_nodes(&nodes));
-        (nodes, vdisks)
+        nodes
     }
 
     pub(crate) fn local_node_name(&self) -> &str {
@@ -78,26 +81,16 @@ impl Virtual {
         &self.disks
     }
 
-    pub(crate) fn vdisks(&self) -> Vec<&DataVDisk> {
-        self.vdisks.values().collect()
+    pub(crate) fn vdisks(&self) -> &VDisksMap {
+        &self.vdisks
     }
 
     pub(crate) fn get_disk(&self, name: &str) -> Option<&DiskPath> {
         self.disks.iter().find(|d| d.name() == name)
     }
 
-    pub fn has_any_node_with_name(&self, name: &str) -> bool {
-        self.nodes.values().any(|node| node.name() == name)
-    }
-
     pub(crate) fn nodes(&self) -> &HashMap<NodeID, Node> {
         &self.nodes
-    }
-
-    pub(crate) fn get_remote_nodes(&self) -> impl Iterator<Item = &Node> {
-        self.nodes
-            .values()
-            .filter(move |node| node.name() == &self.local_node_name)
     }
 
     pub(crate) fn get_target_nodes_for_key(&self, key: BobKey) -> &[Node] {
@@ -132,13 +125,15 @@ impl Virtual {
             .expect("u64 to u32")
     }
 
-    pub fn get_vdisk(&self, vdisk_id: &VDiskID) -> Option<&DataVDisk> {
-        self.vdisks.get(vdisk_id)
+    /// Returns ref to `VDisk` with given ID
+    #[must_use]
+    pub fn get_vdisk(&self, vdisk_id: VDiskID) -> Option<&DataVDisk> {
+        self.vdisks.get(&vdisk_id)
     }
 
-    pub(crate) fn get_vdisk_for_key(&self, key: BobKey) -> &DataVDisk {
+    pub(crate) fn get_vdisk_for_key(&self, key: BobKey) -> Option<&DataVDisk> {
         let vdisk_id = self.vdisk_id_from_key(key);
-        self.get_vdisk(&vdisk_id).expect("vdisk id not found")
+        self.get_vdisk(vdisk_id)
     }
 
     pub(crate) fn get_vdisks_by_disk(&self, disk: &str) -> Vec<VDiskID> {
@@ -160,7 +155,7 @@ impl Virtual {
     }
 
     pub(crate) fn get_operation(&self, key: BobKey) -> (VDiskID, Option<DiskPath>) {
-        let virt_disk = self.get_vdisk_for_key(key);
+        let virt_disk = self.get_vdisk_for_key(key).expect("vdisk not found");
         let disk = virt_disk.replicas().iter().find_map(|disk| {
             if disk.node_name() == self.local_node_name {
                 Some(DiskPath::from(disk))
@@ -179,7 +174,7 @@ impl Virtual {
     }
 
     pub(crate) fn is_vdisk_on_node(&self, node_name: &str, id: VDiskID) -> bool {
-        self.get_vdisk(&id)
+        self.get_vdisk(id)
             .expect("vdisk not found")
             .nodes()
             .iter()

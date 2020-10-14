@@ -18,6 +18,7 @@ mod docker_cluster_runner;
 // Usage: dcr [-c config.yaml]
 // Default config is dcr_config.yaml
 // Can be gracefully stopped by ctrl+c
+// SSH credentials: root:bob
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_dir = "cluster_test";
     let fs_configuration = FSConfiguration::new(
@@ -29,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let configuration =
         get_configuration().map_err(|e| ErrorWrapper::new("configuration get", e))?;
     configuration
-        .save_cluster_configuration(config_dir)
+        .save_cluster_configuration(config_dir, &fs_configuration.ssh_dir())
         .map_err(|e| ErrorWrapper::new("save cluster configuration", e))?;
     let compose = configuration
         .create_docker_compose(fs_configuration, "bobnet".to_string())

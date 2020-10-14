@@ -82,11 +82,12 @@ paths:
                 type: string
         default:
           $ref: '#/components/responses/DefaultError'
+  /vdisks/{VDiskId}/partitions/by_timestamp/{timestamp}:
     delete:
-      summary: Delete partition
+      summary: Delete partitions by timestamp
       parameters:
         - $ref: '#/components/parameters/VDiskIdParam'
-        - name: partitionId
+        - name: timestamp
           in: path
           required: true
           schema:
@@ -100,12 +101,12 @@ paths:
                 type: string
         default:
           $ref: '#/components/responses/DefaultError'
-  /vdisks/{VDiskId}/partitions/{partitionId}/{action}:
+  /vdisks/{VDiskId}/partitions/by_timestamp/{timestamp}/{action}:
     put:
-      summary: Attach/Detach a partition
+      summary: Attach/Detach a partition by timestamp
       parameters: 
         - $ref: '#/components/parameters/VDiskIdParam'
-        - name: partitionId
+        - name: timestamp
           in: path
           required: true
           schema:
@@ -156,7 +157,20 @@ paths:
                   type: string
         default:
           $ref: '#/components/responses/DefaultError'
-    
+  /vdisks/<vdisk_id>/replicas/local/dirs:
+    get:
+      summary: Returns directories of local replicas of vdisk
+      operationId: getReplicasLocalDirs
+      responses:
+        '200':
+          description: "A JSON array with alien Node names info"
+          content:
+            application/json:
+              schema:
+                ref: '#/components/schemas/Dir
+        default:
+          $ref: '#/components/responses/DefaultError'
+
 components:
   responses:
     DefaultError:
@@ -180,7 +194,7 @@ components:
         address:
           type: string
         vdisks:
-          type: array
+          type: string
           items:
             $ref: '#/components/schemas/VDisk'
       required:
@@ -219,7 +233,7 @@ components:
         partitions:
           type: array
           items:
-            type: integer
+            type: string
     Partition:
       properties:
         vdisk:
@@ -240,3 +254,14 @@ components:
       required:
         - code
         - message
+    Dir:
+      type: object
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dir'

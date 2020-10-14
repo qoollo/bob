@@ -30,7 +30,7 @@ pub(crate) struct VDiskPartitions {
     vdisk_id: u32,
     node_name: String,
     disk_name: String,
-    partitions: Vec<u64>,
+    partitions: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -49,6 +49,13 @@ pub(crate) struct StatusExt {
     msg: String,
 }
 
+#[derive(Debug, Serialize)]
+pub(crate) struct Dir {
+    name: String,
+    path: String,
+    children: Vec<Dir>,
+}
+
 fn runtime() -> Runtime {
     // TODO: run web server on same runtime as bob (update to async rocket when it's stable)
     debug!("HOT FIX: run web server on same runtime as bob");
@@ -65,7 +72,8 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         change_partition_state,
         delete_partition,
         alien,
-        remount_vdisks_group
+        remount_vdisks_group,
+        get_local_replica_directories
     ];
     let task = move || {
         info!("API server started");
@@ -88,11 +96,7 @@ fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
 
 fn collect_disks_info(bob: &BobServer) -> Vec<VDisk> {
     let mapper = bob.grinder().backend().mapper();
-    mapper
-        .vdisks()
-        .into_iter()
-        .map(data_vdisk_to_scheme)
-        .collect()
+    mapper.vdisks().values().map(data_vdisk_to_scheme).collect()
 }
 
 #[inline]
@@ -102,7 +106,7 @@ fn get_vdisk_by_id(bob: &BobServer, id: u32) -> Option<VDisk> {
 
 fn find_vdisk(bob: &BobServer, id: u32) -> Option<&DataVDisk> {
     let mapper = bob.grinder().backend().mapper();
-    mapper.get_vdisk(&id)
+    mapper.get_vdisk(id)
 }
 
 fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {
@@ -171,7 +175,7 @@ fn partitions(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<VDiskPartitio
     let pearls = runtime().block_on(holders.read());
     debug!("get pearl holders: OK");
     let pearls: &[_] = pearls.as_ref();
-    let partitions = pearls.iter().map(Holder::start_timestamp).collect();
+    let partitions = pearls.iter().map(Holder::get_id).collect();
     let ps = VDiskPartitions {
         node_name: group.node_name().to_owned(),
         disk_name: group.disk_name().to_owned(),
@@ -186,7 +190,7 @@ fn partitions(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<VDiskPartitio
 fn partition_by_id(
     bob: State<'_, BobServer>,
     vdisk_id: u32,
-    partition_id: u64,
+    partition_id: String,
 ) -> Result<Json<Partition>, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     debug!("group with provided vdisk_id found");
@@ -196,9 +200,7 @@ fn partition_by_id(
     debug!("HOT FIX: run web server on same runtime as bob");
     let mut rt = Runtime::new().expect("create runtime");
     let pearls = rt.block_on(holders.read());
-    let pearl = pearls
-        .iter()
-        .find(|pearl| pearl.start_timestamp() == partition_id);
+    let pearl = pearls.iter().find(|pearl| pearl.get_id() == partition_id);
     let partition = pearl.map(|p| Partition {
         node_name: group.node_name().to_owned(),
         disk_name: group.disk_name().to_owned(),
@@ -216,11 +218,11 @@ fn partition_by_id(
     })
 }
 
-#[post("/vdisks/<vdisk_id>/partitions/<partition_id>/<action>")]
+#[post("/vdisks/<vdisk_id>/partitions/by_timestamp/<timestamp>/<action>")]
 fn change_partition_state(
     bob: State<BobServer>,
     vdisk_id: u32,
-    partition_id: u64,
+    timestamp: u64,
     action: Action,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
@@ -229,13 +231,13 @@ fn change_partition_state(
     debug!("HOT FIX: run web server on same runtime as bob");
     let mut rt = Runtime::new().expect("create runtime");
     let res = format!(
-        "partition with id: {} in vdisk {} is successfully {:?}ed",
-        partition_id, vdisk_id, action
+        "partitions with timestamp {} on vdisk {} is successfully {:?}ed",
+        timestamp, vdisk_id, action
     );
     let task = async move {
         match action {
-            Action::Attach => group.attach(partition_id).await,
-            Action::Detach => group.detach(partition_id).await.map(|_| ()),
+            Action::Attach => group.attach(timestamp).await,
+            Action::Detach => group.detach(timestamp).await.map(|_| ()),
         }
     };
     match rt.block_on(task) {
@@ -267,25 +269,28 @@ fn remount_vdisks_group(bob: State<BobServer>, vdisk_id: u32) -> Result<StatusEx
     }
 }
 
-#[delete("/vdisks/<vdisk_id>/partitions/<partition_id>")]
+#[delete("/vdisks/<vdisk_id>/partitions/by_timestamp/<timestamp>")]
 fn delete_partition(
     bob: State<BobServer>,
     vdisk_id: u32,
-    partition_id: u64,
+    timestamp: u64,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
-    let pearls = futures::executor::block_on(group.detach(partition_id));
+    let pearls = futures::executor::block_on(group.detach(timestamp));
     if let Ok(holders) = pearls {
         let mut result = String::new();
         for holder in holders {
             if let Err(e) = holder.drop_directory() {
                 let msg = format!(
-                    "partition delete failed {} on vdisk {}, error: {}",
-                    partition_id, vdisk_id, e
+                    "partitions with timestamp {} delete failed on vdisk {}, error: {}",
+                    timestamp, vdisk_id, e
                 );
                 result.push_str(&msg);
             } else {
-                result.push_str(&format!("successfully deleted partition {}", partition_id));
+                result.push_str(&format!(
+                    "successfully deleted partitions with timestamp {}",
+                    timestamp
+                ));
             }
             result.push('\n');
         }
@@ -299,8 +304,8 @@ fn delete_partition(
             Status::BadRequest,
             true,
             format!(
-                "partition {} not found on vdisk {} or it is active",
-                partition_id, vdisk_id
+                "partitions with timestamp {} not found on vdisk {} or it is active",
+                timestamp, vdisk_id
             ),
         ))
     }
@@ -309,6 +314,67 @@ fn delete_partition(
 #[get("/alien")]
 fn alien(_bob: State<BobServer>) -> &'static str {
     "alien"
+}
+
+#[get("/vdisks/<vdisk_id>/replicas/local/dirs")]
+fn get_local_replica_directories(
+    bob: State<BobServer>,
+    vdisk_id: u32,
+) -> Result<Json<Vec<Dir>>, StatusExt> {
+    let vdisk: VDisk = get_vdisk_by_id(&bob, vdisk_id).ok_or_else(|| {
+        StatusExt::new(
+            Status::NotFound,
+            false,
+            format!("VDisk {} not found", vdisk_id),
+        )
+    })?;
+    let local_node_name = bob.grinder().backend().mapper().local_node_name();
+    let mut result = vec![];
+    for replica in vdisk
+        .replicas
+        .into_iter()
+        .filter(|r| r.node == local_node_name)
+    {
+        let path = PathBuf::from(replica.path);
+        let dir = create_directory(&path).ok_or_else(|| {
+            StatusExt::new(
+                Status::InternalServerError,
+                false,
+                format!("Failed to get dirs for replica {:?}", path),
+            )
+        })?;
+        result.push(dir);
+    }
+    Ok(Json(result))
+}
+
+fn create_directory(root_path: &Path) -> Option<Dir> {
+    let name = root_path.file_name()?.to_str()?;
+    let root_path_str = root_path.to_str()?;
+    let result = std::fs::read_dir(root_path);
+    match result {
+        Ok(read_dir) => {
+            let children = read_dir
+                .filter_map(Result::ok)
+                .filter_map(|child| {
+                    if child.path().is_dir() {
+                        create_directory(&child.path())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            Some(Dir {
+                name: name.to_string(),
+                path: root_path_str.to_string(),
+                children,
+            })
+        }
+        Err(e) => {
+            error!("read path {:?} failed: {}", root_path, e);
+            None
+        }
+    }
 }
 
 impl<'r> FromParam<'r> for Action {

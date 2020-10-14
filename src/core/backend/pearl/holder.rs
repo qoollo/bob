@@ -33,6 +33,14 @@ impl Holder {
         self.start_timestamp
     }
 
+    pub(crate) fn get_id(&self) -> String {
+        self.disk_path
+            .file_name()
+            .and_then(std::ffi::OsStr::to_str)
+            .unwrap_or("unparsable string")
+            .to_owned()
+    }
+
     pub(crate) fn storage(&self) -> &RwLock<PearlSync> {
         &self.storage
     }

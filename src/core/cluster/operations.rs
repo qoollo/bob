@@ -66,6 +66,43 @@ pub(crate) async fn put_at_least(
     (handles, errors)
 }
 
+pub(crate) fn get_support_nodes(
+    mapper: &'_ Virtual,
+    mut target_indexes: impl Iterator<Item = u16>,
+    count: usize,
+) -> Result<Vec<&'_ Node>, Error> {
+    let (len, _) = target_indexes.size_hint();
+    debug!("iterator size lower bound: {}", len);
+    trace!("nodes available: {}", mapper.nodes().len());
+    if mapper.nodes().len() < len + count {
+        let msg = "cannot find enough support nodes".to_owned();
+        error!("{}", msg);
+        Err(Error::failed(msg))
+    } else {
+        let sup = mapper
+            .nodes()
+            .iter()
+            .filter_map(|(id, node)| {
+                if target_indexes.all(|i| &i != id) {
+                    Some(node)
+                } else {
+                    None
+                }
+            })
+            .take(count)
+            .collect();
+        Ok(sup)
+    }
+}
+
+#[inline]
+pub(crate) fn get_target_nodes(mapper: &Virtual, key: BobKey) -> &[Node] {
+    mapper
+        .get_vdisk_for_key(key)
+        .expect("vdisk for key not found")
+        .nodes()
+}
+
 pub(crate) fn group_keys_by_nodes(
     mapper: &Virtual,
     keys: &[BobKey],
@@ -122,7 +159,11 @@ pub(crate) async fn lookup_local_node(
 }
 
 pub(crate) async fn lookup_remote_aliens(mapper: &Virtual, key: BobKey) -> Option<BobData> {
-    let target_nodes = mapper.get_remote_nodes();
+    let local_node = mapper.local_node_name();
+    let target_nodes = mapper
+        .nodes()
+        .values()
+        .filter(|node| node.name() != local_node);
     let result = get_any(key, target_nodes, GetOptions::new_alien()).await;
     if let Some(answer) = result {
         debug!(

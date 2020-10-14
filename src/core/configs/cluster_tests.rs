@@ -444,7 +444,7 @@ vdisks:
         let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
 
-        let vdisks = d.convert().unwrap();
+        let vdisks = d.create_vdisks_map().unwrap();
         assert_eq!(2, vdisks.len());
         assert_eq!(0, vdisks[&0].id());
         assert_eq!(1, vdisks[&0].replicas().len());
