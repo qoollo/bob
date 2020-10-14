@@ -115,7 +115,7 @@ pub(crate) fn group_keys_by_nodes(
 pub(crate) async fn lookup_local_alien(
     backend: &Backend,
     key: BobKey,
-    vdisk_id: VDiskId,
+    vdisk_id: VDiskID,
 ) -> Option<BobData> {
     let op = Operation::new_alien(vdisk_id);
     match backend.get_local(key, op).await {
@@ -132,7 +132,7 @@ pub(crate) async fn lookup_local_alien(
 pub(crate) async fn lookup_local_node(
     backend: &Backend,
     key: BobKey,
-    vdisk_id: VDiskId,
+    vdisk_id: VDiskID,
     disk_path: Option<DiskPath>,
 ) -> Option<BobData> {
     if let Some(path) = disk_path {
@@ -246,7 +246,7 @@ pub(crate) async fn put_local_node(
     backend: &Backend,
     key: BobKey,
     data: BobData,
-    vdisk_id: VDiskId,
+    vdisk_id: VDiskID,
     disk_path: DiskPath,
 ) -> Result<(), Error> {
     debug!("local node has vdisk replica, put local");

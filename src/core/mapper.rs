@@ -55,7 +55,7 @@ impl Virtual {
         self.vdisks.len().try_into().expect("usize to u32")
     }
 
-    pub(crate) fn get_vdisks_ids(&self) -> Vec<VDiskId> {
+    pub(crate) fn get_vdisks_ids(&self) -> Vec<VDiskID> {
         self.vdisks.iter().map(VDisk::id).collect()
     }
 
@@ -75,13 +75,13 @@ impl Virtual {
         &self.nodes
     }
 
-    pub(crate) fn id_from_key(&self, key: BobKey) -> VDiskId {
+    pub(crate) fn id_from_key(&self, key: BobKey) -> VDiskID {
         (key % self.vdisks.len() as u64)
             .try_into()
             .expect("u64 to u32")
     }
 
-    fn get_vdisk(&self, vdisk_id: VDiskId) -> &DataVDisk {
+    fn get_vdisk(&self, vdisk_id: VDiskID) -> &DataVDisk {
         self.vdisks
             .iter()
             .find(|disk| disk.id() == vdisk_id)
@@ -93,7 +93,7 @@ impl Virtual {
         self.get_vdisk(vdisk_id)
     }
 
-    pub(crate) fn get_vdisks_by_disk(&self, disk: &str) -> Vec<VDiskId> {
+    pub(crate) fn get_vdisks_by_disk(&self, disk: &str) -> Vec<VDiskID> {
         let vdisks = self.vdisks.iter();
         let vdisks_on_disk = vdisks.filter(|vdisk| {
             vdisk
@@ -105,7 +105,7 @@ impl Virtual {
         vdisks_on_disk.map(VDisk::id).collect()
     }
 
-    pub(crate) fn get_operation(&self, key: BobKey) -> (VDiskId, Option<DiskPath>) {
+    pub(crate) fn get_operation(&self, key: BobKey) -> (VDiskID, Option<DiskPath>) {
         let vdisk_id = self.id_from_key(key);
         let virt_disk = self.get_vdisk(vdisk_id);
         let disk = virt_disk.replicas().iter().find_map(|disk| {
@@ -124,7 +124,7 @@ impl Virtual {
         (vdisk_id, disk)
     }
 
-    pub(crate) fn is_vdisk_on_node(&self, node_name: &str, id: VDiskId) -> bool {
+    pub(crate) fn is_vdisk_on_node(&self, node_name: &str, id: VDiskID) -> bool {
         self.vdisks.iter().any(|vdisk| {
             vdisk.id() == id && vdisk.nodes().iter().any(|node| node.name() == node_name)
         })
