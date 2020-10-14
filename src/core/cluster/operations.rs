@@ -111,11 +111,6 @@ pub(crate) fn get_support_nodes(
     )
 }
 
-#[inline]
-pub(crate) fn get_target_nodes(mapper: &Virtual, key: BobKey) -> &[Node] {
-    mapper.get_vdisk_for_key(key).nodes()
-}
-
 pub(crate) fn group_keys_by_nodes(
     mapper: &Virtual,
     keys: &[BobKey],
@@ -123,7 +118,7 @@ pub(crate) fn group_keys_by_nodes(
     let mut keys_by_nodes: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
     for (ind, &key) in keys.iter().enumerate() {
         keys_by_nodes
-            .entry(get_target_nodes(mapper, key).to_vec())
+            .entry(mapper.get_target_nodes_for_key(key).to_vec())
             .and_modify(|(keys, indexes)| {
                 keys.push(key);
                 indexes.push(ind);
@@ -190,7 +185,8 @@ pub(crate) async fn lookup_remote_aliens(mapper: &Virtual, key: BobKey) -> Optio
 
 pub(crate) async fn lookup_remote_nodes(mapper: &Virtual, key: BobKey) -> Option<BobData> {
     let local_node = mapper.local_node_name();
-    let target_nodes = get_target_nodes(mapper, key)
+    let target_nodes = mapper
+        .get_target_nodes_for_key(key)
         .iter()
         .filter(|node| node.name() != local_node);
     let result = get_any(key, target_nodes, GetOptions::new_local()).await;

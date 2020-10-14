@@ -100,7 +100,12 @@ impl Virtual {
             .filter(move |node| node.name() == &self.local_node_name)
     }
 
-    pub(crate) fn id_from_key(&self, key: BobKey) -> VDiskID {
+    pub(crate) fn get_target_nodes_for_key(&self, key: BobKey) -> &[Node] {
+        let id = self.vdisk_id_from_key(key);
+        self.vdisks.get(&id).expect("vdisk not found").nodes()
+    }
+
+    pub(crate) fn vdisk_id_from_key(&self, key: BobKey) -> VDiskID {
         (key % self.vdisks.len() as u64)
             .try_into()
             .expect("u64 to u32")
@@ -111,7 +116,7 @@ impl Virtual {
     }
 
     pub(crate) fn get_vdisk_for_key(&self, key: BobKey) -> &DataVDisk {
-        let vdisk_id = self.id_from_key(key);
+        let vdisk_id = self.vdisk_id_from_key(key);
         self.get_vdisk(&vdisk_id).expect("vdisk id not found")
     }
 
@@ -134,8 +139,7 @@ impl Virtual {
     }
 
     pub(crate) fn get_operation(&self, key: BobKey) -> (VDiskID, Option<DiskPath>) {
-        let vdisk_id = self.id_from_key(key);
-        let virt_disk = self.get_vdisk(&vdisk_id).expect("vdisk not found");
+        let virt_disk = self.get_vdisk_for_key(key);
         let disk = virt_disk.replicas().iter().find_map(|disk| {
             if disk.node_name() == self.local_node_name {
                 Some(DiskPath::from(disk))
@@ -146,10 +150,11 @@ impl Virtual {
         if disk.is_none() {
             debug!(
                 "cannot find node: {} for vdisk: {}",
-                self.local_node_name, vdisk_id
+                self.local_node_name,
+                virt_disk.id()
             );
         }
-        (vdisk_id, disk)
+        (virt_disk.id(), disk)
     }
 
     pub(crate) fn is_vdisk_on_node(&self, node_name: &str, id: VDiskID) -> bool {

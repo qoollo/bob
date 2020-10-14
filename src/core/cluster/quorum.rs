@@ -120,7 +120,9 @@ impl Quorum {
         Vec<NodeOutput<Error>>,
     ) {
         let local_node = self.mapper.local_node_name();
-        let target_nodes = get_target_nodes(&self.mapper, key)
+        let target_nodes = self
+            .mapper
+            .get_target_nodes_for_key(key)
             .iter()
             .filter(|node| node.name() != local_node);
         put_at_least(key, data, target_nodes, at_least, PutOptions::new_local()).await
@@ -132,13 +134,13 @@ impl Quorum {
         key: BobKey,
         data: BobData,
     ) -> Result<(), Error> {
-        let vdisk_id = self.mapper.id_from_key(key);
+        let vdisk_id = self.mapper.vdisk_id_from_key(key);
         let operation = Operation::new_alien(vdisk_id);
         // let local_put = put_local_all(&self.backend,failed_nodes.clone(),key,data.clone(),operation,).await;
         // if local_put.is_err() {debug!("PUT[{}] local put failed, need additional remote alien put",key);failed_nodes.push(self.mapper.local_node_name().to_string());}
         unimplemented!();
         trace!("get target nodes for given key");
-        let target_nodes = get_target_nodes(&self.mapper, key);
+        let target_nodes = self.mapper.get_vdisk_for_key(key).nodes();
         trace!("extract indexes of target nodes");
         let target_indexes = target_nodes.iter().map(Node::index);
         trace!("selection of free nodes available for data writing");
