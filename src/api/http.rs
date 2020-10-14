@@ -96,7 +96,7 @@ fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
 
 fn collect_disks_info(bob: &BobServer) -> Vec<VDisk> {
     let mapper = bob.grinder().backend().mapper();
-    mapper.vdisks().iter().map(data_vdisk_to_scheme).collect()
+    mapper.vdisks().values().map(data_vdisk_to_scheme).collect()
 }
 
 #[inline]
@@ -106,7 +106,7 @@ fn get_vdisk_by_id(bob: &BobServer, id: u32) -> Option<VDisk> {
 
 fn find_vdisk(bob: &BobServer, id: u32) -> Option<&DataVDisk> {
     let mapper = bob.grinder().backend().mapper();
-    mapper.vdisks().iter().find(|disk| disk.id() == id)
+    mapper.get_vdisk(id)
 }
 
 fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {

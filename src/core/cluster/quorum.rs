@@ -132,7 +132,7 @@ impl Quorum {
         key: BobKey,
         data: BobData,
     ) -> Result<(), Error> {
-        let vdisk_id = self.mapper.id_from_key(key);
+        let vdisk_id = self.mapper.vdisk_id_from_key(key);
         let operation = Operation::new_alien(vdisk_id);
         let local_put = put_local_all(
             &self.backend,
