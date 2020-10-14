@@ -1,8 +1,5 @@
 use super::prelude::*;
-use crate::{
-    core::configs::{cluster::tests::cluster_config, node::tests::node_config},
-    mapper::VDiskMap,
-};
+use crate::core::configs::{cluster::tests::cluster_config, node::tests::node_config};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 fn ping_ok(client: &mut BobClient, node: Node) {
@@ -90,7 +87,7 @@ async fn create_cluster(
     map: &[(&str, Call, Arc<CountCall>)],
 ) -> (Quorum, Arc<Backend>) {
     let mapper = Arc::new(Virtual::new(&node, &cluster).await);
-    for node in mapper.nodes().iter() {
+    for node in mapper.nodes().values() {
         let mut client = BobClient::default();
         let (_, func, call) = map
             .iter()

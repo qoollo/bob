@@ -1,3 +1,5 @@
+use crate::mapper::NodesMap;
+
 use super::prelude::*;
 use std::hash::{Hash, Hasher};
 
@@ -241,8 +243,8 @@ impl VDisk {
         self.replicas.push(value)
     }
 
-    pub(crate) fn set_nodes(&mut self, nodes: &[Node]) {
-        nodes.iter().for_each(|node| {
+    pub(crate) fn set_nodes(&mut self, nodes: &NodesMap) {
+        nodes.values().for_each(|node| {
             if self.replicas.iter().any(|r| r.node_name == node.name) {
                 //TODO check if some duplicates
                 self.nodes.push(node.clone());
@@ -321,11 +323,13 @@ impl PartialEq for NodeDisk {
     }
 }
 
+pub type NodeID = u16;
+
 #[derive(Clone)]
 pub(crate) struct Node {
     name: String,
     address: SocketAddr,
-    index: u16,
+    index: NodeID,
     conn: Arc<RwLock<Option<BobClient>>>,
 }
 

@@ -139,7 +139,7 @@ impl Settings {
         if self
             .mapper
             .nodes()
-            .iter()
+            .values()
             .any(|node| node.name() == file_name)
         {
             Ok((entry, file_name))
