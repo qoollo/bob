@@ -45,20 +45,20 @@ RUN apt-get update && apt-get install -y openssh-server openssh-client sudo rsyn
   && sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd \
   && echo "export VISIBLE=now" >> /etc/profile \
   && groupadd -g 1000 bobd \
-  && useradd -s /bin/sh -u 1000 -g bobd bobd \
-  && mkdir ~/.ssh \
-  && chmod 600 -R ~/.ssh
+  && useradd -s /bin/sh -u 1000 -g bobd bobd
 
 WORKDIR /home/bob/bin/
 COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-gnu/release/bobd .
 RUN chown bobd:bobd bobd \
-  && echo "#!/bin/bash \n\
-    cp ~/local_ssh/* ~/.ssh \
-    chown -R root ~/.ssh \
-    eval $(ssh-agent) \
-    ssh-add ~/.ssh/id_rsa \
+  && mkdir ~/.ssh \
+  && chmod 600 -R ~/.ssh \
+  && echo "#!/bin/bash\n\
+    cp /local_ssh/* ~/.ssh\n\
+    chown -R root ~/.ssh\n\
+    eval $(ssh-agent)\n\
+    ssh-add ~/.ssh/id_rsa\n\
     /usr/sbin/sshd -D &\n\
-    su -c \"./bobd -c /configs/cluster.yaml -n /configs/node.yaml\" bobd" >> run.sh \
+    su -c \"./bobd -c /configs/\$1 -n /configs/\$2\" bobd" >> run.sh \
   && chmod +x run.sh
 
 ENTRYPOINT ["./run.sh"]

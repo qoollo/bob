@@ -20,3 +20,4 @@ Cargo.lock
 /log
 
 /cluster_test
+/compose_examples
