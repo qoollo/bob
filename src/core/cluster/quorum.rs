@@ -130,7 +130,7 @@ impl Quorum {
 
     pub(crate) async fn put_aliens(
         &self,
-        mut failed_nodes: Vec<String>,
+        failed_nodes: Vec<String>,
         key: BobKey,
         data: BobData,
     ) -> Result<(), Error> {
@@ -152,46 +152,40 @@ impl Quorum {
             .collect();
         debug!("PUT[{}] additional alien requests: {:?}", key, queries);
         let mut sup_ok_count = 0;
-        let mut err = String::new();
         if let Err((result_ok_count, last_error)) = put_sup_nodes(key, data.clone(), &queries).await
         {
             sup_ok_count = result_ok_count;
-            unimplemented!();
-            err = last_error;
-        }
-        if queries.len() < failed_nodes.len() {
-            for i in 0..failed_nodes.len() - queries.len() {
-                let vdisk_id = self.mapper.vdisk_id_from_key(key);
-                let operation = Operation::new_alien(vdisk_id);
-                let local_put = put_local_all(
-                    &self.backend,
-                    failed_nodes.clone(),
-                    key,
-                    data.clone(),
-                    operation,
-                    failed_nodes.len() - queries.len(),
-                )
-                .await;
-                if let Err(e) = local_put {
-                    error!(
-                        "PUT[{}] local put failed, smth wrong with backend: {:?}",
-                        key, e
-                    );
-                    return Err(Error::internal());
-                } else {
-                    debug!("PUT[{}] successful local put: #{} copy", key, i)
-                }
+            if !last_error.is_empty() {
+                error!(
+                    "PUT[{}] put alien to remote nodes failed, last error: {}",
+                    key, last_error
+                );
             }
         }
-        if err.is_empty() {
+        let additional_local_put = queries.len() - sup_ok_count;
+        if additional_local_put == 0 {
             Ok(())
         } else {
-            let msg = format!(
-                "PUT[{}] failed: ok: {}, quorum: {}, errors: {}",
-                key, sup_ok_count, self.quorum, err
-            );
-            let e = Error::failed(msg);
-            Err(e)
+            let vdisk_id = self.mapper.vdisk_id_from_key(key);
+            let operation = Operation::new_alien(vdisk_id);
+            let local_put = put_local_all(
+                &self.backend,
+                failed_nodes.clone(),
+                key,
+                data.clone(),
+                operation,
+                additional_local_put,
+            )
+            .await;
+            if let Err(e) = local_put {
+                error!(
+                    "PUT[{}] local put failed, smth wrong with backend: {:?}",
+                    key, e
+                );
+                Err(Error::internal())
+            } else {
+                Ok(())
+            }
         }
     }
 }
