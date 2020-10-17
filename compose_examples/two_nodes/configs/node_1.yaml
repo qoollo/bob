@@ -7,7 +7,7 @@ check_interval: 5000ms
 cluster_policy: quorum
 backend_type: pearl
 pearl:
-  max_blob_size: 1000000
+  max_blob_size: 10000000000
   max_data_in_blob: 10000
   blob_file_name_prefix: bob
   fail_retry_timeout: 100ms

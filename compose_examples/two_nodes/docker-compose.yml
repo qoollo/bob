@@ -4,7 +4,7 @@ services:
   node_0:
     build:
       context: ../..
-      dockerfile: Dockerfile
+      dockerfile: dockerfiles/Dockerfile
     volumes:
       - "/tmp:/tmp"
       - "./configs:/configs"
@@ -23,7 +23,7 @@ services:
   node_1:
     build:
       context: ../..
-      dockerfile: Dockerfile
+      dockerfile: dockerfiles/Dockerfile
     volumes:
       - "/tmp:/tmp"
       - "./configs:/configs"
