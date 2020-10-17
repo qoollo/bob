@@ -1,8 +1,14 @@
-# build image
-FROM rust:latest as cargo-build
+ARG RUST_IMG_VER=1.47.0
+ARG UBUNTU_IMG_VER=20.10
 
-RUN apt-get update \
-  && rustup default nightly \
+# build image
+FROM rust:${RUST_IMG_VER} as cargo-build
+
+# rust toolchain version
+ARG RUST_TC_VER=nightly-2020-10-17
+
+RUN rustup install $RUST_TC_VER \
+  && rustup default $RUST_TC_VER \
   && rustup target add x86_64-unknown-linux-gnu
 
 WORKDIR /usr/src/bob
@@ -33,11 +39,12 @@ COPY . .
 RUN cargo build --release --target=x86_64-unknown-linux-gnu
 
 # bobd image
-FROM ubuntu:latest
+FROM ubuntu:${UBUNTU_VER}
 
 # SSH
 ENV NOTVISIBLE "in users profile"
-RUN apt-get update && apt-get install -y openssh-server openssh-client sudo rsync \
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssh-server openssh-client sudo rsync \
   && mkdir /var/run/sshd \
   && echo 'root:bob' | chpasswd \
   && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
@@ -45,7 +52,9 @@ RUN apt-get update && apt-get install -y openssh-server openssh-client sudo rsyn
   && sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd \
   && echo "export VISIBLE=now" >> /etc/profile \
   && groupadd -g 1000 bobd \
-  && useradd -s /bin/sh -u 1000 -g bobd bobd
+  && useradd -s /bin/sh -u 1000 -g bobd bobd \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home/bob/bin/
 COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-gnu/release/bobd .
@@ -60,6 +69,9 @@ RUN chown bobd:bobd bobd \
     /usr/sbin/sshd -D &\n\
     su -c \"./bobd -c /configs/\$1 -n /configs/\$2\" bobd" >> run.sh \
   && chmod +x run.sh
+
+EXPOSE 80
+EXPOSE 22
 
 ENTRYPOINT ["./run.sh"]
 
