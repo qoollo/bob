@@ -1,8 +1,5 @@
-ARG RUST_IMG_VER=1.47.0
-ARG UBUNTU_IMG_VER=20.10
-
 # build image
-FROM rust:${RUST_IMG_VER} as cargo-build
+FROM rust:1.47.0 as cargo-build
 
 # rust toolchain version
 ARG RUST_TC_VER=nightly-2020-10-17
@@ -39,7 +36,7 @@ COPY . .
 RUN cargo build --release --target=x86_64-unknown-linux-gnu
 
 # bobd image
-FROM ubuntu:${UBUNTU_VER}
+FROM ubuntu:20.10
 
 # SSH
 ENV NOTVISIBLE "in users profile"
