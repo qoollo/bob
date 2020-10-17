@@ -1,0 +1,22 @@
+---
+refresh_rate: 30 seconds
+appenders:
+  stdout:
+    kind: console
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {h({l})}    {m}\n"
+root:
+  level: warn
+  appenders:
+    - stdout
+loggers:
+  pearl:
+    level: warn
+    appenders:
+      - stdout
+    additive: false
+  bob:
+    level: warn
+    appenders:
+      - stdout
+    additive: false

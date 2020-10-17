@@ -1,0 +1,28 @@
+---
+version: "3.8"
+services:
+  node:
+    build:
+      context: ../..
+      dockerfile: dockerfiles/Dockerfile
+    volumes:
+      - "/tmp:/tmp"
+      - "./configs:/configs"
+      - "./ssh:/local_ssh"
+    command: "cluster.yaml node.yaml"
+    networks:
+      bobnet:
+        ipv4_address: 192.168.17.10
+    ports:
+      - "8000:8000"
+      - "7022:22"
+    security_opt:
+      - "seccomp:./profile.json"
+    ulimits:
+      memlock: 4194304
+networks:
+  bobnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.17.0/24
