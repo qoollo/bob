@@ -4,7 +4,7 @@ services:
   node:
     build:
       context: ../..
-      dockerfile: dockerfiles/Dockerfile
+      dockerfile: dockerfiles/ubuntu/Dockerfile
     volumes:
       - "/tmp:/tmp"
       - "./configs:/configs"
