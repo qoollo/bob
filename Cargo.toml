@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0.33"
 http = "0.2.1"
-pearl = "0.5.2-alpha.3"
+pearl = "0.5.3"
 futures = { version = "0.3.6", features = ["thread-pool"] }
 serde = "1.0"
 serde_derive = "1.0"
