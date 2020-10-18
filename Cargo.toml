@@ -5,11 +5,10 @@ authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qooll
 edition = "2018"
 
 [dependencies]
-anyhow = "1.0.32"
+anyhow = "1.0.33"
 http = "0.2.1"
 pearl = "0.5.2-alpha.3"
-futures = { version = "0.3.5", features = ["thread-pool"] }
-tokio = { version = "0.2.22", features = ["full"] }
+futures = { version = "0.3.6", features = ["thread-pool"] }
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.8"
@@ -20,13 +19,13 @@ bitflags = "1.2.1"
 prost = "0.6"
 bytes = "0.5.6"
 stopwatch = "0.0.7"
-hyper = "0.13.7"
+hyper = "0.13"
 humantime = "2.0.1"
-chrono = "0.4.15"
+chrono = "0.4"
 dipstick = "0.9.0"
-mockall = "0.8.1"
-cfg-if = "0.1.10"
-env_logger = "0.7"
+mockall = "0.8"
+cfg-if = "1.0"
+env_logger = "0.8"
 tonic = { version = "0.3.1", features = ["prost"] }
 tower = "0.3.1"
 tower-make = "0.3.0"
@@ -35,13 +34,19 @@ tower-balance = "0.3.0"
 tower-load = "0.3.0"
 rocket = "0.4.5"
 rocket_contrib = "0.4.5"
-async-trait = "0.1.40"
+async-trait = "0.1"
 termion = "1.5"
 ring = "0.16.15"
 derive-new = "0.5.8"
-ctrlc = "3.1.6"
+ctrlc = "3.1"
 lazy_static = "1.4.0"
-thiserror = "1.0.20"
+thiserror = "1.0"
+
+[dependencies.tokio]
+version = "0.3"
+default_features = false
+features = ["macros", "net", "rt", "rt-multi-thread", "sync", "time"]
+
 
 [build-dependencies]
 tonic-build = "0.3.1"
