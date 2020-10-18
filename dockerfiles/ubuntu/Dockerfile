@@ -69,6 +69,7 @@ RUN chown bobd:bobd bobd \
 
 EXPOSE 80
 EXPOSE 22
+EXPOSE 20000
 
 ENTRYPOINT ["./run.sh"]
 
