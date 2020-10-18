@@ -1,7 +1,7 @@
 use crate::mapper::NodesMap;
 
 use super::prelude::*;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 pub type BobKey = u64;
 
@@ -59,36 +59,6 @@ impl From<i32> for GetSource {
                 panic!("fatal core error");
             }
         }
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct NodeOutput<T> {
-    node_name: String,
-    inner: T,
-}
-
-impl<T> NodeOutput<T> {
-    pub(crate) fn new(node_name: String, inner: T) -> Self {
-        Self { node_name, inner }
-    }
-
-    pub(crate) fn node_name(&self) -> &str {
-        &self.node_name
-    }
-
-    pub(crate) fn inner(&self) -> &T {
-        &self.inner
-    }
-
-    pub(crate) fn into_inner(self) -> T {
-        self.inner
-    }
-}
-
-impl NodeOutput<BobData> {
-    pub(crate) fn timestamp(&self) -> u64 {
-        self.inner.meta().timestamp()
     }
 }
 
@@ -245,7 +215,7 @@ impl VDisk {
 
     pub(crate) fn set_nodes(&mut self, nodes: &NodesMap) {
         nodes.values().for_each(|node| {
-            if self.replicas.iter().any(|r| r.node_name == node.name) {
+            if self.replicas.iter().any(|r| r.node_name() == node.name()) {
                 //TODO check if some duplicates
                 self.nodes.push(node.clone());
             }
@@ -282,143 +252,8 @@ impl DiskPath {
 impl From<&NodeDisk> for DiskPath {
     fn from(node: &NodeDisk) -> Self {
         DiskPath {
-            name: node.disk_name.clone(),
-            path: node.disk_path.clone(),
+            name: node.disk_name().to_owned(),
+            path: node.disk_path().to_owned(),
         }
     }
 }
-
-#[derive(Debug, Clone)]
-pub(crate) struct NodeDisk {
-    disk_path: String,
-    disk_name: String,
-    node_name: String,
-}
-
-impl NodeDisk {
-    pub(crate) fn new(disk_path: String, disk_name: String, node_name: String) -> Self {
-        Self {
-            disk_path,
-            disk_name,
-            node_name,
-        }
-    }
-
-    pub(crate) fn disk_path(&self) -> &str {
-        &self.disk_path
-    }
-
-    pub(crate) fn disk_name(&self) -> &str {
-        &self.disk_name
-    }
-
-    pub(crate) fn node_name(&self) -> &str {
-        &self.node_name
-    }
-}
-
-impl PartialEq for NodeDisk {
-    fn eq(&self, other: &NodeDisk) -> bool {
-        self.node_name == other.node_name && self.disk_name == other.disk_name
-    }
-}
-
-pub type NodeID = u16;
-
-#[derive(Clone)]
-pub(crate) struct Node {
-    name: String,
-    address: SocketAddr,
-    index: NodeID,
-    conn: Arc<RwLock<Option<BobClient>>>,
-}
-
-impl Node {
-    pub(crate) async fn new(name: String, address: &str, index: u16) -> Self {
-        error!("address: [{}]", address);
-        let mut address = lookup_host(address).await.expect("DNS resolution failed");
-        let address = address.next().expect("address is empty");
-        Self {
-            name,
-            address,
-            index,
-            conn: Arc::default(),
-        }
-    }
-
-    pub(crate) fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub(crate) fn index(&self) -> u16 {
-        self.index
-    }
-
-    pub(crate) fn address(&self) -> &SocketAddr {
-        &self.address
-    }
-
-    pub(crate) fn get_uri(&self) -> Uri {
-        Uri::builder()
-            .scheme("http")
-            .authority(self.address.to_string().as_str())
-            .path_and_query("/")
-            .build()
-            .expect("build uri")
-    }
-
-    pub(crate) fn counter_display(&self) -> String {
-        self.address.to_string().replace(".", "_")
-    }
-
-    pub(crate) async fn set_connection(&self, client: BobClient) {
-        *self.conn.write().await = Some(client);
-    }
-
-    pub(crate) async fn clear_connection(&self) {
-        *self.conn.write().await = None;
-    }
-
-    pub(crate) async fn get_connection(&self) -> Option<BobClient> {
-        self.conn.read().await.clone()
-    }
-
-    pub(crate) async fn check(&self, client_fatory: &Factory) -> Result<(), String> {
-        if let Some(conn) = self.get_connection().await {
-            if let Err(e) = conn.ping().await {
-                debug!("Got broken connection to node {:?}", self);
-                self.clear_connection().await;
-                Err(format!("{:?}", e))
-            } else {
-                debug!("All good with pinging node {:?}", self);
-                Ok(())
-            }
-        } else {
-            debug!("will connect to {:?}", self);
-            let client = client_fatory.produce(self.clone()).await?;
-            self.set_connection(client).await;
-            Ok(())
-        }
-    }
-}
-
-impl Hash for Node {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.address.hash(state);
-    }
-}
-
-impl Debug for Node {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        write!(f, "{}={}", self.name, self.address)
-    }
-}
-
-// @TODO get off partialeq trait
-impl PartialEq for Node {
-    fn eq(&self, other: &Node) -> bool {
-        self.address == other.address
-    }
-}
-
-impl Eq for Node {}
