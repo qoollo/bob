@@ -15,6 +15,13 @@ metrics! {
         pub GRINDER_GET_ERROR_COUNT_COUNTER: Counter = "get_error_count";
         /// Measures processing time of the GET request
         pub GRINDER_GET_TIMER: Timer = "get_timer";
+
+        /// Counts number of EXIST requests, processed by Grinder
+        pub GRINDER_EXIST_COUNTER: Counter = "exist_count";
+        /// Counts number of EXIST requests return error, processed by Grinder
+        pub GRINDER_EXIST_ERROR_COUNTER: Counter = "exist_error_count";
+        /// Measures processing time of the EXIST request
+        pub GRINDER_EXIST_TIMER: Timer = "exist_timer";
     }
 }
 
@@ -26,13 +33,20 @@ metrics! {
         pub CLIENT_PUT_ERROR_COUNT_COUNTER: Counter = "put_error_count";
         /// Measures processing time of the PUT request
         pub CLIENT_PUT_TIMER: Timer = "put_timer";
-        /// Counts number of GET requests, processed by Client
 
+        /// Counts number of GET requests, processed by Client
         pub CLIENT_GET_COUNTER: Counter = "get_count";
         /// Counts number of GET requests return error, processed by Client
         pub CLIENT_GET_ERROR_COUNT_COUNTER: Counter = "get_error_count";
         /// Measures processing time of the GET request
         pub CLIENT_GET_TIMER: Timer = "get_timer";
+
+        /// Counts number of EXIST requests, processed by Client
+        pub CLIENT_EXIST_COUNTER: Counter = "exist_count";
+        /// Counts number of EXIST requests return error, processed by Client
+        pub CLIENT_EXIST_ERROR_COUNTER: Counter = "exist_error_count";
+        /// Measures processing time of the EXIST request
+        pub CLIENT_EXIST_TIMER: Timer = "exist_timer";
     }
 }
 
@@ -45,6 +59,9 @@ pub struct BobClient {
     get_count: Counter,
     get_timer: Timer,
     get_error_count: Counter,
+    exist_count: Counter,
+    exist_error_count: Counter,
+    exist_timer: Timer,
 }
 
 impl BobClient {
@@ -56,6 +73,9 @@ impl BobClient {
             get_count: bucket.counter("get_count"),
             get_timer: bucket.timer("get_timer"),
             get_error_count: bucket.counter("get_error_count"),
+            exist_count: bucket.counter("exist_count"),
+            exist_error_count: bucket.counter("exist_error_count"),
+            exist_timer: bucket.counter("exist_timer"),
         }
     }
 
@@ -89,6 +109,22 @@ impl BobClient {
 
     pub(crate) fn get_error_count(&self) {
         self.get_error_count.count(1);
+    }
+
+    pub(crate) fn exist_count(&self) {
+        self.exist_count.count(1);
+    }
+
+    pub(crate) fn exist_timer(&self) -> TimeHandle {
+        self.exist_timer.start()
+    }
+
+    pub(crate) fn exist_timer_stop(&self, timer: TimeHandle) {
+        self.exist_timer.stop(timer);
+    }
+
+    pub(crate) fn exist_error_count(&self) {
+        self.exist_error_count.count(1);
     }
 }
 

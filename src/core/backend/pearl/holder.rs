@@ -275,6 +275,10 @@ impl PearlSync {
         self.storage().records_count().await
     }
 
+    pub(crate) async fn blobs_count(&self) -> usize {
+        self.storage().blobs_count().await
+    }
+
     #[inline]
     pub(crate) fn ready(&mut self) {
         self.set_state(PearlState::Normal);
