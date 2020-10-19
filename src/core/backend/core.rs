@@ -133,6 +133,7 @@ impl Backend {
         let res = if !options.remote_nodes().is_empty() {
             // write to all remote_nodes
             for node_name in options.remote_nodes() {
+                debug!("PUT[{}] core backend put remote node: {}", key, node_name);
                 let mut op = Operation::new_alien(vdisk_id);
                 op.set_remote_folder(node_name.to_owned());
 
@@ -141,7 +142,7 @@ impl Backend {
             }
             Ok(())
         } else if let Some(path) = disk_path {
-            trace!(
+            debug!(
                 "remote nodes is empty, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );

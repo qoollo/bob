@@ -22,12 +22,14 @@ impl Quorum {
         let mut local_put_ok = 0_usize;
         let mut remote_ok_count = 0_usize;
         let mut at_least = self.quorum;
+        let mut failed_nodes = Vec::new();
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         if let Some(path) = disk_path {
             debug!("disk path is present, try put local");
             let res = put_local_node(&self.backend, key, data.clone(), vdisk_id, path).await;
             if let Err(e) = res {
                 error!("{}", e);
+                failed_nodes.push(self.mapper.local_node_name().to_owned());
             } else {
                 local_put_ok += 1;
                 at_least -= 1;
@@ -41,10 +43,7 @@ impl Quorum {
         debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
         let (tasks, errors) = self.put_remote_nodes(key, data.clone(), at_least).await;
         remote_ok_count += at_least - errors.len();
-        let failed_nodes = errors
-            .iter()
-            .map(|e| e.node_name().to_string())
-            .collect::<Vec<_>>();
+        failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
         let q = self.clone();
         if remote_ok_count + local_put_ok >= self.quorum {
             if tasks.is_empty() {
@@ -120,11 +119,13 @@ impl Quorum {
         Vec<NodeOutput<Error>>,
     ) {
         let local_node = self.mapper.local_node_name();
-        let target_nodes = self
-            .mapper
-            .get_target_nodes_for_key(key)
-            .iter()
-            .filter(|node| node.name() != local_node);
+        let target_nodes = self.mapper.get_target_nodes_for_key(key);
+        debug!(
+            "PUT[{}] cluster quorum put remote nodes {} total target nodes",
+            key,
+            target_nodes.len(),
+        );
+        let target_nodes = target_nodes.iter().filter(|node| node.name() != local_node);
         put_at_least(key, data, target_nodes, at_least, PutOptions::new_local()).await
     }
 
@@ -151,21 +152,7 @@ impl Quorum {
             .map(|node| (node, put_options.clone()))
             .collect();
         debug!("PUT[{}] additional alien requests: {:?}", key, queries);
-        let mut sup_ok_count = 0;
-        if let Err((result_ok_count, last_error)) = put_sup_nodes(key, data.clone(), &queries).await
-        {
-            sup_ok_count = result_ok_count;
-            if !last_error.is_empty() {
-                error!(
-                    "PUT[{}] put alien to remote nodes failed, last error: {}",
-                    key, last_error
-                );
-            }
-        }
-        let additional_local_put = queries.len() - sup_ok_count;
-        if additional_local_put == 0 {
-            Ok(())
-        } else {
+        if let Err(sup_nodes_errors) = put_sup_nodes(key, data.clone(), &queries).await {
             let vdisk_id = self.mapper.vdisk_id_from_key(key);
             let operation = Operation::new_alien(vdisk_id);
             let local_put = put_local_all(
@@ -174,7 +161,6 @@ impl Quorum {
                 key,
                 data.clone(),
                 operation,
-                additional_local_put,
             )
             .await;
             if let Err(e) = local_put {
@@ -186,6 +172,8 @@ impl Quorum {
             } else {
                 Ok(())
             }
+        } else {
+            Ok(())
         }
     }
 }

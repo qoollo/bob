@@ -186,7 +186,7 @@ async fn simple_two_node_one_vdisk_cluster_put_ok() {
     let result = quorum
         .put(key, BobData::new(vec![], BobMeta::new(11)))
         .await;
-    sleep(Duration::from_millis(1)).await;
+    delay_for(Duration::from_millis(1)).await;
 
     assert!(result.is_ok());
     // assert_eq!(1, calls[0].1.put_count());
@@ -256,7 +256,7 @@ async fn two_node_one_vdisk_cluster_one_node_failed_put_err() {
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
 
     let result = quorum.put(5, BobData::new(vec![], BobMeta::new(11))).await;
-    sleep(Duration::from_millis(1)).await;
+    delay_for(Duration::from_millis(1)).await;
 
     assert!(result.is_err());
     // assert_eq!(1, calls[0].1.put_count());
@@ -286,7 +286,7 @@ async fn two_node_one_vdisk_cluster_one_node_failed_put_ok() {
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
 
     let result = quorum.put(5, BobData::new(vec![], BobMeta::new(11))).await;
-    sleep(Duration::from_millis(1)).await;
+    delay_for(Duration::from_millis(1)).await;
 
     assert!(result.is_ok());
     // assert_eq!(1, calls[0].1.put_count());
@@ -315,9 +315,9 @@ async fn three_node_two_vdisk_cluster_one_node_failed_put_ok() {
         .collect();
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
 
-    sleep(Duration::from_millis(1)).await;
+    delay_for(Duration::from_millis(1)).await;
     let result = quorum.put(0, BobData::new(vec![], BobMeta::new(11))).await;
-    sleep(Duration::from_millis(1)).await;
+    delay_for(Duration::from_millis(1)).await;
     assert!(result.is_ok());
     // assert_eq!(1, calls[0].1.put_count());
     warn!("can't track put result, because it doesn't pass through mock client");
@@ -349,7 +349,7 @@ async fn three_node_two_vdisk_cluster_one_node_failed_put_err() {
 
     info!("quorum put: 0");
     let result = quorum.put(0, BobData::new(vec![], BobMeta::new(11))).await;
-    sleep(Duration::from_millis(1)).await;
+    delay_for(Duration::from_millis(1)).await;
 
     assert!(result.is_err());
     // assert_eq!(1, calls[0].1.put_count());
@@ -419,7 +419,7 @@ async fn three_node_one_vdisk_cluster_one_node_failed_put_ok() {
     assert_eq!(1, calls[1].1.put_count());
     assert_eq!(1, calls[2].1.put_count());
 
-    sleep(Duration::from_millis(1)).await;
+    delay_for(Duration::from_millis(1)).await;
     info!("get local backend: 0");
     let get = backend.get_local(0, Operation::new_alien(0)).await;
     debug!("{:?}", get);

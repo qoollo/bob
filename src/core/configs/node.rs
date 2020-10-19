@@ -295,7 +295,7 @@ impl Pearl {
                     }
                 }
             }
-            sleep(retry_delay).await
+            delay_for(retry_delay).await
         }
         unreachable!()
     }

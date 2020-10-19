@@ -66,43 +66,6 @@ pub(crate) async fn put_at_least(
     (handles, errors)
 }
 
-pub(crate) fn get_support_nodes(
-    mapper: &'_ Virtual,
-    mut target_indexes: impl Iterator<Item = u16>,
-    count: usize,
-) -> Result<Vec<&'_ Node>, Error> {
-    let (len, _) = target_indexes.size_hint();
-    debug!("iterator size lower bound: {}", len);
-    trace!("nodes available: {}", mapper.nodes().len());
-    if mapper.nodes().len() < len + count {
-        let msg = "cannot find enough support nodes".to_owned();
-        error!("{}", msg);
-        Err(Error::failed(msg))
-    } else {
-        let sup = mapper
-            .nodes()
-            .iter()
-            .filter_map(|(id, node)| {
-                if target_indexes.all(|i| &i != id) {
-                    Some(node)
-                } else {
-                    None
-                }
-            })
-            .take(count)
-            .collect();
-        Ok(sup)
-    }
-}
-
-#[inline]
-pub(crate) fn get_target_nodes(mapper: &Virtual, key: BobKey) -> &[Node] {
-    mapper
-        .get_vdisk_for_key(key)
-        .expect("vdisk for key not found")
-        .nodes()
-}
-
 pub(crate) fn group_keys_by_nodes(
     mapper: &Virtual,
     keys: &[BobKey],
@@ -206,7 +169,6 @@ pub(crate) async fn put_local_all(
     key: BobKey,
     data: BobData,
     operation: Operation,
-    count: usize,
 ) -> Result<(), PutOptions> {
     let mut add_nodes = vec![];
     for node_name in node_names {
@@ -231,7 +193,7 @@ pub(crate) async fn put_sup_nodes(
     key: BobKey,
     data: BobData,
     requests: &[(&Node, PutOptions)],
-) -> Result<(), (usize, String)> {
+) -> Result<(), Vec<NodeOutput<Error>>> {
     let mut ret = vec![];
     for (node, options) in requests {
         let result = LinkManager::call_node(&node, |client| {
@@ -247,8 +209,7 @@ pub(crate) async fn put_sup_nodes(
     if ret.is_empty() {
         Ok(())
     } else {
-        let msg = ret.iter().map(|x| format!("{:?}\n", x)).collect();
-        Err((requests.len() - ret.len(), msg))
+        Err(ret)
     }
 }
 
