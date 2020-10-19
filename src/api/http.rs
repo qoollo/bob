@@ -1,4 +1,5 @@
 use super::prelude::*;
+use backend::NodeDisk;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
@@ -109,7 +110,7 @@ fn find_vdisk(bob: &BobServer, id: u32) -> Option<&DataVDisk> {
     mapper.get_vdisk(id)
 }
 
-fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {
+fn collect_replicas_info(replicas: &[NodeDisk]) -> Vec<Replica> {
     replicas
         .iter()
         .map(|r| Replica {
