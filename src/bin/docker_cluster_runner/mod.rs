@@ -5,6 +5,8 @@ use bob::configs::node::BackendSettings;
 use bob::configs::{Cluster, ClusterNode, MetricsConfig, Node, Pearl, Replica, VDisk};
 use bob::DiskPath;
 use filesystem_constants::DockerFSConstants;
+use std::cmp::max;
+use std::cmp::min;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
@@ -21,6 +23,7 @@ pub struct TestClusterConfiguration {
     logging_level: String,
     ssh_pub_key: String,
     quorum: usize,
+    storage_format_type: Option<String>,
 }
 
 impl TestClusterConfiguration {
@@ -252,6 +255,27 @@ impl TestClusterConfiguration {
             result.push(vdisk);
         }
         result
+    }
+
+    fn vdisk_allowed(&self, node_index: u32, disk_index: u32) -> bool {
+        match self.storage_format_type.as_ref().map(String::as_str) {
+            Some("parity") => return node_index % 2 == disk_index % 2,
+            Some(s) => {
+                if &s[0..1] == "n" {
+                    let count = s[1..].parse().unwrap_or(self.vdisks_count);
+                    if count < self.vdisks_count {
+                        let prev = (count * node_index) % count;
+                        let ranges = [
+                            (prev..min(self.vdisks_count, prev + count)),
+                            (0..(prev + count).saturating_sub(self.vdisks_count)),
+                        ];
+                        return ranges.iter().any(|r| r.contains(&disk_index));
+                    }
+                }
+            }
+            _ => (),
+        }
+        true
     }
 
     fn create_disk_paths(&self, node_index: u32) -> Vec<DiskPath> {
