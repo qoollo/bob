@@ -11,7 +11,7 @@ impl Grinder {
     /// Creates new instance of the Grinder
     pub fn new(mapper: Virtual, config: &NodeConfig) -> Grinder {
         let link_manager = Arc::new(LinkManager::new(
-            mapper.nodes().to_vec(),
+            &mapper.nodes().values().cloned().collect::<Vec<_>>(),
             config.check_interval(),
         ));
         let mapper = Arc::new(mapper);

@@ -38,7 +38,7 @@ impl VDisk {
 #[derive(Clone, Debug)]
 pub(crate) struct MemDisk {
     pub(crate) name: String,
-    pub(crate) vdisks: HashMap<VDiskId, VDisk>,
+    pub(crate) vdisks: HashMap<VDiskID, VDisk>,
 }
 
 impl MemDisk {
@@ -56,7 +56,7 @@ impl MemDisk {
         Self { name, vdisks }
     }
 
-    pub(crate) async fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Result<BobData, Error> {
+    pub(crate) async fn get(&self, vdisk_id: VDiskID, key: BobKey) -> Result<BobData, Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             debug!("GET[{}] from: {} for disk: {}", key, vdisk_id, self.name);
             vdisk.get(key).await
@@ -68,7 +68,7 @@ impl MemDisk {
 
     pub(crate) async fn put(
         &self,
-        vdisk_id: VDiskId,
+        vdisk_id: VDiskID,
         key: BobKey,
         data: BobData,
     ) -> Result<(), Error> {
@@ -83,7 +83,7 @@ impl MemDisk {
 
     pub(crate) async fn exist(
         &self,
-        vdisk_id: VDiskId,
+        vdisk_id: VDiskID,
         keys: &[BobKey],
     ) -> Result<Vec<bool>, Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {

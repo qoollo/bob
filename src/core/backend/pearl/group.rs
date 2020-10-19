@@ -5,7 +5,7 @@ pub(crate) struct Group {
     holders: Arc<RwLock<Vec<Holder>>>,
     settings: Arc<Settings>,
     directory_path: PathBuf,
-    vdisk_id: VDiskId,
+    vdisk_id: VDiskID,
     node_name: String,
     disk_name: String,
     owner_node_name: String,
@@ -15,7 +15,7 @@ pub(crate) struct Group {
 impl Group {
     pub fn new(
         settings: Arc<Settings>,
-        vdisk_id: VDiskId,
+        vdisk_id: VDiskID,
         node_name: String,
         disk_name: String,
         directory_path: PathBuf,

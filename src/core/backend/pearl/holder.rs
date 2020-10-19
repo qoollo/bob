@@ -5,7 +5,7 @@ use super::prelude::*;
 pub(crate) struct Holder {
     start_timestamp: u64,
     end_timestamp: u64,
-    vdisk: VDiskId,
+    vdisk: VDiskID,
     disk_path: PathBuf,
     config: PearlConfig,
     storage: Arc<RwLock<PearlSync>>,
@@ -15,7 +15,7 @@ impl Holder {
     pub(crate) fn new(
         start_timestamp: u64,
         end_timestamp: u64,
-        vdisk: VDiskId,
+        vdisk: VDiskID,
         disk_path: PathBuf,
         config: PearlConfig,
     ) -> Self {
@@ -34,13 +34,11 @@ impl Holder {
     }
 
     pub(crate) fn get_id(&self) -> String {
-        format!(
-            "{}",
-            self.disk_path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unparsable string")
-        )
+        self.disk_path
+            .file_name()
+            .and_then(std::ffi::OsStr::to_str)
+            .unwrap_or("unparsable string")
+            .to_owned()
     }
 
     pub(crate) fn storage(&self) -> &RwLock<PearlSync> {

@@ -1,4 +1,5 @@
 use super::prelude::*;
+use backend::NodeDisk;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
@@ -96,7 +97,7 @@ fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
 
 fn collect_disks_info(bob: &BobServer) -> Vec<VDisk> {
     let mapper = bob.grinder().backend().mapper();
-    mapper.vdisks().iter().map(data_vdisk_to_scheme).collect()
+    mapper.vdisks().values().map(data_vdisk_to_scheme).collect()
 }
 
 #[inline]
@@ -106,10 +107,10 @@ fn get_vdisk_by_id(bob: &BobServer, id: u32) -> Option<VDisk> {
 
 fn find_vdisk(bob: &BobServer, id: u32) -> Option<&DataVDisk> {
     let mapper = bob.grinder().backend().mapper();
-    mapper.vdisks().iter().find(|disk| disk.id() == id)
+    mapper.get_vdisk(id)
 }
 
-fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {
+fn collect_replicas_info(replicas: &[NodeDisk]) -> Vec<Replica> {
     replicas
         .iter()
         .map(|r| Replica {
@@ -146,7 +147,7 @@ fn find_group<'a>(bob: &'a State<BobServer>, vdisk_id: u32) -> Result<&'a PearlG
 fn status(bob: State<BobServer>) -> Json<Node> {
     let mapper = bob.grinder().backend().mapper();
     let name = mapper.local_node_name().to_owned();
-    let address = mapper.local_node_address();
+    let address = mapper.local_node_address().to_owned();
     let vdisks = collect_disks_info(&bob);
     let node = Node {
         name,
@@ -198,7 +199,7 @@ fn partition_by_id(
     debug!("get pearl holders: OK");
     // TODO: run web server on same runtime as bob
     debug!("HOT FIX: run web server on same runtime as bob");
-    let mut rt = Runtime::new().expect("create runtime");
+    let rt = Runtime::new().expect("create runtime");
     let pearls = rt.block_on(holders.read());
     let pearl = pearls.iter().find(|pearl| pearl.get_id() == partition_id);
     let partition = pearl.map(|p| Partition {
@@ -229,7 +230,7 @@ fn change_partition_state(
     let group = group.clone();
     // TODO: run web server on same runtime as bob
     debug!("HOT FIX: run web server on same runtime as bob");
-    let mut rt = Runtime::new().expect("create runtime");
+    let rt = Runtime::new().expect("create runtime");
     let res = format!(
         "partitions with timestamp {} on vdisk {} is successfully {:?}ed",
         timestamp, vdisk_id, action
@@ -254,7 +255,7 @@ fn remount_vdisks_group(bob: State<BobServer>, vdisk_id: u32) -> Result<StatusEx
     let group = find_group(&bob, vdisk_id)?;
     let group = group.clone();
     debug!("HOT FIX: run web server on same runtime as bob");
-    let mut rt = Runtime::new().expect("create runtime");
+    let rt = Runtime::new().expect("create runtime");
     let task = group.remount();
     match rt.block_on(task) {
         Ok(_) => {

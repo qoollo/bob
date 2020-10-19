@@ -67,11 +67,11 @@ pub(crate) async fn put_at_least(
     (handles, errors)
 }
 
-pub(crate) fn get_support_nodes<'a>(
-    mapper: &'a Virtual,
+pub(crate) fn get_support_nodes(
+    mapper: &'_ Virtual,
     mut target_indexes: impl Iterator<Item = u16>,
     count: usize,
-) -> Result<Vec<&'a Node>, Error> {
+) -> Result<Vec<&'_ Node>, Error> {
     let (len, _) = target_indexes.size_hint();
     debug!("iterator size lower bound: {}", len);
     trace!("nodes available: {}", mapper.nodes().len());
@@ -83,7 +83,13 @@ pub(crate) fn get_support_nodes<'a>(
         let sup = mapper
             .nodes()
             .iter()
-            .filter(|node| target_indexes.all(|i| i != node.index()))
+            .filter_map(|(id, node)| {
+                if target_indexes.all(|i| &i != id) {
+                    Some(node)
+                } else {
+                    None
+                }
+            })
             .take(count)
             .collect();
         Ok(sup)
@@ -92,7 +98,10 @@ pub(crate) fn get_support_nodes<'a>(
 
 #[inline]
 pub(crate) fn get_target_nodes(mapper: &Virtual, key: BobKey) -> &[Node] {
-    mapper.get_vdisk_for_key(key).nodes()
+    mapper
+        .get_vdisk_for_key(key)
+        .expect("vdisk for key not found")
+        .nodes()
 }
 
 pub(crate) fn group_keys_by_nodes(
@@ -115,7 +124,7 @@ pub(crate) fn group_keys_by_nodes(
 pub(crate) async fn lookup_local_alien(
     backend: &Backend,
     key: BobKey,
-    vdisk_id: VDiskId,
+    vdisk_id: VDiskID,
 ) -> Option<BobData> {
     let op = Operation::new_alien(vdisk_id);
     match backend.get_local(key, op).await {
@@ -132,7 +141,7 @@ pub(crate) async fn lookup_local_alien(
 pub(crate) async fn lookup_local_node(
     backend: &Backend,
     key: BobKey,
-    vdisk_id: VDiskId,
+    vdisk_id: VDiskID,
     disk_path: Option<DiskPath>,
 ) -> Option<BobData> {
     if let Some(path) = disk_path {
@@ -154,7 +163,7 @@ pub(crate) async fn lookup_remote_aliens(mapper: &Virtual, key: BobKey) -> Optio
     let local_node = mapper.local_node_name();
     let target_nodes = mapper
         .nodes()
-        .iter()
+        .values()
         .filter(|node| node.name() != local_node);
     let result = get_any(key, target_nodes, GetOptions::new_alien()).await;
     if let Some(answer) = result {
@@ -246,7 +255,7 @@ pub(crate) async fn put_local_node(
     backend: &Backend,
     key: BobKey,
     data: BobData,
-    vdisk_id: VDiskId,
+    vdisk_id: VDiskID,
     disk_path: DiskPath,
 ) -> Result<(), Error> {
     debug!("local node has vdisk replica, put local");
