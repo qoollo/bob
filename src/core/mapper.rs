@@ -1,4 +1,4 @@
-use super::{data::NodeID, prelude::*};
+use super::prelude::*;
 
 /// Hash map with IDs as keys and `VDisk`s as values.
 pub type VDisksMap = HashMap<VDiskID, DataVDisk>;

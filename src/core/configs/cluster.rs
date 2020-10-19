@@ -240,7 +240,7 @@ impl Cluster {
                     })?
                     .path()
                     .to_owned();
-                let node_disk = DataNodeDisk::new(disk_path, disk_name, node_name);
+                let node_disk = NodeDisk::new(disk_path, disk_name, node_name);
                 disk.push_replica(node_disk);
             }
             vdisks.insert(vdisk.id(), disk);
