@@ -266,7 +266,7 @@ impl TestClusterConfiguration {
                 if &s[0..1] == "n" {
                     let count = s[1..].parse().unwrap_or(self.vdisks_count);
                     if count < self.vdisks_count {
-                        let prev = (count * node_index) % count;
+                        let prev = (count * node_index) % self.vdisks_count;
                         let ranges = [
                             (prev..min(self.vdisks_count, prev + count)),
                             (0..(prev + count).saturating_sub(self.vdisks_count)),
@@ -283,7 +283,9 @@ impl TestClusterConfiguration {
     fn create_disk_paths(&self, node_index: u32) -> Vec<DiskPath> {
         let mut result = Vec::with_capacity(self.vdisks_count as usize);
         for i in 0..self.vdisks_count {
-            result.push(Self::get_disk_path(node_index, i));
+            if self.vdisk_allowed(node_index, i) {
+                result.push(Self::get_disk_path(node_index, i));
+            }
         }
         result
     }
