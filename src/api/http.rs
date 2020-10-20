@@ -199,7 +199,7 @@ fn partition_by_id(
     debug!("get pearl holders: OK");
     // TODO: run web server on same runtime as bob
     debug!("HOT FIX: run web server on same runtime as bob");
-    let rt = Runtime::new().expect("create runtime");
+    let mut rt = Runtime::new().expect("create runtime");
     let pearls = rt.block_on(holders.read());
     let pearl = pearls.iter().find(|pearl| pearl.get_id() == partition_id);
     let partition = pearl.map(|p| Partition {
@@ -230,7 +230,7 @@ fn change_partition_state(
     let group = group.clone();
     // TODO: run web server on same runtime as bob
     debug!("HOT FIX: run web server on same runtime as bob");
-    let rt = Runtime::new().expect("create runtime");
+    let mut rt = Runtime::new().expect("create runtime");
     let res = format!(
         "partitions with timestamp {} on vdisk {} is successfully {:?}ed",
         timestamp, vdisk_id, action
@@ -255,7 +255,7 @@ fn remount_vdisks_group(bob: State<BobServer>, vdisk_id: u32) -> Result<StatusEx
     let group = find_group(&bob, vdisk_id)?;
     let group = group.clone();
     debug!("HOT FIX: run web server on same runtime as bob");
-    let rt = Runtime::new().expect("create runtime");
+    let mut rt = Runtime::new().expect("create runtime");
     let task = group.remount();
     match rt.block_on(task) {
         Ok(_) => {
