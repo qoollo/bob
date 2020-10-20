@@ -250,7 +250,9 @@ impl TestClusterConfiguration {
             for j in 0..self.nodes_count {
                 let node_name = Self::get_node_name(j);
                 let disk_name = Self::get_disk_name(i);
-                vdisk.push_replica(Replica::new(node_name, disk_name));
+                if self.vdisk_allowed(j, i) {
+                    vdisk.push_replica(Replica::new(node_name, disk_name));
+                }
             }
             result.push(vdisk);
         }

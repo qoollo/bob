@@ -6,6 +6,7 @@ extern crate ctrlc;
 
 use crate::docker_cluster_runner::fs_configuration::FSConfiguration;
 use crate::docker_cluster_runner::TestClusterConfiguration;
+use clap::ArgMatches;
 use clap::{App, Arg};
 use std::error::Error;
 use std::fmt::Display;
@@ -35,6 +36,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let compose = configuration
         .create_docker_compose(fs_configuration, "bobnet".to_string())
         .map_err(|e| ErrorWrapper::new("create compose configuration", e))?;
+    if generate_only() {
+        return Ok(());
+    }
     let arc = Arc::new(Mutex::new(Box::new(compose)));
     let ctrlc_arc = arc.clone();
     ctrlc::set_handler(move || {
@@ -58,7 +62,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn get_configuration() -> Result<TestClusterConfiguration, Box<dyn Error>> {
-    let matches = App::new(env!("CARGO_PKG_NAME"))
+    let matches = matches();
+    let config_filename = matches.value_of("config").expect("required");
+    let file_content = fs::read_to_string(config_filename)?;
+    let configuration: TestClusterConfiguration = serde_yaml::from_str(&file_content)?;
+    Ok(configuration)
+}
+
+fn generate_only() -> bool {
+    matches().is_present("generate")
+}
+
+fn matches() -> ArgMatches<'static> {
+    App::new(env!("CARGO_PKG_NAME"))
         .arg(
             Arg::with_name("config")
                 .help("config for docker cluster")
@@ -68,11 +84,14 @@ fn get_configuration() -> Result<TestClusterConfiguration, Box<dyn Error>> {
                 .default_value("dcr_config.yaml")
                 .long("config"),
         )
-        .get_matches();
-    let config_filename = matches.value_of("config").expect("required");
-    let file_content = fs::read_to_string(config_filename)?;
-    let configuration: TestClusterConfiguration = serde_yaml::from_str(&file_content)?;
-    Ok(configuration)
+        .arg(
+            Arg::with_name("generate")
+                .help("only generation of config files")
+                .takes_value(false)
+                .short("g")
+                .long("generate"),
+        )
+        .get_matches()
 }
 
 #[derive(Debug)]
