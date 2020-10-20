@@ -32,7 +32,7 @@ mod prelude {
     };
     pub(crate) use dipstick::{
         AtomicBucket, Counter, Graphite, Input, InputKind, InputScope, MetricName, MetricValue,
-        Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer,
+        Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer, Gauge,
     };
     pub(crate) use futures::{
         future, stream::FuturesUnordered, Future, FutureExt, StreamExt, TryFutureExt,
@@ -51,7 +51,7 @@ mod prelude {
         CLIENT_PUT_ERROR_COUNT_COUNTER, CLIENT_PUT_TIMER, CLIENT_EXIST_COUNTER, CLIENT_EXIST_ERROR_COUNTER, 
         CLIENT_EXIST_TIMER, GRINDER_GET_COUNTER, GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER,
         GRINDER_PUT_COUNTER, GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER, GRINDER_EXIST_COUNTER,
-        GRINDER_EXIST_ERROR_COUNTER, GRINDER_EXIST_TIMER,
+        GRINDER_EXIST_ERROR_COUNTER, GRINDER_EXIST_TIMER, NODES_NUMBER,
     };
     pub(crate) use stopwatch::Stopwatch;
     pub(crate) use termion::color;

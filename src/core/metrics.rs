@@ -50,6 +50,13 @@ metrics! {
     }
 }
 
+metrics! {
+    LINK_MANAGER: Proxy = "link_manager" => {
+        // Observes number of connected nodes
+        pub NODES_NUMBER: Gauge = "nodes_number";
+    }
+}
+
 /// Structure contains put/get metrics for `BobClient`
 #[derive(Debug, Clone)]
 pub struct BobClient {
@@ -189,6 +196,7 @@ pub fn init_counters(
     );
     let metrics = Arc::new(container);
     init_grinder(prefix.clone() + "cluster", metrics.as_ref());
+    init_link_manager(prefix.clone() + "link_manager", metrics.as_ref());
     init_bob_client(prefix.clone() + "backend", metrics.as_ref());
     init_pearl(prefix + "pearl", metrics.as_ref());
     metrics
@@ -197,6 +205,11 @@ pub fn init_counters(
 fn init_grinder(prefix: String, metrics: &(dyn ContainerBuilder)) {
     let bucket = metrics.init_bucket(prefix);
     GRINDER.target(bucket);
+}
+
+fn init_link_manager(prefix: String, metrics: &(dyn ContainerBuilder)) {
+    let bucket = metrics.init_bucket(prefix);
+    LINK_MANAGER.target(bucket);
 }
 
 fn init_bob_client(prefix: String, metrics: &(dyn ContainerBuilder)) {
