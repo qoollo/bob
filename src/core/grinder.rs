@@ -154,7 +154,7 @@ impl Grinder {
             if result.is_err() {
                 GRINDER_EXIST_ERROR_COUNTER.count(1);
             }
-            GRINDER_EXIST_TIMER.stop(1);
+            GRINDER_EXIST_TIMER.stop(time);
             result
         }
     }

@@ -75,7 +75,7 @@ impl BobClient {
             get_error_count: bucket.counter("get_error_count"),
             exist_count: bucket.counter("exist_count"),
             exist_error_count: bucket.counter("exist_error_count"),
-            exist_timer: bucket.counter("exist_timer"),
+            exist_timer: bucket.timer("exist_timer"),
         }
     }
 

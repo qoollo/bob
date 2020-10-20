@@ -275,8 +275,8 @@ impl PearlSync {
         self.storage().records_count().await
     }
 
-    pub(crate) async fn blobs_count(&self) -> usize {
-        self.storage().blobs_count().await
+    pub(crate) fn blobs_count(&self) -> usize {
+        self.storage().blobs_count()
     }
 
     #[inline]
