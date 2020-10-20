@@ -138,7 +138,7 @@ where
 #[derive(PartialEq, Debug, Clone)]
 pub enum Kind {
     Timeout,
-    VDiskNotFound(VDiskId),
+    VDiskNotFound(VDiskID),
     Storage(String),
     DuplicateKey,
     KeyNotFound(BobKey),

@@ -139,7 +139,7 @@ impl Settings {
         if self
             .mapper
             .nodes()
-            .iter()
+            .values()
             .any(|node| node.name() == file_name)
         {
             Ok((entry, file_name))
@@ -150,13 +150,13 @@ impl Settings {
         }
     }
 
-    fn try_parse_vdisk_id(&self, entry: DirEntry) -> BackendResult<(DirEntry, VDiskId)> {
+    fn try_parse_vdisk_id(&self, entry: DirEntry) -> BackendResult<(DirEntry, VDiskID)> {
         let file_name = entry.file_name().into_string().map_err(|_| {
             let msg = format!("cannot parse file name: {:?}", entry);
             error!("{}", msg);
             Error::failed(msg)
         })?;
-        let vdisk_id: VDiskId = file_name.parse().map_err(|_| {
+        let vdisk_id: VDiskID = file_name.parse().map_err(|_| {
             let msg = format!("cannot parse file name: {:?}", entry);
             error!("{}", msg);
             Error::failed(msg)
@@ -190,13 +190,13 @@ impl Settings {
         }
     }
 
-    fn normal_path(&self, disk_path: &str, vdisk_id: VDiskId) -> PathBuf {
+    fn normal_path(&self, disk_path: &str, vdisk_id: VDiskID) -> PathBuf {
         let mut vdisk_path = PathBuf::from(format!("{}/{}/", disk_path, self.bob_prefix_path));
         vdisk_path.push(format!("{}/", vdisk_id));
         vdisk_path
     }
 
-    fn alien_path(&self, vdisk_id: VDiskId, node_name: &str) -> PathBuf {
+    fn alien_path(&self, vdisk_id: VDiskID, node_name: &str) -> PathBuf {
         let mut vdisk_path = self.alien_folder.clone();
         vdisk_path.push(format!("{}/{}/", node_name, vdisk_id));
         vdisk_path

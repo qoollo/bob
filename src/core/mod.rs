@@ -14,6 +14,7 @@ pub(crate) mod link_manager;
 pub mod mapper;
 /// Tools for tracking bob different indicators.
 pub mod metrics;
+pub mod node;
 /// GRPC server to receive and process requests from clients.
 pub mod server;
 
@@ -27,9 +28,7 @@ mod prelude {
     pub(crate) use bob_client::{BobClient, Factory};
     pub(crate) use cluster::{get_cluster, Cluster};
     pub(crate) use configs::{Cluster as ClusterConfig, Node as NodeConfig};
-    pub(crate) use data::{
-        BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, Node, NodeOutput, VDisk, VDiskId,
-    };
+    pub(crate) use data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskID};
     pub(crate) use dipstick::{
         AtomicBucket, Counter, Graphite, Input, InputKind, InputScope, MetricName, MetricValue,
         Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer,
@@ -52,11 +51,12 @@ mod prelude {
         GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER, GRINDER_PUT_COUNTER,
         GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER,
     };
+    pub(crate) use node::{Disk as NodeDisk, Node, Output as NodeOutput, ID as NodeID};
     pub(crate) use stopwatch::Stopwatch;
     pub(crate) use termion::color;
     pub(crate) use tokio::{
         net::lookup_host,
-        time::{delay_for, interval, timeout},
+        time::{interval, delay_for, timeout},
     };
     pub(crate) use tonic::{
         transport::{Channel, Endpoint},

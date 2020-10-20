@@ -2,7 +2,7 @@ use super::prelude::*;
 
 #[derive(Debug)]
 pub(crate) struct LinkManager {
-    nodes: Arc<Vec<Node>>,
+    nodes: Arc<[Node]>,
     check_interval: Duration,
 }
 
@@ -11,14 +11,14 @@ pub(crate) type ClusterCallFuture<'a, T> =
     Pin<Box<dyn Future<Output = ClusterCallOutput<T>> + Send + 'a>>;
 
 impl LinkManager {
-    pub(crate) fn new(nodes: Vec<Node>, check_interval: Duration) -> LinkManager {
+    pub(crate) fn new(nodes: &[Node], check_interval: Duration) -> LinkManager {
         LinkManager {
-            nodes: Arc::new(nodes),
+            nodes: Arc::from(nodes),
             check_interval,
         }
     }
 
-    async fn checker_task(factory: Factory, nodes: Arc<Vec<Node>>, period: Duration) {
+    async fn checker_task(factory: Factory, nodes: Arc<[Node]>, period: Duration) {
         let mut interval = interval(period);
         loop {
             interval.tick().await;

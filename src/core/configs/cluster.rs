@@ -213,8 +213,8 @@ impl Cluster {
     /// # Errors
     /// Returns error description. If can't match node name with replica name.
     /// And if node disk with replica disk.
-    pub fn convert(&self) -> Result<Vec<DataVDisk>, String> {
-        let mut result = Vec::new();
+    pub(crate) fn create_vdisks_map(&self) -> Result<HashMap<VDiskID, DataVDisk>, String> {
+        let mut vdisks = HashMap::new();
         for vdisk in &self.vdisks {
             let mut disk = DataVDisk::new(vdisk.id());
             for replica in vdisk.replicas() {
@@ -238,12 +238,12 @@ impl Cluster {
                     })?
                     .path()
                     .to_owned();
-                let node_disk = DataNodeDisk::new(disk_path, disk_name, node_name);
+                let node_disk = NodeDisk::new(disk_path, disk_name, node_name);
                 disk.push_replica(node_disk);
             }
-            result.push(disk);
+            vdisks.insert(vdisk.id(), disk);
         }
-        Ok(result)
+        Ok(vdisks)
     }
 
     /// Loads config from disk, and validates it.
