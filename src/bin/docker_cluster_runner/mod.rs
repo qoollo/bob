@@ -202,7 +202,7 @@ impl TestClusterConfiguration {
             "5000ms".to_string(),
             "quorum".to_string(),
             "pearl".to_string(),
-            Some(self.get_pearl_config()),
+            Some(self.get_pearl_config(node_index)),
             Some(MetricsConfig::new(
                 "bob".to_string(),
                 "127.0.0.1:2003".to_string(),
@@ -213,14 +213,19 @@ impl TestClusterConfiguration {
         (Self::get_node_name(node_index), node)
     }
 
-    fn get_pearl_config(&self) -> Pearl {
+    fn get_pearl_config(&self, node: u32) -> Pearl {
         Pearl::new(
             1000000,
             10000,
             "bob".to_string(),
             "100ms".to_string(),
             3,
-            Self::get_disk_name(self.vdisks_count - 1),
+            Self::get_disk_name(
+                (0..self.vdisks_count)
+                    .rev()
+                    .find(|&v| self.vdisk_allowed(node, v))
+                    .expect(&format!("no disks for node {}", node)),
+            ),
             true,
             BackendSettings::new(
                 "bob".to_string(),
