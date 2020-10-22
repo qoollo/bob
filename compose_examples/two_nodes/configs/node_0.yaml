@@ -2,7 +2,7 @@
 log_config: /configs/logger.yaml
 name: node_0
 quorum: 2
-operation_timeout: 3sec
+operation_timeout: 15sec
 check_interval: 5000ms
 cluster_policy: quorum
 backend_type: pearl
