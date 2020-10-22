@@ -74,7 +74,8 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         delete_partition,
         alien,
         remount_vdisks_group,
-        get_local_replica_directories
+        get_local_replica_directories,
+        finalize_old_blobs
     ];
     let task = move || {
         info!("API server started");
@@ -161,6 +162,11 @@ fn status(bob: State<BobServer>) -> Json<Node> {
 fn vdisks(bob: State<BobServer>) -> Json<Vec<VDisk>> {
     let vdisks = collect_disks_info(&bob);
     Json(vdisks)
+}
+
+#[delete("/vdisks/oldblobs")]
+fn finalize_old_blobs(bob: State<BobServer>) -> Result<StatusExt, StatusExt> {
+    todo!()
 }
 
 #[get("/vdisks/<vdisk_id>")]
