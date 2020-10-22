@@ -52,8 +52,15 @@ metrics! {
 
 metrics! {
     LINK_MANAGER: Proxy = "link_manager" => {
-        // Observes number of connected nodes
+        /// Observes number of connected nodes
         pub NODES_NUMBER: Gauge = "nodes_number";
+    }
+}
+
+metrics! {
+    BACKEND: Proxy = "backend" => {
+        /// Observes if bob has started already
+        pub BACKEND_STATE: Gauge = "backend_state";
     }
 }
 
@@ -197,6 +204,7 @@ pub fn init_counters(
     let metrics = Arc::new(container);
     init_grinder(prefix.clone() + "cluster", metrics.as_ref());
     init_link_manager(prefix.clone() + "link_manager", metrics.as_ref());
+    init_backend(prefix.clone() + "backend", metrics.as_ref());
     init_bob_client(prefix.clone() + "backend", metrics.as_ref());
     init_pearl(prefix + "pearl", metrics.as_ref());
     metrics
@@ -210,6 +218,11 @@ fn init_grinder(prefix: String, metrics: &(dyn ContainerBuilder)) {
 fn init_link_manager(prefix: String, metrics: &(dyn ContainerBuilder)) {
     let bucket = metrics.init_bucket(prefix);
     LINK_MANAGER.target(bucket);
+}
+
+fn init_backend(prefix: String, metrics: &(dyn ContainerBuilder)) {
+    let bucket = metrics.init_bucket(prefix);
+    BACKEND.target(bucket);
 }
 
 fn init_bob_client(prefix: String, metrics: &(dyn ContainerBuilder)) {

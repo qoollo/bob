@@ -1,5 +1,8 @@
 use super::prelude::*;
 
+const BACKEND_STARTING: usize = 0;
+const BACKEND_STARTED: usize = 1;
+
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Operation {
     vdisk_id: VDiskId,
@@ -82,6 +85,15 @@ pub(crate) trait BackendStorage: Debug {
     async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 
+    async fn run(&self) -> Result<()> {
+        BACKEND_STATE.value(BACKEND_STARTING);
+        let result = self.run_backend().await;
+        BACKEND_STATE.value(BACKEND_STARTED);
+        result
+    }
+
+    fn spawn_counter(&self) {}
+
     fn vdisks_groups(&self) -> Option<&[Group]> {
         None
     }
@@ -101,6 +113,10 @@ impl Backend {
             BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config)),
         };
         Self { inner, mapper }
+    }
+
+    pub(crate) fn spawn_counter(&self) {
+        self.inner.spawn_counter();
     }
 
     pub(crate) fn mapper(&self) -> &Virtual {

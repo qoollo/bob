@@ -10,6 +10,7 @@ pub(crate) struct Pearl {
     alien_vdisks_groups: Arc<RwLock<Vec<Group>>>,
     pearl_sync: Arc<SyncState>, // holds state when we create new alien pearl dir
     node_name: String,
+    count_interval: Duration,
 }
 
 impl Pearl {
@@ -33,6 +34,7 @@ impl Pearl {
             alien_vdisks_groups,
             pearl_sync: Arc::new(SyncState::new()),
             node_name: config.name().to_string(),
+            count_interval: config.count_interval(),
         }
     }
 
@@ -72,6 +74,40 @@ impl Pearl {
             .ok_or_else(|| {
                 Error::failed(format!("cannot find actual alien folder. {:?}", operation))
             })
+    }
+
+    async fn count_blobs(groups: Arc<Vec<Group>>, alien_groups_guard: Arc<RwLock<Vec<Group>>>,
+        count_interval: Duration) {
+        let mut interval = interval(count_interval);
+        loop {
+            interval.tick().await;
+
+            let mut cnt = 0;
+            for group in groups.iter() {
+                let holders_guard = group.holders();
+                let holders = holders_guard.read().await;
+                for holder in holders.iter() {
+                    cnt += holder.blobs_count().await;
+                }
+            }
+            PEARL_BLOBS_COUNT.value(cnt);
+
+            let mut alien_cnt = 0;
+            let alien_groups = alien_groups_guard.read().await;
+            for group in alien_groups.iter() {
+                let holders_guard = group.holders();
+                let holders = holders_guard.read().await;
+                for holder in holders.iter() {
+                    alien_cnt += holder.blobs_count().await;
+                }
+            }
+            PEARL_ALIEN_BLOBS_COUNT.value(alien_cnt);
+        }
+    }
+
+    pub(crate) fn spawn_blobs_counter(&self) {
+        tokio::spawn(Self::count_blobs(self.vdisks_groups.clone(),
+            self.alien_vdisks_groups.clone(), self.count_interval));
     }
 }
 
@@ -176,6 +212,10 @@ impl BackendStorage for Pearl {
         } else {
             Err(Error::internal())
         }
+    }
+
+    fn spawn_counter(&self) {
+        self.spawn_blobs_counter();
     }
 
     fn vdisks_groups(&self) -> Option<&[Group]> {

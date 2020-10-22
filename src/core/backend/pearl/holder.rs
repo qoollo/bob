@@ -56,6 +56,11 @@ impl Holder {
         storage.records_count().await
     }
 
+    pub(crate) async fn blobs_count(&self) -> usize {
+        let storage = self.storage.read().await;
+        storage.blobs_count()
+    }
+
     pub(crate) fn gets_into_interval(&self, timestamp: u64) -> bool {
         self.start_timestamp <= timestamp && timestamp < self.end_timestamp
     }

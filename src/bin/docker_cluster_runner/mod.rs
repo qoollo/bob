@@ -197,6 +197,7 @@ impl TestClusterConfiguration {
             self.quorum,
             "3sec".to_string(),
             "5000ms".to_string(),
+            "10000ms".to_string(),
             "quorum".to_string(),
             "pearl".to_string(),
             Some(self.get_pearl_config()),
