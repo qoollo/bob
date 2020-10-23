@@ -5,6 +5,8 @@ use bob::configs::node::BackendSettings;
 use bob::configs::{Cluster, ClusterNode, MetricsConfig, Node, Pearl, Replica, VDisk};
 use bob::DiskPath;
 use filesystem_constants::DockerFSConstants;
+use std::cmp::max;
+use std::cmp::min;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
@@ -21,6 +23,7 @@ pub struct TestClusterConfiguration {
     logging_level: String,
     ssh_pub_key: String,
     quorum: usize,
+    storage_format_type: Option<String>,
 }
 
 impl TestClusterConfiguration {
@@ -110,7 +113,7 @@ impl TestClusterConfiguration {
     fn get_security_opts(fs_configuration: &FSConfiguration) -> Result<Vec<SecurityOpt>> {
         let filename = format!(
             "{}/profile.json",
-            Self::convert_to_absolute_path(&fs_configuration.dockerfile_path)?
+            Self::convert_to_absolute_path(&fs_configuration.cluster_configuration_dir)?
         );
         if !Path::new(&filename).exists() {
             let content = "{ \"syscalls\": [] }";
@@ -176,9 +179,7 @@ impl TestClusterConfiguration {
 
     fn get_docker_command(node: u32) -> String {
         let command = format!(
-            "./bobd -c {}/cluster.yaml -n {}/{}.yaml",
-            DockerFSConstants::docker_configs_dir(),
-            DockerFSConstants::docker_configs_dir(),
+            "cluster.yaml {}.yaml",
             Self::get_node_name(node)
         );
         command
@@ -199,7 +200,7 @@ impl TestClusterConfiguration {
             "5000ms".to_string(),
             "quorum".to_string(),
             "pearl".to_string(),
-            Some(self.get_pearl_config()),
+            Some(self.get_pearl_config(node_index)),
             Some(MetricsConfig::new(
                 "bob".to_string(),
                 "127.0.0.1:2003".to_string(),
@@ -210,14 +211,19 @@ impl TestClusterConfiguration {
         (Self::get_node_name(node_index), node)
     }
 
-    fn get_pearl_config(&self) -> Pearl {
+    fn get_pearl_config(&self, node: u32) -> Pearl {
         Pearl::new(
             1000000,
             10000,
             "bob".to_string(),
             "100ms".to_string(),
             3,
-            Self::get_disk_name(self.vdisks_count - 1),
+            Self::get_disk_name(
+                (0..self.vdisks_count)
+                    .rev()
+                    .find(|&v| self.vdisk_allowed(node, v))
+                    .expect(&format!("no disks for node {}", node)),
+            ),
             true,
             BackendSettings::new(
                 "bob".to_string(),
@@ -247,17 +253,42 @@ impl TestClusterConfiguration {
             for j in 0..self.nodes_count {
                 let node_name = Self::get_node_name(j);
                 let disk_name = Self::get_disk_name(i);
-                vdisk.push_replica(Replica::new(node_name, disk_name));
+                if self.vdisk_allowed(j, i) {
+                    vdisk.push_replica(Replica::new(node_name, disk_name));
+                }
             }
             result.push(vdisk);
         }
         result
     }
 
+    fn vdisk_allowed(&self, node_index: u32, disk_index: u32) -> bool {
+        match self.storage_format_type.as_ref().map(String::as_str) {
+            Some("parity") => return node_index % 2 == disk_index % 2,
+            Some(s) => {
+                if &s[0..1] == "n" {
+                    let count = s[1..].parse().unwrap_or(self.vdisks_count);
+                    if count < self.vdisks_count {
+                        let prev = (count * node_index) % self.vdisks_count;
+                        let ranges = [
+                            (prev..min(self.vdisks_count, prev + count)),
+                            (0..(prev + count).saturating_sub(self.vdisks_count)),
+                        ];
+                        return ranges.iter().any(|r| r.contains(&disk_index));
+                    }
+                }
+            }
+            _ => (),
+        }
+        true
+    }
+
     fn create_disk_paths(&self, node_index: u32) -> Vec<DiskPath> {
         let mut result = Vec::with_capacity(self.vdisks_count as usize);
         for i in 0..self.vdisks_count {
-            result.push(Self::get_disk_path(node_index, i));
+            if self.vdisk_allowed(node_index, i) {
+                result.push(Self::get_disk_path(node_index, i));
+            }
         }
         result
     }

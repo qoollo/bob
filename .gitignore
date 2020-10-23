@@ -18,6 +18,4 @@ Cargo.lock
 #**/*.rs.bk
 
 /log
-/cluster_test/*.yaml
-/cluster_test/*.yml
-/cluster_test/ssh
+/cluster_test
