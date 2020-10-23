@@ -113,7 +113,7 @@ impl TestClusterConfiguration {
     fn get_security_opts(fs_configuration: &FSConfiguration) -> Result<Vec<SecurityOpt>> {
         let filename = format!(
             "{}/profile.json",
-            Self::convert_to_absolute_path(&fs_configuration.dockerfile_path)?
+            Self::convert_to_absolute_path(&fs_configuration.cluster_configuration_dir)?
         );
         if !Path::new(&filename).exists() {
             let content = "{ \"syscalls\": [] }";
@@ -179,9 +179,7 @@ impl TestClusterConfiguration {
 
     fn get_docker_command(node: u32) -> String {
         let command = format!(
-            "./bobd -c {}/cluster.yaml -n {}/{}.yaml",
-            DockerFSConstants::docker_configs_dir(),
-            DockerFSConstants::docker_configs_dir(),
+            "cluster.yaml {}.yaml",
             Self::get_node_name(node)
         );
         command
