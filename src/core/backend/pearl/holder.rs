@@ -64,7 +64,7 @@ impl Holder {
         let ts = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("current time is before unix epoch")
-            .as_millis();
+            .as_secs();
         ts > self.end_timestamp.into()
     }
 
