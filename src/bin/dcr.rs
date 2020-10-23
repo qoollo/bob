@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fs_configuration = FSConfiguration::new(
         ".".to_string(),
         config_dir.to_string(),
-        config_dir.to_string(),
+        "dockerfiles/ubuntu".to_string(),
         "/tmp".to_string(),
     );
     let configuration =
