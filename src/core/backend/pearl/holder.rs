@@ -1,3 +1,5 @@
+use std::time::UNIX_EPOCH;
+
 use super::prelude::*;
 
 /// Struct hold pearl and add put/get/restart api
@@ -56,6 +58,14 @@ impl Holder {
 
     pub(crate) fn gets_into_interval(&self, timestamp: u64) -> bool {
         self.start_timestamp <= timestamp && timestamp < self.end_timestamp
+    }
+
+    pub(crate) fn is_old(&self) -> bool {
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("current time is before unix epoch")
+            .as_millis();
+        ts > self.end_timestamp.into()
     }
 
     pub async fn update(&self, storage: Storage<Key>) {

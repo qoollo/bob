@@ -166,6 +166,20 @@ fn vdisks(bob: State<BobServer>) -> Json<Vec<VDisk>> {
 
 #[delete("/vdisks/oldblobs")]
 fn finalize_old_blobs(bob: State<BobServer>) -> Result<StatusExt, StatusExt> {
+    let backend = bob.grinder().backend().inner();
+    debug!("get backend: OK");
+    let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
+    for group in groups {
+        let holders_lock = group.holders();
+        let holders_read = runtime().block_on(holders_lock.read());
+        let holders: &[_] = holders_read.as_ref();
+        for holder in holders {
+            if holder.is_old() {
+                println!("Holder {:?} is old", holder);
+                todo!("invoke removal");
+            }
+        }
+    }
     todo!()
 }
 
