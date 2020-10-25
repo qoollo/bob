@@ -54,9 +54,6 @@ pub(crate) async fn put_at_least(
                     error!("{:?}", e);
                 }
             }
-            if ok_count == at_least {
-                break;
-            }
         } else {
             break;
         }
