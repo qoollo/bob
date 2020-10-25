@@ -1,3 +1,5 @@
+use tokio::task::JoinError;
+
 use super::prelude::*;
 
 pub(crate) async fn get_any(
@@ -14,6 +16,56 @@ pub(crate) async fn get_any(
         .await
 }
 
+fn call_node_put(
+    key: BobKey,
+    data: BobData,
+    node: Node,
+    options: PutOptions,
+) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
+    debug!("PUT[{}] put to {}", key, node.name());
+    let task = async move {
+        LinkManager::call_node(&node, |conn| conn.put(key, data, options).boxed()).await
+    };
+    tokio::spawn(task)
+}
+
+fn is_result_successful(
+    join_res: Result<Result<NodeOutput<()>, NodeOutput<Error>>, JoinError>,
+    errors: &mut Vec<NodeOutput<Error>>,
+) -> usize {
+    debug!("handle returned");
+    match join_res {
+        Ok(res) => match res {
+            Ok(_) => return 1,
+            Err(e) => {
+                error!("{:?}", e);
+                errors.push(e);
+            }
+        },
+        Err(e) => {
+            error!("{:?}", e);
+        }
+    }
+    0
+}
+
+async fn finish_at_least_handles(
+    handles: &mut FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>,
+    at_least: usize,
+) -> Vec<NodeOutput<Error>> {
+    let mut ok_count = 0;
+    let mut errors = Vec::new();
+    while ok_count < at_least {
+        if let Some(join_res) = handles.next().await {
+            ok_count += is_result_successful(join_res, &mut errors);
+        } else {
+            break;
+        }
+    }
+    debug!("ok_count/at_least: {}/{}", ok_count, at_least);
+    errors
+}
+
 pub(crate) async fn put_at_least(
     key: BobKey,
     data: BobData,
@@ -25,40 +77,11 @@ pub(crate) async fn put_at_least(
     Vec<NodeOutput<Error>>,
 ) {
     let mut handles: FuturesUnordered<_> = target_nodes
-        .map(|node| {
-            debug!("PUT[{}] put to {}", key, node.name());
-            let node = node.clone();
-            let options = options.clone();
-            let data2 = data.clone();
-            tokio::spawn(async move {
-                LinkManager::call_node(&node, |conn| conn.put(key, data2, options.clone()).boxed())
-                    .await
-            })
-        })
+        .cloned()
+        .map(|node| call_node_put(key, data.clone(), node, options.clone()))
         .collect();
     debug!("total handles count: {}", handles.len());
-    let mut ok_count = 0;
-    let mut errors = Vec::new();
-    while ok_count < at_least {
-        if let Some(join_res) = handles.next().await {
-            debug!("handle returned");
-            match join_res {
-                Ok(res) => match res {
-                    Ok(_) => ok_count += 1,
-                    Err(e) => {
-                        error!("{:?}", e);
-                        errors.push(e);
-                    }
-                },
-                Err(e) => {
-                    error!("{:?}", e);
-                }
-            }
-        } else {
-            break;
-        }
-    }
-    debug!("ok_count/at_least: {}/{}", ok_count, at_least);
+    let errors = finish_at_least_handles(&mut handles, at_least).await;
     debug!("remains: {}, errors: {}", handles.len(), errors.len());
     (handles, errors)
 }

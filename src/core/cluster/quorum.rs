@@ -1,6 +1,8 @@
 use super::prelude::*;
 use tokio::task::JoinHandle;
 
+type Tasks = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>;
+
 #[derive(Clone)]
 pub(crate) struct Quorum {
     backend: Arc<Backend>,
@@ -63,16 +65,9 @@ impl Quorum {
                 errors
             );
             if let Err(err) = self.put_aliens(failed_nodes, key, data).await {
-                if let Some(err) = errors.last() {
-                    Err(err.inner().clone())
-                } else {
-                    error!("PUT[{}] smth wrong with cluster/node configuration", key);
-                    error!(
-                        "PUT[{}] local_put_ok: {}, remote_ok_count: {}, quorum: {},no errors",
-                        key, local_put_ok, remote_ok_count, self.quorum
-                    );
-                    Err(err)
-                }
+                error!("PUT[{}] smth wrong with cluster/node configuration", key);
+                error!("PUT[{}] node errors: {:?}", key, errors);
+                Err(err)
             } else {
                 warn!("PUT[{}] succeed, but some data get into alien", key);
                 Ok(())
@@ -82,7 +77,7 @@ impl Quorum {
 
     async fn background_put(
         self,
-        mut rest_tasks: FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>,
+        mut rest_tasks: Tasks,
         key: BobKey,
         data: BobData,
         mut failed_nodes: Vec<String>,
@@ -90,17 +85,15 @@ impl Quorum {
         debug!("PUT[{}] ~~~BACKGROUND PUT TO REMOTE NODES~~~", key);
         while let Some(join_res) = rest_tasks.next().await {
             match join_res {
-                Ok(res) => match res {
-                    Ok(n) => debug!(
-                        "PUT[{}] successful background put to: {}",
-                        key,
-                        n.node_name()
-                    ),
-                    Err(e) => {
-                        error!("{:?}", e);
-                        failed_nodes.push(e.node_name().to_string());
-                    }
-                },
+                Ok(Ok(output)) => debug!(
+                    "PUT[{}] successful background put to: {}",
+                    key,
+                    output.node_name()
+                ),
+                Ok(Err(e)) => {
+                    error!("{:?}", e);
+                    failed_nodes.push(e.node_name().to_string());
+                }
                 Err(e) => error!("{:?}", e),
             }
         }
@@ -115,10 +108,7 @@ impl Quorum {
         key: BobKey,
         data: BobData,
         at_least: usize,
-    ) -> (
-        FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>,
-        Vec<NodeOutput<Error>>,
-    ) {
+    ) -> (Tasks, Vec<NodeOutput<Error>>) {
         let local_node = self.mapper.local_node_name();
         let target_nodes = self.mapper.get_target_nodes_for_key(key);
         debug!(
