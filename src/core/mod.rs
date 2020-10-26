@@ -17,6 +17,8 @@ pub mod metrics;
 pub mod node;
 /// GRPC server to receive and process requests from clients.
 pub mod server;
+/// Component to cleanup memory
+pub(crate) mod cleaner;
 
 pub(crate) use self::error::Error;
 pub(crate) use super::prelude::*;
@@ -62,6 +64,7 @@ mod prelude {
         transport::{Channel, Endpoint},
         Code, Request, Response, Status,
     };
+    pub(crate) use cleaner::Cleaner;
 }
 
 #[cfg(test)]

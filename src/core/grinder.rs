@@ -5,6 +5,7 @@ pub struct Grinder {
     backend: Arc<Backend>,
     link_manager: Arc<LinkManager>,
     cluster: Arc<dyn Cluster + Send + Sync>,
+    cleaner: Arc<Cleaner>,
 }
 
 impl Grinder {
@@ -16,10 +17,13 @@ impl Grinder {
         ));
         let mapper = Arc::new(mapper);
         let backend = Arc::new(Backend::new(mapper.clone(), config));
+        // TODO Add separate field to config
+        let cleaner = Arc::new(Cleaner::new(config.check_interval()));
         Grinder {
             backend: backend.clone(),
             link_manager,
             cluster: get_cluster(mapper, config, backend),
+            cleaner,
         }
     }
 
@@ -139,6 +143,7 @@ impl Grinder {
     #[inline]
     pub(crate) fn run_periodic_tasks(&self, client_factory: Factory) {
         self.link_manager.spawn_checker(client_factory);
+        self.cleaner.spawn_task(self.backend.clone());
     }
 }
 
