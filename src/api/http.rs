@@ -166,17 +166,8 @@ fn vdisks(bob: State<BobServer>) -> Json<Vec<VDisk>> {
 
 #[delete("/blobs/outdated")]
 fn finalize_outdated_blobs(bob: State<BobServer>) -> Result<StatusExt, StatusExt> {
-    let backend = bob.grinder().backend().inner();
-    let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
-    for group in groups {
-        let holders_lock = group.holders();
-        let mut holders_write = runtime().block_on(holders_lock.write());
-        let holders: &mut Vec<_> = holders_write.as_mut();
-        let old_holders: Vec<_> = holders.drain_filter(|h| h.is_outdated()).collect();
-        for mut holder in old_holders {
-            holder.free();
-        }
-    }
+    let backend = bob.grinder().backend();
+    runtime().block_on(backend.cleanup_outdated());
     Ok(StatusExt::new(
         Status::Ok,
         true,

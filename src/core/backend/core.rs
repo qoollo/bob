@@ -296,4 +296,19 @@ impl Backend {
             None
         }
     }
+
+    pub(crate) async fn cleanup_outdated(&self) {
+        let groups = self.inner.vdisks_groups();
+        if let Some(groups) = groups {
+            for group in groups {
+                let holders_lock = group.holders();
+                let mut holders_write = holders_lock.write().await;
+                let holders: &mut Vec<_> = holders_write.as_mut();
+                let old_holders: Vec<_> = holders.drain_filter(|h| h.is_outdated()).collect();
+                for mut holder in old_holders {
+                    holder.free();
+                }
+            }
+        }
+    }
 }
