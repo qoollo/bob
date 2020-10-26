@@ -60,12 +60,16 @@ impl Holder {
         self.start_timestamp <= timestamp && timestamp < self.end_timestamp
     }
 
-    pub(crate) fn is_old(&self) -> bool {
+    pub(crate) fn is_outdated(&self) -> bool {
         let ts = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("current time is before unix epoch")
             .as_secs();
         ts > self.end_timestamp.into()
+    }
+
+    pub(crate) fn free(&mut self) {
+        error!("Holder {} freed", self.get_id());
     }
 
     pub async fn update(&self, storage: Storage<Key>) {

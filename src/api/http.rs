@@ -75,7 +75,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         alien,
         remount_vdisks_group,
         get_local_replica_directories,
-        finalize_old_blobs
+        finalize_outdated_blobs
     ];
     let task = move || {
         info!("API server started");
@@ -164,23 +164,24 @@ fn vdisks(bob: State<BobServer>) -> Json<Vec<VDisk>> {
     Json(vdisks)
 }
 
-#[delete("/vdisks/oldblobs")]
-fn finalize_old_blobs(bob: State<BobServer>) -> Result<StatusExt, StatusExt> {
+#[delete("/blobs/outdated")]
+fn finalize_outdated_blobs(bob: State<BobServer>) -> Result<StatusExt, StatusExt> {
     let backend = bob.grinder().backend().inner();
-    debug!("get backend: OK");
     let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
     for group in groups {
         let holders_lock = group.holders();
-        let holders_read = runtime().block_on(holders_lock.read());
-        let holders: &[_] = holders_read.as_ref();
-        for holder in holders {
-            if holder.is_old() {
-                println!("Holder {:?} is old", holder);
-                todo!("invoke removal");
-            }
+        let mut holders_write = runtime().block_on(holders_lock.write());
+        let holders: &mut Vec<_> = holders_write.as_mut();
+        let old_holders: Vec<_> = holders.drain_filter(|h| h.is_outdated()).collect();
+        for mut holder in old_holders {
+            holder.free();
         }
     }
-    todo!()
+    Ok(StatusExt::new(
+        Status::Ok,
+        true,
+        "Successfully removed outdated blobs".to_string(),
+    ))
 }
 
 #[get("/vdisks/<vdisk_id>")]

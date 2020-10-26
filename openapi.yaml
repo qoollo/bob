@@ -32,15 +32,6 @@ paths:
                   $ref: '#/components/schemas/VDisk'
         default:
           $ref: '#/components/responses/DefaultError'
-  /vdisks/oldblobs:
-    get:
-      summary: Finalize old blobs
-      operationId: finalizeOldBlobs
-      responses: 
-        '200':
-          description: "Successfully finalized blobs"
-        default:
-          $ref: '#/components/responses/DefaultError'
   /vdisks/{VDiskId}:
     get:
       summary: Returns a vdisk info by ID
@@ -149,6 +140,15 @@ paths:
             application/json:
               schema:
                 type: string
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /blobs/outdated:
+    delete:
+      summary: Finalize old blobs
+      operationId: finalizeOldBlobs
+      responses: 
+        '200':
+          description: "Successfully finalized blobs"
         default:
           $ref: '#/components/responses/DefaultError'
   /alien:
