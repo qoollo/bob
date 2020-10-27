@@ -23,6 +23,9 @@ pub struct TestClusterConfiguration {
     ssh_pub_key: String,
     quorum: usize,
     storage_format_type: Option<String>,
+    timestamp_period: String,
+    cleanup_interval: String,
+    max_open_blobs: Option<usize>
 }
 
 impl TestClusterConfiguration {
@@ -206,8 +209,8 @@ impl TestClusterConfiguration {
             )),
             RefCell::default(),
             RefCell::default(),
-            "15sec".to_string(),
-            Some(2)
+            self.cleanup_interval.clone(),
+            self.max_open_blobs,
         );
         (Self::get_node_name(node_index), node)
     }
@@ -229,7 +232,7 @@ impl TestClusterConfiguration {
             BackendSettings::new(
                 "bob".to_string(),
                 "alien".to_string(),
-                "1d".to_string(),
+                self.timestamp_period.clone(),
                 "100ms".to_string(),
             ),
             10,
