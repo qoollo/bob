@@ -345,6 +345,8 @@ pub struct Node {
     bind_ref: RefCell<String>,
     #[serde(skip)]
     disks_ref: RefCell<Vec<DiskPath>>,
+
+    max_open_blobs: Option<usize>,
 }
 
 impl NodeConfig {
@@ -430,6 +432,19 @@ impl NodeConfig {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn max_open_blobs(&self) -> usize {
+        self.max_open_blobs
+            .and_then(|i| {
+                if i == 0 {
+                    error!("max open blobs can't be less than 1");
+                    None
+                } else {
+                    Some(i)
+                }
+            })
+            .unwrap_or(1)
     }
 
     #[cfg(test)]

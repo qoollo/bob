@@ -297,15 +297,21 @@ impl Backend {
         }
     }
 
-    pub(crate) async fn cleanup_outdated(&self) {
+    pub(crate) async fn cleanup_outdated(&self, max_open_blobs: usize) {
         let groups = self.inner.vdisks_groups();
         if let Some(groups) = groups {
             for group in groups {
                 let holders_lock = group.holders();
                 let mut holders_write = holders_lock.write().await;
                 let holders: &mut Vec<_> = holders_write.as_mut();
-                let old_holders: Vec<_> = holders.drain_filter(|h| h.is_outdated()).collect();
-                for mut holder in old_holders {
+                let len = holders.len();
+                let mut old_holders: Vec<_> =
+                    holders.iter_mut().filter(|h| h.is_outdated()).collect();
+                let remove = old_holders
+                    .len()
+                    .saturating_sub(max_open_blobs.saturating_sub(len - old_holders.len()));
+                old_holders.sort_by(|h1, h2| h1.end_timestamp().cmp(&h2.end_timestamp()));
+                for holder in old_holders.iter_mut().take(remove) {
                     holder.free();
                 }
             }

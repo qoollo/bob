@@ -35,6 +35,10 @@ impl Holder {
         self.start_timestamp
     }
 
+    pub(crate) fn end_timestamp(&self) -> u64 {
+        self.end_timestamp
+    }
+
     pub(crate) fn get_id(&self) -> String {
         self.disk_path
             .file_name()

@@ -5,7 +5,6 @@ use bob::configs::node::BackendSettings;
 use bob::configs::{Cluster, ClusterNode, MetricsConfig, Node, Pearl, Replica, VDisk};
 use bob::DiskPath;
 use filesystem_constants::DockerFSConstants;
-use std::cmp::max;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::error::Error;
@@ -207,6 +206,7 @@ impl TestClusterConfiguration {
             )),
             RefCell::default(),
             RefCell::default(),
+            Some(2)
         );
         (Self::get_node_name(node_index), node)
     }
