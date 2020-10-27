@@ -206,6 +206,7 @@ impl TestClusterConfiguration {
             )),
             RefCell::default(),
             RefCell::default(),
+            "15sec".to_string(),
             Some(2)
         );
         (Self::get_node_name(node_index), node)

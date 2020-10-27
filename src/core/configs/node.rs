@@ -346,6 +346,7 @@ pub struct Node {
     #[serde(skip)]
     disks_ref: RefCell<Vec<DiskPath>>,
 
+    cleanup_interval: String,
     max_open_blobs: Option<usize>,
 }
 
@@ -432,6 +433,13 @@ impl NodeConfig {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn cleanup_interval(&self) -> Duration {
+        self.cleanup_interval
+            .parse::<HumanDuration>()
+            .expect("parse humantime duration")
+            .into()
     }
 
     pub(crate) fn max_open_blobs(&self) -> usize {
