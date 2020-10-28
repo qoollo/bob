@@ -72,8 +72,10 @@ impl Holder {
         ts > self.end_timestamp.into()
     }
 
-    pub(crate) fn free(&mut self) {
-        error!("Holder {} freed", self.get_id());
+    pub(crate) async fn close_active_blob(&mut self) {
+        let storage = self.storage.write().await;
+        storage.storage().close_active_blob().await;
+        warn!("Active blob of {} closed", self.get_id());
     }
 
     pub async fn update(&self, storage: Storage<Key>) {

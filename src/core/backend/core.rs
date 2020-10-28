@@ -312,7 +312,7 @@ impl Backend {
                     .saturating_sub(max_open_blobs.saturating_sub(len - old_holders.len()));
                 old_holders.sort_by(|h1, h2| h1.end_timestamp().cmp(&h2.end_timestamp()));
                 for holder in old_holders.iter_mut().take(remove) {
-                    holder.free();
+                    holder.close_active_blob().await;
                 }
             }
         }
