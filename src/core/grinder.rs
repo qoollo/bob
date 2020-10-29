@@ -17,7 +17,6 @@ impl Grinder {
         ));
         let mapper = Arc::new(mapper);
         let backend = Arc::new(Backend::new(mapper.clone(), config));
-        // TODO Add separate field to config
         let cleaner = Arc::new(Cleaner::new(
             config.cleanup_interval(),
             config.max_open_blobs(),

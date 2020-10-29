@@ -17,7 +17,7 @@ pub mod metrics;
 pub mod node;
 /// GRPC server to receive and process requests from clients.
 pub mod server;
-/// Component to cleanup memory
+/// Component for cleaning up memory
 pub(crate) mod cleaner;
 
 pub(crate) use self::error::Error;
