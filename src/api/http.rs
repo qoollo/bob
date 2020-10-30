@@ -74,7 +74,8 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         delete_partition,
         alien,
         remount_vdisks_group,
-        get_local_replica_directories
+        get_local_replica_directories,
+        nodes
     ];
     let task = move || {
         info!("API server started");
@@ -155,6 +156,22 @@ fn status(bob: State<BobServer>) -> Json<Node> {
         vdisks,
     };
     Json(node)
+}
+
+#[get("/nodes")]
+fn nodes(bob: State<BobServer>) -> Json<Vec<Node>> {
+    let mapper = bob.grinder().backend().mapper();
+    let mut nodes = vec![];
+    for node in mapper.nodes().values() {
+        let node = Node {
+            name: node.name().to_string(),
+            address: node.address().to_string(),
+            vdisks: vec![]
+        };
+
+        nodes.push(node);
+    }
+    Json(nodes)
 }
 
 #[get("/vdisks")]
