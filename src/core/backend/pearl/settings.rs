@@ -132,8 +132,8 @@ impl Settings {
     }
 
     fn try_parse_node_name(&self, entry: DirEntry) -> BackendResult<(DirEntry, String)> {
-        let file_name = entry.file_name().into_string().map_err(|_| {
-            error!("cannot parse file name: {:?}", entry);
+        let file_name = entry.file_name().into_string().map_err(|e| {
+            error!("cannot parse file name: {:?}, {:?}", entry, e);
             Error::failed(format!("cannot parse file name: {:?}", entry))
         })?;
         if self

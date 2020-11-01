@@ -59,6 +59,7 @@ impl MemDisk {
     pub(crate) async fn get(&self, vdisk_id: VDiskID, key: BobKey) -> Result<BobData, Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             debug!("GET[{}] from: {} for disk: {}", key, vdisk_id, self.name);
+            debug!("{:?}", *vdisk.inner.read().await);
             vdisk.get(key).await
         } else {
             debug!("GET[{}] Cannot find vdisk for disk: {}", key, self.name);
@@ -73,10 +74,10 @@ impl MemDisk {
         data: BobData,
     ) -> Result<(), Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
-            trace!("PUT[{}] to vdisk: {} for: {}", key, vdisk_id, self.name);
+            debug!("PUT[{}] to vdisk: {} for: {}", key, vdisk_id, self.name);
             vdisk.put(key, data).await
         } else {
-            trace!("PUT[{}] Cannot find vdisk for disk: {}", key, self.name);
+            debug!("PUT[{}] Cannot find vdisk for disk: {}", key, self.name);
             Err(Error::internal())
         }
     }

@@ -1,3 +1,5 @@
+use std::fs::ReadDir;
+
 use super::prelude::*;
 use backend::NodeDisk;
 
@@ -279,27 +281,7 @@ fn delete_partition(
     let group = find_group(&bob, vdisk_id)?;
     let pearls = futures::executor::block_on(group.detach(timestamp));
     if let Ok(holders) = pearls {
-        let mut result = String::new();
-        for holder in holders {
-            if let Err(e) = holder.drop_directory() {
-                let msg = format!(
-                    "partitions with timestamp {} delete failed on vdisk {}, error: {}",
-                    timestamp, vdisk_id, e
-                );
-                result.push_str(&msg);
-            } else {
-                result.push_str(&format!(
-                    "successfully deleted partitions with timestamp {}",
-                    timestamp
-                ));
-            }
-            result.push('\n');
-        }
-        if result.is_empty() {
-            Ok(StatusExt::new(Status::Ok, true, result))
-        } else {
-            Err(StatusExt::new(Status::InternalServerError, true, result))
-        }
+        drop_directories(holders, timestamp, vdisk_id)
     } else {
         Err(StatusExt::new(
             Status::BadRequest,
@@ -309,6 +291,34 @@ fn delete_partition(
                 timestamp, vdisk_id
             ),
         ))
+    }
+}
+
+fn drop_directories(
+    holders: Vec<Holder>,
+    timestamp: u64,
+    vdisk_id: u32,
+) -> Result<StatusExt, StatusExt> {
+    let mut result = String::new();
+    for holder in holders {
+        if let Err(e) = holder.drop_directory() {
+            let msg = format!(
+                "partitions with timestamp {} delete failed on vdisk {}, error: {}",
+                timestamp, vdisk_id, e
+            );
+            result.push_str(&msg);
+        } else {
+            result.push_str(&format!(
+                "successfully deleted partitions with timestamp {}",
+                timestamp
+            ));
+        }
+        result.push('\n');
+    }
+    if result.is_empty() {
+        Ok(StatusExt::new(Status::Ok, true, result))
+    } else {
+        Err(StatusExt::new(Status::InternalServerError, true, result))
     }
 }
 
@@ -355,27 +365,31 @@ fn create_directory(root_path: &Path) -> Option<Dir> {
     let result = std::fs::read_dir(root_path);
     match result {
         Ok(read_dir) => {
-            let children = read_dir
-                .filter_map(Result::ok)
-                .filter_map(|child| {
-                    if child.path().is_dir() {
-                        create_directory(&child.path())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            Some(Dir {
-                name: name.to_string(),
-                path: root_path_str.to_string(),
-                children,
-            })
+            read_directory_children(read_dir, name.to_string(), root_path_str.to_string())
         }
         Err(e) => {
             error!("read path {:?} failed: {}", root_path, e);
             None
         }
     }
+}
+
+fn read_directory_children(read_dir: ReadDir, name: String, path: String) -> Option<Dir> {
+    let children = read_dir
+        .filter_map(Result::ok)
+        .filter_map(|child| {
+            if child.path().is_dir() {
+                create_directory(&child.path())
+            } else {
+                None
+            }
+        })
+        .collect();
+    Some(Dir {
+        name,
+        path,
+        children,
+    })
 }
 
 impl<'r> FromParam<'r> for Action {

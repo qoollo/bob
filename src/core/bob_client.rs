@@ -87,37 +87,38 @@ pub(crate) mod b_client {
                 options: Some(options),
             };
             let request = Request::new(message);
-            let res = timeout(self.operation_timeout, client.get(request))
-                .await
-                .map_err(|_| NodeOutput::new(node_name.clone(), Error::timeout()))?;
-            res.map(|r| {
-                self.metrics.get_timer_stop(timer);
-                let ans = r.into_inner();
-                let meta = BobMeta::new(ans.meta.expect("get blob meta").timestamp);
-                let inner = BobData::new(ans.data, meta);
-                NodeOutput::new(node_name.clone(), inner)
-            })
-            .map_err(|e| {
-                self.metrics.get_error_count();
-                self.metrics.get_timer_stop(timer);
-                NodeOutput::new(node_name, Error::from(e))
-            })
+            let result = timeout(self.operation_timeout, client.get(request)).await;
+            match result {
+                Ok(Ok(data)) => {
+                    self.metrics.get_timer_stop(timer);
+                    let ans = data.into_inner();
+                    let meta = BobMeta::new(ans.meta.expect("get blob meta").timestamp);
+                    let inner = BobData::new(ans.data, meta);
+                    Ok(NodeOutput::new(node_name.clone(), inner))
+                }
+                Ok(Err(e)) => {
+                    self.metrics.get_error_count();
+                    self.metrics.get_timer_stop(timer);
+                    Err(NodeOutput::new(node_name, Error::from(e)))
+                }
+                Err(_) => Err(NodeOutput::new(node_name.clone(), Error::timeout())),
+            }
         }
 
         #[allow(dead_code)]
         pub(crate) async fn ping(&self) -> PingResult {
             let mut client = self.client.clone();
-            if let Ok(res) =
-                timeout(self.operation_timeout, client.ping(Request::new(Null {}))).await
-            {
-                res.map(|_| NodeOutput::new(self.node.name().to_owned(), ()))
-                    .map_err(|_| NodeOutput::new(self.node.name().to_owned(), Error::timeout()))
-            } else {
-                warn!("node {} ping timeout, reset connection", self.node.name());
-                Err(NodeOutput::new(
-                    self.node.name().to_owned(),
-                    Error::timeout(),
-                ))
+            let result = timeout(self.operation_timeout, client.ping(Request::new(Null {}))).await;
+            match result {
+                Ok(Ok(_)) => Ok(NodeOutput::new(self.node.name().to_owned(), ())),
+                Ok(Err(e)) => Err(NodeOutput::new(self.node.name().to_owned(), Error::from(e))),
+                Err(_) => {
+                    warn!("node {} ping timeout, reset connection", self.node.name());
+                    Err(NodeOutput::new(
+                        self.node.name().to_owned(),
+                        Error::timeout(),
+                    ))
+                }
             }
         }
 

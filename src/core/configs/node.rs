@@ -479,14 +479,14 @@ impl Validatable for NodeConfig {
         }
         self.operation_timeout
             .parse::<HumanDuration>()
-            .map_err(|_| {
+            .map_err(|e| {
                 let msg = "field \'timeout\' for \'config\' is not valid".to_string();
-                error!("{}", msg);
+                error!("{}, {}", msg, e);
                 msg
             })?;
-        self.check_interval.parse::<HumanDuration>().map_err(|_| {
+        self.check_interval.parse::<HumanDuration>().map_err(|e| {
             let msg = "field \'check_interval\' for \'config\' is not valid".to_string();
-            error!("{}", msg);
+            error!("{}, {}", msg, e);
             msg
         })?;
         if self.name.is_empty() {
