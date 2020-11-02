@@ -26,7 +26,7 @@ impl Cleaner {
         let mut interval = interval(t);
         loop {
             interval.tick().await;
-            backend.cleanup_outdated(max_open_blobs).await;
+            backend.close_outdated(max_open_blobs).await;
         }
     }
 }

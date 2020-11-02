@@ -166,8 +166,11 @@ fn vdisks(bob: State<BobServer>) -> Json<Vec<VDisk>> {
 
 #[delete("/blobs/outdated")]
 fn finalize_outdated_blobs(bob: State<BobServer>) -> Result<StatusExt, StatusExt> {
-    let backend = bob.grinder().backend();
-    runtime().block_on(backend.cleanup_outdated(1));
+    let bob = bob.clone();
+    runtime().spawn(async move {
+        let backend = bob.grinder().backend();
+        backend.close_outdated(1).await;
+    });
     Ok(StatusExt::new(
         Status::Ok,
         true,

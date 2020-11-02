@@ -297,7 +297,7 @@ impl Backend {
         }
     }
 
-    pub(crate) async fn cleanup_outdated(&self, max: usize) {
+    pub(crate) async fn close_outdated(&self, max: usize) {
         let groups = self.inner.vdisks_groups();
         if let Some(groups) = groups {
             for group in groups {
@@ -306,11 +306,16 @@ impl Backend {
                 let holders: &mut Vec<_> = holders_write.as_mut();
 
                 let len = holders.len();
-                let mut old: Vec<_> = holders.iter_mut().filter(|h| h.is_outdated()).collect();
+                let mut close = vec![];
+                for h in holders.iter_mut() {
+                    if h.should_be_closed().await {
+                        close.push(h);
+                    }
+                }
                 let remove = len.saturating_sub(max);
-                old.sort_by(|h1, h2| h1.end_timestamp().cmp(&h2.end_timestamp()));
+                close.sort_by(|h1, h2| h1.end_timestamp().cmp(&h2.end_timestamp()));
 
-                for holder in old.iter_mut().take(remove) {
+                for holder in close.iter_mut().take(remove) {
                     holder.close_active_blob().await;
                 }
             }

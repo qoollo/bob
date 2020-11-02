@@ -2,6 +2,8 @@ use std::time::UNIX_EPOCH;
 
 use super::prelude::*;
 
+const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
+
 /// Struct hold pearl and add put/get/restart api
 #[derive(Clone, Debug)]
 pub(crate) struct Holder {
@@ -11,6 +13,7 @@ pub(crate) struct Holder {
     disk_path: PathBuf,
     config: PearlConfig,
     storage: Arc<RwLock<PearlSync>>,
+    last_write_ts: Arc<RwLock<u64>>,
 }
 
 impl Holder {
@@ -28,6 +31,7 @@ impl Holder {
             disk_path,
             config,
             storage: Arc::new(RwLock::new(PearlSync::new())),
+            last_write_ts: Arc::new(RwLock::new(0)),
         }
     }
 
@@ -64,12 +68,17 @@ impl Holder {
         self.start_timestamp <= timestamp && timestamp < self.end_timestamp
     }
 
-    pub(crate) fn is_outdated(&self) -> bool {
-        let ts = SystemTime::now()
+    pub(crate) async fn should_be_closed(&self) -> bool {
+        let ts = Self::get_current_ts();
+        let last_write_ts = *self.last_write_ts.read().await;
+        ts > self.end_timestamp.into() && ts - last_write_ts > MAX_TIME_SINCE_LAST_WRITE_SEC
+    }
+
+    fn get_current_ts() -> u64 {
+        SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("current time is before unix epoch")
-            .as_secs();
-        ts > self.end_timestamp.into()
+            .as_secs()
     }
 
     pub(crate) async fn close_active_blob(&mut self) {
@@ -93,6 +102,7 @@ impl Holder {
 
         if state.is_ready() {
             let storage = state.get();
+            *self.last_write_ts.write().await = Self::get_current_ts();
             trace!("Vdisk: {}, write key: {}", self.vdisk, key);
             Self::write_disk(storage, Key::from(key), data.clone()).await
         } else {
