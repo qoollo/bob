@@ -14,13 +14,13 @@ pub(crate) struct Node {
     vdisks: Vec<VDisk>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct VDisk {
     id: u32,
     replicas: Vec<Replica>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct Replica {
     node: String,
     disk: String,
@@ -162,11 +162,22 @@ fn status(bob: State<BobServer>) -> Json<Node> {
 fn nodes(bob: State<BobServer>) -> Json<Vec<Node>> {
     let mapper = bob.grinder().backend().mapper();
     let mut nodes = vec![];
+    let vdisks = collect_disks_info(&bob);
     for node in mapper.nodes().values() {
+        let vdisks: Vec<VDisk> = vdisks
+            .iter()
+            .cloned()
+            .map(|mut vd| {
+                vd.replicas.drain_filter(|r| r.node != node.name());
+                vd
+            })
+            .filter(|vd| !vd.replicas.is_empty())
+            .collect();
+
         let node = Node {
             name: node.name().to_string(),
             address: node.address().to_string(),
-            vdisks: vec![]
+            vdisks
         };
 
         nodes.push(node);
