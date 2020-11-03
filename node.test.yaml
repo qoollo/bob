@@ -5,7 +5,7 @@ operation_timeout: 3sec            # timeout for every GRPC operation, eg: [1y 2
 check_interval: 5000ms             # interval for checking connections , eg: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
 cluster_policy: simple             # simple - without checking status [simple, quorum]
 backend_type: pearl                # type of the backend [in_memory, stub, pearl]
-cleanup_interval: 15sec            # interval for checking for blobs cleanup
+cleanup_interval: 1h            # interval for checking for blobs cleanup
 open_blobs_soft_limit: 2           # soft limit for count of max blobs to remain in ram
 open_blobs_hard_limit: 10          # hard limit for count of max blobs to remain in ram
 
