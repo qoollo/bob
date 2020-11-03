@@ -3,6 +3,7 @@ use std::time::UNIX_EPOCH;
 use super::prelude::*;
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
+const SMALL_RECORDS_COUNT_MUL: u64 = 10;
 
 /// Struct hold pearl and add put/get/restart api
 #[derive(Clone, Debug)]
@@ -68,10 +69,25 @@ impl Holder {
         self.start_timestamp <= timestamp && timestamp < self.end_timestamp
     }
 
-    pub(crate) async fn should_be_closed(&self) -> bool {
+    pub(crate) fn is_outdated(&self) -> bool {
+        let ts = Self::get_current_ts();
+        ts > self.end_timestamp.into()
+    }
+
+    pub(crate) async fn no_writes_recently(&self) -> bool {
         let ts = Self::get_current_ts();
         let last_write_ts = *self.last_write_ts.read().await;
-        ts > self.end_timestamp.into() && ts - last_write_ts > MAX_TIME_SINCE_LAST_WRITE_SEC
+        ts - last_write_ts > MAX_TIME_SINCE_LAST_WRITE_SEC
+    }
+
+    pub(crate) async fn active_blob_is_empty(&self) -> bool {
+        let active = self.storage().read().await.active_blob_records_count().await as u64;
+        active == 0
+    }
+
+    pub(crate) async fn active_blob_is_small(&self) -> bool {
+        let active = self.storage().read().await.active_blob_records_count().await as u64;
+        active * SMALL_RECORDS_COUNT_MUL < self.config.max_data_in_blob()
     }
 
     fn get_current_ts() -> u64 {
@@ -301,6 +317,10 @@ impl PearlSync {
 
     pub(crate) async fn records_count(&self) -> usize {
         self.storage().records_count().await
+    }
+
+    pub(crate) async fn active_blob_records_count(&self) -> usize {
+        self.storage().records_count_in_active_blob().await.unwrap_or_default()
     }
 
     #[inline]

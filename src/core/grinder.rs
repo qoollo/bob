@@ -19,7 +19,8 @@ impl Grinder {
         let backend = Arc::new(Backend::new(mapper.clone(), config));
         let cleaner = Arc::new(Cleaner::new(
             config.cleanup_interval(),
-            config.max_open_blobs(),
+            config.open_blobs_soft(),
+            config.hard_open_blobs(),
         ));
         Grinder {
             backend: backend.clone(),

@@ -3,14 +3,20 @@ use std::time::Duration;
 
 pub(crate) struct Cleaner {
     old_blobs_check_timeout: Duration,
-    max_open_blobs: usize,
+    soft_open_blobs: usize,
+    hard_open_blobs: usize,
 }
 
 impl Cleaner {
-    pub(crate) fn new(old_blobs_check_timeout: Duration, max_open_blobs: usize) -> Self {
+    pub(crate) fn new(
+        old_blobs_check_timeout: Duration,
+        soft_open_blobs: usize,
+        hard_open_blobs: usize,
+    ) -> Self {
         Self {
             old_blobs_check_timeout,
-            max_open_blobs,
+            soft_open_blobs,
+            hard_open_blobs,
         }
     }
 
@@ -18,15 +24,16 @@ impl Cleaner {
         tokio::spawn(Self::task(
             backend,
             self.old_blobs_check_timeout,
-            self.max_open_blobs,
+            self.soft_open_blobs,
+            self.hard_open_blobs,
         ));
     }
 
-    async fn task(backend: Arc<Backend>, t: Duration, max_open_blobs: usize) {
+    async fn task(backend: Arc<Backend>, t: Duration, soft: usize, hard: usize) {
         let mut interval = interval(t);
         loop {
             interval.tick().await;
-            backend.close_outdated(max_open_blobs).await;
+            backend.close_unneeded_active_blobs(soft, hard).await;
         }
     }
 }

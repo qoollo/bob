@@ -347,7 +347,8 @@ pub struct Node {
     disks_ref: RefCell<Vec<DiskPath>>,
 
     cleanup_interval: String,
-    max_open_blobs: Option<usize>,
+    open_blobs_soft_limit: Option<usize>,
+    open_blobs_hard_limit: Option<usize>,
 }
 
 impl NodeConfig {
@@ -442,17 +443,30 @@ impl NodeConfig {
             .into()
     }
 
-    pub(crate) fn max_open_blobs(&self) -> usize {
-        self.max_open_blobs
+    pub(crate) fn open_blobs_soft(&self) -> usize {
+        self.open_blobs_soft_limit
             .and_then(|i| {
                 if i == 0 {
-                    error!("max open blobs can't be less than 1");
+                    error!("soft open blobs limit can't be less than 1");
                     None
                 } else {
                     Some(i)
                 }
             })
             .unwrap_or(1)
+    }
+
+    pub(crate) fn hard_open_blobs(&self) -> usize {
+        self.open_blobs_hard_limit
+            .and_then(|i| {
+                if i == 0 {
+                    error!("hard open blobs limit can't be less than 1");
+                    None
+                } else {
+                    Some(i)
+                }
+            })
+            .unwrap_or(10)
     }
 
     #[cfg(test)]

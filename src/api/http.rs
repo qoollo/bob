@@ -169,7 +169,7 @@ fn finalize_outdated_blobs(bob: State<BobServer>) -> Result<StatusExt, StatusExt
     let bob = bob.clone();
     runtime().spawn(async move {
         let backend = bob.grinder().backend();
-        backend.close_outdated(1).await;
+        backend.close_unneeded_active_blobs(1, 1).await;
     });
     Ok(StatusExt::new(
         Status::Ok,

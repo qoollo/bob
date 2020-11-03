@@ -26,6 +26,10 @@ check_interval: 5000ms
 cluster_policy: quorum
 # type of the backend [in_memory, stub, pearl]
 backend_type: pearl
+# soft limit for count of max blobs to remain in ram
+open_blobs_soft_limit: 2
+# hard limit for count of max blobs to remain in ram
+open_blobs_hard_limit: 10
 
 # used only for 'backend_type: pearl'
 pearl:
