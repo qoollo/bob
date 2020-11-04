@@ -1,4 +1,9 @@
+use std::time::UNIX_EPOCH;
+
 use super::prelude::*;
+
+const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
+const SMALL_RECORDS_COUNT_MUL: u64 = 10;
 
 /// Struct hold pearl and add put/get/restart api
 #[derive(Clone, Debug)]
@@ -9,6 +14,7 @@ pub(crate) struct Holder {
     disk_path: PathBuf,
     config: PearlConfig,
     storage: Arc<RwLock<PearlSync>>,
+    last_write_ts: Arc<RwLock<u64>>,
 }
 
 impl Holder {
@@ -26,11 +32,16 @@ impl Holder {
             disk_path,
             config,
             storage: Arc::new(RwLock::new(PearlSync::new())),
+            last_write_ts: Arc::new(RwLock::new(0)),
         }
     }
 
     pub(crate) fn start_timestamp(&self) -> u64 {
         self.start_timestamp
+    }
+
+    pub(crate) fn end_timestamp(&self) -> u64 {
+        self.end_timestamp
     }
 
     pub(crate) fn get_id(&self) -> String {
@@ -58,6 +69,40 @@ impl Holder {
         self.start_timestamp <= timestamp && timestamp < self.end_timestamp
     }
 
+    pub(crate) fn is_outdated(&self) -> bool {
+        let ts = Self::get_current_ts();
+        ts > self.end_timestamp.into()
+    }
+
+    pub(crate) async fn no_writes_recently(&self) -> bool {
+        let ts = Self::get_current_ts();
+        let last_write_ts = *self.last_write_ts.read().await;
+        ts - last_write_ts > MAX_TIME_SINCE_LAST_WRITE_SEC
+    }
+
+    pub(crate) async fn active_blob_is_empty(&self) -> bool {
+        let active = self.storage().read().await.active_blob_records_count().await as u64;
+        active == 0
+    }
+
+    pub(crate) async fn active_blob_is_small(&self) -> bool {
+        let active = self.storage().read().await.active_blob_records_count().await as u64;
+        active * SMALL_RECORDS_COUNT_MUL < self.config.max_data_in_blob()
+    }
+
+    fn get_current_ts() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("current time is before unix epoch")
+            .as_secs()
+    }
+
+    pub(crate) async fn close_active_blob(&mut self) {
+        let storage = self.storage.write().await;
+        storage.storage().close_active_blob().await;
+        warn!("Active blob of {} closed", self.get_id());
+    }
+
     pub async fn update(&self, storage: Storage<Key>) {
         let mut st = self.storage.write().await;
         st.set(storage.clone());
@@ -73,6 +118,7 @@ impl Holder {
 
         if state.is_ready() {
             let storage = state.get();
+            *self.last_write_ts.write().await = Self::get_current_ts();
             trace!("Vdisk: {}, write key: {}", self.vdisk, key);
             Self::write_disk(storage, Key::from(key), data.clone()).await
         } else {
@@ -271,6 +317,10 @@ impl PearlSync {
 
     pub(crate) async fn records_count(&self) -> usize {
         self.storage().records_count().await
+    }
+
+    pub(crate) async fn active_blob_records_count(&self) -> usize {
+        self.storage().records_count_in_active_blob().await.unwrap_or_default()
     }
 
     #[inline]

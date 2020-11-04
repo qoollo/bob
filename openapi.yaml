@@ -142,6 +142,15 @@ paths:
                 type: string
         default:
           $ref: '#/components/responses/DefaultError'
+  /blobs/outdated:
+    delete:
+      summary: Close active blobs of holders not used recently
+      operationId: finalizeOldBlobs
+      responses: 
+        '200':
+          description: "Successfully finalized blobs"
+        default:
+          $ref: '#/components/responses/DefaultError'
   /alien:
     get:
       summary: Returns an alien dir info

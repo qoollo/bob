@@ -345,6 +345,10 @@ pub struct Node {
     bind_ref: RefCell<String>,
     #[serde(skip)]
     disks_ref: RefCell<Vec<DiskPath>>,
+
+    cleanup_interval: String,
+    open_blobs_soft_limit: Option<usize>,
+    open_blobs_hard_limit: Option<usize>,
 }
 
 impl NodeConfig {
@@ -430,6 +434,39 @@ impl NodeConfig {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn cleanup_interval(&self) -> Duration {
+        self.cleanup_interval
+            .parse::<HumanDuration>()
+            .expect("parse humantime duration")
+            .into()
+    }
+
+    pub(crate) fn open_blobs_soft(&self) -> usize {
+        self.open_blobs_soft_limit
+            .and_then(|i| {
+                if i == 0 {
+                    error!("soft open blobs limit can't be less than 1");
+                    None
+                } else {
+                    Some(i)
+                }
+            })
+            .unwrap_or(1)
+    }
+
+    pub(crate) fn hard_open_blobs(&self) -> usize {
+        self.open_blobs_hard_limit
+            .and_then(|i| {
+                if i == 0 {
+                    error!("hard open blobs limit can't be less than 1");
+                    None
+                } else {
+                    Some(i)
+                }
+            })
+            .unwrap_or(10)
     }
 
     #[cfg(test)]

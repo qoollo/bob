@@ -13,3 +13,11 @@ quorum: 2
 # n# - place # disks on each node, cyclic
 # default - place all disks on all nodes
 storage_format_type: "n1"
+# Timestamp period for nodes
+timestamp_period: "15sec"
+# Cleanup interval for nodes
+cleanup_interval: "15sec"
+# Soft limit for open blobs
+open_blobs_soft_limit: 2
+# Hard limit for open blobs
+open_blobs_hard_limit: 2

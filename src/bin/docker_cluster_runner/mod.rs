@@ -5,7 +5,6 @@ use bob::configs::node::BackendSettings;
 use bob::configs::{Cluster, ClusterNode, MetricsConfig, Node, Pearl, Replica, VDisk};
 use bob::DiskPath;
 use filesystem_constants::DockerFSConstants;
-use std::cmp::max;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::error::Error;
@@ -24,6 +23,10 @@ pub struct TestClusterConfiguration {
     ssh_pub_key: String,
     quorum: usize,
     storage_format_type: Option<String>,
+    timestamp_period: String,
+    cleanup_interval: String,
+    open_blobs_soft_limit: Option<usize>,
+    open_blobs_hard_limit: Option<usize>,
 }
 
 impl TestClusterConfiguration {
@@ -107,7 +110,7 @@ impl TestClusterConfiguration {
     }
 
     fn get_ulimits() -> ULimits {
-        ULimits::new(4194304)
+        ULimits::new(4194304000, FileLimits::new(98304, 98304))
     }
 
     fn get_security_opts(fs_configuration: &FSConfiguration) -> Result<Vec<SecurityOpt>> {
@@ -178,10 +181,7 @@ impl TestClusterConfiguration {
     }
 
     fn get_docker_command(node: u32) -> String {
-        let command = format!(
-            "cluster.yaml {}.yaml",
-            Self::get_node_name(node)
-        );
+        let command = format!("cluster.yaml {}.yaml", Self::get_node_name(node));
         command
     }
 
@@ -207,6 +207,9 @@ impl TestClusterConfiguration {
             )),
             RefCell::default(),
             RefCell::default(),
+            self.cleanup_interval.clone(),
+            self.open_blobs_soft_limit,
+            self.open_blobs_hard_limit
         );
         (Self::get_node_name(node_index), node)
     }
@@ -228,7 +231,7 @@ impl TestClusterConfiguration {
             BackendSettings::new(
                 "bob".to_string(),
                 "alien".to_string(),
-                "1d".to_string(),
+                self.timestamp_period.clone(),
                 "100ms".to_string(),
             ),
             10,

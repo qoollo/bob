@@ -76,7 +76,8 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         delete_partition,
         alien,
         remount_vdisks_group,
-        get_local_replica_directories
+        get_local_replica_directories,
+        finalize_outdated_blobs
     ];
     let task = move || {
         info!("API server started");
@@ -163,6 +164,20 @@ fn status(bob: State<BobServer>) -> Json<Node> {
 fn vdisks(bob: State<BobServer>) -> Json<Vec<VDisk>> {
     let vdisks = collect_disks_info(&bob);
     Json(vdisks)
+}
+
+#[delete("/blobs/outdated")]
+fn finalize_outdated_blobs(bob: State<BobServer>) -> Result<StatusExt, StatusExt> {
+    let bob = bob.clone();
+    runtime().spawn(async move {
+        let backend = bob.grinder().backend();
+        backend.close_unneeded_active_blobs(1, 1).await;
+    });
+    Ok(StatusExt::new(
+        Status::Ok,
+        true,
+        "Successfully removed outdated blobs".to_string(),
+    ))
 }
 
 #[get("/vdisks/<vdisk_id>")]
