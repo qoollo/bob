@@ -209,7 +209,7 @@ impl TestClusterConfiguration {
             RefCell::default(),
             self.cleanup_interval.clone(),
             self.open_blobs_soft_limit,
-            self.open_blobs_hard_limit
+            self.open_blobs_hard_limit,
         );
         (Self::get_node_name(node_index), node)
     }
@@ -354,8 +354,18 @@ mod tests {
 
     #[test]
     fn creates_cluster_configuration_for_two_nodes() {
-        let configuration =
-            TestClusterConfiguration::new(2, 2, "warn".to_string(), String::new(), 0);
+        let configuration = TestClusterConfiguration::new(
+            2,
+            2,
+            "warn".to_string(),
+            String::new(),
+            0,
+            None,
+            "1d".to_string(),
+            "1d".to_string(),
+            None,
+            None,
+        );
         let cluster = configuration.create_cluster();
         assert_eq!(cluster.nodes().len(), 2, "wrong nodes count");
         assert_eq!(cluster.vdisks().len(), 2, "wrong vdisks count");

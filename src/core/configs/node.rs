@@ -566,6 +566,9 @@ pub(crate) mod tests {
             metrics: None,
             bind_ref: RefCell::default(),
             disks_ref: RefCell::default(),
+            cleanup_interval: "1d".to_string(),
+            open_blobs_soft_limit: None,
+            open_blobs_hard_limit: None,
         }
     }
 }

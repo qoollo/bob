@@ -35,6 +35,7 @@ operation_timeout: 3sec
 check_interval: 5000ms
 cluster_policy: quorum             # quorum
 backend_type: pearl                # in_memory, stub, pearl
+cleanup_interval: 1d
 pearl:                             # used only for 'backend_type: pearl'
   max_blob_size: 10000000          # size in bytes. required for 'pearl'
   max_data_in_blob: 10000          # optional
