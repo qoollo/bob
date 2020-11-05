@@ -17,6 +17,8 @@ pub mod metrics;
 pub mod node;
 /// GRPC server to receive and process requests from clients.
 pub mod server;
+/// Component for cleaning up memory
+pub(crate) mod cleaner;
 
 pub(crate) use self::error::Error;
 pub(crate) use super::prelude::*;
@@ -56,12 +58,13 @@ mod prelude {
     pub(crate) use termion::color;
     pub(crate) use tokio::{
         net::lookup_host,
-        time::{interval, delay_for, timeout},
+        time::{delay_for, interval, timeout},
     };
     pub(crate) use tonic::{
         transport::{Channel, Endpoint},
         Code, Request, Response, Status,
     };
+    pub(crate) use cleaner::Cleaner;
 }
 
 #[cfg(test)]

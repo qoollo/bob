@@ -342,7 +342,7 @@ impl Group {
             if let Ok(file_name) = entry
                 .file_name()
                 .into_string()
-                .map_err(|_| warn!("cannot parse file name: {:?}", entry))
+                .map_err(|e| warn!("cannot parse file name: {:?}, {:?}", entry, e))
             {
                 let partition_name = PartitionName::try_from_string(&file_name);
                 if let Some(partition_name) = partition_name {
@@ -431,7 +431,7 @@ impl PartitionName {
             let hash_string = iter.next().unwrap_or("");
             timestamp_string
                 .parse()
-                .map_err(|_| warn!("failed to parse timestamp"))
+                .map_err(|e| warn!("failed to parse timestamp, {:?}", e))
                 .ok()
                 .map(|timestamp| Self {
                     timestamp,

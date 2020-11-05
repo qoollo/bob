@@ -1,13 +1,12 @@
 [package]
 name = "bob"
-version = "1.5.0-alpha.15"
+version = "1.5.0-alpha.16"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
 [dependencies]
 anyhow = "1.0.33"
 http = "0.2.1"
-pearl = "=0.5.2"
 futures = { version = "0.3.6", features = ["thread-pool"] }
 serde = "1.0"
 serde_derive = "1.0"
@@ -43,9 +42,14 @@ lazy_static = "1.4.0"
 thiserror = "1.0"
 
 [dependencies.tokio]
-version = "0.2"
+version = "0.2.22"
 features = ["full"]
+# default_features = false
+# features = ["macros", "net", "rt", "rt-multi-thread", "sync", "time"]
 
+[dependencies.pearl]
+git = "http://github.com/qoollo/pearl"
+branch = "tokio-v0.2"
 
 [build-dependencies]
 tonic-build = "0.3.1"

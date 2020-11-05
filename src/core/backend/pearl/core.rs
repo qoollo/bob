@@ -6,7 +6,7 @@ pub(crate) type PearlStorage = Storage<Key>;
 #[derive(Clone, Debug)]
 pub(crate) struct Pearl {
     settings: Arc<Settings>,
-    vdisks_groups: Arc<Vec<Group>>,
+    vdisks_groups: Arc<[Group]>,
     alien_vdisks_groups: Arc<RwLock<Vec<Group>>>,
     pearl_sync: Arc<SyncState>, // holds state when we create new alien pearl dir
     node_name: String,
@@ -17,7 +17,8 @@ impl Pearl {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
 
-        let vdisks_groups = Arc::new(settings.clone().read_group_from_disk(config));
+        let data = settings.clone().read_group_from_disk(config);
+        let vdisks_groups: Arc<[Group]> = Arc::from(data.as_slice());
         trace!("count vdisk groups: {}", vdisks_groups.len());
 
         let alien = settings

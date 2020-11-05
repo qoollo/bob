@@ -9,6 +9,7 @@ pub(crate) use super::prelude::*;
 mod prelude {
     pub(crate) use super::operations::*;
     pub(crate) use super::*;
+    pub(crate) use tokio::task::JoinHandle;
 }
 
 use quorum::Quorum;

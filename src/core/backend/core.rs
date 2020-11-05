@@ -133,6 +133,7 @@ impl Backend {
         let res = if !options.remote_nodes().is_empty() {
             // write to all remote_nodes
             for node_name in options.remote_nodes() {
+                debug!("PUT[{}] core backend put remote node: {}", key, node_name);
                 let mut op = Operation::new_alien(vdisk_id);
                 op.set_remote_folder(node_name.to_owned());
 
@@ -141,7 +142,7 @@ impl Backend {
             }
             Ok(())
         } else if let Some(path) = disk_path {
-            trace!(
+            debug!(
                 "remote nodes is empty, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
@@ -184,17 +185,22 @@ impl Backend {
             debug!("PUT[{}] to backend: {:?}", key, operation);
             let result = self.inner.put(operation.clone(), key, data.clone()).await;
             match result {
-                Err(err) if !err.is_duplicate() => {
+                Err(local_err) if !local_err.is_duplicate() => {
                     error!(
                         "PUT[{}][{}] local failed: {:?}",
                         key,
                         operation.disk_name_local(),
-                        err
+                        local_err
                     );
                     // write to alien/<local name>
                     let mut op = operation.clone_alien();
                     op.set_remote_folder(self.mapper.local_node_name().to_owned());
-                    self.inner.put_alien(op, key, data).await.map_err(|_| err)
+                    self.inner
+                        .put_alien(op, key, data)
+                        .await
+                        .map_err(|alien_err| {
+                            Error::request_failed_completely(&local_err, &alien_err)
+                        })
                     // @TODO return both errors| we must return 'local' error if both ways are failed
                 }
                 _ => result,
@@ -295,5 +301,70 @@ impl Backend {
         } else {
             None
         }
+    }
+
+    pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
+        let groups = self.inner.vdisks_groups();
+        let groups = match groups {
+            Some(it) => it,
+            _ => return,
+        };
+        for group in groups {
+            let holders_lock = group.holders();
+            let mut holders_write = holders_lock.write().await;
+            let holders: &mut Vec<_> = holders_write.as_mut();
+
+            let mut total_open_blobs = 0;
+            let mut close = vec![];
+            for h in holders.iter_mut() {
+                if !h.active_blob_is_empty().await {
+                    total_open_blobs += 1;
+                    if h.is_outdated() && h.no_writes_recently().await {
+                        close.push(h);
+                    }
+                }
+            }
+            let soft = soft.saturating_sub(total_open_blobs - close.len());
+            let hard = hard.saturating_sub(total_open_blobs - close.len());
+
+            debug!(
+                "closing outdated blobs according to limits ({}, {})",
+                soft, hard
+            );
+
+            let mut is_small = vec![];
+            for h in &close {
+                is_small.push(h.active_blob_is_small().await);
+            }
+
+            let mut close: Vec<_> = close.into_iter().enumerate().collect();
+            Self::sort_by_priority(&mut close, &is_small);
+
+            while close.len() > hard {
+                let (_, holder) = close.pop().unwrap();
+                holder.close_active_blob().await;
+                info!("active blob of {} closed by hard cap", holder.get_id());
+            }
+
+            while close.len() > soft
+                && close
+                    .last()
+                    .map(|(ind, _)| !is_small[*ind])
+                    .unwrap_or(false)
+            {
+                let (_, holder) = close.pop().unwrap();
+                holder.close_active_blob().await;
+                info!("active blob of {} closed by soft cap", holder.get_id());
+            }
+        }
+    }
+
+    fn sort_by_priority(close: &mut [(usize, &mut Holder)], is_small: &[bool]) {
+        use std::cmp::Ordering;
+        close.sort_by(|(i, x), (j, y)| match (is_small[*i], is_small[*j]) {
+            (true, false) => Ordering::Greater,
+            (false, true) => Ordering::Less,
+            _ => x.end_timestamp().cmp(&y.end_timestamp()),
+        });
     }
 }

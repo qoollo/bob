@@ -12,9 +12,9 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::time::delay_for;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+use tokio::time::delay_for;
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request, Status};
 

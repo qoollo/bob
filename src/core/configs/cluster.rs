@@ -1,3 +1,5 @@
+use crate::mapper::VDisksMap;
+
 use super::prelude::*;
 
 impl Validatable for DiskPath {
@@ -213,7 +215,7 @@ impl Cluster {
     /// # Errors
     /// Returns error description. If can't match node name with replica name.
     /// And if node disk with replica disk.
-    pub(crate) fn create_vdisks_map(&self) -> Result<HashMap<VDiskID, DataVDisk>, String> {
+    pub(crate) fn create_vdisks_map(&self) -> Result<VDisksMap, String> {
         let mut vdisks = HashMap::new();
         for vdisk in &self.vdisks {
             let mut disk = DataVDisk::new(vdisk.id());
