@@ -78,7 +78,8 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         remount_vdisks_group,
         get_local_replica_directories,
         nodes,
-        finalize_outdated_blobs
+        finalize_outdated_blobs,
+        vdisk_records_count
     ];
     let task = move || {
         info!("API server started");
@@ -180,7 +181,7 @@ fn nodes(bob: State<BobServer>) -> Json<Vec<Node>> {
         let node = Node {
             name: node.name().to_string(),
             address: node.address().to_string(),
-            vdisks
+            vdisks,
         };
 
         nodes.push(node);
@@ -211,6 +212,22 @@ fn finalize_outdated_blobs(bob: State<BobServer>) -> Result<StatusExt, StatusExt
 #[get("/vdisks/<vdisk_id>")]
 fn vdisk_by_id(bob: State<BobServer>, vdisk_id: u32) -> Option<Json<VDisk>> {
     get_vdisk_by_id(&bob, vdisk_id).map(Json)
+}
+
+#[get("/vdisks/<vdisk_id>/records/count")]
+fn vdisk_records_count(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<u64>, StatusExt> {
+    let group = find_group(&bob, vdisk_id)?;
+    let holders = group.holders();
+    let sum = runtime().block_on(async move {
+        let pearls = holders.read().await;
+        let pearls: &[_] = pearls.as_ref();
+        let mut sum = 0;
+        for pearl in pearls {
+            sum += pearl.records_count().await;
+        }
+        sum
+    });
+    Ok(Json(sum as u64))
 }
 
 #[get("/vdisks/<vdisk_id>/partitions")]

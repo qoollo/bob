@@ -62,6 +62,21 @@ paths:
                 $ref: '#/components/schemas/VDisk'
         default:
           $ref: '#/components/responses/DefaultError'
+  /vdisks/{VDiskId}/records/count:
+    get:
+      summary: Returns count of records of this on node
+      operationId: getRecords
+      parameters:
+        - $ref: '#/components/parameters/VDiskIdParam'
+      responses:
+        '200':
+          description: "Records count"
+          content:
+            application/json:
+              schema:
+                type: integer
+        default:
+          $ref: '#/components/responses/DefaultError'
   /vdisks/{VDiskId}/partitions:
     get:
       summary: Returns a list of partitions
