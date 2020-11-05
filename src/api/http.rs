@@ -77,7 +77,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         alien,
         remount_vdisks_group,
         get_local_replica_directories,
-        nodes
+        nodes,
         finalize_outdated_blobs
     ];
     let task = move || {
