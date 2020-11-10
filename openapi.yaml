@@ -17,6 +17,21 @@ paths:
                 $ref: '#/components/schemas/Node'
         default:
           $ref: '#/components/responses/DefaultError'
+  /nodes:
+    get:
+      summary: Returns a list of known nodes
+      operationId: getNodes
+      responses:
+        '200':
+          description: "A JSON array of nodes info and vdisks on them"
+          content:
+            application/json:
+              schema:
+                type: array
+                items: 
+                  $ref: '#/components/schemas/Node'
+        default:
+          $ref: '#/components/responses/DefaultError'
   /vdisks:
     get:
       summary: Returns a list of vdisks
@@ -45,6 +60,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VDisk'
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /vdisks/{VDiskId}/records/count:
+    get:
+      summary: Returns count of records of this on node
+      operationId: getRecords
+      parameters:
+        - $ref: '#/components/parameters/VDiskIdParam'
+      responses:
+        '200':
+          description: "Records count"
+          content:
+            application/json:
+              schema:
+                type: integer
         default:
           $ref: '#/components/responses/DefaultError'
   /vdisks/{VDiskId}/partitions:
