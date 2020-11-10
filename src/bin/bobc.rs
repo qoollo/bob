@@ -49,7 +49,7 @@ async fn put(key: u64, size: usize) {
         meta: Some(meta),
     };
     let message = PutRequest {
-        key: Some(BlobKey { key }),
+        key: Some(BlobKey { key: key.to_be_bytes().to_vec() }),
         data: Some(blob),
         options: None,
     };
@@ -68,7 +68,7 @@ async fn get(key: u64) {
     let mut client = BobApiClient::connect(addr).await.unwrap();
 
     let message = GetRequest {
-        key: Some(BlobKey { key }),
+        key: Some(BlobKey { key: key.to_be_bytes().to_vec() }),
         options: None,
     };
     let get_req = Request::new(message);

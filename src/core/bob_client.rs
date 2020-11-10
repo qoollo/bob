@@ -55,7 +55,7 @@ pub(crate) mod b_client {
                 data: d.into_inner(),
             };
             let message = PutRequest {
-                key: Some(BlobKey { key }),
+                key: Some(BlobKey { key: key.into() }),
                 data: Some(blob),
                 options: Some(options),
             };
@@ -83,7 +83,7 @@ pub(crate) mod b_client {
             let timer = self.metrics.get_timer();
 
             let message = GetRequest {
-                key: Some(BlobKey { key }),
+                key: Some(BlobKey { key: key.into() }),
                 options: Some(options),
             };
             let request = Request::new(message);
@@ -125,7 +125,7 @@ pub(crate) mod b_client {
         #[allow(dead_code)]
         pub(crate) async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult {
             let mut client = self.client.clone();
-            let keys = keys.into_iter().map(|key| BlobKey { key }).collect();
+            let keys = keys.into_iter().map(|key| BlobKey { key: key.into() }).collect();
             let message = ExistRequest {
                 keys,
                 options: Some(options),

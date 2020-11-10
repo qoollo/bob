@@ -3,9 +3,73 @@ use crate::mapper::NodesMap;
 use super::prelude::*;
 use std::hash::Hash;
 
-pub type BobKey = u64;
-
+const KEYLEN: usize = 16;
+pub type BobKey = Key;
 pub type VDiskID = u32;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Key {
+    data: [u8; KEYLEN],
+}
+
+impl Key {
+    pub(crate) fn bytes(&self) -> impl Iterator<Item = &u8> {
+        self.data.iter()
+    }
+}
+
+impl std::fmt::Display for Key {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        for key in self.data.iter() {
+            write!(f, "{:x}", key)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::str::FromStr for Key {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut data = [0; KEYLEN];
+        for i in (0..s.len()).step_by(2) {
+            if let Ok(n) = u8::from_str_radix(&s[i..i + 2], 16) {
+                data[i / 2] = n
+            }
+        }
+        Ok(Self { data })
+    }
+}
+
+// For selecting of vdisks
+impl std::ops::Rem<usize> for Key {
+    type Output = usize;
+
+    fn rem(self, rhs: usize) -> Self::Output {
+        let mut rem = 0;
+        for &byte in self.bytes() {
+            rem += byte as usize % rhs;
+            rem %= rhs;
+        }
+        rem
+    }
+}
+
+impl From<Vec<u8>> for Key {
+    fn from(v: Vec<u8>) -> Self {
+        let mut data = [0; KEYLEN];
+        for (ind, elem) in v.into_iter().enumerate(){
+            data[ind] = elem;
+        }
+        Self { data }
+    }
+}
+
+impl Into<Vec<u8>> for Key {
+    fn into(self) -> Vec<u8> {
+        self.bytes().cloned().collect()
+    }
+}
 
 impl PutOptions {
     pub(crate) fn new_local() -> Self {

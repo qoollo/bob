@@ -34,7 +34,7 @@ impl Error {
         Self::new(Kind::Timeout)
     }
 
-    pub(crate) fn key_not_found(key: u64) -> Self {
+    pub(crate) fn key_not_found(key: BobKey) -> Self {
         Self::new(Kind::KeyNotFound(key))
     }
 

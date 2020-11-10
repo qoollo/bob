@@ -9,8 +9,14 @@ impl From<u64> for Key {
     }
 }
 
+impl From<BobKey> for Key {
+    fn from(v: BobKey) -> Self {
+        Self(v.bytes().cloned().collect())
+    }
+}
+
 impl KeyTrait for Key {
-    const LEN: u16 = 8;
+    const LEN: u16 = std::mem::size_of::<BobKey>() as u16;
 }
 
 impl AsRef<[u8]> for Key {

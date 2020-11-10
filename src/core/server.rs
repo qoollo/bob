@@ -42,16 +42,16 @@ impl Server {
     }
 }
 
-fn put_extract(req: PutRequest) -> Option<(u64, Vec<u8>, u64, Option<PutOptions>)> {
-    let key = req.key?.key;
+fn put_extract(req: PutRequest) -> Option<(BobKey, Vec<u8>, u64, Option<PutOptions>)> {
+    let key = req.key?.key.into();
     let blob = req.data?;
     let timestamp = blob.meta.as_ref()?.timestamp;
     let options = req.options;
     Some((key, blob.data, timestamp, options))
 }
 
-fn get_extract(req: GetRequest) -> Option<(u64, Option<GetOptions>)> {
-    let key = req.key?.key;
+fn get_extract(req: GetRequest) -> Option<(BobKey, Option<GetOptions>)> {
+    let key = req.key?.key.into();
     let options = req.options;
     Some((key, options))
 }
@@ -173,8 +173,9 @@ impl BobApi for Server {
     async fn exist(&self, req: Request<ExistRequest>) -> ApiResult<ExistResponse> {
         let sw = Stopwatch::start_new();
         let req = req.into_inner();
-        let keys = req.keys.iter().map(|k| k.key).collect::<Vec<_>>();
-        let options = BobOptions::new_get(req.options);
+        let ExistRequest { keys, options } = req;
+        let keys = keys.into_iter().map(|k| k.key.into()).collect::<Vec<_>>();
+        let options = BobOptions::new_get(options);
         let exist = self
             .grinder
             .exist(&keys, &options)
