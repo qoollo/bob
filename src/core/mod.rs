@@ -33,7 +33,7 @@ mod prelude {
     pub(crate) use data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskID};
     pub(crate) use dipstick::{
         AtomicBucket, Counter, Graphite, Input, InputKind, InputScope, MetricName, MetricValue,
-        Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer,
+        Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer, Gauge,
     };
     pub(crate) use futures::{
         future, stream::FuturesUnordered, Future, FutureExt, StreamExt, TryFutureExt,
@@ -49,9 +49,10 @@ mod prelude {
     pub(crate) use metrics::{
         BobClient as BobClientMetrics, ContainerBuilder as MetricsContainerBuilder,
         CLIENT_GET_COUNTER, CLIENT_GET_ERROR_COUNT_COUNTER, CLIENT_GET_TIMER, CLIENT_PUT_COUNTER,
-        CLIENT_PUT_ERROR_COUNT_COUNTER, CLIENT_PUT_TIMER, GRINDER_GET_COUNTER,
-        GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER, GRINDER_PUT_COUNTER,
-        GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER,
+        CLIENT_PUT_ERROR_COUNT_COUNTER, CLIENT_PUT_TIMER, CLIENT_EXIST_COUNTER, CLIENT_EXIST_ERROR_COUNTER,
+        CLIENT_EXIST_TIMER, GRINDER_GET_COUNTER, GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER,
+        GRINDER_PUT_COUNTER, GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER, GRINDER_EXIST_COUNTER,
+        GRINDER_EXIST_ERROR_COUNTER, GRINDER_EXIST_TIMER, AVAILABLE_NODES_COUNT, BACKEND_STATE,
     };
     pub(crate) use node::{Disk as NodeDisk, Node, Output as NodeOutput, ID as NodeID};
     pub(crate) use stopwatch::Stopwatch;

@@ -56,6 +56,11 @@ impl Holder {
         &self.storage
     }
 
+    pub(crate) async fn blobs_count(&self) -> usize {
+        let storage = self.storage.read().await;
+        storage.blobs_count()
+    }
+
     pub(crate) fn is_actual(&self, current_start: u64) -> bool {
         self.start_timestamp == current_start
     }
@@ -321,6 +326,10 @@ impl PearlSync {
 
     pub(crate) async fn active_blob_records_count(&self) -> usize {
         self.storage().records_count_in_active_blob().await.unwrap_or_default()
+    }
+
+    pub(crate) fn blobs_count(&self) -> usize {
+        self.storage().blobs_count()
     }
 
     #[inline]

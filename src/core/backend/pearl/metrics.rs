@@ -9,6 +9,9 @@ metrics! {
         pub PEARL_GET_COUNTER: Counter = "get_count";
         pub PEARL_GET_ERROR_COUNTER: Counter = "get_error_count";
         pub PEARL_GET_TIMER: Timer = "get_timer";
+
+        pub PEARL_BLOBS_COUNT: Gauge = "blob_count";
+        pub PEARL_ALIEN_BLOBS_COUNT: Gauge = "alien_count";
     }
 }
 
