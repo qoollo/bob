@@ -3,22 +3,22 @@ use crate::mapper::NodesMap;
 use super::prelude::*;
 use std::hash::Hash;
 
-const KEYLEN: usize = 16;
-pub type BobKey = Key;
+include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
+
 pub type VDiskID = u32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Key {
-    data: [u8; KEYLEN],
+pub struct BobKey {
+    data: [u8; KEY_SIZE],
 }
 
-impl Key {
+impl BobKey {
     pub(crate) fn bytes(&self) -> impl Iterator<Item = &u8> {
         self.data.iter()
     }
 }
 
-impl std::fmt::Display for Key {
+impl std::fmt::Display for BobKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         for key in self.data.iter() {
             write!(f, "{:x}", key)?;
@@ -27,11 +27,11 @@ impl std::fmt::Display for Key {
     }
 }
 
-impl std::str::FromStr for Key {
+impl std::str::FromStr for BobKey {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut data = [0; KEYLEN];
+        let mut data = [0; KEY_SIZE];
         for i in (0..s.len()).step_by(2) {
             if let Ok(n) = u8::from_str_radix(&s[i..i + 2], 16) {
                 data[i / 2] = n
@@ -42,7 +42,7 @@ impl std::str::FromStr for Key {
 }
 
 // For selecting of vdisks
-impl std::ops::Rem<usize> for Key {
+impl std::ops::Rem<usize> for BobKey {
     type Output = usize;
 
     fn rem(self, rhs: usize) -> Self::Output {
@@ -55,9 +55,9 @@ impl std::ops::Rem<usize> for Key {
     }
 }
 
-impl From<Vec<u8>> for Key {
+impl From<Vec<u8>> for BobKey {
     fn from(v: Vec<u8>) -> Self {
-        let mut data = [0; KEYLEN];
+        let mut data = [0; KEY_SIZE];
         for (ind, elem) in v.into_iter().enumerate(){
             data[ind] = elem;
         }
@@ -65,7 +65,7 @@ impl From<Vec<u8>> for Key {
     }
 }
 
-impl Into<Vec<u8>> for Key {
+impl Into<Vec<u8>> for BobKey {
     fn into(self) -> Vec<u8> {
         self.bytes().cloned().collect()
     }
@@ -254,6 +254,7 @@ pub struct VDisk {
 
 impl VDisk {
     pub(crate) fn new(id: VDiskID) -> Self {
+        println!("key size = {}", std::mem::size_of::<BobKey>());
         VDisk {
             id,
             replicas: Vec::new(),
