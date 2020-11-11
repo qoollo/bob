@@ -11,7 +11,7 @@ impl From<u64> for Key {
 
 impl From<BobKey> for Key {
     fn from(v: BobKey) -> Self {
-        Self(v.bytes().cloned().collect())
+        Self(v.into())
     }
 }
 

@@ -250,7 +250,6 @@ pub struct VDisk {
 
 impl VDisk {
     pub(crate) fn new(id: VDiskID) -> Self {
-        println!("key size = {}", std::mem::size_of::<BobKey>());
         VDisk {
             id,
             replicas: Vec::new(),
