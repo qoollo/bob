@@ -16,6 +16,16 @@ impl BobKey {
     pub(crate) fn bytes(&self) -> impl Iterator<Item = &u8> {
         self.data.iter()
     }
+
+    pub(crate) fn vdisk_hint(&self, begin: usize, end: usize) -> usize {
+        let len = end - begin;
+        let mut rem = 0;
+        for &byte in self.bytes() {
+            rem += byte as usize % len;
+            rem %= len;
+        }
+        begin + rem
+    }
 }
 
 impl std::fmt::Display for BobKey {
@@ -41,24 +51,10 @@ impl std::str::FromStr for BobKey {
     }
 }
 
-// For selecting of vdisks
-impl std::ops::Rem<usize> for BobKey {
-    type Output = usize;
-
-    fn rem(self, rhs: usize) -> Self::Output {
-        let mut rem = 0;
-        for &byte in self.bytes() {
-            rem += byte as usize % rhs;
-            rem %= rhs;
-        }
-        rem
-    }
-}
-
 impl From<Vec<u8>> for BobKey {
     fn from(v: Vec<u8>) -> Self {
         let mut data = [0; KEY_SIZE];
-        for (ind, elem) in v.into_iter().enumerate(){
+        for (ind, elem) in v.into_iter().enumerate() {
             data[ind] = elem;
         }
         Self { data }

@@ -120,9 +120,9 @@ impl Virtual {
     }
 
     pub(crate) fn vdisk_id_from_key(&self, key: BobKey) -> VDiskID {
-        (key % self.vdisks.len())
+        key.vdisk_hint(0, self.vdisks.len())
             .try_into()
-            .expect("u64 to u32")
+            .expect("usize to u32")
     }
 
     /// Returns ref to `VDisk` with given ID
