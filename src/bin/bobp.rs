@@ -4,6 +4,7 @@ use bob::grpc::{
 use bob::grpc::{Blob, BlobKey, BlobMeta};
 use clap::{App, Arg, ArgMatches};
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::error::Error;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::ops::Sub;
@@ -17,6 +18,8 @@ use tokio::task::JoinHandle;
 use tokio::time::delay_for;
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request, Status};
+
+type Key = u64;
 
 #[macro_use]
 extern crate log;
@@ -71,8 +74,8 @@ impl Debug for NetConfig {
 
 #[derive(Clone)]
 struct TaskConfig {
-    low_idx: u64,
-    count: u64,
+    low_idx: Key,
+    count: Key,
     payload_size: u64,
     direct: bool,
     measure_time: bool,
@@ -551,13 +554,14 @@ fn spawn_workers(
     task_conf: &TaskConfig,
     benchmark_conf: &BenchmarkConfig,
 ) -> Vec<tokio::task::JoinHandle<()>> {
-    let task_size = task_conf.count / benchmark_conf.workers_count;
-    (0..benchmark_conf.workers_count)
+    let workers_count = benchmark_conf.workers_count.try_into().expect("too many workers for too small key");
+    let task_size = task_conf.count / workers_count;
+    (0..workers_count)
         .map(|i| {
             let nc = net_conf.clone();
             let stat_inner = benchmark_conf.statistics.clone();
             let low_idx = task_conf.low_idx + task_size * i;
-            let count = if i == benchmark_conf.workers_count - 1 {
+            let count = if i == workers_count - 1 {
                 task_conf.count + task_conf.low_idx - low_idx
             } else {
                 task_size

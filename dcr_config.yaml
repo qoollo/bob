@@ -22,4 +22,4 @@ open_blobs_soft_limit: 2
 # Hard limit for open blobs
 open_blobs_hard_limit: 2
 # Size of storage key
-key_size: 8
+key_size: 2
