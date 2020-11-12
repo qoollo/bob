@@ -50,6 +50,12 @@ pub struct DockerService {
 pub struct DockerBuild {
     context: String,
     dockerfile: String,
+    args: DockerBuildArgs
+}
+
+#[derive(Serialize, new, Clone)]
+pub struct DockerBuildArgs {
+    key_size: usize
 }
 
 #[derive(new, Clone)]

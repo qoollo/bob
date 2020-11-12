@@ -27,6 +27,7 @@ pub struct TestClusterConfiguration {
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
+    key_size: usize
 }
 
 impl TestClusterConfiguration {
@@ -76,7 +77,7 @@ impl TestClusterConfiguration {
             services.insert(
                 Self::get_node_name(node),
                 DockerService::new(
-                    Self::get_build_command(&fs_configuration)?,
+                    self.get_build_command(&fs_configuration)?,
                     Self::get_volumes(&fs_configuration)?,
                     Self::get_docker_command(node),
                     Self::get_networks_with_single_network(node, &network_name),
@@ -138,11 +139,13 @@ impl TestClusterConfiguration {
         Ok(volumes)
     }
 
-    fn get_build_command(fs_configuration: &FSConfiguration) -> Result<DockerBuild> {
+    fn get_build_command(&self, fs_configuration: &FSConfiguration) -> Result<DockerBuild> {
         let bob_dir = Self::convert_to_absolute_path(&fs_configuration.bob_source_dir)?;
+        let args = DockerBuildArgs::new(self.key_size);
         let build = DockerBuild::new(
             bob_dir,
             format!("{}/Dockerfile", fs_configuration.dockerfile_path),
+            args
         );
         Ok(build)
     }

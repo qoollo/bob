@@ -2,11 +2,13 @@
 FROM rust:1.47.0 as cargo-build
 
 # rust toolchain version
-ARG RUST_TC_VER=nightly-2020-10-17
+ARG rust_tc_ver=nightly-2020-10-17
+# size of storage key
+ARG key_size=8
 
-RUN rustup install $RUST_TC_VER \
-  && rustup default $RUST_TC_VER \
-  && rustup target add x86_64-unknown-linux-gnu
+RUN rustup install $rust_tc_ver \
+  && rustup default $rust_tc_ver \
+    && rustup target add x86_64-unknown-linux-gnu
 
 WORKDIR /usr/src/bob
 
@@ -33,6 +35,7 @@ RUN cargo build --release --target=x86_64-unknown-linux-gnu \
 
 # final build
 COPY . .
+ENV KEY_SIZE=$key_size
 RUN cargo build --release --target=x86_64-unknown-linux-gnu
 
 # bobd image

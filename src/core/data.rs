@@ -53,6 +53,9 @@ impl std::str::FromStr for BobKey {
 
 impl From<Vec<u8>> for BobKey {
     fn from(v: Vec<u8>) -> Self {
+        if v.len() > KEY_SIZE {
+            panic!("expected key size {}, received {}", KEY_SIZE, v.len());
+        }
         let mut data = [0; KEY_SIZE];
         for (ind, elem) in v.into_iter().enumerate() {
             data[ind] = elem;
