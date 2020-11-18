@@ -217,7 +217,7 @@ impl TestClusterConfiguration {
     fn get_pearl_config(&self, node: u32) -> Pearl {
         Pearl::new(
             1000000,
-            10000,
+            1000000,
             "bob".to_string(),
             "100ms".to_string(),
             3,
@@ -268,6 +268,11 @@ impl TestClusterConfiguration {
     fn vdisk_allowed(&self, node_index: u32, disk_index: u32) -> bool {
         match self.storage_format_type.as_ref().map(String::as_str) {
             Some("parity") => return node_index % 2 == disk_index % 2,
+            Some("spread") => {
+                let disks = (node_index..self.vdisks_count).chain(0..node_index).flat_map(|i| vec![i; self.quorum]);
+                let step = self.nodes_count as usize;
+                return disks.step_by(step).find(|&i| i == disk_index).is_some();
+            }
             Some(s) => {
                 if &s[0..1] == "n" {
                     let count = s[1..].parse().unwrap_or(self.vdisks_count);
