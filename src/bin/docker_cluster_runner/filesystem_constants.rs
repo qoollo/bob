@@ -1,6 +1,6 @@
 const DOCKER_CONFIGS_DIR: &str = "/configs";
 const DOCKER_DISKS_DIR: &str = "/tmp";
-const DOCKER_SSH_DIR: &str = "/root/local_ssh";
+const DOCKER_SSH_DIR: &str = "/local_ssh";
 
 pub struct DockerFSConstants {}
 
