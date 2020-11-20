@@ -287,8 +287,8 @@ impl Cluster {
                 debug!("cannot find node: {} in cluster config", node.name());
                 format!("cannot find node: {} in cluster config", node.name())
             })?;
-        if self.vdisks().iter().any(|vdisk| vdisk.replicas().len() < node.quorum()) {
-            return Err(String::from("Quorum is more than amount of replicas for at least one VDisk"));
+        if let Some(bad_vdisk) = self.vdisks().iter().find(|vdisk| vdisk.replicas().len() < node.quorum()) {
+            return Err(format!("Quorum is more than amount of replicas for VDisk with id {}", bad_vdisk.id));
         }
         if node.backend_result().is_ok() && node.backend_type() == BackendType::Pearl {
             finded
