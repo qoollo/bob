@@ -116,12 +116,26 @@ impl BackendStorage for Pearl {
             debug!("need to create alien for: {:?}", op);
             self.create_alien_pearl(&op).await?;
         }
-        let vdisk_group = self.find_alien_pearl(&op).await;
+        let mut vdisk_group = self.find_alien_pearl(&op).await;
+        while vdisk_group.is_err() {
+            delay_for(Duration::from_millis(200)).await;
+            vdisk_group = self.find_alien_pearl(&op).await;
+            error!("retrying finding alien pearl");
+            if !self.has_ready_alien_pearl(&op).await {
+                error!("need to create alien for: {:?}", op);
+                self.create_alien_pearl(&op).await?;
+            }
+        }
         match vdisk_group {
-            Ok(group) => group
-                .put(key, data)
-                .await
-                .map_err(|e| Error::failed(format!("{:#?}", e))),
+            Ok(group) => {
+                let mut res = group.put(key, data.clone()).await;
+                while res.is_err() {
+                    delay_for(Duration::from_millis(200)).await;
+                    res = group.put(key, data.clone()).await;
+                    error!("retrying put");
+                }
+                res.map_err(|e| Error::failed(format!("{:#?}", e)))
+            }
             Err(e) => {
                 error!(
                     "PUT[alien][{}] Cannot find group, op: {:?}, err: {}",
