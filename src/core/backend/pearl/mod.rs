@@ -31,7 +31,7 @@ mod prelude {
         PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
     };
     pub(crate) use settings::Settings;
-    pub(crate) use stuff::{Stuff, SyncState};
+    pub(crate) use stuff::Stuff;
 
     pub(crate) use ring::digest::{digest, SHA256};
     pub(crate) use std::collections::HashMap;
