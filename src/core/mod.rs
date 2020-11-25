@@ -1,3 +1,4 @@
+extern crate metrics as metrics_ext;
 /// Component responsible for working with I/O.
 pub mod backend;
 /// GRPC client to deal with backend.
@@ -31,10 +32,8 @@ mod prelude {
     pub(crate) use cluster::{get_cluster, Cluster};
     pub(crate) use configs::{Cluster as ClusterConfig, Node as NodeConfig};
     pub(crate) use data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskID};
-    pub(crate) use dipstick::{
-        AtomicBucket, Counter, Graphite, Input, InputKind, InputScope, MetricName, MetricValue,
-        Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer,
-    };
+    pub(crate) use std::time::Instant;
+    pub(crate) use metrics_ext::{ counter, timing, gauge };
     pub(crate) use futures::{
         future, stream::FuturesUnordered, Future, FutureExt, StreamExt, TryFutureExt,
     };
@@ -46,7 +45,7 @@ mod prelude {
     pub(crate) use http::Uri;
     pub(crate) use link_manager::LinkManager;
     pub(crate) use mapper::Virtual;
-    pub(crate) use metrics::{
+    pub(crate) use crate::metrics::{
         BobClient as BobClientMetrics, ContainerBuilder as MetricsContainerBuilder,
         CLIENT_GET_COUNTER, CLIENT_GET_ERROR_COUNT_COUNTER, CLIENT_GET_TIMER, CLIENT_PUT_COUNTER,
         CLIENT_PUT_ERROR_COUNT_COUNTER, CLIENT_PUT_TIMER, GRINDER_GET_COUNTER,

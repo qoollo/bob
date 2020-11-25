@@ -129,17 +129,17 @@ impl Holder {
 
     // @TODO remove redundant return result
     async fn write_disk(storage: PearlStorage, key: Key, data: BobData) -> BackendResult<()> {
-        PEARL_PUT_COUNTER.count(1);
-        let timer = PEARL_PUT_TIMER.start();
+        counter!(PEARL_PUT_COUNTER, 1);
+        let timer = Instant::now();
         storage
             .write(key, Data::from(data).to_vec())
             .await
             .unwrap_or_else(|e| {
-                PEARL_PUT_ERROR_COUNTER.count(1);
+                counter!(PEARL_PUT_ERROR_COUNTER, 1);
                 error!("error on write: {:?}", e);
                 //TODO check duplicate
             });
-        PEARL_PUT_TIMER.stop(timer);
+        counter!(PEARL_PUT_TIMER, timer.elapsed().as_nanos() as u64);
         Ok(())
     }
 
@@ -148,17 +148,17 @@ impl Holder {
         if state.is_ready() {
             let storage = state.get();
             trace!("Vdisk: {}, read key: {}", self.vdisk, key);
-            PEARL_GET_COUNTER.count(1);
-            let timer = PEARL_GET_TIMER.start();
+            counter!(PEARL_GET_COUNTER, 1);
+            let timer = Instant::now();
             storage
                 .read(Key::from(key))
                 .await
                 .map(|r| {
-                    PEARL_GET_TIMER.stop(timer);
+                    counter!(PEARL_GET_TIMER, timer.elapsed().as_nanos() as u64);
                     Data::from_bytes(&r)
                 })
                 .map_err(|e| {
-                    PEARL_GET_ERROR_COUNTER.count(1);
+                    counter!(PEARL_GET_ERROR_COUNTER, 1);
                     trace!("error on read: {:?}", e);
                     match e.downcast_ref::<PearlError>().unwrap().kind() {
                         ErrorKind::RecordNotFound => Error::key_not_found(key),
