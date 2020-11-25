@@ -235,6 +235,7 @@ impl TestClusterConfiguration {
                 "100ms".to_string(),
             ),
             10,
+            true,
         )
     }
 
