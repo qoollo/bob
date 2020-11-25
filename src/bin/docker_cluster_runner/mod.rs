@@ -225,7 +225,7 @@ impl TestClusterConfiguration {
                 (0..self.vdisks_count)
                     .rev()
                     .find(|&v| self.vdisk_allowed(node, v))
-                    .expect(&format!("no disks for node {}", node)),
+                    .unwrap_or_else(|| panic!("no disks for node {}", node)),
             ),
             true,
             BackendSettings::new(
@@ -266,12 +266,14 @@ impl TestClusterConfiguration {
     }
 
     fn vdisk_allowed(&self, node_index: u32, disk_index: u32) -> bool {
-        match self.storage_format_type.as_ref().map(String::as_str) {
+        match self.storage_format_type.as_deref() {
             Some("parity") => return node_index % 2 == disk_index % 2,
             Some("spread") => {
-                let disks = (node_index..self.vdisks_count).chain(0..node_index).flat_map(|i| vec![i; self.quorum]);
+                let disks = (node_index..self.vdisks_count)
+                    .chain(0..node_index)
+                    .flat_map(|i| vec![i; self.quorum]);
                 let step = self.nodes_count as usize;
-                return disks.step_by(step).find(|&i| i == disk_index).is_some();
+                return disks.step_by(step).any(|i| i == disk_index);
             }
             Some(s) => {
                 if &s[0..1] == "n" {
