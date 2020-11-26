@@ -349,7 +349,7 @@ pub struct Node {
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
-    init_par_degree: Option<usize>
+    init_par_degree: Option<usize>,
 }
 
 impl NodeConfig {
@@ -583,6 +583,7 @@ pub(crate) mod tests {
             cleanup_interval: "1d".to_string(),
             open_blobs_soft_limit: None,
             open_blobs_hard_limit: None,
+            init_par_degree: None,
         }
     }
 }

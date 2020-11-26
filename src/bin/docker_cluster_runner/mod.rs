@@ -27,6 +27,7 @@ pub struct TestClusterConfiguration {
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
+    init_par_degree: Option<usize>
 }
 
 impl TestClusterConfiguration {
@@ -210,7 +211,7 @@ impl TestClusterConfiguration {
             self.cleanup_interval.clone(),
             self.open_blobs_soft_limit,
             self.open_blobs_hard_limit,
-            Some(4),
+            self.init_par_degree,
         );
         (Self::get_node_name(node_index), node)
     }
@@ -369,6 +370,7 @@ mod tests {
             None,
             "1d".to_string(),
             "1d".to_string(),
+            None,
             None,
             None,
         );
