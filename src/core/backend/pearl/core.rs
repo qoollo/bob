@@ -10,6 +10,7 @@ pub(crate) struct Pearl {
     alien_vdisks_groups: Arc<RwLock<Vec<Group>>>,
     pearl_sync: Arc<SyncState>, // holds state when we create new alien pearl dir
     node_name: String,
+    init_par_degree: usize,
 }
 
 impl Pearl {
@@ -34,6 +35,7 @@ impl Pearl {
             alien_vdisks_groups,
             pearl_sync: Arc::new(SyncState::new()),
             node_name: config.name().to_string(),
+            init_par_degree: config.init_par_degree(),
         }
     }
 
@@ -99,9 +101,14 @@ impl BackendStorage for Pearl {
             }
         }
 
-        // TODO: Bucket inits with respec to degree of parallelism
-        let mut inits = Vec::with_capacity(inits_by_disk.len());
-        for (_, futures) in inits_by_disk.into_iter() {
+        // vec![vec![]; n] macro requires Clone trait, and future does not implement it
+        let mut par_buckets: Vec<Vec<_>> = (0..self.init_par_degree).map(|_| vec![]).collect();
+        for (ind, (_, futs)) in inits_by_disk.into_iter().enumerate() {
+            let buck = ind % self.init_par_degree;
+            par_buckets[buck].extend(futs.into_iter());
+        }
+        let mut inits = Vec::with_capacity(par_buckets.len());
+        for futures in par_buckets {
             inits.push(async move {
                 for f in futures {
                     f.await?;

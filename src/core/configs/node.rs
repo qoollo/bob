@@ -349,6 +349,7 @@ pub struct Node {
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
+    init_par_degree: Option<usize>
 }
 
 impl NodeConfig {
@@ -467,6 +468,19 @@ impl NodeConfig {
                 }
             })
             .unwrap_or(10)
+    }
+
+    pub(crate) fn init_par_degree(&self) -> usize {
+        self.init_par_degree
+            .and_then(|i| {
+                if i == 0 {
+                    error!("init par degree can't be less than 1");
+                    None
+                } else {
+                    Some(i)
+                }
+            })
+            .unwrap_or(1)
     }
 
     #[cfg(test)]

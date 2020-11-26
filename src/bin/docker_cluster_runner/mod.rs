@@ -210,6 +210,7 @@ impl TestClusterConfiguration {
             self.cleanup_interval.clone(),
             self.open_blobs_soft_limit,
             self.open_blobs_hard_limit,
+            Some(4),
         );
         (Self::get_node_name(node_index), node)
     }

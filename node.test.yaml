@@ -8,6 +8,7 @@ backend_type: pearl                # type of the backend [in_memory, stub, pearl
 cleanup_interval: 1h            # interval for checking for blobs cleanup
 open_blobs_soft_limit: 2           # soft limit for count of max blobs to remain in ram
 open_blobs_hard_limit: 10          # hard limit for count of max blobs to remain in ram
+init_par_degree: 1                 # degree of parallelism in initialization
 
 pearl:                             # used only for 'backend_type: pearl'
   max_blob_size: 1000000           # size in bytes. required for 'pearl'
