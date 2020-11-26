@@ -122,7 +122,7 @@ impl BackendStorage for Pearl {
             .fold(Ok(()), |s, n| s.and(n))?;
 
         let dur = std::time::Instant::now() - start;
-        error!("pearl backend init took {:?}", dur);
+        debug!("pearl backend init took {:?}", dur);
         Ok(())
     }
 
