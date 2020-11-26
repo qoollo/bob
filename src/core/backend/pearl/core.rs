@@ -79,14 +79,43 @@ impl Pearl {
 #[async_trait]
 impl BackendStorage for Pearl {
     async fn run_backend(&self) -> Result<()> {
+        use futures::future::join_all;
+        use std::collections::hash_map::Entry;
+
         debug!("run pearl backend");
-        for vdisk_group in self.vdisks_groups.iter() {
-            vdisk_group.run().await?;
-        }
+        let start = std::time::Instant::now();
+        let mut inits_by_disk: HashMap<&str, Vec<_>> = HashMap::new();
         let pearl_groups = self.alien_vdisks_groups.read().await;
-        for group in pearl_groups.iter() {
-            group.run().await?;
+        for group in self.vdisks_groups.iter().chain(pearl_groups.iter()) {
+            let group_c = group.clone();
+            let fut = async move { group_c.run().await };
+            match inits_by_disk.entry(group.disk_name()) {
+                Entry::Occupied(mut e) => {
+                    e.get_mut().push(fut);
+                }
+                Entry::Vacant(e) => {
+                    e.insert(vec![fut]);
+                }
+            }
         }
+
+        // TODO: Bucket inits with respec to degree of parallelism
+        let mut inits = Vec::with_capacity(inits_by_disk.len());
+        for (_, futures) in inits_by_disk.into_iter() {
+            inits.push(async move {
+                for f in futures {
+                    f.await?;
+                }
+                Ok::<(), anyhow::Error>(())
+            });
+        }
+        join_all(inits)
+            .await
+            .into_iter()
+            .fold(Ok(()), |s, n| s.and(n))?;
+
+        let dur = std::time::Instant::now() - start;
+        error!("pearl backend init took {:?}", dur);
         Ok(())
     }
 
