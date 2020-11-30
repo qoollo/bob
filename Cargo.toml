@@ -49,7 +49,8 @@ features = ["full"]
 
 [dependencies.pearl]
 git = "http://github.com/qoollo/pearl"
-branch = "tokio-v0.2"
+# branch = "tokio-v0.2"
+rev = "fb039e0"
 
 [build-dependencies]
 tonic-build = "0.3.1"

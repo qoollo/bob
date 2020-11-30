@@ -71,7 +71,7 @@ impl Holder {
 
     pub(crate) fn is_outdated(&self) -> bool {
         let ts = Self::get_current_ts();
-        ts > self.end_timestamp.into()
+        ts > self.end_timestamp
     }
 
     pub(crate) async fn no_writes_recently(&self) -> bool {
@@ -81,12 +81,22 @@ impl Holder {
     }
 
     pub(crate) async fn active_blob_is_empty(&self) -> bool {
-        let active = self.storage().read().await.active_blob_records_count().await as u64;
+        let active = self
+            .storage()
+            .read()
+            .await
+            .active_blob_records_count()
+            .await as u64;
         active == 0
     }
 
     pub(crate) async fn active_blob_is_small(&self) -> bool {
-        let active = self.storage().read().await.active_blob_records_count().await as u64;
+        let active = self
+            .storage()
+            .read()
+            .await
+            .active_blob_records_count()
+            .await as u64;
         active * SMALL_RECORDS_COUNT_MUL < self.config.max_data_in_blob()
     }
 
@@ -283,7 +293,8 @@ impl Holder {
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
             .set_filter_config(BloomConfig::default())
-            .build(ioring)
+            .enable_aio(ioring)
+            .build()
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
 }
@@ -320,7 +331,10 @@ impl PearlSync {
     }
 
     pub(crate) async fn active_blob_records_count(&self) -> usize {
-        self.storage().records_count_in_active_blob().await.unwrap_or_default()
+        self.storage()
+            .records_count_in_active_blob()
+            .await
+            .unwrap_or_default()
     }
 
     #[inline]

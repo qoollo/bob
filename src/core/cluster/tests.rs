@@ -310,7 +310,7 @@ async fn two_node_one_vdisk_cluster_one_node_failed_put_ok() {
         .iter()
         .map(|(name, _, call)| ((*name).to_string(), call.clone()))
         .collect();
-    let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
+    let (quorum, _) = create_cluster(&node, &cluster, &actions).await;
 
     let result = quorum.put(5, BobData::new(vec![], BobMeta::new(11))).await;
     delay_for(Duration::from_millis(1000)).await;
@@ -338,7 +338,7 @@ async fn three_node_two_vdisk_cluster_second_node_failed_put_ok() {
         .iter()
         .map(|(name, _, call)| ((*name).to_string(), call.clone()))
         .collect();
-    let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
+    let (quorum, _) = create_cluster(&node, &cluster, &actions).await;
 
     delay_for(Duration::from_millis(1)).await;
     let result = quorum.put(0, BobData::new(vec![], BobMeta::new(11))).await;

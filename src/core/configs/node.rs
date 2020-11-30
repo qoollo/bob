@@ -158,6 +158,8 @@ pub struct Pearl {
     settings: BackendSettings,
     #[serde(default = "Pearl::default_hash_chars_count")]
     hash_chars_count: u32,
+    #[serde(default = "Pearl::default_enable_aio")]
+    enable_aio: bool,
 }
 
 impl Pearl {
@@ -230,6 +232,10 @@ impl Pearl {
 
     fn default_hash_chars_count() -> u32 {
         10
+    }
+
+    fn default_enable_aio() -> bool {
+        true
     }
 
     pub(crate) fn hash_chars_count(&self) -> u32 {
