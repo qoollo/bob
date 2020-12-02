@@ -27,7 +27,7 @@ pub struct TestClusterConfiguration {
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
-    init_par_degree: Option<usize>
+    init_par_degree: Option<usize>,
 }
 
 impl TestClusterConfiguration {
@@ -211,7 +211,7 @@ impl TestClusterConfiguration {
             self.cleanup_interval.clone(),
             self.open_blobs_soft_limit,
             self.open_blobs_hard_limit,
-            self.init_par_degree,
+            self.init_par_degree.unwrap_or(1),
         );
         (Self::get_node_name(node_index), node)
     }
@@ -271,7 +271,9 @@ impl TestClusterConfiguration {
         match self.storage_format_type.as_ref().map(String::as_str) {
             Some("parity") => return node_index % 2 == disk_index % 2,
             Some("spread") => {
-                let disks = (node_index..self.vdisks_count).chain(0..node_index).flat_map(|i| vec![i; self.quorum]);
+                let disks = (node_index..self.vdisks_count)
+                    .chain(0..node_index)
+                    .flat_map(|i| vec![i; self.quorum]);
                 let step = self.nodes_count as usize;
                 return disks.step_by(step).find(|&i| i == disk_index).is_some();
             }
