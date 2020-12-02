@@ -8,7 +8,6 @@ pub(crate) struct Pearl {
     settings: Arc<Settings>,
     vdisks_groups: Arc<[Group]>,
     alien_vdisks_groups: Arc<RwLock<Vec<Group>>>,
-    pearl_sync: Arc<SyncState>, // holds state when we create new alien pearl dir
     node_name: String,
 }
 
@@ -32,46 +31,45 @@ impl Pearl {
             settings,
             vdisks_groups,
             alien_vdisks_groups,
-            pearl_sync: Arc::new(SyncState::new()),
             node_name: config.name().to_string(),
         }
     }
 
-    async fn create_alien_pearl(&self, op: &Operation) -> BackendResult<()> {
-        // check if pearl is currently creating
-        if self.pearl_sync.is_ready().await {
-            // check if alien created
-            debug!("create alien for: {:?}", op);
-            if !self.has_ready_alien_pearl(&op).await {
-                let group = self
-                    .settings
-                    .clone()
-                    .create_group(op, &self.node_name)
-                    .expect("pearl group");
-                let mut groups = self.alien_vdisks_groups.write().await;
-                groups.push(group);
-            }
-            self.pearl_sync.mark_as_created().await;
-        }
-        Ok(())
-    }
-
-    async fn has_ready_alien_pearl(&self, op: &Operation) -> bool {
-        self.alien_vdisks_groups
-            .read()
-            .await
-            .iter()
-            .any(|group| group.can_process_operation(&op))
-    }
-
     async fn find_alien_pearl(&self, operation: &Operation) -> BackendResult<Group> {
-        let pearls = self.alien_vdisks_groups.read().await;
+        Self::find_pearl(self.alien_vdisks_groups.read().await.iter(), operation).ok_or_else(|| {
+            Error::failed(format!("cannot find actual alien folder. {:?}", operation))
+        })
+    }
+
+    fn find_pearl<'pearl, 'op>(
+        mut pearls: impl Iterator<Item = &'pearl Group>,
+        operation: &'op Operation,
+    ) -> Option<Group> {
         pearls
-            .iter()
             .find(|group| group.can_process_operation(&operation))
             .cloned()
-            .ok_or_else(|| {
-                Error::failed(format!("cannot find actual alien folder. {:?}", operation))
+    }
+
+    async fn get_or_create_alien_pearl(&self, operation: &Operation) -> BackendResult<Group> {
+        trace!("try get alien pearl, operation {:?}", operation);
+        let pearl = Self::find_pearl(self.alien_vdisks_groups.read().await.iter(), operation);
+        if let Some(g) = pearl {
+            return Ok(g);
+        }
+
+        trace!("create alien pearl, operation {:?}", operation);
+        let mut write_lock = self.alien_vdisks_groups.write().await;
+        let pearl = Self::find_pearl(write_lock.iter(), operation);
+        if let Some(g) = pearl {
+            return Ok(g);
+        }
+
+        self.settings
+            .clone()
+            .create_group(operation, &self.node_name)
+            .map(|g| {
+                write_lock.push(g.clone());
+                g
             })
     }
 }
@@ -91,7 +89,7 @@ impl BackendStorage for Pearl {
     }
 
     async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
-        debug!("PUT[{}] to pearl backend. opeartion: {:?}", key, op);
+        debug!("PUT[{}] to pearl backend. operation: {:?}", key, op);
         let vdisk_group = self
             .vdisks_groups
             .iter()
@@ -112,16 +110,12 @@ impl BackendStorage for Pearl {
     async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
         debug!("PUT[alien][{}] to pearl backend, operation: {:?}", key, op);
 
-        if !self.has_ready_alien_pearl(&op).await {
-            debug!("need to create alien for: {:?}", op);
-            self.create_alien_pearl(&op).await?;
-        }
-        let vdisk_group = self.find_alien_pearl(&op).await;
+        let vdisk_group = self.get_or_create_alien_pearl(&op).await;
         match vdisk_group {
-            Ok(group) => group
-                .put(key, data)
-                .await
-                .map_err(|e| Error::failed(format!("{:#?}", e))),
+            Ok(group) => {
+                let res = group.put(key, data.clone()).await;
+                res.map_err(|e| Error::failed(format!("{:#?}", e)))
+            }
             Err(e) => {
                 error!(
                     "PUT[alien][{}] Cannot find group, op: {:?}, err: {}",
