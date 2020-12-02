@@ -51,11 +51,13 @@ impl Pearl {
     }
 
     async fn get_or_create_alien_pearl(&self, operation: &Operation) -> BackendResult<Group> {
+        trace!("try get alien pearl, operation {:?}", operation);
         let pearl = Self::find_pearl(self.alien_vdisks_groups.read().await.iter(), operation);
         if let Some(g) = pearl {
             return Ok(g);
         }
 
+        trace!("create alien pearl, operation {:?}", operation);
         let mut write_lock = self.alien_vdisks_groups.write().await;
         let pearl = Self::find_pearl(write_lock.iter(), operation);
         if let Some(g) = pearl {
@@ -87,7 +89,7 @@ impl BackendStorage for Pearl {
     }
 
     async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
-        debug!("PUT[{}] to pearl backend. opeartion: {:?}", key, op);
+        debug!("PUT[{}] to pearl backend. operation: {:?}", key, op);
         let vdisk_group = self
             .vdisks_groups
             .iter()
