@@ -81,7 +81,7 @@ impl Pearl {
 #[async_trait]
 impl BackendStorage for Pearl {
     async fn run_backend(&self) -> Result<()> {
-        use futures::future::join_all;
+        use futures::stream::futures_unordered::FuturesUnordered;
         use std::collections::hash_map::Entry;
 
         debug!("run pearl backend");
@@ -107,19 +107,16 @@ impl BackendStorage for Pearl {
             let buck = ind % self.init_par_degree;
             par_buckets[buck].extend(futs.into_iter());
         }
-        let mut inits = Vec::with_capacity(par_buckets.len());
+        let futs = FuturesUnordered::new();
         for futures in par_buckets {
-            inits.push(async move {
+            futs.push(async move {
                 for f in futures {
                     f.await?;
                 }
                 Ok::<(), anyhow::Error>(())
             });
         }
-        join_all(inits)
-            .await
-            .into_iter()
-            .fold(Ok(()), |s, n| s.and(n))?;
+        futs.fold(Ok(()), |s, n| async move { s.and(n) }).await?;
 
         let dur = std::time::Instant::now() - start;
         debug!("pearl backend init took {:?}", dur);
