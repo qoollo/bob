@@ -33,7 +33,7 @@ mod prelude {
     pub(crate) use configs::{Cluster as ClusterConfig, Node as NodeConfig};
     pub(crate) use data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskID};
     pub(crate) use std::time::Instant;
-    pub(crate) use metrics_ext::{ counter, timing, gauge };
+    pub(crate) use metrics_ext::{ counter, timing, gauge }; // !gauge will be used in additional metrics
     pub(crate) use futures::{
         future, stream::FuturesUnordered, Future, FutureExt, StreamExt, TryFutureExt,
     };

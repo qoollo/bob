@@ -16,8 +16,6 @@ extern crate serde_derive;
 #[macro_use]
 extern crate cfg_if;
 #[macro_use]
-extern crate dipstick;
-#[macro_use]
 extern crate rocket;
 #[macro_use]
 extern crate async_trait;

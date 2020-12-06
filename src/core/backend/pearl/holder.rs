@@ -128,6 +128,7 @@ impl Holder {
     }
 
     // @TODO remove redundant return result
+    #[allow(clippy::cast_possible_truncation)]
     async fn write_disk(storage: PearlStorage, key: Key, data: BobData) -> BackendResult<()> {
         counter!(PEARL_PUT_COUNTER, 1);
         let timer = Instant::now();
@@ -143,6 +144,7 @@ impl Holder {
         Ok(())
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     pub async fn read(&self, key: BobKey) -> Result<BobData, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
@@ -150,11 +152,10 @@ impl Holder {
             trace!("Vdisk: {}, read key: {}", self.vdisk, key);
             counter!(PEARL_GET_COUNTER, 1);
             let timer = Instant::now();
-            storage
+            let res = storage
                 .read(Key::from(key))
                 .await
                 .map(|r| {
-                    counter!(PEARL_GET_TIMER, timer.elapsed().as_nanos() as u64);
                     Data::from_bytes(&r)
                 })
                 .map_err(|e| {
@@ -164,7 +165,9 @@ impl Holder {
                         ErrorKind::RecordNotFound => Error::key_not_found(key),
                         _ => Error::storage(e.to_string()),
                     }
-                })?
+                });
+            counter!(PEARL_GET_TIMER, timer.elapsed().as_nanos() as u64);
+            res?
         } else {
             trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
             Err(Error::vdisk_is_not_ready())

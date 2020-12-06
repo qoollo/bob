@@ -61,7 +61,7 @@ pub(crate) mod b_client {
             };
             let request = Request::new(message);
             self.metrics.put_count();
-            let timer = self.metrics.put_timer();
+            let timer = BobClientMetrics::start_timer();
             let mut client = self.client.clone();
             let node_name = self.node.name().to_owned();
             let future = client.put(request);
@@ -80,7 +80,7 @@ pub(crate) mod b_client {
             let node_name = self.node.name().to_owned();
             let mut client = self.client.clone();
             self.metrics.get_count();
-            let timer = self.metrics.get_timer();
+            let timer = BobClientMetrics::start_timer();
 
             let message = GetRequest {
                 key: Some(BlobKey { key }),
