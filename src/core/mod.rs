@@ -3,6 +3,7 @@ pub mod backend;
 /// GRPC client to deal with backend.
 pub mod bob_client;
 pub(crate) mod cluster;
+pub(crate) mod counter;
 /// Configuration tools.
 pub mod configs;
 pub mod data;
@@ -53,6 +54,7 @@ mod prelude {
         CLIENT_EXIST_TIMER, GRINDER_GET_COUNTER, GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER,
         GRINDER_PUT_COUNTER, GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER, GRINDER_EXIST_COUNTER,
         GRINDER_EXIST_ERROR_COUNTER, GRINDER_EXIST_TIMER, AVAILABLE_NODES_COUNT, BACKEND_STATE,
+        BLOBS_COUNT, ALIEN_BLOBS_COUNT,
     };
     pub(crate) use node::{Disk as NodeDisk, Node, Output as NodeOutput, ID as NodeID};
     pub(crate) use stopwatch::Stopwatch;
@@ -66,6 +68,7 @@ mod prelude {
         Code, Request, Response, Status,
     };
     pub(crate) use cleaner::Cleaner;
+    pub(crate) use counter::Counter as BlobsCounter;
 }
 
 #[cfg(test)]

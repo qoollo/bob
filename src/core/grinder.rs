@@ -6,6 +6,7 @@ pub struct Grinder {
     link_manager: Arc<LinkManager>,
     cluster: Arc<dyn Cluster + Send + Sync>,
     cleaner: Arc<Cleaner>,
+    counter: Arc<BlobsCounter>,
 }
 
 impl Grinder {
@@ -20,11 +21,13 @@ impl Grinder {
             config.open_blobs_soft(),
             config.hard_open_blobs(),
         ));
+        let counter = Arc::new(BlobsCounter::new(config.count_interval()));
         Grinder {
             backend: backend.clone(),
             link_manager,
             cluster: get_cluster(mapper, config, backend),
             cleaner,
+            counter,
         }
     }
 
@@ -168,7 +171,7 @@ impl Grinder {
     pub(crate) fn run_periodic_tasks(&self, client_factory: Factory) {
         self.link_manager.spawn_checker(client_factory);
         self.cleaner.spawn_task(self.backend.clone());
-        self.backend.spawn_counter();
+        self.counter.spawn_task(self.backend.clone());
     }
 }
 

@@ -61,6 +61,10 @@ metrics! {
     BACKEND: Proxy = "backend" => {
         /// Observes if bob has started already
         pub BACKEND_STATE: Gauge = "backend_state";
+        /// Count blobs (without aliens)
+        pub BLOBS_COUNT: Gauge = "blob_count";
+        /// Count alien blobs
+        pub ALIEN_BLOBS_COUNT: Gauge = "alien_count";
     }
 }
 

@@ -92,7 +92,9 @@ pub(crate) trait BackendStorage: Debug {
         result
     }
 
-    fn spawn_counter(&self) {}
+    async fn blobs_count(&self) -> (usize, usize) {
+        (0, 0)
+    }
 
     fn vdisks_groups(&self) -> Option<&[Group]> {
         None
@@ -115,8 +117,8 @@ impl Backend {
         Self { inner, mapper }
     }
 
-    pub(crate) fn spawn_counter(&self) {
-        self.inner.spawn_counter();
+    pub(crate) async fn blobs_count(&self) -> (usize, usize) {
+        self.inner.blobs_count().await
     }
 
     pub(crate) fn mapper(&self) -> &Virtual {
