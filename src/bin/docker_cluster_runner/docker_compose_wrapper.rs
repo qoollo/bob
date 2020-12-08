@@ -138,11 +138,11 @@ impl Serialize for SecurityOpt {
 #[derive(Serialize, new)]
 pub struct ULimits {
     memlock: u32,
-    nofile: FileLimits
+    nofile: FileLimits,
 }
 
 #[derive(Serialize, new)]
 pub struct FileLimits {
     soft: u32,
-    hard: u32
+    hard: u32,
 }

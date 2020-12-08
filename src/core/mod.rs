@@ -2,6 +2,8 @@
 pub mod backend;
 /// GRPC client to deal with backend.
 pub mod bob_client;
+/// Component for cleaning up memory
+pub(crate) mod cleaner;
 pub(crate) mod cluster;
 /// Configuration tools.
 pub mod configs;
@@ -17,8 +19,6 @@ pub mod metrics;
 pub mod node;
 /// GRPC server to receive and process requests from clients.
 pub mod server;
-/// Component for cleaning up memory
-pub(crate) mod cleaner;
 
 pub(crate) use self::error::Error;
 pub(crate) use super::prelude::*;
@@ -28,6 +28,7 @@ mod prelude {
     pub(crate) use super::*;
 
     pub(crate) use bob_client::{BobClient, Factory};
+    pub(crate) use cleaner::Cleaner;
     pub(crate) use cluster::{get_cluster, Cluster};
     pub(crate) use configs::{Cluster as ClusterConfig, Node as NodeConfig};
     pub(crate) use data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskID};
@@ -64,7 +65,6 @@ mod prelude {
         transport::{Channel, Endpoint},
         Code, Request, Response, Status,
     };
-    pub(crate) use cleaner::Cleaner;
 }
 
 #[cfg(test)]

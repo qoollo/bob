@@ -286,13 +286,29 @@ impl Holder {
         let prefix = self.config.blob_file_name_prefix();
         let max_data = self.config.max_data_in_blob();
         let max_blob_size = self.config.max_blob_size();
-        let ioring = rio::new().with_context(|| "io uring creation failed")?;
-        builder
+        let builder = builder
             .blob_file_name_prefix(prefix)
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
-            .set_filter_config(BloomConfig::default())
-            .enable_aio(ioring)
+            .set_filter_config(BloomConfig::default());
+        let builder = if self.config.is_aio_enabled() {
+            match rio::new() {
+                Ok(ioring) => {
+                    warn!("bob will start with AIO - async fs io api");
+                    builder.enable_aio(ioring)
+                }
+                Err(e) => {
+                    warn!("bob will start with standard sync fs io api");
+                    warn!("can't start with AIO, cause: {}", e);
+                    builder
+                }
+            }
+        } else {
+            warn!("bob will start with standard sync fs io api");
+            warn!("cause: disabled in config");
+            builder
+        };
+        builder
             .build()
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.work_dir))
     }
