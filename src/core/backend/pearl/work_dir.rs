@@ -2,7 +2,14 @@ use super::prelude::*;
 
 #[derive(Debug, Clone)]
 pub struct WorkDir {
+    mount_point: MountPoint,
     path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+enum MountPoint {
+    Dir,
+    Device,
 }
 
 impl WorkDir {
