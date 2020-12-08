@@ -6,10 +6,10 @@ pub(crate) type PearlStorage = Storage<Key>;
 #[derive(Clone, Debug)]
 pub(crate) struct Pearl {
     settings: Arc<Settings>,
-    vdisks_groups: Arc<Vec<Group>>,
+    vdisks_groups: Arc<[Group]>,
     alien_vdisks_groups: Arc<RwLock<Vec<Group>>>,
-    pearl_sync: Arc<SyncState>, // holds state when we create new alien pearl dir
     node_name: String,
+    init_par_degree: usize,
 }
 
 impl Pearl {
@@ -17,7 +17,8 @@ impl Pearl {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
 
-        let vdisks_groups = Arc::new(settings.clone().read_group_from_disk(config));
+        let data = settings.clone().read_group_from_disk(config);
+        let vdisks_groups: Arc<[Group]> = Arc::from(data.as_slice());
         trace!("count vdisk groups: {}", vdisks_groups.len());
 
         let alien = settings
@@ -31,46 +32,46 @@ impl Pearl {
             settings,
             vdisks_groups,
             alien_vdisks_groups,
-            pearl_sync: Arc::new(SyncState::new()),
             node_name: config.name().to_string(),
+            init_par_degree: config.init_par_degree(),
         }
-    }
-
-    async fn create_alien_pearl(&self, op: &Operation) -> BackendResult<()> {
-        // check if pearl is currently creating
-        if self.pearl_sync.is_ready().await {
-            // check if alien created
-            debug!("create alien for: {:?}", op);
-            if !self.has_ready_alien_pearl(&op).await {
-                let group = self
-                    .settings
-                    .clone()
-                    .create_group(op, &self.node_name)
-                    .expect("pearl group");
-                let mut groups = self.alien_vdisks_groups.write().await;
-                groups.push(group);
-            }
-            self.pearl_sync.mark_as_created().await;
-        }
-        Ok(())
-    }
-
-    async fn has_ready_alien_pearl(&self, op: &Operation) -> bool {
-        self.alien_vdisks_groups
-            .read()
-            .await
-            .iter()
-            .any(|group| group.can_process_operation(&op))
     }
 
     async fn find_alien_pearl(&self, operation: &Operation) -> BackendResult<Group> {
-        let pearls = self.alien_vdisks_groups.read().await;
+        Self::find_pearl(self.alien_vdisks_groups.read().await.iter(), operation).ok_or_else(|| {
+            Error::failed(format!("cannot find actual alien folder. {:?}", operation))
+        })
+    }
+
+    fn find_pearl<'pearl, 'op>(
+        mut pearls: impl Iterator<Item = &'pearl Group>,
+        operation: &'op Operation,
+    ) -> Option<Group> {
         pearls
-            .iter()
             .find(|group| group.can_process_operation(&operation))
             .cloned()
-            .ok_or_else(|| {
-                Error::failed(format!("cannot find actual alien folder. {:?}", operation))
+    }
+
+    async fn get_or_create_alien_pearl(&self, operation: &Operation) -> BackendResult<Group> {
+        trace!("try get alien pearl, operation {:?}", operation);
+        let pearl = Self::find_pearl(self.alien_vdisks_groups.read().await.iter(), operation);
+        if let Some(g) = pearl {
+            return Ok(g);
+        }
+
+        trace!("create alien pearl, operation {:?}", operation);
+        let mut write_lock = self.alien_vdisks_groups.write().await;
+        let pearl = Self::find_pearl(write_lock.iter(), operation);
+        if let Some(g) = pearl {
+            return Ok(g);
+        }
+
+        self.settings
+            .clone()
+            .create_group(operation, &self.node_name)
+            .map(|g| {
+                write_lock.push(g.clone());
+                g
             })
     }
 }
@@ -78,19 +79,50 @@ impl Pearl {
 #[async_trait]
 impl BackendStorage for Pearl {
     async fn run_backend(&self) -> Result<()> {
+        use futures::stream::futures_unordered::FuturesUnordered;
+        use std::collections::hash_map::Entry;
+
         debug!("run pearl backend");
-        for vdisk_group in self.vdisks_groups.iter() {
-            vdisk_group.run().await?;
-        }
+        let start = std::time::Instant::now();
+        let mut inits_by_disk: HashMap<&str, Vec<_>> = HashMap::new();
         let pearl_groups = self.alien_vdisks_groups.read().await;
-        for group in pearl_groups.iter() {
-            group.run().await?;
+        for group in self.vdisks_groups.iter().chain(pearl_groups.iter()) {
+            let group_c = group.clone();
+            let fut = async move { group_c.run().await };
+            match inits_by_disk.entry(group.disk_name()) {
+                Entry::Occupied(mut e) => {
+                    e.get_mut().push(fut);
+                }
+                Entry::Vacant(e) => {
+                    e.insert(vec![fut]);
+                }
+            }
         }
+
+        // vec![vec![]; n] macro requires Clone trait, and future does not implement it
+        let mut par_buckets: Vec<Vec<_>> = (0..self.init_par_degree).map(|_| vec![]).collect();
+        for (ind, (_, futs)) in inits_by_disk.into_iter().enumerate() {
+            let buck = ind % self.init_par_degree;
+            par_buckets[buck].extend(futs.into_iter());
+        }
+        let futs = FuturesUnordered::new();
+        for futures in par_buckets {
+            futs.push(async move {
+                for f in futures {
+                    f.await?;
+                }
+                Ok::<(), anyhow::Error>(())
+            });
+        }
+        futs.fold(Ok(()), |s, n| async move { s.and(n) }).await?;
+
+        let dur = std::time::Instant::now() - start;
+        debug!("pearl backend init took {:?}", dur);
         Ok(())
     }
 
     async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
-        debug!("PUT[{}] to pearl backend. opeartion: {:?}", key, op);
+        debug!("PUT[{}] to pearl backend. operation: {:?}", key, op);
         let vdisk_group = self
             .vdisks_groups
             .iter()
@@ -111,16 +143,12 @@ impl BackendStorage for Pearl {
     async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
         debug!("PUT[alien][{}] to pearl backend, operation: {:?}", key, op);
 
-        if !self.has_ready_alien_pearl(&op).await {
-            debug!("need to create alien for: {:?}", op);
-            self.create_alien_pearl(&op).await?;
-        }
-        let vdisk_group = self.find_alien_pearl(&op).await;
+        let vdisk_group = self.get_or_create_alien_pearl(&op).await;
         match vdisk_group {
-            Ok(group) => group
-                .put(key, data)
-                .await
-                .map_err(|e| Error::failed(format!("{:#?}", e))),
+            Ok(group) => {
+                let res = group.put(key, data.clone()).await;
+                res.map_err(|e| Error::failed(format!("{:#?}", e)))
+            }
             Err(e) => {
                 error!(
                     "PUT[alien][{}] Cannot find group, op: {:?}, err: {}",

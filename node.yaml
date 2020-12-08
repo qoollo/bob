@@ -26,9 +26,17 @@ check_interval: 5000ms
 cluster_policy: quorum
 # type of the backend [in_memory, stub, pearl]
 backend_type: pearl
+# interval for checking for blobs cleanup
+cleanup_interval: 1h
+# soft limit for count of max blobs to remain in ram
+open_blobs_soft_limit: 2
+# hard limit for count of max blobs to remain in ram
+open_blobs_hard_limit: 10
 
 # used only for 'backend_type: pearl'
 pearl:
+  # optional, default = true, enables linux AIO
+  enable_aio: true
   # size in bytes. required for 'pearl'
   max_blob_size: 1000000
   # optional, required for 'pearl', disables search for existing keys before write

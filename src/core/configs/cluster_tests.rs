@@ -444,15 +444,15 @@ vdisks:
         let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
 
-        let vdisks = d.convert().unwrap();
+        let vdisks = d.create_vdisks_map().unwrap();
         assert_eq!(2, vdisks.len());
-        assert_eq!(0, vdisks[0].id());
-        assert_eq!(1, vdisks[0].replicas().len());
-        assert_eq!("/tmp/d1", vdisks[0].replicas()[0].disk_path());
+        assert_eq!(0, vdisks[&0].id());
+        assert_eq!(1, vdisks[&0].replicas().len());
+        assert_eq!("/tmp/d1", vdisks[&0].replicas()[0].disk_path());
 
-        assert_eq!(1, vdisks[1].id());
-        assert_eq!(2, vdisks[1].replicas().len());
-        assert_eq!("/tmp/d2", vdisks[1].replicas()[0].disk_path());
+        assert_eq!(1, vdisks[&1].id());
+        assert_eq!(2, vdisks[&1].replicas().len());
+        assert_eq!("/tmp/d2", vdisks[&1].replicas()[0].disk_path());
     }
 
     #[test]
@@ -508,6 +508,7 @@ operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: stub
+cleanup_interval: 1d
 ";
         let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
@@ -523,6 +524,7 @@ operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: pearl
+cleanup_interval: 1d
 ";
         let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -538,6 +540,7 @@ operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: pearl
+cleanup_interval: 1d
 pearl:
   max_blob_size: 1
   max_data_in_blob: 1
@@ -564,6 +567,7 @@ operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: pearl
+cleanup_interval: 1d
 pearl:
   max_blob_size: 1
   max_data_in_blob: 1
@@ -590,6 +594,7 @@ operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: pearl
+cleanup_interval: 1d
 pearl:
   max_blob_size: 1
 #  max_data_in_blob: 1
@@ -616,6 +621,7 @@ operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: pearl
+cleanup_interval: 1d
 pearl:
   max_blob_size: 1
   max_data_in_blob: 1
@@ -642,6 +648,7 @@ operation_timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
 backend_type: InvalidType
+cleanup_interval: 1d
 ";
         let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
@@ -675,6 +682,7 @@ operation_timeout: 12h 5min 2ns
 check_interval: 100mms
 cluster_policy: quorum # quorum
 backend_type: stub
+cleanup_interval: 1d
 ";
         let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
@@ -690,6 +698,7 @@ operation_timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
 backend_type: stub
+cleanup_interval: 1d
 ";
         let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
@@ -722,6 +731,7 @@ operation_timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
 backend_type: stub
+cleanup_interval: 1d
 ";
         let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
@@ -754,6 +764,7 @@ operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: stub
+cleanup_interval: 1d
 
 metrics:                      # optional, send metrics
   name: machine               # optional, add base name for metrics
@@ -772,6 +783,7 @@ operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: stub
+cleanup_interval: 1d
 
 metrics:                      # optional, send metrics
   name: machine               # optional, add base name for metrics
@@ -790,6 +802,7 @@ operation_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: stub
+cleanup_interval: 1d
 
 metrics:                      # optional, send metrics
  # name: machine               # optional, add base name for metrics

@@ -1,10 +1,25 @@
 # Count of nodes in cluster
-nodes_count: 2
+nodes_count: 4
 # Count of vdisks on each node
-vdisks_count: 2
+vdisks_count: 4
 # Global logging level
 logging_level: warn
 # Optional: ssh pub key for password-less ssh
 ssh_pub_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQD2Gp+1MR2Bmb1syPvYGrSTj4qbPZpRgyQza4WmhBicxj2OyfpheCrl2v8fXwRcR+UDXcJeqrPPfQn5O/6hsdAxePbu6tnu+Ri8XapppAHge7zjZJrCXyqRKJrEWpwN7A5+NA/J+SOVmFSm4JHMGw5mo4LVon+i5YSXlfgB0IuGOHZmSMo9S11ut9yywftK7Nus8ePzU02GyEj787+U6+awE7hLERoe8bjaP7lS+T9FkRIqAAuOV+jBOdZeuRJZFvxyiczv3V+31ikxMKp5fwUn+DZlnOssSnWfH4aN6kk6yxBHnLu216Nwrp2EYhCmXMwnziexml3nkHPrkbZPMgFV04teY4xN1dSaUvGB8Lm0fGrH6Wijnc/ANNNtVxTch4GZ9wE/IlQ//dNIX4722E/NhpP4qvlX4Y8+LLkdAbcBqYN/swnaKEvtZRVLY4LWYXcwyFfpH8h0EFVRhWMKpJY0R2qk1dFlUlpYhFwCBlv4TBo5/fq6XBuJ3XeGc1eb2Z1buX9FYhXT7s58ABy+brjJHK6XDE1FTxVj3h94Bph4Xkxsmp135+/EJBQ+X0P1V22+Iv82vATds4mhnM0qvLhls7ECjSclslzCUTAhU7CXnCZir3NI/+nyRvg2Lkbj24oD8ThRZwQiRSYYJ95/BSsZoe6uX2T2ER6194jIvdnGOw== asus"
 # Quorum of cluster
 quorum: 2
+# Storage types, available types are
+# parity - place even disks on even nodes, same for odd
+# n# - place # disks on each node, cyclic
+# default - place all disks on all nodes
+storage_format_type: "n1"
+# Timestamp period for nodes
+timestamp_period: "15sec"
+# Cleanup interval for nodes
+cleanup_interval: "15sec"
+# Soft limit for open blobs
+open_blobs_soft_limit: 2
+# Hard limit for open blobs
+open_blobs_hard_limit: 2
+# Degree of parallelism in disks initialization
+init_par_degree: 4

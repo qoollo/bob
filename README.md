@@ -70,3 +70,5 @@ Under vdisk info in folder it has timestemp folder info.
 
 # Examples
 You can use [bobc](https://github.com/qoollo/bob/blob/master/src/bin/bobc.rs) and [bobp](https://github.com/qoollo/bob/blob/master/src/bin/bobp.rs) like examples
+
+Also you can use [dcr](https://github.com/qoollo/bob/blob/master/src/bin/dcr.rs) to create and start docker-compose configuration. By default dcr takes configuration from file [dcr_config.yaml](https://github.com/qoollo/bob/blob/master/dcr_config.yaml). All configuration files are saved in cluster_test directory. SSH can be used to connect to running dockers. Can be used with flag -g to generate configs without starting dockers.

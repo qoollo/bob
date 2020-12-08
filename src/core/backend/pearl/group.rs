@@ -5,7 +5,7 @@ pub(crate) struct Group {
     holders: Arc<RwLock<Vec<Holder>>>,
     settings: Arc<Settings>,
     work_dir: WorkDir,
-    vdisk_id: VDiskId,
+    vdisk_id: VDiskID,
     node_name: String,
     disk_name: String,
     owner_node_name: String,
@@ -15,7 +15,7 @@ pub(crate) struct Group {
 impl Group {
     pub fn new(
         settings: Arc<Settings>,
-        vdisk_id: VDiskId,
+        vdisk_id: VDiskID,
         node_name: String,
         disk_name: String,
         work_dir: PathBuf,
@@ -296,7 +296,7 @@ impl Group {
         for holder in &holders {
             let lock_guard = holder.storage();
             let pearl_sync = lock_guard.write().await;
-            let storage = pearl_sync.storage();
+            let storage = pearl_sync.storage().clone();
             if let Err(e) = storage.close().await {
                 warn!("pearl closed: {:?}", e);
             }
@@ -342,7 +342,7 @@ impl Group {
             if let Ok(file_name) = entry
                 .file_name()
                 .into_string()
-                .map_err(|_| warn!("cannot parse file name: {:?}", entry))
+                .map_err(|e| warn!("cannot parse file name: {:?}, {:?}", entry, e))
             {
                 let partition_name = PartitionName::try_from_string(&file_name);
                 if let Some(partition_name) = partition_name {
@@ -368,14 +368,14 @@ impl Group {
             if !bytes.is_empty() {
                 hex.push(ASCII_TRANSLATION[(bytes[0] >> 2) as usize]); // First 6 bits of first byte
                 hex.push(
-                    ASCII_TRANSLATION[((bytes[0] << 4) & 0b110_000
+                    ASCII_TRANSLATION[((bytes[0] << 4) & 0b11_0000
                         | (bytes.get(1).unwrap_or(&0) >> 4))
                         as usize],
                 ); // Last 2 bits of first byte and first 4 bits of second byte
                 if bytes.len() > 1 {
                     hex.push(
                         ASCII_TRANSLATION[(bytes[1] & 0b0000_1111
-                            | (bytes.get(2).unwrap_or(&0) >> 2 & 0b110_000))
+                            | (bytes.get(2).unwrap_or(&0) >> 2 & 0b11_0000))
                             as usize],
                     ); // Last 4 bits of second byte and first 2 bits of third byte
                     if bytes.len() > 2 {
@@ -431,7 +431,7 @@ impl PartitionName {
             let hash_string = iter.next().unwrap_or("");
             timestamp_string
                 .parse()
-                .map_err(|_| warn!("failed to parse timestamp"))
+                .map_err(|e| warn!("failed to parse timestamp, {:?}", e))
                 .ok()
                 .map(|timestamp| Self {
                     timestamp,

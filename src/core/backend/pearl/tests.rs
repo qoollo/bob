@@ -17,13 +17,11 @@ fn drop_pearl() {
 
 async fn create_backend(node_config: &str, cluster_config: &str) -> PearlBackend {
     let cluster = ClusterConfig::get_from_string(cluster_config).unwrap();
-    let vdisks = cluster.convert().unwrap();
-    debug!("vdisks: {:?}", vdisks);
     debug!("cluster: {:?}", cluster);
     let node = NodeConfig::get_from_string(node_config, &cluster).unwrap();
     debug!("node: {:?}", node);
 
-    let mapper = Arc::new(Virtual::new(vdisks.to_vec(), &node, &cluster).await);
+    let mapper = Arc::new(Virtual::new(&node, &cluster).await);
     debug!("mapper: {:?}", mapper);
     PearlBackend::new(mapper, &node)
 }
@@ -37,6 +35,7 @@ operation_timeout: 3sec
 check_interval: 5000ms
 cluster_policy: quorum             # quorum
 backend_type: pearl                # in_memory, stub, pearl
+cleanup_interval: 1d
 pearl:                             # used only for 'backend_type: pearl'
   max_blob_size: 10000000          # size in bytes. required for 'pearl'
   max_data_in_blob: 10000          # optional

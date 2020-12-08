@@ -1,4 +1,7 @@
+use std::fs::ReadDir;
+
 use super::prelude::*;
+use backend::NodeDisk;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
@@ -13,13 +16,13 @@ pub(crate) struct Node {
     vdisks: Vec<VDisk>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct VDisk {
     id: u32,
     replicas: Vec<Replica>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct Replica {
     node: String,
     disk: String,
@@ -73,7 +76,10 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         delete_partition,
         alien,
         remount_vdisks_group,
-        get_local_replica_directories
+        get_local_replica_directories,
+        nodes,
+        finalize_outdated_blobs,
+        vdisk_records_count
     ];
     let task = move || {
         info!("API server started");
@@ -96,7 +102,7 @@ fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
 
 fn collect_disks_info(bob: &BobServer) -> Vec<VDisk> {
     let mapper = bob.grinder().backend().mapper();
-    mapper.vdisks().iter().map(data_vdisk_to_scheme).collect()
+    mapper.vdisks().values().map(data_vdisk_to_scheme).collect()
 }
 
 #[inline]
@@ -106,10 +112,10 @@ fn get_vdisk_by_id(bob: &BobServer, id: u32) -> Option<VDisk> {
 
 fn find_vdisk(bob: &BobServer, id: u32) -> Option<&DataVDisk> {
     let mapper = bob.grinder().backend().mapper();
-    mapper.vdisks().iter().find(|disk| disk.id() == id)
+    mapper.get_vdisk(id)
 }
 
-fn collect_replicas_info(replicas: &[DataNodeDisk]) -> Vec<Replica> {
+fn collect_replicas_info(replicas: &[NodeDisk]) -> Vec<Replica> {
     replicas
         .iter()
         .map(|r| Replica {
@@ -146,7 +152,7 @@ fn find_group<'a>(bob: &'a State<BobServer>, vdisk_id: u32) -> Result<&'a PearlG
 fn status(bob: State<BobServer>) -> Json<Node> {
     let mapper = bob.grinder().backend().mapper();
     let name = mapper.local_node_name().to_owned();
-    let address = mapper.local_node_address();
+    let address = mapper.local_node_address().to_owned();
     let vdisks = collect_disks_info(&bob);
     let node = Node {
         name,
@@ -156,15 +162,75 @@ fn status(bob: State<BobServer>) -> Json<Node> {
     Json(node)
 }
 
+#[get("/nodes")]
+fn nodes(bob: State<BobServer>) -> Json<Vec<Node>> {
+    let mapper = bob.grinder().backend().mapper();
+    let mut nodes = vec![];
+    let vdisks = collect_disks_info(&bob);
+    for node in mapper.nodes().values() {
+        let vdisks: Vec<VDisk> = vdisks
+            .iter()
+            .filter_map(|vd| {
+                if vd.replicas.iter().any(|r| r.node == node.name()) {
+                    let mut vd = vd.clone();
+                    vd.replicas.drain_filter(|r| r.node != node.name());
+                    Some(vd)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let node = Node {
+            name: node.name().to_string(),
+            address: node.address().to_string(),
+            vdisks,
+        };
+
+        nodes.push(node);
+    }
+    Json(nodes)
+}
+
 #[get("/vdisks")]
 fn vdisks(bob: State<BobServer>) -> Json<Vec<VDisk>> {
     let vdisks = collect_disks_info(&bob);
     Json(vdisks)
 }
 
+#[delete("/blobs/outdated")]
+fn finalize_outdated_blobs(bob: State<BobServer>) -> Result<StatusExt, StatusExt> {
+    let bob = bob.clone();
+    runtime().spawn(async move {
+        let backend = bob.grinder().backend();
+        backend.close_unneeded_active_blobs(1, 1).await;
+    });
+    Ok(StatusExt::new(
+        Status::Ok,
+        true,
+        "Successfully removed outdated blobs".to_string(),
+    ))
+}
+
 #[get("/vdisks/<vdisk_id>")]
 fn vdisk_by_id(bob: State<BobServer>, vdisk_id: u32) -> Option<Json<VDisk>> {
     get_vdisk_by_id(&bob, vdisk_id).map(Json)
+}
+
+#[get("/vdisks/<vdisk_id>/records/count")]
+fn vdisk_records_count(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<u64>, StatusExt> {
+    let group = find_group(&bob, vdisk_id)?;
+    let holders = group.holders();
+    let sum = runtime().block_on(async move {
+        let pearls = holders.read().await;
+        let pearls: &[_] = pearls.as_ref();
+        let mut sum = 0;
+        for pearl in pearls {
+            sum += pearl.records_count().await;
+        }
+        sum
+    });
+    Ok(Json(sum as u64))
 }
 
 #[get("/vdisks/<vdisk_id>/partitions")]
@@ -278,27 +344,7 @@ fn delete_partition(
     let group = find_group(&bob, vdisk_id)?;
     let pearls = futures::executor::block_on(group.detach(timestamp));
     if let Ok(holders) = pearls {
-        let mut result = String::new();
-        for holder in holders {
-            if let Err(e) = holder.drop_directory() {
-                let msg = format!(
-                    "partitions with timestamp {} delete failed on vdisk {}, error: {}",
-                    timestamp, vdisk_id, e
-                );
-                result.push_str(&msg);
-            } else {
-                result.push_str(&format!(
-                    "successfully deleted partitions with timestamp {}",
-                    timestamp
-                ));
-            }
-            result.push('\n');
-        }
-        if result.is_empty() {
-            Ok(StatusExt::new(Status::Ok, true, result))
-        } else {
-            Err(StatusExt::new(Status::InternalServerError, true, result))
-        }
+        drop_directories(holders, timestamp, vdisk_id)
     } else {
         Err(StatusExt::new(
             Status::BadRequest,
@@ -308,6 +354,34 @@ fn delete_partition(
                 timestamp, vdisk_id
             ),
         ))
+    }
+}
+
+fn drop_directories(
+    holders: Vec<Holder>,
+    timestamp: u64,
+    vdisk_id: u32,
+) -> Result<StatusExt, StatusExt> {
+    let mut result = String::new();
+    for holder in holders {
+        if let Err(e) = holder.drop_directory() {
+            let msg = format!(
+                "partitions with timestamp {} delete failed on vdisk {}, error: {}",
+                timestamp, vdisk_id, e
+            );
+            result.push_str(&msg);
+        } else {
+            result.push_str(&format!(
+                "successfully deleted partitions with timestamp {}",
+                timestamp
+            ));
+        }
+        result.push('\n');
+    }
+    if result.is_empty() {
+        Ok(StatusExt::new(Status::Ok, true, result))
+    } else {
+        Err(StatusExt::new(Status::InternalServerError, true, result))
     }
 }
 
@@ -354,27 +428,31 @@ fn create_directory(root_path: &Path) -> Option<Dir> {
     let result = std::fs::read_dir(root_path);
     match result {
         Ok(read_dir) => {
-            let children = read_dir
-                .filter_map(Result::ok)
-                .filter_map(|child| {
-                    if child.path().is_dir() {
-                        create_directory(&child.path())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            Some(Dir {
-                name: name.to_string(),
-                path: root_path_str.to_string(),
-                children,
-            })
+            read_directory_children(read_dir, name.to_string(), root_path_str.to_string())
         }
         Err(e) => {
             error!("read path {:?} failed: {}", root_path, e);
             None
         }
     }
+}
+
+fn read_directory_children(read_dir: ReadDir, name: String, path: String) -> Option<Dir> {
+    let children = read_dir
+        .filter_map(Result::ok)
+        .filter_map(|child| {
+            if child.path().is_dir() {
+                create_directory(&child.path())
+            } else {
+                None
+            }
+        })
+        .collect();
+    Some(Dir {
+        name,
+        path,
+        children,
+    })
 }
 
 impl<'r> FromParam<'r> for Action {

@@ -61,6 +61,12 @@ impl Error {
     pub(crate) fn storage(msg: impl Into<String>) -> Self {
         Self::new(Kind::Storage(msg.into()))
     }
+
+    pub(crate) fn request_failed_completely(local: &Error, alien: &Error) -> Self {
+        let msg = format!("local error: {}\nalien error: {}", local, alien);
+        let ctx = Kind::RequestFailedCompletely(msg);
+        Self::new(ctx)
+    }
 }
 
 impl Display for Error {
@@ -96,6 +102,10 @@ impl Into<Status> for Error {
             Kind::Failed(msg) => Status::internal(format!("Failed {}", msg)),
             Kind::Internal => Status::internal("Internal"),
             Kind::PearlChangeState(msg) => Status::internal(format!("PearlChangeState {}", msg)),
+            Kind::RequestFailedCompletely(msg) => Status::internal(format!(
+                "Request failed on both stages local and alien: {}",
+                msg
+            )),
         }
     }
 }
@@ -138,7 +148,7 @@ where
 #[derive(PartialEq, Debug, Clone)]
 pub enum Kind {
     Timeout,
-    VDiskNotFound(VDiskId),
+    VDiskNotFound(VDiskID),
     Storage(String),
     DuplicateKey,
     KeyNotFound(BobKey),
@@ -146,4 +156,5 @@ pub enum Kind {
     Failed(String),
     Internal,
     PearlChangeState(String),
+    RequestFailedCompletely(String),
 }

@@ -158,6 +158,8 @@ pub struct Pearl {
     settings: BackendSettings,
     #[serde(default = "Pearl::default_hash_chars_count")]
     hash_chars_count: u32,
+    #[serde(default = "Pearl::default_enable_aio")]
+    enable_aio: bool,
 }
 
 impl Pearl {
@@ -230,6 +232,10 @@ impl Pearl {
 
     fn default_hash_chars_count() -> u32 {
         10
+    }
+
+    fn default_enable_aio() -> bool {
+        true
     }
 
     pub(crate) fn hash_chars_count(&self) -> u32 {
@@ -345,6 +351,12 @@ pub struct Node {
     bind_ref: RefCell<String>,
     #[serde(skip)]
     disks_ref: RefCell<Vec<DiskPath>>,
+
+    cleanup_interval: String,
+    open_blobs_soft_limit: Option<usize>,
+    open_blobs_hard_limit: Option<usize>,
+    #[serde(default = "Node::default_init_par_degree")]
+    init_par_degree: usize,
 }
 
 impl NodeConfig {
@@ -432,6 +444,43 @@ impl NodeConfig {
         Ok(())
     }
 
+    pub(crate) fn cleanup_interval(&self) -> Duration {
+        self.cleanup_interval
+            .parse::<HumanDuration>()
+            .expect("parse humantime duration")
+            .into()
+    }
+
+    pub(crate) fn open_blobs_soft(&self) -> usize {
+        self.open_blobs_soft_limit
+            .and_then(|i| {
+                if i == 0 {
+                    error!("soft open blobs limit can't be less than 1");
+                    None
+                } else {
+                    Some(i)
+                }
+            })
+            .unwrap_or(1)
+    }
+
+    pub(crate) fn hard_open_blobs(&self) -> usize {
+        self.open_blobs_hard_limit
+            .and_then(|i| {
+                if i == 0 {
+                    error!("hard open blobs limit can't be less than 1");
+                    None
+                } else {
+                    Some(i)
+                }
+            })
+            .unwrap_or(10)
+    }
+
+    pub(crate) fn init_par_degree(&self) -> usize {
+        self.init_par_degree
+    }
+
     #[cfg(test)]
     pub(crate) fn get_from_string(
         file: &str,
@@ -463,6 +512,10 @@ impl NodeConfig {
             Ok(())
         }
     }
+
+    fn default_init_par_degree() -> usize {
+        1
+    }
 }
 
 impl Validatable for NodeConfig {
@@ -479,14 +532,14 @@ impl Validatable for NodeConfig {
         }
         self.operation_timeout
             .parse::<HumanDuration>()
-            .map_err(|_| {
+            .map_err(|e| {
                 let msg = "field \'timeout\' for \'config\' is not valid".to_string();
-                error!("{}", msg);
+                error!("{}, {}", msg, e);
                 msg
             })?;
-        self.check_interval.parse::<HumanDuration>().map_err(|_| {
+        self.check_interval.parse::<HumanDuration>().map_err(|e| {
             let msg = "field \'check_interval\' for \'config\' is not valid".to_string();
-            error!("{}", msg);
+            error!("{}, {}", msg, e);
             msg
         })?;
         if self.name.is_empty() {
@@ -529,6 +582,10 @@ pub(crate) mod tests {
             metrics: None,
             bind_ref: RefCell::default(),
             disks_ref: RefCell::default(),
+            cleanup_interval: "1d".to_string(),
+            open_blobs_soft_limit: None,
+            open_blobs_hard_limit: None,
+            init_par_degree: 1,
         }
     }
 }

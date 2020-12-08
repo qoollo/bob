@@ -161,11 +161,27 @@ pub fn init_counters(
 fn init_grinder(prefix: String, metrics: &(dyn ContainerBuilder)) {
     let bucket = metrics.init_bucket(prefix);
     GRINDER.target(bucket);
+    init_grinder_counters();
+}
+
+fn init_grinder_counters() {
+    GRINDER_GET_COUNTER.count(0);
+    GRINDER_PUT_COUNTER.count(0);
+    GRINDER_GET_ERROR_COUNT_COUNTER.count(0);
+    GRINDER_PUT_ERROR_COUNT_COUNTER.count(0);
 }
 
 fn init_bob_client(prefix: String, metrics: &(dyn ContainerBuilder)) {
     let bucket = metrics.init_bucket(prefix);
     CLIENT.target(bucket);
+    init_bob_client_counters();
+}
+
+fn init_bob_client_counters() {
+    CLIENT_GET_COUNTER.count(0);
+    CLIENT_PUT_COUNTER.count(0);
+    CLIENT_GET_ERROR_COUNT_COUNTER.count(0);
+    CLIENT_PUT_ERROR_COUNT_COUNTER.count(0);
 }
 
 #[allow(clippy::needless_pass_by_value)] // It's a callback, can't change its args
@@ -175,16 +191,13 @@ fn stats_all_bob(
     name: MetricName,
     score: ScoreType,
 ) -> Option<(InputKind, MetricName, MetricValue)> {
-    match score {
-        ScoreType::Count(hit) => Some((InputKind::Counter, name.make_name("count"), hit)),
-        ScoreType::Sum(sum) => Some((kind, name.make_name("sum"), sum)),
-        ScoreType::Mean(mean) => Some((kind, name.make_name("mean"), mean as MetricValue)),
-        ScoreType::Max(max) => Some((InputKind::Gauge, name.make_name("max"), max)),
-        ScoreType::Min(min) => Some((InputKind::Gauge, name.make_name("min"), min)),
-        ScoreType::Rate(rate) => Some((
-            InputKind::Gauge,
-            name.make_name("rate"),
-            rate as MetricValue,
-        )),
+    match (kind, score) {
+        (InputKind::Counter, ScoreType::Sum(val)) | (InputKind::Gauge, ScoreType::Max(val)) => {
+            Some((kind, name, val))
+        }
+        (InputKind::Timer, ScoreType::Mean(val)) => {
+            Some((kind, name, (val * 1000_f64) as MetricValue))
+        }
+        _ => None,
     }
 }
