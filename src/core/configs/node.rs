@@ -517,7 +517,9 @@ impl NodeConfig {
         }
     }
 
-    fn default_init_par_degree() -> usize { 1 }
+    fn default_init_par_degree() -> usize {
+        1
+    }
 }
 
 impl Validatable for NodeConfig {
@@ -587,7 +589,7 @@ pub(crate) mod tests {
             cleanup_interval: "1d".to_string(),
             open_blobs_soft_limit: None,
             open_blobs_hard_limit: None,
-            init_par_degree: None,
+            init_par_degree: 1,
         }
     }
 }
