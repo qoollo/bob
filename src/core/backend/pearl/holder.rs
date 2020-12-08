@@ -294,7 +294,10 @@ impl Holder {
             .set_filter_config(BloomConfig::default());
         let builder = if self.config.is_aio_enabled() {
             match rio::new() {
-                Ok(ioring) => builder.enable_aio(ioring),
+                Ok(ioring) => {
+                    warn!("bob will start with AIO - async fs io api");
+                    builder.enable_aio(ioring)
+                }
                 Err(e) => {
                     warn!("bob will start with standard sync fs io api");
                     warn!("can't start with AIO, cause: {}", e);
