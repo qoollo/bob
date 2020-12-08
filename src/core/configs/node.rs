@@ -242,6 +242,10 @@ impl Pearl {
         self.hash_chars_count
     }
 
+    pub(crate) fn is_aio_enabled(&self) -> bool {
+        self.enable_aio
+    }
+
     fn check_unset(&self) -> Result<(), String> {
         if self.alien_disk == PLACEHOLDER
             || self.blob_file_name_prefix == PLACEHOLDER
