@@ -355,6 +355,8 @@ pub struct Node {
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
+    #[serde(default = "Node::default_init_par_degree")]
+    init_par_degree: usize,
 }
 
 impl NodeConfig {
@@ -475,6 +477,10 @@ impl NodeConfig {
             .unwrap_or(10)
     }
 
+    pub(crate) fn init_par_degree(&self) -> usize {
+        self.init_par_degree
+    }
+
     #[cfg(test)]
     pub(crate) fn get_from_string(
         file: &str,
@@ -506,6 +512,8 @@ impl NodeConfig {
             Ok(())
         }
     }
+
+    fn default_init_par_degree() -> usize { 1 }
 }
 
 impl Validatable for NodeConfig {
@@ -575,6 +583,7 @@ pub(crate) mod tests {
             cleanup_interval: "1d".to_string(),
             open_blobs_soft_limit: None,
             open_blobs_hard_limit: None,
+            init_par_degree: None,
         }
     }
 }

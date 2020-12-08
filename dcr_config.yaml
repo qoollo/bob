@@ -21,3 +21,5 @@ cleanup_interval: "15sec"
 open_blobs_soft_limit: 2
 # Hard limit for open blobs
 open_blobs_hard_limit: 2
+# Degree of parallelism in disks initialization
+init_par_degree: 4

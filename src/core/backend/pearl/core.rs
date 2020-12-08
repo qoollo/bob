@@ -9,6 +9,7 @@ pub(crate) struct Pearl {
     vdisks_groups: Arc<[Group]>,
     alien_vdisks_groups: Arc<RwLock<Vec<Group>>>,
     node_name: String,
+    init_par_degree: usize,
 }
 
 impl Pearl {
@@ -32,6 +33,7 @@ impl Pearl {
             vdisks_groups,
             alien_vdisks_groups,
             node_name: config.name().to_string(),
+            init_par_degree: config.init_par_degree(),
         }
     }
 
@@ -77,14 +79,45 @@ impl Pearl {
 #[async_trait]
 impl BackendStorage for Pearl {
     async fn run_backend(&self) -> Result<()> {
+        use futures::stream::futures_unordered::FuturesUnordered;
+        use std::collections::hash_map::Entry;
+
         debug!("run pearl backend");
-        for vdisk_group in self.vdisks_groups.iter() {
-            vdisk_group.run().await?;
-        }
+        let start = std::time::Instant::now();
+        let mut inits_by_disk: HashMap<&str, Vec<_>> = HashMap::new();
         let pearl_groups = self.alien_vdisks_groups.read().await;
-        for group in pearl_groups.iter() {
-            group.run().await?;
+        for group in self.vdisks_groups.iter().chain(pearl_groups.iter()) {
+            let group_c = group.clone();
+            let fut = async move { group_c.run().await };
+            match inits_by_disk.entry(group.disk_name()) {
+                Entry::Occupied(mut e) => {
+                    e.get_mut().push(fut);
+                }
+                Entry::Vacant(e) => {
+                    e.insert(vec![fut]);
+                }
+            }
         }
+
+        // vec![vec![]; n] macro requires Clone trait, and future does not implement it
+        let mut par_buckets: Vec<Vec<_>> = (0..self.init_par_degree).map(|_| vec![]).collect();
+        for (ind, (_, futs)) in inits_by_disk.into_iter().enumerate() {
+            let buck = ind % self.init_par_degree;
+            par_buckets[buck].extend(futs.into_iter());
+        }
+        let futs = FuturesUnordered::new();
+        for futures in par_buckets {
+            futs.push(async move {
+                for f in futures {
+                    f.await?;
+                }
+                Ok::<(), anyhow::Error>(())
+            });
+        }
+        futs.fold(Ok(()), |s, n| async move { s.and(n) }).await?;
+
+        let dur = std::time::Instant::now() - start;
+        debug!("pearl backend init took {:?}", dur);
         Ok(())
     }
 
