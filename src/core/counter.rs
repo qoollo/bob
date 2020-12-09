@@ -7,16 +7,11 @@ pub(crate) struct Counter {
 
 impl Counter {
     pub(crate) fn new(count_interval: Duration) -> Self {
-        Self {
-            count_interval
-        }
+        Self { count_interval }
     }
 
     pub(crate) fn spawn_task(&self, backend: Arc<Backend>) {
-        tokio::spawn(Self::task(
-            backend,
-            self.count_interval,
-        ));
+        tokio::spawn(Self::task(backend, self.count_interval));
     }
 
     async fn task(backend: Arc<Backend>, t: Duration) {

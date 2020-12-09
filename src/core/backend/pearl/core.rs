@@ -74,30 +74,6 @@ impl Pearl {
                 Error::failed(format!("cannot find actual alien folder. {:?}", operation))
             })
     }
-
-    async fn count_blobs(
-        groups: Arc<[Group]>,
-        alien_groups_guard: Arc<RwLock<Vec<Group>>>,
-    ) -> (usize, usize) {
-        let mut cnt = 0;
-        for group in groups.iter() {
-            let holders_guard = group.holders();
-            let holders = holders_guard.read().await;
-            for holder in holders.iter() {
-                cnt += holder.blobs_count().await;
-            }
-        }
-        let mut alien_cnt = 0;
-        let alien_groups = alien_groups_guard.read().await;
-        for group in alien_groups.iter() {
-            let holders_guard = group.holders();
-            let holders = holders_guard.read().await;
-            for holder in holders.iter() {
-                alien_cnt += holder.blobs_count().await;
-            }
-        }
-        (cnt, alien_cnt)
-    }
 }
 
 #[async_trait]
@@ -204,7 +180,24 @@ impl BackendStorage for Pearl {
     }
 
     async fn blobs_count(&self) -> (usize, usize) {
-        Self::count_blobs(self.vdisks_groups.clone(), self.alien_vdisks_groups.clone()).await
+        let mut cnt = 0;
+        for group in self.vdisks_groups.iter() {
+            let holders_guard = group.holders();
+            let holders = holders_guard.read().await;
+            for holder in holders.iter() {
+                cnt += holder.blobs_count().await;
+            }
+        }
+        let mut alien_cnt = 0;
+        let alien_groups = self.alien_vdisks_groups.read().await;
+        for group in alien_groups.iter() {
+            let holders_guard = group.holders();
+            let holders = holders_guard.read().await;
+            for holder in holders.iter() {
+                alien_cnt += holder.blobs_count().await;
+            }
+        }
+        (cnt, alien_cnt)
     }
 
     fn vdisks_groups(&self) -> Option<&[Group]> {

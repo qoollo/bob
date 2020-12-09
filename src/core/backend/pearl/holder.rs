@@ -86,12 +86,22 @@ impl Holder {
     }
 
     pub(crate) async fn active_blob_is_empty(&self) -> bool {
-        let active = self.storage().read().await.active_blob_records_count().await as u64;
+        let active = self
+            .storage()
+            .read()
+            .await
+            .active_blob_records_count()
+            .await as u64;
         active == 0
     }
 
     pub(crate) async fn active_blob_is_small(&self) -> bool {
-        let active = self.storage().read().await.active_blob_records_count().await as u64;
+        let active = self
+            .storage()
+            .read()
+            .await
+            .active_blob_records_count()
+            .await as u64;
         active * SMALL_RECORDS_COUNT_MUL < self.config.max_data_in_blob()
     }
 
@@ -325,7 +335,10 @@ impl PearlSync {
     }
 
     pub(crate) async fn active_blob_records_count(&self) -> usize {
-        self.storage().records_count_in_active_blob().await.unwrap_or_default()
+        self.storage()
+            .records_count_in_active_blob()
+            .await
+            .unwrap_or_default()
     }
 
     pub(crate) fn blobs_count(&self) -> usize {

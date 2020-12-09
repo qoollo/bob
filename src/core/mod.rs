@@ -2,10 +2,12 @@
 pub mod backend;
 /// GRPC client to deal with backend.
 pub mod bob_client;
+/// Component for cleaning up memory
+pub(crate) mod cleaner;
 pub(crate) mod cluster;
-pub(crate) mod counter;
 /// Configuration tools.
 pub mod configs;
+pub(crate) mod counter;
 pub mod data;
 pub(crate) mod error;
 /// Component to manage cluster I/O and connections.
@@ -18,8 +20,6 @@ pub mod metrics;
 pub mod node;
 /// GRPC server to receive and process requests from clients.
 pub mod server;
-/// Component for cleaning up memory
-pub(crate) mod cleaner;
 
 pub(crate) use self::error::Error;
 pub(crate) use super::prelude::*;
@@ -29,12 +29,14 @@ mod prelude {
     pub(crate) use super::*;
 
     pub(crate) use bob_client::{BobClient, Factory};
+    pub(crate) use cleaner::Cleaner;
     pub(crate) use cluster::{get_cluster, Cluster};
     pub(crate) use configs::{Cluster as ClusterConfig, Node as NodeConfig};
+    pub(crate) use counter::Counter as BlobsCounter;
     pub(crate) use data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskID};
     pub(crate) use dipstick::{
-        AtomicBucket, Counter, Graphite, Input, InputKind, InputScope, MetricName, MetricValue,
-        Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer, Gauge,
+        AtomicBucket, Counter, Gauge, Graphite, Input, InputKind, InputScope, MetricName,
+        MetricValue, Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer,
     };
     pub(crate) use futures::{
         future, stream::FuturesUnordered, Future, FutureExt, StreamExt, TryFutureExt,
@@ -49,12 +51,13 @@ mod prelude {
     pub(crate) use mapper::Virtual;
     pub(crate) use metrics::{
         BobClient as BobClientMetrics, ContainerBuilder as MetricsContainerBuilder,
-        CLIENT_GET_COUNTER, CLIENT_GET_ERROR_COUNT_COUNTER, CLIENT_GET_TIMER, CLIENT_PUT_COUNTER,
-        CLIENT_PUT_ERROR_COUNT_COUNTER, CLIENT_PUT_TIMER, CLIENT_EXIST_COUNTER, CLIENT_EXIST_ERROR_COUNTER,
-        CLIENT_EXIST_TIMER, GRINDER_GET_COUNTER, GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER,
-        GRINDER_PUT_COUNTER, GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER, GRINDER_EXIST_COUNTER,
-        GRINDER_EXIST_ERROR_COUNTER, GRINDER_EXIST_TIMER, AVAILABLE_NODES_COUNT, BACKEND_STATE,
-        BLOBS_COUNT, ALIEN_BLOBS_COUNT,
+        ALIEN_BLOBS_COUNT, AVAILABLE_NODES_COUNT, BACKEND_STATE, BLOBS_COUNT, CLIENT_EXIST_COUNTER,
+        CLIENT_EXIST_ERROR_COUNTER, CLIENT_EXIST_TIMER, CLIENT_GET_COUNTER,
+        CLIENT_GET_ERROR_COUNT_COUNTER, CLIENT_GET_TIMER, CLIENT_PUT_COUNTER,
+        CLIENT_PUT_ERROR_COUNT_COUNTER, CLIENT_PUT_TIMER, GRINDER_EXIST_COUNTER,
+        GRINDER_EXIST_ERROR_COUNTER, GRINDER_EXIST_TIMER, GRINDER_GET_COUNTER,
+        GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER, GRINDER_PUT_COUNTER,
+        GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER,
     };
     pub(crate) use node::{Disk as NodeDisk, Node, Output as NodeOutput, ID as NodeID};
     pub(crate) use stopwatch::Stopwatch;
@@ -67,8 +70,6 @@ mod prelude {
         transport::{Channel, Endpoint},
         Code, Request, Response, Status,
     };
-    pub(crate) use cleaner::Cleaner;
-    pub(crate) use counter::Counter as BlobsCounter;
 }
 
 #[cfg(test)]
