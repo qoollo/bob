@@ -1,9 +1,9 @@
-use std::io::{self};
+use log::error;
 use metrics::{Key, Recorder, SetRecorderError};
-use std::time::{ Duration };
-use std::sync::mpsc::{ channel, Sender };
+use std::io::{self};
+use std::sync::mpsc::{channel, Sender};
 use std::thread;
-use log::{ error };
+use std::time::Duration;
 
 mod retry_socket;
 mod send;
@@ -48,7 +48,11 @@ struct MetricInner {
 
 impl MetricInner {
     fn new(key: MetricKey, value: MetricValue, timestamp: TimeStamp) -> MetricInner {
-        MetricInner { key, value, timestamp }
+        MetricInner {
+            key,
+            value,
+            timestamp,
+        }
     }
 }
 
@@ -74,8 +78,7 @@ impl GraphiteBuilder {
         self
     }
 
-    pub(crate) fn set_address(mut self, addr: String) -> GraphiteBuilder
-    {
+    pub(crate) fn set_address(mut self, addr: String) -> GraphiteBuilder {
         self.address = addr;
         self
     }
@@ -88,33 +91,45 @@ impl GraphiteBuilder {
 
     pub(crate) fn build(self) -> Result<GraphiteRecorder, Error> {
         let (tx, rx) = channel();
-        let recorder = GraphiteRecorder {
-            tx,
-        };
+        let recorder = GraphiteRecorder { tx };
         thread::spawn(move || send_metrics(rx, self.address, self.interval));
         Ok(recorder)
     }
 }
 
-
 impl GraphiteRecorder {
     fn push_metric(&self, m: Metric) {
         if let Err(e) = self.tx.send(m) {
-            error!("Can't send metric to thread, which processing metrics: {}", e);
+            error!(
+                "Can't send metric to thread, which processing metrics: {}",
+                e
+            );
         }
     }
 }
 
 impl Recorder for GraphiteRecorder {
     fn increment_counter(&self, key: Key, value: u64) {
-        self.push_metric(Metric::Counter(MetricInner::new(key.name().into_owned(), value, -1)));
+        self.push_metric(Metric::Counter(MetricInner::new(
+            key.name().into_owned(),
+            value,
+            -1,
+        )));
     }
 
     fn update_gauge(&self, key: Key, value: i64) {
-        self.push_metric(Metric::Gauge(MetricInner::new(key.name().into_owned(), value as u64, -1)));
+        self.push_metric(Metric::Gauge(MetricInner::new(
+            key.name().into_owned(),
+            value as u64,
+            -1,
+        )));
     }
 
     fn record_histogram(&self, key: Key, value: u64) {
-        self.push_metric(Metric::Time(MetricInner::new(key.name().into_owned(), value, -1)));
+        self.push_metric(Metric::Time(MetricInner::new(
+            key.name().into_owned(),
+            value,
+            -1,
+        )));
     }
 }

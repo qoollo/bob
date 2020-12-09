@@ -16,7 +16,6 @@ pub const GRINDER_GET_ERROR_COUNT_COUNTER: &str = "grinder.get_error_count";
 /// Measures processing time of the GET request
 pub const GRINDER_GET_TIMER: &str = "grinder.get_timer";
 
-
 /// Counts number of PUT requests, processed by Client
 pub const CLIENT_PUT_COUNTER: &str = "client.put_count";
 /// Counts number of PUT requests return error, processed by Client
@@ -42,9 +41,7 @@ pub struct BobClient {
 
 impl BobClient {
     fn new(prefix: String) -> Self {
-        BobClient {
-            prefix,
-        }
+        BobClient { prefix }
     }
 
     pub(crate) fn put_count(&self) {
@@ -57,7 +54,10 @@ impl BobClient {
 
     #[allow(clippy::cast_possible_truncation)]
     pub(crate) fn put_timer_stop(&self, timer: Timer) {
-        timing!(self.prefix.clone() + ".put_timer", timer.elapsed().as_nanos() as u64);
+        timing!(
+            self.prefix.clone() + ".put_timer",
+            timer.elapsed().as_nanos() as u64
+        );
     }
 
     pub(crate) fn put_error_count(&self) {
@@ -69,7 +69,10 @@ impl BobClient {
     }
 
     pub(crate) fn get_timer_stop(&self, timer: Timer) {
-        timing!(self.prefix.clone() + ".get_timer", timer.elapsed().as_nanos() as u64);
+        timing!(
+            self.prefix.clone() + ".get_timer",
+            timer.elapsed().as_nanos() as u64
+        );
     }
 
     pub(crate) fn get_error_count(&self) {
@@ -85,10 +88,7 @@ struct MetricsContainer {
 
 impl MetricsContainer {
     pub(crate) fn new(duration: Duration, prefix: String) -> Self {
-        MetricsContainer {
-            duration,
-            prefix,
-        }
+        MetricsContainer { duration, prefix }
     }
 }
 
@@ -111,8 +111,11 @@ pub fn init_counters(
     local_address: &str,
 ) -> Arc<dyn ContainerBuilder + Send + Sync> {
     let prefix = local_address;
-    exporter::GraphiteBuilder::new().set_address(node_config.metrics().graphite().to_string())
-        .set_interval(Duration::from_secs(1)).install().expect("Can't install metrics");
+    exporter::GraphiteBuilder::new()
+        .set_address(node_config.metrics().graphite().to_string())
+        .set_interval(Duration::from_secs(1))
+        .install()
+        .expect("Can't install metrics");
     let container = MetricsContainer::new(Duration::from_secs(1), prefix.to_string());
     info!(
         "metrics container initialized with update interval: {}ms",

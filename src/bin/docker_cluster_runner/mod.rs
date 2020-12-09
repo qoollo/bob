@@ -269,7 +269,9 @@ impl TestClusterConfiguration {
         match self.storage_format_type.as_ref().map(String::as_str) {
             Some("parity") => return node_index % 2 == disk_index % 2,
             Some("spread") => {
-                let disks = (node_index..self.vdisks_count).chain(0..node_index).flat_map(|i| vec![i; self.quorum]);
+                let disks = (node_index..self.vdisks_count)
+                    .chain(0..node_index)
+                    .flat_map(|i| vec![i; self.quorum]);
                 let step = self.nodes_count as usize;
                 return disks.step_by(step).find(|&i| i == disk_index).is_some();
             }

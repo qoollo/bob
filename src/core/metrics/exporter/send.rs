@@ -1,11 +1,11 @@
-use std::io::{Write};
+use log::{debug, trace};
 use std::collections::HashMap;
-use std::time::{ Duration, Instant };
-use std::sync::mpsc::{ Receiver };
-use log::{ debug, trace };
+use std::io::Write;
+use std::sync::mpsc::Receiver;
+use std::time::{Duration, Instant};
 
 use super::retry_socket::RetrySocket;
-use super::{ MetricKey, MetricInner, Metric, MetricValue, TimeStamp };
+use super::{Metric, MetricInner, MetricKey, MetricValue, TimeStamp};
 
 // this function runs in other thread, so it would be better if it will take control of arguments
 // themselves, not just references
@@ -56,9 +56,7 @@ struct GaugeEntry {
 
 impl GaugeEntry {
     fn new(value: MetricValue, timestamp: TimeStamp) -> Self {
-        Self {
-            value, timestamp,
-        }
+        Self { value, timestamp }
     }
 }
 
@@ -81,7 +79,9 @@ impl TimeEntry {
 }
 
 fn process_counter(counters_map: &mut HashMap<MetricKey, CounterEntry>, counter: MetricInner) {
-    let entry = counters_map.entry(counter.key).or_insert(CounterEntry::new(counter.timestamp));
+    let entry = counters_map
+        .entry(counter.key)
+        .or_insert(CounterEntry::new(counter.timestamp));
     entry.sum += counter.value;
     entry.timestamp = counter.timestamp;
 }
@@ -91,7 +91,9 @@ fn process_gauge(gauges_map: &mut HashMap<MetricKey, GaugeEntry>, gauge: MetricI
 }
 
 fn process_time(times_map: &mut HashMap<MetricKey, TimeEntry>, time: MetricInner) {
-    let entry = times_map.entry(time.key).or_insert(TimeEntry::new(time.timestamp));
+    let entry = times_map
+        .entry(time.key)
+        .or_insert(TimeEntry::new(time.timestamp));
     entry.summary_time += time.value;
     entry.measurements_amount += 1;
     entry.timestamp = time.timestamp;
@@ -100,7 +102,12 @@ fn process_time(times_map: &mut HashMap<MetricKey, TimeEntry>, time: MetricInner
 fn flush_counters(counters_map: &HashMap<MetricKey, CounterEntry>, socket: &mut RetrySocket) {
     for (key, entry) in counters_map.iter() {
         let data = format!("{} {} {}\n", key, entry.sum, entry.timestamp);
-        trace!("Counter data: {:<30} {:<20} {:<20}", key, entry.sum, entry.timestamp);
+        trace!(
+            "Counter data: {:<30} {:<20} {:<20}",
+            key,
+            entry.sum,
+            entry.timestamp
+        );
         if let Err(e) = socket.write(data.as_bytes()) {
             debug!("Can't write counter data to socket: {}", e);
         }
@@ -110,7 +117,12 @@ fn flush_counters(counters_map: &HashMap<MetricKey, CounterEntry>, socket: &mut 
 fn flush_gauges(gauges_map: &HashMap<MetricKey, GaugeEntry>, socket: &mut RetrySocket) {
     for (key, entry) in gauges_map.iter() {
         let data = format!("{} {} {}\n", key, entry.value, entry.timestamp);
-        trace!("Gauge   data: {:<30} {:<20} {:<20}", key, entry.value, entry.timestamp);
+        trace!(
+            "Gauge   data: {:<30} {:<20} {:<20}",
+            key,
+            entry.value,
+            entry.timestamp
+        );
         if let Err(e) = socket.write(data.as_bytes()) {
             debug!("Can't write gauge data to socket: {}", e);
         }
@@ -124,7 +136,12 @@ fn flush_times(times_map: &mut HashMap<MetricKey, TimeEntry>, socket: &mut Retry
             val => entry.summary_time / val,
         };
         let data = format!("{} {} {}\n", key, mean_time, entry.timestamp);
-        trace!("Time    data: {:<30} {:<20} {:<20}", key, mean_time, entry.timestamp);
+        trace!(
+            "Time    data: {:<30} {:<20} {:<20}",
+            key,
+            mean_time,
+            entry.timestamp
+        );
         if let Err(e) = socket.write(data.as_bytes()) {
             debug!("Can't write time data to socket: {}", e);
         }
