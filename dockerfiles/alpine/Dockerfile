@@ -43,32 +43,43 @@ FROM alpine:3.12.0
 # SSH
 ENV NOTVISIBLE "in users profile"
 RUN apk update \
-  && apk add --no-cache openssh-server openssh-client sudo rsync \
+  && apk add --no-cache openssh-server openssh-client sudo rsync bash \
   && mkdir /var/run/sshd \
   && echo 'root:bob' | chpasswd \
   && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
   && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config \
   && sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/init.d/sshd \
   && echo "export VISIBLE=now" >> /etc/profile \
+  && echo '%wheel ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/wheel \
   && addgroup -g 1000 -S bobd \
-  && adduser --shell /bin/sh -G bobd -S bobd
+  && adduser --shell /bin/bash -G bobd -G wheel -S bobd
 
 WORKDIR /home/bob/bin/
 COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-musl/release/bobd .
 RUN chown bobd:bobd bobd \
   && mkdir ~/.ssh \
   && chmod 600 -R ~/.ssh \
-  && echo -e "\
+  && echo -e "#!/bin/bash\n\
     cp /local_ssh/* ~/.ssh\n\
     chown -R root ~/.ssh\n\
     eval $(ssh-agent)\n\
-    ssh-add ~/.ssh/id_rsa \n\
-    /usr/sbin/sshd -D & \n\
-    su -c \"./bobd -c /configs/\$1 -n /configs/\$2\" bobd" >> run.sh \
+    ssh-add ~/.ssh/id_rsa\n\
+    /usr/sbin/sshd -D &" >> prep.sh \
+  && chmod +x prep.sh \
+  && echo -e "#!/bin/bash\n\
+    trap 'echo bobd && kill -TERM \$!' SIGTERM\n\
+    ./bobd -c /configs/\$1 -n /configs/\$2 &\n\
+    wait" >> bobd.sh \
+  && chmod +x bobd.sh \
+  && echo -e "#!/bin/bash\n\
+    trap 'echo run && kill -TERM \$!' SIGTERM\n\
+    sudo -S ./prep.sh\n\
+    ./bobd.sh \$1 \$2 & \n\
+    wait" >> run.sh \
   && chmod +x run.sh
 
 EXPOSE 80
 EXPOSE 22
 EXPOSE 20000
-
-ENTRYPOINT ["/bin/sh", "./run.sh"]
+USER bobd
+ENTRYPOINT ["/bin/bash", "./run.sh"]

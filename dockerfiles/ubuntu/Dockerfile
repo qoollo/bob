@@ -60,7 +60,6 @@ COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-gnu/release/bob
 RUN chown bobd:bobd bobd \
   && mkdir ~/.ssh \
   && chmod 600 -R ~/.ssh \
-
   && echo "#!/bin/bash\n\
     cp /local_ssh/* ~/.ssh\n\
     chown -R root ~/.ssh\n\
@@ -68,13 +67,11 @@ RUN chown bobd:bobd bobd \
     ssh-add ~/.ssh/id_rsa\n\
     /usr/sbin/sshd -D &" >> prep.sh \
   && chmod +x prep.sh \
-
   && echo "#!/bin/bash\n\
     trap 'kill -TERM \$!' SIGTERM\n\
     ./bobd -c /configs/\$1 -n /configs/\$2 &\n\
     wait" >> bobd.sh \
   && chmod +x bobd.sh \
-
   && echo "#!/bin/bash\n\
     trap 'kill -TERM \$!' SIGTERM\n\
     echo 'bobd' | sudo -S ./prep.sh\n\
