@@ -173,4 +173,6 @@ impl BackendStorage for MemBackend {
         debug!("EXIST to backend, foreign data");
         self.foreign_data.exist(operation.vdisk_id(), keys).await
     }
+
+    async fn shutdown(&self) {}
 }

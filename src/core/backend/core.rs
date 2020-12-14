@@ -82,6 +82,8 @@ pub(crate) trait BackendStorage: Debug {
     async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 
+    async fn shutdown(&self);
+
     fn vdisks_groups(&self) -> Option<&[Group]> {
         None
     }
@@ -269,6 +271,10 @@ impl Backend {
             }
         }
         Ok(exist)
+    }
+
+    pub async fn shutdown(&self) {
+        self.inner.shutdown().await;
     }
 
     fn group_keys_by_operations(
