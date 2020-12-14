@@ -68,12 +68,12 @@ RUN chown bobd:bobd bobd \
     /usr/sbin/sshd -D &" >> prep.sh \
   && chmod +x prep.sh \
   && echo "#!/bin/bash\n\
-    trap 'kill -TERM \$!' SIGTERM\n\
+    trap 'kill -TERM \$! && wait' SIGTERM\n\
     ./bobd -c /configs/\$1 -n /configs/\$2 &\n\
     wait" >> bobd.sh \
   && chmod +x bobd.sh \
   && echo "#!/bin/bash\n\
-    trap 'kill -TERM \$!' SIGTERM\n\
+    trap 'kill -TERM \$! && wait' SIGTERM\n\
     echo 'bobd' | sudo -S ./prep.sh\n\
     ./bobd.sh \$1 \$2 & \n\
     wait" >> run.sh \
