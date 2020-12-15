@@ -158,6 +158,8 @@ pub struct Pearl {
     settings: BackendSettings,
     #[serde(default = "Pearl::default_hash_chars_count")]
     hash_chars_count: u32,
+    #[serde(default = "Pearl::default_enable_aio")]
+    enable_aio: bool,
 }
 
 impl Pearl {
@@ -232,8 +234,16 @@ impl Pearl {
         10
     }
 
+    fn default_enable_aio() -> bool {
+        true
+    }
+
     pub(crate) fn hash_chars_count(&self) -> u32 {
         self.hash_chars_count
+    }
+
+    pub(crate) fn is_aio_enabled(&self) -> bool {
+        self.enable_aio
     }
 
     fn check_unset(&self) -> Result<(), String> {
@@ -335,6 +345,8 @@ pub struct Node {
     quorum: usize,
     operation_timeout: String,
     check_interval: String,
+    #[serde(default = "NodeConfig::default_count_interval")]
+    count_interval: String,
     cluster_policy: String,
 
     backend_type: String,
@@ -349,6 +361,8 @@ pub struct Node {
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
+    #[serde(default = "Node::default_init_par_degree")]
+    init_par_degree: usize,
 }
 
 impl NodeConfig {
@@ -393,6 +407,17 @@ impl NodeConfig {
 
     pub(crate) fn check_interval(&self) -> Duration {
         self.check_interval
+            .parse::<HumanDuration>()
+            .expect("parse humantime duration")
+            .into()
+    }
+
+    fn default_count_interval() -> String {
+        "10000ms".to_string()
+    }
+
+    pub(crate) fn count_interval(&self) -> Duration {
+        self.count_interval
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
@@ -469,6 +494,10 @@ impl NodeConfig {
             .unwrap_or(10)
     }
 
+    pub(crate) fn init_par_degree(&self) -> usize {
+        self.init_par_degree
+    }
+
     #[cfg(test)]
     pub(crate) fn get_from_string(
         file: &str,
@@ -499,6 +528,10 @@ impl NodeConfig {
         } else {
             Ok(())
         }
+    }
+
+    fn default_init_par_degree() -> usize {
+        1
     }
 }
 
@@ -569,6 +602,8 @@ pub(crate) mod tests {
             cleanup_interval: "1d".to_string(),
             open_blobs_soft_limit: None,
             open_blobs_hard_limit: None,
+            init_par_degree: 1,
+            count_interval: "10000ms".to_string(),
         }
     }
 }

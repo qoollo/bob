@@ -1,6 +1,6 @@
 [package]
 name = "bob"
-version = "1.5.0-alpha.16"
+version = "1.5.0-alpha.18"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
@@ -50,7 +50,8 @@ features = ["full"]
 
 [dependencies.pearl]
 git = "http://github.com/qoollo/pearl"
-branch = "tokio-v0.2"
+# branch = "tokio-v0.2"
+rev = "fb039e0"
 
 [build-dependencies]
 tonic-build = "0.3.1"

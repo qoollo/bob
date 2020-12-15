@@ -6,6 +6,7 @@ pub struct Grinder {
     link_manager: Arc<LinkManager>,
     cluster: Arc<dyn Cluster + Send + Sync>,
     cleaner: Arc<Cleaner>,
+    counter: Arc<BlobsCounter>,
 }
 
 impl Grinder {
@@ -20,11 +21,13 @@ impl Grinder {
             config.open_blobs_soft(),
             config.hard_open_blobs(),
         ));
+        let counter = Arc::new(BlobsCounter::new(config.count_interval()));
         Grinder {
             backend: backend.clone(),
             link_manager,
             cluster: get_cluster(mapper, config, backend),
             cleaner,
+            counter,
         }
     }
 
@@ -134,10 +137,33 @@ impl Grinder {
         keys: &[BobKey],
         opts: &BobOptions,
     ) -> Result<Vec<bool>, Error> {
+        let sw = Stopwatch::start_new();
         if opts.flags().contains(BobFlags::FORCE_NODE) {
-            self.backend.exist(keys, opts).await
+            CLIENT_EXIST_COUNTER.count(1);
+            let time = CLIENT_EXIST_TIMER.start();
+            let result = self.backend.exist(keys, opts).await;
+            trace!(
+                "backend processed exist, /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
+            if result.is_err() {
+                CLIENT_EXIST_ERROR_COUNTER.count(1);
+            }
+            CLIENT_EXIST_TIMER.stop(time);
+            result
         } else {
-            self.cluster.exist(keys).await
+            GRINDER_EXIST_COUNTER.count(1);
+            let time = GRINDER_EXIST_TIMER.start();
+            let result = self.cluster.exist(keys).await;
+            trace!(
+                "cluster processed exist, /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
+            if result.is_err() {
+                GRINDER_EXIST_ERROR_COUNTER.count(1);
+            }
+            GRINDER_EXIST_TIMER.stop(time);
+            result
         }
     }
 
@@ -145,6 +171,7 @@ impl Grinder {
     pub(crate) fn run_periodic_tasks(&self, client_factory: Factory) {
         self.link_manager.spawn_checker(client_factory);
         self.cleaner.spawn_task(self.backend.clone());
+        self.counter.spawn_task(self.backend.clone());
     }
 }
 

@@ -8,6 +8,7 @@ pub(crate) mod cleaner;
 pub(crate) mod cluster;
 /// Configuration tools.
 pub mod configs;
+pub(crate) mod counter;
 pub mod data;
 pub(crate) mod error;
 /// Component to manage cluster I/O and connections.
@@ -39,6 +40,7 @@ mod prelude {
     pub(crate) use cleaner::Cleaner;
     pub(crate) use cluster::{get_cluster, Cluster};
     pub(crate) use configs::{Cluster as ClusterConfig, Node as NodeConfig};
+    pub(crate) use counter::Counter as BlobsCounter;
     pub(crate) use data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskID};
     pub(crate) use futures::{
         future, stream::FuturesUnordered, Future, FutureExt, StreamExt, TryFutureExt,

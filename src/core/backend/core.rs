@@ -1,5 +1,8 @@
 use super::prelude::*;
 
+const BACKEND_STARTING: usize = 0;
+const BACKEND_STARTED: usize = 1;
+
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Operation {
     vdisk_id: VDiskID,
@@ -82,6 +85,17 @@ pub(crate) trait BackendStorage: Debug {
     async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 
+    async fn run(&self) -> Result<()> {
+        BACKEND_STATE.value(BACKEND_STARTING);
+        let result = self.run_backend().await;
+        BACKEND_STATE.value(BACKEND_STARTED);
+        result
+    }
+
+    async fn blobs_count(&self) -> (usize, usize) {
+        (0, 0)
+    }
+
     fn vdisks_groups(&self) -> Option<&[Group]> {
         None
     }
@@ -103,6 +117,10 @@ impl Backend {
         Self { inner, mapper }
     }
 
+    pub(crate) async fn blobs_count(&self) -> (usize, usize) {
+        self.inner.blobs_count().await
+    }
+
     pub(crate) fn mapper(&self) -> &Virtual {
         &self.mapper
     }
@@ -113,7 +131,7 @@ impl Backend {
 
     #[inline]
     pub(crate) async fn run_backend(&self) -> Result<()> {
-        self.inner.run_backend().await
+        self.inner.run().await
     }
 
     pub(crate) async fn put(
@@ -304,10 +322,10 @@ impl Backend {
     }
 
     pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
-        let groups = self.inner.vdisks_groups();
-        let groups = match groups {
-            Some(it) => it,
-            _ => return,
+        let groups = if let Some(groups) = self.inner.vdisks_groups() {
+            groups
+        } else {
+            return;
         };
         for group in groups {
             let holders_lock = group.holders();
@@ -346,12 +364,7 @@ impl Backend {
                 info!("active blob of {} closed by hard cap", holder.get_id());
             }
 
-            while close.len() > soft
-                && close
-                    .last()
-                    .map(|(ind, _)| !is_small[*ind])
-                    .unwrap_or(false)
-            {
+            while close.len() > soft && close.last().map_or(false, |(ind, _)| !is_small[*ind]) {
                 let (_, holder) = close.pop().unwrap();
                 holder.close_active_blob().await;
                 info!("active blob of {} closed by soft cap", holder.get_id());

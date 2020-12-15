@@ -56,6 +56,11 @@ impl Holder {
         &self.storage
     }
 
+    pub(crate) async fn blobs_count(&self) -> usize {
+        let storage = self.storage.read().await;
+        storage.blobs_count().await
+    }
+
     pub(crate) fn is_actual(&self, current_start: u64) -> bool {
         self.start_timestamp == current_start
     }
@@ -71,7 +76,7 @@ impl Holder {
 
     pub(crate) fn is_outdated(&self) -> bool {
         let ts = Self::get_current_ts();
-        ts > self.end_timestamp.into()
+        ts > self.end_timestamp
     }
 
     pub(crate) async fn no_writes_recently(&self) -> bool {
@@ -288,13 +293,30 @@ impl Holder {
         let prefix = self.config.blob_file_name_prefix();
         let max_data = self.config.max_data_in_blob();
         let max_blob_size = self.config.max_blob_size();
-        let ioring = rio::new().with_context(|| "io uring creation failed")?;
-        builder
+        let builder = builder
             .blob_file_name_prefix(prefix)
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
-            .set_filter_config(BloomConfig::default())
-            .build(ioring)
+            .set_filter_config(BloomConfig::default());
+        let builder = if self.config.is_aio_enabled() {
+            match rio::new() {
+                Ok(ioring) => {
+                    warn!("bob will start with AIO - async fs io api");
+                    builder.enable_aio(ioring)
+                }
+                Err(e) => {
+                    warn!("bob will start with standard sync fs io api");
+                    warn!("can't start with AIO, cause: {}", e);
+                    builder
+                }
+            }
+        } else {
+            warn!("bob will start with standard sync fs io api");
+            warn!("cause: disabled in config");
+            builder
+        };
+        builder
+            .build()
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
 }
@@ -335,6 +357,10 @@ impl PearlSync {
             .records_count_in_active_blob()
             .await
             .unwrap_or_default()
+    }
+
+    pub(crate) async fn blobs_count(&self) -> usize {
+        self.storage().blobs_count().await
     }
 
     #[inline]

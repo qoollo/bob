@@ -16,6 +16,13 @@ pub const GRINDER_GET_ERROR_COUNT_COUNTER: &str = "grinder.get_error_count";
 /// Measures processing time of the GET request
 pub const GRINDER_GET_TIMER: &str = "grinder.get_timer";
 
+/// Counts number of EXIST requests, processed by Grinder
+pub GRINDER_EXIST_COUNTER: &str = "grinder.exist_count";
+/// Counts number of EXIST requests return error, processed by Grinder
+pub GRINDER_EXIST_ERROR_COUNTER: &str = "grinder.exist_error_count";
+/// Measures processing time of the EXIST request
+pub GRINDER_EXIST_TIMER: &str = "grinder.exist_timer";
+
 /// Counts number of PUT requests, processed by Client
 pub const CLIENT_PUT_COUNTER: &str = "client.put_count";
 /// Counts number of PUT requests return error, processed by Client
@@ -29,6 +36,23 @@ pub const CLIENT_GET_COUNTER: &str = "client.get_count";
 pub const CLIENT_GET_ERROR_COUNT_COUNTER: &str = "client.get_error_count";
 /// Measures processing time of the GET request
 pub const CLIENT_GET_TIMER: &str = "client.get_timer";
+
+/// Counts number of EXIST requests, processed by Client
+pub CLIENT_EXIST_COUNTER: &str = "client.exist_count";
+/// Counts number of EXIST requests return error, processed by Client
+pub CLIENT_EXIST_ERROR_COUNT_COUNTER: &str = "client.exist_error_count";
+/// Measures processing time of the EXIST request
+pub CLIENT_EXIST_TIMER: &str = "client.exist_timer";
+
+/// Observes number of connected nodes
+pub AVAILABLE_NODES_COUNT: &str = "link_manager.nodes_number";
+
+/// Observes if bob has started already
+pub BACKEND_STATE: Gauge = "backend.backend_state";
+/// Count blobs (without aliens)
+pub BLOBS_COUNT: Gauge = "backend.blob_count";
+/// Count alien blobs
+pub ALIEN_BLOBS_COUNT: Gauge = "backend.alien_count";
 
 /// Type to measure time of requests processing
 pub type Timer = Instant;
@@ -78,6 +102,14 @@ impl BobClient {
     pub(crate) fn get_error_count(&self) {
         counter!(self.prefix.clone() + ".get_error_count", 1);
     }
+
+    pub(crate) fn exist_count(&self) {
+        counter!(self.prefix.clone() + ".exist_count", 1);
+    }
+
+    pub(crate) fn exist_error_count(&self) {
+        counter!(self.prefix.clone() + ".exist_error_count", 1);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -124,6 +156,8 @@ pub fn init_counters(
     let metrics = Arc::new(container);
     init_grinder();
     init_bob_client();
+    init_backend();
+    init_link_manager();
     init_pearl();
     metrics
 }
@@ -131,13 +165,27 @@ pub fn init_counters(
 fn init_grinder() {
     counter!(GRINDER_GET_COUNTER, 0);
     counter!(GRINDER_PUT_COUNTER, 0);
+    counter!(GRINDER_EXIST_COUNTER, 0);
     counter!(GRINDER_GET_ERROR_COUNT_COUNTER, 0);
     counter!(GRINDER_PUT_ERROR_COUNT_COUNTER, 0);
+    counter!(GRINDER_EXIST_ERROR_COUNT_COUNTER, 0);
+}
+
+fn init_backend() {
+    counter!(BACKEND_STATE, 0);
+    counter!(BLOBS_COUNT, 0);
+    counter!(ALIEN_BLOBS_COUNT, 0);
+}
+
+fn init_link_manager() {
+    counter!(AVAILABLE_NODES_COUNT, 0);
 }
 
 fn init_bob_client() {
     counter!(CLIENT_GET_COUNTER, 0);
     counter!(CLIENT_PUT_COUNTER, 0);
+    counter!(CLIENT_EXIST_COUNTER, 0);
     counter!(CLIENT_GET_ERROR_COUNT_COUNTER, 0);
     counter!(CLIENT_PUT_ERROR_COUNT_COUNTER, 0);
+    counter!(CLIENT_EXIST_ERROR_COUNT_COUNTER, 0);
 }
