@@ -322,10 +322,10 @@ impl Backend {
     }
 
     pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
-        let groups = self.inner.vdisks_groups();
-        let groups = match groups {
-            Some(it) => it,
-            _ => return,
+        let groups = if let Some(groups) = self.inner.vdisks_groups() {
+            groups
+        } else {
+            return;
         };
         for group in groups {
             let holders_lock = group.holders();
@@ -364,12 +364,7 @@ impl Backend {
                 info!("active blob of {} closed by hard cap", holder.get_id());
             }
 
-            while close.len() > soft
-                && close
-                    .last()
-                    .map(|(ind, _)| !is_small[*ind])
-                    .unwrap_or(false)
-            {
+            while close.len() > soft && close.last().map_or(false, |(ind, _)| !is_small[*ind]) {
                 let (_, holder) = close.pop().unwrap();
                 holder.close_active_blob().await;
                 info!("active blob of {} closed by soft cap", holder.get_id());

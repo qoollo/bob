@@ -1,5 +1,6 @@
 use bob::grpc::{
-    bob_api_client::BobApiClient, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
+    bob_api_client::BobApiClient, ExistRequest, GetOptions, GetRequest, GetSource, PutOptions,
+    PutRequest,
 };
 use bob::grpc::{Blob, BlobKey, BlobMeta};
 use clap::{App, Arg, ArgMatches};
@@ -152,6 +153,8 @@ struct Statistics {
     put_errors: Mutex<HashMap<CodeRepresentation, u64>>,
 
     get_size_bytes: AtomicU64,
+
+    verified_puts: AtomicU64,
 }
 
 impl Statistics {
@@ -362,6 +365,12 @@ fn print_averages(
                 / 1e9
         ),
     );
+    if get_matches().is_present("verify") {
+        println!(
+            "verified put threads: {}",
+            stat.verified_puts.load(Ordering::Relaxed)
+        );
+    }
 }
 
 fn print_periodic_stat(
@@ -492,6 +501,20 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
             stat.save_put_error(status).await;
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
+    }
+    let req = Request::new(ExistRequest {
+        keys: (task_conf.low_idx..upper_idx)
+            .map(|i| BlobKey { key: i })
+            .collect(),
+        options: task_conf.find_get_options(),
+    });
+    if get_matches().is_present("verify") {
+        let res = client.exist(req).await;
+        if let Ok(res) = res {
+            if res.into_inner().exist.iter().all(|b| *b) {
+                stat.verified_puts.fetch_add(1, Ordering::SeqCst);
+            }
+        }
     }
 }
 
@@ -677,6 +700,12 @@ fn get_matches() -> ArgMatches<'static> {
                 .help("amount of bytes to write")
                 .takes_value(true)
                 .long("amount"),
+        )
+        .arg(
+            Arg::with_name("verify")
+                .help("verify results of put requests")
+                .takes_value(false)
+                .long("verify"),
         )
         .get_matches()
 }
