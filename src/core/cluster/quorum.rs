@@ -47,12 +47,12 @@ impl Quorum {
         let all_count = self.mapper.get_target_nodes_for_key(key).len();
         remote_ok_count += all_count - errors.len() - tasks.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
-        let q = self.clone();
         if remote_ok_count + local_put_ok >= self.quorum {
             if tasks.is_empty() {
                 Ok(())
             } else {
                 debug!("PUT[{}] spawn {} background put tasks", key, tasks.len());
+                let q = self.clone();
                 tokio::spawn(q.background_put(tasks, key, data, failed_nodes));
                 Ok(())
             }

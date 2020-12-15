@@ -442,7 +442,7 @@ async fn three_node_one_vdisk_cluster_one_node_failed_put_ok() {
     assert_eq!(1, calls[1].1.put_count());
     assert_eq!(1, calls[2].1.put_count());
 
-    delay_for(Duration::from_millis(10)).await;
+    delay_for(Duration::from_millis(32)).await;
     info!("get local backend: 0");
     let get = backend.get_local(0, Operation::new_alien(0)).await;
     debug!("{:?}", get);
