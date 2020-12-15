@@ -139,30 +139,30 @@ impl Grinder {
     ) -> Result<Vec<bool>, Error> {
         let sw = Stopwatch::start_new();
         if opts.flags().contains(BobFlags::FORCE_NODE) {
-            CLIENT_EXIST_COUNTER.count(1);
-            let time = CLIENT_EXIST_TIMER.start();
+            counter!(CLIENT_EXIST_COUNTER, 1);
+            let time = Instant::now();
             let result = self.backend.exist(keys, opts).await;
             trace!(
                 "backend processed exist, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
             if result.is_err() {
-                CLIENT_EXIST_ERROR_COUNTER.count(1);
+                counter!(CLIENT_EXIST_ERROR_COUNT_COUNTER, 1);
             }
-            CLIENT_EXIST_TIMER.stop(time);
+            timing!(CLIENT_EXIST_TIMER, time.elapsed().as_nanos() as u64);
             result
         } else {
-            GRINDER_EXIST_COUNTER.count(1);
-            let time = GRINDER_EXIST_TIMER.start();
+            counter!(GRINDER_EXIST_COUNTER, 1);
+            let time = Instant::now();
             let result = self.cluster.exist(keys).await;
             trace!(
                 "cluster processed exist, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
             if result.is_err() {
-                GRINDER_EXIST_ERROR_COUNTER.count(1);
+                counter!(GRINDER_EXIST_ERROR_COUNT_COUNTER, 1);
             }
-            GRINDER_EXIST_TIMER.stop(time);
+            timing!(GRINDER_EXIST_TIMER, time.elapsed().as_nanos() as u64);
             result
         }
     }

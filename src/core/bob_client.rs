@@ -126,7 +126,7 @@ pub(crate) mod b_client {
         pub(crate) async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult {
             let mut client = self.client.clone();
             self.metrics.exist_count();
-            let timer = self.metrics.exist_timer();
+            let timer = BobClientMetrics::start_timer();
             let keys = keys.into_iter().map(|key| BlobKey { key }).collect();
             let message = ExistRequest {
                 keys,

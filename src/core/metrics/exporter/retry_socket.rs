@@ -1,6 +1,4 @@
 //! A TCP Socket wrapper that reconnects automatically.
-
-use log::{info, warn};
 use std::fmt;
 use std::io;
 use std::io::Write;

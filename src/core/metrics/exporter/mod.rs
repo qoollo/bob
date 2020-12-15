@@ -83,17 +83,16 @@ impl GraphiteBuilder {
         self
     }
 
-    pub(crate) fn install(self) -> Result<(), Error> {
-        let recorder = self.build()?;
-        metrics::set_boxed_recorder(Box::new(recorder))?;
-        Ok(())
+    pub(crate) fn install(self) -> Result<(), SetRecorderError> {
+        let recorder = self.build();
+        metrics::set_boxed_recorder(Box::new(recorder))
     }
 
-    pub(crate) fn build(self) -> Result<GraphiteRecorder, Error> {
+    pub(crate) fn build(self) -> GraphiteRecorder {
         let (tx, rx) = channel();
         let recorder = GraphiteRecorder { tx };
         thread::spawn(move || send_metrics(rx, self.address, self.interval));
-        Ok(recorder)
+        recorder
     }
 }
 

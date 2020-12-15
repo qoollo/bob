@@ -17,11 +17,11 @@ pub const GRINDER_GET_ERROR_COUNT_COUNTER: &str = "grinder.get_error_count";
 pub const GRINDER_GET_TIMER: &str = "grinder.get_timer";
 
 /// Counts number of EXIST requests, processed by Grinder
-pub GRINDER_EXIST_COUNTER: &str = "grinder.exist_count";
+pub const GRINDER_EXIST_COUNTER: &str = "grinder.exist_count";
 /// Counts number of EXIST requests return error, processed by Grinder
-pub GRINDER_EXIST_ERROR_COUNTER: &str = "grinder.exist_error_count";
+pub const GRINDER_EXIST_ERROR_COUNT_COUNTER: &str = "grinder.exist_error_count";
 /// Measures processing time of the EXIST request
-pub GRINDER_EXIST_TIMER: &str = "grinder.exist_timer";
+pub const GRINDER_EXIST_TIMER: &str = "grinder.exist_timer";
 
 /// Counts number of PUT requests, processed by Client
 pub const CLIENT_PUT_COUNTER: &str = "client.put_count";
@@ -38,21 +38,21 @@ pub const CLIENT_GET_ERROR_COUNT_COUNTER: &str = "client.get_error_count";
 pub const CLIENT_GET_TIMER: &str = "client.get_timer";
 
 /// Counts number of EXIST requests, processed by Client
-pub CLIENT_EXIST_COUNTER: &str = "client.exist_count";
+pub const CLIENT_EXIST_COUNTER: &str = "client.exist_count";
 /// Counts number of EXIST requests return error, processed by Client
-pub CLIENT_EXIST_ERROR_COUNT_COUNTER: &str = "client.exist_error_count";
+pub const CLIENT_EXIST_ERROR_COUNT_COUNTER: &str = "client.exist_error_count";
 /// Measures processing time of the EXIST request
-pub CLIENT_EXIST_TIMER: &str = "client.exist_timer";
+pub const CLIENT_EXIST_TIMER: &str = "client.exist_timer";
 
 /// Observes number of connected nodes
-pub AVAILABLE_NODES_COUNT: &str = "link_manager.nodes_number";
+pub const AVAILABLE_NODES_COUNT: &str = "link_manager.nodes_number";
 
 /// Observes if bob has started already
-pub BACKEND_STATE: Gauge = "backend.backend_state";
+pub const BACKEND_STATE: &str = "backend.backend_state";
 /// Count blobs (without aliens)
-pub BLOBS_COUNT: Gauge = "backend.blob_count";
+pub const BLOBS_COUNT: &str = "backend.blob_count";
 /// Count alien blobs
-pub ALIEN_BLOBS_COUNT: Gauge = "backend.alien_count";
+pub const ALIEN_BLOBS_COUNT: &str = "backend.alien_count";
 
 /// Type to measure time of requests processing
 pub type Timer = Instant;
@@ -109,6 +109,13 @@ impl BobClient {
 
     pub(crate) fn exist_error_count(&self) {
         counter!(self.prefix.clone() + ".exist_error_count", 1);
+    }
+
+    pub(crate) fn exist_timer_stop(&self, timer: Timer) {
+        timing!(
+            self.prefix.clone() + ".exist_timer",
+            timer.elapsed().as_nanos() as u64
+        );
     }
 }
 

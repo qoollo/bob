@@ -19,8 +19,8 @@ impl Counter {
         loop {
             interval.tick().await;
             let (blobs_cnt, aliens_cnt) = backend.blobs_count().await;
-            BLOBS_COUNT.value(blobs_cnt);
-            ALIEN_BLOBS_COUNT.value(aliens_cnt);
+            gauge!(BLOBS_COUNT, blobs_cnt as i64);
+            gauge!(ALIEN_BLOBS_COUNT, aliens_cnt as i64);
         }
     }
 }
