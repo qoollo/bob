@@ -1,4 +1,5 @@
 //! A TCP Socket wrapper that reconnects automatically.
+use crate::prelude::{IOError, IOResult};
 use std::fmt;
 use std::io;
 use std::io::Write;
@@ -34,14 +35,18 @@ impl RetrySocket {
             socket: None,
         };
 
-        // try early connect
-        let _ = socket.flush().ok();
+        if let Err(e) = socket.flush() {
+            warn!(
+                "Failed to connect during creation for RetrySocket: {}",
+                e.to_string()
+            );
+        }
         Ok(socket)
     }
 }
 
 impl RetrySocket {
-    fn try_connect(&mut self) -> io::Result<()> {
+    fn try_connect(&mut self) -> IOResult<()> {
         if self.socket.is_none() {
             let now = Instant::now();
             if now > self.next_try {
@@ -56,7 +61,7 @@ impl RetrySocket {
         Ok(())
     }
 
-    fn backoff(&mut self, e: io::Error) -> io::Error {
+    fn backoff(&mut self, e: IOError) -> IOError {
         self.socket = None;
         self.retries += 1;
         let delay = MAX_RECONNECT_DELAY_MS.min(MIN_RECONNECT_DELAY_MS << self.retries);
@@ -80,13 +85,10 @@ impl RetrySocket {
             operation(socket)
         } else {
             // still none, quiescent
-            return Err(io::Error::from(io::ErrorKind::NotConnected));
+            return Err(IOError::from(io::ErrorKind::NotConnected));
         };
 
-        match opres {
-            Ok(r) => Ok(r),
-            Err(e) => Err(self.backoff(e)),
-        }
+        opres.map_err(|e| self.backoff(e))
     }
 }
 

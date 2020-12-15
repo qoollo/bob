@@ -1,6 +1,5 @@
-use log::error;
+use super::prelude::IOError;
 use metrics::{Key, Recorder, SetRecorderError};
-use std::io::{self};
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
 use std::time::Duration;
@@ -14,12 +13,12 @@ const DEFAULT_DURATION: Duration = Duration::from_secs(1);
 
 #[derive(Debug)]
 pub(crate) enum Error {
-    Io(io::Error),
+    Io(IOError),
     Recorder(SetRecorderError),
 }
 
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
+impl From<IOError> for Error {
+    fn from(e: IOError) -> Self {
         Error::Io(e)
     }
 }
