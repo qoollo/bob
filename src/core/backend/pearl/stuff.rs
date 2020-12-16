@@ -4,7 +4,7 @@ use std::fs::remove_dir_all;
 pub(crate) struct Stuff;
 
 impl Stuff {
-    pub(crate) fn check_or_create_directory(path: &Path) -> BackendResult<()> {
+    pub(crate) fn check_or_create_directory(path: &WorkDir) -> BackendResult<()> {
         if path.exists() {
             trace!("directory: {:?} exists", path);
             Ok(())

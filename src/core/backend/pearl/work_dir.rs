@@ -26,8 +26,12 @@ impl WorkDir {
     }
 }
 
-impl From<PathBuf> for WorkDir {
-    fn from(path: PathBuf) -> Self {
+impl<T> From<T> for WorkDir
+where
+    T: Into<PathBuf>,
+{
+    fn from(input: T) -> Self {
+        let path: PathBuf = input.into();
         let mount_point = if path.to_str().unwrap().starts_with("/dev/sd") {
             MountPoint::Device
         } else {

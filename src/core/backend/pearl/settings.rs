@@ -3,7 +3,7 @@ use super::prelude::*;
 #[derive(Debug)]
 pub(crate) struct Settings {
     bob_prefix_path: String,
-    alien_folder: PathBuf,
+    alien_work_dir: WorkDir,
     timestamp_period: Duration,
     config: PearlConfig,
     mapper: Arc<Virtual>,
@@ -16,12 +16,12 @@ impl Settings {
             .get_disk(&config.alien_disk())
             .expect("cannot find alien disk in config")
             .path();
-        let alien_folder =
+        let alien_work_dir =
             format!("{}/{}/", disk_path, config.settings().alien_root_dir_name()).into();
 
         Self {
             bob_prefix_path: config.settings().root_dir_name().to_owned(),
-            alien_folder,
+            alien_work_dir,
             timestamp_period: config.settings().timestamp_period(),
             mapper,
             config,
@@ -37,7 +37,7 @@ impl Settings {
         for disk in self.mapper.local_disks() {
             let vdisks = self.mapper.get_vdisks_by_disk(disk.name());
             let iter = vdisks.iter().map(|&vdisk_id| {
-                let path = self.normal_path(disk.path(), vdisk_id);
+                let path = self.normal_work_dir(disk.path(), vdisk_id);
                 Group::new(
                     self.clone(),
                     vdisk_id,
@@ -57,7 +57,7 @@ impl Settings {
         config: &NodeConfig,
     ) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
-        let node_names = Self::get_all_subdirectories(&self.alien_folder)?;
+        let node_names = Self::get_all_subdirectories(&self.alien_work_dir)?;
         for node in node_names {
             if let Ok((node, node_name)) = self.try_parse_node_name(node) {
                 let vdisks = Self::get_all_subdirectories(&node.path())?;
@@ -71,7 +71,7 @@ impl Settings {
                                 vdisk_id,
                                 node_name.clone(),
                                 disk_name,
-                                entry.path(),
+                                entry.path().into(),
                                 node_name.clone(),
                             );
                             result.push(group);
@@ -94,7 +94,7 @@ impl Settings {
         node_name: &str,
     ) -> BackendResult<Group> {
         let remote_node_name = operation.remote_node_name().unwrap();
-        let path = self.alien_path(operation.vdisk_id(), remote_node_name);
+        let path = self.alien_work_dir(operation.vdisk_id(), remote_node_name);
 
         Stuff::check_or_create_directory(&path)?;
 
@@ -109,10 +109,10 @@ impl Settings {
         Ok(group)
     }
 
-    pub fn get_all_subdirectories(path: &Path) -> BackendResult<Vec<DirEntry>> {
-        Stuff::check_or_create_directory(path)?;
+    pub fn get_all_subdirectories(work_dir: &WorkDir) -> BackendResult<Vec<DirEntry>> {
+        Stuff::check_or_create_directory(work_dir)?;
 
-        match read_dir(path) {
+        match read_dir(work_dir.as_path()) {
             Ok(dir) => {
                 let mut directories = vec![];
                 for entry in dir {
@@ -124,7 +124,7 @@ impl Settings {
                 Ok(directories)
             }
             Err(err) => {
-                let msg = format!("couldn't process path: {:?}, error: {:?} ", path, err);
+                let msg = format!("couldn't process path: {:?}, error: {:?} ", work_dir, err);
                 error!("{}", msg);
                 Err(Error::failed(msg))
             }
@@ -190,14 +190,14 @@ impl Settings {
         }
     }
 
-    fn normal_path(&self, disk_path: &str, vdisk_id: VDiskID) -> PathBuf {
+    fn normal_work_dir(&self, disk_path: &str, vdisk_id: VDiskID) -> WorkDir {
         let mut vdisk_path = PathBuf::from(format!("{}/{}/", disk_path, self.bob_prefix_path));
         vdisk_path.push(format!("{}/", vdisk_id));
         vdisk_path
     }
 
-    fn alien_path(&self, vdisk_id: VDiskID, node_name: &str) -> PathBuf {
-        let mut vdisk_path = self.alien_folder.clone();
+    fn alien_work_dir(&self, vdisk_id: VDiskID, node_name: &str) -> WorkDir {
+        let mut vdisk_path = self.alien_work_dir.clone();
         vdisk_path.push(format!("{}/{}/", node_name, vdisk_id));
         vdisk_path
     }

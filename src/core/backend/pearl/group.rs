@@ -18,7 +18,7 @@ impl Group {
         vdisk_id: VDiskID,
         node_name: String,
         disk_name: String,
-        work_dir: PathBuf,
+        work_dir: WorkDir,
         owner_node_name: String,
     ) -> Self {
         Self {
@@ -26,7 +26,7 @@ impl Group {
             settings,
             vdisk_id,
             node_name,
-            work_dir: work_dir.into(),
+            work_dir,
             disk_name,
             owner_node_name,
             created_holder_indexes: Arc::default(),
@@ -334,10 +334,10 @@ impl Group {
     }
 
     pub(crate) fn read_vdisk_directory(&self) -> BackendResult<Vec<Holder>> {
-        Stuff::check_or_create_directory(self.work_dir.as_path())?;
+        Stuff::check_or_create_directory(&self.work_dir)?;
 
         let mut holders = vec![];
-        let pearl_directories = Settings::get_all_subdirectories(self.work_dir.as_path())?;
+        let pearl_directories = Settings::get_all_subdirectories(&self.work_dir)?;
         for entry in pearl_directories {
             if let Ok(file_name) = entry
                 .file_name()

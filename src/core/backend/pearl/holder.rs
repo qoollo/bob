@@ -233,7 +233,7 @@ impl Holder {
     async fn init_holder(&self) -> Result<()> {
         self.config
             .try_multiple_times(
-                || Stuff::check_or_create_directory(self.work_dir.as_path()),
+                || Stuff::check_or_create_directory(&self.work_dir),
                 &format!("cannot check path: {:?}", self.work_dir),
                 self.config.fail_retry_timeout(),
             )
