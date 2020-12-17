@@ -4,16 +4,17 @@ use std::fs::remove_dir_all;
 pub(crate) struct Stuff;
 
 impl Stuff {
-    pub(crate) fn check_or_create_directory(path: &WorkDir) -> BackendResult<()> {
-        if path.exists() {
-            trace!("directory: {:?} exists", path);
+    pub(crate) fn check_or_create_directory(work_dir: &WorkDir) -> BackendResult<()> {
+        if work_dir.as_path().exists() {
+            trace!("directory: {:?} exists", work_dir);
             Ok(())
         } else {
-            let dir = path
+            let dir = work_dir
+                .as_path()
                 .to_str()
                 .ok_or_else(|| Error::storage("invalid some path, check vdisk or disk names"))?;
 
-            create_dir_all(&path)
+            create_dir_all(work_dir.as_path())
                 .map(|_| info!("create directory: {}", dir))
                 .map_err(|e| {
                     Error::storage(format!(

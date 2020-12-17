@@ -60,7 +60,7 @@ impl Settings {
         let node_names = Self::get_all_subdirectories(&self.alien_work_dir)?;
         for node in node_names {
             if let Ok((node, node_name)) = self.try_parse_node_name(node) {
-                let vdisks = Self::get_all_subdirectories(&node.path())?;
+                let vdisks = Self::get_all_subdirectories(&node.path().into())?;
 
                 for vdisk_id in vdisks {
                     if let Ok((entry, vdisk_id)) = self.try_parse_vdisk_id(vdisk_id) {
@@ -193,7 +193,7 @@ impl Settings {
     fn normal_work_dir(&self, disk_path: &str, vdisk_id: VDiskID) -> WorkDir {
         let mut vdisk_path = PathBuf::from(format!("{}/{}/", disk_path, self.bob_prefix_path));
         vdisk_path.push(format!("{}/", vdisk_id));
-        vdisk_path
+        vdisk_path.into()
     }
 
     fn alien_work_dir(&self, vdisk_id: VDiskID, node_name: &str) -> WorkDir {
