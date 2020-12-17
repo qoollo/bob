@@ -50,7 +50,7 @@ impl Group {
         let holders = self
             .settings
             .config()
-            .try_multiple_times(
+            .try_multiple_times_async(
                 || self.read_vdisk_directory(),
                 "can't create pearl holders",
                 self.settings.config().fail_retry_timeout(),
@@ -333,11 +333,11 @@ impl Group {
         self.create_pearl_holder(start_timestamp, &hash)
     }
 
-    pub(crate) fn read_vdisk_directory(&self) -> BackendResult<Vec<Holder>> {
-        Stuff::check_or_create_directory(&self.work_dir)?;
+    pub(crate) async fn read_vdisk_directory(&self) -> BackendResult<Vec<Holder>> {
+        Stuff::check_or_create_directory(&self.work_dir).await?;
 
         let mut holders = vec![];
-        let pearl_directories = Settings::get_all_subdirectories(&self.work_dir)?;
+        let pearl_directories = Settings::get_all_subdirectories(&self.work_dir).await?;
         for entry in pearl_directories {
             if let Ok(file_name) = entry
                 .file_name()

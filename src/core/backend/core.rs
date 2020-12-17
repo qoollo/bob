@@ -94,11 +94,11 @@ pub(crate) struct Backend {
 }
 
 impl Backend {
-    pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
+    pub(crate) async fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         let inner: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
-            BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config)),
+            BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config).await),
         };
         Self { inner, mapper }
     }

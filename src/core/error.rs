@@ -67,6 +67,10 @@ impl Error {
         let ctx = Kind::RequestFailedCompletely(msg);
         Self::new(ctx)
     }
+
+    pub(crate) fn mount_point_not_found(name: impl Into<String>) -> Self {
+        Self::new(Kind::MountPointNotFound(name.into()))
+    }
 }
 
 impl Display for Error {
@@ -106,6 +110,9 @@ impl Into<Status> for Error {
                 "Request failed on both stages local and alien: {}",
                 msg
             )),
+            Kind::MountPointNotFound(name) => {
+                Status::not_found(format!("MountPointNotFound: {}", name))
+            }
         }
     }
 }
@@ -157,4 +164,5 @@ pub enum Kind {
     Internal,
     PearlChangeState(String),
     RequestFailedCompletely(String),
+    MountPointNotFound(String),
 }

@@ -13,7 +13,7 @@ pub(crate) struct Pearl {
 }
 
 impl Pearl {
-    pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
+    pub(crate) async fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
 
@@ -24,6 +24,7 @@ impl Pearl {
         let alien = settings
             .clone()
             .read_alien_directory(config)
+            .await
             .expect("vec of pearl groups");
         trace!("count alien vdisk groups: {}", alien.len());
         let alien_vdisks_groups = Arc::new(RwLock::new(alien)); //TODO
@@ -69,6 +70,7 @@ impl Pearl {
         self.settings
             .clone()
             .create_group(operation, &self.node_name)
+            .await
             .map(|g| {
                 write_lock.push(g.clone());
                 g

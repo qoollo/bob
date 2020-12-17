@@ -94,7 +94,7 @@ async fn main() {
 
     let metrics = metrics::init_counters(&node, &addr.to_string());
 
-    let bob = BobServer::new(Grinder::new(mapper, &node));
+    let bob = BobServer::new(Grinder::new(mapper, &node).await);
 
     info!("Start backend");
     bob.run_backend().await.unwrap();

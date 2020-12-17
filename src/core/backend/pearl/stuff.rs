@@ -4,25 +4,39 @@ use std::fs::remove_dir_all;
 pub(crate) struct Stuff;
 
 impl Stuff {
-    pub(crate) fn check_or_create_directory(work_dir: &WorkDir) -> BackendResult<()> {
+    pub(crate) async fn check_or_create_directory(work_dir: &WorkDir) -> BackendResult<()> {
         if work_dir.as_path().exists() {
             trace!("directory: {:?} exists", work_dir);
             Ok(())
         } else {
-            let dir = work_dir
-                .as_path()
-                .to_str()
-                .ok_or_else(|| Error::storage("invalid some path, check vdisk or disk names"))?;
+            Self::try_create_dir_all(work_dir).await
+        }
+    }
 
-            create_dir_all(work_dir.as_path())
-                .map(|_| info!("create directory: {}", dir))
-                .map_err(|e| {
-                    Error::storage(format!(
-                        "cannot create directory: {}, error: {}",
-                        dir,
-                        e.to_string()
-                    ))
-                })
+    async fn try_create_dir_all(work_dir: &WorkDir) -> BackendResult<()> {
+        use super::work_dir::MountPoint;
+
+        match work_dir.mount_point {
+            MountPoint::Device => {
+                if work_dir.device().unwrap().exists() {
+                    Self::create_dir_all(work_dir.path_without_device()).await
+                } else {
+                    let name = work_dir.as_path().to_string_lossy();
+                    return Err(Error::mount_point_not_found(name));
+                }
+            }
+            MountPoint::Dir => Self::create_dir_all(work_dir.as_path()).await,
+        }
+    }
+
+    async fn create_dir_all(path: impl AsRef<Path>) -> BackendResult<()> {
+        let path = path.as_ref();
+        if let Err(e) = tokio::fs::create_dir_all(path).await {
+            let msg = format!("cannot create directory: {:?}, error: {}", path, e);
+            Err(Error::storage(msg))
+        } else {
+            info!("all dirs created: {:?}", path);
+            Ok(())
         }
     }
 

@@ -2,12 +2,12 @@ use super::prelude::*;
 
 #[derive(Debug, Clone)]
 pub struct WorkDir {
-    mount_point: MountPoint,
+    pub mount_point: MountPoint,
     path: PathBuf,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum MountPoint {
+pub enum MountPoint {
     Dir,
     Device,
 }
@@ -23,6 +23,20 @@ impl WorkDir {
 
     pub fn file_name(&self) -> Option<&str> {
         self.path.file_name().and_then(std::ffi::OsStr::to_str)
+    }
+
+    pub fn device(&self) -> Option<PathBuf> {
+        match self.mount_point {
+            MountPoint::Device => Some(self.path.iter().take(2).collect()),
+            MountPoint::Dir => None,
+        }
+    }
+
+    pub fn path_without_device(&self) -> PathBuf {
+        match self.mount_point {
+            MountPoint::Device => self.path.iter().skip(2).collect(),
+            MountPoint::Dir => self.path.clone(),
+        }
     }
 }
 

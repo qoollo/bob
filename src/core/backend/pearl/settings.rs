@@ -52,15 +52,15 @@ impl Settings {
         result
     }
 
-    pub(crate) fn read_alien_directory(
+    pub(crate) async fn read_alien_directory(
         self: Arc<Self>,
         config: &NodeConfig,
     ) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
-        let node_names = Self::get_all_subdirectories(&self.alien_work_dir)?;
+        let node_names = Self::get_all_subdirectories(&self.alien_work_dir).await?;
         for node in node_names {
             if let Ok((node, node_name)) = self.try_parse_node_name(node) {
-                let vdisks = Self::get_all_subdirectories(&node.path().into())?;
+                let vdisks = Self::get_all_subdirectories(&node.path().into()).await?;
 
                 for vdisk_id in vdisks {
                     if let Ok((entry, vdisk_id)) = self.try_parse_vdisk_id(vdisk_id) {
@@ -88,7 +88,7 @@ impl Settings {
         Ok(result)
     }
 
-    pub(crate) fn create_group(
+    pub(crate) async fn create_group(
         self: Arc<Self>,
         operation: &Operation,
         node_name: &str,
@@ -96,7 +96,7 @@ impl Settings {
         let remote_node_name = operation.remote_node_name().unwrap();
         let path = self.alien_work_dir(operation.vdisk_id(), remote_node_name);
 
-        Stuff::check_or_create_directory(&path)?;
+        Stuff::check_or_create_directory(&path).await?;
 
         let group = Group::new(
             self.clone(),
@@ -109,8 +109,8 @@ impl Settings {
         Ok(group)
     }
 
-    pub fn get_all_subdirectories(work_dir: &WorkDir) -> BackendResult<Vec<DirEntry>> {
-        Stuff::check_or_create_directory(work_dir)?;
+    pub async fn get_all_subdirectories(work_dir: &WorkDir) -> BackendResult<Vec<DirEntry>> {
+        Stuff::check_or_create_directory(work_dir).await?;
 
         match read_dir(work_dir.as_path()) {
             Ok(dir) => {
