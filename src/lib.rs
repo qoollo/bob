@@ -48,7 +48,7 @@ mod prelude {
         collections::HashMap,
         convert::TryInto,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
-        fs::{create_dir_all, read_dir, read_to_string, remove_file, DirEntry, Metadata},
+        fs::{read_dir, read_to_string, remove_file, DirEntry, Metadata},
         io::{Cursor, Result as IOResult},
         net::SocketAddr,
         path::{Path, PathBuf},

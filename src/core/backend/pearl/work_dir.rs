@@ -27,14 +27,14 @@ impl WorkDir {
 
     pub fn device(&self) -> Option<PathBuf> {
         match self.mount_point {
-            MountPoint::Device => Some(self.path.iter().take(2).collect()),
+            MountPoint::Device => Some(self.path.iter().take(3).collect()),
             MountPoint::Dir => None,
         }
     }
 
     pub fn path_without_device(&self) -> PathBuf {
         match self.mount_point {
-            MountPoint::Device => self.path.iter().skip(2).collect(),
+            MountPoint::Device => self.path.iter().skip(3).collect(),
             MountPoint::Dir => self.path.clone(),
         }
     }
@@ -56,18 +56,84 @@ where
 }
 
 #[cfg(test)]
-#[tokio::test]
-async fn test_work_dir_from_path_buf() {
-    let path1 = PathBuf::from("/dev/sdd");
-    let path2 = PathBuf::from("/dev/sdd/jia/ojh/vuj");
-    let path3 = PathBuf::from("/dev/s");
-    let path4 = PathBuf::from("dev/sdd");
-    let path5 = PathBuf::from("/de/sda");
-    let path6 = PathBuf::from("/home/rust");
-    assert!(WorkDir::from(path1).mount_point == MountPoint::Device);
-    assert!(WorkDir::from(path2).mount_point == MountPoint::Device);
-    assert!(WorkDir::from(path3).mount_point == MountPoint::Dir);
-    assert!(WorkDir::from(path4).mount_point == MountPoint::Dir);
-    assert!(WorkDir::from(path5).mount_point == MountPoint::Dir);
-    assert!(WorkDir::from(path6).mount_point == MountPoint::Dir);
+mod tests {
+    use std::path::PathBuf;
+
+    use super::{MountPoint, WorkDir};
+
+    const PATH_WITH_DEVICE: &str = "/dev/sdd";
+    const PATH_WITH_DEVICE_WITH_TAIL: &str = "/dev/sdd/jia/ojh/vuj";
+    const PATH_WITH_INVALID_DEVICE: &str = "/dev/s";
+    const PATH_WITHOUT_LEADING_SLASH: &str = "dev/sdd";
+    const PATH_NOT_IN_DEV: &str = "/de/sda";
+    const PATH_WITHOUT_DEVICE: &str = "/home/rust";
+
+    #[test]
+    fn test_work_dir_device() {
+        assert_eq!(
+            WorkDir::from(PATH_WITH_DEVICE).device(),
+            Some(PathBuf::from("/dev/sdd"))
+        );
+        assert_eq!(
+            WorkDir::from(PATH_WITH_DEVICE_WITH_TAIL).device(),
+            Some(PathBuf::from("/dev/sdd"))
+        );
+        assert!(WorkDir::from(PATH_WITH_INVALID_DEVICE).device().is_none());
+        assert!(WorkDir::from(PATH_WITHOUT_LEADING_SLASH).device().is_none());
+        assert!(WorkDir::from(PATH_NOT_IN_DEV).device().is_none());
+        assert!(WorkDir::from(PATH_WITHOUT_DEVICE).device().is_none());
+    }
+
+    #[test]
+    fn test_work_dir_path_without_device() {
+        assert_eq!(
+            WorkDir::from(PATH_WITH_DEVICE).path_without_device(),
+            PathBuf::from("")
+        );
+        assert_eq!(
+            WorkDir::from(PATH_WITH_DEVICE_WITH_TAIL).path_without_device(),
+            PathBuf::from("jia/ojh/vuj")
+        );
+        assert_eq!(
+            WorkDir::from(PATH_WITH_INVALID_DEVICE).path_without_device(),
+            PathBuf::from(PATH_WITH_INVALID_DEVICE)
+        );
+        assert_eq!(
+            WorkDir::from(PATH_WITHOUT_LEADING_SLASH).path_without_device(),
+            PathBuf::from(PATH_WITHOUT_LEADING_SLASH)
+        );
+        assert_eq!(
+            WorkDir::from(PATH_NOT_IN_DEV).path_without_device(),
+            PathBuf::from(PATH_NOT_IN_DEV)
+        );
+        assert_eq!(
+            WorkDir::from(PATH_WITHOUT_DEVICE).path_without_device(),
+            PathBuf::from(PATH_WITHOUT_DEVICE)
+        );
+    }
+
+    #[test]
+    fn test_work_dir_from_path_buf() {
+        assert_eq!(
+            WorkDir::from(PATH_WITH_DEVICE).mount_point,
+            MountPoint::Device
+        );
+        assert_eq!(
+            WorkDir::from(PATH_WITH_DEVICE_WITH_TAIL).mount_point,
+            MountPoint::Device
+        );
+        assert_eq!(
+            WorkDir::from(PATH_WITH_INVALID_DEVICE).mount_point,
+            MountPoint::Dir
+        );
+        assert_eq!(
+            WorkDir::from(PATH_WITHOUT_LEADING_SLASH).mount_point,
+            MountPoint::Dir
+        );
+        assert_eq!(WorkDir::from(PATH_NOT_IN_DEV).mount_point, MountPoint::Dir);
+        assert_eq!(
+            WorkDir::from(PATH_WITHOUT_DEVICE).mount_point,
+            MountPoint::Dir
+        );
+    }
 }

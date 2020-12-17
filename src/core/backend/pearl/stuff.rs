@@ -1,5 +1,4 @@
 use super::prelude::*;
-use std::fs::remove_dir_all;
 
 pub(crate) struct Stuff;
 
@@ -58,7 +57,8 @@ impl Stuff {
     }
 
     pub(crate) fn drop_directory(path: &Path) -> BackendResult<()> {
-        remove_dir_all(path)
+        //@TODO switch to tokio
+        std::fs::remove_dir_all(path)
             .map(|_| debug!("deleted directory {:?}", path))
             .map_err(|e| Error::storage(format!("error deleting directory {:?}, {}", path, e)))
     }
