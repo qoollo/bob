@@ -7,24 +7,11 @@ impl Stuff {
         if work_dir.as_path().exists() {
             trace!("directory: {:?} exists", work_dir);
             Ok(())
+        } else if work_dir.device().map(|p| p.exists()) == Some(true) {
+            let name = work_dir.as_path().to_string_lossy();
+            Err(Error::mount_point_not_found(name))
         } else {
-            Self::try_create_dir_all(work_dir).await
-        }
-    }
-
-    async fn try_create_dir_all(work_dir: &WorkDir) -> BackendResult<()> {
-        use super::work_dir::MountPoint;
-
-        match work_dir.mount_point {
-            MountPoint::Device => {
-                if work_dir.device().unwrap().exists() {
-                    Self::create_dir_all(work_dir.path_without_device()).await
-                } else {
-                    let name = work_dir.as_path().to_string_lossy();
-                    return Err(Error::mount_point_not_found(name));
-                }
-            }
-            MountPoint::Dir => Self::create_dir_all(work_dir.as_path()).await,
+            Self::create_dir_all(work_dir.as_path()).await
         }
     }
 

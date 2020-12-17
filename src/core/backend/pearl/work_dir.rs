@@ -2,14 +2,14 @@ use super::prelude::*;
 
 #[derive(Debug, Clone)]
 pub struct WorkDir {
-    pub mount_point: MountPoint,
+    mount_point: MountPoint,
     path: PathBuf,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MountPoint {
-    Dir,
     Device,
+    Dir,
 }
 
 impl WorkDir {
@@ -29,13 +29,6 @@ impl WorkDir {
         match self.mount_point {
             MountPoint::Device => Some(self.path.iter().take(3).collect()),
             MountPoint::Dir => None,
-        }
-    }
-
-    pub fn path_without_device(&self) -> PathBuf {
-        match self.mount_point {
-            MountPoint::Device => self.path.iter().skip(3).collect(),
-            MountPoint::Dir => self.path.clone(),
         }
     }
 }
@@ -82,34 +75,6 @@ mod tests {
         assert!(WorkDir::from(PATH_WITHOUT_LEADING_SLASH).device().is_none());
         assert!(WorkDir::from(PATH_NOT_IN_DEV).device().is_none());
         assert!(WorkDir::from(PATH_WITHOUT_DEVICE).device().is_none());
-    }
-
-    #[test]
-    fn test_work_dir_path_without_device() {
-        assert_eq!(
-            WorkDir::from(PATH_WITH_DEVICE).path_without_device(),
-            PathBuf::from("")
-        );
-        assert_eq!(
-            WorkDir::from(PATH_WITH_DEVICE_WITH_TAIL).path_without_device(),
-            PathBuf::from("jia/ojh/vuj")
-        );
-        assert_eq!(
-            WorkDir::from(PATH_WITH_INVALID_DEVICE).path_without_device(),
-            PathBuf::from(PATH_WITH_INVALID_DEVICE)
-        );
-        assert_eq!(
-            WorkDir::from(PATH_WITHOUT_LEADING_SLASH).path_without_device(),
-            PathBuf::from(PATH_WITHOUT_LEADING_SLASH)
-        );
-        assert_eq!(
-            WorkDir::from(PATH_NOT_IN_DEV).path_without_device(),
-            PathBuf::from(PATH_NOT_IN_DEV)
-        );
-        assert_eq!(
-            WorkDir::from(PATH_WITHOUT_DEVICE).path_without_device(),
-            PathBuf::from(PATH_WITHOUT_DEVICE)
-        );
     }
 
     #[test]
