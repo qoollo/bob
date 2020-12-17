@@ -20,18 +20,14 @@ impl Stuff {
         }
     }
 
-    pub(crate) async fn drop_pearl_lock_file(path: &PathBuf) -> BackendResult<()> {
+    pub(crate) async fn drop_pearl_lock_file(path: &PathBuf) -> Result<()> {
         let mut file = path.clone();
         file.push("pearl.lock");
         if file.exists() {
-            if let Err(e) = tokio::fs::remove_file(&file).await {
-                return Err(Error::storage(format!(
-                    "cannot delete lock file from directory: {:?}, error: {}",
-                    file, e
-                )));
-            } else {
-                debug!("deleted lock file from directory: {:?}", file);
-            }
+            tokio::fs::remove_file(&file)
+                .await
+                .with_context(|| format!("cannot delete lock file from directory: {:?}", file))?;
+            debug!("lock file deleted from directory: {:?}", file);
         }
         Ok(())
     }
