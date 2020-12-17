@@ -20,8 +20,8 @@ pub trait Validatable {
 pub struct YamlBobConfig {}
 
 impl YamlBobConfig {
-    pub fn read(filename: &str) -> Result<String, String> {
-        let result: Result<String, _> = read_to_string(filename);
+    pub async fn read(filename: &str) -> Result<String, String> {
+        let result: Result<String, _> = tokio::fs::read_to_string(filename).await;
         match result {
             Ok(config) => Ok(config),
             Err(e) => {
@@ -45,11 +45,11 @@ impl YamlBobConfig {
         }
     }
 
-    pub fn get<T>(filename: &str) -> Result<T, String>
+    pub async fn get<T>(filename: &str) -> Result<T, String>
     where
         T: for<'de> Deserialize<'de> + Validatable,
     {
-        let file = Self::read(filename)?;
+        let file = Self::read(filename).await?;
         let config: T = Self::parse(&file)?;
 
         let is_valid = config.validate();

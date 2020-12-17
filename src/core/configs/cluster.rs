@@ -251,8 +251,8 @@ impl Cluster {
     /// Loads config from disk, and validates it.
     /// # Errors
     /// IO errors and failed validation.
-    pub fn try_get(filename: &str) -> Result<Self, String> {
-        let config = YamlBobConfig::get::<Cluster>(filename)?;
+    pub async fn try_get(filename: &str) -> Result<Self, String> {
+        let config = YamlBobConfig::get::<Cluster>(filename).await?;
         match config.validate() {
             Ok(_) => Ok(config),
             Err(e) => {
@@ -266,8 +266,8 @@ impl Cluster {
     /// Read and validate node config file.
     /// # Errors
     /// IO errors, failed validation and cluster structure check.
-    pub fn get(&self, filename: &str) -> Result<NodeConfig, String> {
-        let config = YamlBobConfig::get::<NodeConfig>(filename)?;
+    pub async fn get(&self, filename: &str) -> Result<NodeConfig, String> {
+        let config = YamlBobConfig::get::<NodeConfig>(filename).await?;
 
         if let Err(e) = config.validate() {
             debug!("config is not valid: {}", e);

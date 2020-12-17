@@ -1,4 +1,5 @@
 use super::prelude::*;
+use tokio::fs::DirEntry;
 
 #[derive(Debug)]
 pub(crate) struct Settings {
@@ -52,15 +53,15 @@ impl Settings {
         result
     }
 
-    pub(crate) fn read_alien_directory(
+    pub(crate) async fn read_alien_directory(
         self: Arc<Self>,
         config: &NodeConfig,
-    ) -> BackendResult<Vec<Group>> {
+    ) -> Result<Vec<Group>> {
         let mut result = vec![];
-        let node_names = Self::get_all_subdirectories(&self.alien_folder)?;
+        let node_names = Self::get_all_subdirectories(&self.alien_folder).await?;
         for node in node_names {
             if let Ok((node, node_name)) = self.try_parse_node_name(node) {
-                let vdisks = Self::get_all_subdirectories(&node.path())?;
+                let vdisks = Self::get_all_subdirectories(&node.path()).await?;
 
                 for vdisk_id in vdisks {
                     if let Ok((entry, vdisk_id)) = self.try_parse_vdisk_id(vdisk_id) {
@@ -88,7 +89,7 @@ impl Settings {
         Ok(result)
     }
 
-    pub(crate) fn create_group(
+    pub(crate) async fn create_group(
         self: Arc<Self>,
         operation: &Operation,
         node_name: &str,
@@ -96,7 +97,7 @@ impl Settings {
         let remote_node_name = operation.remote_node_name().unwrap();
         let path = self.alien_path(operation.vdisk_id(), remote_node_name);
 
-        Stuff::check_or_create_directory(&path)?;
+        Stuff::check_or_create_directory(&path).await?;
 
         let group = Group::new(
             self.clone(),
@@ -109,26 +110,24 @@ impl Settings {
         Ok(group)
     }
 
-    pub fn get_all_subdirectories(path: &Path) -> BackendResult<Vec<DirEntry>> {
-        Stuff::check_or_create_directory(path)?;
+    pub async fn get_all_subdirectories(path: &Path) -> Result<Vec<DirEntry>> {
+        Stuff::check_or_create_directory(path)
+            .await
+            .with_context(|| "check or create directory failed".to_owned())?;
 
-        match read_dir(path) {
-            Ok(dir) => {
-                let mut directories = vec![];
-                for entry in dir {
-                    let (entry, metadata) = Self::try_read_path(entry)?;
-                    if metadata.is_dir() {
-                        directories.push(entry);
-                    }
-                }
-                Ok(directories)
-            }
-            Err(err) => {
-                let msg = format!("couldn't process path: {:?}, error: {:?} ", path, err);
-                error!("{}", msg);
-                Err(Error::failed(msg))
+        let mut dir = tokio::fs::read_dir(path)
+            .await
+            .with_context(|| format!("couldn't process path: {:?} ", path))?;
+        let mut directories = vec![];
+        while let Some(entry) = dir.next().await {
+            let (entry, metadata) = Self::try_read_path(entry)
+                .await
+                .with_context(|| "try read path failed")?;
+            if metadata.is_dir() {
+                directories.push(entry);
             }
         }
+        Ok(directories)
     }
 
     fn try_parse_node_name(&self, entry: DirEntry) -> BackendResult<(DirEntry, String)> {
@@ -174,9 +173,9 @@ impl Settings {
         })
     }
 
-    fn try_read_path(entry: IOResult<DirEntry>) -> BackendResult<(DirEntry, Metadata)> {
+    async fn try_read_path(entry: IOResult<DirEntry>) -> BackendResult<(DirEntry, Metadata)> {
         if let Ok(entry) = entry {
-            if let Ok(metadata) = entry.metadata() {
+            if let Ok(metadata) = entry.metadata().await {
                 Ok((entry, metadata))
             } else {
                 let msg = format!("Couldn't get metadata for {:?}", entry.path());

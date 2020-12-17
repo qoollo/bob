@@ -4,7 +4,7 @@ use std::fs::remove_dir_all;
 pub(crate) struct Stuff;
 
 impl Stuff {
-    pub(crate) fn check_or_create_directory(path: &Path) -> BackendResult<()> {
+    pub(crate) async fn check_or_create_directory(path: &Path) -> BackendResult<()> {
         if path.exists() {
             trace!("directory: {:?} exists", path);
             Ok(())
@@ -13,33 +13,30 @@ impl Stuff {
                 .to_str()
                 .ok_or_else(|| Error::storage("invalid some path, check vdisk or disk names"))?;
 
-            create_dir_all(&path)
-                .map(|_| info!("create directory: {}", dir))
-                .map_err(|e| {
-                    Error::storage(format!(
-                        "cannot create directory: {}, error: {}",
-                        dir,
-                        e.to_string()
-                    ))
-                })
+            if let Err(e) = tokio::fs::create_dir_all(&path).await {
+                let msg = format!("cannot create directory: {}, error: {}", dir, e.to_string());
+                Err(Error::storage(msg))
+            } else {
+                info!("create directory: {}", dir);
+                Ok(())
+            }
         }
     }
 
-    pub(crate) fn drop_pearl_lock_file(path: &PathBuf) -> BackendResult<()> {
+    pub(crate) async fn drop_pearl_lock_file(path: &PathBuf) -> BackendResult<()> {
         let mut file = path.clone();
         file.push("pearl.lock");
         if file.exists() {
-            remove_file(&file)
-                .map(|_| debug!("deleted lock file from directory: {:?}", file))
-                .map_err(|e| {
-                    Error::storage(format!(
-                        "cannot delete lock file from directory: {:?}, error: {}",
-                        file, e
-                    ))
-                })
-        } else {
-            Ok(())
+            if let Err(e) = tokio::fs::remove_file(&file).await {
+                return Err(Error::storage(format!(
+                    "cannot delete lock file from directory: {:?}, error: {}",
+                    file, e
+                )));
+            } else {
+                debug!("deleted lock file from directory: {:?}", file);
+            }
         }
+        Ok(())
     }
 
     pub(crate) fn drop_directory(path: &PathBuf) -> BackendResult<()> {
