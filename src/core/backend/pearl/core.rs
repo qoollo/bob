@@ -53,7 +53,7 @@ impl Pearl {
             .cloned()
     }
 
-    async fn get_or_create_alien_pearl(&self, operation: &Operation) -> BackendResult<Group> {
+    async fn get_or_create_alien_pearl(&self, operation: &Operation) -> Result<Group> {
         trace!("try get alien pearl, operation {:?}", operation);
         let pearl = Self::find_pearl(self.alien_vdisks_groups.read().await.iter(), operation);
         if let Some(g) = pearl {
@@ -75,6 +75,7 @@ impl Pearl {
                 write_lock.push(g.clone());
                 g
             })
+            .with_context(|| "group creation failed")
     }
 }
 

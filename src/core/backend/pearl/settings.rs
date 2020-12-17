@@ -93,11 +93,13 @@ impl Settings {
         self: Arc<Self>,
         operation: &Operation,
         node_name: &str,
-    ) -> BackendResult<Group> {
+    ) -> Result<Group> {
         let remote_node_name = operation.remote_node_name().unwrap();
         let path = self.alien_path(operation.vdisk_id(), remote_node_name);
 
-        Stuff::check_or_create_directory(&path).await?;
+        Stuff::check_or_create_directory(&path)
+            .await
+            .with_context(|| "check or create directory failed")?;
 
         let group = Group::new(
             self.clone(),

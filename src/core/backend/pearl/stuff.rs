@@ -4,7 +4,7 @@ use std::fs::remove_dir_all;
 pub(crate) struct Stuff;
 
 impl Stuff {
-    pub(crate) async fn check_or_create_directory(path: &Path) -> BackendResult<()> {
+    pub(crate) async fn check_or_create_directory(path: &Path) -> Result<()> {
         if path.exists() {
             trace!("directory: {:?} exists", path);
             Ok(())
@@ -13,13 +13,10 @@ impl Stuff {
                 .to_str()
                 .ok_or_else(|| Error::storage("invalid some path, check vdisk or disk names"))?;
 
-            if let Err(e) = tokio::fs::create_dir_all(&path).await {
-                let msg = format!("cannot create directory: {}, error: {}", dir, e.to_string());
-                Err(Error::storage(msg))
-            } else {
-                info!("create directory: {}", dir);
-                Ok(())
-            }
+            info!("create directory: {}", dir);
+            tokio::fs::create_dir_all(&path)
+                .await
+                .with_context(|| format!("cannot create directory: {}", dir))
         }
     }
 
