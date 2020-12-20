@@ -125,6 +125,8 @@ pub(crate) mod b_client {
         #[allow(dead_code)]
         pub(crate) async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult {
             let mut client = self.client.clone();
+            self.metrics.exist_count();
+            let timer = self.metrics.exist_timer();
             let keys = keys.into_iter().map(|key| BlobKey { key }).collect();
             let message = ExistRequest {
                 keys,
@@ -132,7 +134,12 @@ pub(crate) mod b_client {
             };
             let req = Request::new(message);
             let exist_response = client.exist(req).await;
-            Self::get_exist_result(self.node.name().to_owned(), exist_response)
+            let result = Self::get_exist_result(self.node.name().to_owned(), exist_response);
+            self.metrics.exist_timer_stop(timer);
+            if result.is_err() {
+                self.metrics.exist_error_count();
+            }
+            result
         }
 
         fn get_exist_result(

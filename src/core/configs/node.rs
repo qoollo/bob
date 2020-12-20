@@ -345,6 +345,8 @@ pub struct Node {
     quorum: usize,
     operation_timeout: String,
     check_interval: String,
+    #[serde(default = "NodeConfig::default_count_interval")]
+    count_interval: String,
     cluster_policy: String,
 
     backend_type: String,
@@ -405,6 +407,17 @@ impl NodeConfig {
 
     pub(crate) fn check_interval(&self) -> Duration {
         self.check_interval
+            .parse::<HumanDuration>()
+            .expect("parse humantime duration")
+            .into()
+    }
+
+    fn default_count_interval() -> String {
+        "10000ms".to_string()
+    }
+
+    pub(crate) fn count_interval(&self) -> Duration {
+        self.count_interval
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
@@ -590,6 +603,7 @@ pub(crate) mod tests {
             open_blobs_soft_limit: None,
             open_blobs_hard_limit: None,
             init_par_degree: 1,
+            count_interval: "10000ms".to_string(),
         }
     }
 }
