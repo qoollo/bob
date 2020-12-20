@@ -210,7 +210,8 @@ impl BackendStorage for Pearl {
         use futures::stream::FuturesUnordered;
         info!("begin shutdown");
         let futures = FuturesUnordered::new();
-        for vdisk in self.vdisks_groups.iter() {
+        let aliens = self.alien_vdisks_groups.read().await;
+        for vdisk in self.vdisks_groups.iter().chain(aliens.iter()) {
             let holders = vdisk.holders();
             let holders = holders.read().await;
             for holder in holders.iter() {
