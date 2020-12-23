@@ -1,8 +1,8 @@
 use log::{debug, trace};
 use std::collections::HashMap;
 use std::io::Write;
-use std::sync::mpsc::Receiver;
 use std::time::{Duration, Instant};
+use tokio::sync::mpsc::Receiver;
 
 use super::retry_socket::RetrySocket;
 use super::{Metric, MetricInner, MetricKey, MetricValue, TimeStamp};
@@ -10,7 +10,11 @@ use super::{Metric, MetricInner, MetricKey, MetricValue, TimeStamp};
 // this function runs in other thread, so it would be better if it will take control of arguments
 // themselves, not just references
 #[allow(clippy::needless_pass_by_value)]
-pub(super) fn send_metrics(rx: Receiver<Metric>, address: String, send_interval: Duration) {
+pub(super) async fn send_metrics(
+    mut rx: Receiver<Metric>,
+    address: String,
+    send_interval: Duration,
+) {
     let mut socket = RetrySocket::new(&address).expect("Failed to resolve address from &str");
     let mut counters_map = HashMap::new();
     let mut gauges_map = HashMap::new();
@@ -18,7 +22,7 @@ pub(super) fn send_metrics(rx: Receiver<Metric>, address: String, send_interval:
     let mut stopwatch = Instant::now();
 
     loop {
-        for m in rx.try_iter() {
+        while let Ok(m) = rx.try_recv() {
             match m {
                 Metric::Counter(counter) => process_counter(&mut counters_map, counter),
                 Metric::Gauge(gauge) => process_gauge(&mut gauges_map, gauge),

@@ -1,8 +1,8 @@
 use super::prelude::IOError;
 use metrics::{Key, Recorder, SetRecorderError};
-use std::sync::mpsc::{channel, Sender};
-use std::thread;
+use std::cell::RefCell;
 use std::time::Duration;
+use tokio::sync::mpsc::{channel, Sender};
 
 mod retry_socket;
 mod send;
@@ -10,6 +10,7 @@ use send::send_metrics;
 
 const DEFAULT_ADDRESS: &str = "localhost:2003";
 const DEFAULT_DURATION: Duration = Duration::from_secs(1);
+const BUFFER_SIZE: usize = 1024;
 
 #[derive(Debug)]
 pub(crate) enum Error {
@@ -56,7 +57,7 @@ impl MetricInner {
 }
 
 pub(crate) struct GraphiteRecorder {
-    tx: Sender<Metric>,
+    tx: RefCell<Sender<Metric>>,
 }
 
 pub(crate) struct GraphiteBuilder {
@@ -88,16 +89,18 @@ impl GraphiteBuilder {
     }
 
     pub(crate) fn build(self) -> GraphiteRecorder {
-        let (tx, rx) = channel();
-        let recorder = GraphiteRecorder { tx };
-        thread::spawn(move || send_metrics(rx, self.address, self.interval));
+        let (tx, rx) = channel(BUFFER_SIZE);
+        let recorder = GraphiteRecorder {
+            tx: RefCell::new(tx),
+        };
+        tokio::spawn(send_metrics(rx, self.address, self.interval));
         recorder
     }
 }
 
 impl GraphiteRecorder {
     fn push_metric(&self, m: Metric) {
-        if let Err(e) = self.tx.send(m) {
+        if let Err(e) = self.tx.borrow_mut().try_send(m) {
             error!(
                 "Can't send metric to thread, which processing metrics: {}",
                 e
@@ -115,6 +118,7 @@ impl Recorder for GraphiteRecorder {
         )));
     }
 
+    #[allow(clippy::cast_sign_loss)]
     fn update_gauge(&self, key: Key, value: i64) {
         self.push_metric(Metric::Gauge(MetricInner::new(
             key.name().into_owned(),
