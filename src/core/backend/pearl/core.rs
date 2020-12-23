@@ -227,6 +227,26 @@ impl BackendStorage for Pearl {
         (cnt, alien_cnt)
     }
 
+    async fn index_memory(&self) -> usize {
+        let mut cnt = 0;
+        for group in self.vdisks_groups.iter() {
+            let holders_guard = group.holders();
+            let holders = holders_guard.read().await;
+            for holder in holders.iter() {
+                cnt += holder.index_memory().await;
+            }
+        }
+        let alien_groups = self.alien_vdisks_groups.read().await;
+        for group in alien_groups.iter() {
+            let holders_guard = group.holders();
+            let holders = holders_guard.read().await;
+            for holder in holders.iter() {
+                cnt += holder.index_memory().await;
+            }
+        }
+        cnt
+    }
+
     fn vdisks_groups(&self) -> Option<&[Group]> {
         Some(&self.vdisks_groups)
     }

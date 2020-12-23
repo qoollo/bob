@@ -53,6 +53,8 @@ pub const BACKEND_STATE: &str = "backend.backend_state";
 pub const BLOBS_COUNT: &str = "backend.blob_count";
 /// Count alien blobs
 pub const ALIEN_BLOBS_COUNT: &str = "backend.alien_count";
+/// Count memory occupied by indices
+pub const INDEX_MEMORY: &str = "backend.INDEX_MEMORY";
 
 /// Type to measure time of requests processing
 pub type Timer = Instant;

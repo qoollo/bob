@@ -96,6 +96,10 @@ pub(crate) trait BackendStorage: Debug {
         (0, 0)
     }
 
+    async fn index_memory(&self) -> usize {
+        0
+    }
+
     fn vdisks_groups(&self) -> Option<&[Group]> {
         None
     }
@@ -119,6 +123,10 @@ impl Backend {
 
     pub(crate) async fn blobs_count(&self) -> (usize, usize) {
         self.inner.blobs_count().await
+    }
+
+    pub(crate) async fn index_memory(&self) -> usize {
+        self.inner.index_memory().await
     }
 
     pub(crate) fn mapper(&self) -> &Virtual {
