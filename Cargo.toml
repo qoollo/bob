@@ -43,7 +43,7 @@ thiserror = "1.0"
 
 [dependencies.tokio]
 version = "0.2.22"
-features = ["full"]
+features = ["full", "signal"]
 # default_features = false
 # features = ["macros", "net", "rt", "rt-multi-thread", "sync", "time"]
 
