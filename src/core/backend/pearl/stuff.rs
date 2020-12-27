@@ -5,14 +5,18 @@ pub(crate) struct Stuff;
 impl Stuff {
     pub(crate) async fn check_or_create_directory(work_dir: &WorkDir) -> BackendResult<()> {
         if work_dir.as_path().exists() {
-            trace!("directory: {:?} exists", work_dir);
-            Ok(())
-        } else if work_dir.device().map(|p| p.exists()) == Some(true) {
-            let name = work_dir.as_path().to_string_lossy();
-            Err(Error::mount_point_not_found(name))
-        } else {
-            Self::create_dir_all(work_dir.as_path()).await
+            debug!("dir: {:?} exists, everithing is ok", work_dir);
+            return Ok(());
+        } else if let Some(device) = work_dir.device() {
+            debug!("dir {:?} should be on device: {:?}", work_dir, device);
+            if !device.exists() {
+                let name = work_dir.as_path().to_string_lossy();
+                return Err(Error::mount_point_not_found(name));
+            }
+            debug!("device exists, but not all dirs are created");
         }
+        debug!("create dir and its parents: {:?}", work_dir);
+        Self::create_dir_all(work_dir.as_path()).await
     }
 
     async fn create_dir_all(path: impl AsRef<Path>) -> BackendResult<()> {

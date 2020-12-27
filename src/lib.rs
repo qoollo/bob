@@ -1,6 +1,6 @@
 #![type_length_limit = "3245934"]
 #![feature(proc_macro_hygiene, decl_macro, drain_filter)]
-#![warn(clippy::pedantic)]
+// #![warn(clippy::pedantic)]
 #![allow(clippy::used_underscore_binding)]
 #![warn(missing_debug_implementations)]
 #![warn(missing_docs)]
