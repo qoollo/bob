@@ -1,103 +1,114 @@
 //! A TCP Socket wrapper that reconnects automatically.
-use crate::prelude::{IOError, IOResult};
+use crate::prelude::{IOError, IOErrorKind, IOResult};
 use std::fmt;
 use std::io;
-use std::io::Write;
-use std::net::TcpStream;
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::time::{Duration, Instant};
+use std::net::SocketAddr;
+use std::time::Duration;
+use tokio::io::AsyncWriteExt;
+use tokio::net::TcpStream;
+use tokio::sync::oneshot::{channel, Receiver};
+use tokio::time::interval;
 
 const MIN_RECONNECT_DELAY_MS: u64 = 50;
 const MAX_RECONNECT_DELAY_MS: u64 = 10_000;
 
-/// A socket that retries
+#[derive(Debug)]
+enum State {
+    Socket(TcpStream),
+    Task(Receiver<TcpStream>),
+}
+
 pub(super) struct RetrySocket {
-    retries: usize,
-    next_try: Instant,
-    addresses: Vec<SocketAddr>,
-    socket: Option<TcpStream>,
+    address: SocketAddr,
+    socket: State,
 }
 
 impl fmt::Debug for RetrySocket {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.next_try.fmt(f)?;
         self.socket.fmt(f)
     }
 }
 
 impl RetrySocket {
-    pub(super) fn new<A: ToSocketAddrs>(addresses: A) -> io::Result<Self> {
-        let addresses = addresses.to_socket_addrs()?.collect();
-        let mut socket = RetrySocket {
-            retries: 0,
-            next_try: Instant::now() - Duration::from_millis(MIN_RECONNECT_DELAY_MS),
-            addresses,
-            socket: None,
-        };
-
-        if let Err(e) = socket.flush() {
-            warn!(
-                "Failed to connect during creation for RetrySocket: {}",
-                e.to_string()
-            );
+    pub(super) async fn new(address: SocketAddr) -> Self {
+        let receiver = Self::spawn_task(address.clone());
+        RetrySocket {
+            address,
+            socket: State::Task(receiver),
         }
-        Ok(socket)
     }
-}
 
-impl RetrySocket {
-    fn try_connect(&mut self) -> IOResult<()> {
-        if self.socket.is_none() {
-            let now = Instant::now();
-            if now > self.next_try {
-                let addresses: &[SocketAddr] = self.addresses.as_ref();
-                let socket = TcpStream::connect(addresses)?;
-                socket.set_nonblocking(true)?;
-                self.retries = 0;
-                info!("Connected to {:?}", addresses);
-                self.socket = Some(socket);
+    fn spawn_task(address: SocketAddr) -> Receiver<TcpStream> {
+        let (tx, rx) = channel();
+        tokio::spawn(async move {
+            let mut delay = MIN_RECONNECT_DELAY_MS;
+            loop {
+                if let Ok(stream) = TcpStream::connect(address).await {
+                    if let Err(e) = tx.send(stream) {
+                        warn!("Failed to send stream from task: {:?}", e);
+                    }
+                    return;
+                }
+
+                delay = MAX_RECONNECT_DELAY_MS.min(delay << 1);
+                interval(Duration::from_millis(delay)).tick().await;
+            }
+        });
+        rx
+    }
+
+    pub(super) fn check_connection(&mut self) -> Result<(), IOError> {
+        match self.socket {
+            State::Socket(_) => Ok(()),
+            State::Task(ref mut rx) => {
+                // TODO: process situation, when tx.send() fails in task (spawn new task)
+                if let Ok(stream) = rx.try_recv() {
+                    self.socket = State::Socket(stream);
+                    warn!("Connected to {}!", self.address);
+                    Ok(())
+                } else {
+                    Err(IOError::new(
+                        IOErrorKind::NotConnected,
+                        "Task is still pending",
+                    ))
+                }
             }
         }
-        Ok(())
     }
 
-    fn backoff(&mut self, e: IOError) -> IOError {
-        self.socket = None;
-        self.retries += 1;
-        let delay = MAX_RECONNECT_DELAY_MS.min(MIN_RECONNECT_DELAY_MS << self.retries);
-        warn!(
-            "Could not connect to {:?} after {} trie(s). Backing off reconnection by {}ms. {}",
-            self.addresses, self.retries, delay, e
-        );
-        self.next_try = Instant::now() + Duration::from_millis(delay);
-        e
-    }
-
-    fn with_socket<F, T>(&mut self, operation: F) -> io::Result<T>
-    where
-        F: FnOnce(&mut TcpStream) -> io::Result<T>,
-    {
-        if let Err(e) = self.try_connect() {
-            return Err(self.backoff(e));
+    pub(super) async fn write_all(&mut self, buf: &[u8]) -> IOResult<()> {
+        match self.check_connection() {
+            Err(e) => Err(e),
+            Ok(_) => match self.socket {
+                State::Socket(ref mut stream) => match stream.write_all(buf).await {
+                    Ok(()) => Ok(()),
+                    Err(e) if e.kind() == io::ErrorKind::BrokenPipe => {
+                        warn!("Disconnected from {}", self.address);
+                        self.socket = State::Task(Self::spawn_task(self.address));
+                        Err(e)
+                    }
+                    Err(e) => Err(e),
+                },
+                State::Task(_) => Err(IOError::new(IOErrorKind::Other, "This code is unreachable")),
+            },
         }
-
-        let opres = if let Some(ref mut socket) = self.socket {
-            operation(socket)
-        } else {
-            // still none, quiescent
-            return Err(IOError::from(io::ErrorKind::NotConnected));
-        };
-
-        opres.map_err(|e| self.backoff(e))
-    }
-}
-
-impl Write for RetrySocket {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.with_socket(|sock| sock.write(buf))
     }
 
-    fn flush(&mut self) -> io::Result<()> {
-        self.with_socket(TcpStream::flush)
+    pub(super) async fn flush(&mut self) -> IOResult<()> {
+        match self.check_connection() {
+            Err(e) => Err(e),
+            Ok(_) => match self.socket {
+                State::Socket(ref mut stream) => match stream.flush().await {
+                    Ok(()) => Ok(()),
+                    Err(e) if e.kind() == io::ErrorKind::BrokenPipe => {
+                        warn!("Disconnected from {}", self.address);
+                        self.socket = State::Task(Self::spawn_task(self.address));
+                        Err(e)
+                    }
+                    Err(e) => Err(e),
+                },
+                State::Task(_) => Err(IOError::new(IOErrorKind::Other, "This code is unreachable")),
+            },
+        }
     }
 }
