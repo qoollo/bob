@@ -1,7 +1,6 @@
 //! A TCP Socket wrapper that reconnects automatically.
 use crate::prelude::{IOError, IOErrorKind, IOResult};
 use std::fmt;
-use std::io;
 use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
@@ -51,7 +50,8 @@ impl RetrySocket {
                 }
 
                 delay = MAX_RECONNECT_DELAY_MS.min(delay << 1);
-                interval(Duration::from_millis(delay)).tick().await;
+                let mut conn_interval = interval(Duration::from_millis(delay));
+                conn_interval.tick().await;
             }
         });
         rx
@@ -86,7 +86,7 @@ impl RetrySocket {
             Ok(_) => match self.socket {
                 State::Socket(ref mut stream) => match stream.write_all(buf).await {
                     Ok(()) => Ok(()),
-                    Err(e) if e.kind() == io::ErrorKind::BrokenPipe => {
+                    Err(e) if e.kind() == IOErrorKind::BrokenPipe => {
                         warn!("Disconnected from {}", self.address);
                         self.socket = State::Task(Self::spawn_task(self.address));
                         Err(e)
@@ -104,7 +104,7 @@ impl RetrySocket {
             Ok(_) => match self.socket {
                 State::Socket(ref mut stream) => match stream.flush().await {
                     Ok(()) => Ok(()),
-                    Err(e) if e.kind() == io::ErrorKind::BrokenPipe => {
+                    Err(e) if e.kind() == IOErrorKind::BrokenPipe => {
                         warn!("Disconnected from {}", self.address);
                         self.socket = State::Task(Self::spawn_task(self.address));
                         Err(e)
