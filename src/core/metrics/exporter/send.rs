@@ -1,8 +1,8 @@
 use log::{debug, trace};
 use std::collections::HashMap;
-use std::io::Write;
-use std::sync::mpsc::Receiver;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use tokio::sync::mpsc::Receiver;
+use tokio::time::interval;
 
 use super::retry_socket::RetrySocket;
 use super::{Metric, MetricInner, MetricKey, MetricValue, TimeStamp};
@@ -10,15 +10,21 @@ use super::{Metric, MetricInner, MetricKey, MetricValue, TimeStamp};
 // this function runs in other thread, so it would be better if it will take control of arguments
 // themselves, not just references
 #[allow(clippy::needless_pass_by_value)]
-pub(super) fn send_metrics(rx: Receiver<Metric>, address: String, send_interval: Duration) {
-    let mut socket = RetrySocket::new(&address).expect("Failed to resolve address from &str");
+pub(super) async fn send_metrics(
+    mut rx: Receiver<Metric>,
+    address: String,
+    send_interval: Duration,
+) {
+    let mut socket =
+        RetrySocket::new(address.parse().expect("Can't read address from String")).await;
     let mut counters_map = HashMap::new();
     let mut gauges_map = HashMap::new();
     let mut times_map = HashMap::new();
-    let mut stopwatch = Instant::now();
+    let mut send_interval = interval(send_interval);
 
     loop {
-        for m in rx.try_iter() {
+        send_interval.tick().await;
+        while let Ok(m) = rx.try_recv() {
             match m {
                 Metric::Counter(counter) => process_counter(&mut counters_map, counter),
                 Metric::Gauge(gauge) => process_gauge(&mut gauges_map, gauge),
@@ -26,14 +32,13 @@ pub(super) fn send_metrics(rx: Receiver<Metric>, address: String, send_interval:
             }
         }
 
-        if stopwatch.elapsed() > send_interval {
-            flush_counters(&counters_map, &mut socket);
-            flush_gauges(&gauges_map, &mut socket);
-            flush_times(&mut times_map, &mut socket);
-            if let Err(e) = socket.flush() {
+        if let Ok(_) = socket.check_connection() {
+            flush_counters(&counters_map, &mut socket).await;
+            flush_gauges(&gauges_map, &mut socket).await;
+            flush_times(&mut times_map, &mut socket).await;
+            if let Err(e) = socket.flush().await {
                 debug!("Socket flush error: {}", e);
             }
-            stopwatch = Instant::now();
         }
     }
 }
@@ -99,7 +104,7 @@ fn process_time(times_map: &mut HashMap<MetricKey, TimeEntry>, time: MetricInner
     entry.timestamp = time.timestamp;
 }
 
-fn flush_counters(counters_map: &HashMap<MetricKey, CounterEntry>, socket: &mut RetrySocket) {
+async fn flush_counters(counters_map: &HashMap<MetricKey, CounterEntry>, socket: &mut RetrySocket) {
     for (key, entry) in counters_map.iter() {
         let data = format!("{} {} {}\n", key, entry.sum, entry.timestamp);
         trace!(
@@ -108,13 +113,13 @@ fn flush_counters(counters_map: &HashMap<MetricKey, CounterEntry>, socket: &mut 
             entry.sum,
             entry.timestamp
         );
-        if let Err(e) = socket.write(data.as_bytes()) {
+        if let Err(e) = socket.write_all(data.as_bytes()).await {
             debug!("Can't write counter data to socket: {}", e);
         }
     }
 }
 
-fn flush_gauges(gauges_map: &HashMap<MetricKey, GaugeEntry>, socket: &mut RetrySocket) {
+async fn flush_gauges(gauges_map: &HashMap<MetricKey, GaugeEntry>, socket: &mut RetrySocket) {
     for (key, entry) in gauges_map.iter() {
         let data = format!("{} {} {}\n", key, entry.value, entry.timestamp);
         trace!(
@@ -123,13 +128,13 @@ fn flush_gauges(gauges_map: &HashMap<MetricKey, GaugeEntry>, socket: &mut RetryS
             entry.value,
             entry.timestamp
         );
-        if let Err(e) = socket.write(data.as_bytes()) {
+        if let Err(e) = socket.write_all(data.as_bytes()).await {
             debug!("Can't write gauge data to socket: {}", e);
         }
     }
 }
 
-fn flush_times(times_map: &mut HashMap<MetricKey, TimeEntry>, socket: &mut RetrySocket) {
+async fn flush_times(times_map: &mut HashMap<MetricKey, TimeEntry>, socket: &mut RetrySocket) {
     for (key, entry) in times_map.iter_mut() {
         let mean_time = match entry.measurements_amount {
             0 => entry.mean.expect("No mean time provided"),
@@ -142,7 +147,7 @@ fn flush_times(times_map: &mut HashMap<MetricKey, TimeEntry>, socket: &mut Retry
             mean_time,
             entry.timestamp
         );
-        if let Err(e) = socket.write(data.as_bytes()) {
+        if let Err(e) = socket.write_all(data.as_bytes()).await {
             debug!("Can't write time data to socket: {}", e);
         }
         entry.mean = Some(mean_time);

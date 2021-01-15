@@ -61,6 +61,13 @@ impl Holder {
         storage.blobs_count().await
     }
 
+    pub(crate) async fn index_memory(&self) -> usize {
+        //FIXME: change on storage.index_memory() when it will be available
+        //let storage = self.storage.read().await;
+        //storage.index_memory().await
+        0
+    }
+
     pub(crate) fn is_actual(&self, current_start: u64) -> bool {
         self.start_timestamp == current_start
     }
