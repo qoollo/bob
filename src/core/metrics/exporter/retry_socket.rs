@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
-use tokio::sync::oneshot::{channel, Receiver};
+use tokio::sync::oneshot::{channel, error::TryRecvError, Receiver};
 use tokio::time::interval;
 
 const MIN_RECONNECT_DELAY_MS: u64 = 50;
@@ -60,19 +60,23 @@ impl RetrySocket {
     pub(super) fn check_connection(&mut self) -> Result<(), IOError> {
         match self.socket {
             State::Socket(_) => Ok(()),
-            State::Task(ref mut rx) => {
-                // TODO: process situation, when tx.send() fails in task (spawn new task)
-                if let Ok(stream) = rx.try_recv() {
+            State::Task(ref mut rx) => match rx.try_recv() {
+                Ok(stream) => {
                     self.socket = State::Socket(stream);
                     warn!("Connected to {}!", self.address);
                     Ok(())
-                } else {
+                }
+                Err(reason) => {
+                    if reason == TryRecvError::Closed {
+                        warn!("Sender is closed, then it's dropped, then task is failed. Respawn.");
+                        self.socket = State::Task(Self::spawn_task(self.address))
+                    }
                     Err(IOError::new(
                         IOErrorKind::NotConnected,
                         "Task is still pending",
                     ))
                 }
-            }
+            },
         }
     }
 
