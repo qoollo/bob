@@ -15,7 +15,7 @@ use std::thread;
 use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use tokio::time::delay_for;
+use tokio::time::sleep;
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request, Status};
 
@@ -51,7 +51,7 @@ impl NetConfig {
             match BobApiClient::connect(endpoint.clone()).await {
                 Ok(client) => return client,
                 Err(e) => {
-                    delay_for(Duration::from_millis(1000)).await;
+                    sleep(Duration::from_millis(1000)).await;
                     println!(
                         "{:?}",
                         e.source()
@@ -297,7 +297,7 @@ async fn main() {
     let workers = spawn_workers(&net_conf, &task_conf, &benchmark_conf);
 
     if let Some(time) = benchmark_conf.time {
-        delay_for(time).await;
+        sleep(time).await;
     } else {
         for worker in workers {
             let _ = worker.await;
