@@ -5,8 +5,8 @@ authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qooll
 edition = "2018"
 
 [dependencies]
-anyhow = "1.0.33"
-http = "0.2.1"
+anyhow = "1.0.38"
+http = "0.2.3"
 futures = { version = "0.3.12", features = ["thread-pool"] }
 serde = "1.0"
 serde_derive = "1.0"
@@ -48,10 +48,7 @@ features = ["full"]
 # features = ["macros", "net", "rt", "rt-multi-thread", "sync", "time"]
 
 [dependencies.pearl]
-version = "*"
-# git = "http://github.com/qoollo/pearl"
-# branch = "tokio-v0.2"
-# rev = "fb039e0"
+version = "0.5.5"
 
 [build-dependencies]
 tonic-build = "0.4.0"
