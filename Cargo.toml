@@ -44,8 +44,6 @@ thiserror = "1.0"
 [dependencies.tokio]
 version = "1.0.2"
 features = ["full"]
-# default_features = false
-# features = ["macros", "net", "rt", "rt-multi-thread", "sync", "time"]
 
 [dependencies.pearl]
 version = "0.5.5"

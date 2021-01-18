@@ -55,4 +55,6 @@ impl BackendStorage for StubBackend {
         debug!("EXIST: hi from backend");
         Ok(vec![])
     }
+
+    async fn shutdown(&self) {}
 }

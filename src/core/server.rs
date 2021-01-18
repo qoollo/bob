@@ -40,6 +40,12 @@ impl Server {
     pub fn run_periodic_tasks(&self, client_factory: Factory) {
         self.grinder.run_periodic_tasks(client_factory);
     }
+
+    /// Gracefully shutdowns bob
+    pub async fn shutdown(&self) {
+        let backend = self.grinder.backend().clone();
+        backend.shutdown().await;
+    }
 }
 
 fn put_extract(req: PutRequest) -> Option<(u64, Vec<u8>, u64, Option<PutOptions>)> {

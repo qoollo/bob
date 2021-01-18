@@ -50,6 +50,8 @@ RUN apt-get update \
   && echo "export VISIBLE=now" >> /etc/profile \
   && groupadd -g 1000 bobd \
   && useradd -s /bin/sh -u 1000 -g bobd bobd \
+  && usermod -aG sudo bobd \
+  && echo 'bobd:bobd' | chpasswd \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
@@ -63,14 +65,22 @@ RUN chown bobd:bobd bobd \
     chown -R root ~/.ssh\n\
     eval $(ssh-agent)\n\
     ssh-add ~/.ssh/id_rsa\n\
-    /usr/sbin/sshd -D &\n\
-    su -c \"./bobd -c /configs/\$1 -n /configs/\$2\" bobd" >> run.sh \
+    /usr/sbin/sshd -D &" >> prep.sh \
+  && chmod +x prep.sh \
+  && echo "#!/bin/bash\n\
+    trap 'kill -TERM \$! && wait' SIGTERM\n\
+    ./bobd -c /configs/\$1 -n /configs/\$2 &\n\
+    wait" >> bobd.sh \
+  && chmod +x bobd.sh \
+  && echo "#!/bin/bash\n\
+    trap 'kill -TERM \$! && wait' SIGTERM\n\
+    echo 'bobd' | sudo -S ./prep.sh\n\
+    ./bobd.sh \$1 \$2 & \n\
+    wait" >> run.sh \
   && chmod +x run.sh
 
 EXPOSE 80
 EXPOSE 22
 EXPOSE 20000
-
+USER bobd
 ENTRYPOINT ["./run.sh"]
-
-
