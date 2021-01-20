@@ -195,10 +195,10 @@ impl Holder {
     }
 
     pub async fn exist(&self, key: BobKey) -> Result<bool, Error> {
-        let state = self.storage.read().await;
-        if state.is_ready() {
+        let storage = self.storage.read().await;
+        if storage.is_ready() {
             let pearl_key = Key::from(key);
-            state.storage().contains(pearl_key).await.map_err(|e| {
+            storage.contains(pearl_key).await.map_err(|e| {
                 error!("{}", e);
                 Error::internal()
             })
