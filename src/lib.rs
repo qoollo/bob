@@ -3,7 +3,7 @@
 // #![warn(clippy::pedantic)]
 #![allow(clippy::used_underscore_binding)]
 #![warn(missing_debug_implementations)]
-#![warn(missing_docs)]
+// #![warn(missing_docs)]
 
 //! Library requires tokio runtime.
 

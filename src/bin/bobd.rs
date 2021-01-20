@@ -105,6 +105,8 @@ async fn main() {
         .expect("expect http_api_port port");
     bob.run_api_server(http_api_port);
 
+    create_signal_handlers(&bob).unwrap();
+
     let factory = Factory::new(node.operation_timeout(), metrics);
     bob.run_periodic_tasks(factory);
     let new_service = BobApiServer::new(bob);
@@ -115,4 +117,29 @@ async fn main() {
         .serve(addr)
         .await
         .unwrap();
+}
+
+fn create_signal_handlers(server: &BobServer) -> Result<(), Box<dyn std::error::Error>> {
+    use tokio::signal::unix::SignalKind;
+    let signals = [SignalKind::terminate(), SignalKind::interrupt()];
+    for s in signals.iter() {
+        spawn_signal_handler(server, *s)?;
+    }
+    Ok(())
+}
+
+fn spawn_signal_handler(
+    server: &BobServer,
+    s: tokio::signal::unix::SignalKind,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use tokio::signal::unix::signal;
+    let mut task = signal(s.clone())?;
+    let server = server.clone();
+    tokio::spawn(async move {
+        task.recv().await;
+        debug!("Got signal {:?}", s);
+        server.shutdown().await;
+        std::process::exit(0);
+    });
+    Ok(())
 }
