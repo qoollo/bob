@@ -218,10 +218,10 @@ impl BackendStorage for Pearl {
             let holders = holders.read().await;
             for holder in holders.iter() {
                 let storage = holder.storage().read().await;
-                let storage = storage.storage().clone();
+                let fut = storage.close();
                 let id = holder.get_id();
                 futures.push(async move {
-                    match storage.close().await {
+                    match fut.await {
                         Ok(_) => debug!("holder {} closed", id),
                         Err(e) => error!("error closing holder{}: {}", id, e),
                     }

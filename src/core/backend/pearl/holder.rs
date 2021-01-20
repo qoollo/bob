@@ -1,6 +1,5 @@
-use std::time::UNIX_EPOCH;
-
 use disk_controller::DiskController;
+use std::time::UNIX_EPOCH;
 
 use super::prelude::*;
 
@@ -115,7 +114,7 @@ impl Holder {
 
     pub(crate) async fn close_active_blob(&mut self) {
         let storage = self.storage.write().await;
-        storage.storage().close_active_blob().await;
+        storage.close_active_blob().await;
         warn!("Active blob of {} closed", self.get_id());
     }
 
@@ -130,21 +129,18 @@ impl Holder {
     }
 
     pub async fn write(&self, key: BobKey, data: BobData) -> BackendResult<()> {
-        let state = self.storage.read().await;
+        let storage = self.storage.read().await;
 
-        if state.is_ready() {
-            let storage = state.storage().clone();
+        if storage.is_ready() {
             *self.last_write_ts.write().await = Self::get_current_ts();
-            trace!("Vdisk: {}, write key: {}", self.vdisk, key);
-            Self::write_disk(storage, Key::from(key), data.clone()).await
+            Self::write_disk(&storage, Key::from(key), data.clone()).await
         } else {
-            trace!("Vdisk: {} isn't ready for writing: {:?}", self.vdisk, state);
             Err(Error::vdisk_is_not_ready())
         }
     }
 
     // @TODO remove redundant return result
-    async fn write_disk(storage: PearlStorage, key: Key, data: BobData) -> BackendResult<()> {
+    async fn write_disk(storage: &PearlSync, key: Key, data: BobData) -> BackendResult<()> {
         PEARL_PUT_COUNTER.count(1);
         let timer = PEARL_PUT_TIMER.start();
         storage
@@ -345,6 +341,18 @@ impl PearlSync {
 
     pub(crate) fn storage(&self) -> &PearlStorage {
         self.disk_controller.storage()
+    }
+
+    pub fn write(&self, key: Key, value: Vec<u8>) -> impl Future<Output = Result<()>> + '_ {
+        self.disk_controller.write(key, value)
+    }
+
+    pub fn close_active_blob(&self) -> impl Future<Output = ()> + '_ {
+        self.disk_controller.close_active_blob()
+    }
+
+    pub fn close(&self) -> impl Future<Output = Result<()>> {
+        self.disk_controller.close()
     }
 
     pub(crate) async fn records_count(&self) -> usize {

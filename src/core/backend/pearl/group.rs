@@ -295,8 +295,7 @@ impl Group {
         }
         for holder in &holders {
             let lock_guard = holder.storage();
-            let pearl_sync = lock_guard.write().await;
-            let storage = pearl_sync.storage().clone();
+            let storage = lock_guard.write().await;
             if let Err(e) = storage.close().await {
                 warn!("pearl closed: {:?}", e);
             }
