@@ -12,10 +12,9 @@ pearl:
   max_data_in_blob: 10000
   blob_file_name_prefix: bob
   fail_retry_timeout: 100ms
-  alien_disk: disk1
+  alien_folder: /tmp/bob/node3/disk1/alien
   settings:
     root_dir_name: bob
-    alien_root_dir_name: alien
     timestamp_period: 10m
     create_pearl_wait_delay: 100ms
 

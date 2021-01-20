@@ -6,7 +6,6 @@ const PLACEHOLDER: &str = "~";
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
 pub struct BackendSettings {
     root_dir_name: String,
-    alien_root_dir_name: String,
     timestamp_period: String,
     create_pearl_wait_delay: String,
 }
@@ -16,13 +15,6 @@ impl Validatable for BackendSettings {
         self.check_unset()?;
         if self.root_dir_name.is_empty() {
             let msg = "field \'root_dir_name\' for backend settings config is empty".to_string();
-            error!("{}", msg);
-            return Err(msg);
-        }
-
-        if self.alien_root_dir_name.is_empty() {
-            let msg =
-                "field 'alien_root_dir_name' for 'backend settings config' is empty".to_string();
             error!("{}", msg);
             return Err(msg);
         }
@@ -65,10 +57,6 @@ impl BackendSettings {
         &self.root_dir_name
     }
 
-    pub(crate) fn alien_root_dir_name(&self) -> &str {
-        &self.alien_root_dir_name
-    }
-
     pub(crate) fn timestamp_period(&self) -> Duration {
         self.timestamp_period
             .parse::<HumanDuration>()
@@ -84,8 +72,7 @@ impl BackendSettings {
     }
 
     fn check_unset(&self) -> Result<(), String> {
-        if self.alien_root_dir_name == PLACEHOLDER
-            || self.create_pearl_wait_delay == PLACEHOLDER
+        if self.create_pearl_wait_delay == PLACEHOLDER
             || self.root_dir_name == PLACEHOLDER
             || self.timestamp_period == PLACEHOLDER
         {
@@ -152,7 +139,7 @@ pub struct Pearl {
     fail_retry_timeout: String,
     #[serde(default = "Pearl::default_fail_retry_count")]
     fail_retry_count: u64,
-    alien_disk: String,
+    alien_folder: String,
     #[serde(default = "Pearl::default_allow_duplicates")]
     allow_duplicates: bool,
     settings: BackendSettings,
@@ -163,8 +150,8 @@ pub struct Pearl {
 }
 
 impl Pearl {
-    pub(crate) fn alien_disk(&self) -> &str {
-        &self.alien_disk
+    pub(crate) fn alien_folder(&self) -> &str {
+        &self.alien_folder
     }
 
     fn default_fail_retry_timeout() -> String {
@@ -247,7 +234,7 @@ impl Pearl {
     }
 
     fn check_unset(&self) -> Result<(), String> {
-        if self.alien_disk == PLACEHOLDER
+        if self.alien_folder == PLACEHOLDER
             || self.blob_file_name_prefix == PLACEHOLDER
             || self.fail_retry_timeout == PLACEHOLDER
         {
@@ -314,8 +301,8 @@ impl Pearl {
 impl Validatable for Pearl {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
-        if self.alien_disk.is_empty() {
-            let msg = "field \'alien_disk\' for \'config\' is empty".to_string();
+        if self.alien_folder.is_empty() {
+            let msg = "field \'alien_folder\' for \'config\' is empty".to_string();
             error!("{}", msg);
             return Err(msg);
         }
