@@ -13,6 +13,10 @@ impl DiskController {
         Self { storage: None }
     }
 
+    pub fn read(&self, key: Key) -> impl Future<Output = Result<Vec<u8>>> + '_ {
+        self.storage.as_ref().unwrap().read(key)
+    }
+
     pub fn write(&self, key: Key, value: Vec<u8>) -> impl Future<Output = Result<()>> + '_ {
         self.storage.as_ref().unwrap().write(key, value)
     }

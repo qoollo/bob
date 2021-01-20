@@ -133,7 +133,7 @@ fn spawn_signal_handler(
     s: tokio::signal::unix::SignalKind,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use tokio::signal::unix::signal;
-    let mut task = signal(s.clone())?;
+    let mut task = signal(s)?;
     let server = server.clone();
     tokio::spawn(async move {
         task.recv().await;

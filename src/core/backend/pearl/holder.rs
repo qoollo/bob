@@ -1,7 +1,6 @@
-use disk_controller::DiskController;
 use std::time::UNIX_EPOCH;
 
-use super::prelude::*;
+use super::{prelude::*, sync::PearlSync};
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
@@ -156,10 +155,8 @@ impl Holder {
     }
 
     pub async fn read(&self, key: BobKey) -> Result<BobData, Error> {
-        let state = self.storage.read().await;
-        if state.is_ready() {
-            let storage = state.storage();
-            trace!("Vdisk: {}, read key: {}", self.vdisk, key);
+        let storage = self.storage.read().await;
+        if storage.is_ready() {
             PEARL_GET_COUNTER.count(1);
             let timer = PEARL_GET_TIMER.start();
             storage
@@ -178,25 +175,16 @@ impl Holder {
                     }
                 })?
         } else {
-            trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
             Err(Error::vdisk_is_not_ready())
         }
     }
 
     pub async fn try_reinit(&self) -> BackendResult<()> {
-        let mut state = self.storage.write().await;
-        if state.is_reinit() {
-            trace!(
-                "Vdisk: {} reinitializing now, state: {:?}",
-                self.vdisk,
-                state
-            );
+        let mut storage = self.storage.write().await;
+        if storage.is_reinit() {
             Err(Error::vdisk_is_not_ready())
         } else {
-            state.init();
-            trace!("Vdisk: {} set as reinit, state: {:?}", self.vdisk, state);
-            let storage = state.storage().clone();
-            trace!("Vdisk: {} close old Pearl", self.vdisk);
+            storage.init();
             let result = storage.close().await;
             if let Err(e) = result {
                 error!("can't close pearl storage: {:?}", e);
@@ -209,14 +197,12 @@ impl Holder {
     pub async fn exist(&self, key: BobKey) -> Result<bool, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
-            trace!("Vdisk: {}, check key: {}", self.vdisk, key);
             let pearl_key = Key::from(key);
             state.storage().contains(pearl_key).await.map_err(|e| {
                 error!("{}", e);
                 Error::internal()
             })
         } else {
-            trace!("Vdisk: {} not ready for reading: {:?}", self.vdisk, state);
             Err(Error::vdisk_is_not_ready())
         }
     }
@@ -322,87 +308,4 @@ pub(crate) enum PearlState {
     Normal,
     // pearl restarting
     Initializing,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct PearlSync {
-    disk_controller: DiskController,
-    state: PearlState,
-    start_time_test: u8,
-}
-impl PearlSync {
-    pub(crate) fn new() -> Self {
-        Self {
-            disk_controller: DiskController::new(),
-            state: PearlState::Initializing,
-            start_time_test: 0,
-        }
-    }
-
-    pub(crate) fn storage(&self) -> &PearlStorage {
-        self.disk_controller.storage()
-    }
-
-    pub fn write(&self, key: Key, value: Vec<u8>) -> impl Future<Output = Result<()>> + '_ {
-        self.disk_controller.write(key, value)
-    }
-
-    pub fn close_active_blob(&self) -> impl Future<Output = ()> + '_ {
-        self.disk_controller.close_active_blob()
-    }
-
-    pub fn close(&self) -> impl Future<Output = Result<()>> {
-        self.disk_controller.close()
-    }
-
-    pub(crate) async fn records_count(&self) -> usize {
-        self.storage().records_count().await
-    }
-
-    pub(crate) async fn active_blob_records_count(&self) -> usize {
-        self.storage()
-            .records_count_in_active_blob()
-            .await
-            .unwrap_or_default()
-    }
-
-    pub(crate) async fn blobs_count(&self) -> usize {
-        self.storage().blobs_count().await
-    }
-
-    #[inline]
-    pub(crate) fn ready(&mut self) {
-        self.set_state(PearlState::Normal);
-    }
-
-    #[inline]
-    pub(crate) fn init(&mut self) {
-        self.set_state(PearlState::Initializing);
-    }
-
-    #[inline]
-    pub(crate) fn is_ready(&self) -> bool {
-        self.state == PearlState::Normal
-    }
-
-    #[inline]
-    pub(crate) fn is_reinit(&self) -> bool {
-        self.state == PearlState::Initializing
-    }
-
-    #[inline]
-    pub(crate) fn set_state(&mut self, state: PearlState) {
-        self.state = state;
-    }
-
-    #[inline]
-    pub(crate) fn set(&mut self, storage: PearlStorage) {
-        self.disk_controller.set(storage);
-        self.start_time_test += 1;
-    }
-
-    // #[inline]
-    // pub(crate) fn get(&self) -> PearlStorage {
-    //     self.disk_controller.get()
-    // }
 }

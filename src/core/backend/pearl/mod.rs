@@ -6,6 +6,7 @@ mod holder;
 mod metrics;
 mod settings;
 mod stuff;
+mod sync;
 mod work_dir;
 
 #[cfg(test)]
