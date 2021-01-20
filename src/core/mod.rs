@@ -64,7 +64,7 @@ mod prelude {
     pub(crate) use termion::color;
     pub(crate) use tokio::{
         net::lookup_host,
-        time::{delay_for, interval, timeout},
+        time::{interval, sleep, timeout},
     };
     pub(crate) use tonic::{
         transport::{Channel, Endpoint},
