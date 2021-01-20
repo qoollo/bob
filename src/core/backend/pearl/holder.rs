@@ -1,5 +1,7 @@
 use std::time::UNIX_EPOCH;
 
+use disk_controller::DiskController;
+
 use super::prelude::*;
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
@@ -131,7 +133,7 @@ impl Holder {
         let state = self.storage.read().await;
 
         if state.is_ready() {
-            let storage = state.get();
+            let storage = state.storage().clone();
             *self.last_write_ts.write().await = Self::get_current_ts();
             trace!("Vdisk: {}, write key: {}", self.vdisk, key);
             Self::write_disk(storage, Key::from(key), data.clone()).await
@@ -160,7 +162,7 @@ impl Holder {
     pub async fn read(&self, key: BobKey) -> Result<BobData, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
-            let storage = state.get();
+            let storage = state.storage();
             trace!("Vdisk: {}, read key: {}", self.vdisk, key);
             PEARL_GET_COUNTER.count(1);
             let timer = PEARL_GET_TIMER.start();
@@ -197,7 +199,7 @@ impl Holder {
         } else {
             state.init();
             trace!("Vdisk: {} set as reinit, state: {:?}", self.vdisk, state);
-            let storage = state.get();
+            let storage = state.storage().clone();
             trace!("Vdisk: {} close old Pearl", self.vdisk);
             let result = storage.close().await;
             if let Err(e) = result {
@@ -213,8 +215,7 @@ impl Holder {
         if state.is_ready() {
             trace!("Vdisk: {}, check key: {}", self.vdisk, key);
             let pearl_key = Key::from(key);
-            let storage = state.get();
-            storage.contains(pearl_key).await.map_err(|e| {
+            state.storage().contains(pearl_key).await.map_err(|e| {
                 error!("{}", e);
                 Error::internal()
             })
@@ -329,21 +330,21 @@ pub(crate) enum PearlState {
 
 #[derive(Clone, Debug)]
 pub(crate) struct PearlSync {
-    storage: Option<PearlStorage>,
+    disk_controller: DiskController,
     state: PearlState,
     start_time_test: u8,
 }
 impl PearlSync {
     pub(crate) fn new() -> Self {
         Self {
-            storage: None,
+            disk_controller: DiskController::new(),
             state: PearlState::Initializing,
             start_time_test: 0,
         }
     }
 
     pub(crate) fn storage(&self) -> &PearlStorage {
-        self.storage.as_ref().expect("pearl storage")
+        self.disk_controller.storage()
     }
 
     pub(crate) async fn records_count(&self) -> usize {
@@ -388,12 +389,12 @@ impl PearlSync {
 
     #[inline]
     pub(crate) fn set(&mut self, storage: PearlStorage) {
-        self.storage = Some(storage);
+        self.disk_controller.set(storage);
         self.start_time_test += 1;
     }
 
-    #[inline]
-    pub(crate) fn get(&self) -> PearlStorage {
-        self.storage.clone().expect("cloned storage")
-    }
+    // #[inline]
+    // pub(crate) fn get(&self) -> PearlStorage {
+    //     self.disk_controller.get()
+    // }
 }

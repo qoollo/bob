@@ -1,7 +1,7 @@
 use super::prelude::*;
 
 #[derive(Clone, Debug)]
-pub(crate) struct Key(Vec<u8>);
+pub struct Key(Vec<u8>);
 
 impl From<u64> for Key {
     fn from(key: u64) -> Self {

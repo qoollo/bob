@@ -1,7 +1,7 @@
 use super::prelude::*;
 
 pub(crate) type BackendResult<T> = std::result::Result<T, Error>;
-pub(crate) type PearlStorage = Storage<Key>;
+pub type PearlStorage = Storage<Key>;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Pearl {

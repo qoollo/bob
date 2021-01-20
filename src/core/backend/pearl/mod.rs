@@ -1,5 +1,6 @@
 mod core;
 mod data;
+mod disk_controller;
 mod group;
 mod holder;
 mod metrics;
