@@ -219,8 +219,8 @@ impl TestClusterConfiguration {
 
     fn get_pearl_config(&self, node: u32) -> Pearl {
         Pearl::new(
-            1000000,
-            1000000,
+            100000000,
+            100000000,
             "bob".to_string(),
             "100ms".to_string(),
             3,
