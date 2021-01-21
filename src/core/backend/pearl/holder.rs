@@ -62,10 +62,8 @@ impl Holder {
     }
 
     pub(crate) async fn index_memory(&self) -> usize {
-        //FIXME: change on storage.index_memory() when it will be available
-        //let storage = self.storage.read().await;
-        //storage.index_memory().await
-        0
+        let storage = self.storage.read().await;
+        storage.index_memory().await
     }
 
     pub(crate) fn is_actual(&self, current_start: u64) -> bool {
@@ -357,6 +355,10 @@ impl PearlSync {
 
     pub(crate) async fn records_count(&self) -> usize {
         self.storage().records_count().await
+    }
+
+    pub(crate) async fn index_memory(&self) -> usize {
+        self.storage().index_memory().await
     }
 
     pub(crate) async fn active_blob_records_count(&self) -> usize {

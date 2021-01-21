@@ -206,6 +206,30 @@ impl BackendStorage for Pearl {
         }
     }
 
+    async fn shutdown(&self) {
+        use futures::stream::FuturesUnordered;
+        info!("begin shutdown");
+        let futures = FuturesUnordered::new();
+        let aliens = self.alien_vdisks_groups.read().await;
+        for vdisk in self.vdisks_groups.iter().chain(aliens.iter()) {
+            let holders = vdisk.holders();
+            let holders = holders.read().await;
+            for holder in holders.iter() {
+                let storage = holder.storage().read().await;
+                let storage = storage.storage().clone();
+                let id = holder.get_id();
+                futures.push(async move {
+                    match storage.close().await {
+                        Ok(_) => debug!("holder {} closed", id),
+                        Err(e) => error!("error closing holder{}: {}", id, e),
+                    }
+                });
+            }
+        }
+        let _ = futures.collect::<()>().await;
+        info!("shutting down done");
+    }
+
     async fn blobs_count(&self) -> (usize, usize) {
         let mut cnt = 0;
         for group in self.vdisks_groups.iter() {

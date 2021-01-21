@@ -34,17 +34,16 @@ impl Validatable for BackendSettings {
             );
             error!("{}", msg);
             return Err(msg);
-        } else {
-            let period = chrono::Duration::from_std(self.timestamp_period())
-                .expect("smth wrong with time: {:?}, error: {}");
-            if period > chrono::Duration::weeks(1) {
-                let msg =
-                    "field 'timestamp_period' for 'backend settings config' is greater then week"
-                        .to_string();
-                error!("{}", msg);
-                return Err(msg);
-            }
-        };
+        }
+        let period = chrono::Duration::from_std(self.timestamp_period())
+            .expect("smth wrong with time: {:?}, error: {}");
+        if period > chrono::Duration::weeks(1) {
+            let msg = "field 'timestamp_period' for 'backend settings config' is greater then week"
+                .to_string();
+            error!("{}", msg);
+            return Err(msg);
+        }
+
         if self
             .create_pearl_wait_delay
             .parse::<HumanDuration>()
@@ -305,7 +304,7 @@ impl Pearl {
                     }
                 }
             }
-            delay_for(retry_delay).await
+            sleep(retry_delay).await
         }
         unreachable!()
     }

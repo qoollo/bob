@@ -7,14 +7,14 @@ pub(crate) mod b_client {
 
     /// Client for interaction with bob backend
     #[derive(Clone)]
-    pub(crate) struct RealBobClient {
+    pub(crate) struct BobClient {
         node: Node,
         operation_timeout: Duration,
         client: BobApiClient<Channel>,
         metrics: BobClientMetrics,
     }
 
-    impl RealBobClient {
+    impl BobClient {
         /// Creates [`BobClient`] instance
         /// # Errors
         /// Fails if can't connect to endpoint
@@ -155,19 +155,19 @@ pub(crate) mod b_client {
 
     mock! {
         pub(crate) BobClient {
-            async fn create(node: Node, operation_timeout: Duration, metrics: BobClientMetrics) -> Result<Self, String>;
-            async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult;
-            async fn get(&self, key: BobKey, options: GetOptions) -> GetResult;
-            async fn ping(&self) -> PingResult;
-            fn node(&self) -> &Node;
-            async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult;
+            pub(crate) async fn create(node: Node, operation_timeout: Duration, metrics: BobClientMetrics) -> Result<Self, String>;
+            pub(crate) async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult;
+            pub(crate) async fn get(&self, key: BobKey, options: GetOptions) -> GetResult;
+            pub(crate) async fn ping(&self) -> PingResult;
+            pub(crate) fn node(&self) -> &Node;
+            pub(crate) async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult;
         }
-        trait Clone {
+        impl Clone for BobClient {
             fn clone(&self) -> Self;
         }
     }
 
-    impl Debug for RealBobClient {
+    impl Debug for BobClient {
         fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
             f.debug_struct("RealBobClient")
                 .field("client", &"BobApiClient<Channel>")
@@ -183,7 +183,7 @@ cfg_if! {
     if #[cfg(test)] {
         pub(crate) use self::b_client::MockBobClient as BobClient;
     } else {
-        pub(crate) use self::b_client::RealBobClient as BobClient;
+        pub(crate) use self::b_client::BobClient;
     }
 }
 

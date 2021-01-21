@@ -100,6 +100,8 @@ pub(crate) trait BackendStorage: Debug {
         0
     }
 
+    async fn shutdown(&self);
+
     fn vdisks_groups(&self) -> Option<&[Group]> {
         None
     }
@@ -295,6 +297,10 @@ impl Backend {
             }
         }
         Ok(exist)
+    }
+
+    pub async fn shutdown(&self) {
+        self.inner.shutdown().await;
     }
 
     fn group_keys_by_operations(
