@@ -15,7 +15,6 @@ pub(crate) struct Holder {
     config: PearlConfig,
     storage: Arc<RwLock<PearlSync>>,
     last_write_ts: Arc<RwLock<u64>>,
-    dump_sem: Arc<Semaphore>,
 }
 
 impl Holder {
@@ -25,7 +24,6 @@ impl Holder {
         vdisk: VDiskID,
         disk_path: PathBuf,
         config: PearlConfig,
-        dump_sem: Arc<Semaphore>,
     ) -> Self {
         Self {
             start_timestamp,
@@ -35,7 +33,6 @@ impl Holder {
             config,
             storage: Arc::new(RwLock::new(PearlSync::new())),
             last_write_ts: Arc::new(RwLock::new(0)),
-            dump_sem,
         }
     }
 
@@ -299,8 +296,7 @@ impl Holder {
             .blob_file_name_prefix(prefix)
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
-            .set_filter_config(BloomConfig::default())
-            .set_dump_sem(self.dump_sem.clone());
+            .set_filter_config(BloomConfig::default());
         let builder = if self.config.is_aio_enabled() {
             match rio::new() {
                 Ok(ioring) => {

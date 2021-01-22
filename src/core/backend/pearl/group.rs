@@ -10,7 +10,6 @@ pub(crate) struct Group {
     disk_name: String,
     owner_node_name: String,
     created_holder_indexes: Arc<RwLock<HashMap<u64, usize>>>,
-    dump_sem: Arc<Semaphore>,
 }
 
 impl Group {
@@ -21,7 +20,6 @@ impl Group {
         disk_name: String,
         directory_path: PathBuf,
         owner_node_name: String,
-        dump_sem: Arc<Semaphore>,
     ) -> Self {
         Self {
             holders: Arc::new(RwLock::new(vec![])),
@@ -32,7 +30,6 @@ impl Group {
             disk_name,
             owner_node_name,
             created_holder_indexes: Arc::default(),
-            dump_sem,
         }
     }
 
@@ -316,14 +313,7 @@ impl Group {
         let mut config = self.settings.config().clone();
         let prefix = config.blob_file_name_prefix().to_owned();
         config.set_blob_file_name_prefix(format!("{}_{}", prefix, hash));
-        Holder::new(
-            start_timestamp,
-            end_timestamp,
-            self.vdisk_id,
-            path,
-            config,
-            self.dump_sem.clone(),
-        )
+        Holder::new(start_timestamp, end_timestamp, self.vdisk_id, path, config)
     }
 
     pub(crate) fn create_pearl_by_timestamp(&self, time: u64) -> Holder {

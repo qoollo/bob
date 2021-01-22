@@ -36,7 +36,6 @@ impl Settings {
         let mut result = vec![];
         for disk in self.mapper.local_disks() {
             let vdisks = self.mapper.get_vdisks_by_disk(disk.name());
-            let dump_sem = Arc::new(Semaphore::new(config.init_par_degree()));
             let iter = vdisks.iter().map(|&vdisk_id| {
                 let path = self.normal_path(disk.path(), vdisk_id);
                 Group::new(
@@ -46,7 +45,6 @@ impl Settings {
                     disk.name().to_owned(),
                     path,
                     config.name().to_owned(),
-                    dump_sem.clone(),
                 )
             });
             result.extend(iter);
@@ -75,7 +73,6 @@ impl Settings {
                                 disk_name,
                                 entry.path(),
                                 node_name.clone(),
-                                Arc::new(Semaphore::new(1))
                             );
                             result.push(group);
                         } else {
@@ -108,7 +105,6 @@ impl Settings {
             self.config.alien_disk().to_owned(),
             path,
             node_name.to_owned(),
-            Arc::new(Semaphore::new(1))
         );
         Ok(group)
     }
