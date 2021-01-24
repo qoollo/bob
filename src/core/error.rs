@@ -92,11 +92,11 @@ impl Display for Kind {
     }
 }
 
-impl Into<Status> for Error {
-    fn into(self) -> Status {
+impl From<Error> for Status {
+    fn from(e: Error) -> Status {
         //TODO add custom errors
-        trace!("Error: {}", self);
-        match &self.ctx {
+        trace!("Error: {}", e);
+        match &e.ctx {
             Kind::KeyNotFound(key) => Status::not_found(format!("KeyNotFound {}", key)),
             Kind::DuplicateKey => Status::already_exists("DuplicateKey"),
             Kind::Timeout => Status::deadline_exceeded("Timeout"),
