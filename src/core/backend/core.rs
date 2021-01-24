@@ -1,7 +1,7 @@
 use super::prelude::*;
 
-const BACKEND_STARTING: usize = 0;
-const BACKEND_STARTED: usize = 1;
+const BACKEND_STARTING: i64 = 0;
+const BACKEND_STARTED: i64 = 1;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Operation {
@@ -86,14 +86,18 @@ pub(crate) trait BackendStorage: Debug {
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 
     async fn run(&self) -> Result<()> {
-        BACKEND_STATE.value(BACKEND_STARTING);
+        gauge!(BACKEND_STATE, BACKEND_STARTING);
         let result = self.run_backend().await;
-        BACKEND_STATE.value(BACKEND_STARTED);
+        gauge!(BACKEND_STATE, BACKEND_STARTED);
         result
     }
 
     async fn blobs_count(&self) -> (usize, usize) {
         (0, 0)
+    }
+
+    async fn index_memory(&self) -> usize {
+        0
     }
 
     async fn shutdown(&self);
@@ -121,6 +125,10 @@ impl Backend {
 
     pub(crate) async fn blobs_count(&self) -> (usize, usize) {
         self.inner.blobs_count().await
+    }
+
+    pub(crate) async fn index_memory(&self) -> usize {
+        self.inner.index_memory().await
     }
 
     pub(crate) fn mapper(&self) -> &Virtual {

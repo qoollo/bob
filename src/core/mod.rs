@@ -1,3 +1,4 @@
+extern crate metrics as metrics_ext;
 /// Component responsible for working with I/O.
 pub mod backend;
 /// GRPC client to deal with backend.
@@ -28,16 +29,22 @@ pub(crate) use backend::{init_pearl, Backend, Operation};
 mod prelude {
     pub(crate) use super::*;
 
+    pub(crate) use crate::metrics::{
+        BobClient as BobClientMetrics, ContainerBuilder as MetricsContainerBuilder,
+        ALIEN_BLOBS_COUNT, AVAILABLE_NODES_COUNT, BACKEND_STATE, BLOBS_COUNT, CLIENT_EXIST_COUNTER,
+        CLIENT_EXIST_ERROR_COUNT_COUNTER, CLIENT_EXIST_TIMER, CLIENT_GET_COUNTER,
+        CLIENT_GET_ERROR_COUNT_COUNTER, CLIENT_GET_TIMER, CLIENT_PUT_COUNTER,
+        CLIENT_PUT_ERROR_COUNT_COUNTER, CLIENT_PUT_TIMER, GRINDER_EXIST_COUNTER,
+        GRINDER_EXIST_ERROR_COUNT_COUNTER, GRINDER_EXIST_TIMER, GRINDER_GET_COUNTER,
+        GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER, GRINDER_PUT_COUNTER,
+        GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER, INDEX_MEMORY,
+    };
     pub(crate) use bob_client::{BobClient, Factory};
     pub(crate) use cleaner::Cleaner;
     pub(crate) use cluster::{get_cluster, Cluster};
     pub(crate) use configs::{Cluster as ClusterConfig, Node as NodeConfig};
     pub(crate) use counter::Counter as BlobsCounter;
     pub(crate) use data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskID};
-    pub(crate) use dipstick::{
-        AtomicBucket, Counter, Gauge, Graphite, Input, InputKind, InputScope, MetricName,
-        MetricValue, Prefixed, Proxy, ScheduleFlush, ScoreType, TimeHandle, Timer,
-    };
     pub(crate) use futures::{
         future, stream::FuturesUnordered, Future, FutureExt, StreamExt, TryFutureExt,
     };
@@ -49,17 +56,9 @@ mod prelude {
     pub(crate) use http::Uri;
     pub(crate) use link_manager::LinkManager;
     pub(crate) use mapper::Virtual;
-    pub(crate) use metrics::{
-        BobClient as BobClientMetrics, ContainerBuilder as MetricsContainerBuilder,
-        ALIEN_BLOBS_COUNT, AVAILABLE_NODES_COUNT, BACKEND_STATE, BLOBS_COUNT, CLIENT_EXIST_COUNTER,
-        CLIENT_EXIST_ERROR_COUNTER, CLIENT_EXIST_TIMER, CLIENT_GET_COUNTER,
-        CLIENT_GET_ERROR_COUNT_COUNTER, CLIENT_GET_TIMER, CLIENT_PUT_COUNTER,
-        CLIENT_PUT_ERROR_COUNT_COUNTER, CLIENT_PUT_TIMER, GRINDER_EXIST_COUNTER,
-        GRINDER_EXIST_ERROR_COUNTER, GRINDER_EXIST_TIMER, GRINDER_GET_COUNTER,
-        GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER, GRINDER_PUT_COUNTER,
-        GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER,
-    };
+    pub(crate) use metrics_ext::{counter, gauge, timing}; // !gauge will be used in additional metrics
     pub(crate) use node::{Disk as NodeDisk, Node, Output as NodeOutput, ID as NodeID};
+    pub(crate) use std::time::Instant;
     pub(crate) use stopwatch::Stopwatch;
     pub(crate) use termion::color;
     pub(crate) use tokio::{
