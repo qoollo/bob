@@ -21,6 +21,10 @@ pub(crate) use super::prelude::*;
 mod prelude {
     pub(crate) use super::*;
 
+    pub(crate) use self::metrics::{
+        PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
+        PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
+    };
     pub(crate) use ::pearl::{
         filter::Config as BloomConfig, rio, Builder, Error as PearlError, ErrorKind,
         Key as KeyTrait, Storage,
@@ -29,10 +33,6 @@ mod prelude {
     pub(crate) use configs::Pearl as PearlConfig;
     pub(crate) use data::{Data, Key};
     pub(crate) use holder::Holder;
-    pub(crate) use metrics::{
-        PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
-        PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
-    };
     pub(crate) use settings::Settings;
     pub(crate) use stuff::Stuff;
     pub(crate) use work_dir::WorkDir;

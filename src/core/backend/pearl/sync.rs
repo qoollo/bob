@@ -89,4 +89,9 @@ impl PearlSync {
         self.disk_controller.set(storage);
         self.start_time_test += 1;
     }
+
+    #[inline]
+    pub(crate) fn index_memory(&self) -> impl Future<Output = usize> + '_ {
+        self.disk_controller.index_memory()
+    }
 }

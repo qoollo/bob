@@ -60,6 +60,11 @@ impl Holder {
         storage.blobs_count().await
     }
 
+    pub(crate) async fn index_memory(&self) -> usize {
+        let storage = self.storage.read().await;
+        storage.index_memory().await
+    }
+
     pub(crate) fn is_actual(&self, current_start: u64) -> bool {
         self.start_timestamp == current_start
     }
@@ -139,41 +144,42 @@ impl Holder {
     }
 
     // @TODO remove redundant return result
+    #[allow(clippy::cast_possible_truncation)]
     async fn write_disk(storage: &PearlSync, key: Key, data: BobData) -> BackendResult<()> {
-        PEARL_PUT_COUNTER.count(1);
-        let timer = PEARL_PUT_TIMER.start();
+        counter!(PEARL_PUT_COUNTER, 1);
+        let timer = Instant::now();
         storage
             .write(key, Data::from(data).to_vec())
             .await
             .unwrap_or_else(|e| {
-                PEARL_PUT_ERROR_COUNTER.count(1);
+                counter!(PEARL_PUT_ERROR_COUNTER, 1);
                 error!("error on write: {:?}", e);
                 //TODO check duplicate
             });
-        PEARL_PUT_TIMER.stop(timer);
+        counter!(PEARL_PUT_TIMER, timer.elapsed().as_nanos() as u64);
         Ok(())
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     pub async fn read(&self, key: BobKey) -> Result<BobData, Error> {
         let storage = self.storage.read().await;
         if storage.is_ready() {
-            PEARL_GET_COUNTER.count(1);
-            let timer = PEARL_GET_TIMER.start();
-            storage
+            counter!(PEARL_GET_COUNTER, 1);
+            let timer = Instant::now();
+            let res = storage
                 .read(Key::from(key))
                 .await
-                .map(|r| {
-                    PEARL_GET_TIMER.stop(timer);
-                    Data::from_bytes(&r)
-                })
+                .map(|r| Data::from_bytes(&r))
                 .map_err(|e| {
-                    PEARL_GET_ERROR_COUNTER.count(1);
+                    counter!(PEARL_GET_ERROR_COUNTER, 1);
                     trace!("error on read: {:?}", e);
                     match e.downcast_ref::<PearlError>().unwrap().kind() {
                         ErrorKind::RecordNotFound => Error::key_not_found(key),
                         _ => Error::storage(e.to_string()),
                     }
-                })?
+                });
+            counter!(PEARL_GET_TIMER, timer.elapsed().as_nanos() as u64);
+            res?
         } else {
             Err(Error::vdisk_is_not_ready())
         }

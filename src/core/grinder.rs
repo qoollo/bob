@@ -52,8 +52,8 @@ impl Grinder {
                 "PUT[{}] FORCE_NODE=true - will handle it by local node. Put params: {:?}",
                 key, opts
             );
-            CLIENT_PUT_COUNTER.count(1);
-            let time = CLIENT_PUT_TIMER.start();
+            counter!(CLIENT_PUT_COUNTER, 1);
+            let time = Instant::now();
 
             let result = self.backend.put(key, data, opts).await;
             trace!(
@@ -61,23 +61,23 @@ impl Grinder {
                 sw.elapsed().as_secs_f64() * 1000.0
             );
             if result.is_err() {
-                CLIENT_PUT_ERROR_COUNT_COUNTER.count(1);
+                counter!(CLIENT_PUT_ERROR_COUNT_COUNTER, 1);
             }
 
-            CLIENT_PUT_TIMER.stop(time);
+            timing!(CLIENT_PUT_TIMER, time.elapsed().as_nanos() as u64);
             trace!("<<<- - - - - GRINDER PUT FINISH - - - - -");
             result
         } else {
             debug!("PUT[{}] will route to cluster", key);
-            GRINDER_PUT_COUNTER.count(1);
-            let time = GRINDER_PUT_TIMER.start();
+            counter!(GRINDER_PUT_COUNTER, 1);
+            let time = Instant::now();
 
             let result = self.cluster.put(key, data).await;
             if result.is_err() {
-                GRINDER_PUT_ERROR_COUNT_COUNTER.count(1);
+                counter!(GRINDER_PUT_ERROR_COUNT_COUNTER, 1);
             }
 
-            GRINDER_PUT_TIMER.stop(time);
+            timing!(GRINDER_PUT_TIMER, time.elapsed().as_nanos() as u64);
             trace!(">>>- - - - - GRINDER PUT FINISH - - - - -");
             result
         }
@@ -91,8 +91,8 @@ impl Grinder {
                 "pass request to backend, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            CLIENT_GET_COUNTER.count(1);
-            let time = CLIENT_GET_TIMER.start();
+            counter!(CLIENT_GET_COUNTER, 1);
+            let time = Instant::now();
 
             debug!(
                 "GET[{}] flag FORCE_NODE is on - will handle it by local node. Get params: {:?}",
@@ -104,10 +104,10 @@ impl Grinder {
                 sw.elapsed().as_secs_f64() * 1000.0
             );
             if result.is_err() {
-                CLIENT_GET_ERROR_COUNT_COUNTER.count(1);
+                counter!(CLIENT_GET_ERROR_COUNT_COUNTER, 1);
             }
 
-            CLIENT_GET_TIMER.stop(time);
+            timing!(CLIENT_GET_TIMER, time.elapsed().as_nanos() as u64);
             trace!(">>>- - - - - GRINDER PUT FINISHED - - - - -");
             result
         } else {
@@ -115,8 +115,8 @@ impl Grinder {
                 "pass request to cluster, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            GRINDER_GET_COUNTER.count(1);
-            let time = GRINDER_GET_TIMER.start();
+            counter!(GRINDER_GET_COUNTER, 1);
+            let time = Instant::now();
             debug!("GET[{}] will route to cluster", key);
             let result = self.cluster.get(key).await;
             trace!(
@@ -124,9 +124,9 @@ impl Grinder {
                 sw.elapsed().as_secs_f64() * 1000.0
             );
             if result.is_err() {
-                GRINDER_GET_ERROR_COUNT_COUNTER.count(1);
+                counter!(GRINDER_GET_ERROR_COUNT_COUNTER, 1);
             }
-            GRINDER_GET_TIMER.stop(time);
+            counter!(GRINDER_GET_TIMER, time.elapsed().as_nanos() as u64);
             trace!(">>>- - - - - GRINDER PUT FINISHED - - - - -");
             result
         }
@@ -139,30 +139,30 @@ impl Grinder {
     ) -> Result<Vec<bool>, Error> {
         let sw = Stopwatch::start_new();
         if opts.flags().contains(BobFlags::FORCE_NODE) {
-            CLIENT_EXIST_COUNTER.count(1);
-            let time = CLIENT_EXIST_TIMER.start();
+            counter!(CLIENT_EXIST_COUNTER, 1);
+            let time = Instant::now();
             let result = self.backend.exist(keys, opts).await;
             trace!(
                 "backend processed exist, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
             if result.is_err() {
-                CLIENT_EXIST_ERROR_COUNTER.count(1);
+                counter!(CLIENT_EXIST_ERROR_COUNT_COUNTER, 1);
             }
-            CLIENT_EXIST_TIMER.stop(time);
+            timing!(CLIENT_EXIST_TIMER, time.elapsed().as_nanos() as u64);
             result
         } else {
-            GRINDER_EXIST_COUNTER.count(1);
-            let time = GRINDER_EXIST_TIMER.start();
+            counter!(GRINDER_EXIST_COUNTER, 1);
+            let time = Instant::now();
             let result = self.cluster.exist(keys).await;
             trace!(
                 "cluster processed exist, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
             if result.is_err() {
-                GRINDER_EXIST_ERROR_COUNTER.count(1);
+                counter!(GRINDER_EXIST_ERROR_COUNT_COUNTER, 1);
             }
-            GRINDER_EXIST_TIMER.stop(time);
+            timing!(GRINDER_EXIST_TIMER, time.elapsed().as_nanos() as u64);
             result
         }
     }

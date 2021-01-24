@@ -60,4 +60,8 @@ impl DiskController {
     pub fn set(&mut self, storage: PearlStorage) -> Option<PearlStorage> {
         self.storage.replace(storage)
     }
+
+    pub fn index_memory(&self) -> impl Future<Output = usize> + '_ {
+        self.storage.as_ref().unwrap().index_memory()
+    }
 }

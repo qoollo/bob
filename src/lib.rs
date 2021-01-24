@@ -16,8 +16,6 @@ extern crate serde_derive;
 #[macro_use]
 extern crate cfg_if;
 #[macro_use]
-extern crate dipstick;
-#[macro_use]
 extern crate rocket;
 #[macro_use]
 extern crate async_trait;
@@ -49,7 +47,7 @@ mod prelude {
         convert::TryInto,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
         fs::{read_dir, read_to_string, remove_file, DirEntry, Metadata},
-        io::{Cursor, Result as IOResult},
+        io::{Cursor, Error as IOError, ErrorKind as IOErrorKind, Result as IOResult},
         net::SocketAddr,
         path::{Path, PathBuf},
         pin::Pin,
