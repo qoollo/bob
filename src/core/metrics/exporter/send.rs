@@ -36,7 +36,7 @@ pub(super) async fn send_metrics(
             }
         }
 
-        if let Ok(_) = socket.check_connection() {
+        if socket.check_connection().is_ok() {
             flush_counters(&counters_map, &mut socket).await;
             flush_gauges(&gauges_map, &mut socket).await;
             flush_times(&mut times_map, &mut socket).await;
