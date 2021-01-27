@@ -23,7 +23,7 @@ impl PearlSync {
     }
 
     #[inline]
-    pub fn write(&self, key: Key, value: Vec<u8>) -> impl Future<Output = Result<()>> + '_ {
+    pub fn write(&mut self, key: Key, value: Vec<u8>) -> impl Future<Output = Result<()>> + '_ {
         self.disk_controller.write(key, value)
     }
 

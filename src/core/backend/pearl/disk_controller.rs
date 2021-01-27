@@ -1,3 +1,5 @@
+use std::sync::{atomic::AtomicBool, Arc};
+
 use crate::prelude::Result;
 use futures::Future;
 use pearl::{Error as PearlError, ErrorKind as PearlErrorKind};
@@ -19,8 +21,10 @@ impl DiskController {
         self.storage.as_ref().unwrap().read(key)
     }
 
-    pub async fn write(&self, key: Key, value: Vec<u8>) -> Result<()> {
+    // @TODO check if there is an efficient way to avoid mutable borrowing
+    pub async fn write(&mut self, key: Key, value: Vec<u8>) -> Result<()> {
         if let Some(storage) = self.storage.as_ref() {
+            todo!("check access to pearl");
             match storage.write(key, value).await {
                 Ok(_) => Ok(()),
                 Err(e) => {
@@ -28,7 +32,8 @@ impl DiskController {
                         error!("pearl error: {:#}", pearl_err);
                         match pearl_err.kind() {
                             PearlErrorKind::WorkDirUnavailable(msg) => {
-                                todo!("disable access to pearl, wait for work dir to become available again");
+                                todo!("disable access to pearl");
+                                todo!("wait for work dir to become available again");
                             }
                             _ => {
                                 todo!("return error as is");
@@ -36,7 +41,7 @@ impl DiskController {
                         }
                     } else {
                         error!("not pearl error: {:#}", e);
-                        todo!()
+                        todo!("return error as is");
                     }
                     Err(e)
                 }

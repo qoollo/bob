@@ -133,11 +133,11 @@ impl Holder {
     }
 
     pub async fn write(&self, key: BobKey, data: BobData) -> BackendResult<()> {
-        let storage = self.storage.read().await;
+        let mut storage = self.storage.write().await;
 
         if storage.is_ready() {
             *self.last_write_ts.write().await = Self::get_current_ts();
-            Self::write_disk(&storage, Key::from(key), data.clone()).await
+            Self::write_disk(&mut storage, Key::from(key), data.clone()).await
         } else {
             Err(Error::vdisk_is_not_ready())
         }
@@ -145,7 +145,7 @@ impl Holder {
 
     // @TODO remove redundant return result
     #[allow(clippy::cast_possible_truncation)]
-    async fn write_disk(storage: &PearlSync, key: Key, data: BobData) -> BackendResult<()> {
+    async fn write_disk(storage: &mut PearlSync, key: Key, data: BobData) -> BackendResult<()> {
         counter!(PEARL_PUT_COUNTER, 1);
         let timer = Instant::now();
         storage
