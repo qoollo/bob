@@ -57,5 +57,5 @@ mod prelude {
     };
     pub(crate) use thiserror::Error as ErrorTrait;
     pub(crate) use tokio::runtime::Runtime;
-    pub(crate) use tokio::sync::RwLock;
+    pub(crate) use tokio::sync::{RwLock, Semaphore};
 }
