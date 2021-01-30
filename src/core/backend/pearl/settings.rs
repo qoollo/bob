@@ -12,12 +12,16 @@ pub(crate) struct Settings {
 impl Settings {
     pub(crate) fn new(config: &NodeConfig, mapper: Arc<Virtual>) -> Self {
         let config = config.pearl().clone();
-        let disk_path = mapper
-            .get_disk(&config.alien_disk())
-            .expect("cannot find alien disk in config")
-            .path();
-        let alien_folder =
-            format!("{}/{}/", disk_path, config.settings().alien_root_dir_name()).into();
+        let alien_disk = config.alien_disk();
+        let alien_folder = if alien_disk.is_empty() {
+            config.settings().alien_root_dir_name().into()
+        } else {
+            let disk_path = mapper
+                .get_disk(&config.alien_disk())
+                .expect("cannot find alien disk in config")
+                .path();
+            format!("{}/{}/", disk_path, config.settings().alien_root_dir_name()).into()
+        };
 
         Self {
             bob_prefix_path: config.settings().root_dir_name().to_owned(),

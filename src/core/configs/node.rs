@@ -152,6 +152,7 @@ pub struct Pearl {
     fail_retry_timeout: String,
     #[serde(default = "Pearl::default_fail_retry_count")]
     fail_retry_count: u64,
+    #[serde(default = "Pearl::default_alien_disk")]
     alien_disk: String,
     #[serde(default = "Pearl::default_allow_duplicates")]
     allow_duplicates: bool,
@@ -206,6 +207,10 @@ impl Pearl {
         "bob".to_string()
     }
 
+    fn default_alien_disk() -> String {
+        String::new()
+    }
+
     pub(crate) fn blob_file_name_prefix(&self) -> &str {
         &self.blob_file_name_prefix
     }
@@ -247,10 +252,7 @@ impl Pearl {
     }
 
     fn check_unset(&self) -> Result<(), String> {
-        if self.alien_disk == PLACEHOLDER
-            || self.blob_file_name_prefix == PLACEHOLDER
-            || self.fail_retry_timeout == PLACEHOLDER
-        {
+        if self.blob_file_name_prefix == PLACEHOLDER || self.fail_retry_timeout == PLACEHOLDER {
             let msg = "some of the fields present, but empty".to_string();
             error!("{}", msg);
             Err(msg)
@@ -314,12 +316,6 @@ impl Pearl {
 impl Validatable for Pearl {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
-        if self.alien_disk.is_empty() {
-            let msg = "field \'alien_disk\' for \'config\' is empty".to_string();
-            error!("{}", msg);
-            return Err(msg);
-        }
-
         if self.fail_retry_timeout.parse::<HumanDuration>().is_err() {
             let msg = "field \'fail_retry_timeout\' for \'config\' is not valid".to_string();
             error!("{}", msg);
