@@ -12,7 +12,12 @@ pub(crate) struct Settings {
 impl Settings {
     pub(crate) fn new(config: &NodeConfig, mapper: Arc<Virtual>) -> Self {
         let config = config.pearl().clone();
-        let alien_folder = config.alien_folder().to_owned().into();
+        let disk_path = mapper
+            .get_disk(&config.alien_disk())
+            .expect("cannot find alien disk in config")
+            .path();
+        let alien_folder =
+            format!("{}/{}/", disk_path, config.settings().alien_root_dir_name()).into();
 
         Self {
             bob_prefix_path: config.settings().root_dir_name().to_owned(),
@@ -47,7 +52,10 @@ impl Settings {
         result
     }
 
-    pub(crate) fn read_alien_directory(self: Arc<Self>) -> BackendResult<Vec<Group>> {
+    pub(crate) fn read_alien_directory(
+        self: Arc<Self>,
+        config: &NodeConfig,
+    ) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
         let node_names = Self::get_all_subdirectories(&self.alien_folder)?;
         for node in node_names {
@@ -57,8 +65,7 @@ impl Settings {
                 for vdisk_id in vdisks {
                     if let Ok((entry, vdisk_id)) = self.try_parse_vdisk_id(vdisk_id) {
                         if self.mapper.is_vdisk_on_node(&node_name, vdisk_id) {
-                            // name of the disk is not necessary for alien group
-                            let disk_name = String::from("alien_disk");
+                            let disk_name = config.pearl().alien_disk().to_owned();
                             let group = Group::new(
                                 self.clone(),
                                 vdisk_id,
@@ -95,7 +102,7 @@ impl Settings {
             self.clone(),
             operation.vdisk_id(),
             remote_node_name.to_owned(),
-            self.config.alien_folder().to_owned(),
+            self.config.alien_disk().to_owned(),
             path,
             node_name.to_owned(),
         );

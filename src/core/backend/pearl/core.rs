@@ -23,7 +23,7 @@ impl Pearl {
 
         let alien = settings
             .clone()
-            .read_alien_directory()
+            .read_alien_directory(config)
             .expect("vec of pearl groups");
         trace!("count alien vdisk groups: {}", alien.len());
         let alien_vdisks_groups = Arc::new(RwLock::new(alien)); //TODO
