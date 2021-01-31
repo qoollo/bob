@@ -297,22 +297,23 @@ impl Cluster {
                 bad_vdisk.id
             ));
         }
-        if node.backend_result().is_ok() && node.backend_type() == BackendType::Pearl {
+        if node.backend_result().is_ok()
+            && node.backend_type() == BackendType::Pearl
+            && node.pearl().alien_disk().is_some()
+        {
+            let alien_disk = node.pearl().alien_disk().unwrap();
             finded
                 .disks()
                 .iter()
-                .find(|d| node.pearl().alien_disk() == d.name())
+                .find(|d| alien_disk == d.name())
                 .ok_or_else(|| {
-                    debug!(
+                    let msg = format!(
                         "cannot find disk {:?} for node {:?} in cluster config",
-                        node.pearl().alien_disk(),
+                        alien_disk,
                         node.name()
                     );
-                    format!(
-                        "cannot find disk {:?} for node {:?} in cluster config",
-                        node.pearl().alien_disk(),
-                        node.name()
-                    )
+                    debug!("{}", msg);
+                    msg
                 })?;
         }
         node.prepare(finded)

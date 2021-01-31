@@ -12,12 +12,15 @@ pub(crate) struct Settings {
 impl Settings {
     pub(crate) fn new(config: &NodeConfig, mapper: Arc<Virtual>) -> Self {
         let config = config.pearl().clone();
-        let disk_path = mapper
-            .get_disk(&config.alien_disk())
-            .expect("cannot find alien disk in config")
-            .path();
-        let alien_folder =
-            format!("{}/{}/", disk_path, config.settings().alien_root_dir_name()).into();
+        let alien_folder = if let Some(alien_disk) = config.alien_disk() {
+            let disk_path = mapper
+                .get_disk(alien_disk)
+                .expect("cannot find alien disk in config")
+                .path();
+            format!("{}/{}/", disk_path, config.settings().alien_root_dir_name()).into()
+        } else {
+            config.settings().alien_root_dir_name().into()
+        };
 
         Self {
             bob_prefix_path: config.settings().root_dir_name().to_owned(),
@@ -67,7 +70,10 @@ impl Settings {
                 for vdisk_id in vdisks {
                     if let Ok((entry, vdisk_id)) = self.try_parse_vdisk_id(vdisk_id) {
                         if self.mapper.is_vdisk_on_node(&node_name, vdisk_id) {
-                            let disk_name = config.pearl().alien_disk().to_owned();
+                            let disk_name = config
+                                .pearl()
+                                .alien_disk()
+                                .map_or_else(String::new, str::to_owned);
                             let group = Group::new(
                                 self.clone(),
                                 vdisk_id,
@@ -101,11 +107,15 @@ impl Settings {
 
         Stuff::check_or_create_directory(&path)?;
 
+        let disk_name = self
+            .config
+            .alien_disk()
+            .map_or_else(String::new, str::to_owned);
         let group = Group::new(
             self.clone(),
             operation.vdisk_id(),
             remote_node_name.to_owned(),
-            self.config.alien_disk().to_owned(),
+            disk_name,
             path,
             node_name.to_owned(),
             Arc::new(Semaphore::new(1))
