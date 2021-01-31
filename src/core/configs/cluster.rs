@@ -299,9 +299,9 @@ impl Cluster {
         }
         if node.backend_result().is_ok()
             && node.backend_type() == BackendType::Pearl
-            && !node.pearl().alien_disk().is_empty()
+            && node.pearl().alien_disk().is_some()
         {
-            let alien_disk = node.pearl().alien_disk();
+            let alien_disk = node.pearl().alien_disk().unwrap();
             finded
                 .disks()
                 .iter()

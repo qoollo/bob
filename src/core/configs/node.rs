@@ -152,8 +152,7 @@ pub struct Pearl {
     fail_retry_timeout: String,
     #[serde(default = "Pearl::default_fail_retry_count")]
     fail_retry_count: u64,
-    #[serde(default = "Pearl::default_alien_disk")]
-    alien_disk: String,
+    alien_disk: Option<String>,
     #[serde(default = "Pearl::default_allow_duplicates")]
     allow_duplicates: bool,
     settings: BackendSettings,
@@ -164,8 +163,8 @@ pub struct Pearl {
 }
 
 impl Pearl {
-    pub(crate) fn alien_disk(&self) -> &str {
-        &self.alien_disk
+    pub(crate) fn alien_disk(&self) -> Option<&str> {
+        self.alien_disk.as_deref()
     }
 
     fn default_fail_retry_timeout() -> String {
@@ -205,10 +204,6 @@ impl Pearl {
 
     fn default_blob_file_name_prefix() -> String {
         "bob".to_string()
-    }
-
-    fn default_alien_disk() -> String {
-        String::new()
     }
 
     pub(crate) fn blob_file_name_prefix(&self) -> &str {
