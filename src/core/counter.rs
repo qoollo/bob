@@ -22,7 +22,7 @@ impl Counter {
             gauge!(BLOBS_COUNT, blobs_cnt as i64);
             gauge!(ALIEN_BLOBS_COUNT, aliens_cnt as i64);
             let index_memory = backend.index_memory().await;
-            gauge!(INDEX_MEMORY, aliens_cnt as i64);
+            gauge!(INDEX_MEMORY, index_memory as i64);
         }
     }
 }

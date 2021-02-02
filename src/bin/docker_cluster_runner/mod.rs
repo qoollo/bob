@@ -224,12 +224,12 @@ impl TestClusterConfiguration {
             "bob".to_string(),
             "100ms".to_string(),
             3,
-            Self::get_disk_name(
+            Some(Self::get_disk_name(
                 (0..self.vdisks_count)
                     .rev()
                     .find(|&v| self.vdisk_allowed(node, v))
                     .unwrap_or_else(|| panic!("no disks for node {}", node)),
-            ),
+            )),
             true,
             BackendSettings::new(
                 "bob".to_string(),
