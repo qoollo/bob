@@ -1,6 +1,5 @@
 use super::prelude::IOError;
 use metrics::{Key, Recorder, SetRecorderError};
-use std::sync::Mutex;
 use std::time::Duration;
 use tokio::sync::mpsc::{channel, Sender};
 
@@ -57,7 +56,7 @@ impl MetricInner {
 }
 
 pub(crate) struct GraphiteRecorder {
-    tx: Mutex<Sender<Metric>>,
+    tx: Sender<Metric>,
 }
 
 pub(crate) struct GraphiteBuilder {
@@ -90,7 +89,7 @@ impl GraphiteBuilder {
 
     pub(crate) fn build(self) -> GraphiteRecorder {
         let (tx, rx) = channel(BUFFER_SIZE);
-        let recorder = GraphiteRecorder { tx: Mutex::new(tx) };
+        let recorder = GraphiteRecorder { tx };
         tokio::spawn(send_metrics(rx, self.address, self.interval));
         recorder
     }
@@ -98,8 +97,7 @@ impl GraphiteBuilder {
 
 impl GraphiteRecorder {
     fn push_metric(&self, m: Metric) {
-        // mutex return Err only if another thread panicked while holding mutex
-        if let Err(e) = self.tx.lock().expect("Mutex unavailable").try_send(m) {
+        if let Err(e) = self.tx.try_send(m) {
             error!(
                 "Can't send metric to thread, which processing metrics: {}",
                 e
