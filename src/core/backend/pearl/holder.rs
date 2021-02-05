@@ -305,9 +305,8 @@ impl Holder {
             .blob_file_name_prefix(prefix)
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
-            .set_filter_config(BloomConfig::default());
-            // TODO enable later
-            //.set_dump_sem(self.dump_sem.clone());
+            .set_filter_config(BloomConfig::default())
+            .set_dump_sem(self.dump_sem.clone());
         let builder = if self.config.is_aio_enabled() {
             match rio::new() {
                 Ok(ioring) => {
