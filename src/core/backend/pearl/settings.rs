@@ -81,7 +81,7 @@ impl Settings {
                                 disk_name,
                                 entry.path(),
                                 node_name.clone(),
-                                Arc::new(Semaphore::new(1))
+                                Arc::new(Semaphore::new(1)),
                             );
                             result.push(group);
                         } else {
@@ -118,7 +118,7 @@ impl Settings {
             disk_name,
             path,
             node_name.to_owned(),
-            Arc::new(Semaphore::new(1))
+            Arc::new(Semaphore::new(1)),
         );
         Ok(group)
     }

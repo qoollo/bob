@@ -1,6 +1,5 @@
 use super::prelude::IOError;
 use metrics::{Key, Recorder, SetRecorderError};
-use std::cell::RefCell;
 use std::time::Duration;
 use tokio::sync::mpsc::{channel, Sender};
 
@@ -10,7 +9,7 @@ use send::send_metrics;
 
 const DEFAULT_ADDRESS: &str = "localhost:2003";
 const DEFAULT_DURATION: Duration = Duration::from_secs(1);
-const BUFFER_SIZE: usize = 1024;
+const BUFFER_SIZE: usize = 1_048_576; // 1 Mb
 
 #[derive(Debug)]
 pub(crate) enum Error {
@@ -57,7 +56,7 @@ impl MetricInner {
 }
 
 pub(crate) struct GraphiteRecorder {
-    tx: RefCell<Sender<Metric>>,
+    tx: Sender<Metric>,
 }
 
 pub(crate) struct GraphiteBuilder {
@@ -90,9 +89,7 @@ impl GraphiteBuilder {
 
     pub(crate) fn build(self) -> GraphiteRecorder {
         let (tx, rx) = channel(BUFFER_SIZE);
-        let recorder = GraphiteRecorder {
-            tx: RefCell::new(tx),
-        };
+        let recorder = GraphiteRecorder { tx };
         tokio::spawn(send_metrics(rx, self.address, self.interval));
         recorder
     }
@@ -100,7 +97,7 @@ impl GraphiteBuilder {
 
 impl GraphiteRecorder {
     fn push_metric(&self, m: Metric) {
-        if let Err(e) = self.tx.borrow_mut().try_send(m) {
+        if let Err(e) = self.tx.try_send(m) {
             error!(
                 "Can't send metric to thread, which processing metrics: {}",
                 e
