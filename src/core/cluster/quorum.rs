@@ -48,14 +48,10 @@ impl Quorum {
         remote_ok_count += all_count - errors.len() - tasks.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
         if remote_ok_count + local_put_ok >= self.quorum {
-            if tasks.is_empty() {
-                Ok(())
-            } else {
-                debug!("PUT[{}] spawn {} background put tasks", key, tasks.len());
-                let q = self.clone();
-                tokio::spawn(q.background_put(tasks, key, data, failed_nodes));
-                Ok(())
-            }
+            debug!("PUT[{}] spawn {} background put tasks", key, tasks.len());
+            let q = self.clone();
+            tokio::spawn(q.background_put(tasks, key, data, failed_nodes));
+            Ok(())
         } else {
             warn!(
                 "PUT[{}] quorum was not reached. ok {}, quorum {}, errors: {:?}",
@@ -98,8 +94,10 @@ impl Quorum {
             }
         }
         debug!("PUT[{}] ~~~PUT TO REMOTE NODES ALIEN~~~", key);
-        if let Err(e) = self.put_aliens(failed_nodes, key, data).await {
-            error!("{}", e);
+        if !failed_nodes.is_empty() {
+            if let Err(e) = self.put_aliens(failed_nodes, key, data).await {
+                error!("{}", e);
+            }
         }
     }
 
