@@ -180,7 +180,11 @@ impl BackendStorage for Pearl {
         if let Ok(group) = vdisk_group {
             group.get(key).await
         } else {
-            error!("GET[alien][{}] Cannot find storage, op: {:?}", key, op);
+            warn!(
+                "GET[alien][{}] No alien group has been created for vdisk #{}",
+                key,
+                op.vdisk_id()
+            );
             Err(Error::key_not_found(key))
         }
     }
