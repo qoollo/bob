@@ -58,6 +58,10 @@ impl Error {
         Self::new(Kind::VDiskIsNotReady)
     }
 
+    pub(crate) fn disk_is_unavailable() -> Self {
+        Self::new(Kind::DiskUnavailable)
+    }
+
     pub(crate) fn storage(msg: impl Into<String>) -> Self {
         Self::new(Kind::Storage(msg.into()))
     }
@@ -103,6 +107,7 @@ impl From<Error> for Status {
             Kind::VDiskNotFound(id) => Status::not_found(format!("VDiskNotFound {}", id)),
             Kind::Storage(msg) => Status::internal(format!("Storage {}", msg)),
             Kind::VDiskIsNotReady => Status::internal("VDiskIsNotReady"),
+            Kind::DiskUnavailable => Status::internal("DiskUnavailable"),
             Kind::Failed(msg) => Status::internal(format!("Failed {}", msg)),
             Kind::Internal => Status::internal("Internal"),
             Kind::PearlChangeState(msg) => Status::internal(format!("PearlChangeState {}", msg)),
@@ -160,6 +165,7 @@ pub enum Kind {
     DuplicateKey,
     KeyNotFound(BobKey),
     VDiskIsNotReady,
+    DiskUnavailable,
     Failed(String),
     Internal,
     PearlChangeState(String),

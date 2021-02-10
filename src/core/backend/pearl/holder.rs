@@ -148,6 +148,8 @@ impl Holder {
     async fn write_disk(storage: &mut PearlSync, key: Key, data: BobData) -> BackendResult<()> {
         counter!(PEARL_PUT_COUNTER, 1);
         let timer = Instant::now();
+        //TODO reset or recover storage somewhen? (if storage was unavailable pearl instances will
+        //be corrupted)
         storage
             .write(key, Data::from(data).to_vec())
             .await

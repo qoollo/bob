@@ -1,19 +1,74 @@
-use std::sync::{atomic::AtomicBool, Arc};
+use super::prelude::*;
+use std::path::PathBuf;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::time::Duration;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-use crate::prelude::Result;
-use futures::Future;
-use pearl::{Error as PearlError, ErrorKind as PearlErrorKind};
+const CHECK_INTERVAL: Duration = Duration::from_secs(2);
+const BUFFER_SIZE: usize = 1024; // 1 Kb
 
-use super::{prelude::Key, PearlStorage};
+enum Event {
+    NewPath(PathBuf),
+    ResetPath,
+}
+
+impl Event {
+    fn new_path(path: PathBuf) -> Self {
+        Event::NewPath(path)
+    }
+
+    fn reset_path() -> Self {
+        Event::ResetPath
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct DiskController {
     storage: Option<PearlStorage>,
+    available: Arc<AtomicBool>,
+    sender: Sender<Event>,
 }
 
 impl DiskController {
     pub fn new() -> Self {
-        Self { storage: None }
+        let (tx, rx) = channel(BUFFER_SIZE);
+        let available = Arc::new(AtomicBool::new(true));
+        let available_copy = available.clone();
+        tokio::spawn(async move { Self::monitor_task(available_copy, rx) });
+        Self {
+            storage: None,
+            available,
+            sender: tx,
+        }
+    }
+
+    async fn monitor_task(availability: Arc<AtomicBool>, mut rx: Receiver<Event>) {
+        let mut path = None;
+        loop {
+            while let Ok(event) = timeout(CHECK_INTERVAL, rx.recv()).await {
+                match event {
+                    Some(Event::NewPath(new_path)) => path = Some(new_path),
+                    Some(Event::ResetPath) => {
+                        // we should set it to true, because if it was false for previous storage, monitor
+                        // wouldn't be able to change it to true, cause we reset path (so it will be always
+                        // false and write operations won't be performed)
+                        availability.store(true, Ordering::SeqCst);
+                        path = None;
+                    }
+                    None => {
+                        warn!("Disk controller was dropped, linked monitor task either returns");
+                        return;
+                    }
+                }
+            }
+
+            if let Some(ref path) = path {
+                availability.store(path.exists(), Ordering::SeqCst);
+            }
+        }
     }
 
     #[inline]
@@ -21,33 +76,39 @@ impl DiskController {
         self.storage.as_ref().unwrap().read(key)
     }
 
+    fn writable(&self) -> bool {
+        self.available.load(Ordering::SeqCst)
+    }
+
     // @TODO check if there is an efficient way to avoid mutable borrowing
-    pub async fn write(&mut self, key: Key, value: Vec<u8>) -> Result<()> {
+    pub async fn write(&self, key: Key, value: Vec<u8>) -> Result<()> {
         if let Some(storage) = self.storage.as_ref() {
-            todo!("check access to pearl");
+            if !self.writable() {
+                return Err(Error::disk_is_unavailable().into());
+            }
             match storage.write(key, value).await {
                 Ok(_) => Ok(()),
                 Err(e) => {
                     if let Some(pearl_err) = e.downcast_ref::<PearlError>() {
                         error!("pearl error: {:#}", pearl_err);
-                        match pearl_err.kind() {
-                            PearlErrorKind::WorkDirUnavailable(msg) => {
-                                todo!("disable access to pearl");
-                                todo!("wait for work dir to become available again");
-                            }
-                            _ => {
-                                todo!("return error as is");
+                        // on pearl level WorkDirUnavailable in further version will contain PathBuf,
+                        // so we should use it without cast of string to Path[Buf]
+                        if let ErrorKind::WorkDirUnavailable(path) = pearl_err.kind() {
+                            self.available.store(false, Ordering::SeqCst);
+                            if let Err(e) = self.sender.send(Event::new_path(path.into())).await {
+                                error!("Receiver from monitor task is dropped (reason: {})", e);
                             }
                         }
+                        Err(e)
                     } else {
                         error!("not pearl error: {:#}", e);
-                        todo!("return error as is");
+                        Err(e)
                     }
-                    Err(e)
                 }
             }
         } else {
-            todo!("need implementation for the case when storage was not set");
+            error!("Write attempt on disk_controller without storage");
+            Err(Error::storage("No storage for disk_controller").into())
         }
     }
 
@@ -86,6 +147,11 @@ impl DiskController {
 
     #[inline]
     pub fn set(&mut self, storage: PearlStorage) -> Option<PearlStorage> {
+        // we can't reach work_dir through public api, so we need to just reset tracked path
+        // when we change storage
+        if let Err(e) = self.sender.try_send(Event::reset_path()) {
+            error!("Failed to send message to monitor task (likely channel buffer is full). Reason: {}", e);
+        }
         self.storage.replace(storage)
     }
 
@@ -97,7 +163,7 @@ impl DiskController {
 #[tokio::test]
 async fn test_disk_controller_write() {
     let mut disk_controller = DiskController::new();
-    let mut storage = pearl::Builder::new()
+    let mut storage = ::pearl::Builder::new()
         .work_dir("some/irrelevant/path/")
         .blob_file_name_prefix("test")
         .max_blob_size(10_000)

@@ -58,6 +58,8 @@ impl Group {
             .await
             .with_context(|| "backend pearl group read vdisk directory failed")?;
         debug!("{}: count holders: {}", self, holders.len());
+        // FIXME: shouldn't we check if all `!holder.is_actual(...)` (which means, we have no
+        // actual)?
         if holders
             .iter()
             .all(|holder| holder.is_actual(self.settings.get_actual_timestamp_start()))
