@@ -8,6 +8,7 @@ mod send;
 use send::send_metrics;
 
 const DEFAULT_ADDRESS: &str = "localhost:2003";
+const DEFAULT_PREFIX: &str = "node.127_0_0_1";
 const DEFAULT_DURATION: Duration = Duration::from_secs(1);
 const BUFFER_SIZE: usize = 1_048_576; // 1 Mb
 
@@ -62,18 +63,25 @@ pub(crate) struct GraphiteRecorder {
 pub(crate) struct GraphiteBuilder {
     address: String,
     interval: Duration,
+    prefix: String,
 }
 
 impl GraphiteBuilder {
     pub(crate) fn new() -> GraphiteBuilder {
         GraphiteBuilder {
-            address: DEFAULT_ADDRESS.to_string(),
+            address: DEFAULT_ADDRESS.to_owned(),
             interval: DEFAULT_DURATION,
+            prefix: DEFAULT_PREFIX.to_owned(),
         }
     }
 
     pub(crate) fn set_interval(mut self, interval: Duration) -> GraphiteBuilder {
         self.interval = interval;
+        self
+    }
+
+    pub(crate) fn set_prefix(mut self, prefix: String) -> GraphiteBuilder {
+        self.prefix = prefix;
         self
     }
 
@@ -90,7 +98,7 @@ impl GraphiteBuilder {
     pub(crate) fn build(self) -> GraphiteRecorder {
         let (tx, rx) = channel(BUFFER_SIZE);
         let recorder = GraphiteRecorder { tx };
-        tokio::spawn(send_metrics(rx, self.address, self.interval));
+        tokio::spawn(send_metrics(rx, self.address, self.interval, self.prefix));
         recorder
     }
 }

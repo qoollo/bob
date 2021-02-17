@@ -100,17 +100,22 @@ impl BackendSettings {
 /// Contains params for graphite metrics.
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
 pub struct MetricsConfig {
-    name: String,
+    name: Option<String>,
     graphite: String,
 }
 
 impl MetricsConfig {
+    pub(crate) fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
     pub(crate) fn graphite(&self) -> &str {
         &self.graphite
     }
 
     fn check_unset(&self) -> Result<(), String> {
-        if self.name == PLACEHOLDER || self.graphite == PLACEHOLDER {
+        if self.name.as_deref().map_or(false, |s| s == PLACEHOLDER) || self.graphite == PLACEHOLDER
+        {
             let msg = "some of the fields present, but empty".to_string();
             error!("{}", msg);
             Err(msg)
@@ -123,7 +128,7 @@ impl MetricsConfig {
 impl Validatable for MetricsConfig {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
-        if self.name.is_empty() {
+        if self.name.as_deref().map_or(false, str::is_empty) {
             debug!("field 'name' for 'metrics config' is empty");
             return Err("field 'name' for 'metrics config' is empty".to_string());
         }

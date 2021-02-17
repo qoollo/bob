@@ -56,6 +56,8 @@ pub const ALIEN_BLOBS_COUNT: &str = "backend.alien_count";
 /// Count memory occupied by indices
 pub const INDEX_MEMORY: &str = "backend.index_memory";
 
+const CLIENTS_METRICS_DIR: &str = "clients";
+
 /// Type to measure time of requests processing
 pub type Timer = Instant;
 
@@ -151,20 +153,29 @@ pub fn init_counters(
     node_config: &NodeConfig,
     local_address: &str,
 ) -> Arc<dyn ContainerBuilder + Send + Sync> {
-    let prefix = local_address;
+    let prefix = format!(
+        "{}{}.{}",
+        node_config
+            .metrics()
+            .name()
+            .as_deref()
+            .map_or(String::new(), |s| s.to_owned() + "."),
+        node_config.name(),
+        local_address.to_owned().replace(".", "_")
+    );
     exporter::GraphiteBuilder::new()
         .set_address(node_config.metrics().graphite().to_string())
         .set_interval(Duration::from_secs(1))
+        .set_prefix(prefix)
         .install()
         .expect("Can't install metrics");
-    let container = MetricsContainer::new(Duration::from_secs(1), prefix.to_string());
+    let container = MetricsContainer::new(Duration::from_secs(1), CLIENTS_METRICS_DIR.to_owned());
     info!(
         "metrics container initialized with update interval: {}ms",
         container.duration.as_millis()
     );
     let metrics = Arc::new(container);
     init_grinder();
-    init_bob_client();
     init_backend();
     init_link_manager();
     init_pearl();
@@ -188,13 +199,4 @@ fn init_backend() {
 
 fn init_link_manager() {
     counter!(AVAILABLE_NODES_COUNT, 0);
-}
-
-fn init_bob_client() {
-    counter!(CLIENT_GET_COUNTER, 0);
-    counter!(CLIENT_PUT_COUNTER, 0);
-    counter!(CLIENT_EXIST_COUNTER, 0);
-    counter!(CLIENT_GET_ERROR_COUNT_COUNTER, 0);
-    counter!(CLIENT_PUT_ERROR_COUNT_COUNTER, 0);
-    counter!(CLIENT_EXIST_ERROR_COUNT_COUNTER, 0);
 }
