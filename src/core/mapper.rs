@@ -16,7 +16,7 @@ pub struct Virtual {
     disks: Vec<DiskPath>,
     vdisks: VDisksMap,
     nodes: NodesMap,
-    disk_access_sems: Arc<std::sync::RwLock<SemMap>>,
+    disk_access_sems: Arc<RwLock<SemMap>>,
     disk_access_par_degree: usize,
 }
 
@@ -38,7 +38,7 @@ impl Virtual {
             disks: config.disks().clone(),
             vdisks,
             nodes,
-            disk_access_sems: Arc::new(std::sync::RwLock::new(SemMap::new())),
+            disk_access_sems: Arc::new(RwLock::new(SemMap::new())),
             disk_access_par_degree: config.init_par_degree(),
         }
     }
@@ -99,14 +99,14 @@ impl Virtual {
         &self.nodes
     }
 
-    pub(crate) fn get_disk_access_sem(&self, disk_name: &str) -> Arc<Semaphore> {
+    pub(crate) async fn get_disk_access_sem(&self, disk_name: &str) -> Arc<Semaphore> {
         {
-            let read = self.disk_access_sems.read().expect("std rwlock");
+            let read = self.disk_access_sems.read().await;
             if let Some(sem) = read.get(disk_name) {
                 return sem.clone();
             }
         }
-        let mut write = self.disk_access_sems.write().expect("std rwlock");
+        let mut write = self.disk_access_sems.write().await;
         if let Some(sem) = write.get(disk_name) {
             return sem.clone();
         }

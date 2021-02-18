@@ -35,11 +35,11 @@ impl Settings {
         &self.config
     }
 
-    pub(crate) fn read_group_from_disk(self: Arc<Self>, config: &NodeConfig) -> Vec<Group> {
+    pub(crate) async fn read_group_from_disk(self: Arc<Self>, config: &NodeConfig) -> Vec<Group> {
         let mut result = vec![];
         for disk in self.mapper.local_disks() {
             let vdisks = self.mapper.get_vdisks_by_disk(disk.name());
-            let disk_access_sem = self.mapper.get_disk_access_sem(disk.name());
+            let disk_access_sem = self.mapper.get_disk_access_sem(disk.name()).await;
             let iter = vdisks.iter().map(|&vdisk_id| {
                 let path = self.normal_path(disk.path(), vdisk_id);
                 Group::new(
@@ -57,7 +57,7 @@ impl Settings {
         result
     }
 
-    pub(crate) fn read_alien_directory(
+    pub(crate) async fn read_alien_directory(
         self: Arc<Self>,
         config: &NodeConfig,
     ) -> BackendResult<Vec<Group>> {
@@ -74,7 +74,7 @@ impl Settings {
                                 .pearl()
                                 .alien_disk()
                                 .map_or_else(String::new, str::to_owned);
-                            let sem = self.mapper.get_disk_access_sem(&disk_name);
+                            let sem = self.mapper.get_disk_access_sem(&disk_name).await;
                             let group = Group::new(
                                 self.clone(),
                                 vdisk_id,
@@ -98,7 +98,7 @@ impl Settings {
         Ok(result)
     }
 
-    pub(crate) fn create_group(
+    pub(crate) async fn create_group(
         self: Arc<Self>,
         operation: &Operation,
         node_name: &str,
@@ -112,7 +112,7 @@ impl Settings {
             .config
             .alien_disk()
             .map_or_else(String::new, str::to_owned);
-        let sem = self.mapper.get_disk_access_sem(&disk_name);
+        let sem = self.mapper.get_disk_access_sem(&disk_name).await;
         let group = Group::new(
             self.clone(),
             operation.vdisk_id(),
