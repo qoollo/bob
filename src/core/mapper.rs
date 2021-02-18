@@ -95,6 +95,10 @@ impl Virtual {
         &self.nodes
     }
 
+    pub(crate) fn distribution_func(&self) -> DistributionFunc {
+        self.distribution_func
+    }
+
     pub(crate) fn get_target_nodes_for_key(&self, key: BobKey) -> &[Node] {
         let id = self.vdisk_id_from_key(key);
         self.vdisks.get(&id).expect("vdisk not found").nodes()
