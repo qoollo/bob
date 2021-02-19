@@ -5,6 +5,7 @@ authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qooll
 edition = "2018"
 
 [dependencies]
+bob-common = { version = "1.5.1-alpha.4", path = "../bob-common" }
 anyhow = "1.0.38"
 http = "0.2.3"
 futures = { version = "0.3.12", features = ["thread-pool"] }

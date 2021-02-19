@@ -1,9 +1,20 @@
-use super::prelude::*;
+use crate::data::DiskPath;
+
+use super::{cluster::Node as ClusterNodeConfig, node::Node as NodeConfig, reader::Validatable};
+use futures::Future;
+use humantime::Duration as HumanDuration;
+use std::{
+    cell::{Ref, RefCell},
+    fmt::Debug,
+    net::SocketAddr,
+    time::Duration,
+};
+use tokio::time::sleep;
 
 const PLACEHOLDER: &str = "~";
 
 /// Contains settings for pearl backend.
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct BackendSettings {
     root_dir_name: String,
     alien_root_dir_name: String,
@@ -98,7 +109,7 @@ impl BackendSettings {
 }
 
 /// Contains params for graphite metrics.
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MetricsConfig {
     name: String,
     graphite: String,
@@ -139,7 +150,7 @@ impl Validatable for MetricsConfig {
 }
 
 /// Contains params for detailed pearl configuration in pearl backend.
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Pearl {
     #[serde(default = "Pearl::default_max_blob_size")]
     max_blob_size: u64,
@@ -328,7 +339,7 @@ pub(crate) enum BackendType {
 }
 
 /// Node configuration struct, stored in node.yaml.
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, new)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Node {
     log_config: String,
     name: String,
@@ -431,7 +442,7 @@ impl NodeConfig {
         }
     }
 
-    pub(crate) fn prepare(&self, node: &ClusterNode) -> Result<(), String> {
+    pub(crate) fn prepare(&self, node: &ClusterNodeConfig) -> Result<(), String> {
         self.bind_ref.replace(node.address().to_owned());
 
         let t = node
@@ -486,22 +497,6 @@ impl NodeConfig {
 
     pub(crate) fn init_par_degree(&self) -> usize {
         self.init_par_degree
-    }
-
-    #[cfg(test)]
-    pub(crate) fn get_from_string(
-        file: &str,
-        cluster: &ClusterConfig,
-    ) -> Result<NodeConfig, String> {
-        let config = YamlBobConfig::parse::<NodeConfig>(file)?;
-        debug!("config: {:?}", config);
-        if let Err(e) = config.validate() {
-            Err(format!("config is not valid: {}", e))
-        } else {
-            cluster.check(&config)?;
-            debug!("cluster config is valid");
-            Ok(config)
-        }
     }
 
     fn check_unset(&self) -> Result<(), String> {
@@ -575,7 +570,12 @@ impl Validatable for NodeConfig {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::{NodeConfig, RefCell};
+    use crate::configs::{
+        cluster::Cluster as ClusterConfig, node::Node as NodeConfig, reader::YamlBobConfig,
+    };
+
+    use std::cell::RefCell;
+
     pub(crate) fn node_config(name: &str, quorum: usize) -> NodeConfig {
         NodeConfig {
             log_config: "".to_string(),
@@ -594,6 +594,22 @@ pub(crate) mod tests {
             open_blobs_hard_limit: None,
             init_par_degree: 1,
             count_interval: "10000ms".to_string(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn get_from_string(
+        file: &str,
+        cluster: &ClusterConfig,
+    ) -> Result<NodeConfig, String> {
+        let config = YamlBobConfig::parse::<NodeConfig>(file)?;
+        debug!("config: {:?}", config);
+        if let Err(e) = config.validate() {
+            Err(format!("config is not valid: {}", e))
+        } else {
+            cluster.check(&config)?;
+            debug!("cluster config is valid");
+            Ok(config)
         }
     }
 }

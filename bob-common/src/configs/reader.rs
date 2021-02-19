@@ -1,4 +1,5 @@
-use super::prelude::*;
+use serde::Deserialize;
+use std::fs::read_to_string;
 
 pub trait Validatable {
     fn validate(&self) -> Result<(), String>;

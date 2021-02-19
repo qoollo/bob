@@ -1,8 +1,3 @@
-use bob::grpc::{
-    bob_api_client::BobApiClient, ExistRequest, GetOptions, GetRequest, GetSource, PutOptions,
-    PutRequest,
-};
-use bob::grpc::{Blob, BlobKey, BlobMeta};
 use clap::{App, Arg, ArgMatches};
 use std::collections::HashMap;
 use std::error::Error;

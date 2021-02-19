@@ -1,5 +1,15 @@
-use crate::mapper::VDisksMap;
-use crate::{configs::reader::Validatable, data::DiskPath};
+use super::{
+    node::BackendType,
+    reader::{Validatable, YamlBobConfig},
+};
+use crate::{
+    configs::node::Node as NodeConfig,
+    data::{DiskPath, VDisk as DataVDisk},
+    mapper::VDisksMap,
+    node::Disk as NodeDisk,
+};
+use http::Uri;
+use std::collections::HashMap;
 
 impl Validatable for DiskPath {
     fn validate(&self) -> Result<(), String> {
@@ -184,7 +194,7 @@ impl Validatable for VDisk {
 }
 
 /// Config with cluster structure description.
-#[derive(Debug, PartialEq, Serialize, Deserialize, new)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Cluster {
     #[serde(default)]
     nodes: Vec<Node>,

@@ -29,18 +29,12 @@ mod core;
 
 pub use self::{
     api::grpc,
-    core::{
-        backend, bob_client as client, configs, data::DiskPath, grinder, mapper, metrics, server,
-    },
+    core::{bob_client as client, configs, grinder, mapper, metrics, server},
 };
 
 mod prelude {
     pub(crate) use super::*;
     pub(crate) use anyhow::{Context as AnyhowContext, Result};
-    pub(crate) use backend::data::VDisk as DataVDisk;
-    pub(crate) use grpc::{
-        bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, GetRequest, PutRequest,
-    };
     pub(crate) use std::{
         cell::{Ref, RefCell},
         collections::HashMap,
