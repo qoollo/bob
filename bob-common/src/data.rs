@@ -1,64 +1,16 @@
-use bob_grpc::PutOptions;
-use std::hash::Hash;
+use crate::{
+    mapper::NodesMap,
+    node::{Disk as NodeDisk, Node},
+};
+use bob_grpc::{GetOptions, GetSource, PutOptions};
+use std::{
+    fmt::{Debug, Formatter, Result as FmtResult},
+    hash::Hash,
+};
 
 pub type BobKey = u64;
 
 pub type VDiskID = u32;
-
-impl PutOptions {
-    pub(crate) fn new_local() -> Self {
-        PutOptions {
-            remote_nodes: vec![],
-            force_node: true,
-            overwrite: false,
-        }
-    }
-
-    pub(crate) fn new_alien(remote_nodes: Vec<String>) -> Self {
-        PutOptions {
-            remote_nodes,
-            force_node: true,
-            overwrite: false,
-        }
-    }
-}
-
-impl GetOptions {
-    pub(crate) fn new_local() -> Self {
-        GetOptions {
-            force_node: true,
-            source: GetSource::Normal as i32,
-        }
-    }
-
-    pub(crate) fn new_alien() -> Self {
-        GetOptions {
-            force_node: true,
-            source: GetSource::Alien as i32,
-        }
-    }
-
-    pub(crate) fn new_all() -> Self {
-        GetOptions {
-            force_node: true,
-            source: GetSource::All as i32,
-        }
-    }
-}
-
-impl From<i32> for GetSource {
-    fn from(value: i32) -> Self {
-        match value {
-            0 => GetSource::All,
-            1 => GetSource::Normal,
-            2 => GetSource::Alien,
-            other => {
-                error!("cannot convert value: {} to 'GetSource' enum", other);
-                panic!("fatal core error");
-            }
-        }
-    }
-}
 
 #[derive(Clone)]
 pub(crate) struct BobData {

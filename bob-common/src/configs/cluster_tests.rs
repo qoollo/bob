@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use super::super::prelude::*;
+    use crate::configs::{
+        cluster::Cluster as ClusterConfig, node::Node as NodeConfig, reader::YamlBobConfig,
+    };
 
     #[test]
     fn test_node_disk_name_is_empty() {

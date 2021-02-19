@@ -1,4 +1,8 @@
-use super::prelude::*;
+use std::fmt::{Display, Formatter, Result as FmtResult};
+use thiserror::Error as ErrorTrait;
+use tonic::Status;
+
+use crate::data::{BobKey, VDiskID};
 
 #[derive(Debug, Clone, ErrorTrait)]
 pub struct Error {

@@ -1,9 +1,25 @@
-#[allow(clippy::ptr_arg)] // requires to avoid warnings on mock macro
-
 pub(crate) mod b_client {
-    use super::super::prelude::*;
     use super::{ExistResult, GetResult, PingResult, PutResult};
+    use crate::{
+        data::{BobData, BobKey, BobMeta},
+        error::Error,
+        metrics::BobClient as BobClientMetrics,
+        node::{Node, Output as NodeOutput},
+    };
+    use bob_grpc::{
+        bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, ExistRequest, ExistResponse,
+        GetOptions, GetRequest, Null, PutOptions, PutRequest,
+    };
     use mockall::mock;
+    use std::{
+        fmt::{Debug, Formatter, Result as FmtResult},
+        time::Duration,
+    };
+    use tokio::time::timeout;
+    use tonic::{
+        transport::{Channel, Endpoint},
+        Request, Response, Status,
+    };
 
     /// Client for interaction with bob backend
     #[derive(Clone)]
@@ -179,6 +195,18 @@ pub(crate) mod b_client {
     }
 }
 
+use crate::{
+    data::BobData,
+    error::Error,
+    metrics::ContainerBuilder as MetricsContainerBuilder,
+    node::{Node, Output as NodeOutput},
+};
+use std::{
+    fmt::{Debug, Formatter, Result as FmtResult},
+    sync::Arc,
+    time::Duration,
+};
+
 cfg_if! {
     if #[cfg(test)] {
         pub(crate) use self::b_client::MockBobClient as BobClient;
@@ -186,8 +214,6 @@ cfg_if! {
         pub(crate) use self::b_client::BobClient;
     }
 }
-
-use super::prelude::*;
 
 pub(crate) type PutResult = Result<NodeOutput<()>, NodeOutput<Error>>;
 

@@ -1,6 +1,5 @@
 use crate::mapper::VDisksMap;
-
-use super::prelude::*;
+use crate::{configs::reader::Validatable, data::DiskPath};
 
 impl Validatable for DiskPath {
     fn validate(&self) -> Result<(), String> {
@@ -21,7 +20,7 @@ impl Validatable for DiskPath {
 }
 
 /// Node config struct, with name, address and [`DiskPath`]s.
-#[derive(Debug, PartialEq, Serialize, Deserialize, new)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Node {
     name: String,
     address: String,
