@@ -7,7 +7,7 @@ mod retry_socket;
 mod send;
 use send::send_metrics;
 
-const DEFAULT_ADDRESS: &str = "localhost:2003";
+const DEFAULT_ADDRESS: &str = "127.0.0.1:2003";
 const DEFAULT_PREFIX: &str = "node.127_0_0_1";
 const DEFAULT_DURATION: Duration = Duration::from_secs(1);
 const BUFFER_SIZE: usize = 1_048_576; // 1 Mb

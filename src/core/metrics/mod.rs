@@ -153,16 +153,11 @@ pub fn init_counters(
     node_config: &NodeConfig,
     local_address: &str,
 ) -> Arc<dyn ContainerBuilder + Send + Sync> {
-    let prefix = format!(
-        "{}{}.{}",
-        node_config
-            .metrics()
-            .name()
-            .as_deref()
-            .map_or(String::new(), |s| s.to_owned() + "."),
-        node_config.name(),
-        local_address.to_owned().replace(".", "_")
-    );
+    let prefix_pattern = node_config
+        .metrics()
+        .prefix()
+        .map_or(format!("{}.{}", NODE_NAME, LOCAL_ADDRESS), str::to_owned);
+    let prefix = resolve_prefix_pattern(prefix_pattern, node_config, local_address);
     exporter::GraphiteBuilder::new()
         .set_address(node_config.metrics().graphite().to_string())
         .set_interval(Duration::from_secs(1))
@@ -180,6 +175,25 @@ pub fn init_counters(
     init_link_manager();
     init_pearl();
     metrics
+}
+
+fn resolve_prefix_pattern(
+    mut pattern: String,
+    node_config: &NodeConfig,
+    local_address: &str,
+) -> String {
+    let mut pats_subs = vec![
+        (LOCAL_ADDRESS, local_address),
+        (NODE_NAME, node_config.name()),
+    ];
+    if let Some(name) = node_config.metrics().name() {
+        pats_subs.push((METRICS_NAME, name));
+    }
+    for (pat, sub) in pats_subs {
+        let sub = sub.to_owned().replace(|c| c == ' ' || c == '.', "_");
+        pattern = pattern.replace(pat, &sub);
+    }
+    pattern
 }
 
 fn init_grinder() {
