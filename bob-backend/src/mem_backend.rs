@@ -1,17 +1,19 @@
-use super::prelude::*;
+use crate::core::{BackendStorage, Operation};
+use anyhow::Result as AnyResult;
+use bob_common::{
+    data::{BobData, BobKey, DiskPath, VDiskID},
+    error::Error,
+    mapper::Virtual,
+};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use tokio::sync::RwLock;
 
-#[derive(Clone, Debug)]
-pub(crate) struct VDisk {
+#[derive(Clone, Debug, Default)]
+pub struct VDisk {
     inner: Arc<RwLock<HashMap<BobKey, BobData>>>,
 }
 
 impl VDisk {
-    pub(crate) fn new() -> Self {
-        Self {
-            inner: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
-
     async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
         debug!("PUT[{}] to vdisk", key);
         self.inner.write().await.insert(key, data);
@@ -36,27 +38,27 @@ impl VDisk {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct MemDisk {
-    pub(crate) name: String,
-    pub(crate) vdisks: HashMap<VDiskID, VDisk>,
+pub struct MemDisk {
+    pub name: String,
+    pub vdisks: HashMap<VDiskID, VDisk>,
 }
 
 impl MemDisk {
-    pub(crate) fn new_direct(name: String, vdisks_count: u32) -> Self {
-        let vdisks = (0..vdisks_count).map(|i| (i, VDisk::new())).collect();
+    pub fn new_direct(name: String, vdisks_count: u32) -> Self {
+        let vdisks = (0..vdisks_count).map(|i| (i, VDisk::default())).collect();
         Self { name, vdisks }
     }
 
-    pub(crate) fn new(name: String, mapper: &Virtual) -> Self {
+    pub fn new(name: String, mapper: &Virtual) -> Self {
         let vdisks = mapper
             .get_vdisks_by_disk(&name)
             .iter()
-            .map(|id| (*id, VDisk::new()))
+            .map(|id| (*id, VDisk::default()))
             .collect();
         Self { name, vdisks }
     }
 
-    pub(crate) async fn get(&self, vdisk_id: VDiskID, key: BobKey) -> Result<BobData, Error> {
+    pub async fn get(&self, vdisk_id: VDiskID, key: BobKey) -> Result<BobData, Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             debug!("GET[{}] from: {} for disk: {}", key, vdisk_id, self.name);
             debug!("{:?}", *vdisk.inner.read().await);
@@ -67,12 +69,7 @@ impl MemDisk {
         }
     }
 
-    pub(crate) async fn put(
-        &self,
-        vdisk_id: VDiskID,
-        key: BobKey,
-        data: BobData,
-    ) -> Result<(), Error> {
+    pub async fn put(&self, vdisk_id: VDiskID, key: BobKey, data: BobData) -> Result<(), Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             debug!("PUT[{}] to vdisk: {} for: {}", key, vdisk_id, self.name);
             vdisk.put(key, data).await
@@ -82,11 +79,7 @@ impl MemDisk {
         }
     }
 
-    pub(crate) async fn exist(
-        &self,
-        vdisk_id: VDiskID,
-        keys: &[BobKey],
-    ) -> Result<Vec<bool>, Error> {
+    pub async fn exist(&self, vdisk_id: VDiskID, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             trace!("EXIST from vdisk: {} for disk: {}", vdisk_id, self.name);
             vdisk.exist(keys).await
@@ -98,13 +91,13 @@ impl MemDisk {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct MemBackend {
-    pub(crate) disks: HashMap<String, MemDisk>,
-    pub(crate) foreign_data: MemDisk,
+pub struct MemBackend {
+    pub disks: HashMap<String, MemDisk>,
+    pub foreign_data: MemDisk,
 }
 
 impl MemBackend {
-    pub(crate) fn new(mapper: &Virtual) -> Self {
+    pub fn new(mapper: &Virtual) -> Self {
         let disks = mapper
             .local_disks()
             .iter()
@@ -120,7 +113,7 @@ impl MemBackend {
 
 #[async_trait]
 impl BackendStorage for MemBackend {
-    async fn run_backend(&self) -> Result<()> {
+    async fn run_backend(&self) -> AnyResult<()> {
         debug!("run mem backend");
         Ok(())
     }

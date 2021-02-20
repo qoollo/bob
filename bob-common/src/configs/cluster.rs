@@ -224,7 +224,7 @@ impl Cluster {
     /// # Errors
     /// Returns error description. If can't match node name with replica name.
     /// And if node disk with replica disk.
-    pub(crate) fn create_vdisks_map(&self) -> Result<VDisksMap, String> {
+    pub fn create_vdisks_map(&self) -> Result<VDisksMap, String> {
         let mut vdisks = HashMap::new();
         for vdisk in &self.vdisks {
             let mut disk = DataVDisk::new(vdisk.id());
@@ -287,7 +287,7 @@ impl Cluster {
         }
     }
 
-    pub(crate) fn check(&self, node: &NodeConfig) -> Result<(), String> {
+    pub fn check(&self, node: &NodeConfig) -> Result<(), String> {
         let finded = self
             .nodes()
             .iter()
@@ -328,8 +328,7 @@ impl Cluster {
         node.prepare(finded)
     }
 
-    #[cfg(test)]
-    pub(crate) fn get_from_string(file: &str) -> Result<Self, String> {
+    pub fn get_from_string(file: &str) -> Result<Self, String> {
         let config = YamlBobConfig::parse::<Self>(file)?;
         debug!("config: {:?}", config);
         if let Err(e) = config.validate() {
@@ -404,15 +403,11 @@ impl Validatable for Cluster {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+pub mod tests {
     use super::{Cluster, DiskPath, Node, Replica, VDisk};
 
     #[must_use]
-    pub(crate) fn cluster_config(
-        count_nodes: u32,
-        count_vdisks: u32,
-        count_replicas: u32,
-    ) -> Cluster {
+    pub fn cluster_config(count_nodes: u32, count_vdisks: u32, count_replicas: u32) -> Cluster {
         let nodes = (0..count_nodes)
             .map(|id| {
                 let name = id.to_string();

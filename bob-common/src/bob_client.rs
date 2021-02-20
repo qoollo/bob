@@ -1,4 +1,4 @@
-pub(crate) mod b_client {
+pub mod b_client {
     use super::{ExistResult, GetResult, PingResult, PutResult};
     use crate::{
         data::{BobData, BobKey, BobMeta},
@@ -23,7 +23,7 @@ pub(crate) mod b_client {
 
     /// Client for interaction with bob backend
     #[derive(Clone)]
-    pub(crate) struct BobClient {
+    pub struct BobClient {
         node: Node,
         operation_timeout: Duration,
         client: BobApiClient<Channel>,
@@ -35,7 +35,7 @@ pub(crate) mod b_client {
         /// # Errors
         /// Fails if can't connect to endpoint
         #[allow(dead_code)]
-        pub(crate) async fn create(
+        pub async fn create(
             node: Node,
             operation_timeout: Duration,
             metrics: BobClientMetrics,
@@ -56,12 +56,12 @@ pub(crate) mod b_client {
 
         #[allow(dead_code)]
         #[must_use]
-        pub(crate) fn node(&self) -> &Node {
+        pub fn node(&self) -> &Node {
             &self.node
         }
 
         #[allow(dead_code)]
-        pub(crate) async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult {
+        pub async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult {
             debug!("real client put called");
             let meta = BlobMeta {
                 timestamp: d.meta().timestamp(),
@@ -92,7 +92,7 @@ pub(crate) mod b_client {
         }
 
         #[allow(dead_code)]
-        pub(crate) async fn get(&self, key: BobKey, options: GetOptions) -> GetResult {
+        pub async fn get(&self, key: BobKey, options: GetOptions) -> GetResult {
             let node_name = self.node.name().to_owned();
             let mut client = self.client.clone();
             self.metrics.get_count();
@@ -122,7 +122,7 @@ pub(crate) mod b_client {
         }
 
         #[allow(dead_code)]
-        pub(crate) async fn ping(&self) -> PingResult {
+        pub async fn ping(&self) -> PingResult {
             let mut client = self.client.clone();
             let result = timeout(self.operation_timeout, client.ping(Request::new(Null {}))).await;
             match result {
@@ -139,7 +139,7 @@ pub(crate) mod b_client {
         }
 
         #[allow(dead_code)]
-        pub(crate) async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult {
+        pub async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult {
             let mut client = self.client.clone();
             self.metrics.exist_count();
             let timer = BobClientMetrics::start_timer();
@@ -170,13 +170,13 @@ pub(crate) mod b_client {
     }
 
     mock! {
-        pub(crate) BobClient {
-            pub(crate) async fn create(node: Node, operation_timeout: Duration, metrics: BobClientMetrics) -> Result<Self, String>;
-            pub(crate) async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult;
-            pub(crate) async fn get(&self, key: BobKey, options: GetOptions) -> GetResult;
-            pub(crate) async fn ping(&self) -> PingResult;
-            pub(crate) fn node(&self) -> &Node;
-            pub(crate) async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult;
+        pub BobClient {
+            pub async fn create(node: Node, operation_timeout: Duration, metrics: BobClientMetrics) -> Result<Self, String>;
+            pub async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult;
+            pub async fn get(&self, key: BobKey, options: GetOptions) -> GetResult;
+            pub async fn ping(&self) -> PingResult;
+            pub fn node(&self) -> &Node;
+            pub async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult;
         }
         impl Clone for BobClient {
             fn clone(&self) -> Self;
@@ -209,19 +209,19 @@ use std::{
 
 cfg_if! {
     if #[cfg(test)] {
-        pub(crate) use self::b_client::MockBobClient as BobClient;
+        pub use self::b_client::MockBobClient as BobClient;
     } else {
-        pub(crate) use self::b_client::BobClient;
+        pub use self::b_client::BobClient;
     }
 }
 
-pub(crate) type PutResult = Result<NodeOutput<()>, NodeOutput<Error>>;
+pub type PutResult = Result<NodeOutput<()>, NodeOutput<Error>>;
 
-pub(crate) type GetResult = Result<NodeOutput<BobData>, NodeOutput<Error>>;
+pub type GetResult = Result<NodeOutput<BobData>, NodeOutput<Error>>;
 
-pub(crate) type PingResult = Result<NodeOutput<()>, NodeOutput<Error>>;
+pub type PingResult = Result<NodeOutput<()>, NodeOutput<Error>>;
 
-pub(crate) type ExistResult = Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>;
+pub type ExistResult = Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>;
 
 /// Bob metrics factory
 #[derive(Clone)]
@@ -242,7 +242,7 @@ impl Factory {
             metrics,
         }
     }
-    pub(crate) async fn produce(&self, node: Node) -> Result<BobClient, String> {
+    pub async fn produce(&self, node: Node) -> Result<BobClient, String> {
         let metrics = self.metrics.clone().get_metrics(&node.counter_display());
         BobClient::create(node, self.operation_timeout, metrics).await
     }

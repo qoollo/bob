@@ -1,11 +1,17 @@
-use super::prelude::*;
+use crate::core::{BackendStorage, Operation};
+use anyhow::Result as AnyResult;
+use bob_common::{
+    data::{BobData, BobKey, BobMeta},
+    error::Error,
+};
+use std::fmt::Debug;
 
 #[derive(Clone, Debug)]
 pub struct StubBackend {}
 
 #[async_trait]
 impl BackendStorage for StubBackend {
-    async fn run_backend(&self) -> Result<()> {
+    async fn run_backend(&self) -> AnyResult<()> {
         Ok(())
     }
 

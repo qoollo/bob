@@ -1,7 +1,13 @@
-use super::prelude::*;
-
-use crate::core::backend::pearl::core::Pearl as PearlBackend;
-use std::fs::remove_dir_all;
+use crate::{
+    core::{BackendStorage, Operation},
+    pearl::core::Pearl as PearlBackend,
+};
+use bob_common::{
+    configs::{cluster::Cluster as ClusterConfig, node::Node as NodeConfig},
+    data::{BobData, BobMeta, DiskPath},
+    mapper::Virtual,
+};
+use std::{fs::remove_dir_all, path::PathBuf, sync::Arc};
 
 static DISK_NAME: &str = "disk1";
 static PEARL_PATH: &str = "/tmp/d1/";
@@ -68,7 +74,6 @@ vdisks:
 
 #[tokio::test]
 async fn test_write_multiple_read() {
-    test_utils::init_logger();
     drop_pearl();
     let vdisk_id = 0;
     let backend = backend().await;

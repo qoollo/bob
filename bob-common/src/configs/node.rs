@@ -1,6 +1,9 @@
+use super::{
+    cluster::{Cluster as ClusterConfig, Node as ClusterNodeConfig},
+    node::Node as NodeConfig,
+    reader::{Validatable, YamlBobConfig},
+};
 use crate::data::DiskPath;
-
-use super::{cluster::Node as ClusterNodeConfig, node::Node as NodeConfig, reader::Validatable};
 use futures::Future;
 use humantime::Duration as HumanDuration;
 use std::{
@@ -71,22 +74,22 @@ impl Validatable for BackendSettings {
 }
 
 impl BackendSettings {
-    pub(crate) fn root_dir_name(&self) -> &str {
+    pub fn root_dir_name(&self) -> &str {
         &self.root_dir_name
     }
 
-    pub(crate) fn alien_root_dir_name(&self) -> &str {
+    pub fn alien_root_dir_name(&self) -> &str {
         &self.alien_root_dir_name
     }
 
-    pub(crate) fn timestamp_period(&self) -> Duration {
+    pub fn timestamp_period(&self) -> Duration {
         self.timestamp_period
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
     }
 
-    pub(crate) fn create_pearl_wait_delay(&self) -> Duration {
+    pub fn create_pearl_wait_delay(&self) -> Duration {
         self.create_pearl_wait_delay
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
@@ -116,7 +119,7 @@ pub struct MetricsConfig {
 }
 
 impl MetricsConfig {
-    pub(crate) fn graphite(&self) -> &str {
+    pub fn graphite(&self) -> &str {
         &self.graphite
     }
 
@@ -173,7 +176,7 @@ pub struct Pearl {
 }
 
 impl Pearl {
-    pub(crate) fn alien_disk(&self) -> Option<&str> {
+    pub fn alien_disk(&self) -> Option<&str> {
         self.alien_disk.as_deref()
     }
 
@@ -181,7 +184,7 @@ impl Pearl {
         "100ms".to_string()
     }
 
-    pub(crate) fn fail_retry_timeout(&self) -> Duration {
+    pub fn fail_retry_timeout(&self) -> Duration {
         self.fail_retry_timeout
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
@@ -192,11 +195,11 @@ impl Pearl {
         3
     }
 
-    pub(crate) fn fail_retry_count(&self) -> u64 {
+    pub fn fail_retry_count(&self) -> u64 {
         self.fail_retry_count
     }
 
-    pub(crate) fn settings(&self) -> &BackendSettings {
+    pub fn settings(&self) -> &BackendSettings {
         &self.settings
     }
 
@@ -208,7 +211,7 @@ impl Pearl {
         true
     }
 
-    pub(crate) fn allow_duplicates(&self) -> bool {
+    pub fn allow_duplicates(&self) -> bool {
         self.allow_duplicates
     }
 
@@ -216,11 +219,11 @@ impl Pearl {
         "bob".to_string()
     }
 
-    pub(crate) fn blob_file_name_prefix(&self) -> &str {
+    pub fn blob_file_name_prefix(&self) -> &str {
         &self.blob_file_name_prefix
     }
 
-    pub(crate) fn set_blob_file_name_prefix(&mut self, s: String) {
+    pub fn set_blob_file_name_prefix(&mut self, s: String) {
         self.blob_file_name_prefix = s;
     }
 
@@ -228,7 +231,7 @@ impl Pearl {
         1_000_000
     }
 
-    pub(crate) fn max_data_in_blob(&self) -> u64 {
+    pub fn max_data_in_blob(&self) -> u64 {
         self.max_data_in_blob
     }
 
@@ -236,7 +239,7 @@ impl Pearl {
         1_000_000
     }
 
-    pub(crate) fn max_blob_size(&self) -> u64 {
+    pub fn max_blob_size(&self) -> u64 {
         self.max_blob_size
     }
 
@@ -248,11 +251,11 @@ impl Pearl {
         true
     }
 
-    pub(crate) fn hash_chars_count(&self) -> u32 {
+    pub fn hash_chars_count(&self) -> u32 {
         self.hash_chars_count
     }
 
-    pub(crate) fn is_aio_enabled(&self) -> bool {
+    pub fn is_aio_enabled(&self) -> bool {
         self.enable_aio
     }
 
@@ -284,7 +287,7 @@ impl Pearl {
             .await
     }
 
-    pub(crate) async fn try_multiple_times_async<F, T, E, Fut>(
+    pub async fn try_multiple_times_async<F, T, E, Fut>(
         &self,
         f: F,
         error_prefix: &str,
@@ -332,7 +335,7 @@ impl Validatable for Pearl {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
-pub(crate) enum BackendType {
+pub enum BackendType {
     InMemory = 0,
     Stub,
     Pearl,
@@ -372,15 +375,15 @@ impl NodeConfig {
         &self.name
     }
 
-    pub(crate) fn quorum(&self) -> usize {
+    pub fn quorum(&self) -> usize {
         self.quorum
     }
 
-    pub(crate) fn pearl(&self) -> &Pearl {
+    pub fn pearl(&self) -> &Pearl {
         self.pearl.as_ref().expect("get pearl config")
     }
 
-    pub(crate) fn metrics(&self) -> &MetricsConfig {
+    pub fn metrics(&self) -> &MetricsConfig {
         self.metrics.as_ref().expect("metrics config")
     }
 
@@ -389,7 +392,7 @@ impl NodeConfig {
         &self.log_config
     }
 
-    pub(crate) fn cluster_policy(&self) -> &str {
+    pub fn cluster_policy(&self) -> &str {
         &self.cluster_policy
     }
 
@@ -406,7 +409,7 @@ impl NodeConfig {
             .into()
     }
 
-    pub(crate) fn check_interval(&self) -> Duration {
+    pub fn check_interval(&self) -> Duration {
         self.check_interval
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
@@ -417,7 +420,7 @@ impl NodeConfig {
         "10000ms".to_string()
     }
 
-    pub(crate) fn count_interval(&self) -> Duration {
+    pub fn count_interval(&self) -> Duration {
         self.count_interval
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
@@ -429,11 +432,11 @@ impl NodeConfig {
         self.disks_ref.borrow()
     }
 
-    pub(crate) fn backend_type(&self) -> BackendType {
+    pub fn backend_type(&self) -> BackendType {
         self.backend_result().expect("clone backend type")
     }
 
-    pub(crate) fn backend_result(&self) -> Result<BackendType, String> {
+    pub fn backend_result(&self) -> Result<BackendType, String> {
         match self.backend_type.as_str() {
             "in_memory" => Ok(BackendType::InMemory),
             "stub" => Ok(BackendType::Stub),
@@ -442,7 +445,7 @@ impl NodeConfig {
         }
     }
 
-    pub(crate) fn prepare(&self, node: &ClusterNodeConfig) -> Result<(), String> {
+    pub fn prepare(&self, node: &ClusterNodeConfig) -> Result<(), String> {
         self.bind_ref.replace(node.address().to_owned());
 
         let t = node
@@ -462,14 +465,14 @@ impl NodeConfig {
         Ok(())
     }
 
-    pub(crate) fn cleanup_interval(&self) -> Duration {
+    pub fn cleanup_interval(&self) -> Duration {
         self.cleanup_interval
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
     }
 
-    pub(crate) fn open_blobs_soft(&self) -> usize {
+    pub fn open_blobs_soft(&self) -> usize {
         self.open_blobs_soft_limit
             .and_then(|i| {
                 if i == 0 {
@@ -482,7 +485,7 @@ impl NodeConfig {
             .unwrap_or(1)
     }
 
-    pub(crate) fn hard_open_blobs(&self) -> usize {
+    pub fn hard_open_blobs(&self) -> usize {
         self.open_blobs_hard_limit
             .and_then(|i| {
                 if i == 0 {
@@ -495,7 +498,7 @@ impl NodeConfig {
             .unwrap_or(10)
     }
 
-    pub(crate) fn init_par_degree(&self) -> usize {
+    pub fn init_par_degree(&self) -> usize {
         self.init_par_degree
     }
 
@@ -517,6 +520,18 @@ impl NodeConfig {
 
     fn default_init_par_degree() -> usize {
         1
+    }
+
+    pub fn get_from_string(file: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
+        let config = YamlBobConfig::parse::<NodeConfig>(file)?;
+        debug!("config: {:?}", config);
+        if let Err(e) = config.validate() {
+            Err(format!("config is not valid: {}", e))
+        } else {
+            cluster.check(&config)?;
+            debug!("cluster config is valid");
+            Ok(config)
+        }
     }
 }
 
@@ -569,14 +584,12 @@ impl Validatable for NodeConfig {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
-    use crate::configs::{
-        cluster::Cluster as ClusterConfig, node::Node as NodeConfig, reader::YamlBobConfig,
-    };
+pub mod tests {
+    use crate::configs::node::Node as NodeConfig;
 
     use std::cell::RefCell;
 
-    pub(crate) fn node_config(name: &str, quorum: usize) -> NodeConfig {
+    pub fn node_config(name: &str, quorum: usize) -> NodeConfig {
         NodeConfig {
             log_config: "".to_string(),
             name: name.to_string(),
@@ -594,22 +607,6 @@ pub(crate) mod tests {
             open_blobs_hard_limit: None,
             init_par_degree: 1,
             count_interval: "10000ms".to_string(),
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn get_from_string(
-        file: &str,
-        cluster: &ClusterConfig,
-    ) -> Result<NodeConfig, String> {
-        let config = YamlBobConfig::parse::<NodeConfig>(file)?;
-        debug!("config: {:?}", config);
-        if let Err(e) = config.validate() {
-            Err(format!("config is not valid: {}", e))
-        } else {
-            cluster.check(&config)?;
-            debug!("cluster config is valid");
-            Ok(config)
         }
     }
 }

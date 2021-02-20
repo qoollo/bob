@@ -1,7 +1,22 @@
-use super::prelude::*;
+use super::{core::BackendResult, holder::Holder, settings::Settings, stuff::Stuff};
+use crate::core::Operation;
+use anyhow::{Context, Result as AnyResult};
+use bob_common::{
+    data::{BobData, BobKey, VDiskID},
+    error::Error,
+};
+use futures::TryFutureExt;
+use ring::digest::{digest, SHA256};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter, Result as FmtResult},
+    path::PathBuf,
+    sync::Arc,
+};
+use tokio::sync::{RwLock, Semaphore};
 
 #[derive(Clone, Debug)]
-pub(crate) struct Group {
+pub struct Group {
     holders: Arc<RwLock<Vec<Holder>>>,
     settings: Arc<Settings>,
     directory_path: PathBuf,
@@ -48,7 +63,7 @@ impl Group {
         }
     }
 
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(&self) -> AnyResult<()> {
         debug!("{}: read holders from disk", self);
         let holders = self
             .settings
@@ -73,12 +88,12 @@ impl Group {
         self.run_pearls().await
     }
 
-    pub async fn remount(&self) -> Result<()> {
+    pub async fn remount(&self) -> AnyResult<()> {
         self.holders.write().await.clear();
         self.run().await
     }
 
-    async fn run_pearls(&self) -> Result<()> {
+    async fn run_pearls(&self) -> AnyResult<()> {
         let holders = self.holders.write().await;
 
         for holder in holders.iter() {
@@ -100,7 +115,7 @@ impl Group {
     }
 
     // find in all pearls actual pearl and try create new
-    async fn get_actual_holder(&self, data: &BobData) -> Result<Holder> {
+    async fn get_actual_holder(&self, data: &BobData) -> AnyResult<Holder> {
         self.find_actual_holder(data)
             .or_else(|e| {
                 debug!("cannot find pearl: {}", e);
@@ -125,7 +140,7 @@ impl Group {
     }
 
     // create pearl for current write
-    async fn create_write_pearl(&self, ts: u64) -> Result<Holder> {
+    async fn create_write_pearl(&self, ts: u64) -> AnyResult<Holder> {
         let mut indexes = self.created_holder_indexes.write().await;
         let created_holder_index = indexes.get(&ts).copied();
         let index = if let Some(exisiting_index) = created_holder_index {
@@ -148,13 +163,13 @@ impl Group {
         Ok(self.holders.read().await[index].clone())
     }
 
-    async fn try_create_write_pearl(&self, timestamp: u64) -> Result<usize> {
+    async fn try_create_write_pearl(&self, timestamp: u64) -> AnyResult<usize> {
         info!("creating pearl for timestamp {}", timestamp);
         let pearl = self.create_pearl_by_timestamp(timestamp);
         self.save_pearl(pearl.clone()).await
     }
 
-    async fn save_pearl(&self, holder: Holder) -> Result<usize> {
+    async fn save_pearl(&self, holder: Holder) -> AnyResult<usize> {
         holder.prepare_storage().await?;
         debug!("backend pearl group save pearl storage prepared");
         Ok(self.add(holder).await)
@@ -326,7 +341,7 @@ impl Group {
         )
     }
 
-    pub(crate) fn create_pearl_by_timestamp(&self, time: u64) -> Holder {
+    pub fn create_pearl_by_timestamp(&self, time: u64) -> Holder {
         let start_timestamp =
             Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period(), time);
         info!(
@@ -337,13 +352,13 @@ impl Group {
         self.create_pearl_holder(start_timestamp, &hash)
     }
 
-    pub(crate) fn create_current_pearl(&self) -> Holder {
+    pub fn create_current_pearl(&self) -> Holder {
         let start_timestamp = self.settings.get_actual_timestamp_start();
         let hash = self.get_owner_node_hash();
         self.create_pearl_holder(start_timestamp, &hash)
     }
 
-    pub(crate) fn read_vdisk_directory(&self) -> BackendResult<Vec<Holder>> {
+    pub fn read_vdisk_directory(&self) -> BackendResult<Vec<Holder>> {
         Stuff::check_or_create_directory(&self.directory_path)?;
 
         let mut holders = vec![];

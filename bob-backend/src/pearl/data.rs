@@ -1,7 +1,12 @@
-use super::prelude::*;
+use bob_common::{
+    data::{BobData, BobMeta},
+    error::Error,
+};
+use pearl::Key as KeyTrait;
+use std::convert::TryInto;
 
 #[derive(Clone, Debug)]
-pub(crate) struct Key(Vec<u8>);
+pub struct Key(Vec<u8>);
 
 impl From<u64> for Key {
     fn from(key: u64) -> Self {
@@ -19,7 +24,7 @@ impl AsRef<[u8]> for Key {
     }
 }
 
-pub(crate) struct Data {
+pub struct Data {
     data: Vec<u8>,
     timestamp: u64,
 }
@@ -27,13 +32,13 @@ pub(crate) struct Data {
 impl Data {
     const TIMESTAMP_LEN: usize = 8;
 
-    pub(crate) fn to_vec(&self) -> Vec<u8> {
+    pub fn to_vec(&self) -> Vec<u8> {
         let mut result = self.timestamp.to_be_bytes().to_vec();
         result.extend_from_slice(&self.data);
         result
     }
 
-    pub(crate) fn from_bytes(data: &[u8]) -> Result<BobData, Error> {
+    pub fn from_bytes(data: &[u8]) -> Result<BobData, Error> {
         let (ts, bob_data) = data.split_at(Self::TIMESTAMP_LEN);
         let bytes = ts
             .try_into()

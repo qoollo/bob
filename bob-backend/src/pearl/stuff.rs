@@ -1,5 +1,12 @@
-use super::prelude::*;
-use std::fs::remove_dir_all;
+use super::core::BackendResult;
+use bob_common::error::Error;
+use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
+use std::{
+    convert::TryInto,
+    fs::{create_dir_all, remove_dir_all, remove_file},
+    path::Path,
+    time::{Duration, SystemTime},
+};
 
 pub(crate) struct Stuff;
 
@@ -25,8 +32,8 @@ impl Stuff {
         }
     }
 
-    pub(crate) fn drop_pearl_lock_file(path: &PathBuf) -> BackendResult<()> {
-        let mut file = path.clone();
+    pub(crate) fn drop_pearl_lock_file(path: &Path) -> BackendResult<()> {
+        let mut file = path.to_owned();
         file.push("pearl.lock");
         if file.exists() {
             remove_file(&file)
@@ -42,7 +49,7 @@ impl Stuff {
         }
     }
 
-    pub(crate) fn drop_directory(path: &PathBuf) -> BackendResult<()> {
+    pub(crate) fn drop_directory(path: &Path) -> BackendResult<()> {
         remove_dir_all(path)
             .map(|_| debug!("deleted directory {:?}", path))
             .map_err(|e| Error::storage(format!("error deleting directory {:?}, {}", path, e)))

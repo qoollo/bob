@@ -1,12 +1,16 @@
 //! A TCP Socket wrapper that reconnects automatically.
-use crate::prelude::{IOError, IOErrorKind, IOResult};
-use std::fmt;
-use std::net::SocketAddr;
-use std::time::Duration;
-use tokio::io::AsyncWriteExt;
-use tokio::net::TcpStream;
-use tokio::sync::oneshot::{channel, error::TryRecvError, Receiver};
-use tokio::time::interval;
+use std::{
+    fmt,
+    io::{Error as IOError, ErrorKind as IOErrorKind, Result as IOResult},
+    net::SocketAddr,
+    time::Duration,
+};
+use tokio::{
+    io::AsyncWriteExt,
+    net::TcpStream,
+    sync::oneshot::{channel, error::TryRecvError, Receiver},
+    time::interval,
+};
 
 const MIN_RECONNECT_DELAY_MS: u64 = 50;
 const MAX_RECONNECT_DELAY_MS: u64 = 10_000;

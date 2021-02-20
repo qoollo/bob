@@ -1,13 +1,32 @@
-use std::time::UNIX_EPOCH;
-
-use super::prelude::*;
+use super::{
+    core::{BackendResult, PearlStorage},
+    data::{Data, Key},
+    metrics::{
+        PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
+        PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
+    },
+    stuff::Stuff,
+};
+use anyhow::{Context, Result as AnyResult};
+use bob_common::{
+    configs::node::Pearl as PearlConfig,
+    data::{BobData, BobKey, VDiskID},
+    error::Error,
+};
+use pearl::{filter::Config as BloomConfig, rio, Builder, Error as PearlError, ErrorKind, Storage};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+    time::{Instant, SystemTime, UNIX_EPOCH},
+};
+use tokio::sync::{RwLock, Semaphore};
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
 
 /// Struct hold pearl and add put/get/restart api
 #[derive(Clone, Debug)]
-pub(crate) struct Holder {
+pub struct Holder {
     start_timestamp: u64,
     end_timestamp: u64,
     vdisk: VDiskID,
@@ -19,7 +38,7 @@ pub(crate) struct Holder {
 }
 
 impl Holder {
-    pub(crate) fn new(
+    pub fn new(
         start_timestamp: u64,
         end_timestamp: u64,
         vdisk: VDiskID,
@@ -33,21 +52,21 @@ impl Holder {
             vdisk,
             disk_path,
             config,
-            storage: Arc::new(RwLock::new(PearlSync::new())),
+            storage: Arc::new(RwLock::new(PearlSync::default())),
             last_write_ts: Arc::new(RwLock::new(0)),
             dump_sem,
         }
     }
 
-    pub(crate) fn start_timestamp(&self) -> u64 {
+    pub fn start_timestamp(&self) -> u64 {
         self.start_timestamp
     }
 
-    pub(crate) fn end_timestamp(&self) -> u64 {
+    pub fn end_timestamp(&self) -> u64 {
         self.end_timestamp
     }
 
-    pub(crate) fn get_id(&self) -> String {
+    pub fn get_id(&self) -> String {
         self.disk_path
             .file_name()
             .and_then(std::ffi::OsStr::to_str)
@@ -55,45 +74,45 @@ impl Holder {
             .to_owned()
     }
 
-    pub(crate) fn storage(&self) -> &RwLock<PearlSync> {
+    pub fn storage(&self) -> &RwLock<PearlSync> {
         &self.storage
     }
 
-    pub(crate) async fn blobs_count(&self) -> usize {
+    pub async fn blobs_count(&self) -> usize {
         let storage = self.storage.read().await;
         storage.blobs_count().await
     }
 
-    pub(crate) async fn index_memory(&self) -> usize {
+    pub async fn index_memory(&self) -> usize {
         let storage = self.storage.read().await;
         storage.index_memory().await
     }
 
-    pub(crate) fn is_actual(&self, current_start: u64) -> bool {
+    pub fn is_actual(&self, current_start: u64) -> bool {
         self.start_timestamp == current_start
     }
 
-    pub(crate) async fn records_count(&self) -> usize {
+    pub async fn records_count(&self) -> usize {
         let storage = self.storage.read().await;
         storage.records_count().await
     }
 
-    pub(crate) fn gets_into_interval(&self, timestamp: u64) -> bool {
+    pub fn gets_into_interval(&self, timestamp: u64) -> bool {
         self.start_timestamp <= timestamp && timestamp < self.end_timestamp
     }
 
-    pub(crate) fn is_outdated(&self) -> bool {
+    pub fn is_outdated(&self) -> bool {
         let ts = Self::get_current_ts();
         ts > self.end_timestamp
     }
 
-    pub(crate) async fn no_writes_recently(&self) -> bool {
+    pub async fn no_writes_recently(&self) -> bool {
         let ts = Self::get_current_ts();
         let last_write_ts = *self.last_write_ts.read().await;
         ts - last_write_ts > MAX_TIME_SINCE_LAST_WRITE_SEC
     }
 
-    pub(crate) async fn active_blob_is_empty(&self) -> bool {
+    pub async fn active_blob_is_empty(&self) -> bool {
         let active = self
             .storage()
             .read()
@@ -103,7 +122,7 @@ impl Holder {
         active == 0
     }
 
-    pub(crate) async fn active_blob_is_small(&self) -> bool {
+    pub async fn active_blob_is_small(&self) -> bool {
         let active = self
             .storage()
             .read()
@@ -120,7 +139,7 @@ impl Holder {
             .as_secs()
     }
 
-    pub(crate) async fn close_active_blob(&mut self) {
+    pub async fn close_active_blob(&mut self) {
         let storage = self.storage.write().await;
         storage.storage().close_active_blob().await;
         warn!("Active blob of {} closed", self.get_id());
@@ -234,7 +253,7 @@ impl Holder {
         }
     }
 
-    pub async fn prepare_storage(&self) -> Result<()> {
+    pub async fn prepare_storage(&self) -> AnyResult<()> {
         debug!("backend pearl holder prepare storage");
         self.config
             .try_multiple_times_async(
@@ -245,7 +264,7 @@ impl Holder {
             .await
     }
 
-    async fn init_holder(&self) -> Result<()> {
+    async fn init_holder(&self) -> AnyResult<()> {
         self.config
             .try_multiple_times(
                 || Stuff::check_or_create_directory(&self.disk_path),
@@ -286,11 +305,11 @@ impl Holder {
         }
     }
 
-    pub(crate) fn drop_directory(&self) -> BackendResult<()> {
+    pub fn drop_directory(&self) -> BackendResult<()> {
         Stuff::drop_directory(&self.disk_path)
     }
 
-    fn init_pearl_by_path(&self) -> Result<PearlStorage> {
+    fn init_pearl_by_path(&self) -> AnyResult<PearlStorage> {
         let mut builder = Builder::new().work_dir(&self.disk_path);
 
         if self.config.allow_duplicates() {
@@ -331,7 +350,7 @@ impl Holder {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub(crate) enum PearlState {
+pub enum PearlState {
     // pearl is started and working
     Normal,
     // pearl restarting
@@ -339,76 +358,78 @@ pub(crate) enum PearlState {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct PearlSync {
+pub struct PearlSync {
     storage: Option<PearlStorage>,
     state: PearlState,
     start_time_test: u8,
 }
 impl PearlSync {
-    pub(crate) fn new() -> Self {
-        Self {
-            storage: None,
-            state: PearlState::Initializing,
-            start_time_test: 0,
-        }
-    }
-
-    pub(crate) fn storage(&self) -> &PearlStorage {
+    pub fn storage(&self) -> &PearlStorage {
         self.storage.as_ref().expect("pearl storage")
     }
 
-    pub(crate) async fn records_count(&self) -> usize {
+    pub async fn records_count(&self) -> usize {
         self.storage().records_count().await
     }
 
-    pub(crate) async fn index_memory(&self) -> usize {
+    pub async fn index_memory(&self) -> usize {
         self.storage().index_memory().await
     }
 
-    pub(crate) async fn active_blob_records_count(&self) -> usize {
+    pub async fn active_blob_records_count(&self) -> usize {
         self.storage()
             .records_count_in_active_blob()
             .await
             .unwrap_or_default()
     }
 
-    pub(crate) async fn blobs_count(&self) -> usize {
+    pub async fn blobs_count(&self) -> usize {
         self.storage().blobs_count().await
     }
 
     #[inline]
-    pub(crate) fn ready(&mut self) {
+    pub fn ready(&mut self) {
         self.set_state(PearlState::Normal);
     }
 
     #[inline]
-    pub(crate) fn init(&mut self) {
+    pub fn init(&mut self) {
         self.set_state(PearlState::Initializing);
     }
 
     #[inline]
-    pub(crate) fn is_ready(&self) -> bool {
+    pub fn is_ready(&self) -> bool {
         self.state == PearlState::Normal
     }
 
     #[inline]
-    pub(crate) fn is_reinit(&self) -> bool {
+    pub fn is_reinit(&self) -> bool {
         self.state == PearlState::Initializing
     }
 
     #[inline]
-    pub(crate) fn set_state(&mut self, state: PearlState) {
+    pub fn set_state(&mut self, state: PearlState) {
         self.state = state;
     }
 
     #[inline]
-    pub(crate) fn set(&mut self, storage: PearlStorage) {
+    pub fn set(&mut self, storage: PearlStorage) {
         self.storage = Some(storage);
         self.start_time_test += 1;
     }
 
     #[inline]
-    pub(crate) fn get(&self) -> PearlStorage {
+    pub fn get(&self) -> PearlStorage {
         self.storage.clone().expect("cloned storage")
+    }
+}
+
+impl Default for PearlSync {
+    fn default() -> Self {
+        Self {
+            storage: None,
+            state: PearlState::Initializing,
+            start_time_test: 0,
+        }
     }
 }

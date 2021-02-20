@@ -1,10 +1,26 @@
-use super::prelude::*;
+use super::{data::Key, group::Group, settings::Settings};
+use crate::core::{BackendStorage, Operation};
+use anyhow::Result as AnyResult;
+use bob_common::{
+    configs::node::Node as NodeConfig,
+    data::{BobData, BobKey},
+    error::Error,
+    mapper::Virtual,
+};
+use futures::{stream::FuturesUnordered, StreamExt};
+use pearl::Storage;
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    sync::Arc,
+    time::Instant,
+};
+use tokio::sync::RwLock;
 
-pub(crate) type BackendResult<T> = std::result::Result<T, Error>;
-pub(crate) type PearlStorage = Storage<Key>;
+pub type BackendResult<T> = std::result::Result<T, Error>;
+pub type PearlStorage = Storage<Key>;
 
 #[derive(Clone, Debug)]
-pub(crate) struct Pearl {
+pub struct Pearl {
     settings: Arc<Settings>,
     vdisks_groups: Arc<[Group]>,
     alien_vdisks_groups: Arc<RwLock<Vec<Group>>>,
@@ -13,7 +29,7 @@ pub(crate) struct Pearl {
 }
 
 impl Pearl {
-    pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
+    pub fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
 
@@ -78,12 +94,9 @@ impl Pearl {
 
 #[async_trait]
 impl BackendStorage for Pearl {
-    async fn run_backend(&self) -> Result<()> {
-        use futures::stream::futures_unordered::FuturesUnordered;
-        use std::collections::hash_map::Entry;
-
+    async fn run_backend(&self) -> AnyResult<()> {
         debug!("run pearl backend");
-        let start = std::time::Instant::now();
+        let start = Instant::now();
         let mut inits_by_disk: HashMap<&str, Vec<_>> = HashMap::new();
         let pearl_groups = self.alien_vdisks_groups.read().await;
         for group in self.vdisks_groups.iter().chain(pearl_groups.iter()) {

@@ -1,5 +1,3 @@
-use super::prelude::*;
-
 pub const PEARL_PUT_COUNTER: &str = "pearl.put_count";
 pub const PEARL_PUT_ERROR_COUNTER: &str = "pearl.put_error_count";
 pub const PEARL_PUT_TIMER: &str = "pearl.put_timer";

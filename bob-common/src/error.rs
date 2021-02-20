@@ -13,60 +13,59 @@ impl Error {
     fn new(ctx: Kind) -> Self {
         Self { ctx }
     }
-    pub(crate) fn is_not_ready(&self) -> bool {
+    pub fn is_not_ready(&self) -> bool {
         self.ctx == Kind::VDiskIsNotReady
     }
 
-    pub(crate) fn is_duplicate(&self) -> bool {
+    pub fn is_duplicate(&self) -> bool {
         self.ctx == Kind::DuplicateKey
     }
 
-    pub(crate) fn is_key_not_found(&self) -> bool {
+    pub fn is_key_not_found(&self) -> bool {
         matches!(&self.ctx, Kind::KeyNotFound(_))
     }
 
-    #[cfg(test)]
-    pub(crate) fn is_internal(&self) -> bool {
+    pub fn is_internal(&self) -> bool {
         self.ctx == Kind::Internal
     }
 
-    pub(crate) fn internal() -> Self {
+    pub fn internal() -> Self {
         Self::new(Kind::Internal)
     }
 
-    pub(crate) fn timeout() -> Self {
+    pub fn timeout() -> Self {
         Self::new(Kind::Timeout)
     }
 
-    pub(crate) fn key_not_found(key: u64) -> Self {
+    pub fn key_not_found(key: u64) -> Self {
         Self::new(Kind::KeyNotFound(key))
     }
 
-    pub(crate) fn pearl_change_state(msg: impl Into<String>) -> Self {
+    pub fn pearl_change_state(msg: impl Into<String>) -> Self {
         Self::new(Kind::PearlChangeState(msg.into()))
     }
 
-    pub(crate) fn failed(cause: impl Into<String>) -> Self {
+    pub fn failed(cause: impl Into<String>) -> Self {
         Self::new(Kind::Failed(cause.into()))
     }
 
-    pub(crate) fn duplicate_key() -> Self {
+    pub fn duplicate_key() -> Self {
         Self::new(Kind::DuplicateKey)
     }
 
-    pub(crate) fn vdisk_not_found(id: u32) -> Self {
+    pub fn vdisk_not_found(id: u32) -> Self {
         Self::new(Kind::VDiskNotFound(id))
     }
 
-    pub(crate) fn vdisk_is_not_ready() -> Self {
+    pub fn vdisk_is_not_ready() -> Self {
         Self::new(Kind::VDiskIsNotReady)
     }
 
-    pub(crate) fn storage(msg: impl Into<String>) -> Self {
+    pub fn storage(msg: impl Into<String>) -> Self {
         Self::new(Kind::Storage(msg.into()))
     }
 
-    pub(crate) fn request_failed_completely(local: &Error, alien: &Error) -> Self {
+    pub fn request_failed_completely(local: &Error, alien: &Error) -> Self {
         let msg = format!("local error: {}\nalien error: {}", local, alien);
         let ctx = Kind::RequestFailedCompletely(msg);
         Self::new(ctx)

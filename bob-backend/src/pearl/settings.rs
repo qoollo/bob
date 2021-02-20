@@ -1,7 +1,23 @@
-use super::prelude::*;
+use crate::core::Operation;
+
+use super::{core::BackendResult, group::Group, stuff::Stuff};
+use bob_common::{
+    configs::node::{Node as NodeConfig, Pearl as PearlConfig},
+    data::{BobData, VDiskID},
+    error::Error,
+    mapper::Virtual,
+};
+use std::{
+    fs::{read_dir, DirEntry, Metadata},
+    io::Result as IOResult,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
+use tokio::sync::Semaphore;
 
 #[derive(Debug)]
-pub(crate) struct Settings {
+pub struct Settings {
     bob_prefix_path: String,
     alien_folder: PathBuf,
     timestamp_period: Duration,
@@ -10,7 +26,7 @@ pub(crate) struct Settings {
 }
 
 impl Settings {
-    pub(crate) fn new(config: &NodeConfig, mapper: Arc<Virtual>) -> Self {
+    pub fn new(config: &NodeConfig, mapper: Arc<Virtual>) -> Self {
         let config = config.pearl().clone();
         let alien_folder = if let Some(alien_disk) = config.alien_disk() {
             let disk_path = mapper
@@ -31,11 +47,11 @@ impl Settings {
         }
     }
 
-    pub(crate) fn config(&self) -> &PearlConfig {
+    pub fn config(&self) -> &PearlConfig {
         &self.config
     }
 
-    pub(crate) fn read_group_from_disk(self: Arc<Self>, config: &NodeConfig) -> Vec<Group> {
+    pub fn read_group_from_disk(self: Arc<Self>, config: &NodeConfig) -> Vec<Group> {
         let mut result = vec![];
         for disk in self.mapper.local_disks() {
             let vdisks = self.mapper.get_vdisks_by_disk(disk.name());
@@ -57,10 +73,7 @@ impl Settings {
         result
     }
 
-    pub(crate) fn read_alien_directory(
-        self: Arc<Self>,
-        config: &NodeConfig,
-    ) -> BackendResult<Vec<Group>> {
+    pub fn read_alien_directory(self: Arc<Self>, config: &NodeConfig) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
         let node_names = Self::get_all_subdirectories(&self.alien_folder)?;
         for node in node_names {
@@ -97,7 +110,7 @@ impl Settings {
         Ok(result)
     }
 
-    pub(crate) fn create_group(
+    pub fn create_group(
         self: Arc<Self>,
         operation: &Operation,
         node_name: &str,
@@ -112,7 +125,7 @@ impl Settings {
             .alien_disk()
             .map_or_else(String::new, str::to_owned);
         let group = Group::new(
-            self.clone(),
+            self,
             operation.vdisk_id(),
             remote_node_name.to_owned(),
             disk_name,
@@ -232,7 +245,7 @@ impl Settings {
     }
 
     #[inline]
-    pub(crate) fn choose_most_recent_data(records: Vec<BobData>) -> Option<BobData> {
+    pub fn choose_most_recent_data(records: Vec<BobData>) -> Option<BobData> {
         records
             .into_iter()
             .max_by(|x, y| x.meta().timestamp().cmp(&y.meta().timestamp()))

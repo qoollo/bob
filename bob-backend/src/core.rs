@@ -1,19 +1,39 @@
+use crate::{
+    mem_backend::MemBackend,
+    pearl::{core::Pearl, group::Group, holder::Holder},
+    stub_backend::StubBackend,
+};
+use anyhow::Result as AnyResult;
+use bob_common::{
+    configs::node::{BackendType, Node as NodeConfig},
+    data::{BobData, BobKey, BobOptions, DiskPath, VDiskID},
+    error::Error,
+    mapper::Virtual,
+    metrics::BACKEND_STATE,
+};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Formatter, Result as FmtResult},
+    sync::Arc,
+};
+use stopwatch::Stopwatch;
+
 const BACKEND_STARTING: i64 = 0;
 const BACKEND_STARTED: i64 = 1;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub(crate) struct Operation {
+pub struct Operation {
     vdisk_id: VDiskID,
     disk_path: Option<DiskPath>,
     remote_node_name: Option<String>, // save data to alien/<remote_node_name>
 }
 
 impl Operation {
-    pub(crate) fn vdisk_id(&self) -> VDiskID {
+    pub fn vdisk_id(&self) -> VDiskID {
         self.vdisk_id
     }
 
-    pub(crate) fn remote_node_name(&self) -> Option<&str> {
+    pub fn remote_node_name(&self) -> Option<&str> {
         self.remote_node_name.as_deref()
     }
 }
@@ -30,7 +50,7 @@ impl Debug for Operation {
 }
 
 impl Operation {
-    pub(crate) fn new_alien(vdisk_id: VDiskID) -> Self {
+    pub fn new_alien(vdisk_id: VDiskID) -> Self {
         Self {
             vdisk_id,
             disk_path: None,
@@ -38,7 +58,7 @@ impl Operation {
         }
     }
 
-    pub(crate) fn new_local(vdisk_id: VDiskID, path: DiskPath) -> Self {
+    pub fn new_local(vdisk_id: VDiskID, path: DiskPath) -> Self {
         Self {
             vdisk_id,
             disk_path: Some(path),
@@ -46,7 +66,7 @@ impl Operation {
         }
     }
 
-    pub(crate) fn clone_alien(&self) -> Self {
+    pub fn clone_alien(&self) -> Self {
         Self {
             vdisk_id: self.vdisk_id,
             disk_path: None,
@@ -55,24 +75,24 @@ impl Operation {
     }
 
     #[inline]
-    pub(crate) fn set_remote_folder(&mut self, name: String) {
+    pub fn set_remote_folder(&mut self, name: String) {
         self.remote_node_name = Some(name);
     }
 
     #[inline]
-    pub(crate) fn is_data_alien(&self) -> bool {
+    pub fn is_data_alien(&self) -> bool {
         self.disk_path.is_none()
     }
 
     #[inline]
-    pub(crate) fn disk_name_local(&self) -> String {
+    pub fn disk_name_local(&self) -> String {
         self.disk_path.as_ref().expect("no path").name().to_owned()
     }
 }
 
 #[async_trait]
-pub(crate) trait BackendStorage: Debug {
-    async fn run_backend(&self) -> Result<()>;
+pub trait BackendStorage: Debug {
+    async fn run_backend(&self) -> AnyResult<()>;
 
     async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
     async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
@@ -83,7 +103,7 @@ pub(crate) trait BackendStorage: Debug {
     async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 
-    async fn run(&self) -> Result<()> {
+    async fn run(&self) -> AnyResult<()> {
         gauge!(BACKEND_STATE, BACKEND_STARTING);
         let result = self.run_backend().await;
         gauge!(BACKEND_STATE, BACKEND_STARTED);
@@ -106,13 +126,13 @@ pub(crate) trait BackendStorage: Debug {
 }
 
 #[derive(Debug)]
-pub(crate) struct Backend {
+pub struct Backend {
     inner: Arc<dyn BackendStorage + Send + Sync>,
     mapper: Arc<Virtual>,
 }
 
 impl Backend {
-    pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
+    pub fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         let inner: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
@@ -121,33 +141,28 @@ impl Backend {
         Self { inner, mapper }
     }
 
-    pub(crate) async fn blobs_count(&self) -> (usize, usize) {
+    pub async fn blobs_count(&self) -> (usize, usize) {
         self.inner.blobs_count().await
     }
 
-    pub(crate) async fn index_memory(&self) -> usize {
+    pub async fn index_memory(&self) -> usize {
         self.inner.index_memory().await
     }
 
-    pub(crate) fn mapper(&self) -> &Virtual {
+    pub fn mapper(&self) -> &Virtual {
         &self.mapper
     }
 
-    pub(crate) fn inner(&self) -> &dyn BackendStorage {
+    pub fn inner(&self) -> &dyn BackendStorage {
         self.inner.as_ref()
     }
 
     #[inline]
-    pub(crate) async fn run_backend(&self) -> Result<()> {
+    pub async fn run_backend(&self) -> AnyResult<()> {
         self.inner.run().await
     }
 
-    pub(crate) async fn put(
-        &self,
-        key: BobKey,
-        data: BobData,
-        options: BobOptions,
-    ) -> Result<(), Error> {
+    pub async fn put(&self, key: BobKey, data: BobData, options: BobOptions) -> Result<(), Error> {
         trace!(">>>>>>- - - - - BACKEND PUT START - - - - -");
         let sw = Stopwatch::start_new();
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
@@ -189,7 +204,7 @@ impl Backend {
     }
 
     #[inline]
-    pub(crate) async fn put_local(
+    pub async fn put_local(
         &self,
         key: BobKey,
         data: BobData,
@@ -234,7 +249,7 @@ impl Backend {
         }
     }
 
-    pub(crate) async fn get(&self, key: BobKey, options: &BobOptions) -> Result<BobData, Error> {
+    pub async fn get(&self, key: BobKey, options: &BobOptions) -> Result<BobData, Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
         // we cannot get data from alien if it belong this node
@@ -265,7 +280,7 @@ impl Backend {
         }
     }
 
-    pub(crate) async fn get_local(&self, key: BobKey, op: Operation) -> Result<BobData, Error> {
+    pub async fn get_local(&self, key: BobKey, op: Operation) -> Result<BobData, Error> {
         self.get_single(key, op).await
     }
 
@@ -279,11 +294,7 @@ impl Backend {
         }
     }
 
-    pub(crate) async fn exist(
-        &self,
-        keys: &[BobKey],
-        options: &BobOptions,
-    ) -> Result<Vec<bool>, Error> {
+    pub async fn exist(&self, keys: &[BobKey], options: &BobOptions) -> Result<Vec<bool>, Error> {
         let mut exist = vec![false; keys.len()];
         let keys_by_id_and_path = self.group_keys_by_operations(keys, options);
         for (operation, (keys, indexes)) in keys_by_id_and_path {
@@ -333,7 +344,7 @@ impl Backend {
         }
     }
 
-    pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
+    pub async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
         let groups = if let Some(groups) = self.inner.vdisks_groups() {
             groups
         } else {

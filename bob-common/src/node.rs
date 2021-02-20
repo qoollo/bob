@@ -1,17 +1,22 @@
+use crate::{
+    bob_client::{b_client::BobClient, Factory},
+    data::BobData,
+};
+use http::Uri;
 use std::{
+    fmt::{Debug, Formatter, Result as FmtResult},
     hash::{Hash, Hasher},
     net::SocketAddr,
     sync::Arc,
 };
-
-use tokio::sync::RwLock;
+use tokio::{net::lookup_host, sync::RwLock};
 
 pub type ID = u16;
 
 pub type Name = String;
 
 #[derive(Clone)]
-pub(crate) struct Node {
+pub struct Node {
     name: Name,
     address: SocketAddr,
     index: ID,
@@ -19,20 +24,20 @@ pub(crate) struct Node {
 }
 
 #[derive(Debug)]
-pub(crate) struct Output<T> {
+pub struct Output<T> {
     node_name: Name,
     inner: T,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Disk {
+pub struct Disk {
     node_name: Name,
     disk_path: String,
     disk_name: String,
 }
 
 impl Node {
-    pub(crate) async fn new(name: String, address: &str, index: u16) -> Self {
+    pub async fn new(name: String, address: &str, index: u16) -> Self {
         error!("address: [{}]", address);
         let mut address = lookup_host(address).await.expect("DNS resolution failed");
         let address = address.next().expect("address is empty");
@@ -44,19 +49,19 @@ impl Node {
         }
     }
 
-    pub(crate) fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub(crate) fn index(&self) -> ID {
+    pub fn index(&self) -> ID {
         self.index
     }
 
-    pub(crate) fn address(&self) -> &SocketAddr {
+    pub fn address(&self) -> &SocketAddr {
         &self.address
     }
 
-    pub(crate) fn get_uri(&self) -> Uri {
+    pub fn get_uri(&self) -> Uri {
         Uri::builder()
             .scheme("http")
             .authority(self.address.to_string().as_str())
@@ -65,23 +70,23 @@ impl Node {
             .expect("build uri")
     }
 
-    pub(crate) fn counter_display(&self) -> String {
+    pub fn counter_display(&self) -> String {
         self.address.to_string().replace(".", "_")
     }
 
-    pub(crate) async fn set_connection(&self, client: BobClient) {
+    pub async fn set_connection(&self, client: BobClient) {
         *self.conn.write().await = Some(client);
     }
 
-    pub(crate) async fn clear_connection(&self) {
+    pub async fn clear_connection(&self) {
         *self.conn.write().await = None;
     }
 
-    pub(crate) async fn get_connection(&self) -> Option<BobClient> {
+    pub async fn get_connection(&self) -> Option<BobClient> {
         self.conn.read().await.clone()
     }
 
-    pub(crate) async fn check(&self, client_fatory: &Factory) -> Result<(), String> {
+    pub async fn check(&self, client_fatory: &Factory) -> Result<(), String> {
         if let Some(conn) = self.get_connection().await {
             if let Err(e) = conn.ping().await {
                 debug!("Got broken connection to node {:?}", self);
@@ -122,31 +127,31 @@ impl PartialEq for Node {
 impl Eq for Node {}
 
 impl<T> Output<T> {
-    pub(crate) fn new(node_name: Name, inner: T) -> Self {
+    pub fn new(node_name: Name, inner: T) -> Self {
         Self { node_name, inner }
     }
 
-    pub(crate) fn node_name(&self) -> &str {
+    pub fn node_name(&self) -> &str {
         &self.node_name
     }
 
-    pub(crate) fn inner(&self) -> &T {
+    pub fn inner(&self) -> &T {
         &self.inner
     }
 
-    pub(crate) fn into_inner(self) -> T {
+    pub fn into_inner(self) -> T {
         self.inner
     }
 }
 
 impl Output<BobData> {
-    pub(crate) fn timestamp(&self) -> u64 {
+    pub fn timestamp(&self) -> u64 {
         self.inner.meta().timestamp()
     }
 }
 
 impl Disk {
-    pub(crate) fn new(disk_path: String, disk_name: String, node_name: Name) -> Self {
+    pub fn new(disk_path: String, disk_name: String, node_name: Name) -> Self {
         Self {
             disk_path,
             disk_name,
@@ -154,15 +159,15 @@ impl Disk {
         }
     }
 
-    pub(crate) fn disk_path(&self) -> &str {
+    pub fn disk_path(&self) -> &str {
         &self.disk_path
     }
 
-    pub(crate) fn disk_name(&self) -> &str {
+    pub fn disk_name(&self) -> &str {
         &self.disk_name
     }
 
-    pub(crate) fn node_name(&self) -> &str {
+    pub fn node_name(&self) -> &str {
         &self.node_name
     }
 }

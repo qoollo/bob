@@ -13,25 +13,25 @@ pub type BobKey = u64;
 pub type VDiskID = u32;
 
 #[derive(Clone)]
-pub(crate) struct BobData {
+pub struct BobData {
     inner: Vec<u8>,
     meta: BobMeta,
 }
 
 impl BobData {
-    pub(crate) fn new(inner: Vec<u8>, meta: BobMeta) -> Self {
+    pub fn new(inner: Vec<u8>, meta: BobMeta) -> Self {
         BobData { inner, meta }
     }
 
-    pub(crate) fn inner(&self) -> &[u8] {
+    pub fn inner(&self) -> &[u8] {
         &self.inner
     }
 
-    pub(crate) fn into_inner(self) -> Vec<u8> {
+    pub fn into_inner(self) -> Vec<u8> {
         self.inner
     }
 
-    pub(crate) fn meta(&self) -> &BobMeta {
+    pub fn meta(&self) -> &BobMeta {
         &self.meta
     }
 }
@@ -46,40 +46,40 @@ impl Debug for BobData {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct BobMeta {
+pub struct BobMeta {
     timestamp: u64,
 }
 impl BobMeta {
-    pub(crate) fn new(timestamp: u64) -> Self {
+    pub fn new(timestamp: u64) -> Self {
         Self { timestamp }
     }
 
     #[inline]
-    pub(crate) fn timestamp(&self) -> u64 {
+    pub fn timestamp(&self) -> u64 {
         self.timestamp
     }
 
-    pub(crate) fn stub() -> Self {
+    pub fn stub() -> Self {
         BobMeta { timestamp: 1 }
     }
 }
 
 bitflags! {
     #[derive(Default)]
-    pub(crate) struct BobFlags: u8 {
+    pub struct BobFlags: u8 {
         const FORCE_NODE = 0x01;
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct BobOptions {
+pub struct BobOptions {
     flags: BobFlags,
     remote_nodes: Vec<String>,
     get_source: Option<GetSource>,
 }
 
 impl BobOptions {
-    pub(crate) fn new_put(options: Option<PutOptions>) -> Self {
+    pub fn new_put(options: Option<PutOptions>) -> Self {
         let mut flags = BobFlags::default();
         let remote_nodes = options.map_or(Vec::new(), |vopts| {
             if vopts.force_node {
@@ -94,7 +94,7 @@ impl BobOptions {
         }
     }
 
-    pub(crate) fn new_get(options: Option<GetOptions>) -> Self {
+    pub fn new_get(options: Option<GetOptions>) -> Self {
         let mut flags = BobFlags::default();
 
         let get_source = options.map(|vopts| {
@@ -110,21 +110,21 @@ impl BobOptions {
         }
     }
 
-    pub(crate) fn remote_nodes(&self) -> &[String] {
+    pub fn remote_nodes(&self) -> &[String] {
         &self.remote_nodes
     }
 
-    pub(crate) fn flags(&self) -> BobFlags {
+    pub fn flags(&self) -> BobFlags {
         self.flags
     }
 
-    pub(crate) fn get_normal(&self) -> bool {
+    pub fn get_normal(&self) -> bool {
         self.get_source.map_or(false, |value| {
             value == GetSource::All || value == GetSource::Normal
         })
     }
 
-    pub(crate) fn get_alien(&self) -> bool {
+    pub fn get_alien(&self) -> bool {
         self.get_source.map_or(false, |value| {
             value == GetSource::All || value == GetSource::Alien
         })
@@ -139,7 +139,7 @@ pub struct VDisk {
 }
 
 impl VDisk {
-    pub(crate) fn new(id: VDiskID) -> Self {
+    pub fn new(id: VDiskID) -> Self {
         VDisk {
             id,
             replicas: Vec::new(),
@@ -147,23 +147,23 @@ impl VDisk {
         }
     }
 
-    pub(crate) fn id(&self) -> VDiskID {
+    pub fn id(&self) -> VDiskID {
         self.id
     }
 
-    pub(crate) fn replicas(&self) -> &[NodeDisk] {
+    pub fn replicas(&self) -> &[NodeDisk] {
         &self.replicas
     }
 
-    pub(crate) fn nodes(&self) -> &[Node] {
+    pub fn nodes(&self) -> &[Node] {
         &self.nodes
     }
 
-    pub(crate) fn push_replica(&mut self, value: NodeDisk) {
+    pub fn push_replica(&mut self, value: NodeDisk) {
         self.replicas.push(value)
     }
 
-    pub(crate) fn set_nodes(&mut self, nodes: &NodesMap) {
+    pub fn set_nodes(&mut self, nodes: &NodesMap) {
         nodes.values().for_each(|node| {
             if self.replicas.iter().any(|r| r.node_name() == node.name()) {
                 //TODO check if some duplicates
@@ -193,7 +193,7 @@ impl DiskPath {
         &self.name
     }
 
-    pub(crate) fn path(&self) -> &str {
+    pub fn path(&self) -> &str {
         &self.path
     }
 }

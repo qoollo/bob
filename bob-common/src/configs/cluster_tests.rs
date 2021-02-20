@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod tests {
     use crate::configs::{
-        cluster::Cluster as ClusterConfig, node::Node as NodeConfig, reader::YamlBobConfig,
+        cluster::Cluster as ClusterConfig,
+        node::Node as NodeConfig,
+        reader::{Validatable, YamlBobConfig},
     };
 
     #[test]

@@ -1,6 +1,5 @@
-use super::prelude::IOError;
 use metrics::{Key, Recorder, SetRecorderError};
-use std::time::Duration;
+use std::{io::Error as IOError, time::Duration};
 use tokio::sync::mpsc::{channel, Sender};
 
 mod retry_socket;
