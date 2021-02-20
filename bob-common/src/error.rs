@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use thiserror::Error as ErrorTrait;
 use tonic::Status;
 
-use crate::data::{BobKey, VDiskID};
+use crate::data::{BobKey, VDiskId};
 
 #[derive(Debug, Clone, ErrorTrait)]
 pub struct Error {
@@ -91,21 +91,21 @@ impl Display for Kind {
     }
 }
 
-impl Into<Status> for Error {
-    fn into(self) -> Status {
+impl From<Error> for Status {
+    fn from(err: Error) -> Self {
         //TODO add custom errors
-        trace!("Error: {}", self);
-        match &self.ctx {
-            Kind::KeyNotFound(key) => Status::not_found(format!("KeyNotFound {}", key)),
-            Kind::DuplicateKey => Status::already_exists("DuplicateKey"),
-            Kind::Timeout => Status::deadline_exceeded("Timeout"),
-            Kind::VDiskNotFound(id) => Status::not_found(format!("VDiskNotFound {}", id)),
-            Kind::Storage(msg) => Status::internal(format!("Storage {}", msg)),
-            Kind::VDiskIsNotReady => Status::internal("VDiskIsNotReady"),
-            Kind::Failed(msg) => Status::internal(format!("Failed {}", msg)),
-            Kind::Internal => Status::internal("Internal"),
-            Kind::PearlChangeState(msg) => Status::internal(format!("PearlChangeState {}", msg)),
-            Kind::RequestFailedCompletely(msg) => Status::internal(format!(
+        trace!("Error: {}", err);
+        match &err.ctx {
+            Kind::KeyNotFound(key) => Self::not_found(format!("KeyNotFound {}", key)),
+            Kind::DuplicateKey => Self::already_exists("DuplicateKey"),
+            Kind::Timeout => Self::deadline_exceeded("Timeout"),
+            Kind::VDiskNotFound(id) => Self::not_found(format!("VDiskNotFound {}", id)),
+            Kind::Storage(msg) => Self::internal(format!("Storage {}", msg)),
+            Kind::VDiskIsNotReady => Self::internal("VDiskIsNotReady"),
+            Kind::Failed(msg) => Self::internal(format!("Failed {}", msg)),
+            Kind::Internal => Self::internal("Internal"),
+            Kind::PearlChangeState(msg) => Self::internal(format!("PearlChangeState {}", msg)),
+            Kind::RequestFailedCompletely(msg) => Self::internal(format!(
                 "Request failed on both stages local and alien: {}",
                 msg
             )),
@@ -151,7 +151,7 @@ where
 #[derive(PartialEq, Debug, Clone)]
 pub enum Kind {
     Timeout,
-    VDiskNotFound(VDiskID),
+    VDiskNotFound(VDiskId),
     Storage(String),
     DuplicateKey,
     KeyNotFound(BobKey),

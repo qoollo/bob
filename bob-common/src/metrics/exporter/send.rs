@@ -36,7 +36,7 @@ pub(super) async fn send_metrics(
             }
         }
 
-        if let Ok(_) = socket.check_connection() {
+        if socket.check_connection().is_ok() {
             flush_counters(&counters_map, &mut socket).await;
             flush_gauges(&gauges_map, &mut socket).await;
             flush_times(&mut times_map, &mut socket).await;
@@ -89,8 +89,8 @@ impl TimeEntry {
 
 fn process_counter(counters_map: &mut HashMap<MetricKey, CounterEntry>, counter: MetricInner) {
     let entry = counters_map
-        .entry(counter.key)
-        .or_insert(CounterEntry::new(counter.timestamp));
+        .entry(counter.key.clone())
+        .or_insert_with(|| CounterEntry::new(counter.timestamp));
     entry.sum += counter.value;
     entry.timestamp = counter.timestamp;
 }
@@ -101,8 +101,8 @@ fn process_gauge(gauges_map: &mut HashMap<MetricKey, GaugeEntry>, gauge: MetricI
 
 fn process_time(times_map: &mut HashMap<MetricKey, TimeEntry>, time: MetricInner) {
     let entry = times_map
-        .entry(time.key)
-        .or_insert(TimeEntry::new(time.timestamp));
+        .entry(time.key.clone())
+        .or_insert_with(|| TimeEntry::new(time.timestamp));
     entry.summary_time += time.value;
     entry.measurements_amount += 1;
     entry.timestamp = time.timestamp;

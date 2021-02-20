@@ -10,7 +10,7 @@ use std::{
 
 pub type BobKey = u64;
 
-pub type VDiskID = u32;
+pub type VDiskId = u32;
 
 #[derive(Clone)]
 pub struct BobData {
@@ -133,13 +133,13 @@ impl BobOptions {
 
 #[derive(Debug, Clone)]
 pub struct VDisk {
-    id: VDiskID,
+    id: VDiskId,
     replicas: Vec<NodeDisk>,
     nodes: Vec<Node>,
 }
 
 impl VDisk {
-    pub fn new(id: VDiskID) -> Self {
+    pub fn new(id: VDiskId) -> Self {
         VDisk {
             id,
             replicas: Vec::new(),
@@ -147,7 +147,7 @@ impl VDisk {
         }
     }
 
-    pub fn id(&self) -> VDiskID {
+    pub fn id(&self) -> VDiskId {
         self.id
     }
 

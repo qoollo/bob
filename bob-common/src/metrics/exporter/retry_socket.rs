@@ -34,7 +34,7 @@ impl fmt::Debug for RetrySocket {
 
 impl RetrySocket {
     pub(super) async fn new(address: SocketAddr) -> Self {
-        let receiver = Self::spawn_task(address.clone());
+        let receiver = Self::spawn_task(address);
         RetrySocket {
             address,
             socket: State::Task(receiver),

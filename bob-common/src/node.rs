@@ -11,7 +11,7 @@ use std::{
 };
 use tokio::{net::lookup_host, sync::RwLock};
 
-pub type ID = u16;
+pub type Id = u16;
 
 pub type Name = String;
 
@@ -19,7 +19,7 @@ pub type Name = String;
 pub struct Node {
     name: Name,
     address: SocketAddr,
-    index: ID,
+    index: Id,
     conn: Arc<RwLock<Option<BobClient>>>,
 }
 
@@ -53,7 +53,7 @@ impl Node {
         &self.name
     }
 
-    pub fn index(&self) -> ID {
+    pub fn index(&self) -> Id {
         self.index
     }
 
