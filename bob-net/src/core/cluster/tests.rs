@@ -1,45 +1,65 @@
-use super::prelude::*;
-use crate::core::configs::{cluster::tests::cluster_config, node::tests::node_config};
 use std::sync::atomic::{AtomicU64, Ordering};
+
+use crate::{
+    core::{cluster::Cluster, test_utils},
+    prelude::*,
+};
+
+use bob_common::{
+    bob_client::BobClient,
+    configs::{
+        cluster::{tests::cluster_config, Cluster as ClusterConfig},
+        node::tests::node_config,
+    },
+    data::BobMeta,
+};
+use tokio::time::sleep;
+
+use super::quorum::Quorum;
 
 fn ping_ok(client: &mut BobClient, node: Node) {
     let cl = node;
 
-    client
-        .expect_ping()
-        .returning(move || test_utils::ping_ok(cl.name().to_owned()));
+    // client
+    //     .expect_ping()
+    //     .returning(move || test_utils::ping_ok(cl.name().to_owned()));
+    todo!("mock");
 }
 
 fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
-    client.expect_put().returning(move |_key, _data, _options| {
-        call.put_inc();
-        test_utils::put_ok(node.name().to_owned())
-    });
+    // client.expect_put().returning(move |_key, _data, _options| {
+    //     call.put_inc();
+    //     test_utils::put_ok(node.name().to_owned())
+    // });
+    todo!("mock");
 }
 
 fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
-    debug!("mock BobClient return error on PUT");
-    client.expect_put().returning(move |_key, _data, _options| {
-        call.put_inc();
-        test_utils::put_err(node.name().to_owned())
-    });
+    // debug!("mock BobClient return error on PUT");
+    // client.expect_put().returning(move |_key, _data, _options| {
+    //     call.put_inc();
+    //     test_utils::put_err(node.name().to_owned())
+    // });
+    todo!("mock");
 }
 
 fn get_ok_timestamp(client: &mut BobClient, node: Node, call: Arc<CountCall>, timestamp: u64) {
-    trace!("get ok timestamp");
-    client.expect_get().returning(move |_key, _options| {
-        call.get_inc();
-        test_utils::get_ok(node.name().to_owned(), timestamp)
-    });
+    // trace!("get ok timestamp");
+    // client.expect_get().returning(move |_key, _options| {
+    //     call.get_inc();
+    //     test_utils::get_ok(node.name().to_owned(), timestamp)
+    // });
+    todo!("mock");
 }
 
 fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
-    info!("get err");
-    client.expect_get().returning(move |_key, _options| {
-        info!("mock client returning closure");
-        call.get_inc();
-        test_utils::get_err(node.name().to_owned())
-    });
+    // info!("get err");
+    // client.expect_get().returning(move |_key, _options| {
+    //     info!("mock client returning closure");
+    //     call.get_inc();
+    //     test_utils::get_err(node.name().to_owned())
+    // });
+    todo!("mock");
 }
 
 struct CountCall {
@@ -88,14 +108,14 @@ async fn create_cluster(
 ) -> (Quorum, Arc<Backend>) {
     let mapper = Arc::new(Virtual::new(&node, &cluster).await);
     for node in mapper.nodes().values() {
-        let mut client = BobClient::default();
-        let (_, func, call) = map
-            .iter()
-            .find(|(name, _, _)| *name == node.name())
-            .expect("find node with name");
-        func(&mut client, node.clone(), call.clone());
-
-        node.set_connection(client).await;
+        // let mut client = BobClient::default();
+        // let (_, func, call) = map
+        // .iter()
+        // .find(|(name, _, _)| *name == node.name())
+        // .expect("find node with name");
+        // func(&mut client, node.clone(), call.clone());
+        // node.set_connection(client).await;
+        todo!("mock");
     }
 
     let backend = Arc::new(Backend::new(mapper.clone(), &node));
@@ -144,18 +164,19 @@ fn create_node(
             set_get_ok,
             returned_timestamp,
         );
-        client.expect_clone().returning(move || {
-            let mut cl = BobClient::default();
-            f(
-                &mut cl,
-                n.clone(),
-                call.clone(),
-                set_put_ok,
-                set_get_ok,
-                returned_timestamp,
-            );
-            cl
-        });
+        // client.expect_clone().returning(move || {
+        //     let mut cl = BobClient::default();
+        //     f(
+        //         &mut cl,
+        //         n.clone(),
+        //         call.clone(),
+        //         set_put_ok,
+        //         set_get_ok,
+        //         returned_timestamp,
+        //     );
+        //     cl
+        // });
+        todo!("mock");
     };
     let call = Box::new(call);
     (name, call, Arc::new(CountCall::new()))

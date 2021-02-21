@@ -402,7 +402,6 @@ impl Validatable for Cluster {
     }
 }
 
-#[cfg(test)]
 pub mod tests {
     use super::{Cluster, DiskPath, Node, Replica, VDisk};
 

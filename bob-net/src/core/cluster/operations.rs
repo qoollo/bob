@@ -1,6 +1,6 @@
-use tokio::task::JoinError;
+use crate::prelude::*;
 
-use super::prelude::*;
+use crate::core::link_manager::LinkManager;
 
 pub(crate) async fn get_any(
     key: BobKey,
@@ -106,7 +106,7 @@ pub(crate) fn group_keys_by_nodes(
 pub(crate) async fn lookup_local_alien(
     backend: &Backend,
     key: BobKey,
-    vdisk_id: VDiskID,
+    vdisk_id: VDiskId,
 ) -> Option<BobData> {
     let op = Operation::new_alien(vdisk_id);
     match backend.get_local(key, op).await {
@@ -123,7 +123,7 @@ pub(crate) async fn lookup_local_alien(
 pub(crate) async fn lookup_local_node(
     backend: &Backend,
     key: BobKey,
-    vdisk_id: VDiskID,
+    vdisk_id: VDiskId,
     disk_path: Option<DiskPath>,
 ) -> Option<BobData> {
     if let Some(path) = disk_path {
@@ -237,7 +237,7 @@ pub(crate) async fn put_local_node(
     backend: &Backend,
     key: BobKey,
     data: BobData,
-    vdisk_id: VDiskID,
+    vdisk_id: VDiskId,
     disk_path: DiskPath,
 ) -> Result<(), Error> {
     debug!("local node has vdisk replica, put local");

@@ -1,4 +1,20 @@
-use std::fs::ReadDir;
+use crate::core::server::Server as BobServer;
+use bob_backend::pearl::{Group as PearlGroup, Holder};
+use bob_common::{data::VDisk as DataVDisk, node::Disk as NodeDisk};
+use rocket::{
+    http::{RawStr, Status},
+    request::FromParam,
+    response::{Responder, Result as RocketResult},
+    Config, Request, Response, Rocket, State,
+};
+use rocket_contrib::json::Json;
+use std::{
+    fs::ReadDir,
+    io::Cursor,
+    path::{Path, PathBuf},
+    thread,
+};
+use tokio::runtime::Runtime;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
@@ -196,17 +212,17 @@ fn vdisks(bob: State<BobServer>) -> Json<Vec<VDisk>> {
 }
 
 #[delete("/blobs/outdated")]
-fn finalize_outdated_blobs(bob: State<BobServer>) -> Result<StatusExt, StatusExt> {
+fn finalize_outdated_blobs(bob: State<BobServer>) -> StatusExt {
     let bob = bob.clone();
     runtime().spawn(async move {
         let backend = bob.grinder().backend();
         backend.close_unneeded_active_blobs(1, 1).await;
     });
-    Ok(StatusExt::new(
+    StatusExt::new(
         Status::Ok,
         true,
         "Successfully removed outdated blobs".to_string(),
-    ))
+    )
 }
 
 #[get("/vdisks/<vdisk_id>")]
@@ -424,9 +440,11 @@ fn create_directory(root_path: &Path) -> Option<Dir> {
     let root_path_str = root_path.to_str()?;
     let result = std::fs::read_dir(root_path);
     match result {
-        Ok(read_dir) => {
-            read_directory_children(read_dir, name.to_string(), root_path_str.to_string())
-        }
+        Ok(read_dir) => Some(read_directory_children(
+            read_dir,
+            name.to_string(),
+            root_path_str.to_string(),
+        )),
         Err(e) => {
             error!("read path {:?} failed: {}", root_path, e);
             None
@@ -434,7 +452,7 @@ fn create_directory(root_path: &Path) -> Option<Dir> {
     }
 }
 
-fn read_directory_children(read_dir: ReadDir, name: String, path: String) -> Option<Dir> {
+fn read_directory_children(read_dir: ReadDir, name: String, path: String) -> Dir {
     let children = read_dir
         .filter_map(Result::ok)
         .filter_map(|child| {
@@ -445,11 +463,11 @@ fn read_directory_children(read_dir: ReadDir, name: String, path: String) -> Opt
             }
         })
         .collect();
-    Some(Dir {
+    Dir {
         name,
         path,
         children,
-    })
+    }
 }
 
 impl<'r> FromParam<'r> for Action {

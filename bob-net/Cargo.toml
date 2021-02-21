@@ -6,6 +6,8 @@ edition = "2018"
 
 [dependencies]
 bob-common = { version = "1.5.1-alpha.4", path = "../bob-common" }
+bob-backend = { version = "1.5.1-alpha.4", path = "../bob-backend" }
+bob-grpc = { version = "1.5.1-alpha.4", path = "../bob-grpc" }
 
 anyhow = "1.0.38"
 http = "0.2.3"

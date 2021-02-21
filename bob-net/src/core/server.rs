@@ -1,4 +1,6 @@
-use super::prelude::*;
+use crate::prelude::*;
+
+use super::grinder::Grinder;
 
 /// Struct contains `Grinder` and receives incomming GRPC requests
 #[derive(Clone, Debug)]
@@ -21,7 +23,7 @@ impl Server {
 
     /// Call to run HTTP API server, not required for normal functioning
     pub fn run_api_server(&self, port: u16) {
-        api::http::spawn(self.clone(), port);
+        crate::api::http::spawn(self.clone(), port);
     }
 
     /// Start backend component, required before starting bob service

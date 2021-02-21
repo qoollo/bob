@@ -1,5 +1,4 @@
-use super::prelude::*;
-use std::time::Duration;
+use crate::prelude::*;
 
 pub(crate) struct Cleaner {
     old_blobs_check_timeout: Duration,

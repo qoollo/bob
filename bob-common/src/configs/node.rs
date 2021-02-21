@@ -583,7 +583,6 @@ impl Validatable for NodeConfig {
     }
 }
 
-#[cfg(test)]
 pub mod tests {
     use crate::configs::node::Node as NodeConfig;
 

@@ -1,4 +1,7 @@
-use super::prelude::*;
+use crate::prelude::*;
+
+use super::Cluster;
+use crate::core::link_manager::LinkManager;
 
 pub(crate) struct Quorum {
     mapper: Arc<Virtual>,
@@ -68,7 +71,7 @@ impl Cluster for Quorum {
         if ok_count >= l_quorum {
             Ok(())
         } else {
-            Err(backend::Error::failed(format!(
+            Err(Error::failed(format!(
                 "failed: total requests: {}, ok: {}, quorum: {}, errors: {:?}",
                 total_count, ok_count, l_quorum, errors
             )))

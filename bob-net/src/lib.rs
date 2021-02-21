@@ -8,48 +8,56 @@
 //! Library requires tokio runtime.
 
 #[macro_use]
-extern crate bitflags;
-#[macro_use]
 extern crate log;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
-extern crate cfg_if;
 #[macro_use]
 extern crate rocket;
 #[macro_use]
 extern crate async_trait;
 #[macro_use]
-extern crate derive_new;
-#[macro_use]
-extern crate lazy_static;
+extern crate metrics;
 
-mod api;
-mod core;
-
-pub use self::{
-    api::grpc,
-    core::{bob_client as client, configs, grinder, mapper, metrics, server},
-};
+pub mod api;
+pub mod core;
 
 mod prelude {
-    pub(crate) use super::*;
-    pub(crate) use anyhow::{Context as AnyhowContext, Result};
-    pub(crate) use std::{
-        cell::{Ref, RefCell},
+    pub use anyhow::Result;
+    pub use bob_backend::core::{Backend, Operation};
+    pub use bob_common::{
+        bob_client::{BobClient, Factory},
+        configs::node::Node as NodeConfig,
+        data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskId},
+        error::Error,
+        mapper::Virtual,
+        metrics::{
+            ALIEN_BLOBS_COUNT, AVAILABLE_NODES_COUNT, BLOBS_COUNT, CLIENT_EXIST_COUNTER,
+            CLIENT_EXIST_ERROR_COUNT_COUNTER, CLIENT_EXIST_TIMER, CLIENT_GET_COUNTER,
+            CLIENT_GET_ERROR_COUNT_COUNTER, CLIENT_GET_TIMER, CLIENT_PUT_COUNTER,
+            CLIENT_PUT_ERROR_COUNT_COUNTER, CLIENT_PUT_TIMER, GRINDER_EXIST_COUNTER,
+            GRINDER_EXIST_ERROR_COUNT_COUNTER, GRINDER_EXIST_TIMER, GRINDER_GET_COUNTER,
+            GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER, GRINDER_PUT_COUNTER,
+            GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER, INDEX_MEMORY,
+        },
+        node::{Node, Output as NodeOutput},
+    };
+    pub use bob_grpc::{
+        bob_api_server::BobApi, Blob, BlobMeta, ExistRequest, ExistResponse, GetOptions,
+        GetRequest, Null, OpStatus, PutOptions, PutRequest,
+    };
+    pub use futures::{future, stream::FuturesUnordered, Future, FutureExt, StreamExt};
+    pub use std::{
         collections::HashMap,
-        convert::TryInto,
-        fmt::{Debug, Display, Formatter, Result as FmtResult},
-        fs::{create_dir_all, read_dir, read_to_string, remove_file, DirEntry, Metadata},
-        io::{Cursor, Error as IOError, ErrorKind as IOErrorKind, Result as IOResult},
-        net::SocketAddr,
-        path::{Path, PathBuf},
+        fmt::{Debug, Formatter, Result as FmtResult},
+        io::Write,
         pin::Pin,
         sync::Arc,
-        thread,
-        time::{Duration, SystemTime},
+        time::{Duration, Instant},
     };
-    pub(crate) use thiserror::Error as ErrorTrait;
-    pub(crate) use tokio::runtime::Runtime;
-    pub(crate) use tokio::sync::{RwLock, Semaphore};
+    pub use stopwatch::Stopwatch;
+    pub use tokio::{
+        task::{JoinError, JoinHandle},
+        time::interval,
+    };
+    pub use tonic::{Code, Request, Response, Status};
 }
