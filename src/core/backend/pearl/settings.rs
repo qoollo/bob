@@ -35,31 +35,47 @@ impl Settings {
         &self.config
     }
 
-    pub(crate) fn read_group_from_disk(self: Arc<Self>, config: &NodeConfig) -> Vec<Group> {
-        let mut result = vec![];
-        for disk in self.mapper.local_disks() {
-            let vdisks = self.mapper.get_vdisks_by_disk(disk.name());
-            let dump_sem = Arc::new(Semaphore::new(config.init_par_degree()));
-            let iter = vdisks.iter().map(|&vdisk_id| {
-                let path = self.normal_path(disk.path(), vdisk_id);
-                Group::new(
-                    self.clone(),
-                    vdisk_id,
-                    config.name().to_owned(),
-                    disk.name().to_owned(),
-                    path,
-                    config.name().to_owned(),
-                    dump_sem.clone(),
-                )
-            });
-            result.extend(iter);
-        }
-        result
+    pub(crate) fn read_group_from_disk(
+        self: Arc<Self>,
+        config: &NodeConfig,
+    ) -> Vec<DiskController> {
+        self.mapper
+            .local_disks()
+            .iter()
+            .map(|disk| {
+                let vdisks = self.mapper.get_vdisks_by_disk(disk.name());
+                let mut dc =
+                    DiskController::new(disk.to_owned(), vdisks, config, self.clone(), false);
+                dc.init().expect("normal disk doesn't panic");
+                dc
+            })
+            .collect()
     }
 
     pub(crate) fn read_alien_directory(
         self: Arc<Self>,
         config: &NodeConfig,
+    ) -> BackendResult<DiskController> {
+        let disk_name = config
+            .pearl()
+            .alien_disk()
+            .map_or_else(String::new, str::to_owned);
+        let alien_disk = DiskPath::new(
+            disk_name,
+            self.alien_folder
+                .clone()
+                .into_os_string()
+                .into_string()
+                .expect("Path is not utf8 encoded"),
+        );
+        let mut dc = DiskController::new(alien_disk, Vec::new(), config, self.clone(), true);
+        dc.init()?;
+        Ok(dc)
+    }
+
+    pub(crate) fn collect_alien_groups(
+        self: Arc<Self>,
+        disk_name: String,
     ) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
         let node_names = Self::get_all_subdirectories(&self.alien_folder)?;
@@ -70,15 +86,11 @@ impl Settings {
                 for vdisk_id in vdisks {
                     if let Ok((entry, vdisk_id)) = self.try_parse_vdisk_id(vdisk_id) {
                         if self.mapper.is_vdisk_on_node(&node_name, vdisk_id) {
-                            let disk_name = config
-                                .pearl()
-                                .alien_disk()
-                                .map_or_else(String::new, str::to_owned);
                             let group = Group::new(
                                 self.clone(),
                                 vdisk_id,
                                 node_name.clone(),
-                                disk_name,
+                                disk_name.clone(),
                                 entry.path(),
                                 node_name.clone(),
                                 Arc::new(Semaphore::new(1)),
@@ -86,7 +98,7 @@ impl Settings {
                             result.push(group);
                         } else {
                             warn!(
-                                "potentionally invalid state. Node: {} doesnt hold vdisk: {}",
+                                "potentionally invalid state. Node: {} doesn't hold vdisk: {}",
                                 node_name, vdisk_id
                             );
                         }
@@ -204,7 +216,7 @@ impl Settings {
         }
     }
 
-    fn normal_path(&self, disk_path: &str, vdisk_id: VDiskID) -> PathBuf {
+    pub(crate) fn normal_path(&self, disk_path: &str, vdisk_id: VDiskID) -> PathBuf {
         let mut vdisk_path = PathBuf::from(format!("{}/{}/", disk_path, self.bob_prefix_path));
         vdisk_path.push(format!("{}/", vdisk_id));
         vdisk_path
