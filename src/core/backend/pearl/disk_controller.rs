@@ -6,7 +6,8 @@ pub(crate) struct DiskController {
     vdisks: Vec<VDiskID>,
     init_par_degree: usize,
     node_name: String,
-    groups: Vec<Group>,
+    // groups may change (and disk controller is responsible for that)
+    groups: Arc<RwLock<Vec<Group>>>,
     settings: Arc<Settings>,
     is_alien: bool,
 }
@@ -24,7 +25,7 @@ impl DiskController {
             vdisks,
             init_par_degree: config.init_par_degree(),
             node_name: config.name().to_owned(),
-            groups: Vec::new(),
+            groups: Arc::new(RwLock::new(Vec::new())),
             settings,
             is_alien,
         }
@@ -40,7 +41,7 @@ impl DiskController {
     }
 
     pub(crate) fn init_groups(&mut self) {
-        self.groups = self
+        let groups = self
             .vdisks
             .iter()
             .copied()
@@ -58,22 +59,24 @@ impl DiskController {
                 )
             })
             .collect();
+        self.groups = Arc::new(RwLock::new(groups));
     }
 
     pub(crate) fn init_alien_groups(&mut self) -> BackendResult<()> {
-        self.groups = self
+        let groups = self
             .settings
             .clone()
             .collect_alien_groups(self.disk.name().to_owned())?;
+        trace!(
+            "count alien vdisk groups (start or recovery): {}",
+            groups.len()
+        );
+        self.groups = Arc::new(RwLock::new(groups));
         Ok(())
     }
 
-    pub(crate) fn groups_len(&self) -> usize {
-        self.groups.len()
-    }
-
-    fn find_group(&self, operation: &Operation) -> BackendResult<Group> {
-        Self::find_in_groups(self.groups.iter(), operation).ok_or_else(|| {
+    async fn find_group(&self, operation: &Operation) -> BackendResult<Group> {
+        Self::find_in_groups(self.groups.read().await.iter(), operation).ok_or_else(|| {
             Error::failed(format!("cannot find actual alien folder. {:?}", operation))
         })
     }
@@ -87,9 +90,18 @@ impl DiskController {
             .cloned()
     }
 
-    async fn get_or_create_pearl(&mut self, operation: &Operation) -> BackendResult<Group> {
+    async fn get_or_create_pearl(&self, operation: &Operation) -> BackendResult<Group> {
         trace!("try get alien pearl, operation {:?}", operation);
-        let pearl = Self::find_in_groups(self.groups.iter(), operation);
+        {
+            let read_lock_groups = self.groups.read().await;
+            let pearl = Self::find_in_groups(read_lock_groups.iter(), operation);
+            if let Some(g) = pearl {
+                return Ok(g);
+            }
+        }
+
+        let mut write_lock_groups = self.groups.write().await;
+        let pearl = Self::find_in_groups(write_lock_groups.iter(), operation);
         if let Some(g) = pearl {
             return Ok(g);
         }
@@ -98,20 +110,20 @@ impl DiskController {
             .clone()
             .create_group(operation, &self.node_name)
             .map(|g| {
-                self.groups.push(g.clone());
+                write_lock_groups.push(g.clone());
                 g
             })
     }
 
     pub(crate) async fn run(&self) -> Result<()> {
-        for group in self.groups.iter() {
+        for group in self.groups.read().await.iter() {
             group.run().await?;
         }
         Ok(())
     }
 
     pub(crate) async fn put_alien(
-        &mut self,
+        &self,
         op: Operation,
         key: BobKey,
         data: BobData,
@@ -133,7 +145,13 @@ impl DiskController {
     }
 
     pub(crate) async fn put(&self, op: Operation, key: BobKey, data: BobData) -> BackendResult<()> {
-        let vdisk_group = self.groups.iter().find(|vd| vd.can_process_operation(&op));
+        let vdisk_group = self
+            .groups
+            .read()
+            .await
+            .iter()
+            .find(|vd| vd.can_process_operation(&op))
+            .cloned();
         if let Some(group) = vdisk_group {
             let res = group.put(key, data).await;
             res.map_err(|e| {
@@ -156,7 +174,13 @@ impl DiskController {
 
     pub(crate) async fn get(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
         debug!("Get[{}] from pearl backend. operation: {:?}", key, op);
-        let vdisk_group = self.groups.iter().find(|g| g.can_process_operation(&op));
+        let vdisk_group = self
+            .groups
+            .read()
+            .await
+            .iter()
+            .find(|g| g.can_process_operation(&op))
+            .cloned();
         if let Some(group) = vdisk_group {
             group.get(key).await
         } else {
@@ -166,7 +190,7 @@ impl DiskController {
     }
 
     pub(crate) async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
-        let vdisk_group = self.find_group(&op);
+        let vdisk_group = self.find_group(&op).await;
         if let Ok(group) = vdisk_group {
             group.get(key).await
         } else {
@@ -186,8 +210,11 @@ impl DiskController {
     ) -> Result<Vec<bool>, Error> {
         let group_option = self
             .groups
+            .read()
+            .await
             .iter()
-            .find(|g| g.can_process_operation(&operation));
+            .find(|g| g.can_process_operation(&operation))
+            .cloned();
         if let Some(group) = group_option {
             Ok(group.exist(&keys).await)
         } else {
@@ -198,7 +225,7 @@ impl DiskController {
     pub(crate) async fn shutdown(&self) {
         //use futures::stream::FuturesUnordered;
         let futures = FuturesUnordered::new();
-        for group in self.groups.iter() {
+        for group in self.groups.read().await.iter() {
             let holders = group.holders();
             let holders = holders.read().await;
             for holder in holders.iter() {
@@ -218,7 +245,7 @@ impl DiskController {
 
     pub(crate) async fn blobs_count(&self) -> usize {
         let mut cnt = 0;
-        for group in self.groups.iter() {
+        for group in self.groups.read().await.iter() {
             let holders_guard = group.holders();
             let holders = holders_guard.read().await;
             for holder in holders.iter() {
@@ -230,7 +257,7 @@ impl DiskController {
 
     pub(crate) async fn index_memory(&self) -> usize {
         let mut cnt = 0;
-        for group in self.groups.iter() {
+        for group in self.groups.read().await.iter() {
             let holders_guard = group.holders();
             let holders = holders_guard.read().await;
             for holder in holders.iter() {

@@ -7,7 +7,7 @@ pub(crate) type PearlStorage = Storage<Key>;
 pub(crate) struct Pearl {
     settings: Arc<Settings>,
     disk_controllers: Arc<[DiskController]>,
-    alien_disk_controller: Arc<RwLock<DiskController>>,
+    alien_disk_controller: Arc<DiskController>,
     node_name: String,
     init_par_degree: usize,
 }
@@ -21,15 +21,12 @@ impl Pearl {
         let disk_controllers: Arc<[DiskController]> = Arc::from(data.as_slice());
         trace!("count vdisk groups: {}", disk_controllers.len());
 
-        let alien_controller = settings
-            .clone()
-            .read_alien_directory(config)
-            .expect("vec of pearl groups");
-        trace!(
-            "count alien vdisk groups: {}",
-            alien_controller.groups_len()
+        let alien_disk_controller = Arc::new(
+            settings
+                .clone()
+                .read_alien_directory(config)
+                .expect("vec of pearl groups"),
         );
-        let alien_disk_controller = Arc::new(RwLock::new(alien_controller));
 
         Self {
             settings,
@@ -64,7 +61,7 @@ impl BackendStorage for Pearl {
         }
         futs.fold(Ok(()), |s, n| async move { s.and(n) }).await?;
         // TODO: add this future to futs
-        self.alien_disk_controller.read().await.run().await?;
+        self.alien_disk_controller.run().await?;
         let dur = std::time::Instant::now() - start;
         debug!("pearl backend init took {:?}", dur);
         Ok(())
@@ -92,11 +89,7 @@ impl BackendStorage for Pearl {
 
     async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
         debug!("PUT[alien][{}] to pearl backend, operation: {:?}", key, op);
-        self.alien_disk_controller
-            .write()
-            .await
-            .put_alien(op, key, data)
-            .await
+        self.alien_disk_controller.put_alien(op, key, data).await
     }
 
     async fn get(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
@@ -115,9 +108,8 @@ impl BackendStorage for Pearl {
 
     async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
         debug!("Get[alien][{}] from pearl backend", key);
-        let alien_dc = self.alien_disk_controller.read().await;
-        if alien_dc.can_process_operation(&op) {
-            alien_dc.get_alien(op, key).await
+        if self.alien_disk_controller.can_process_operation(&op) {
+            self.alien_disk_controller.get_alien(op, key).await
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -136,9 +128,8 @@ impl BackendStorage for Pearl {
     }
 
     async fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
-        let alien_dc = self.alien_disk_controller.read().await;
-        if alien_dc.can_process_operation(&operation) {
-            alien_dc.exist(operation, &keys).await
+        if self.alien_disk_controller.can_process_operation(&operation) {
+            self.alien_disk_controller.exist(operation, &keys).await
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -153,7 +144,7 @@ impl BackendStorage for Pearl {
         }
         let _ = futures.collect::<()>().await;
         // TODO: process alien disk with other ones
-        self.alien_disk_controller.read().await.shutdown().await;
+        self.alien_disk_controller.shutdown().await;
         info!("shutting down done");
     }
 
@@ -162,7 +153,7 @@ impl BackendStorage for Pearl {
         for dc in self.disk_controllers.iter() {
             cnt += dc.blobs_count().await
         }
-        let alien_cnt = self.alien_disk_controller.read().await.blobs_count().await;
+        let alien_cnt = self.alien_disk_controller.blobs_count().await;
         (cnt, alien_cnt)
     }
 
@@ -171,7 +162,7 @@ impl BackendStorage for Pearl {
         for dc in self.disk_controllers.iter() {
             cnt += dc.index_memory().await
         }
-        cnt += self.alien_disk_controller.read().await.index_memory().await;
+        cnt += self.alien_disk_controller.index_memory().await;
         cnt
     }
 }
