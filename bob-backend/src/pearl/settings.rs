@@ -1,20 +1,7 @@
-use crate::core::Operation;
+use crate::prelude::*;
 
 use super::{core::BackendResult, group::Group, stuff::Stuff};
-use bob_common::{
-    configs::node::{Node as NodeConfig, Pearl as PearlConfig},
-    data::{BobData, VDiskID},
-    error::Error,
-    mapper::Virtual,
-};
-use std::{
-    fs::{read_dir, DirEntry, Metadata},
-    io::Result as IOResult,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
-use tokio::sync::Semaphore;
+use crate::core::Operation;
 
 #[derive(Debug)]
 pub struct Settings {
@@ -177,13 +164,13 @@ impl Settings {
         }
     }
 
-    fn try_parse_vdisk_id(&self, entry: DirEntry) -> BackendResult<(DirEntry, VDiskID)> {
+    fn try_parse_vdisk_id(&self, entry: DirEntry) -> BackendResult<(DirEntry, VDiskId)> {
         let file_name = entry.file_name().into_string().map_err(|_| {
             let msg = format!("cannot parse file name: {:?}", entry);
             error!("{}", msg);
             Error::failed(msg)
         })?;
-        let vdisk_id: VDiskID = file_name.parse().map_err(|_| {
+        let vdisk_id: VDiskId = file_name.parse().map_err(|_| {
             let msg = format!("cannot parse file name: {:?}", entry);
             error!("{}", msg);
             Error::failed(msg)
@@ -217,13 +204,13 @@ impl Settings {
         }
     }
 
-    fn normal_path(&self, disk_path: &str, vdisk_id: VDiskID) -> PathBuf {
+    fn normal_path(&self, disk_path: &str, vdisk_id: VDiskId) -> PathBuf {
         let mut vdisk_path = PathBuf::from(format!("{}/{}/", disk_path, self.bob_prefix_path));
         vdisk_path.push(format!("{}/", vdisk_id));
         vdisk_path
     }
 
-    fn alien_path(&self, vdisk_id: VDiskID, node_name: &str) -> PathBuf {
+    fn alien_path(&self, vdisk_id: VDiskId, node_name: &str) -> PathBuf {
         let mut vdisk_path = self.alien_folder.clone();
         vdisk_path.push(format!("{}/{}/", node_name, vdisk_id));
         vdisk_path

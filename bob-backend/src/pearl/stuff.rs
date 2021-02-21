@@ -1,17 +1,11 @@
-use super::core::BackendResult;
-use bob_common::error::Error;
-use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
-use std::{
-    convert::TryInto,
-    fs::{create_dir_all, remove_dir_all, remove_file},
-    path::Path,
-    time::{Duration, SystemTime},
-};
+use crate::prelude::*;
 
-pub(crate) struct Stuff;
+use super::core::BackendResult;
+
+pub struct Stuff;
 
 impl Stuff {
-    pub(crate) fn check_or_create_directory(path: &Path) -> BackendResult<()> {
+    pub fn check_or_create_directory(path: &Path) -> BackendResult<()> {
         if path.exists() {
             trace!("directory: {:?} exists", path);
             Ok(())
@@ -32,7 +26,7 @@ impl Stuff {
         }
     }
 
-    pub(crate) fn drop_pearl_lock_file(path: &Path) -> BackendResult<()> {
+    pub fn drop_pearl_lock_file(path: &Path) -> BackendResult<()> {
         let mut file = path.to_owned();
         file.push("pearl.lock");
         if file.exists() {
@@ -49,13 +43,13 @@ impl Stuff {
         }
     }
 
-    pub(crate) fn drop_directory(path: &Path) -> BackendResult<()> {
+    pub fn drop_directory(path: &Path) -> BackendResult<()> {
         remove_dir_all(path)
             .map(|_| debug!("deleted directory {:?}", path))
             .map_err(|e| Error::storage(format!("error deleting directory {:?}, {}", path, e)))
     }
 
-    pub(crate) fn get_start_timestamp_by_std_time(period: Duration, time: SystemTime) -> u64 {
+    pub fn get_start_timestamp_by_std_time(period: Duration, time: SystemTime) -> u64 {
         ChronoDuration::from_std(period)
             .map(|period| Self::get_start_timestamp(period, DateTime::from(time)))
             .map_err(|e| {
@@ -65,7 +59,7 @@ impl Stuff {
     }
 
     // @TODO remove cast as u64
-    pub(crate) fn get_start_timestamp_by_timestamp(period: Duration, time: u64) -> u64 {
+    pub fn get_start_timestamp_by_timestamp(period: Duration, time: u64) -> u64 {
         ChronoDuration::from_std(period)
             .map_err(|e| {
                 trace!("smth wrong with time: {:?}, error: {}", period, e);

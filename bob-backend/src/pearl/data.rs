@@ -1,9 +1,4 @@
-use bob_common::{
-    data::{BobData, BobMeta},
-    error::Error,
-};
-use pearl::Key as KeyTrait;
-use std::convert::TryInto;
+use crate::prelude::*;
 
 #[derive(Clone, Debug)]
 pub struct Key(Vec<u8>);

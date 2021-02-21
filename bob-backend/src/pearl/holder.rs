@@ -1,3 +1,5 @@
+use crate::prelude::*;
+
 use super::{
     core::{BackendResult, PearlStorage},
     data::{Data, Key},
@@ -7,19 +9,6 @@ use super::{
     },
     stuff::Stuff,
 };
-use anyhow::{Context, Result as AnyResult};
-use bob_common::{
-    configs::node::Pearl as PearlConfig,
-    data::{BobData, BobKey, VDiskID},
-    error::Error,
-};
-use pearl::{filter::Config as BloomConfig, rio, Builder, Error as PearlError, ErrorKind, Storage};
-use std::{
-    path::PathBuf,
-    sync::Arc,
-    time::{Instant, SystemTime, UNIX_EPOCH},
-};
-use tokio::sync::{RwLock, Semaphore};
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
@@ -29,7 +18,7 @@ const SMALL_RECORDS_COUNT_MUL: u64 = 10;
 pub struct Holder {
     start_timestamp: u64,
     end_timestamp: u64,
-    vdisk: VDiskID,
+    vdisk: VDiskId,
     disk_path: PathBuf,
     config: PearlConfig,
     storage: Arc<RwLock<PearlSync>>,
@@ -41,7 +30,7 @@ impl Holder {
     pub fn new(
         start_timestamp: u64,
         end_timestamp: u64,
-        vdisk: VDiskID,
+        vdisk: VDiskId,
         disk_path: PathBuf,
         config: PearlConfig,
         dump_sem: Arc<Semaphore>,

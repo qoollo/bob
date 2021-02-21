@@ -1,35 +1,23 @@
+use crate::prelude::*;
+
 use crate::{
     mem_backend::MemBackend,
-    pearl::{core::Pearl, group::Group, holder::Holder},
+    pearl::{Group, Holder, Pearl},
     stub_backend::StubBackend,
 };
-use anyhow::Result as AnyResult;
-use bob_common::{
-    configs::node::{BackendType, Node as NodeConfig},
-    data::{BobData, BobKey, BobOptions, DiskPath, VDiskID},
-    error::Error,
-    mapper::Virtual,
-    metrics::BACKEND_STATE,
-};
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Formatter, Result as FmtResult},
-    sync::Arc,
-};
-use stopwatch::Stopwatch;
 
 const BACKEND_STARTING: i64 = 0;
 const BACKEND_STARTED: i64 = 1;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Operation {
-    vdisk_id: VDiskID,
+    vdisk_id: VDiskId,
     disk_path: Option<DiskPath>,
     remote_node_name: Option<String>, // save data to alien/<remote_node_name>
 }
 
 impl Operation {
-    pub fn vdisk_id(&self) -> VDiskID {
+    pub fn vdisk_id(&self) -> VDiskId {
         self.vdisk_id
     }
 
@@ -50,7 +38,7 @@ impl Debug for Operation {
 }
 
 impl Operation {
-    pub fn new_alien(vdisk_id: VDiskID) -> Self {
+    pub fn new_alien(vdisk_id: VDiskId) -> Self {
         Self {
             vdisk_id,
             disk_path: None,
@@ -58,7 +46,7 @@ impl Operation {
         }
     }
 
-    pub fn new_local(vdisk_id: VDiskID, path: DiskPath) -> Self {
+    pub fn new_local(vdisk_id: VDiskId, path: DiskPath) -> Self {
         Self {
             vdisk_id,
             disk_path: Some(path),

@@ -1,8 +1,9 @@
+use crate::prelude::*;
+
 use crate::{
     core::{BackendStorage, Operation},
     mem_backend::{MemBackend, MemDisk},
 };
-use bob_common::data::{BobData, BobMeta, DiskPath};
 
 const VDISKS_COUNT: u32 = 10;
 

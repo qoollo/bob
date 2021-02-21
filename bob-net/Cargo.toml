@@ -1,5 +1,5 @@
 [package]
-name = "bob"
+name = "bob-net"
 version = "1.5.1-alpha.4"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"

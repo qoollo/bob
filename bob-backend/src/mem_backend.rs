@@ -1,12 +1,6 @@
+use crate::prelude::*;
+
 use crate::core::{BackendStorage, Operation};
-use anyhow::Result as AnyResult;
-use bob_common::{
-    data::{BobData, BobKey, DiskPath, VDiskID},
-    error::Error,
-    mapper::Virtual,
-};
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
-use tokio::sync::RwLock;
 
 #[derive(Clone, Debug, Default)]
 pub struct VDisk {
@@ -40,7 +34,7 @@ impl VDisk {
 #[derive(Clone, Debug)]
 pub struct MemDisk {
     pub name: String,
-    pub vdisks: HashMap<VDiskID, VDisk>,
+    pub vdisks: HashMap<VDiskId, VDisk>,
 }
 
 impl MemDisk {
@@ -58,7 +52,7 @@ impl MemDisk {
         Self { name, vdisks }
     }
 
-    pub async fn get(&self, vdisk_id: VDiskID, key: BobKey) -> Result<BobData, Error> {
+    pub async fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Result<BobData, Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             debug!("GET[{}] from: {} for disk: {}", key, vdisk_id, self.name);
             debug!("{:?}", *vdisk.inner.read().await);
@@ -69,7 +63,7 @@ impl MemDisk {
         }
     }
 
-    pub async fn put(&self, vdisk_id: VDiskID, key: BobKey, data: BobData) -> Result<(), Error> {
+    pub async fn put(&self, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Result<(), Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             debug!("PUT[{}] to vdisk: {} for: {}", key, vdisk_id, self.name);
             vdisk.put(key, data).await
@@ -79,7 +73,7 @@ impl MemDisk {
         }
     }
 
-    pub async fn exist(&self, vdisk_id: VDiskID, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
+    pub async fn exist(&self, vdisk_id: VDiskId, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             trace!("EXIST from vdisk: {} for disk: {}", vdisk_id, self.name);
             vdisk.exist(keys).await

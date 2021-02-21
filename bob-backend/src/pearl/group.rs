@@ -1,26 +1,18 @@
-use super::{core::BackendResult, holder::Holder, settings::Settings, stuff::Stuff};
-use crate::core::Operation;
-use anyhow::{Context, Result as AnyResult};
-use bob_common::{
-    data::{BobData, BobKey, VDiskID},
-    error::Error,
+use crate::prelude::*;
+
+use super::Holder;
+use crate::{
+    core::Operation,
+    pearl::{core::BackendResult, settings::Settings, stuff::Stuff},
 };
-use futures::TryFutureExt;
 use ring::digest::{digest, SHA256};
-use std::{
-    collections::HashMap,
-    fmt::{Display, Formatter, Result as FmtResult},
-    path::PathBuf,
-    sync::Arc,
-};
-use tokio::sync::{RwLock, Semaphore};
 
 #[derive(Clone, Debug)]
 pub struct Group {
     holders: Arc<RwLock<Vec<Holder>>>,
     settings: Arc<Settings>,
     directory_path: PathBuf,
-    vdisk_id: VDiskID,
+    vdisk_id: VDiskId,
     node_name: String,
     disk_name: String,
     owner_node_name: String,
@@ -31,7 +23,7 @@ pub struct Group {
 impl Group {
     pub fn new(
         settings: Arc<Settings>,
-        vdisk_id: VDiskID,
+        vdisk_id: VDiskId,
         node_name: String,
         disk_name: String,
         directory_path: PathBuf,

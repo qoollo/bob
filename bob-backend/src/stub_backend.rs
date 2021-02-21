@@ -1,10 +1,6 @@
+use crate::prelude::*;
+
 use crate::core::{BackendStorage, Operation};
-use anyhow::Result as AnyResult;
-use bob_common::{
-    data::{BobData, BobKey, BobMeta},
-    error::Error,
-};
-use std::fmt::Debug;
 
 #[derive(Clone, Debug)]
 pub struct StubBackend {}
