@@ -12,7 +12,7 @@ extern crate bitflags;
 extern crate serde_derive;
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate cfg_if;
+// #[macro_use]
+// extern crate cfg_if;
 #[macro_use]
 extern crate metrics as lib_metrics;

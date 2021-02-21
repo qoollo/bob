@@ -207,13 +207,13 @@ use std::{
     time::Duration,
 };
 
-cfg_if! {
-    if #[cfg(test)] {
-        pub use self::b_client::MockBobClient as BobClient;
-    } else {
-        pub use self::b_client::BobClient;
-    }
-}
+// cfg_if! {
+//     if #[cfg(test)] {
+//         pub use self::b_client::MockBobClient as BobClient;
+// } else {
+pub use self::b_client::BobClient;
+//     }
+// }
 
 pub type PutResult = Result<NodeOutput<()>, NodeOutput<Error>>;
 
