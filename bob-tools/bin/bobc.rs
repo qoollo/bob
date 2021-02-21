@@ -1,8 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use bob::grpc::bob_api_client::BobApiClient;
-use bob::grpc::{Blob, BlobKey, BlobMeta, GetRequest, PutRequest};
+use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use http::Uri;
 use log::LevelFilter;
@@ -76,7 +75,7 @@ async fn get(key: u64) {
     match res {
         Ok(res) => {
             let res: tonic::Response<_> = res;
-            let data: &bob::grpc::Blob = res.get_ref();
+            let data: &Blob = res.get_ref();
             info!("OK");
             info!("response meta: {:?})", res.metadata());
             info!("data len: {}, meta: {:?}", data.data.len(), data.meta);

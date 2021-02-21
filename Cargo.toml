@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "bob-net",
+    "bob",
     "bob-backend",
     "bob-common",
     "bob-tools",

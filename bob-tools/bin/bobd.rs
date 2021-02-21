@@ -1,10 +1,4 @@
-use bob::client::Factory;
-use bob::configs::cluster::Cluster as ClusterConfig;
-use bob::grinder::Grinder;
-use bob::grpc::bob_api_server::BobApiServer;
-use bob::mapper::Virtual;
-use bob::metrics;
-use bob::server::Server as BobServer;
+use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper};
 use clap::{App, Arg};
 use std::net::ToSocketAddrs;
 use tonic::transport::Server;
@@ -77,22 +71,21 @@ async fn main() {
 
     log4rs::init_file(node.log_config(), Default::default()).unwrap();
 
-    let mut mapper = Virtual::new(&node, &cluster).await;
+    let mut mapper = VirtualMapper::new(&node, &cluster).await;
     let mut addr = node.bind().to_socket_addrs().unwrap().next().unwrap();
 
     let node_name = matches.value_of("name");
-    if node_name.is_some() {
-        let name = node_name.unwrap();
+    if let Some(name) = node_name {
         let finded = cluster
             .nodes()
             .iter()
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
-        mapper = Virtual::new(&node, &cluster).await;
+        mapper = VirtualMapper::new(&node, &cluster).await;
         addr = finded.address().to_socket_addrs().unwrap().next().unwrap();
     }
 
-    let metrics = metrics::init_counters(&node, &addr.to_string());
+    let metrics = init_counters(&node, &addr.to_string());
 
     let bob = BobServer::new(Grinder::new(mapper, &node));
 
@@ -133,7 +126,7 @@ fn spawn_signal_handler(
     s: tokio::signal::unix::SignalKind,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use tokio::signal::unix::signal;
-    let mut task = signal(s.clone())?;
+    let mut task = signal(s)?;
     let server = server.clone();
     tokio::spawn(async move {
         task.recv().await;

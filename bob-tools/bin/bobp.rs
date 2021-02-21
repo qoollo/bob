@@ -1,3 +1,8 @@
+use bob::{
+    Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetOptions, GetRequest, GetSource,
+    PutOptions, PutRequest,
+};
+
 use clap::{App, Arg, ArgMatches};
 use std::collections::HashMap;
 use std::error::Error;

@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use bob::configs::cluster::{Cluster as ClusterConfig, Node as ClusterNode, Replica, VDisk};
+use bob::{ClusterConfig, ClusterNodeConfig, ReplicaConfig, VDiskConfig};
 use chrono::Local;
 use clap::{App, Arg, ArgMatches};
 use env_logger::fmt::Color;
@@ -117,7 +117,7 @@ fn generate_config(input: ClusterConfig) -> Option<ClusterConfig> {
     Some(res)
 }
 
-fn get_used_nodes_names(replicas: &[Replica]) -> Vec<String> {
+fn get_used_nodes_names(replicas: &[ReplicaConfig]) -> Vec<String> {
     replicas.iter().map(|r| r.node().to_string()).collect()
 }
 
@@ -160,16 +160,16 @@ impl Center {
         Some(rack)
     }
 
-    fn create_vdisk(&self, id: u32, replicas_count: usize) -> VDisk {
-        let mut vdisk = VDisk::new(id);
+    fn create_vdisk(&self, id: u32, replicas_count: usize) -> VDiskConfig {
+        let mut vdisk = VDiskConfig::new(id);
         let (node, disk) = self.next_disk().expect("no disks in setup");
-        vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
+        vdisk.push_replica(ReplicaConfig::new(node.name.clone(), disk.name.clone()));
 
         while vdisk.replicas().len() < replicas_count {
             let rack = self.next_rack().expect("no racks in setup");
             let banned_nodes = get_used_nodes_names(vdisk.replicas());
             let (node, disk) = rack.next_disk(&banned_nodes).expect("no disks in setup");
-            vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
+            vdisk.push_replica(ReplicaConfig::new(node.name.clone(), disk.name.clone()));
             debug!("replica added: {} {}", node.name, disk.name);
         }
         vdisk
@@ -326,7 +326,7 @@ fn get_replicas_count() -> Option<usize> {
         .ok()
 }
 
-fn get_vdisks_count(nodes: &[ClusterNode]) -> Option<usize> {
+fn get_vdisks_count(nodes: &[ClusterNodeConfig]) -> Option<usize> {
     let matches = get_matches();
     matches.value_of("vdisks_count").map_or_else(
         || {
@@ -342,7 +342,7 @@ fn get_vdisks_count(nodes: &[ClusterNode]) -> Option<usize> {
     )
 }
 
-fn get_pairs_count(nodes: &[ClusterNode]) -> usize {
+fn get_pairs_count(nodes: &[ClusterNodeConfig]) -> usize {
     nodes.iter().fold(0, |acc, n| acc + n.disks().len())
 }
 

@@ -21,6 +21,21 @@ extern crate metrics;
 pub mod api;
 pub mod core;
 
+pub use crate::core::{grinder::Grinder, server::Server as BobServer};
+pub use bob_common::{
+    bob_client::Factory,
+    configs::cluster::{
+        Cluster as ClusterConfig, Node as ClusterNodeConfig, Replica as ReplicaConfig,
+        VDisk as VDiskConfig,
+    },
+    mapper::Virtual as VirtualMapper,
+    metrics::init_counters,
+};
+pub use bob_grpc::{
+    bob_api_client::BobApiClient, bob_api_server::BobApiServer, Blob, BlobKey, BlobMeta,
+    ExistRequest, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
+};
+
 mod prelude {
     pub use anyhow::Result;
     pub use bob_backend::core::{Backend, Operation};
