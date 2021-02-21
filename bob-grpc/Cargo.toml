@@ -5,49 +5,22 @@ authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qooll
 edition = "2018"
 
 [dependencies]
-anyhow = "1.0.38"
 http = "0.2.3"
-futures = { version = "0.3.12", features = ["thread-pool"] }
-serde = "1.0"
-serde_derive = "1.0"
-serde_yaml = "0.8"
 log = "0.4"
-log4rs = "1.0.0"
-clap = "2.33"
-bitflags = "1.2.1"
 prost = "0.7.0"
 bytes = "1.0.1"
-stopwatch = "0.0.7"
 hyper = "0.14.2"
-humantime = "2.1.0"
-chrono = "0.4"
-mockall = "0.9.0"
 cfg-if = "1.0"
-env_logger = "0.8"
 tonic = { version = "0.4.0", features = ["prost"] }
 tower = "0.4.3"
-tower-make = "0.3.0"
 tower-service = "0.3.0"
-tower-balance = "0.3.0"
-tower-load = "0.3.0"
-rocket = "0.4.6"
-rocket_contrib = "0.4.6"
 async-trait = "0.1"
-termion = "1.5"
-ring = "0.16.19"
-derive-new = "0.5.8"
-ctrlc = "3.1"
 lazy_static = "1.4.0"
-thiserror = "1.0"
-metrics = { version = "0.12.1", features = ["std"] }
 #metrics = "0.12.1"
 
 [dependencies.tokio]
 version = "1.0.2"
 features = ["full"]
-
-[dependencies.pearl]
-version = "0.5.7"
 
 [build-dependencies]
 tonic-build = "0.4.0"
