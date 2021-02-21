@@ -38,16 +38,13 @@ impl Settings {
     pub(crate) fn read_group_from_disk(
         self: Arc<Self>,
         config: &NodeConfig,
-    ) -> Vec<DiskController> {
+    ) -> Vec<Arc<DiskController>> {
         self.mapper
             .local_disks()
             .iter()
             .map(|disk| {
                 let vdisks = self.mapper.get_vdisks_by_disk(disk.name());
-                let mut dc =
-                    DiskController::new(disk.to_owned(), vdisks, config, self.clone(), false);
-                dc.init().expect("normal disk doesn't panic");
-                dc
+                DiskController::new(disk.to_owned(), vdisks, config, self.clone(), false)
             })
             .collect()
     }
@@ -55,7 +52,7 @@ impl Settings {
     pub(crate) fn read_alien_directory(
         self: Arc<Self>,
         config: &NodeConfig,
-    ) -> BackendResult<DiskController> {
+    ) -> BackendResult<Arc<DiskController>> {
         let disk_name = config
             .pearl()
             .alien_disk()
@@ -68,8 +65,7 @@ impl Settings {
                 .into_string()
                 .expect("Path is not utf8 encoded"),
         );
-        let mut dc = DiskController::new(alien_disk, Vec::new(), config, self.clone(), true);
-        dc.init()?;
+        let dc = DiskController::new(alien_disk, Vec::new(), config, self.clone(), true);
         Ok(dc)
     }
 

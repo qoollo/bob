@@ -6,7 +6,7 @@ pub(crate) type PearlStorage = Storage<Key>;
 #[derive(Clone, Debug)]
 pub(crate) struct Pearl {
     settings: Arc<Settings>,
-    disk_controllers: Arc<[DiskController]>,
+    disk_controllers: Arc<[Arc<DiskController>]>,
     alien_disk_controller: Arc<DiskController>,
     node_name: String,
     init_par_degree: usize,
@@ -18,15 +18,13 @@ impl Pearl {
         let settings = Arc::new(Settings::new(config, mapper));
 
         let data = settings.clone().read_group_from_disk(config);
-        let disk_controllers: Arc<[DiskController]> = Arc::from(data.as_slice());
+        let disk_controllers: Arc<[Arc<DiskController>]> = Arc::from(data.as_slice());
         trace!("count vdisk groups: {}", disk_controllers.len());
 
-        let alien_disk_controller = Arc::new(
-            settings
-                .clone()
-                .read_alien_directory(config)
-                .expect("vec of pearl groups"),
-        );
+        let alien_disk_controller = settings
+            .clone()
+            .read_alien_directory(config)
+            .expect("vec of pearl groups");
 
         Self {
             settings,
@@ -42,11 +40,18 @@ impl Pearl {
 impl BackendStorage for Pearl {
     async fn run_backend(&self) -> Result<()> {
         use futures::stream::futures_unordered::FuturesUnordered;
+        use std::iter::once;
 
         // vec![vec![]; n] macro requires Clone trait, and future does not implement it
         let start = Instant::now();
         let mut par_buckets: Vec<Vec<_>> = (0..self.init_par_degree).map(|_| vec![]).collect();
-        for (ind, dc) in self.disk_controllers.iter().cloned().enumerate() {
+        for (ind, dc) in self
+            .disk_controllers
+            .iter()
+            .chain(once(&self.alien_disk_controller))
+            .cloned()
+            .enumerate()
+        {
             let buck = ind % self.init_par_degree;
             par_buckets[buck].push(async move { dc.run().await });
         }
@@ -60,8 +65,6 @@ impl BackendStorage for Pearl {
             });
         }
         futs.fold(Ok(()), |s, n| async move { s.and(n) }).await?;
-        // TODO: add this future to futs
-        self.alien_disk_controller.run().await?;
         let dur = std::time::Instant::now() - start;
         debug!("pearl backend init took {:?}", dur);
         Ok(())
