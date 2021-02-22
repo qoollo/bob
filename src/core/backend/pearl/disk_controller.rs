@@ -226,6 +226,7 @@ impl DiskController {
                 }
                 Err(e)
             } else {
+                *self.state.write().await = GroupsState::Ready;
                 info!("All groups are running on disk: {:?}", self.disk);
                 Ok(())
             }

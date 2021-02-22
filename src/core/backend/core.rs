@@ -221,6 +221,7 @@ impl Backend {
                         local_err
                     );
                     // write to alien/<local name>
+                    // FIXME: panics when disk is unavailable
                     let mut op = operation.clone_alien();
                     op.set_remote_folder(self.mapper.local_node_name().to_owned());
                     self.inner
