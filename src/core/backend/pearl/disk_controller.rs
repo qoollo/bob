@@ -1,5 +1,5 @@
 use super::prelude::*;
-use tokio::time::interval;
+use tokio::time::{interval, Interval};
 
 const CHECK_INTERVAL: Duration = Duration::from_millis(5000);
 
@@ -20,7 +20,6 @@ pub(crate) struct DiskController {
     vdisks: Vec<VDiskID>,
     init_par_degree: usize,
     node_name: String,
-    // groups may change (and disk controller is responsible for that)
     groups: Arc<RwLock<Vec<Group>>>,
     state: Arc<RwLock<GroupsState>>,
     settings: Arc<Settings>,
@@ -58,34 +57,46 @@ impl DiskController {
 
     async fn try_from_scratch(&self) -> Result<()> {
         self.init().await?;
-        *self.state.write().await = GroupsState::Initialized;
-        self.try_run().await
+        self.run().await
     }
 
-    async fn try_run(&self) -> Result<()> {
-        self.run().await?;
-        *self.state.write().await = GroupsState::Ready;
-        Ok(())
+    async fn monitor_wait(state: Arc<RwLock<GroupsState>>, check_interval: &mut Interval) {
+        while *state.read().await != GroupsState::Ready {
+            check_interval.tick().await;
+        }
     }
 
     async fn monitor_task(self: Arc<Self>) {
         let mut check_interval = interval(CHECK_INTERVAL);
+        Self::monitor_wait(self.state.clone(), &mut check_interval).await;
         loop {
             check_interval.tick().await;
             if !Self::is_work_dir_available(self.disk.path()) {
                 error!("Disk is unavailable: {:?}", self.disk);
-                *self.state.write().await = GroupsState::NotReady;
+                let state = self.state.read().await.clone();
+                if state == GroupsState::Initialized || state == GroupsState::Ready {
+                    *self.state.write().await = GroupsState::NotReady;
+                    // if disk is broken (either are indices in groups) we should drop groups, because
+                    // otherwise we'll hold broken indices (for active blob of broken disk) in RAM
+                    *self.groups.write().await = Vec::new();
+                }
             } else {
                 let state = self.state.read().await.clone();
                 match state {
                     GroupsState::NotReady => {
                         if let Err(e) = self.try_from_scratch().await {
-                            warn!("Work dir is available, but initialization from scratch is failed: {}", e);
+                            warn!(
+                                "Work dir is available, but init from scratch is failed: {} ({:?})",
+                                e, self.disk
+                            );
                         }
                     }
                     GroupsState::Initialized => {
-                        if let Err(e) = self.try_run().await {
-                            warn!("Work dir is available, but failed to run groups: {}", e);
+                        if let Err(e) = self.run().await {
+                            warn!(
+                                "Work dir is available, but failed to run groups: {} ({:?})",
+                                e, self.disk
+                            );
                         }
                     }
                     GroupsState::Ready => {
@@ -168,6 +179,7 @@ impl DiskController {
 
     async fn get_or_create_pearl(&self, operation: &Operation) -> BackendResult<Group> {
         trace!("try get alien pearl, operation {:?}", operation);
+        // block for read lock: it should be dropped before write lock is acquired (otherwise - deadlock)
         {
             let read_lock_groups = self.groups.read().await;
             let pearl = Self::find_in_groups(read_lock_groups.iter(), operation);
@@ -199,9 +211,11 @@ impl DiskController {
     }
 
     pub(crate) async fn run(&self) -> Result<()> {
-        Self::run_groups(self.groups.clone()).await?;
-        *self.state.write().await = GroupsState::Ready;
-        info!("All groups are sucessfully on disk: {:?}", self.disk);
+        Self::run_groups(self.groups.clone()).await.map_err(|e| {
+            error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
+            e
+        })?;
+        info!("All groups are running on disk: {:?}", self.disk);
         Ok(())
     }
 
@@ -215,7 +229,8 @@ impl DiskController {
             let vdisk_group = self.get_or_create_pearl(&op).await;
             match vdisk_group {
                 Ok(group) => {
-                    // TODO: check if pearl WorkDirUnavailable error occured and change state
+                    // TODO: check if pearl WorkDirUnavailable error occured (this error is not
+                    // available in current release of pearl) and change state
                     let res = group.put(key, data.clone()).await;
                     res.map_err(|e| Error::failed(format!("{:#?}", e)))
                 }
@@ -330,7 +345,6 @@ impl DiskController {
     }
 
     pub(crate) async fn shutdown(&self) {
-        // TODO: work somehow according to the state
         let futures = FuturesUnordered::new();
         for group in self.groups.read().await.iter() {
             let holders = group.holders();
@@ -353,28 +367,34 @@ impl DiskController {
     }
 
     pub(crate) async fn blobs_count(&self) -> usize {
-        // TODO: work somehow according to the state
-        let mut cnt = 0;
-        for group in self.groups.read().await.iter() {
-            let holders_guard = group.holders();
-            let holders = holders_guard.read().await;
-            for holder in holders.iter() {
-                cnt += holder.blobs_count().await;
+        if *self.state.read().await == GroupsState::Ready {
+            let mut cnt = 0;
+            for group in self.groups.read().await.iter() {
+                let holders_guard = group.holders();
+                let holders = holders_guard.read().await;
+                for holder in holders.iter() {
+                    cnt += holder.blobs_count().await;
+                }
             }
+            cnt
+        } else {
+            0
         }
-        cnt
     }
 
     pub(crate) async fn index_memory(&self) -> usize {
-        // TODO: work somehow according to the state
-        let mut cnt = 0;
-        for group in self.groups.read().await.iter() {
-            let holders_guard = group.holders();
-            let holders = holders_guard.read().await;
-            for holder in holders.iter() {
-                cnt += holder.index_memory().await;
+        if *self.state.read().await == GroupsState::Ready {
+            let mut cnt = 0;
+            for group in self.groups.read().await.iter() {
+                let holders_guard = group.holders();
+                let holders = holders_guard.read().await;
+                for holder in holders.iter() {
+                    cnt += holder.index_memory().await;
+                }
             }
+            cnt
+        } else {
+            0
         }
-        cnt
     }
 }
