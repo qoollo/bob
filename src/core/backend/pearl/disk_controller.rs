@@ -116,10 +116,14 @@ impl DiskController {
     }
 
     pub(crate) async fn init(&self) -> BackendResult<()> {
-        let groups = self.get_groups()?;
-        *self.groups.write().await = groups;
-        *self.state.write().await = GroupsState::Initialized;
-        Ok(())
+        if *self.state.read().await == GroupsState::NotReady {
+            let groups = self.get_groups()?;
+            *self.groups.write().await = groups;
+            *self.state.write().await = GroupsState::Initialized;
+            Ok(())
+        } else {
+            Err(Error::internal().into())
+        }
     }
 
     fn get_groups(&self) -> BackendResult<Vec<Group>> {
@@ -211,12 +215,23 @@ impl DiskController {
     }
 
     pub(crate) async fn run(&self) -> Result<()> {
-        Self::run_groups(self.groups.clone()).await.map_err(|e| {
-            error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
-            e
-        })?;
-        info!("All groups are running on disk: {:?}", self.disk);
-        Ok(())
+        if *self.state.read().await == GroupsState::Initialized {
+            if let Err(e) = Self::run_groups(self.groups.clone()).await {
+                error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
+                // if work dir became unavailable we should reinit, so new state is NotReady
+                // otherwise - we'll try again
+                if !Self::is_work_dir_available(self.disk.path().clone()) {
+                    *self.state.write().await = GroupsState::NotReady;
+                    *self.groups.write().await = Vec::new();
+                }
+                Err(e)
+            } else {
+                info!("All groups are running on disk: {:?}", self.disk);
+                Ok(())
+            }
+        } else {
+            Err(Error::internal().into())
+        }
     }
 
     pub(crate) async fn put_alien(
