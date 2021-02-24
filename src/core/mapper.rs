@@ -5,6 +5,8 @@ pub type VDisksMap = HashMap<VDiskID, DataVDisk>;
 
 pub(crate) type NodesMap = HashMap<NodeID, Node>;
 
+type SemMap = HashMap<String, Arc<Semaphore>>;
+
 /// Struct for managing distribution of replicas on disks and nodes.
 /// Through the virtual intermediate object, called `VDisk` - "virtual disk"
 #[derive(Debug, Clone)]
@@ -15,6 +17,8 @@ pub struct Virtual {
     vdisks: VDisksMap,
     nodes: NodesMap,
     distribution_func: DistributionFunc,
+    disk_access_sems: Arc<RwLock<SemMap>>,
+    disk_access_par_degree: usize,
 }
 
 impl Virtual {
@@ -36,6 +40,8 @@ impl Virtual {
             vdisks,
             nodes,
             distribution_func: cluster.distribution_func(),
+            disk_access_sems: Arc::new(RwLock::new(SemMap::new())),
+            disk_access_par_degree: config.init_par_degree(),
         }
     }
 
@@ -97,6 +103,22 @@ impl Virtual {
 
     pub(crate) fn distribution_func(&self) -> DistributionFunc {
         self.distribution_func
+    }
+
+    pub(crate) async fn get_disk_access_sem(&self, disk_name: &str) -> Arc<Semaphore> {
+        {
+            let read = self.disk_access_sems.read().await;
+            if let Some(sem) = read.get(disk_name) {
+                return sem.clone();
+            }
+        }
+        let mut write = self.disk_access_sems.write().await;
+        if let Some(sem) = write.get(disk_name) {
+            return sem.clone();
+        }
+        let sem = Arc::new(Semaphore::new(self.disk_access_par_degree));
+        write.insert(disk_name.to_owned(), sem.clone());
+        sem
     }
 
     pub(crate) fn get_target_nodes_for_key(&self, key: BobKey) -> &[Node] {
