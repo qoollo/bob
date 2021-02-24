@@ -10,6 +10,7 @@ bob-backend = { version = "1.5.1-alpha.4", path = "../bob-backend" }
 bob-grpc = { version = "1.5.1-alpha.4", path = "../bob-grpc" }
 
 anyhow = "1.0.38"
+env_logger = "0.8"
 http = "0.2.3"
 futures = { version = "0.3.12", features = ["thread-pool"] }
 serde = "1.0"
