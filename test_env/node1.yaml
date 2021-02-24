@@ -3,6 +3,7 @@ name: node1
 quorum: 3
 operation_timeout: 3sec
 check_interval: 5000ms
+cleanup_interval: 5000ms
 cluster_policy: quorum
 backend_type: pearl
 
@@ -21,4 +22,6 @@ pearl:
 
 metrics:
   name: bob
+  # this prefix resolves to `bob.X_X_X_X.node1`, where X_X_X_X is local ip address
+  prefix: '{metrics_name}.{local_address}.{node_name}'
   graphite: 127.0.0.1:2003

@@ -7,7 +7,9 @@ mod reader;
 
 pub use self::cluster::{Cluster, Node as ClusterNode, Replica, VDisk, DistributionFunc};
 pub(crate) use self::node::BackendType;
-pub use self::node::{BackendSettings, MetricsConfig, Node, Pearl};
+pub use self::node::{
+    BackendSettings, MetricsConfig, Node, Pearl, LOCAL_ADDRESS, METRICS_NAME, NODE_NAME,
+};
 use super::prelude::*;
 
 mod prelude {

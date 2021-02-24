@@ -2,6 +2,12 @@ use super::prelude::*;
 
 const PLACEHOLDER: &str = "~";
 
+pub const LOCAL_ADDRESS: &str = "{local_address}";
+pub const NODE_NAME: &str = "{node_name}";
+pub const METRICS_NAME: &str = "{metrics_name}";
+
+const FIELD_PLACEHOLDER: &str = "_";
+
 /// Contains settings for pearl backend.
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
 pub struct BackendSettings {
@@ -100,17 +106,26 @@ impl BackendSettings {
 /// Contains params for graphite metrics.
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, new)]
 pub struct MetricsConfig {
-    name: String,
+    name: Option<String>,
     graphite: String,
+    prefix: Option<String>,
 }
 
 impl MetricsConfig {
+    pub(crate) fn prefix(&self) -> Option<&str> {
+        self.prefix.as_deref()
+    }
+
+    pub(crate) fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
     pub(crate) fn graphite(&self) -> &str {
         &self.graphite
     }
 
     fn check_unset(&self) -> Result<(), String> {
-        if self.name == PLACEHOLDER || self.graphite == PLACEHOLDER {
+        if self.graphite == PLACEHOLDER {
             let msg = "some of the fields present, but empty".to_string();
             error!("{}", msg);
             Err(msg)
@@ -118,16 +133,22 @@ impl MetricsConfig {
             Ok(())
         }
     }
-}
 
-impl Validatable for MetricsConfig {
-    fn validate(&self) -> Result<(), String> {
-        self.check_unset()?;
-        if self.name.is_empty() {
-            debug!("field 'name' for 'metrics config' is empty");
-            return Err("field 'name' for 'metrics config' is empty".to_string());
+    fn check_optional_fields(&self) -> Result<(), String> {
+        // Case, when field is set like `field: ''`
+        let optional_fields = [self.name.as_deref(), self.prefix.as_deref()];
+        if optional_fields
+            .iter()
+            .any(|field| field.map_or(false, str::is_empty))
+        {
+            debug!("one of optional fields for 'metrics config' is empty");
+            Err("one of optional fields for 'metrics config' is empty".to_string())
+        } else {
+            Ok(())
         }
+    }
 
+    fn check_graphite_addr(&self) -> Result<(), String> {
         if let Err(e) = self.graphite.parse::<SocketAddr>() {
             let msg = format!("field 'graphite': {} for 'metrics config' is invalid", e);
             error!("{}", msg);
@@ -135,6 +156,44 @@ impl Validatable for MetricsConfig {
         } else {
             Ok(())
         }
+    }
+
+    fn check_graphite_prefix(prefix: &str) -> Result<(), String> {
+        let invalid_char_predicate =
+            |c| !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || ("._".contains(c)));
+        if prefix.starts_with('.')
+            || prefix.ends_with('.')
+            || prefix.contains("..")
+            // check if there is '{', '}' or other invalid chars left
+            || prefix.find(invalid_char_predicate).is_some()
+        {
+            let msg = "Graphite 'prefix' is invalid".to_string();
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn check_prefix(&self) -> Result<(), String> {
+        self.prefix.as_ref().cloned().map_or(Ok(()), |pref| {
+            let mut prefix = [LOCAL_ADDRESS, NODE_NAME]
+                .iter()
+                .fold(pref, |acc, field| acc.replace(field, FIELD_PLACEHOLDER));
+            if self.name.is_some() {
+                prefix = prefix.replace(METRICS_NAME, FIELD_PLACEHOLDER);
+            }
+            Self::check_graphite_prefix(&prefix)
+        })
+    }
+}
+
+impl Validatable for MetricsConfig {
+    fn validate(&self) -> Result<(), String> {
+        self.check_unset()?;
+        self.check_optional_fields()?;
+        self.check_graphite_addr()?;
+        self.check_prefix()
     }
 }
 
