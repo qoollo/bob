@@ -18,7 +18,7 @@ enum GroupsState {
 pub(crate) struct DiskController {
     disk: DiskPath,
     vdisks: Vec<VDiskID>,
-    init_par_degree: usize,
+    dump_sem: Arc<Semaphore>,
     node_name: String,
     groups: Arc<RwLock<Vec<Group>>>,
     state: Arc<RwLock<GroupsState>>,
@@ -37,7 +37,7 @@ impl DiskController {
         let mut new_dc = Self {
             disk,
             vdisks,
-            init_par_degree: config.init_par_degree(),
+            dump_sem: Arc::new(Semaphore::new(config.init_par_degree())),
             node_name: config.name().to_owned(),
             groups: Arc::new(RwLock::new(Vec::new())),
             state: Arc::new(RwLock::new(GroupsState::NotReady)),
@@ -139,7 +139,6 @@ impl DiskController {
             .iter()
             .copied()
             .map(|vdisk_id| {
-                let dump_sem = Arc::new(Semaphore::new(self.init_par_degree));
                 let path = self.settings.normal_path(self.disk.path(), vdisk_id);
                 Group::new(
                     self.settings.clone(),
@@ -148,7 +147,7 @@ impl DiskController {
                     self.disk.name().to_owned(),
                     path,
                     self.node_name.clone(),
-                    dump_sem,
+                    self.dump_sem.clone(),
                 )
             })
             .collect()
@@ -200,7 +199,7 @@ impl DiskController {
 
         self.settings
             .clone()
-            .create_group(operation, &self.node_name)
+            .create_group(operation, &self.node_name, self.dump_sem.clone())
             .map(|g| {
                 write_lock_groups.push(g.clone());
                 g

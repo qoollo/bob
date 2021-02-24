@@ -109,6 +109,7 @@ impl Settings {
         self: Arc<Self>,
         operation: &Operation,
         node_name: &str,
+        dump_sem: Arc<Semaphore>,
     ) -> BackendResult<Group> {
         let remote_node_name = operation.remote_node_name().unwrap();
         let path = self.alien_path(operation.vdisk_id(), remote_node_name);
@@ -126,7 +127,7 @@ impl Settings {
             disk_name,
             path,
             node_name.to_owned(),
-            Arc::new(Semaphore::new(1)),
+            dump_sem,
         );
         Ok(group)
     }
