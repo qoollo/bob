@@ -39,7 +39,7 @@ impl DiskController {
         let mut new_dc = Self {
             disk,
             vdisks,
-            dump_sem: Arc::new(Semaphore::new(config.init_par_degree())),
+            dump_sem: Arc::new(Semaphore::new(config.disk_access_par_degree())),
             run_sem,
             node_name: config.name().to_owned(),
             groups: Arc::new(RwLock::new(Vec::new())),
@@ -160,7 +160,7 @@ impl DiskController {
         let groups = self
             .settings
             .clone()
-            .collect_alien_groups(self.disk.name().to_owned())?;
+            .collect_alien_groups(self.disk.name().to_owned(), self.dump_sem.clone())?;
         trace!(
             "count alien vdisk groups (start or recovery): {}",
             groups.len()
@@ -218,8 +218,11 @@ impl DiskController {
 
     pub(crate) async fn run(&self) -> Result<()> {
         if *self.state.read().await == GroupsState::Initialized {
-            let _permit = self.run_sem.acquire().await.expect("Semaphore is closed");
-            if let Err(e) = Self::run_groups(self.groups.clone()).await {
+            let res = {
+                let _permit = self.run_sem.acquire().await.expect("Semaphore is closed");
+                Self::run_groups(self.groups.clone()).await
+            };
+            if let Err(e) = res {
                 error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
                 // if work dir became unavailable we should reinit, so new state is NotReady
                 // otherwise - we'll try again

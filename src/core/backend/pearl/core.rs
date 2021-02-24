@@ -17,7 +17,7 @@ impl Pearl {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
 
-        let run_sem = Arc::new(Semaphore::new(config.max_init_tasks()));
+        let run_sem = Arc::new(Semaphore::new(config.init_par_degree()));
         let data = settings
             .clone()
             .read_group_from_disk(config, run_sem.clone());

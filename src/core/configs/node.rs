@@ -353,8 +353,8 @@ pub struct Node {
     open_blobs_hard_limit: Option<usize>,
     #[serde(default = "Node::default_init_par_degree")]
     init_par_degree: usize,
-    #[serde(default = "Node::default_max_init_tasks")]
-    max_init_tasks: usize,
+    #[serde(default = "Node::default_disk_access_par_degree")]
+    disk_access_par_degree: usize,
 }
 
 impl NodeConfig {
@@ -490,8 +490,8 @@ impl NodeConfig {
         self.init_par_degree
     }
 
-    pub(crate) fn max_init_tasks(&self) -> usize {
-        self.max_init_tasks
+    pub(crate) fn disk_access_par_degree(&self) -> usize {
+        self.disk_access_par_degree
     }
 
     #[cfg(test)]
@@ -530,7 +530,7 @@ impl NodeConfig {
         1
     }
 
-    fn default_max_init_tasks() -> usize {
+    fn default_disk_access_par_degree() -> usize {
         1
     }
 }
@@ -603,6 +603,7 @@ pub(crate) mod tests {
             open_blobs_soft_limit: None,
             open_blobs_hard_limit: None,
             init_par_degree: 1,
+            disk_access_par_degree: 1,
             count_interval: "10000ms".to_string(),
         }
     }

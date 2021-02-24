@@ -81,6 +81,7 @@ impl Settings {
     pub(crate) fn collect_alien_groups(
         self: Arc<Self>,
         disk_name: String,
+        dump_sem: Arc<Semaphore>,
     ) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
         let node_names = Self::get_all_subdirectories(&self.alien_folder)?;
@@ -98,7 +99,7 @@ impl Settings {
                                 disk_name.clone(),
                                 entry.path(),
                                 node_name.clone(),
-                                Arc::new(Semaphore::new(1)),
+                                dump_sem.clone(),
                             );
                             result.push(group);
                         } else {
