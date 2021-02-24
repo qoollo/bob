@@ -71,16 +71,7 @@ impl DiskController {
         Self::monitor_wait(self.state.clone(), &mut check_interval).await;
         loop {
             check_interval.tick().await;
-            if !Self::is_work_dir_available(self.disk.path()) {
-                error!("Disk is unavailable: {:?}", self.disk);
-                let state = self.state.read().await.clone();
-                if state == GroupsState::Initialized || state == GroupsState::Ready {
-                    *self.state.write().await = GroupsState::NotReady;
-                    // if disk is broken (either are indices in groups) we should drop groups, because
-                    // otherwise we'll hold broken indices (for active blob of broken disk) in RAM
-                    *self.groups.write().await = Vec::new();
-                }
-            } else {
+            if Self::is_work_dir_available(self.disk.path()) {
                 let state = self.state.read().await.clone();
                 match state {
                     GroupsState::NotReady => {
@@ -104,6 +95,15 @@ impl DiskController {
                         info!("Disk is available: {:?}", self.disk);
                     }
                 }
+            } else {
+                error!("Disk is unavailable: {:?}", self.disk);
+                let state = self.state.read().await.clone();
+                if state == GroupsState::Initialized || state == GroupsState::Ready {
+                    *self.state.write().await = GroupsState::NotReady;
+                    // if disk is broken (either are indices in groups) we should drop groups, because
+                    // otherwise we'll hold broken indices (for active blob of broken disk) in RAM
+                    *self.groups.write().await = Vec::new();
+                }
             }
         }
     }
@@ -122,7 +122,7 @@ impl DiskController {
             *self.state.write().await = GroupsState::Initialized;
             Ok(())
         } else {
-            Err(Error::internal().into())
+            Err(Error::internal())
         }
     }
 
@@ -148,7 +148,7 @@ impl DiskController {
                     self.disk.name().to_owned(),
                     path,
                     self.node_name.clone(),
-                    dump_sem.clone(),
+                    dump_sem,
                 )
             })
             .collect()
@@ -220,7 +220,7 @@ impl DiskController {
                 error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
                 // if work dir became unavailable we should reinit, so new state is NotReady
                 // otherwise - we'll try again
-                if !Self::is_work_dir_available(self.disk.path().clone()) {
+                if !Self::is_work_dir_available(self.disk.path()) {
                     *self.state.write().await = GroupsState::NotReady;
                     *self.groups.write().await = Vec::new();
                 }
@@ -379,7 +379,7 @@ impl DiskController {
                 });
             }
         }
-        let _ = futures.collect::<()>().await;
+        futures.collect::<()>().await;
     }
 
     pub(crate) async fn blobs_count(&self) -> usize {
