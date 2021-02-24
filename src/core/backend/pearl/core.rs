@@ -17,13 +17,16 @@ impl Pearl {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
 
-        let data = settings.clone().read_group_from_disk(config);
+        let run_sem = Arc::new(Semaphore::new(config.max_init_tasks()));
+        let data = settings
+            .clone()
+            .read_group_from_disk(config, run_sem.clone());
         let disk_controllers: Arc<[Arc<DiskController>]> = Arc::from(data.as_slice());
         trace!("count vdisk groups: {}", disk_controllers.len());
 
         let alien_disk_controller = settings
             .clone()
-            .read_alien_directory(config)
+            .read_alien_directory(config, run_sem)
             .expect("vec of pearl groups");
 
         Self {
@@ -44,25 +47,10 @@ impl BackendStorage for Pearl {
 
         // vec![vec![]; n] macro requires Clone trait, and future does not implement it
         let start = Instant::now();
-        let mut par_buckets: Vec<Vec<_>> = (0..self.init_par_degree).map(|_| vec![]).collect();
-        for (ind, dc) in self
-            .disk_controllers
-            .iter()
-            .chain(once(&self.alien_disk_controller))
-            .cloned()
-            .enumerate()
-        {
-            let buck = ind % self.init_par_degree;
-            par_buckets[buck].push(async move { dc.run().await });
-        }
         let futs = FuturesUnordered::new();
-        for futures in par_buckets {
-            futs.push(async move {
-                for f in futures {
-                    f.await?;
-                }
-                Ok::<(), anyhow::Error>(())
-            });
+        let alien_iter = once(&self.alien_disk_controller);
+        for dc in self.disk_controllers.iter().chain(alien_iter).cloned() {
+            futs.push(async move { dc.run().await })
         }
         futs.fold(Ok(()), |s, n| async move { s.and(n) }).await?;
         let dur = std::time::Instant::now() - start;

@@ -353,6 +353,8 @@ pub struct Node {
     open_blobs_hard_limit: Option<usize>,
     #[serde(default = "Node::default_init_par_degree")]
     init_par_degree: usize,
+    #[serde(default = "Node::default_max_init_tasks")]
+    max_init_tasks: usize,
 }
 
 impl NodeConfig {
@@ -488,6 +490,10 @@ impl NodeConfig {
         self.init_par_degree
     }
 
+    pub(crate) fn max_init_tasks(&self) -> usize {
+        self.max_init_tasks
+    }
+
     #[cfg(test)]
     pub(crate) fn get_from_string(
         file: &str,
@@ -521,6 +527,10 @@ impl NodeConfig {
     }
 
     fn default_init_par_degree() -> usize {
+        1
+    }
+
+    fn default_max_init_tasks() -> usize {
         1
     }
 }

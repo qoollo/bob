@@ -19,6 +19,7 @@ pub(crate) struct DiskController {
     disk: DiskPath,
     vdisks: Vec<VDiskID>,
     dump_sem: Arc<Semaphore>,
+    run_sem: Arc<Semaphore>,
     node_name: String,
     groups: Arc<RwLock<Vec<Group>>>,
     state: Arc<RwLock<GroupsState>>,
@@ -31,6 +32,7 @@ impl DiskController {
         disk: DiskPath,
         vdisks: Vec<VDiskID>,
         config: &NodeConfig,
+        run_sem: Arc<Semaphore>,
         settings: Arc<Settings>,
         is_alien: bool,
     ) -> Arc<Self> {
@@ -38,6 +40,7 @@ impl DiskController {
             disk,
             vdisks,
             dump_sem: Arc::new(Semaphore::new(config.init_par_degree())),
+            run_sem,
             node_name: config.name().to_owned(),
             groups: Arc::new(RwLock::new(Vec::new())),
             state: Arc::new(RwLock::new(GroupsState::NotReady)),
@@ -215,6 +218,7 @@ impl DiskController {
 
     pub(crate) async fn run(&self) -> Result<()> {
         if *self.state.read().await == GroupsState::Initialized {
+            let _permit = self.run_sem.acquire().await.expect("Semaphore is closed");
             if let Err(e) = Self::run_groups(self.groups.clone()).await {
                 error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
                 // if work dir became unavailable we should reinit, so new state is NotReady
