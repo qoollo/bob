@@ -203,10 +203,7 @@ impl TestClusterConfiguration {
             "quorum".to_string(),
             "pearl".to_string(),
             Some(self.get_pearl_config(node_index)),
-            Some(MetricsConfig::new(
-                "bob".to_string(),
-                "127.0.0.1:2003".to_string(),
-            )),
+            Some(MetricsConfig::new(None, "127.0.0.1:2003".to_string(), None)),
             RefCell::default(),
             RefCell::default(),
             self.cleanup_interval.clone(),
