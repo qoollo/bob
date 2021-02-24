@@ -279,10 +279,12 @@ fn lcm(a: usize, b: usize) -> usize {
 fn simple_gen(
     mut config: ClusterConfig,
     replicas_count: usize,
-    vdisks_count: usize,
+    mut vdisks_count: usize,
 ) -> ClusterConfig {
     let center = get_structure(&config);
-    let vdisks_count = vdisks_count.max(lcm(center.disks_count(), replicas_count));
+    if !exact_vdisks_count() {
+        vdisks_count = vdisks_count.max(lcm(center.disks_count(), replicas_count));
+    }
     debug!("new vdisks count: OK [{}]", vdisks_count);
     let mut vdisks = Vec::new();
     while vdisks.len() < vdisks_count {
@@ -358,6 +360,10 @@ fn write_to_file(mut output: String, name: String) {
     debug!("write to file: OK");
 }
 
+fn exact_vdisks_count() -> bool {
+    get_matches().is_present("exact_vdisks_count")
+}
+
 fn get_matches() -> ArgMatches<'static> {
     let input = Arg::with_name("input")
         .short("i")
@@ -375,11 +381,17 @@ fn get_matches() -> ArgMatches<'static> {
         .short("r")
         .default_value("1")
         .takes_value(true);
+    let exact_vdisks_count = Arg::with_name("exact_vdisks_count")
+        .short("e")
+        .long("exact")
+        .help("Create config with exactly provided vdisks count")
+        .takes_value(false);
     debug!("input arg: OK");
     App::new("Config Cluster Generator")
         .arg(input)
         .arg(output)
         .arg(vdisks_count)
         .arg(replicas)
+        .arg(exact_vdisks_count)
         .get_matches()
 }

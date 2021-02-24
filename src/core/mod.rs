@@ -43,7 +43,8 @@ mod prelude {
     pub(crate) use cleaner::Cleaner;
     pub(crate) use cluster::{get_cluster, Cluster};
     pub(crate) use configs::{
-        Cluster as ClusterConfig, Node as NodeConfig, LOCAL_ADDRESS, METRICS_NAME, NODE_NAME,
+        Cluster as ClusterConfig, DistributionFunc, Node as NodeConfig, LOCAL_ADDRESS,
+        METRICS_NAME, NODE_NAME,
     };
     pub(crate) use counter::Counter as BlobsCounter;
     pub(crate) use data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskID};
