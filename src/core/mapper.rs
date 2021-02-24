@@ -16,6 +16,7 @@ pub struct Virtual {
     disks: Vec<DiskPath>,
     vdisks: VDisksMap,
     nodes: NodesMap,
+    distribution_func: DistributionFunc,
     disk_access_sems: Arc<RwLock<SemMap>>,
     disk_access_par_degree: usize,
 }
@@ -38,6 +39,7 @@ impl Virtual {
             disks: config.disks().clone(),
             vdisks,
             nodes,
+            distribution_func: cluster.distribution_func(),
             disk_access_sems: Arc::new(RwLock::new(SemMap::new())),
             disk_access_par_degree: config.init_par_degree(),
         }
@@ -99,6 +101,10 @@ impl Virtual {
         &self.nodes
     }
 
+    pub(crate) fn distribution_func(&self) -> DistributionFunc {
+        self.distribution_func
+    }
+
     pub(crate) async fn get_disk_access_sem(&self, disk_name: &str) -> Arc<Semaphore> {
         {
             let read = self.disk_access_sems.read().await;
@@ -142,9 +148,11 @@ impl Virtual {
     }
 
     pub(crate) fn vdisk_id_from_key(&self, key: BobKey) -> VDiskID {
-        (key % self.vdisks.len() as u64)
-            .try_into()
-            .expect("u64 to u32")
+        match self.distribution_func {
+            DistributionFunc::Mod => (key % self.vdisks.len() as u64)
+                .try_into()
+                .expect("u64 to u32"),
+        }
     }
 
     /// Returns ref to `VDisk` with given ID
