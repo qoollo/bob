@@ -379,6 +379,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         let cluster = configuration.create_cluster();
         assert_eq!(cluster.nodes().len(), 2, "wrong nodes count");
