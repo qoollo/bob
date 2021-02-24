@@ -59,6 +59,11 @@ pub(crate) struct Dir {
     children: Vec<Dir>,
 }
 
+#[derive(Debug, Serialize)]
+pub(crate) struct DistrFunc {
+    func: String
+}
+
 fn runtime() -> Runtime {
     // TODO: run web server on same runtime as bob (update to async rocket when it's stable)
     debug!("HOT FIX: run web server on same runtime as bob");
@@ -79,7 +84,8 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         get_local_replica_directories,
         nodes,
         finalize_outdated_blobs,
-        vdisk_records_count
+        vdisk_records_count,
+        distribution_function,
     ];
     let task = move || {
         info!("API server started");
@@ -190,6 +196,12 @@ fn nodes(bob: State<BobServer>) -> Json<Vec<Node>> {
         nodes.push(node);
     }
     Json(nodes)
+}
+
+#[get("/metadata/distrfunc")]
+fn distribution_function(bob: State<BobServer>) -> Json<DistrFunc> {
+    let mapper = bob.grinder().backend().mapper();
+    Json(DistrFunc { func: format!("{:?}", mapper.distribution_func()) })
 }
 
 #[get("/vdisks")]

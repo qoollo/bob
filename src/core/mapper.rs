@@ -14,6 +14,7 @@ pub struct Virtual {
     disks: Vec<DiskPath>,
     vdisks: VDisksMap,
     nodes: NodesMap,
+    distribution_func: DistributionFunc,
 }
 
 impl Virtual {
@@ -34,6 +35,7 @@ impl Virtual {
             disks: config.disks().clone(),
             vdisks,
             nodes,
+            distribution_func: cluster.distribution_func(),
         }
     }
 
@@ -93,6 +95,10 @@ impl Virtual {
         &self.nodes
     }
 
+    pub(crate) fn distribution_func(&self) -> DistributionFunc {
+        self.distribution_func
+    }
+
     pub(crate) fn get_target_nodes_for_key(&self, key: BobKey) -> &[Node] {
         let id = self.vdisk_id_from_key(key);
         self.vdisks.get(&id).expect("vdisk not found").nodes()
@@ -120,9 +126,11 @@ impl Virtual {
     }
 
     pub(crate) fn vdisk_id_from_key(&self, key: BobKey) -> VDiskID {
-        (key % self.vdisks.len() as u64)
-            .try_into()
-            .expect("u64 to u32")
+        match self.distribution_func {
+            DistributionFunc::Mod => (key % self.vdisks.len() as u64)
+                .try_into()
+                .expect("u64 to u32"),
+        }
     }
 
     /// Returns ref to `VDisk` with given ID
