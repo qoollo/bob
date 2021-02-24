@@ -42,7 +42,7 @@ mod prelude {
     pub(crate) use bob_client::{BobClient, Factory};
     pub(crate) use cleaner::Cleaner;
     pub(crate) use cluster::{get_cluster, Cluster};
-    pub(crate) use configs::{Cluster as ClusterConfig, Node as NodeConfig};
+    pub(crate) use configs::{Cluster as ClusterConfig, Node as NodeConfig, DistributionFunc};
     pub(crate) use counter::Counter as BlobsCounter;
     pub(crate) use data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskID};
     pub(crate) use futures::{

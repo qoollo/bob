@@ -80,7 +80,8 @@ fn get_hardware_config_name(matches: &ArgMatches) -> String {
 fn generate_config(matches: &ArgMatches, input: ClusterConfig) -> Option<ClusterConfig> {
     let replicas_count = get_replicas_count(matches)?;
     let vdisks_count = get_vdisks_count(matches, input.nodes())?;
-    let res = simple_gen(input, replicas_count, vdisks_count);
+    let exact_vdisks_count = exact_vdisks_count(matches);
+    let res = simple_gen(input, replicas_count, vdisks_count, exact_vdisks_count);
     debug!("generate config: OK");
     Some(res)
 }
@@ -105,10 +106,13 @@ fn expand_config(config: ClusterConfig, mut hardware_config: ClusterConfig) -> C
 fn simple_gen(
     mut config: ClusterConfig,
     replicas_count: usize,
-    vdisks_count: usize,
+    mut vdisks_count: usize,
+    exact_vdisks_count: bool
 ) -> ClusterConfig {
     let center = get_structure(&config);
-    let vdisks_count = vdisks_count.max(lcm(center.disks_count(), replicas_count));
+    if !exact_vdisks_count {
+        vdisks_count = vdisks_count.max(lcm(center.disks_count(), replicas_count));
+    }
     debug!("new vdisks count: OK [{}]", vdisks_count);
     let mut vdisks = Vec::new();
     while vdisks.len() < vdisks_count {
@@ -145,6 +149,10 @@ fn get_vdisks_count(matches: &ArgMatches, nodes: &[ClusterNode]) -> Option<usize
     )
 }
 
+fn exact_vdisks_count(matches: &ArgMatches) -> bool {
+    matches.is_present("exact_vdisks_count")
+}
+
 fn get_matches() -> ArgMatches<'static> {
     let input = Arg::with_name("input")
         .short("i")
@@ -166,6 +174,11 @@ fn get_matches() -> ArgMatches<'static> {
         .short("H")
         .help("new hardware configuration")
         .takes_value(true);
+    let exact_vdisks_count = Arg::with_name("exact_vdisks_count")
+        .short("e")
+        .long("exact")
+        .help("Create config with exactly provided vdisks count")
+        .takes_value(false);
     debug!("input arg: OK");
     let subcommand_expand = SubCommand::with_name("expand")
         .arg(input.clone())
@@ -176,6 +189,7 @@ fn get_matches() -> ArgMatches<'static> {
         .arg(input)
         .arg(output)
         .arg(vdisks_count)
+        .arg(exact_vdisks_count)
         .arg(replicas);
 
     App::new("Config Cluster Generator")
