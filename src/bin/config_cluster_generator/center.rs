@@ -20,7 +20,7 @@ impl Center {
         for rack in self.racks.iter_mut() {
             rack.mark_new(disks);
         }
-        self.racks.sort_unstable_by_key(|a| match a.old {
+        self.racks.sort_unstable_by_key(|a| match a.is_old {
             true => 0,
             false => 1,
         });
@@ -117,16 +117,16 @@ pub struct Rack {
     name: String,
     used_count: AtomicUsize,
     nodes: Vec<Node>,
-    old: bool,
+    is_old: bool,
 }
 
 impl Rack {
-    pub fn new(name: String, nodes: Vec<Node>, old: bool) -> Rack {
+    pub fn new(name: String, nodes: Vec<Node>, is_old: bool) -> Rack {
         Rack {
             name,
             used_count: AtomicUsize::new(0),
             nodes,
-            old,
+            is_old,
         }
     }
 
@@ -134,7 +134,7 @@ impl Rack {
         for node in self.nodes.iter_mut() {
             node.mark_new(disks);
         }
-        self.nodes.sort_unstable_by_key(|a| match a.old {
+        self.nodes.sort_unstable_by_key(|a| match a.is_old {
             true => 0,
             false => 1,
         });
@@ -193,16 +193,16 @@ pub struct Node {
     name: String,
     used_count: AtomicUsize,
     disks: Vec<Disk>,
-    old: bool,
+    is_old: bool,
 }
 
 impl Node {
-    pub fn new(name: impl Into<String>, disks: Vec<Disk>, old: bool) -> Self {
+    pub fn new(name: impl Into<String>, disks: Vec<Disk>, is_old: bool) -> Self {
         Self {
             name: name.into(),
             used_count: AtomicUsize::new(0),
             disks,
-            old,
+            is_old,
         }
     }
 
@@ -211,7 +211,7 @@ impl Node {
         for disk in self.disks.iter_mut() {
             for (new_node, new_disk) in disks {
                 if self.name == new_node.name() && disk.name == new_disk.name() {
-                    disk.old = false;
+                    disk.is_old = false;
                     break;
                 } else {
                     old_node = true;
@@ -219,9 +219,9 @@ impl Node {
             }
         }
         if !old_node {
-            self.old = false;
+            self.is_old = false;
         }
-        self.disks.sort_unstable_by_key(|a| match a.old {
+        self.disks.sort_unstable_by_key(|a| match a.is_old {
             true => 0,
             false => 1,
         });
@@ -240,15 +240,15 @@ impl Node {
 pub struct Disk {
     name: String,
     used_count: AtomicUsize,
-    old: bool,
+    is_old: bool,
 }
 
 impl Disk {
-    pub fn new(name: impl Into<String>, old: bool) -> Self {
+    pub fn new(name: impl Into<String>, is_old: bool) -> Self {
         Self {
             name: name.into(),
             used_count: AtomicUsize::new(0),
-            old,
+            is_old,
         }
     }
 

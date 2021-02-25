@@ -13,7 +13,7 @@ use config_cluster_generator::{
 #[tokio::main]
 async fn main() {
     init_logger();
-    match dbg!(get_matches().subcommand()) {
+    match get_matches().subcommand() {
         ("new", Some(matches)) => subcommand_new(matches),
         ("expand", Some(matches)) => subcommand_expand(matches),
         _ => {
@@ -80,8 +80,8 @@ fn get_hardware_config_name(matches: &ArgMatches) -> String {
 fn generate_config(matches: &ArgMatches, input: ClusterConfig) -> Option<ClusterConfig> {
     let replicas_count = get_replicas_count(matches)?;
     let vdisks_count = get_vdisks_count(matches, input.nodes())?;
-    let exact_vdisks_count = exact_vdisks_count(matches);
-    let res = simple_gen(input, replicas_count, vdisks_count, exact_vdisks_count);
+    let vdisks_counts_match = vdisks_counts_match(matches);
+    let res = simple_gen(input, replicas_count, vdisks_count, vdisks_counts_match);
     debug!("generate config: OK");
     Some(res)
 }
@@ -107,10 +107,10 @@ fn simple_gen(
     mut config: ClusterConfig,
     replicas_count: usize,
     mut vdisks_count: usize,
-    exact_vdisks_count: bool
+    vdisks_counts_match: bool,
 ) -> ClusterConfig {
     let center = get_structure(&config);
-    if !exact_vdisks_count {
+    if !vdisks_counts_match {
         vdisks_count = vdisks_count.max(lcm(center.disks_count(), replicas_count));
     }
     debug!("new vdisks count: OK [{}]", vdisks_count);
@@ -149,7 +149,7 @@ fn get_vdisks_count(matches: &ArgMatches, nodes: &[ClusterNode]) -> Option<usize
     )
 }
 
-fn exact_vdisks_count(matches: &ArgMatches) -> bool {
+fn vdisks_counts_match(matches: &ArgMatches) -> bool {
     matches.is_present("exact_vdisks_count")
 }
 
