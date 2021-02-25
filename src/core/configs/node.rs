@@ -412,6 +412,8 @@ pub struct Node {
     open_blobs_hard_limit: Option<usize>,
     #[serde(default = "Node::default_init_par_degree")]
     init_par_degree: usize,
+    #[serde(default = "Node::default_disk_access_par_degree")]
+    disk_access_par_degree: usize,
 }
 
 impl NodeConfig {
@@ -547,6 +549,10 @@ impl NodeConfig {
         self.init_par_degree
     }
 
+    pub(crate) fn disk_access_par_degree(&self) -> usize {
+        self.disk_access_par_degree
+    }
+
     #[cfg(test)]
     pub(crate) fn get_from_string(
         file: &str,
@@ -580,6 +586,10 @@ impl NodeConfig {
     }
 
     fn default_init_par_degree() -> usize {
+        1
+    }
+
+    fn default_disk_access_par_degree() -> usize {
         1
     }
 }
@@ -652,6 +662,7 @@ pub(crate) mod tests {
             open_blobs_soft_limit: None,
             open_blobs_hard_limit: None,
             init_par_degree: 1,
+            disk_access_par_degree: 1,
             count_interval: "10000ms".to_string(),
         }
     }

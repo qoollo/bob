@@ -98,7 +98,7 @@ async fn create_cluster(
         node.set_connection(client).await;
     }
 
-    let backend = Arc::new(Backend::new(mapper.clone(), &node).await);
+    let backend = Arc::new(Backend::new(mapper.clone(), &node));
     (Quorum::new(backend.clone(), mapper, node.quorum()), backend)
 }
 

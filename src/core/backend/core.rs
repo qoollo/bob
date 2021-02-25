@@ -114,11 +114,11 @@ pub(crate) struct Backend {
 }
 
 impl Backend {
-    pub(crate) async fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
+    pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         let inner: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
-            BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config).await),
+            BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config)),
         };
         Self { inner, mapper }
     }
@@ -221,6 +221,7 @@ impl Backend {
                         local_err
                     );
                     // write to alien/<local name>
+                    // FIXME: panics when disk is unavailable
                     let mut op = operation.clone_alien();
                     op.set_remote_folder(self.mapper.local_node_name().to_owned());
                     self.inner

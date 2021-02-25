@@ -1,7 +1,7 @@
 use crate::docker_cluster_runner::docker_compose_wrapper::*;
 use crate::docker_cluster_runner::fs_configuration::FSConfiguration;
 use bitflags::_core::cell::RefCell;
-use bob::configs::{DistributionFunc, node::BackendSettings};
+use bob::configs::{node::BackendSettings, DistributionFunc};
 use bob::configs::{Cluster, ClusterNode, MetricsConfig, Node, Pearl, Replica, VDisk};
 use bob::DiskPath;
 use filesystem_constants::DockerFSConstants;
@@ -28,6 +28,7 @@ pub struct TestClusterConfiguration {
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
     init_par_degree: Option<usize>,
+    disk_access_par_degree: Option<usize>,
 }
 
 impl TestClusterConfiguration {
@@ -210,6 +211,7 @@ impl TestClusterConfiguration {
             self.open_blobs_soft_limit,
             self.open_blobs_hard_limit,
             self.init_par_degree.unwrap_or(1),
+            self.disk_access_par_degree.unwrap_or(1),
         );
         (Self::get_node_name(node_index), node)
     }
@@ -371,6 +373,7 @@ mod tests {
             None,
             "1d".to_string(),
             "1d".to_string(),
+            None,
             None,
             None,
             None,

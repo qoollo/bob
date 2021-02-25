@@ -1,5 +1,6 @@
 mod core;
 mod data;
+mod disk_controller;
 mod group;
 mod holder;
 mod metrics;
@@ -10,6 +11,7 @@ mod stuff;
 mod tests;
 
 pub(crate) use self::core::{BackendResult, Pearl, PearlStorage};
+pub(crate) use self::disk_controller::DiskController;
 pub(crate) use self::group::Group;
 pub(crate) use self::holder::Holder;
 pub(crate) use self::metrics::init_pearl;

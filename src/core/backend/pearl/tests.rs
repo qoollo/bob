@@ -23,7 +23,7 @@ async fn create_backend(node_config: &str, cluster_config: &str) -> PearlBackend
 
     let mapper = Arc::new(Virtual::new(&node, &cluster).await);
     debug!("mapper: {:?}", mapper);
-    PearlBackend::new(mapper, &node).await
+    PearlBackend::new(mapper, &node)
 }
 
 async fn backend() -> PearlBackend {
