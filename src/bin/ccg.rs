@@ -48,7 +48,7 @@ fn subcommand_expand(matches: &ArgMatches) -> Option<()> {
     debug!("arguments: {:?}", matches);
     let config = read_config_from_file(&get_input_config_name(matches))?;
     let hardware_config = read_config_from_file(&get_hardware_config_name(matches))?;
-    let output = expand_config(config, hardware_config);
+    let output = expand_config(config, hardware_config)?;
     let output = serde_yaml::to_string(&output).expect("config serialization error");
     debug!("config cluster extending: OK");
     if let Some(name) = matches.value_of("output") {
@@ -86,8 +86,13 @@ fn generate_config(matches: &ArgMatches, input: ClusterConfig) -> Option<Cluster
     Some(res)
 }
 
-fn expand_config(config: ClusterConfig, mut hardware_config: ClusterConfig) -> ClusterConfig {
+fn expand_config(config: ClusterConfig, mut hardware_config: ClusterConfig) -> Option<ClusterConfig> {
     let mut center = get_structure(&hardware_config);
+    let removed_disks: Vec<_> = get_new_disks(hardware_config.nodes(), config.nodes()).collect();
+    if removed_disks.len() > 0 {
+        debug!("some disks or nodes was removed: ERR {:?}", removed_disks);
+        return None;
+    }
     let new_disks: Vec<_> = get_new_disks(config.nodes(), hardware_config.nodes()).collect();
     center.mark_new(&new_disks);
     let vdisks_count = config.vdisks().len();
@@ -100,7 +105,7 @@ fn expand_config(config: ClusterConfig, mut hardware_config: ClusterConfig) -> C
     }
     hardware_config.vdisks_extend(vdisks);
     debug!("extend config: OK [\n{:#?}\n]", center);
-    hardware_config
+    Some(hardware_config)
 }
 
 fn simple_gen(
