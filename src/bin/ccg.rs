@@ -72,7 +72,7 @@ fn get_input_config_name(matches: &ArgMatches) -> String {
 fn get_hardware_config_name(matches: &ArgMatches) -> String {
     let name = matches
         .value_of("hardware")
-        .expect("is some, because of default arg value");
+        .expect("is some, because of required arg value");
     debug!("get hardware config name: OK [{}]", name);
     name.to_owned()
 }
@@ -178,6 +178,7 @@ fn get_matches() -> ArgMatches<'static> {
     let hardware_config = Arg::with_name("hardware")
         .short("H")
         .help("new hardware configuration")
+        .required(true)
         .takes_value(true);
     let exact_vdisks_count = Arg::with_name("exact_vdisks_count")
         .short("e")
