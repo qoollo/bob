@@ -102,9 +102,11 @@ pub(crate) trait BackendStorage: Debug {
 
     async fn shutdown(&self);
 
-    fn vdisks_groups(&self) -> Option<&[Group]> {
+    fn disk_controllers(&self) -> Option<&[Arc<DiskController>]> {
         None
     }
+
+    async fn close_unneeded_active_blobs(&self, _soft: usize, _hard: usize) {}
 }
 
 #[derive(Debug)]
@@ -336,63 +338,7 @@ impl Backend {
         }
     }
 
-    pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
-        let groups = if let Some(groups) = self.inner.vdisks_groups() {
-            groups
-        } else {
-            return;
-        };
-        for group in groups {
-            let holders_lock = group.holders();
-            let mut holders_write = holders_lock.write().await;
-            let holders: &mut Vec<_> = holders_write.as_mut();
-
-            let mut total_open_blobs = 0;
-            let mut close = vec![];
-            for h in holders.iter_mut() {
-                if !h.active_blob_is_empty().await {
-                    total_open_blobs += 1;
-                    if h.is_outdated() && h.no_writes_recently().await {
-                        close.push(h);
-                    }
-                }
-            }
-            let soft = soft.saturating_sub(total_open_blobs - close.len());
-            let hard = hard.saturating_sub(total_open_blobs - close.len());
-
-            debug!(
-                "closing outdated blobs according to limits ({}, {})",
-                soft, hard
-            );
-
-            let mut is_small = vec![];
-            for h in &close {
-                is_small.push(h.active_blob_is_small().await);
-            }
-
-            let mut close: Vec<_> = close.into_iter().enumerate().collect();
-            Self::sort_by_priority(&mut close, &is_small);
-
-            while close.len() > hard {
-                let (_, holder) = close.pop().unwrap();
-                holder.close_active_blob().await;
-                info!("active blob of {} closed by hard cap", holder.get_id());
-            }
-
-            while close.len() > soft && close.last().map_or(false, |(ind, _)| !is_small[*ind]) {
-                let (_, holder) = close.pop().unwrap();
-                holder.close_active_blob().await;
-                info!("active blob of {} closed by soft cap", holder.get_id());
-            }
-        }
-    }
-
-    fn sort_by_priority(close: &mut [(usize, &mut Holder)], is_small: &[bool]) {
-        use std::cmp::Ordering;
-        close.sort_by(|(i, x), (j, y)| match (is_small[*i], is_small[*j]) {
-            (true, false) => Ordering::Greater,
-            (false, true) => Ordering::Less,
-            _ => x.end_timestamp().cmp(&y.end_timestamp()),
-        });
+    pub async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
+        self.inner.close_unneeded_active_blobs(soft, hard).await
     }
 }

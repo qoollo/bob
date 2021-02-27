@@ -61,7 +61,7 @@ pub(crate) struct Dir {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct DistrFunc {
-    func: String
+    func: String,
 }
 
 fn runtime() -> Runtime {
@@ -81,6 +81,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         delete_partition,
         alien,
         remount_vdisks_group,
+        start_disk_controller,
         get_local_replica_directories,
         nodes,
         finalize_outdated_blobs,
@@ -139,19 +140,30 @@ fn not_acceptable_backend() -> Status {
     status
 }
 
-fn find_group<'a>(bob: &'a State<BobServer>, vdisk_id: u32) -> Result<&'a PearlGroup, StatusExt> {
+fn find_group(bob: &State<BobServer>, vdisk_id: u32) -> Result<PearlGroup, StatusExt> {
     let backend = bob.grinder().backend().inner();
     debug!("get backend: OK");
-    let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
+    let dcs = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
     debug!("get vdisks groups: OK");
-    groups
+    let needed_dc = dcs
         .iter()
-        .find(|group| group.vdisk_id() == vdisk_id)
+        .find(|dc| dc.vdisks().iter().find(|&&vd| vd == vdisk_id).is_some())
         .ok_or_else(|| {
-            let err = format!("vdisk with id: {} not found", vdisk_id);
+            let err = format!("Disk Controller with vdisk #{} not found", vdisk_id);
+            warn!("{}", err);
+            StatusExt::new(Status::NotFound, false, err)
+        })?;
+    let task = async move {
+        needed_dc.vdisk_group(vdisk_id).await.map_err(|_| {
+            let err = format!("Disk Controller with vdisk #{} not found", vdisk_id);
             warn!("{}", err);
             StatusExt::new(Status::NotFound, false, err)
         })
+    };
+    let rt = Runtime::new().expect("create runtime");
+    rt.block_on(task)
 }
 
 #[get("/status")]
@@ -201,7 +213,35 @@ fn nodes(bob: State<BobServer>) -> Json<Vec<Node>> {
 #[get("/metadata/distrfunc")]
 fn distribution_function(bob: State<BobServer>) -> Json<DistrFunc> {
     let mapper = bob.grinder().backend().mapper();
-    Json(DistrFunc { func: format!("{:?}", mapper.distribution_func()) })
+    Json(DistrFunc {
+        func: format!("{:?}", mapper.distribution_func()),
+    })
+}
+
+#[post("/disks/<disk_name>/start")]
+fn start_disk_controller(bob: State<BobServer>, disk_name: String) -> Result<StatusExt, StatusExt> {
+    let backend = bob.grinder().backend().inner();
+    let dcs = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    let dc = dcs
+        .iter()
+        .find(|dc| dc.disk_name() == disk_name)
+        .ok_or_else(|| {
+            let err = format!("Disk Controller with name '{}' not found", disk_name);
+            warn!("{}", err);
+            StatusExt::new(Status::NotFound, false, err)
+        })?;
+    let rt = Runtime::new().expect("create runtime");
+    let task = dc.try_from_scratch();
+    match rt.block_on(task) {
+        Ok(_) => {
+            let msg = format!("disk controller {} successfully started", disk_name);
+            info!("{}", msg);
+            Ok(StatusExt::new(Status::Ok, true, msg))
+        }
+        Err(e) => Err(StatusExt::new(Status::Ok, false, e.to_string())),
+    }
 }
 
 #[get("/vdisks")]

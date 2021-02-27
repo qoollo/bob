@@ -9,7 +9,7 @@ mod mem_tests;
 pub(crate) use self::{
     core::{Backend, Operation},
     mem_backend::MemBackend,
-    pearl::{init_pearl, Group, Holder, Pearl},
+    pearl::{init_pearl, DiskController, Group, Holder, Pearl},
     stub_backend::StubBackend,
 };
 pub(crate) use super::prelude::*;

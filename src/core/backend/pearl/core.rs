@@ -156,4 +156,14 @@ impl BackendStorage for Pearl {
         cnt += self.alien_disk_controller.index_memory().await;
         cnt
     }
+
+    fn disk_controllers(&self) -> Option<&[Arc<DiskController>]> {
+        Some(&self.disk_controllers)
+    }
+
+    async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
+        for dc in self.disk_controllers.iter() {
+            dc.close_unneeded_active_blobs(soft, hard).await;
+        }
+    }
 }

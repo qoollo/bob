@@ -169,6 +169,20 @@ paths:
                 type: string
         default:
           $ref: '#/components/responses/DefaultError'
+  /disks/<disk_name>/start:
+    post:
+      summary: Trying to start disk controller for disk
+      parameters:
+        - $ref: '#/components/parameters/DiskNameParam'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/DefaultError'
   /vdisks/<vdisk_id>/remount:
     post:
       summary: Remount partitions on vdisk
@@ -230,6 +244,12 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
   parameters:
+    DiskNameParam:
+      name: DiskName
+      in: path
+      required: true
+      schema:
+        type: string
     VDiskIdParam:
       name: VDiskId
       in: path

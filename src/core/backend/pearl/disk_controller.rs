@@ -58,7 +58,7 @@ impl DiskController {
         path.as_ref().exists()
     }
 
-    async fn try_from_scratch(&self) -> Result<()> {
+    pub(crate) async fn try_from_scratch(&self) -> Result<()> {
         self.init().await?;
         self.run().await
     }
@@ -78,23 +78,18 @@ impl DiskController {
                 let state = self.state.read().await.clone();
                 match state {
                     GroupsState::NotReady => {
-                        if let Err(e) = self.try_from_scratch().await {
-                            warn!(
-                                "Work dir is available, but init from scratch is failed: {} ({:?})",
-                                e, self.disk
-                            );
-                        }
+                        error!(
+                            "Work dir is available, but disk isn't ready ({:?})",
+                            self.disk
+                        );
                     }
                     GroupsState::Initialized => {
-                        if let Err(e) = self.run().await {
-                            warn!(
-                                "Work dir is available, but failed to run groups: {} ({:?})",
-                                e, self.disk
-                            );
-                        }
+                        error!(
+                            "Work dir is available, but disk is initialized and don't run ({:?})",
+                            self.disk
+                        );
                     }
                     GroupsState::Ready => {
-                        // debug?
                         info!("Disk is available: {:?}", self.disk);
                     }
                 }
@@ -102,13 +97,19 @@ impl DiskController {
                 error!("Disk is unavailable: {:?}", self.disk);
                 let state = self.state.read().await.clone();
                 if state == GroupsState::Initialized || state == GroupsState::Ready {
+                    self.log_disconnection();
                     *self.state.write().await = GroupsState::NotReady;
                     // if disk is broken (either are indices in groups) we should drop groups, because
                     // otherwise we'll hold broken indices (for active blob of broken disk) in RAM
-                    *self.groups.write().await = Vec::new();
+                    self.groups.write().await.clear();
                 }
             }
         }
+    }
+
+    pub(crate) fn log_disconnection(&self) {
+        // TODO: log error in some csv file
+        error!("log disconnection error");
     }
 
     // this init is done in `new` sync method. Monitor use async init.
@@ -123,10 +124,8 @@ impl DiskController {
             let groups = self.get_groups()?;
             *self.groups.write().await = groups;
             *self.state.write().await = GroupsState::Initialized;
-            Ok(())
-        } else {
-            Err(Error::internal())
         }
+        Ok(())
     }
 
     fn get_groups(&self) -> BackendResult<Vec<Group>> {
@@ -135,6 +134,20 @@ impl DiskController {
         } else {
             Ok(self.collect_normal_groups())
         }
+    }
+
+    pub(crate) fn disk_name(&self) -> &str {
+        &self.disk.name()
+    }
+
+    pub(crate) fn vdisks(&self) -> &[VDiskID] {
+        &self.vdisks
+    }
+
+    pub(crate) async fn vdisk_group(&self, vdisk_id: VDiskID) -> Result<Group> {
+        let groups = self.groups.read().await;
+        let group_opt = groups.iter().find(|g| g.vdisk_id() == vdisk_id).cloned();
+        group_opt.ok_or(Error::vdisk_not_found(vdisk_id).into())
     }
 
     pub(crate) fn collect_normal_groups(&self) -> Vec<Group> {
@@ -217,27 +230,31 @@ impl DiskController {
     }
 
     pub(crate) async fn run(&self) -> Result<()> {
-        if *self.state.read().await == GroupsState::Initialized {
-            let res = {
-                let _permit = self.run_sem.acquire().await.expect("Semaphore is closed");
-                Self::run_groups(self.groups.clone()).await
-            };
-            if let Err(e) = res {
-                error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
-                // if work dir became unavailable we should reinit, so new state is NotReady
-                // otherwise - we'll try again
-                if !Self::is_work_dir_available(self.disk.path()) {
-                    *self.state.write().await = GroupsState::NotReady;
-                    *self.groups.write().await = Vec::new();
+        let state = self.state.read().await.clone();
+        match state {
+            GroupsState::Initialized => {
+                let res = {
+                    let _permit = self.run_sem.acquire().await.expect("Semaphore is closed");
+                    Self::run_groups(self.groups.clone()).await
+                };
+                if let Err(e) = res {
+                    error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
+                    // if work dir became unavailable we should reinit, so new state is NotReady
+                    // otherwise - we'll try again
+                    if !Self::is_work_dir_available(self.disk.path()) {
+                        self.log_disconnection();
+                        *self.state.write().await = GroupsState::NotReady;
+                        self.groups.write().await.clear();
+                    }
+                    Err(e)
+                } else {
+                    *self.state.write().await = GroupsState::Ready;
+                    info!("All groups are running on disk: {:?}", self.disk);
+                    Ok(())
                 }
-                Err(e)
-            } else {
-                *self.state.write().await = GroupsState::Ready;
-                info!("All groups are running on disk: {:?}", self.disk);
-                Ok(())
             }
-        } else {
-            Err(Error::internal().into())
+            GroupsState::Ready => Ok(()),
+            GroupsState::NotReady => Err(Error::internal().into()),
         }
     }
 
@@ -417,6 +434,13 @@ impl DiskController {
             cnt
         } else {
             0
+        }
+    }
+
+    pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
+        let groups = self.groups.read().await;
+        for group in groups.iter() {
+            group.close_unneeded_active_blobs(soft, hard).await;
         }
     }
 }
