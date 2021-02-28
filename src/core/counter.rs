@@ -18,11 +18,11 @@ impl Counter {
         let mut interval = interval(t);
         loop {
             interval.tick().await;
-            let (blobs_cnt, aliens_cnt) = backend.blobs_count().await;
-            gauge!(BLOBS_COUNT, blobs_cnt as i64);
-            gauge!(ALIEN_BLOBS_COUNT, aliens_cnt as i64);
-            let index_memory = backend.index_memory().await;
-            gauge!(INDEX_MEMORY, index_memory as i64);
+            let metrics = backend.collect_metrics().await;
+            gauge!(ACTIVE_DISKS_COUNT, metrics.active_disks_cnt as i64);
+            gauge!(BLOBS_COUNT, metrics.blobs_cnt as i64);
+            gauge!(ALIEN_BLOBS_COUNT, metrics.aliens_cnt as i64);
+            gauge!(INDEX_MEMORY, metrics.index_memory as i64);
         }
     }
 }

@@ -55,6 +55,10 @@ pub const BLOBS_COUNT: &str = "backend.blob_count";
 pub const ALIEN_BLOBS_COUNT: &str = "backend.alien_count";
 /// Count memory occupied by indices
 pub const INDEX_MEMORY: &str = "backend.index_memory";
+/// Count disks, that are available
+pub const ACTIVE_DISKS_COUNT: &str = "backend.active_disks";
+/// Directory, which contains each disks state
+pub const DISKS_FOLDER: &str = "backend.disks";
 
 const CLIENTS_METRICS_DIR: &str = "clients";
 

@@ -3,6 +3,14 @@ use super::prelude::*;
 const BACKEND_STARTING: i64 = 0;
 const BACKEND_STARTED: i64 = 1;
 
+#[derive(Default, new)]
+pub(crate) struct BackendMetrics {
+    pub active_disks_cnt: usize,
+    pub blobs_cnt: usize,
+    pub aliens_cnt: usize,
+    pub index_memory: usize,
+}
+
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Operation {
     vdisk_id: VDiskID,
@@ -92,12 +100,8 @@ pub(crate) trait BackendStorage: Debug {
         result
     }
 
-    async fn blobs_count(&self) -> (usize, usize) {
-        (0, 0)
-    }
-
-    async fn index_memory(&self) -> usize {
-        0
+    async fn collect_metrics(&self) -> BackendMetrics {
+        Default::default()
     }
 
     async fn shutdown(&self);
@@ -125,12 +129,8 @@ impl Backend {
         Self { inner, mapper }
     }
 
-    pub(crate) async fn blobs_count(&self) -> (usize, usize) {
-        self.inner.blobs_count().await
-    }
-
-    pub(crate) async fn index_memory(&self) -> usize {
-        self.inner.index_memory().await
+    pub(crate) async fn collect_metrics(&self) -> BackendMetrics {
+        self.inner.collect_metrics().await
     }
 
     pub(crate) fn mapper(&self) -> &Virtual {

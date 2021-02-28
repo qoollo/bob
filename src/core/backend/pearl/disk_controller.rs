@@ -3,6 +3,9 @@ use tokio::time::{interval, Interval};
 
 const CHECK_INTERVAL: Duration = Duration::from_millis(5000);
 
+const DISK_IS_NOT_ACTIVE: i64 = 0;
+const DISK_IS_ACTIVE: i64 = 1;
+
 #[derive(Clone, Debug, PartialEq)]
 enum GroupsState {
     // group vector is empty or broken:
@@ -58,6 +61,10 @@ impl DiskController {
         path.as_ref().exists()
     }
 
+    pub(crate) async fn is_ready(&self) -> bool {
+        *self.state.read().await == GroupsState::Ready
+    }
+
     pub(crate) async fn try_from_scratch(&self) -> Result<()> {
         self.init().await?;
         self.run().await
@@ -71,7 +78,9 @@ impl DiskController {
 
     async fn monitor_task(self: Arc<Self>) {
         let mut check_interval = interval(CHECK_INTERVAL);
+        let disk_state_metric = format!("{}.{}", DISKS_FOLDER, self.disk_name());
         Self::monitor_wait(self.state.clone(), &mut check_interval).await;
+        gauge!(disk_state_metric.clone(), DISK_IS_ACTIVE);
         loop {
             check_interval.tick().await;
             if Self::is_work_dir_available(self.disk.path()) {
@@ -91,6 +100,7 @@ impl DiskController {
                     }
                     GroupsState::Ready => {
                         info!("Disk is available: {:?}", self.disk);
+                        gauge!(disk_state_metric.clone(), DISK_IS_ACTIVE);
                     }
                 }
             } else {
@@ -98,6 +108,7 @@ impl DiskController {
                 let state = self.state.read().await.clone();
                 if state == GroupsState::Initialized || state == GroupsState::Ready {
                     self.log_disconnection();
+                    gauge!(disk_state_metric.clone(), DISK_IS_NOT_ACTIVE);
                     *self.state.write().await = GroupsState::NotReady;
                     // if disk is broken (either are indices in groups) we should drop groups, because
                     // otherwise we'll hold broken indices (for active blob of broken disk) in RAM

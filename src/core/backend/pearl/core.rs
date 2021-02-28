@@ -37,6 +37,32 @@ impl Pearl {
             init_par_degree: config.init_par_degree(),
         }
     }
+
+    async fn blobs_count(&self) -> (usize, usize) {
+        let mut cnt = 0;
+        for dc in self.disk_controllers.iter() {
+            cnt += dc.blobs_count().await
+        }
+        let alien_cnt = self.alien_disk_controller.blobs_count().await;
+        (cnt, alien_cnt)
+    }
+
+    async fn index_memory(&self) -> usize {
+        let mut cnt = 0;
+        for dc in self.disk_controllers.iter() {
+            cnt += dc.index_memory().await
+        }
+        cnt += self.alien_disk_controller.index_memory().await;
+        cnt
+    }
+
+    async fn active_disks_count(&self) -> usize {
+        let mut cnt = 0;
+        for dc in self.disk_controllers.iter() {
+            cnt += dc.is_ready().await as usize;
+        }
+        cnt
+    }
 }
 
 #[async_trait]
@@ -139,24 +165,6 @@ impl BackendStorage for Pearl {
         info!("shutting down done");
     }
 
-    async fn blobs_count(&self) -> (usize, usize) {
-        let mut cnt = 0;
-        for dc in self.disk_controllers.iter() {
-            cnt += dc.blobs_count().await
-        }
-        let alien_cnt = self.alien_disk_controller.blobs_count().await;
-        (cnt, alien_cnt)
-    }
-
-    async fn index_memory(&self) -> usize {
-        let mut cnt = 0;
-        for dc in self.disk_controllers.iter() {
-            cnt += dc.index_memory().await
-        }
-        cnt += self.alien_disk_controller.index_memory().await;
-        cnt
-    }
-
     fn disk_controllers(&self) -> Option<&[Arc<DiskController>]> {
         Some(&self.disk_controllers)
     }
@@ -165,5 +173,12 @@ impl BackendStorage for Pearl {
         for dc in self.disk_controllers.iter() {
             dc.close_unneeded_active_blobs(soft, hard).await;
         }
+    }
+
+    async fn collect_metrics(&self) -> BackendMetrics {
+        let active_disks_cnt = self.active_disks_count().await;
+        let (blobs_cnt, aliens_cnt) = self.blobs_count().await;
+        let index_memory = self.index_memory().await;
+        BackendMetrics::new(active_disks_cnt, blobs_cnt, aliens_cnt, index_memory)
     }
 }

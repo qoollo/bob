@@ -7,7 +7,7 @@ mod stub_backend;
 mod mem_tests;
 
 pub(crate) use self::{
-    core::{Backend, Operation},
+    core::{Backend, BackendMetrics, Operation},
     mem_backend::MemBackend,
     pearl::{init_pearl, DiskController, Group, Holder, Pearl},
     stub_backend::StubBackend,
