@@ -28,6 +28,7 @@ pub(crate) struct DiskController {
     state: Arc<RwLock<GroupsState>>,
     settings: Arc<Settings>,
     is_alien: bool,
+    disk_state_metric: String,
 }
 
 impl DiskController {
@@ -39,6 +40,7 @@ impl DiskController {
         settings: Arc<Settings>,
         is_alien: bool,
     ) -> Arc<Self> {
+        let disk_state_metric = format!("{}.{}", DISKS_FOLDER, disk.name());
         let mut new_dc = Self {
             disk,
             vdisks,
@@ -49,6 +51,7 @@ impl DiskController {
             state: Arc::new(RwLock::new(GroupsState::NotReady)),
             settings,
             is_alien,
+            disk_state_metric,
         };
         new_dc.sync_init().expect("Can't start new disk controller");
         let new_dc = Arc::new(new_dc);
@@ -78,9 +81,8 @@ impl DiskController {
 
     async fn monitor_task(self: Arc<Self>) {
         let mut check_interval = interval(CHECK_INTERVAL);
-        let disk_state_metric = format!("{}.{}", DISKS_FOLDER, self.disk_name());
         Self::monitor_wait(self.state.clone(), &mut check_interval).await;
-        gauge!(disk_state_metric.clone(), DISK_IS_ACTIVE);
+        gauge!(self.disk_state_metric.clone(), DISK_IS_ACTIVE);
         loop {
             check_interval.tick().await;
             if Self::is_work_dir_available(self.disk.path()) {
@@ -100,22 +102,35 @@ impl DiskController {
                     }
                     GroupsState::Ready => {
                         info!("Disk is available: {:?}", self.disk);
-                        gauge!(disk_state_metric.clone(), DISK_IS_ACTIVE);
+                        gauge!(self.disk_state_metric.clone(), DISK_IS_ACTIVE);
                     }
                 }
             } else {
                 error!("Disk is unavailable: {:?}", self.disk);
                 let state = self.state.read().await.clone();
                 if state == GroupsState::Initialized || state == GroupsState::Ready {
-                    self.log_disconnection();
-                    gauge!(disk_state_metric.clone(), DISK_IS_NOT_ACTIVE);
-                    *self.state.write().await = GroupsState::NotReady;
-                    // if disk is broken (either are indices in groups) we should drop groups, because
-                    // otherwise we'll hold broken indices (for active blob of broken disk) in RAM
-                    self.groups.write().await.clear();
+                    self.become_unavailable().await;
                 }
             }
         }
+    }
+
+    async fn become_unavailable(&self) {
+        self.log_disconnection();
+        gauge!(self.disk_state_metric.clone(), DISK_IS_NOT_ACTIVE);
+        *self.state.write().await = GroupsState::NotReady;
+        // if disk is broken (either are indices in groups) we should drop groups, because
+        // otherwise we'll hold broken indices (for active blob of broken disk) in RAM
+        self.groups.write().await.clear();
+    }
+
+    // on pearl level only write operations can map OS errors into work_dir error, so this
+    // processing for error is done only for put operations
+    async fn process_error(&self, e: Error) -> Error {
+        if e.is_possible_disk_disconnection() && !Self::is_work_dir_available(self.disk.path()) {
+            self.become_unavailable().await;
+        }
+        e
     }
 
     pub(crate) fn log_disconnection(&self) {
@@ -253,9 +268,7 @@ impl DiskController {
                     // if work dir became unavailable we should reinit, so new state is NotReady
                     // otherwise - we'll try again
                     if !Self::is_work_dir_available(self.disk.path()) {
-                        self.log_disconnection();
-                        *self.state.write().await = GroupsState::NotReady;
-                        self.groups.write().await.clear();
+                        self.become_unavailable().await;
                     }
                     Err(e)
                 } else {
@@ -278,12 +291,10 @@ impl DiskController {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = self.get_or_create_pearl(&op).await;
             match vdisk_group {
-                Ok(group) => {
-                    // TODO: check if pearl WorkDirUnavailable error occured (this error is not
-                    // available in current release of pearl) and change state
-                    let res = group.put(key, data.clone()).await;
-                    res.map_err(|e| Error::failed(format!("{:#?}", e)))
-                }
+                Ok(group) => match group.put(key, data.clone()).await {
+                    Err(e) => Err(self.process_error(e).await),
+                    Ok(()) => Ok(()),
+                },
                 Err(e) => {
                     error!(
                         "PUT[alien][{}] Cannot find group, op: {:?}, err: {}",
@@ -299,20 +310,16 @@ impl DiskController {
 
     pub(crate) async fn put(&self, op: Operation, key: BobKey, data: BobData) -> BackendResult<()> {
         if *self.state.read().await == GroupsState::Ready {
-            let vdisk_group = self
-                .groups
-                .read()
-                .await
-                .iter()
-                .find(|vd| vd.can_process_operation(&op))
-                .cloned();
-            if let Some(group) = vdisk_group {
-                let res = group.put(key, data).await;
-                // TODO: check if pearl WorkDirUnavailable error occured and change state
-                res.map_err(|e| {
-                    debug!("PUT[{}], error: {:?}", key, e);
-                    Error::failed(format!("{:#?}", e))
-                })
+            let groups = self.groups.read().await;
+            let vdisk_group = groups.iter().find(|vd| vd.can_process_operation(&op));
+            if let Some(group) = vdisk_group.cloned() {
+                match group.put(key, data).await {
+                    Err(e) => {
+                        debug!("PUT[{}], error: {:?}", key, e);
+                        Err(self.process_error(e).await)
+                    }
+                    Ok(()) => Ok(()),
+                }
             } else {
                 debug!("PUT[{}] Cannot find group, operation: {:?}", key, op);
                 Err(Error::vdisk_not_found(op.vdisk_id()))
@@ -341,7 +348,6 @@ impl DiskController {
                 .find(|g| g.can_process_operation(&op))
                 .cloned();
             if let Some(group) = vdisk_group {
-                // TODO: check if pearl WorkDirUnavailable error occured and change state
                 group.get(key).await
             } else {
                 error!("GET[{}] Cannot find storage, operation: {:?}", key, op);
@@ -356,7 +362,6 @@ impl DiskController {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = self.find_group(&op).await;
             if let Ok(group) = vdisk_group {
-                // TODO: check if pearl WorkDirUnavailable error occured and change state
                 group.get(key).await
             } else {
                 warn!(

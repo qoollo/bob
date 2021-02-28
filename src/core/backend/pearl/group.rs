@@ -171,6 +171,11 @@ impl Group {
     async fn put_common(holder: Holder, key: BobKey, data: BobData) -> Result<(), Error> {
         let result = holder.write(key, data).await;
         if let Err(e) = result {
+            // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
+            // holder but instead try to restart the whole disk
+            if e.is_possible_disk_disconnection() {
+                return Err(e);
+            }
             if !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;

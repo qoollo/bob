@@ -155,16 +155,24 @@ impl Holder {
     async fn write_disk(storage: PearlStorage, key: Key, data: BobData) -> BackendResult<()> {
         counter!(PEARL_PUT_COUNTER, 1);
         let timer = Instant::now();
-        storage
+        let res = storage
             .write(key, Data::from(data).to_vec())
             .await
-            .unwrap_or_else(|e| {
+            .map_err(|e| {
                 counter!(PEARL_PUT_ERROR_COUNTER, 1);
                 error!("error on write: {:?}", e);
+                e.downcast_ref::<PearlError>()
+                    .map(|err| match err.kind() {
+                        PearlErrorKind::WorkDirUnavailable(_) => {
+                            Error::possible_disk_disconnection()
+                        }
+                        _ => Error::internal(),
+                    })
+                    .unwrap_or_else(|| Error::internal())
                 //TODO check duplicate
             });
         counter!(PEARL_PUT_TIMER, timer.elapsed().as_nanos() as u64);
-        Ok(())
+        res
     }
 
     #[allow(clippy::cast_possible_truncation)]
