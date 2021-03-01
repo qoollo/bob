@@ -1,7 +1,7 @@
 use crate::docker_cluster_runner::docker_compose_wrapper::*;
 use crate::docker_cluster_runner::fs_configuration::FSConfiguration;
 use bitflags::_core::cell::RefCell;
-use bob::configs::{DistributionFunc, node::BackendSettings};
+use bob::configs::{node::BackendSettings, DistributionFunc};
 use bob::configs::{Cluster, ClusterNode, MetricsConfig, Node, Pearl, Replica, VDisk};
 use bob::DiskPath;
 use filesystem_constants::DockerFSConstants;
@@ -189,7 +189,7 @@ impl TestClusterConfiguration {
     fn create_cluster(&self) -> Cluster {
         let nodes = self.create_nodes();
         let vdisks = self.create_vdisks();
-        Cluster::new(nodes, vdisks, DistributionFunc::default())
+        Cluster::new(nodes, vdisks, vec![], DistributionFunc::default())
     }
 
     fn create_named_node_configuration(&self, node_index: u32) -> (String, Node) {

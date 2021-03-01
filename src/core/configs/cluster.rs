@@ -20,6 +20,49 @@ impl Validatable for DiskPath {
     }
 }
 
+/// Rack config struct, with name and [`Node`] names.
+#[derive(Debug, PartialEq, Serialize, Deserialize, new)]
+pub struct Rack {
+    name: String,
+    nodes: Vec<String>,
+}
+
+impl Rack {
+    /// Returns rack name, empty if name wasn't set in config.
+    #[inline]
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns slice with [`Node`] names.
+    #[inline]
+    #[must_use]
+    pub fn nodes(&self) -> &[String] {
+        &self.nodes
+    }
+}
+
+impl Validatable for Rack {
+    fn validate(&self) -> Result<(), String> {
+        if self.name.is_empty() || self.name == "~" {
+            let msg = "rack must contain not empty field \'name\'".to_string();
+            error!("{}", msg);
+            return Err(msg);
+        }
+
+        let mut names = self.nodes.clone();
+        names.sort_unstable();
+        if names.windows(2).any(|pair| pair[0] == pair[1]) {
+            let msg = format!("racks can't contain identical node names: {}", self.name());
+            error!("{}", msg);
+            Err(msg)
+        } else {
+            Ok(())
+        }
+    }
+}
+
 /// Node config struct, with name, address and [`DiskPath`]s.
 #[derive(Debug, PartialEq, Serialize, Deserialize, new)]
 pub struct Node {
@@ -187,7 +230,7 @@ impl Validatable for VDisk {
 /// Distribution function type for cluster
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum DistributionFunc {
-    Mod
+    Mod,
 }
 
 impl Default for DistributionFunc {
@@ -204,7 +247,9 @@ pub struct Cluster {
     #[serde(default)]
     vdisks: Vec<VDisk>,
     #[serde(default)]
-    distribution_func: DistributionFunc
+    racks: Vec<Rack>,
+    #[serde(default)]
+    distribution_func: DistributionFunc,
 }
 
 impl Cluster {
@@ -224,6 +269,12 @@ impl Cluster {
     #[must_use]
     pub fn distribution_func(&self) -> DistributionFunc {
         self.distribution_func
+    }
+
+    /// Returns slice with [`Rack`]s.
+    #[must_use]
+    pub fn racks(&self) -> &[Rack] {
+        &self.racks
     }
 
     /// Extends the vdisks collection with contents of the iterator.
@@ -365,6 +416,10 @@ impl Validatable for Cluster {
             error!("{}", msg);
             return Err(msg);
         }
+        Self::aggregate(&self.racks).map_err(|e| {
+            error!("some racks in config are invalid");
+            e
+        })?;
         Self::aggregate(&self.nodes).map_err(|e| {
             error!("some nodes in config are invalid");
             e
@@ -386,6 +441,33 @@ impl Validatable for Cluster {
         if node_names.windows(2).any(|pair| pair[0] == pair[1]) {
             debug!("config contains duplicates nodes names");
             return Err("config contains duplicates nodes names".to_string());
+        }
+
+        let mut rack_names: Vec<_> = self.racks.iter().map(Rack::name).collect();
+        rack_names.sort_unstable();
+        if rack_names.windows(2).any(|pair| pair[0] == pair[1]) {
+            let msg = "config contains duplicates racks names";
+            debug!("{}", msg);
+            return Err(msg.to_string());
+        }
+
+        let mut node_names_in_racks: Vec<_> = self.racks.iter().flat_map(Rack::nodes).collect();
+        node_names_in_racks.sort_unstable();
+        if node_names_in_racks
+            .windows(2)
+            .any(|pair| pair[0] == pair[1])
+        {
+            let msg = "config contains duplicate node names in racks";
+            debug!("{}", msg);
+            return Err(msg.to_string());
+        }
+
+        for name in node_names_in_racks {
+            if !node_names.contains(&name) {
+                let msg = format!("config contains unknown node names in racks: {}", name);
+                debug!("{}", msg);
+                return Err(msg);
+            }
         }
 
         for vdisk in &self.vdisks {
@@ -450,6 +532,11 @@ pub(crate) mod tests {
             })
             .collect();
 
-        Cluster { nodes, vdisks, distribution_func: DistributionFunc::default() }
+        Cluster {
+            nodes,
+            vdisks,
+            distribution_func: DistributionFunc::default(),
+            racks: vec![],
+        }
     }
 }
