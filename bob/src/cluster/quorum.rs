@@ -7,7 +7,7 @@ use super::{
     },
     Cluster,
 };
-use crate::core::link_manager::LinkManager;
+use crate::link_manager::LinkManager;
 
 type Tasks = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>;
 

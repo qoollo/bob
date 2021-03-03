@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use crate::core::link_manager::LinkManager;
+use crate::link_manager::LinkManager;
 
 pub(crate) async fn get_any(
     key: BobKey,

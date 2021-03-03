@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use super::Cluster;
-use crate::core::link_manager::LinkManager;
+use crate::link_manager::LinkManager;
 
 pub(crate) struct Quorum {
     mapper: Arc<Virtual>,

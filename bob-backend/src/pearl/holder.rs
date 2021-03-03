@@ -3,11 +3,11 @@ use crate::prelude::*;
 use super::{
     core::{BackendResult, PearlStorage},
     data::{Data, Key},
-    metrics::{
-        PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
-        PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
-    },
     stuff::Stuff,
+};
+use bob_common::metrics::pearl::{
+    PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
+    PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
 };
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;

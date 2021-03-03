@@ -1,4 +1,4 @@
-use crate::core::server::Server as BobServer;
+use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{data::VDisk as DataVDisk, node::Disk as NodeDisk};
 use rocket::{

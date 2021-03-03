@@ -1,10 +1,12 @@
 use crate::configs::node::Node as NodeConfig;
+use pearl::init_pearl;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
 
 mod exporter;
+pub mod pearl;
 
 /// Counts number of PUT requests, processed by Grinder
 pub const GRINDER_PUT_COUNTER: &str = "grinder.put_count";
@@ -171,7 +173,7 @@ pub fn init_counters(
     init_bob_client();
     init_backend();
     init_link_manager();
-    todo!("init_pearl();");
+    init_pearl();
     metrics
 }
 

@@ -1,8 +1,8 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::{
-    core::{cluster::Cluster, test_utils},
     prelude::*,
+    {cluster::Cluster, test_utils},
 };
 
 use bob_common::{

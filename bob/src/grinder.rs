@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use super::{
+use crate::{
     cleaner::Cleaner,
     cluster::{get_cluster, Cluster},
     counter::Counter as BlobsCounter,
