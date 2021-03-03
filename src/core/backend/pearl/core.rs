@@ -16,17 +16,19 @@ impl Pearl {
     pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
+        let logfile = config.pearl().disks_events_logfile();
+        let logger = DisksEventsLogger::new(&logfile);
 
         let run_sem = Arc::new(Semaphore::new(config.init_par_degree()));
         let data = settings
             .clone()
-            .read_group_from_disk(config, run_sem.clone());
+            .read_group_from_disk(config, run_sem.clone(), logger.clone());
         let disk_controllers: Arc<[Arc<DiskController>]> = Arc::from(data.as_slice());
         trace!("count vdisk groups: {}", disk_controllers.len());
 
         let alien_disk_controller = settings
             .clone()
-            .read_alien_directory(config, run_sem)
+            .read_alien_directory(config, run_sem, logger)
             .expect("vec of pearl groups");
 
         Self {
@@ -154,14 +156,15 @@ impl BackendStorage for Pearl {
 
     async fn shutdown(&self) {
         use futures::stream::FuturesUnordered;
+        use std::iter::once;
         info!("begin shutdown");
-        let futures = FuturesUnordered::new();
-        for dc in self.disk_controllers.iter() {
-            futures.push(async move { dc.shutdown().await })
-        }
-        let _ = futures.collect::<()>().await;
-        // TODO: process alien disk with other ones
-        self.alien_disk_controller.shutdown().await;
+        let futures = self
+            .disk_controllers
+            .iter()
+            .chain(once(&self.alien_disk_controller))
+            .map(|dc| async move { dc.shutdown().await })
+            .collect::<FuturesUnordered<_>>();
+        futures.collect::<()>().await;
         info!("shutting down done");
     }
 

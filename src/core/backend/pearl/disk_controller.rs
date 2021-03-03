@@ -1,6 +1,8 @@
 use super::prelude::*;
 use tokio::time::{interval, Interval};
 
+pub(crate) mod logger;
+
 const CHECK_INTERVAL: Duration = Duration::from_millis(5000);
 
 const DISK_IS_NOT_ACTIVE: i64 = 0;
@@ -32,6 +34,7 @@ pub(crate) struct DiskController {
     settings: Arc<Settings>,
     is_alien: bool,
     disk_state_metric: String,
+    logger: DisksEventsLogger,
 }
 
 impl DiskController {
@@ -42,6 +45,7 @@ impl DiskController {
         run_sem: Arc<Semaphore>,
         settings: Arc<Settings>,
         is_alien: bool,
+        logger: DisksEventsLogger,
     ) -> Arc<Self> {
         let disk_state_metric = format!("{}.{}", DISKS_FOLDER, disk.name());
         let mut new_dc = Self {
@@ -55,6 +59,7 @@ impl DiskController {
             settings,
             is_alien,
             disk_state_metric,
+            logger,
         };
         new_dc.sync_init().expect("Can't start new disk controller");
         let new_dc = Arc::new(new_dc);
@@ -117,7 +122,7 @@ impl DiskController {
             GroupsState::NotReady => {
                 if prev_state != GroupsState::NotReady {
                     let new_state = GroupsState::NotReady;
-                    self.log_state_change(&new_state);
+                    self.log_state_change(&new_state).await;
                     // if disk is broken (either are indices in groups) we should drop groups, because
                     // otherwise we'll hold broken indices (for active blob of broken disk) in RAM
                     self.groups.write().await.clear();
@@ -125,17 +130,17 @@ impl DiskController {
             }
             GroupsState::Initialized => {
                 if prev_state != GroupsState::MaybeReady || prev_state != GroupsState::Initialized {
-                    self.log_state_change(&new_state);
+                    self.log_state_change(&new_state).await;
                 }
             }
             GroupsState::MaybeReady => {
                 if prev_state != GroupsState::MaybeReady || prev_state != GroupsState::Initialized {
-                    self.log_state_change(&new_state);
+                    self.log_state_change(&new_state).await;
                 }
             }
             GroupsState::Ready => {
                 if prev_state != GroupsState::Ready {
-                    self.log_state_change(&new_state)
+                    self.log_state_change(&new_state).await
                 }
             }
         }
@@ -152,20 +157,21 @@ impl DiskController {
         e
     }
 
-    fn log_state_change(&self, new_state: &GroupsState) {
-        // TODO: change info logs on file logging
+    async fn log_state_change(&self, new_state: &GroupsState) {
         match new_state {
             GroupsState::NotReady => {
-                info!("disk is not ready");
                 gauge!(self.disk_state_metric.clone(), DISK_IS_NOT_ACTIVE);
+                self.logger.log(self.disk_name(), "off").await;
+                info!("disk is not ready");
             }
             GroupsState::MaybeReady | GroupsState::Initialized => {
-                info!("dir is available but disk is not running");
                 gauge!(self.disk_state_metric.clone(), DIR_IS_AVAILABLE);
+                info!("dir is available but disk is not running");
             }
             GroupsState::Ready => {
-                info!("disk is ready");
                 gauge!(self.disk_state_metric.clone(), DISK_IS_ACTIVE);
+                self.logger.log(self.disk_name(), "on").await;
+                info!("disk is ready");
             }
         }
     }

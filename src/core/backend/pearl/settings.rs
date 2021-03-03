@@ -41,6 +41,7 @@ impl Settings {
         self: Arc<Self>,
         config: &NodeConfig,
         run_sem: Arc<Semaphore>,
+        logger: DisksEventsLogger,
     ) -> Vec<Arc<DiskController>> {
         self.mapper
             .local_disks()
@@ -54,6 +55,7 @@ impl Settings {
                     run_sem.clone(),
                     self.clone(),
                     false,
+                    logger.clone(),
                 )
             })
             .collect()
@@ -63,6 +65,7 @@ impl Settings {
         self: Arc<Self>,
         config: &NodeConfig,
         run_sem: Arc<Semaphore>,
+        logger: DisksEventsLogger,
     ) -> BackendResult<Arc<DiskController>> {
         let disk_name = config
             .pearl()
@@ -82,7 +85,15 @@ impl Settings {
                     .expect("Path is not utf8 encoded")
             });
         let alien_disk = DiskPath::new(disk_name, disk_path);
-        let dc = DiskController::new(alien_disk, Vec::new(), config, run_sem, self.clone(), true);
+        let dc = DiskController::new(
+            alien_disk,
+            Vec::new(),
+            config,
+            run_sem,
+            self.clone(),
+            true,
+            logger,
+        );
         Ok(dc)
     }
 

@@ -218,6 +218,8 @@ pub struct Pearl {
     hash_chars_count: u32,
     #[serde(default = "Pearl::default_enable_aio")]
     enable_aio: bool,
+    #[serde(default = "Pearl::default_disks_events_logfile")]
+    disks_events_logfile: String,
 }
 
 impl Pearl {
@@ -294,6 +296,14 @@ impl Pearl {
 
     fn default_enable_aio() -> bool {
         true
+    }
+
+    pub(crate) fn disks_events_logfile(&self) -> &str {
+        &self.disks_events_logfile
+    }
+
+    fn default_disks_events_logfile() -> String {
+        "/tmp/bob_events.csv".to_owned()
     }
 
     pub(crate) fn hash_chars_count(&self) -> u32 {
