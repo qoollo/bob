@@ -106,7 +106,10 @@ pub(crate) trait BackendStorage: Debug {
 
     async fn shutdown(&self);
 
-    fn disk_controllers(&self) -> Option<&[Arc<DiskController>]> {
+    // Should return pair: slice of normal disks and disk with aliens (because some method require
+    // to work with only normal disk_controllers, we should return alien disk_controller explicitly
+    // but not as part of other disk_controllers)
+    fn disk_controllers(&self) -> Option<(&[Arc<DiskController>], Arc<DiskController>)> {
         None
     }
 

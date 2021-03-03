@@ -165,8 +165,8 @@ impl BackendStorage for Pearl {
         info!("shutting down done");
     }
 
-    fn disk_controllers(&self) -> Option<&[Arc<DiskController>]> {
-        Some(&self.disk_controllers)
+    fn disk_controllers(&self) -> Option<(&[Arc<DiskController>], Arc<DiskController>)> {
+        Some((&self.disk_controllers, self.alien_disk_controller.clone()))
     }
 
     async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {

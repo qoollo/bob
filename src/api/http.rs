@@ -64,6 +64,13 @@ pub(crate) struct DistrFunc {
     func: String,
 }
 
+#[derive(Debug, Serialize)]
+pub(crate) struct DiskState {
+    name: String,
+    path: String,
+    is_active: bool,
+}
+
 fn runtime() -> Runtime {
     // TODO: run web server on same runtime as bob (update to async rocket when it's stable)
     debug!("HOT FIX: run web server on same runtime as bob");
@@ -84,6 +91,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         start_disk_controller,
         get_local_replica_directories,
         nodes,
+        disks_list,
         finalize_outdated_blobs,
         vdisk_records_count,
         distribution_function,
@@ -140,10 +148,11 @@ fn not_acceptable_backend() -> Status {
     status
 }
 
+// !notice: only finds normal group
 fn find_group(bob: &State<BobServer>, vdisk_id: u32) -> Result<PearlGroup, StatusExt> {
     let backend = bob.grinder().backend().inner();
     debug!("get backend: OK");
-    let dcs = backend
+    let (dcs, _) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
     debug!("get vdisks groups: OK");
@@ -210,6 +219,32 @@ fn nodes(bob: State<BobServer>) -> Json<Vec<Node>> {
     Json(nodes)
 }
 
+#[get("/disks/list")]
+fn disks_list(bob: State<BobServer>) -> Result<Json<Vec<DiskState>>, StatusExt> {
+    let backend = bob.grinder().backend().inner();
+    let (dcs, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+
+    let task = async move {
+        let mut disks = Vec::new();
+        for dc in dcs.iter().chain(std::iter::once(&adc)) {
+            let disk_path = dc.disk();
+            disks.push(DiskState {
+                name: disk_path.name().to_owned(),
+                path: disk_path.path().to_owned(),
+                is_active: dc.is_ready().await,
+            });
+        }
+        disks
+    };
+
+    let rt = Runtime::new().expect("create runtime");
+    let disks = rt.block_on(task);
+
+    Ok(Json(disks))
+}
+
 #[get("/metadata/distrfunc")]
 fn distribution_function(bob: State<BobServer>) -> Json<DistrFunc> {
     let mapper = bob.grinder().backend().mapper();
@@ -221,11 +256,12 @@ fn distribution_function(bob: State<BobServer>) -> Json<DistrFunc> {
 #[post("/disks/<disk_name>/start")]
 fn start_disk_controller(bob: State<BobServer>, disk_name: String) -> Result<StatusExt, StatusExt> {
     let backend = bob.grinder().backend().inner();
-    let dcs = backend
+    let (dcs, adc) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
     let dc = dcs
         .iter()
+        .chain(std::iter::once(&adc))
         .find(|dc| dc.disk_name() == disk_name)
         .ok_or_else(|| {
             let err = format!("Disk Controller with name '{}' not found", disk_name);

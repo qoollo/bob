@@ -85,7 +85,6 @@ impl DiskController {
     async fn monitor_task(self: Arc<Self>) {
         let mut check_interval = interval(CHECK_INTERVAL);
         Self::monitor_wait(self.state.clone(), &mut check_interval).await;
-        gauge!(self.disk_state_metric.clone(), DISK_IS_ACTIVE);
         loop {
             check_interval.tick().await;
             if Self::is_work_dir_available(self.disk.path()) {
@@ -199,6 +198,10 @@ impl DiskController {
 
     pub(crate) fn disk_name(&self) -> &str {
         &self.disk.name()
+    }
+
+    pub(crate) fn disk(&self) -> &DiskPath {
+        &self.disk
     }
 
     pub(crate) fn vdisks(&self) -> &[VDiskID] {

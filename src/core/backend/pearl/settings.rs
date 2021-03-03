@@ -1,5 +1,7 @@
 use super::prelude::*;
 
+const DEFAULT_ALIEN_DISK_NAME: &str = "alien_disk";
+
 #[derive(Debug)]
 pub(crate) struct Settings {
     bob_prefix_path: String,
@@ -65,15 +67,21 @@ impl Settings {
         let disk_name = config
             .pearl()
             .alien_disk()
-            .map_or_else(String::new, str::to_owned);
-        let alien_disk = DiskPath::new(
-            disk_name,
-            self.alien_folder
-                .clone()
-                .into_os_string()
-                .into_string()
-                .expect("Path is not utf8 encoded"),
-        );
+            .map_or_else(|| DEFAULT_ALIEN_DISK_NAME.to_owned(), str::to_owned);
+        let disk_path = self
+            .mapper
+            .local_disks()
+            .iter()
+            .find(|d| d.name() == disk_name)
+            .map(|d| d.path().to_owned())
+            .unwrap_or_else(|| {
+                self.alien_folder
+                    .clone()
+                    .into_os_string()
+                    .into_string()
+                    .expect("Path is not utf8 encoded")
+            });
+        let alien_disk = DiskPath::new(disk_name, disk_path);
         let dc = DiskController::new(alien_disk, Vec::new(), config, run_sem, self.clone(), true);
         Ok(dc)
     }

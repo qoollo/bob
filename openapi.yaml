@@ -169,6 +169,21 @@ paths:
                 type: string
         default:
           $ref: '#/components/responses/DefaultError'
+  /disks/list:
+    get:
+      summary: Returns the list of disks with their states
+      operationID: getDisks
+      responses:
+        '200':
+          description: "A JSON array with disks and their states"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DiskState'
+        default:
+          $ref: '#/components/responses/DefaultError'
   /disks/<disk_name>/start:
     post:
       summary: Trying to start disk controller for disk
@@ -270,6 +285,18 @@ components:
       required:
         - name
         - address
+    DiskState:
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+        is_active:
+          type: boolean
+      required:
+        - name
+        - path
+        - is_active
     VDisk:
       properties:
         id:
