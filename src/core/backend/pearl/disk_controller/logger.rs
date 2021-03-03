@@ -1,5 +1,5 @@
 use super::*;
-use chrono::Utc;
+use chrono::Local;
 use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 
@@ -25,13 +25,13 @@ impl DisksEventsLogger {
     }
 
     fn write_header(f: &mut File) -> Result<()> {
-        f.write_all(b"disk_name,new_state,timestamp\n")?;
+        f.write_all(b"disk_name;new_state;datetime\n")?;
         f.sync_all().map_err(|e| e.into())
     }
 
     pub(crate) async fn log(&self, disk_name: &str, event: &str) {
-        let cur_time = Utc::now();
-        let log_msg = format!("{},{},{}\n", disk_name, event, cur_time.timestamp());
+        let cur_time = Local::now();
+        let log_msg = format!("{};{};{}\n", disk_name, event, cur_time.format("%+"));
         let mut flock = self.fd.write().await;
         if let Err(e) = flock.write_all(log_msg.as_bytes()) {
             error!("Can't write disk event!!! (reason: {:?})", e);
