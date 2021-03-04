@@ -1,4 +1,4 @@
-use crate::configs::node::Node as NodeConfig;
+use crate::configs::node::{Node as NodeConfig, LOCAL_ADDRESS, METRICS_NAME, NODE_NAME};
 use pearl::init_pearl;
 use std::{
     sync::Arc,
@@ -61,6 +61,8 @@ pub const BLOBS_COUNT: &str = "backend.blob_count";
 pub const ALIEN_BLOBS_COUNT: &str = "backend.alien_count";
 /// Count memory occupied by indices
 pub const INDEX_MEMORY: &str = "backend.index_memory";
+
+const CLIENTS_METRICS_DIR: &str = "clients";
 
 /// Type to measure time of requests processing
 pub type Timer = Instant;
@@ -157,24 +159,47 @@ pub fn init_counters(
     node_config: &NodeConfig,
     local_address: &str,
 ) -> Arc<dyn ContainerBuilder + Send + Sync> {
-    let prefix = local_address;
+    let prefix_pattern = node_config
+        .metrics()
+        .prefix()
+        .map_or(format!("{}.{}", NODE_NAME, LOCAL_ADDRESS), str::to_owned);
+    let prefix = resolve_prefix_pattern(prefix_pattern, node_config, local_address);
     exporter::GraphiteBuilder::new()
         .set_address(node_config.metrics().graphite().to_string())
         .set_interval(Duration::from_secs(1))
+        .set_prefix(prefix)
         .install()
         .expect("Can't install metrics");
-    let container = MetricsContainer::new(Duration::from_secs(1), prefix.to_string());
+    let container = MetricsContainer::new(Duration::from_secs(1), CLIENTS_METRICS_DIR.to_owned());
     info!(
         "metrics container initialized with update interval: {}ms",
         container.duration.as_millis()
     );
     let metrics = Arc::new(container);
     init_grinder();
-    init_bob_client();
     init_backend();
     init_link_manager();
     init_pearl();
     metrics
+}
+
+fn resolve_prefix_pattern(
+    mut pattern: String,
+    node_config: &NodeConfig,
+    local_address: &str,
+) -> String {
+    let mut pats_subs = vec![
+        (LOCAL_ADDRESS, local_address),
+        (NODE_NAME, node_config.name()),
+    ];
+    if let Some(name) = node_config.metrics().name() {
+        pats_subs.push((METRICS_NAME, name));
+    }
+    for (pat, sub) in pats_subs {
+        let sub = sub.to_owned().replace(|c| c == ' ' || c == '.', "_");
+        pattern = pattern.replace(pat, &sub);
+    }
+    pattern
 }
 
 fn init_grinder() {
@@ -194,13 +219,4 @@ fn init_backend() {
 
 fn init_link_manager() {
     counter!(AVAILABLE_NODES_COUNT, 0);
-}
-
-fn init_bob_client() {
-    counter!(CLIENT_GET_COUNTER, 0);
-    counter!(CLIENT_PUT_COUNTER, 0);
-    counter!(CLIENT_EXIST_COUNTER, 0);
-    counter!(CLIENT_GET_ERROR_COUNT_COUNTER, 0);
-    counter!(CLIENT_PUT_ERROR_COUNT_COUNTER, 0);
-    counter!(CLIENT_EXIST_ERROR_COUNT_COUNTER, 0);
 }

@@ -107,11 +107,9 @@ impl Cluster for Quorum {
         let mut exist = vec![false; len];
         for (nodes, (keys, indexes)) in keys_by_nodes {
             let res: Vec<_> = LinkManager::exist_on_nodes(&nodes, &keys).await;
-            for result in res {
-                if let Ok(result) = result {
-                    for (&r, &ind) in result.inner().iter().zip(&indexes) {
-                        exist[ind] |= r;
-                    }
+            for result in res.into_iter().flatten() {
+                for (&r, &ind) in result.inner().iter().zip(&indexes) {
+                    exist[ind] |= r;
                 }
             }
         }

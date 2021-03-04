@@ -16,6 +16,7 @@ pub(super) async fn send_metrics(
     mut rx: Receiver<Metric>,
     address: String,
     send_interval: Duration,
+    prefix: String,
 ) {
     let mut socket =
         RetrySocket::new(address.parse().expect("Can't read address from String")).await;
@@ -37,9 +38,9 @@ pub(super) async fn send_metrics(
         }
 
         if socket.check_connection().is_ok() {
-            flush_counters(&counters_map, &mut socket).await;
-            flush_gauges(&gauges_map, &mut socket).await;
-            flush_times(&mut times_map, &mut socket).await;
+            flush_counters(&counters_map, &mut socket, &prefix).await;
+            flush_gauges(&gauges_map, &mut socket, &prefix).await;
+            flush_times(&mut times_map, &mut socket, &prefix).await;
             if let Err(e) = socket.flush().await {
                 debug!("Socket flush error: {}", e);
             }
@@ -108,9 +109,13 @@ fn process_time(times_map: &mut HashMap<MetricKey, TimeEntry>, time: MetricInner
     entry.timestamp = time.timestamp;
 }
 
-async fn flush_counters(counters_map: &HashMap<MetricKey, CounterEntry>, socket: &mut RetrySocket) {
+async fn flush_counters(
+    counters_map: &HashMap<MetricKey, CounterEntry>,
+    socket: &mut RetrySocket,
+    prefix: &str,
+) {
     for (key, entry) in counters_map.iter() {
-        let data = format!("{} {} {}\n", key, entry.sum, entry.timestamp);
+        let data = format!("{}.{} {} {}\n", prefix, key, entry.sum, entry.timestamp);
         trace!(
             "Counter data: {:<30} {:<20} {:<20}",
             key,
@@ -123,9 +128,13 @@ async fn flush_counters(counters_map: &HashMap<MetricKey, CounterEntry>, socket:
     }
 }
 
-async fn flush_gauges(gauges_map: &HashMap<MetricKey, GaugeEntry>, socket: &mut RetrySocket) {
+async fn flush_gauges(
+    gauges_map: &HashMap<MetricKey, GaugeEntry>,
+    socket: &mut RetrySocket,
+    prefix: &str,
+) {
     for (key, entry) in gauges_map.iter() {
-        let data = format!("{} {} {}\n", key, entry.value, entry.timestamp);
+        let data = format!("{}.{} {} {}\n", prefix, key, entry.value, entry.timestamp);
         trace!(
             "Gauge   data: {:<30} {:<20} {:<20}",
             key,
@@ -138,13 +147,17 @@ async fn flush_gauges(gauges_map: &HashMap<MetricKey, GaugeEntry>, socket: &mut 
     }
 }
 
-async fn flush_times(times_map: &mut HashMap<MetricKey, TimeEntry>, socket: &mut RetrySocket) {
+async fn flush_times(
+    times_map: &mut HashMap<MetricKey, TimeEntry>,
+    socket: &mut RetrySocket,
+    prefix: &str,
+) {
     for (key, entry) in times_map.iter_mut() {
         let mean_time = match entry.measurements_amount {
             0 => entry.mean.expect("No mean time provided"),
             val => entry.summary_time / val,
         };
-        let data = format!("{} {} {}\n", key, mean_time, entry.timestamp);
+        let data = format!("{}.{} {} {}\n", prefix, key, mean_time, entry.timestamp);
         trace!(
             "Time    data: {:<30} {:<20} {:<20}",
             key,

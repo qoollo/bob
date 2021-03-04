@@ -32,6 +32,17 @@ paths:
                   $ref: '#/components/schemas/Node'
         default:
           $ref: '#/components/responses/DefaultError'
+  /metadata/distrfunc:
+    get:
+      summary: Return information about key distribution function
+      operationId: distributionFunction
+      responses:
+        '200':
+          description: "Distribution function information"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DistrFunc'
   /vdisks:
     get:
       summary: Returns a list of vdisks
@@ -304,3 +315,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Dir'
+    DistrFunc:
+      type: object
+      properties:
+        func:
+          type: string
+          enum:
+            - Mod

@@ -193,6 +193,18 @@ impl Validatable for VDisk {
     }
 }
 
+/// Distribution function type for cluster
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
+pub enum DistributionFunc {
+    Mod,
+}
+
+impl Default for DistributionFunc {
+    fn default() -> Self {
+        DistributionFunc::Mod
+    }
+}
+
 /// Config with cluster structure description.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Cluster {
@@ -200,6 +212,8 @@ pub struct Cluster {
     nodes: Vec<Node>,
     #[serde(default)]
     vdisks: Vec<VDisk>,
+    #[serde(default)]
+    distribution_func: DistributionFunc,
 }
 
 impl Cluster {
@@ -213,6 +227,12 @@ impl Cluster {
     #[must_use]
     pub fn vdisks(&self) -> &[VDisk] {
         &self.vdisks
+    }
+
+    /// Returns distribution function
+    #[must_use]
+    pub fn distribution_func(&self) -> DistributionFunc {
+        self.distribution_func
     }
 
     /// Extends the vdisks collection with contents of the iterator.
@@ -403,7 +423,7 @@ impl Validatable for Cluster {
 }
 
 pub mod tests {
-    use super::{Cluster, DiskPath, Node, Replica, VDisk};
+    use super::{Cluster, DiskPath, DistributionFunc, Node, Replica, VDisk};
 
     #[must_use]
     pub fn cluster_config(count_nodes: u32, count_vdisks: u32, count_replicas: u32) -> Cluster {
@@ -433,6 +453,10 @@ pub mod tests {
             })
             .collect();
 
-        Cluster { nodes, vdisks }
+        Cluster {
+            nodes,
+            vdisks,
+            distribution_func: DistributionFunc::default(),
+        }
     }
 }

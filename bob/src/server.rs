@@ -163,7 +163,7 @@ impl BobApi for Server {
                 timestamp: get_res.meta().timestamp(),
             });
             let data = get_res.into_inner();
-            let blob = Blob { meta, data };
+            let blob = Blob { data, meta };
             let response = Response::new(blob);
             trace!("- - - - - SERVER GET FINISHED - - - - -");
             Ok(response)
