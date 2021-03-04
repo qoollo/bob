@@ -6,7 +6,7 @@ extern crate log;
 use bob::configs::cluster::{Cluster as ClusterConfig, Node as ClusterNode};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use config_cluster_generator::{
-    center::{get_new_disks, get_pairs_count, get_structure},
+    center::{check_expand_configs, get_new_disks, get_new_racks, get_pairs_count, get_structure},
     utils::{init_logger, lcm, read_config_from_file, write_to_file},
 };
 
@@ -48,7 +48,7 @@ fn subcommand_expand(matches: &ArgMatches) -> Option<()> {
     debug!("arguments: {:?}", matches);
     let config = read_config_from_file(&get_input_config_name(matches))?;
     let hardware_config = read_config_from_file(&get_hardware_config_name(matches))?;
-    let output = expand_config(config, hardware_config);
+    let output = expand_config(matches, config, hardware_config)?;
     let output = serde_yaml::to_string(&output).expect("config serialization error");
     debug!("config cluster extending: OK");
     if let Some(name) = matches.value_of("output") {
@@ -59,6 +59,89 @@ fn subcommand_expand(matches: &ArgMatches) -> Option<()> {
         debug!("no file provided, stdout print: OK");
     }
     Some(())
+}
+
+fn generate_config(matches: &ArgMatches, input: ClusterConfig) -> Option<ClusterConfig> {
+    let replicas_count = get_replicas_count(matches)?;
+    let vdisks_count = get_vdisks_count(matches, input.nodes())?;
+    let vdisks_counts_match = vdisks_counts_match(matches);
+    let use_racks = get_use_racks(matches);
+    let res = simple_gen(
+        input,
+        replicas_count,
+        vdisks_count,
+        vdisks_counts_match,
+        use_racks,
+    )?;
+    debug!("generate config: OK");
+    Some(res)
+}
+
+fn expand_config(
+    matches: &ArgMatches,
+    config: ClusterConfig,
+    hardware_config: ClusterConfig,
+) -> Option<ClusterConfig> {
+    let use_racks = get_use_racks(matches);
+    let res = simple_expand(config, hardware_config, use_racks)?;
+    debug!("expand config: OK");
+    Some(res)
+}
+
+fn simple_expand(
+    config: ClusterConfig,
+    mut hardware_config: ClusterConfig,
+    use_racks: bool,
+) -> Option<ClusterConfig> {
+    let mut center = get_structure(&hardware_config, use_racks)?;
+    center.validate()?;
+    let old_center = get_structure(&config, use_racks)?;
+    old_center.validate()?;
+    check_expand_configs(&old_center, &center, use_racks)?;
+
+    let new_disks: Vec<_> = get_new_disks(config.nodes(), hardware_config.nodes()).collect();
+    let new_racks = if !use_racks {
+        vec![]
+    } else {
+        get_new_racks(config.racks(), hardware_config.racks()).collect()
+    };
+    center.mark_new(&new_disks, &new_racks);
+
+    let vdisks_count = config.vdisks().len();
+    debug!("vdisks count: OK [{}]", vdisks_count);
+    let mut vdisks = Vec::with_capacity(vdisks_count);
+    for vdisk in config.vdisks() {
+        let vdisk = center.create_vdisk_from_another(vdisk);
+        debug!("vdisk added: {}", vdisk.id());
+        vdisks.push(vdisk);
+    }
+    hardware_config.vdisks_extend(vdisks);
+    debug!("extend config: OK [\n{:#?}\n]", center);
+    Some(hardware_config)
+}
+
+fn simple_gen(
+    mut config: ClusterConfig,
+    replicas_count: usize,
+    mut vdisks_count: usize,
+    vdisks_counts_match: bool,
+    use_racks: bool,
+) -> Option<ClusterConfig> {
+    let center = get_structure(&config, use_racks)?;
+    center.validate()?;
+    if !vdisks_counts_match {
+        vdisks_count = vdisks_count.max(lcm(center.disks_count(), replicas_count));
+    }
+    debug!("new vdisks count: OK [{}]", vdisks_count);
+    let mut vdisks = Vec::new();
+    while vdisks.len() < vdisks_count {
+        let vdisk = center.create_vdisk(vdisks.len() as u32, replicas_count);
+        debug!("vdisk added: {}", vdisk.id());
+        vdisks.push(vdisk);
+    }
+    config.vdisks_extend(vdisks);
+    debug!("simple gen: OK [\n{:#?}\n]", center);
+    Some(config)
 }
 
 fn get_input_config_name(matches: &ArgMatches) -> String {
@@ -77,52 +160,10 @@ fn get_hardware_config_name(matches: &ArgMatches) -> String {
     name.to_owned()
 }
 
-fn generate_config(matches: &ArgMatches, input: ClusterConfig) -> Option<ClusterConfig> {
-    let replicas_count = get_replicas_count(matches)?;
-    let vdisks_count = get_vdisks_count(matches, input.nodes())?;
-    let vdisks_counts_match = vdisks_counts_match(matches);
-    let res = simple_gen(input, replicas_count, vdisks_count, vdisks_counts_match);
-    debug!("generate config: OK");
-    Some(res)
-}
-
-fn expand_config(config: ClusterConfig, mut hardware_config: ClusterConfig) -> ClusterConfig {
-    let mut center = get_structure(&hardware_config);
-    let new_disks: Vec<_> = get_new_disks(config.nodes(), hardware_config.nodes()).collect();
-    center.mark_new(&new_disks);
-    let vdisks_count = config.vdisks().len();
-    debug!("vdisks count: OK [{}]", vdisks_count);
-    let mut vdisks = Vec::with_capacity(vdisks_count);
-    for vdisk in config.vdisks() {
-        let vdisk = center.create_vdisk_from_another(vdisk);
-        debug!("vdisk added: {}", vdisk.id());
-        vdisks.push(vdisk);
-    }
-    hardware_config.vdisks_extend(vdisks);
-    debug!("extend config: OK [\n{:#?}\n]", center);
-    hardware_config
-}
-
-fn simple_gen(
-    mut config: ClusterConfig,
-    replicas_count: usize,
-    mut vdisks_count: usize,
-    vdisks_counts_match: bool,
-) -> ClusterConfig {
-    let center = get_structure(&config);
-    if !vdisks_counts_match {
-        vdisks_count = vdisks_count.max(lcm(center.disks_count(), replicas_count));
-    }
-    debug!("new vdisks count: OK [{}]", vdisks_count);
-    let mut vdisks = Vec::new();
-    while vdisks.len() < vdisks_count {
-        let vdisk = center.create_vdisk(vdisks.len() as u32, replicas_count);
-        debug!("vdisk added: {}", vdisk.id());
-        vdisks.push(vdisk);
-    }
-    config.vdisks_extend(vdisks);
-    debug!("simple gen: OK [\n{:#?}\n]", center);
-    config
+fn get_use_racks(matches: &ArgMatches) -> bool {
+    let res = matches.is_present("use_racks");
+    debug!("get_use_racks: OK [{}]", res);
+    res
 }
 
 fn get_replicas_count(matches: &ArgMatches) -> Option<usize> {
@@ -150,7 +191,9 @@ fn get_vdisks_count(matches: &ArgMatches, nodes: &[ClusterNode]) -> Option<usize
 }
 
 fn vdisks_counts_match(matches: &ArgMatches) -> bool {
-    matches.is_present("exact_vdisks_count")
+    let res = matches.is_present("exact_vdisks_count");
+    debug!("vdisks_counts_match: OK [{}]", res);
+    res
 }
 
 fn get_matches() -> ArgMatches<'static> {
@@ -179,16 +222,23 @@ fn get_matches() -> ArgMatches<'static> {
         .long("exact")
         .help("Create config with exactly provided vdisks count")
         .takes_value(false);
+    let use_racks = Arg::with_name("use_racks")
+        .short("R")
+        .long("use-racks")
+        .help("Use racks field in config")
+        .takes_value(false);
     debug!("input arg: OK");
     let subcommand_expand = SubCommand::with_name("expand")
         .arg(input.clone())
         .arg(output.clone())
+        .arg(use_racks.clone())
         .arg(hardware_config);
 
     let subcommand_new = SubCommand::with_name("new")
         .arg(input)
         .arg(output)
         .arg(vdisks_count)
+        .arg(use_racks)
         .arg(exact_vdisks_count)
         .arg(replicas);
 

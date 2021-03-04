@@ -1,8 +1,13 @@
 use bob::{
-    configs::cluster::{Cluster as ClusterConfig, Node as ClusterNode, Replica, VDisk},
+    configs::cluster::{
+        Cluster as ClusterConfig, Node as ClusterNode, Rack as ClusterRack, Replica, VDisk,
+    },
     DiskPath,
 };
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 const ORD: Ordering = Ordering::Relaxed;
 
@@ -16,8 +21,11 @@ impl Center {
         Self { racks: Vec::new() }
     }
 
-    pub fn mark_new(&mut self, disks: &[(&ClusterNode, &DiskPath)]) {
+    pub fn mark_new(&mut self, disks: &[(&ClusterNode, &DiskPath)], racks: &[&ClusterRack]) {
         for rack in self.racks.iter_mut() {
+            if racks.iter().any(|&new_rack| rack.name == new_rack.name()) {
+                rack.is_old = false;
+            }
             rack.mark_new(disks);
         }
         self.racks.sort_unstable_by_key(|a| match a.is_old {
@@ -74,15 +82,46 @@ impl Center {
         Some(rack)
     }
 
+    fn next_rack_from_list(&self, list: &[&str]) -> Option<&Rack> {
+        if list.is_empty() {
+            return None;
+        }
+        let min_key = self.racks.iter().map(|x| x.used_count.load(ORD)).min()?;
+
+        let rack = self.racks.iter().find(|&rack| {
+            rack.used_count.load(ORD) == min_key && list.contains(&rack.name.as_str())
+        })?;
+
+        rack.inc();
+        Some(rack)
+    }
+
     pub fn create_vdisk(&self, id: u32, replicas_count: usize) -> VDisk {
         let mut vdisk = VDisk::new(id);
-        let (node, disk) = self.next_disk().expect("no disks in setup");
+        let first_rack = self.next_rack().expect("no racks in setup");
+        let (node, disk) = first_rack.next_disk(&[]).expect("no disks in setup");
         vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
 
         while vdisk.replicas().len() < replicas_count {
-            let rack = self.next_rack().expect("no racks in setup");
             let banned_nodes = get_used_nodes_names(vdisk.replicas());
-            let (node, disk) = rack.next_disk(&banned_nodes).expect("no disks in setup");
+            let (node, disk) = if vdisk.replicas().len() == 2 {
+                first_rack.next_disk(&banned_nodes).map_or_else(
+                    || {
+                        self.next_rack()
+                            .expect("no racks in setup")
+                            .next_disk(&banned_nodes)
+                    },
+                    |x| {
+                        first_rack.inc();
+                        Some(x)
+                    },
+                )
+            } else {
+                self.next_rack()
+                    .expect("no racks in setup")
+                    .next_disk(&banned_nodes)
+            }
+            .expect("no disks in setup");
             vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
             debug!("replica added: {} {}", node.name, disk.name);
         }
@@ -94,12 +133,29 @@ impl Center {
         let mut vdisk = VDisk::new(old_vdisk.id());
         let (node, disk) = self
             .next_disk_from_list(old_vdisk.replicas())
-            .or_else(move || self.next_disk())
+            .or_else(|| self.next_disk())
             .expect("no disks in setup");
         vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
 
+        let preferred_racks: Vec<_> = self
+            .racks
+            .iter()
+            .filter(|&rack| {
+                let node_names: Vec<_> = rack.nodes.iter().map(|node| node.name.as_str()).collect();
+                old_vdisk
+                    .replicas()
+                    .iter()
+                    .map(|r| r.node())
+                    .any(|node| node_names.contains(&node))
+            })
+            .map(|rack| rack.name.as_str())
+            .collect();
+
         while vdisk.replicas().len() < replicas_count {
-            let rack = self.next_rack().expect("no racks in setup");
+            let rack = self
+                .next_rack_from_list(&preferred_racks)
+                .or_else(|| self.next_rack())
+                .expect("no racks in setup");
             let banned_nodes = get_used_nodes_names(vdisk.replicas());
             let (node, disk) = rack
                 .next_disk_from_list(&banned_nodes, old_vdisk.replicas())
@@ -109,6 +165,29 @@ impl Center {
             debug!("replica added: {} {}", node.name, disk.name);
         }
         vdisk
+    }
+
+    pub fn validate(&self) -> Option<()> {
+        let mut racks_names: Vec<_> = self.racks.iter().map(|r| r.name.as_str()).collect();
+        racks_names.sort_unstable();
+        if racks_names.windows(2).any(|pair| pair[0] == pair[1]) {
+            let msg = "config contains duplicates racks names";
+            debug!("{}", msg);
+            return None;
+        }
+
+        let mut nodes_names: Vec<_> = self
+            .racks
+            .iter()
+            .flat_map(|r| r.nodes.iter().map(|n| n.name.as_str()))
+            .collect();
+        nodes_names.sort_unstable();
+        if nodes_names.windows(2).any(|pair| pair[0] == pair[1]) {
+            let msg = "config contains duplicates nodes names";
+            debug!("{}", msg);
+            return None;
+        }
+        Some(())
     }
 }
 
@@ -265,7 +344,7 @@ pub fn get_pairs_count(nodes: &[ClusterNode]) -> usize {
     nodes.iter().fold(0, |acc, n| acc + n.disks().len())
 }
 
-pub fn get_structure(config: &ClusterConfig) -> Center {
+pub fn get_structure(config: &ClusterConfig, use_racks: bool) -> Option<Center> {
     let nodes = config
         .nodes()
         .iter()
@@ -281,9 +360,65 @@ pub fn get_structure(config: &ClusterConfig) -> Center {
         })
         .collect();
     let mut center = Center::new();
-    let rack = Rack::new("unknown".to_string(), nodes, true);
-    center.push(rack);
-    center
+    if !use_racks || config.racks().is_empty() {
+        let rack = Rack::new("unknown".to_string(), nodes, true);
+        center.push(rack);
+        debug!("get_structure: OK");
+        return Some(center);
+    }
+    let mut racks = HashMap::new();
+    let mut node_rack_map = HashMap::new();
+    for rack in config.racks() {
+        racks
+            .insert(
+                rack.name(),
+                Rack::new(rack.name().to_string(), vec![], true),
+            )
+            .map_or_else(
+                || Some(()),
+                |_| {
+                    debug!(
+                        "config contains duplicate racks, get_structure: ERR [{}]",
+                        rack.name()
+                    );
+                    None
+                },
+            )?;
+        for node in rack.nodes() {
+            node_rack_map.insert(node, rack.name()).map_or_else(
+                    || Some(()),
+                    |rack| {
+                        debug!(
+                            "config contains duplicate nodes in racks, get_structure: ERR [rack: {}, node: {}]",
+                            rack, node.as_str()
+                        );
+                        None
+                    },
+                )?;
+        }
+    }
+    for node in nodes {
+        let rack_name = node_rack_map.get(&node.name).or_else(|| {
+            debug!(
+                "not found rack for node, get_structure: ERR [node_name: {}]",
+                &node.name
+            );
+            None
+        })?;
+        let rack = racks.get_mut(rack_name).or_else(|| {
+            debug!(
+                "rack not found, get_structure: ERR [rack_name: {}]",
+                rack_name
+            );
+            None
+        })?;
+        rack.nodes.push(node);
+    }
+    for (_, rack) in racks {
+        center.push(rack);
+    }
+    debug!("get_structure: OK");
+    Some(center)
 }
 
 pub fn get_new_disks<'a>(
@@ -306,4 +441,63 @@ pub fn get_new_disks<'a>(
                 })
                 .is_none()
         })
+}
+
+pub fn get_new_racks<'a>(
+    old_racks: &'a [ClusterRack],
+    new_racks: &'a [ClusterRack],
+) -> impl Iterator<Item = &'a ClusterRack> {
+    new_racks.iter().filter(move |&rack| {
+        !old_racks
+            .iter()
+            .any(move |old_rack| rack.name() == old_rack.name())
+    })
+}
+
+pub fn check_expand_configs(old: &Center, new: &Center, use_racks: bool) -> Option<()> {
+    if use_racks {
+        let old_rack_names: HashSet<_> = old.racks.iter().map(|r| r.name.as_str()).collect();
+        let new_rack_names: HashSet<_> = new.racks.iter().map(|r| r.name.as_str()).collect();
+        if !old_rack_names.is_subset(&new_rack_names) {
+            debug!(
+                concat!(
+                    "some racks was removed from config, ",
+                    "check_expand_configs: ERR [{:?}]"
+                ),
+                old_rack_names.difference(&new_rack_names)
+            );
+            return None;
+        }
+    }
+    let old_node_disk_pairs: HashSet<_> = old
+        .racks
+        .iter()
+        .flat_map(|r| r.nodes.iter())
+        .flat_map(|n| {
+            n.disks
+                .iter()
+                .map(move |d| (n.name.as_str(), d.name.as_str()))
+        })
+        .collect();
+    let new_node_disk_pairs: HashSet<_> = new
+        .racks
+        .iter()
+        .flat_map(|r| r.nodes.iter())
+        .flat_map(|n| {
+            n.disks
+                .iter()
+                .map(move |d| (n.name.as_str(), d.name.as_str()))
+        })
+        .collect();
+    if !old_node_disk_pairs.is_subset(&new_node_disk_pairs) {
+        debug!(
+            concat!(
+                "some nodes or disks was removed from config, ",
+                "check_expand_configs: ERR [{:?}]"
+            ),
+            old_node_disk_pairs.difference(&new_node_disk_pairs)
+        );
+        return None;
+    }
+    Some(())
 }
