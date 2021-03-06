@@ -96,7 +96,7 @@ impl DiskController {
                 let state = self.state.read().await.clone();
                 match state {
                     GroupsState::NotReady => {
-                        self.change_state(state, GroupsState::MaybeReady).await;
+                        self.change_state(GroupsState::MaybeReady).await;
                     }
                     GroupsState::MaybeReady | GroupsState::Initialized => {
                         warn!(
@@ -110,49 +110,41 @@ impl DiskController {
                 }
             } else {
                 error!("Disk is unavailable: {:?}", self.disk);
-                let state = self.state.read().await.clone();
-                self.change_state(state, GroupsState::NotReady).await;
+                self.change_state(GroupsState::NotReady).await;
             }
         }
     }
 
-    async fn change_state(&self, prev_state: GroupsState, new_state: GroupsState) {
-        let mut write_lock = self.state.write().await;
+    async fn change_state(&self, new_state: GroupsState) {
+        let mut wlock = self.state.write().await;
         match new_state {
             GroupsState::NotReady => {
-                if prev_state != GroupsState::NotReady {
-                    let new_state = GroupsState::NotReady;
+                if *wlock != GroupsState::NotReady {
                     self.log_state_change(&new_state).await;
                     // if disk is broken (either are indices in groups) we should drop groups, because
                     // otherwise we'll hold broken indices (for active blob of broken disk) in RAM
                     self.groups.write().await.clear();
                 }
             }
-            GroupsState::Initialized => {
-                if prev_state != GroupsState::MaybeReady || prev_state != GroupsState::Initialized {
-                    self.log_state_change(&new_state).await;
-                }
-            }
-            GroupsState::MaybeReady => {
-                if prev_state != GroupsState::MaybeReady || prev_state != GroupsState::Initialized {
+            GroupsState::Initialized | GroupsState::MaybeReady => {
+                if *wlock != GroupsState::MaybeReady || *wlock != GroupsState::Initialized {
                     self.log_state_change(&new_state).await;
                 }
             }
             GroupsState::Ready => {
-                if prev_state != GroupsState::Ready {
+                if *wlock != GroupsState::Ready {
                     self.log_state_change(&new_state).await
                 }
             }
         }
-        *write_lock = new_state;
+        *wlock = new_state;
     }
 
     // on pearl level only write operations can map OS errors into work_dir error, so this
     // processing for error is done only for put operations
     async fn process_error(&self, e: Error) -> Error {
         if e.is_possible_disk_disconnection() && !Self::is_work_dir_available(self.disk.path()) {
-            self.change_state(self.state.read().await.clone(), GroupsState::NotReady)
-                .await;
+            self.change_state(GroupsState::NotReady).await;
         }
         e
     }
@@ -186,12 +178,17 @@ impl DiskController {
 
     pub(crate) async fn init(&self) -> BackendResult<()> {
         let state = self.state.read().await.clone();
-        if state == GroupsState::NotReady || state == GroupsState::MaybeReady {
-            let groups = self.get_groups()?;
-            *self.groups.write().await = groups;
-            self.change_state(state, GroupsState::Initialized).await;
+        match state {
+            GroupsState::MaybeReady => {
+                let groups = self.get_groups()?;
+                *self.groups.write().await = groups;
+                self.change_state(GroupsState::Initialized).await;
+                Ok(())
+            }
+
+            GroupsState::NotReady => Err(Error::internal().into()),
+            _ => Ok(()),
         }
-        Ok(())
     }
 
     fn get_groups(&self) -> BackendResult<Vec<Group>> {
@@ -312,11 +309,11 @@ impl DiskController {
                     // if work dir became unavailable we should reinit, so new state is NotReady
                     // otherwise - we'll try again
                     if !Self::is_work_dir_available(self.disk.path()) {
-                        self.change_state(state, GroupsState::NotReady).await;
+                        self.change_state(GroupsState::NotReady).await;
                     }
                     Err(e)
                 } else {
-                    self.change_state(state, GroupsState::Ready).await;
+                    self.change_state(GroupsState::Ready).await;
                     info!("All groups are running on disk: {:?}", self.disk);
                     Ok(())
                 }
