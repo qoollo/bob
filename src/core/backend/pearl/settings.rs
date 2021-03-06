@@ -219,11 +219,13 @@ impl Settings {
             .get_vdisks_ids()
             .into_iter()
             .find(|vdisk| *vdisk == vdisk_id);
-        vdisk.map(|id| (entry, id)).ok_or({
+        if let Some(data) = vdisk.map(|id| (entry, id)) {
+            Ok(data)
+        } else {
             let msg = format!("cannot find vdisk with id: {:?}", vdisk_id);
             error!("{}", msg);
-            Error::failed(msg)
-        })
+            Err(Error::failed(msg))
+        }
     }
 
     fn try_read_path(entry: IOResult<DirEntry>) -> BackendResult<(DirEntry, Metadata)> {

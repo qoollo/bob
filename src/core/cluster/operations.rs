@@ -1,3 +1,4 @@
+use super::prelude::Tasks;
 use tokio::task::JoinError;
 
 use super::prelude::*;
@@ -72,10 +73,7 @@ pub(crate) async fn put_at_least(
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
     options: PutOptions,
-) -> (
-    FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>,
-    Vec<NodeOutput<Error>>,
-) {
+) -> (Tasks, Vec<NodeOutput<Error>>) {
     let mut handles: FuturesUnordered<_> = target_nodes
         .cloned()
         .map(|node| call_node_put(key, data.clone(), node, options.clone()))

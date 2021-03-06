@@ -1,7 +1,7 @@
 use super::prelude::*;
 use tokio::task::JoinHandle;
 
-type Tasks = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>;
+pub(crate) type Tasks = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>;
 
 #[derive(Clone)]
 pub(crate) struct Quorum {
@@ -153,6 +153,8 @@ impl Quorum {
         debug!("need additional local alien copies: {}", failed_nodes.len());
         let vdisk_id = self.mapper.vdisk_id_from_key(key);
         let operation = Operation::new_alien(vdisk_id);
+        // FIXME: if we failed to create alien for failed_node on support_node
+        // seems like that we should create alien for failed_node, but not for the support one
         let local_put = put_local_all(
             &self.backend,
             failed_nodes.clone(),

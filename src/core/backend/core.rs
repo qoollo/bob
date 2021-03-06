@@ -56,11 +56,12 @@ impl Operation {
         }
     }
 
-    pub(crate) fn clone_alien(&self) -> Self {
+    // local operation doesn't contain remote node, so node name is passed through argument
+    pub(crate) fn clone_local_alien(&self, local_node_name: &str) -> Self {
         Self {
             vdisk_id: self.vdisk_id,
             disk_path: None,
-            remote_node_name: Some(self.remote_node_name.as_ref().unwrap().to_owned()),
+            remote_node_name: Some(local_node_name.to_owned()),
         }
     }
 
@@ -226,8 +227,7 @@ impl Backend {
                         local_err
                     );
                     // write to alien/<local name>
-                    // FIXME: panics when disk is unavailable
-                    let mut op = operation.clone_alien();
+                    let mut op = operation.clone_local_alien(self.mapper().local_node_name());
                     op.set_remote_folder(self.mapper.local_node_name().to_owned());
                     self.inner
                         .put_alien(op, key, data)
