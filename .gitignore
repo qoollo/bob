@@ -19,3 +19,4 @@ Cargo.lock
 
 /log
 /cluster_test
+/bob-grpc/src/bob_storage.rs
