@@ -41,6 +41,7 @@ lazy_static = "1.4.0"
 thiserror = "1.0"
 metrics = { version = "0.12.1", features = ["std"] }
 #metrics = "0.12.1"
+infer = "0.3.5"
 
 [dependencies.tokio]
 version = "1.0.2"

@@ -1,7 +1,13 @@
-use std::fs::ReadDir;
+use std::{fs::ReadDir, str::FromStr};
+
+use crate::backend::{BobData, BobOptions};
 
 use super::prelude::*;
+use backend::BobKey;
 use backend::NodeDisk;
+use rocket::http::ContentType;
+use rocket::request::FromFormValue;
+use rocket::response::Content;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
@@ -61,7 +67,7 @@ pub(crate) struct Dir {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct DistrFunc {
-    func: String
+    func: String,
 }
 
 fn runtime() -> Runtime {
@@ -86,6 +92,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         finalize_outdated_blobs,
         vdisk_records_count,
         distribution_function,
+        get_data
     ];
     let task = move || {
         info!("API server started");
@@ -201,7 +208,9 @@ fn nodes(bob: State<BobServer>) -> Json<Vec<Node>> {
 #[get("/metadata/distrfunc")]
 fn distribution_function(bob: State<BobServer>) -> Json<DistrFunc> {
     let mapper = bob.grinder().backend().mapper();
-    Json(DistrFunc { func: format!("{:?}", mapper.distribution_func()) })
+    Json(DistrFunc {
+        func: format!("{:?}", mapper.distribution_func()),
+    })
 }
 
 #[get("/vdisks")]
@@ -465,6 +474,40 @@ fn read_directory_children(read_dir: ReadDir, name: String, path: String) -> Opt
         path,
         children,
     })
+}
+
+#[get("/data/<key>?<source>")]
+fn get_data(
+    _bob: State<BobServer>,
+    key: BobKey,
+    source: Option<grpc::GetOptions>,
+) -> Result<Content<Vec<u8>>, StatusExt> {
+    let opts = BobOptions::new_get(source);
+    let result = runtime()
+        .block_on(async { _bob.grinder().get(key, &opts).await })
+        .map_err(|err| StatusExt::new(Status::NotFound, false, err.to_string()))?;
+    let mime_type = infer::get(result.inner());
+    let mime_type = match mime_type {
+        None => ContentType::Any,
+        Some(t) => ContentType::from_str(t.mime_type()).unwrap_or_default(),
+    };
+    Ok(Content(mime_type, result.inner().to_owned()))
+}
+
+impl<'r> FromFormValue<'r> for grpc::GetOptions {
+    type Error = &'r RawStr;
+    fn from_form_value(form_value: &'r RawStr) -> Result<Self, Self::Error> {
+        match form_value.as_str() {
+            "all" => Ok(grpc::GetOptions::new_all()),
+            "alien" => Ok(grpc::GetOptions::new_alien()),
+            "local" => Ok(grpc::GetOptions::new_local()),
+            _ => Err(form_value),
+        }
+    }
+
+    fn default() -> Option<Self> {
+        Some(grpc::GetOptions::new_all())
+    }
 }
 
 impl<'r> FromParam<'r> for Action {
