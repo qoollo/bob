@@ -13,7 +13,7 @@ use rocket::{
 use rocket_contrib::json::Json;
 use std::{
     fs::ReadDir,
-    io::{Cursor, Read},
+    io::{Cursor, ErrorKind, Read},
     path::{Path, PathBuf},
     str::FromStr,
     thread,
@@ -495,7 +495,7 @@ fn get_data(_bob: State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>>, Sta
     let opts = BobOptions::new_get(None);
     let result = runtime()
         .block_on(async { _bob.grinder().get(key, &opts).await })
-        .map_err(|err| StatusExt::new(Status::NotFound, false, err.to_string()))?;
+        .map_err(|err| -> StatusExt { err.into() })?;
     let mime_type = infer::get(result.inner());
     let mime_type = match mime_type {
         None => ContentType::Any,
@@ -509,7 +509,7 @@ fn put_data(_bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt
     let mut data_buf = vec![];
     data.open()
         .read_to_end(&mut data_buf)
-        .map_err(|err| StatusExt::new(Status::BadRequest, false, err.to_string()))?;
+        .map_err(|err| -> StatusExt { err.into() })?;
     let data = BobData::new(
         data_buf,
         BobMeta::new(chrono::Local::now().timestamp() as u64),
@@ -518,13 +518,9 @@ fn put_data(_bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt
     let opts = BobOptions::new_put(None);
     runtime()
         .block_on(async { _bob.grinder().put(key, data, opts).await })
-        .map_err(|err| StatusExt::new(Status::BadRequest, false, err.to_string()))?;
+        .map_err(|err| -> StatusExt { err.into() })?;
 
-    Ok(StatusExt::new(
-        Status::Created,
-        true,
-        format!("Data with key '{}' was saved", key),
-    ))
+    Ok(Status::Created.into())
 }
 
 impl<'r> FromParam<'r> for Action {
@@ -562,6 +558,40 @@ impl From<Status> for StatusExt {
             status,
             ok: true,
             msg: status.reason.to_owned(),
+        }
+    }
+}
+
+impl From<std::io::Error> for StatusExt {
+    fn from(err: std::io::Error) -> Self {
+        Self {
+            status: match err.kind() {
+                ErrorKind::NotFound => Status::NotFound,
+                _ => Status::BadRequest,
+            }, // TODO: Complete match
+            ok: false,
+            msg: err.to_string(),
+        }
+    }
+}
+
+impl From<bob_common::error::Error> for StatusExt {
+    fn from(err: bob_common::error::Error) -> Self {
+        let status = if err.is_duplicate() {
+            Status::Conflict
+        } else if err.is_internal() {
+            Status::InternalServerError
+        } else if err.is_key_not_found() {
+            Status::NotFound
+        } else if err.is_not_ready() {
+            Status::InternalServerError
+        } else {
+            Status::BadRequest
+        };
+        Self {
+            status,
+            ok: false,
+            msg: err.to_string(),
         }
     }
 }
