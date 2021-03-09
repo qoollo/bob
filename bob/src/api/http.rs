@@ -1,6 +1,7 @@
 use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{data::VDisk as DataVDisk, node::Disk as NodeDisk};
+use futures::{future::BoxFuture, FutureExt};
 use rocket::{
     http::{RawStr, Status},
     request::FromParam,
@@ -9,12 +10,14 @@ use rocket::{
 };
 use rocket_contrib::json::Json;
 use std::{
-    fs::ReadDir,
     io::Cursor,
     path::{Path, PathBuf},
     thread,
 };
-use tokio::runtime::Runtime;
+use tokio::{
+    fs::{read_dir, ReadDir},
+    runtime::Runtime,
+};
 
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
@@ -74,7 +77,7 @@ pub(crate) struct Dir {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct DistrFunc {
-    func: String
+    func: String,
 }
 
 fn runtime() -> Runtime {
@@ -214,7 +217,9 @@ fn nodes(bob: State<BobServer>) -> Json<Vec<Node>> {
 #[get("/metadata/distrfunc")]
 fn distribution_function(bob: State<BobServer>) -> Json<DistrFunc> {
     let mapper = bob.grinder().backend().mapper();
-    Json(DistrFunc { func: format!("{:?}", mapper.distribution_func()) })
+    Json(DistrFunc {
+        func: format!("{:?}", mapper.distribution_func()),
+    })
 }
 
 #[get("/vdisks")]
@@ -435,7 +440,7 @@ fn get_local_replica_directories(
         .filter(|r| r.node == local_node_name)
     {
         let path = PathBuf::from(replica.path);
-        let dir = create_directory(&path).ok_or_else(|| {
+        let dir = runtime().block_on(create_directory(&path)).ok_or_else(|| {
             StatusExt::new(
                 Status::InternalServerError,
                 false,
@@ -447,34 +452,35 @@ fn get_local_replica_directories(
     Ok(Json(result))
 }
 
-fn create_directory(root_path: &Path) -> Option<Dir> {
-    let name = root_path.file_name()?.to_str()?;
-    let root_path_str = root_path.to_str()?;
-    let result = std::fs::read_dir(root_path);
-    match result {
-        Ok(read_dir) => Some(read_directory_children(
-            read_dir,
-            name.to_string(),
-            root_path_str.to_string(),
-        )),
-        Err(e) => {
-            error!("read path {:?} failed: {}", root_path, e);
-            None
-        }
-    }
-}
-
-fn read_directory_children(read_dir: ReadDir, name: String, path: String) -> Dir {
-    let children = read_dir
-        .filter_map(Result::ok)
-        .filter_map(|child| {
-            if child.path().is_dir() {
-                create_directory(&child.path())
-            } else {
+fn create_directory(root_path: &Path) -> BoxFuture<Option<Dir>> {
+    async move {
+        let name = root_path.file_name()?.to_str()?;
+        let root_path_str = root_path.to_str()?;
+        let result = read_dir(root_path).await;
+        match result {
+            Ok(read_dir) => Some(
+                read_directory_children(read_dir, name.to_string(), root_path_str.to_string())
+                    .await,
+            ),
+            Err(e) => {
+                error!("read path {:?} failed: {}", root_path, e);
                 None
             }
-        })
-        .collect();
+        }
+    }
+    .boxed()
+}
+
+async fn read_directory_children(mut read_dir: ReadDir, name: String, path: String) -> Dir {
+    let mut children = Vec::new();
+    while let Some(child) = read_dir.next_entry().await.transpose() {
+        if let Ok(entry) = child {
+            let dir = create_directory(&entry.path()).await;
+            if let Some(dir) = dir {
+                children.push(dir);
+            }
+        }
+    }
     Dir {
         name,
         path,
