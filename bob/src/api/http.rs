@@ -1,19 +1,19 @@
 use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
-    data::{BobKey, BobOptions, VDisk as DataVDisk},
+    data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk},
     node::Disk as NodeDisk,
 };
 use rocket::{
     http::{ContentType, RawStr, Status},
     request::FromParam,
     response::{Content, Responder, Result as RocketResult},
-    Config, Request, Response, Rocket, State,
+    Config, Data, Request, Response, Rocket, State,
 };
 use rocket_contrib::json::Json;
 use std::{
     fs::ReadDir,
-    io::Cursor,
+    io::{Cursor, Read},
     path::{Path, PathBuf},
     str::FromStr,
     thread,
@@ -103,7 +103,8 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         finalize_outdated_blobs,
         vdisk_records_count,
         distribution_function,
-        get_data
+        get_data,
+        put_data
     ];
     let task = move || {
         info!("API server started");
@@ -501,6 +502,29 @@ fn get_data(_bob: State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>>, Sta
         Some(t) => ContentType::from_str(t.mime_type()).unwrap_or_default(),
     };
     Ok(Content(mime_type, result.inner().to_owned()))
+}
+
+#[post("/data/<key>", data = "<data>")]
+fn put_data(_bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt, StatusExt> {
+    let mut data_buf = vec![];
+    data.open()
+        .read_to_end(&mut data_buf)
+        .map_err(|err| StatusExt::new(Status::BadRequest, false, err.to_string()))?;
+    let data = BobData::new(
+        data_buf,
+        BobMeta::new(chrono::Local::now().timestamp() as u64),
+    );
+
+    let opts = BobOptions::new_put(None);
+    runtime()
+        .block_on(async { _bob.grinder().put(key, data, opts).await })
+        .map_err(|err| StatusExt::new(Status::BadRequest, false, err.to_string()))?;
+
+    Ok(StatusExt::new(
+        Status::Created,
+        true,
+        format!("Data with key '{}' was saved", key),
+    ))
 }
 
 impl<'r> FromParam<'r> for Action {
