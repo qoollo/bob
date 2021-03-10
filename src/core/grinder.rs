@@ -108,7 +108,7 @@ impl Grinder {
             }
 
             timing!(CLIENT_GET_TIMER, time.elapsed().as_nanos() as u64);
-            trace!(">>>- - - - - GRINDER PUT FINISHED - - - - -");
+            trace!(">>>- - - - - GRINDER GET FINISHED - - - - -");
             result
         } else {
             trace!(
@@ -126,8 +126,8 @@ impl Grinder {
             if result.is_err() {
                 counter!(GRINDER_GET_ERROR_COUNT_COUNTER, 1);
             }
-            counter!(GRINDER_GET_TIMER, time.elapsed().as_nanos() as u64);
-            trace!(">>>- - - - - GRINDER PUT FINISHED - - - - -");
+            timing!(GRINDER_GET_TIMER, time.elapsed().as_nanos() as u64);
+            trace!(">>>- - - - - GRINDER GET FINISHED - - - - -");
             result
         }
     }

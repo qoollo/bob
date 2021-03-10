@@ -143,7 +143,8 @@ impl DiskController {
     // on pearl level only write operations can map OS errors into work_dir error, so this
     // processing for error is done only for put operations
     async fn process_error(&self, e: Error) -> Error {
-        if e.is_possible_disk_disconnection() && !Self::is_work_dir_available(self.disk.path()) {
+        // FIXME: Do we need to validate somehow that storage is really not accessible?
+        if e.is_possible_disk_disconnection() {
             self.change_state(GroupsState::NotReady).await;
         }
         e
@@ -351,9 +352,14 @@ impl DiskController {
 
     pub(crate) async fn put(&self, op: Operation, key: BobKey, data: BobData) -> BackendResult<()> {
         if *self.state.read().await == GroupsState::Ready {
-            let groups = self.groups.read().await;
-            let vdisk_group = groups.iter().find(|vd| vd.can_process_operation(&op));
-            if let Some(group) = vdisk_group.cloned() {
+            let vdisk_group = {
+                let groups = self.groups.read().await;
+                groups
+                    .iter()
+                    .find(|vd| vd.can_process_operation(&op))
+                    .cloned()
+            };
+            if let Some(group) = vdisk_group {
                 match group.put(key, data).await {
                     Err(e) => {
                         debug!("PUT[{}], error: {:?}", key, e);
