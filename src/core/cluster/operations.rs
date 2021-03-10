@@ -220,7 +220,8 @@ pub(crate) async fn put_sup_nodes(
         .await;
         debug!("{:?}", result);
         if let Err(e) = result {
-            ret.push(e);
+            let target_node = options.remote_nodes[0].to_owned();
+            ret.push(NodeOutput::new(target_node, e.into_inner()));
         }
     }
 
