@@ -295,8 +295,8 @@ impl Holder {
         }
     }
 
-    pub fn drop_directory(&self) -> BackendResult<()> {
-        Stuff::drop_directory(&self.disk_path)
+    pub async fn drop_directory(&self) -> BackendResult<()> {
+        Stuff::drop_directory(&self.disk_path).await
     }
 
     fn init_pearl_by_path(&self) -> AnyResult<PearlStorage> {

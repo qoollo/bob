@@ -8,10 +8,10 @@ static PEARL_PATH: &str = "/tmp/d1/";
 const KEY_ID: u64 = 1;
 const TIMESTAMP: u64 = 1;
 
-fn drop_pearl() {
+async fn drop_pearl() {
     let path = PathBuf::from(PEARL_PATH);
     if path.exists() {
-        remove_dir_all(path).unwrap();
+        remove_dir_all(path).await.unwrap();
     }
 }
 

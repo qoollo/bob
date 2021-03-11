@@ -372,40 +372,37 @@ fn delete_partition(
     timestamp: u64,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
-    let pearls = futures::executor::block_on(group.detach(timestamp));
-    if let Ok(holders) = pearls {
-        drop_directories(holders, timestamp, vdisk_id)
-    } else {
-        Err(StatusExt::new(
-            Status::BadRequest,
-            true,
-            format!(
+    let task = async {
+        let pearls = group.detach(timestamp).await;
+        if let Ok(holders) = pearls {
+            drop_directories(holders, timestamp, vdisk_id).await
+        } else {
+            let msg = format!(
                 "partitions with timestamp {} not found on vdisk {} or it is active",
                 timestamp, vdisk_id
-            ),
-        ))
-    }
+            );
+            Err(StatusExt::new(Status::BadRequest, true, msg))
+        }
+    };
+    runtime().block_on(task)
 }
 
-fn drop_directories(
+async fn drop_directories(
     holders: Vec<Holder>,
     timestamp: u64,
     vdisk_id: u32,
 ) -> Result<StatusExt, StatusExt> {
     let mut result = String::new();
     for holder in holders {
-        if let Err(e) = holder.drop_directory() {
-            let msg = format!(
+        let msg = if let Err(e) = holder.drop_directory().await {
+            format!(
                 "partitions with timestamp {} delete failed on vdisk {}, error: {}",
                 timestamp, vdisk_id, e
-            );
-            result.push_str(&msg);
+            )
         } else {
-            result.push_str(&format!(
-                "successfully deleted partitions with timestamp {}",
-                timestamp
-            ));
-        }
+            format!("partitions deleted with timestamp {}", timestamp)
+        };
+        result.push_str(&msg);
         result.push('\n');
     }
     if result.is_empty() {

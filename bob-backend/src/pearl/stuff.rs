@@ -35,10 +35,14 @@ impl Stuff {
         }
     }
 
-    pub fn drop_directory(path: &Path) -> BackendResult<()> {
-        remove_dir_all(path)
-            .map(|_| debug!("deleted directory {:?}", path))
-            .map_err(|e| Error::storage(format!("error deleting directory {:?}, {}", path, e)))
+    pub async fn drop_directory(path: &Path) -> BackendResult<()> {
+        if let Err(e) = remove_dir_all(path).await {
+            let e = Error::storage(format!("error deleting directory {:?}, {}", path, e));
+            Err(e)
+        } else {
+            debug!("deleted directory {:?}", path);
+            Ok(())
+        }
     }
 
     pub fn get_start_timestamp_by_std_time(period: Duration, time: SystemTime) -> u64 {
