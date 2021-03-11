@@ -39,7 +39,7 @@ pub(crate) mod prelude {
         collections::{hash_map::Entry, HashMap},
         convert::TryInto,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
-        fs::{read_dir, remove_dir_all, remove_file, DirEntry, Metadata},
+        fs::{remove_dir_all, remove_file, Metadata},
         io::Result as IOResult,
         path::{Path, PathBuf},
         sync::Arc,
@@ -47,7 +47,7 @@ pub(crate) mod prelude {
     };
     pub use stopwatch::Stopwatch;
     pub use tokio::{
-        fs::create_dir_all,
+        fs::{create_dir_all, read_dir, DirEntry},
         sync::{RwLock, Semaphore},
     };
 }

@@ -143,14 +143,14 @@ impl Settings {
     pub async fn get_all_subdirectories(path: &Path) -> BackendResult<Vec<DirEntry>> {
         Stuff::check_or_create_directory(path).await?;
 
-        let dir = read_dir(path).map_err(|e| {
+        let mut dir = read_dir(path).await.map_err(|e| {
             let msg = format!("couldn't process path: {:?}, error: {:?} ", path, e);
             error!("{}", msg);
             Error::failed(msg)
         })?;
         let mut directories = vec![];
-        for entry in dir {
-            let (entry, metadata) = Self::try_read_path(entry)?;
+        while let Some(entry) = dir.next_entry().await.transpose() {
+            let (entry, metadata) = Self::try_read_path(entry).await?;
             if metadata.is_dir() {
                 directories.push(entry);
             }
@@ -201,9 +201,9 @@ impl Settings {
         })
     }
 
-    fn try_read_path(entry: IOResult<DirEntry>) -> BackendResult<(DirEntry, Metadata)> {
+    async fn try_read_path(entry: IOResult<DirEntry>) -> BackendResult<(DirEntry, Metadata)> {
         if let Ok(entry) = entry {
-            if let Ok(metadata) = entry.metadata() {
+            if let Ok(metadata) = entry.metadata().await {
                 Ok((entry, metadata))
             } else {
                 let msg = format!("Couldn't get metadata for {:?}", entry.path());
