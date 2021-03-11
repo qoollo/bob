@@ -24,11 +24,11 @@ async fn main() {
 
     let cluster_config = matches.value_of("cluster").unwrap();
     println!("Cluster config: {:?}", cluster_config);
-    let cluster = ClusterConfig::try_get(cluster_config).unwrap();
+    let cluster = ClusterConfig::try_get(cluster_config).await.unwrap();
 
     let node_config = matches.value_of("node").unwrap();
     println!("Node config: {:?}", node_config);
-    let node = cluster.get(node_config).unwrap();
+    let node = cluster.get(node_config).await.unwrap();
 
     log4rs::init_file(node.log_config(), Default::default()).unwrap();
 
