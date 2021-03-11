@@ -17,13 +17,12 @@ fn drop_pearl() {
 
 async fn create_backend(node_config: &str, cluster_config: &str) -> PearlBackend {
     let cluster = ClusterConfig::get_from_string(cluster_config).unwrap();
-    debug!("cluster: {:?}", cluster);
     let node = NodeConfig::get_from_string(node_config, &cluster).unwrap();
     debug!("node: {:?}", node);
 
     let mapper = Arc::new(Virtual::new(&node, &cluster).await);
     debug!("mapper: {:?}", mapper);
-    PearlBackend::new(mapper, &node)
+    PearlBackend::new(mapper, &node).await
 }
 
 async fn backend() -> PearlBackend {

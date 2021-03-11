@@ -18,20 +18,22 @@ pub struct Pearl {
 }
 
 impl Pearl {
-    pub fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
+    pub async fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
 
         let run_sem = Arc::new(Semaphore::new(config.init_par_degree()));
         let data = settings
             .clone()
-            .read_group_from_disk(config, run_sem.clone());
-        let disk_controllers: Arc<[Arc<DiskController>]> = Arc::from(data.as_slice());
+            .read_group_from_disk(config, run_sem.clone())
+            .await;
+        let disk_controllers: Arc<[_]> = Arc::from(data.as_slice());
         trace!("count vdisk groups: {}", disk_controllers.len());
 
         let alien_disk_controller = settings
             .clone()
             .read_alien_directory(config, run_sem)
+            .await
             .expect("vec of pearl groups");
 
         Self {

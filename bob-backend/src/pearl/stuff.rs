@@ -5,25 +5,17 @@ use super::core::BackendResult;
 pub struct Stuff;
 
 impl Stuff {
-    pub fn check_or_create_directory(path: &Path) -> BackendResult<()> {
+    pub async fn check_or_create_directory(path: &Path) -> BackendResult<()> {
         if path.exists() {
             trace!("directory: {:?} exists", path);
-            Ok(())
         } else {
-            let dir = path
-                .to_str()
-                .ok_or_else(|| Error::storage("invalid some path, check vdisk or disk names"))?;
-
-            create_dir_all(&path)
-                .map(|_| info!("create directory: {}", dir))
-                .map_err(|e| {
-                    Error::storage(format!(
-                        "cannot create directory: {}, error: {}",
-                        dir,
-                        e.to_string()
-                    ))
-                })
+            create_dir_all(&path).await.map_err(|e| {
+                let msg = format!("cannot create directory: {}, error: {}", path.display(), e);
+                Error::storage(msg)
+            })?;
+            info!("dir created: {}", path.display());
         }
+        Ok(())
     }
 
     pub fn drop_pearl_lock_file(path: &Path) -> BackendResult<()> {

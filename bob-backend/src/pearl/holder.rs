@@ -254,9 +254,10 @@ impl Holder {
     }
 
     async fn init_holder(&self) -> AnyResult<()> {
+        let f = || Stuff::check_or_create_directory(&self.disk_path);
         self.config
-            .try_multiple_times(
-                || Stuff::check_or_create_directory(&self.disk_path),
+            .try_multiple_times_async(
+                f,
                 &format!("cannot check path: {:?}", self.disk_path),
                 self.config.fail_retry_timeout(),
             )
