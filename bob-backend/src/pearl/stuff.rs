@@ -18,21 +18,19 @@ impl Stuff {
         Ok(())
     }
 
-    pub fn drop_pearl_lock_file(path: &Path) -> BackendResult<()> {
+    pub async fn drop_pearl_lock_file(path: &Path) -> BackendResult<()> {
         let mut file = path.to_owned();
         file.push("pearl.lock");
         if file.exists() {
-            remove_file(&file)
-                .map(|_| debug!("deleted lock file from directory: {:?}", file))
-                .map_err(|e| {
-                    Error::storage(format!(
-                        "cannot delete lock file from directory: {:?}, error: {}",
-                        file, e
-                    ))
-                })
-        } else {
-            Ok(())
+            remove_file(&file).await.map_err(|e| {
+                Error::storage(format!(
+                    "cannot delete lock file from directory: {:?}, error: {}",
+                    file, e
+                ))
+            })?;
+            debug!("deleted lock file from directory: {:?}", file);
         }
+        Ok(())
     }
 
     pub async fn drop_directory(path: &Path) -> BackendResult<()> {

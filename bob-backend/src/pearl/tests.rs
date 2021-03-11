@@ -67,7 +67,7 @@ vdisks:
 
 #[tokio::test]
 async fn test_write_multiple_read() {
-    drop_pearl();
+    drop_pearl().await;
     let vdisk_id = 0;
     let backend = backend().await;
     backend.run_backend().await.unwrap();
@@ -86,5 +86,5 @@ async fn test_write_multiple_read() {
     assert_eq!(TIMESTAMP, res.unwrap().meta().timestamp());
     let res = backend.get(operation, KEY_ID).await;
     assert_eq!(TIMESTAMP, res.unwrap().meta().timestamp());
-    drop_pearl();
+    drop_pearl().await;
 }

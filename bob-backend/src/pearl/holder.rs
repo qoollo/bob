@@ -264,7 +264,7 @@ impl Holder {
             .await?;
 
         self.config
-            .try_multiple_times(
+            .try_multiple_times_async(
                 || Stuff::drop_pearl_lock_file(&self.disk_path),
                 &format!("cannot delete lock file: {:?}", self.disk_path),
                 self.config.fail_retry_timeout(),

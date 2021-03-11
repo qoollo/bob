@@ -40,7 +40,7 @@ impl DiskController {
         is_alien: bool,
     ) -> Arc<Self> {
         let dump_sem = Arc::new(Semaphore::new(config.disk_access_par_degree()));
-        let mut new_dc = Self {
+        let new_dc = Self {
             disk,
             vdisks,
             dump_sem,
