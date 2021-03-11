@@ -5,48 +5,42 @@ use super::core::BackendResult;
 pub struct Stuff;
 
 impl Stuff {
-    pub fn check_or_create_directory(path: &Path) -> BackendResult<()> {
+    pub async fn check_or_create_directory(path: &Path) -> BackendResult<()> {
         if path.exists() {
             trace!("directory: {:?} exists", path);
-            Ok(())
         } else {
-            let dir = path
-                .to_str()
-                .ok_or_else(|| Error::storage("invalid some path, check vdisk or disk names"))?;
-
-            create_dir_all(&path)
-                .map(|_| info!("create directory: {}", dir))
-                .map_err(|e| {
-                    Error::storage(format!(
-                        "cannot create directory: {}, error: {}",
-                        dir,
-                        e.to_string()
-                    ))
-                })
+            create_dir_all(&path).await.map_err(|e| {
+                let msg = format!("cannot create directory: {}, error: {}", path.display(), e);
+                Error::storage(msg)
+            })?;
+            info!("dir created: {}", path.display());
         }
+        Ok(())
     }
 
-    pub fn drop_pearl_lock_file(path: &Path) -> BackendResult<()> {
+    pub async fn drop_pearl_lock_file(path: &Path) -> BackendResult<()> {
         let mut file = path.to_owned();
         file.push("pearl.lock");
         if file.exists() {
-            remove_file(&file)
-                .map(|_| debug!("deleted lock file from directory: {:?}", file))
-                .map_err(|e| {
-                    Error::storage(format!(
-                        "cannot delete lock file from directory: {:?}, error: {}",
-                        file, e
-                    ))
-                })
-        } else {
-            Ok(())
+            remove_file(&file).await.map_err(|e| {
+                Error::storage(format!(
+                    "cannot delete lock file from directory: {:?}, error: {}",
+                    file, e
+                ))
+            })?;
+            debug!("deleted lock file from directory: {:?}", file);
         }
+        Ok(())
     }
 
-    pub fn drop_directory(path: &Path) -> BackendResult<()> {
-        remove_dir_all(path)
-            .map(|_| debug!("deleted directory {:?}", path))
-            .map_err(|e| Error::storage(format!("error deleting directory {:?}, {}", path, e)))
+    pub async fn drop_directory(path: &Path) -> BackendResult<()> {
+        if let Err(e) = remove_dir_all(path).await {
+            let e = Error::storage(format!("error deleting directory {:?}, {}", path, e));
+            Err(e)
+        } else {
+            debug!("deleted directory {:?}", path);
+            Ok(())
+        }
     }
 
     pub fn get_start_timestamp_by_std_time(period: Duration, time: SystemTime) -> u64 {

@@ -38,29 +38,23 @@ impl Settings {
         &self.config
     }
 
-    pub(crate) fn read_group_from_disk(
+    pub(crate) async fn read_group_from_disk(
         self: Arc<Self>,
         config: &NodeConfig,
         run_sem: Arc<Semaphore>,
     ) -> Vec<Arc<DiskController>> {
-        self.mapper
-            .local_disks()
-            .iter()
+        let local_disks = self.mapper.local_disks().iter().cloned();
+        local_disks
             .map(|disk| {
                 let vdisks = self.mapper.get_vdisks_by_disk(disk.name());
-                DiskController::new(
-                    disk.to_owned(),
-                    vdisks,
-                    config,
-                    run_sem.clone(),
-                    self.clone(),
-                    false,
-                )
+                DiskController::new(disk, vdisks, config, run_sem.clone(), self.clone(), false)
             })
+            .collect::<FuturesUnordered<_>>()
             .collect()
+            .await
     }
 
-    pub(crate) fn read_alien_directory(
+    pub(crate) async fn read_alien_directory(
         self: Arc<Self>,
         config: &NodeConfig,
         run_sem: Arc<Semaphore>,
@@ -69,48 +63,47 @@ impl Settings {
             .pearl()
             .alien_disk()
             .map_or_else(String::new, str::to_owned);
-        let alien_disk = DiskPath::new(
-            disk_name,
-            self.alien_folder
-                .clone()
-                .into_os_string()
-                .into_string()
-                .expect("Path is not utf8 encoded"),
-        );
-        let dc = DiskController::new(alien_disk, Vec::new(), config, run_sem, self, true);
+        let path = self
+            .alien_folder
+            .clone()
+            .into_os_string()
+            .into_string()
+            .expect("Path is not utf8 encoded");
+        let alien_disk = DiskPath::new(disk_name, path);
+        let dc = DiskController::new(alien_disk, Vec::new(), config, run_sem, self, true).await;
         Ok(dc)
     }
 
-    pub(crate) fn collect_alien_groups(
+    pub(crate) async fn collect_alien_groups(
         self: Arc<Self>,
         disk_name: String,
         dump_sem: Arc<Semaphore>,
     ) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
-        let node_names = Self::get_all_subdirectories(&self.alien_folder)?;
+        let node_names = Self::get_all_subdirectories(&self.alien_folder).await?;
         for node in node_names {
             if let Ok((node, node_name)) = self.try_parse_node_name(node) {
-                let vdisks = Self::get_all_subdirectories(&node.path())?;
-
-                for vdisk_id in vdisks {
-                    if let Ok((entry, vdisk_id)) = self.try_parse_vdisk_id(vdisk_id) {
-                        if self.mapper.is_vdisk_on_node(&node_name, vdisk_id) {
-                            let group = Group::new(
-                                self.clone(),
-                                vdisk_id,
-                                node_name.clone(),
-                                disk_name.clone(),
-                                entry.path(),
-                                node_name.clone(),
-                                dump_sem.clone(),
-                            );
-                            result.push(group);
-                        } else {
-                            warn!(
-                                "potentionally invalid state. Node: {} doesn't hold vdisk: {}",
-                                node_name, vdisk_id
-                            );
-                        }
+                let vdisks = Self::get_all_subdirectories(&node.path()).await?;
+                let vdisks_entries = vdisks
+                    .into_iter()
+                    .filter_map(|entry| self.try_parse_vdisk_id(entry).ok());
+                for (entry, vdisk_id) in vdisks_entries {
+                    if self.mapper.is_vdisk_on_node(&node_name, vdisk_id) {
+                        let group = Group::new(
+                            self.clone(),
+                            vdisk_id,
+                            node_name.clone(),
+                            disk_name.clone(),
+                            entry.path(),
+                            node_name.clone(),
+                            dump_sem.clone(),
+                        );
+                        result.push(group);
+                    } else {
+                        warn!(
+                            "potentionally invalid state. Node: {} doesn't hold vdisk: {}",
+                            node_name, vdisk_id
+                        );
                     }
                 }
             }
@@ -118,16 +111,18 @@ impl Settings {
         Ok(result)
     }
 
-    pub fn create_group(
+    pub async fn create_group(
         self: Arc<Self>,
         operation: &Operation,
         node_name: &str,
         dump_sem: Arc<Semaphore>,
     ) -> BackendResult<Group> {
-        let remote_node_name = operation.remote_node_name().unwrap();
+        let remote_node_name = operation
+            .remote_node_name()
+            .expect("no remote node name in operation");
         let path = self.alien_path(operation.vdisk_id(), remote_node_name);
 
-        Stuff::check_or_create_directory(&path)?;
+        Stuff::check_or_create_directory(&path).await?;
 
         let disk_name = self
             .config
@@ -145,26 +140,22 @@ impl Settings {
         Ok(group)
     }
 
-    pub fn get_all_subdirectories(path: &Path) -> BackendResult<Vec<DirEntry>> {
-        Stuff::check_or_create_directory(path)?;
+    pub async fn get_all_subdirectories(path: &Path) -> BackendResult<Vec<DirEntry>> {
+        Stuff::check_or_create_directory(path).await?;
 
-        match read_dir(path) {
-            Ok(dir) => {
-                let mut directories = vec![];
-                for entry in dir {
-                    let (entry, metadata) = Self::try_read_path(entry)?;
-                    if metadata.is_dir() {
-                        directories.push(entry);
-                    }
-                }
-                Ok(directories)
-            }
-            Err(err) => {
-                let msg = format!("couldn't process path: {:?}, error: {:?} ", path, err);
-                error!("{}", msg);
-                Err(Error::failed(msg))
+        let mut dir = read_dir(path).await.map_err(|e| {
+            let msg = format!("couldn't process path: {:?}, error: {:?} ", path, e);
+            error!("{}", msg);
+            Error::failed(msg)
+        })?;
+        let mut directories = vec![];
+        while let Some(entry) = dir.next_entry().await.transpose() {
+            let (entry, metadata) = Self::try_read_path(entry).await?;
+            if metadata.is_dir() {
+                directories.push(entry);
             }
         }
+        Ok(directories)
     }
 
     fn try_parse_node_name(&self, entry: DirEntry) -> BackendResult<(DirEntry, String)> {
@@ -210,9 +201,9 @@ impl Settings {
         })
     }
 
-    fn try_read_path(entry: IOResult<DirEntry>) -> BackendResult<(DirEntry, Metadata)> {
+    async fn try_read_path(entry: IOResult<DirEntry>) -> BackendResult<(DirEntry, Metadata)> {
         if let Ok(entry) = entry {
-            if let Ok(metadata) = entry.metadata() {
+            if let Ok(metadata) = entry.metadata().await {
                 Ok((entry, metadata))
             } else {
                 let msg = format!("Couldn't get metadata for {:?}", entry.path());
