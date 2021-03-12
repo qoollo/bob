@@ -55,3 +55,19 @@ fn default_name() -> String {
 fn default_password() -> String {
     DEFAULT_PASSWORD.to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Users;
+
+    #[tokio::test]
+    async fn test_configs_users_read() {
+        let users = Users::from_file(format!(
+            "{}/../config-examples/users.yaml",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .await
+        .unwrap();
+        assert_eq!(users.users.len(), 1);
+    }
+}
