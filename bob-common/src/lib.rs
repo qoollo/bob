@@ -16,3 +16,9 @@ extern crate log;
 // extern crate cfg_if;
 #[macro_use]
 extern crate metrics as lib_metrics;
+
+mod prelude {
+    pub use std::path::Path;
+
+    pub use anyhow::{Context, Result as AnyResult};
+}

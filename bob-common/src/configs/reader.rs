@@ -1,5 +1,6 @@
-use serde::Deserialize;
 use tokio::fs::read_to_string;
+
+use serde::Deserialize;
 
 pub trait Validatable {
     fn validate(&self) -> Result<(), String>;

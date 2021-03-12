@@ -1,6 +1,6 @@
 use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
-use bob_common::{data::VDisk as DataVDisk, node::Disk as NodeDisk};
+use bob_common::{configs::Users, data::VDisk as DataVDisk, node::Disk as NodeDisk};
 use futures::{future::BoxFuture, FutureExt};
 use rocket::{
     http::{RawStr, Status},
@@ -18,6 +18,8 @@ use tokio::{
     fs::{read_dir, ReadDir},
     runtime::Runtime,
 };
+
+use super::Api;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
@@ -86,7 +88,7 @@ fn runtime() -> Runtime {
     Runtime::new().expect("create runtime")
 }
 
-pub(crate) fn spawn(bob: BobServer, port: u16) {
+pub(crate) fn spawn(bob: BobServer, port: u16, users: Users) {
     let routes = routes![
         status,
         vdisks,
@@ -103,12 +105,14 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         vdisk_records_count,
         distribution_function,
     ];
+    let users = users.into_inner();
+    let api = Api { bob, users };
     let task = move || {
         info!("API server started");
         let mut config = Config::production();
         config.set_port(port);
         Rocket::custom(config)
-            .manage(bob)
+            .manage(api)
             .mount("/", routes)
             .launch();
     };

@@ -29,9 +29,12 @@ pub mod server;
 pub use crate::{grinder::Grinder, server::Server as BobServer};
 pub use bob_common::{
     bob_client::Factory,
-    configs::cluster::{
-        Cluster as ClusterConfig, Node as ClusterNodeConfig, Replica as ReplicaConfig,
-        VDisk as VDiskConfig,
+    configs::{
+        cluster::{
+            Cluster as ClusterConfig, Node as ClusterNodeConfig, Replica as ReplicaConfig,
+            VDisk as VDiskConfig,
+        },
+        Users as UsersConfig,
     },
     mapper::Virtual as VirtualMapper,
     metrics::init_counters,
@@ -46,7 +49,7 @@ mod prelude {
     pub use bob_backend::core::{Backend, Operation};
     pub use bob_common::{
         bob_client::{BobClient, Factory},
-        configs::node::Node as NodeConfig,
+        configs::{node::Node as NodeConfig, Users as UsersConfig},
         data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskId},
         error::Error,
         mapper::Virtual,
