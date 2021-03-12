@@ -22,6 +22,20 @@ pub struct User {
     grpc_perms: Access,
 }
 
+impl User {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn password(&self) -> &str {
+        &self.password
+    }
+
+    pub fn http_perms(&self) -> Access {
+        self.http_perms
+    }
+}
+
 impl Users {
     pub fn into_inner(self) -> Vec<User> {
         self.users
@@ -36,7 +50,7 @@ impl Users {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Access {
     Read,
     Write,
