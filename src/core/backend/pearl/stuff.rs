@@ -15,12 +15,15 @@ impl Stuff {
 
             create_dir_all(&path)
                 .map(|_| info!("create directory: {}", dir))
-                .map_err(|e| {
-                    Error::storage(format!(
+                .map_err(|e| match e.kind() {
+                    IOErrorKind::PermissionDenied | IOErrorKind::Other => {
+                        Error::possible_disk_disconnection()
+                    }
+                    _ => Error::storage(format!(
                         "cannot create directory: {}, error: {}",
                         dir,
                         e.to_string()
-                    ))
+                    )),
                 })
         }
     }

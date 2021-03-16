@@ -103,7 +103,7 @@ impl DiskController {
                         self.change_state(GroupsState::MaybeReady).await;
                     }
                     GroupsState::MaybeReady | GroupsState::Initialized => {
-                        warn!(
+                        info!(
                             "Work dir is available, but disk is not running ({:?})",
                             self.disk
                         );
@@ -159,16 +159,16 @@ impl DiskController {
             GroupsState::NotReady => {
                 gauge!(self.disk_state_metric.clone(), DISK_IS_NOT_ACTIVE);
                 self.logger.log(self.disk_name(), "off").await;
-                info!("disk is not ready");
+                info!("Disk is not ready");
             }
             GroupsState::MaybeReady | GroupsState::Initialized => {
                 gauge!(self.disk_state_metric.clone(), DIR_IS_AVAILABLE);
-                info!("dir is available but disk is not running");
+                info!("Dir is available but disk is not running");
             }
             GroupsState::Ready => {
                 gauge!(self.disk_state_metric.clone(), DISK_IS_ACTIVE);
                 self.logger.log(self.disk_name(), "on").await;
-                info!("disk is ready");
+                info!("Disk is ready");
             }
         }
     }
