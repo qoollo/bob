@@ -255,24 +255,44 @@ fn distribution_function(bob: State<BobServer>) -> Json<DistrFunc> {
 
 #[post("/disks/<disk_name>/start")]
 fn start_disk_controller(bob: State<BobServer>, disk_name: String) -> Result<StatusExt, StatusExt> {
+    use futures::stream::{FuturesUnordered, StreamExt};
     let backend = bob.grinder().backend().inner();
     let (dcs, adc) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
-    let dc = dcs
+    let target_dcs = dcs
         .iter()
         .chain(std::iter::once(&adc))
-        .find(|dc| dc.disk_name() == disk_name)
-        .ok_or_else(|| {
-            let err = format!("Disk Controller with name '{}' not found", disk_name);
-            warn!("{}", err);
-            StatusExt::new(Status::NotFound, false, err)
-        })?;
+        .filter(|dc| dc.disk_name() == disk_name)
+        .map(|dc| dc.run())
+        .collect::<FuturesUnordered<_>>();
+    if target_dcs.len() == 0 {
+        let err = format!("Disk Controller with name '{}' not found", disk_name);
+        warn!("{}", err);
+        return Err(StatusExt::new(Status::NotFound, false, err));
+    }
     let rt = Runtime::new().expect("create runtime");
-    let task = dc.run();
+    let task = async move {
+        let err_string = target_dcs
+            .fold(String::new(), |mut err_string, res| {
+                if let Err(e) = res {
+                    err_string.push_str(&(e.to_string() + "\n"));
+                }
+                async move { err_string }
+            })
+            .await;
+        if err_string.len() == 0 {
+            Ok(())
+        } else {
+            Err(err_string)
+        }
+    };
     match rt.block_on(task) {
-        Ok(_) => {
-            let msg = format!("disk controller {} successfully started", disk_name);
+        Ok(()) => {
+            let msg = format!(
+                "all disk controllers for disk '{}' successfully started",
+                disk_name
+            );
             info!("{}", msg);
             Ok(StatusExt::new(Status::Ok, true, msg))
         }
