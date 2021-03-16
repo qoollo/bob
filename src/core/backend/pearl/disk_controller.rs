@@ -28,6 +28,7 @@ pub(crate) struct DiskController {
     vdisks: Vec<VDiskID>,
     dump_sem: Arc<Semaphore>,
     run_sem: Arc<Semaphore>,
+    monitor_sem: Arc<Semaphore>,
     node_name: String,
     groups: Arc<RwLock<Vec<Group>>>,
     state: Arc<RwLock<GroupsState>>,
@@ -53,6 +54,7 @@ impl DiskController {
             vdisks,
             dump_sem: Arc::new(Semaphore::new(config.disk_access_par_degree())),
             run_sem,
+            monitor_sem: Arc::new(Semaphore::new(1)),
             node_name: config.name().to_owned(),
             groups: Arc::new(RwLock::new(Vec::new())),
             state: Arc::new(RwLock::new(GroupsState::NotReady)),
@@ -76,9 +78,10 @@ impl DiskController {
         *self.state.read().await == GroupsState::Ready
     }
 
-    pub(crate) async fn try_from_scratch(&self) -> Result<()> {
+    pub(crate) async fn run(&self) -> Result<()> {
+        let _permit = self.monitor_sem.acquire().await.expect("Sem is closed");
         self.init().await?;
-        self.run().await
+        self.groups_run().await
     }
 
     async fn monitor_wait(state: Arc<RwLock<GroupsState>>, check_interval: &mut Interval) {
@@ -92,6 +95,7 @@ impl DiskController {
         Self::monitor_wait(self.state.clone(), &mut check_interval).await;
         loop {
             check_interval.tick().await;
+            let _permit = self.monitor_sem.acquire().await.expect("Sem is closed");
             if Self::is_work_dir_available(self.disk.path()) {
                 let state = self.state.read().await.clone();
                 match state {
@@ -170,26 +174,21 @@ impl DiskController {
     }
 
     // this init is done in `new` sync method. Monitor use async init.
-    pub(crate) fn sync_init(&mut self) -> BackendResult<()> {
+    fn sync_init(&mut self) -> BackendResult<()> {
         self.groups = Arc::new(RwLock::new(self.get_groups()?));
         self.state = Arc::new(RwLock::new(GroupsState::Initialized));
         gauge!(self.disk_state_metric.clone(), DIR_IS_AVAILABLE);
         Ok(())
     }
 
-    pub(crate) async fn init(&self) -> BackendResult<()> {
+    async fn init(&self) -> BackendResult<()> {
         let state = self.state.read().await.clone();
-        match state {
-            GroupsState::MaybeReady => {
-                let groups = self.get_groups()?;
-                *self.groups.write().await = groups;
-                self.change_state(GroupsState::Initialized).await;
-                Ok(())
-            }
-
-            GroupsState::NotReady => Err(Error::internal().into()),
-            _ => Ok(()),
+        if state == GroupsState::NotReady || state == GroupsState::MaybeReady {
+            let groups = self.get_groups()?;
+            *self.groups.write().await = groups;
+            self.change_state(GroupsState::Initialized).await;
         }
+        Ok(())
     }
 
     fn get_groups(&self) -> BackendResult<Vec<Group>> {
@@ -297,7 +296,7 @@ impl DiskController {
         Ok(())
     }
 
-    pub(crate) async fn run(&self) -> Result<()> {
+    async fn groups_run(&self) -> Result<()> {
         let state = self.state.read().await.clone();
         match state {
             GroupsState::Initialized => {
@@ -307,8 +306,6 @@ impl DiskController {
                 };
                 if let Err(e) = res {
                     error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
-                    // if work dir became unavailable we should reinit, so new state is NotReady
-                    // otherwise - we'll try again
                     if !Self::is_work_dir_available(self.disk.path()) {
                         self.change_state(GroupsState::NotReady).await;
                     }

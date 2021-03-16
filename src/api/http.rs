@@ -269,7 +269,7 @@ fn start_disk_controller(bob: State<BobServer>, disk_name: String) -> Result<Sta
             StatusExt::new(Status::NotFound, false, err)
         })?;
     let rt = Runtime::new().expect("create runtime");
-    let task = dc.try_from_scratch();
+    let task = dc.run();
     match rt.block_on(task) {
         Ok(_) => {
             let msg = format!("disk controller {} successfully started", disk_name);
