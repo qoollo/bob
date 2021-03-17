@@ -5,12 +5,12 @@ use tokio::fs::read_to_string;
 const DEFAULT_NAME: &str = "default";
 const DEFAULT_PASSWORD: &str = "default";
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Users {
     users: Vec<User>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct User {
     #[serde(default = "default_name")]
     name: String,
@@ -33,6 +33,10 @@ impl User {
 
     pub fn http_perms(&self) -> Access {
         self.http_perms
+    }
+
+    pub fn grpc_perms(&self) -> Access {
+        self.grpc_perms
     }
 }
 

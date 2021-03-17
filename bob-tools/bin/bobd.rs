@@ -51,7 +51,10 @@ async fn main() {
 
     let metrics = init_counters(&node, &addr.to_string());
 
-    let bob = BobServer::new(Grinder::new(mapper, &node).await);
+    let users = UsersConfig::from_file(path)
+        .await
+        .expect("failed to read users config");
+    let bob = BobServer::new(Grinder::new(mapper, &node).await, users.clone());
 
     info!("Start backend");
     bob.run_backend().await.unwrap();
@@ -64,9 +67,6 @@ async fn main() {
         .value_of("users_config_path")
         .and_then(|v| v.parse().ok())
         .expect("expect users config path");
-    let users = UsersConfig::from_file(path)
-        .await
-        .expect("failed to read users config");
     bob.run_api_server(http_api_port, users);
 
     create_signal_handlers(&bob).unwrap();

@@ -1,3 +1,5 @@
+use bob_common::configs::{Access as AccessConfig, User as UserConfig, Users as UsersConfig};
+
 use crate::prelude::*;
 
 use super::grinder::Grinder;
@@ -6,14 +8,20 @@ use super::grinder::Grinder;
 #[derive(Clone, Debug)]
 pub struct Server {
     grinder: Arc<Grinder>,
+    users: HashMap<String, UserConfig>,
 }
 
 impl Server {
     /// Creates new bob server
     #[must_use]
-    pub fn new(grinder: Grinder) -> Self {
+    pub fn new(grinder: Grinder, users: UsersConfig) -> Self {
         Self {
             grinder: Arc::new(grinder),
+            users: users
+                .into_inner()
+                .into_iter()
+                .map(|u| (u.name().to_string(), u))
+                .collect(),
         }
     }
 
@@ -48,6 +56,45 @@ impl Server {
         let backend = self.grinder.backend().clone();
         backend.shutdown().await;
     }
+
+    fn check_permissions<T>(
+        &self,
+        request: &Request<T>,
+        required_perms: AccessConfig,
+    ) -> Result<(), Status> {
+        let username = match request.metadata().get("username") {
+            Some(username) => match username.to_str() {
+                Ok(username) => username,
+                Err(error) => return Err(Status::unauthenticated(error.to_string())),
+            },
+            None => return Err(Status::unauthenticated("Username not found")),
+        };
+        let password = match request.metadata().get("password") {
+            Some(username) => match username.to_str() {
+                Ok(username) => username,
+                Err(error) => return Err(Status::unauthenticated(error.to_string())),
+            },
+            None => return Err(Status::unauthenticated("Password not found")),
+        };
+        let perms = if let Some(user) = self.users.get(username) {
+            if password != user.password() {
+                return Err(Status::unauthenticated("Incorrect username/password"));
+            }
+            user.grpc_perms()
+        } else {
+            return Err(Status::unauthenticated("Incorrect username/password"));
+        };
+        match required_perms {
+            AccessConfig::Write => match perms {
+                AccessConfig::Write => {}
+                AccessConfig::Read => {
+                    return Err(Status::permission_denied("Write permissions required"));
+                }
+            },
+            AccessConfig::Read => {}
+        };
+        Ok(())
+    }
 }
 
 fn put_extract(req: PutRequest) -> Option<(u64, Vec<u8>, u64, Option<PutOptions>)> {
@@ -71,6 +118,11 @@ impl BobApi for Server {
     async fn put(&self, req: Request<PutRequest>) -> ApiResult<OpStatus> {
         trace!("- - - - - SERVER PUT START - - - - -");
         let sw = Stopwatch::start_new();
+        trace!(
+            "validate permissions /{:.3}ms/",
+            sw.elapsed().as_secs_f64() * 1000.0
+        );
+        self.check_permissions(&req, AccessConfig::Write)?;
         trace!(
             "process incoming put request /{:.3}ms/",
             sw.elapsed().as_secs_f64() * 1000.0
@@ -130,6 +182,11 @@ impl BobApi for Server {
         trace!("- - - - - SERVER GET START - - - - -");
         let sw = Stopwatch::start_new();
         trace!(
+            "validate permissions /{:.3}ms/",
+            sw.elapsed().as_secs_f64() * 1000.0
+        );
+        self.check_permissions(&req, AccessConfig::Read)?;
+        trace!(
             "process incoming get request /{:.3}ms/",
             sw.elapsed().as_secs_f64() * 1000.0
         );
@@ -180,6 +237,7 @@ impl BobApi for Server {
 
     async fn exist(&self, req: Request<ExistRequest>) -> ApiResult<ExistResponse> {
         let sw = Stopwatch::start_new();
+        self.check_permissions(&req, AccessConfig::Read)?;
         let req = req.into_inner();
         let keys = req.keys.iter().map(|k| k.key).collect::<Vec<_>>();
         let options = BobOptions::new_get(req.options);
