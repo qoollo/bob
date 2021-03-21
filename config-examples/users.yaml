@@ -1,0 +1,4 @@
+users:
+  - name: default
+    password: default
+    perms: Read

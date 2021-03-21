@@ -1,6 +1,9 @@
-use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper};
+use bob::{
+    init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, UsersConfig,
+    VirtualMapper,
+};
 use clap::{App, Arg, ArgMatches};
-use std::net::ToSocketAddrs;
+use std::{net::ToSocketAddrs, path::PathBuf};
 use tonic::transport::Server;
 
 #[macro_use]
@@ -57,7 +60,14 @@ async fn main() {
         .value_of("http_api_port")
         .and_then(|v| v.parse().ok())
         .expect("expect http_api_port port");
-    bob.run_api_server(http_api_port);
+    let path: PathBuf = matches
+        .value_of("users_config_path")
+        .and_then(|v| v.parse().ok())
+        .expect("expect users config path");
+    let users = UsersConfig::from_file(path)
+        .await
+        .expect("failed to read users config");
+    bob.run_api_server(http_api_port, users);
 
     create_signal_handlers(&bob).unwrap();
 

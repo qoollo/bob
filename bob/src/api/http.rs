@@ -1,10 +1,10 @@
 use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
-use bob_common::{data::VDisk as DataVDisk, node::Disk as NodeDisk};
+use bob_common::{configs::Users, data::VDisk as DataVDisk, node::Disk as NodeDisk};
 use futures::{future::BoxFuture, FutureExt};
 use rocket::{
     http::{RawStr, Status},
-    request::FromParam,
+    request::{FromParam, FromRequest},
     response::{Responder, Result as RocketResult},
     Config, Request, Response, Rocket, State,
 };
@@ -18,6 +18,8 @@ use tokio::{
     fs::{read_dir, ReadDir},
     runtime::Runtime,
 };
+
+use super::Api;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
@@ -86,7 +88,7 @@ fn runtime() -> Runtime {
     Runtime::new().expect("create runtime")
 }
 
-pub(crate) fn spawn(bob: BobServer, port: u16) {
+pub(crate) fn spawn(bob: BobServer, port: u16, users: Users) {
     let routes = routes![
         status,
         vdisks,
@@ -103,12 +105,14 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         vdisk_records_count,
         distribution_function,
     ];
+    let users = users.into_inner().into_iter().map(Into::into).collect();
+    let api = Api { bob, users };
     let task = move || {
         info!("API server started");
         let mut config = Config::production();
         config.set_port(port);
         Rocket::custom(config)
-            .manage(bob)
+            .manage(api)
             .mount("/", routes)
             .launch();
     };
@@ -243,8 +247,18 @@ fn finalize_outdated_blobs(bob: State<BobServer>) -> StatusExt {
 }
 
 #[get("/vdisks/<vdisk_id>")]
-fn vdisk_by_id(bob: State<BobServer>, vdisk_id: u32) -> Option<Json<VDisk>> {
+fn vdisk_by_id(bob: State<BobServer>, user: ReadUser, vdisk_id: u32) -> Option<Json<VDisk>> {
     get_vdisk_by_id(&bob, vdisk_id).map(Json)
+}
+
+struct ReadUser {}
+
+impl<'a, 'r> FromRequest<'a, 'r> for ReadUser {
+    type Error = ();
+
+    fn from_request(request: &'a Request<'r>) -> rocket::request::Outcome<Self, Self::Error> {
+        todo!()
+    }
 }
 
 #[get("/vdisks/<vdisk_id>/records/count")]

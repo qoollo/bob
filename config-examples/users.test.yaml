@@ -1,0 +1,7 @@
+users:
+  - name: Jekyll
+    password: good
+    perms: Write
+  - name: Hyde
+    password: evil
+    perms: Write
