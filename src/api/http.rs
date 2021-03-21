@@ -239,8 +239,7 @@ fn disks_list(bob: State<BobServer>) -> Result<Json<Vec<DiskState>>, StatusExt> 
         disks
     };
 
-    let rt = Runtime::new().expect("create runtime");
-    let disks = rt.block_on(task);
+    let disks = runtime().block_on(task);
 
     Ok(Json(disks))
 }
@@ -271,7 +270,6 @@ fn start_disk_controller(bob: State<BobServer>, disk_name: String) -> Result<Sta
         warn!("{}", err);
         return Err(StatusExt::new(Status::NotFound, false, err));
     }
-    let rt = Runtime::new().expect("create runtime");
     let task = async move {
         let err_string = target_dcs
             .fold(String::new(), |mut err_string, res| {
@@ -287,7 +285,7 @@ fn start_disk_controller(bob: State<BobServer>, disk_name: String) -> Result<Sta
             Err(err_string)
         }
     };
-    match rt.block_on(task) {
+    match runtime().block_on(task) {
         Ok(()) => {
             let msg = format!(
                 "all disk controllers for disk '{}' successfully started",
@@ -296,7 +294,11 @@ fn start_disk_controller(bob: State<BobServer>, disk_name: String) -> Result<Sta
             info!("{}", msg);
             Ok(StatusExt::new(Status::Ok, true, msg))
         }
-        Err(e) => Err(StatusExt::new(Status::Ok, false, e.to_string())),
+        Err(e) => Err(StatusExt::new(
+            Status::InternalServerError,
+            false,
+            e.to_string(),
+        )),
     }
 }
 

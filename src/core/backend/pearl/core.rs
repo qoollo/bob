@@ -13,11 +13,11 @@ pub(crate) struct Pearl {
 }
 
 impl Pearl {
-    pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
+    pub(crate) async fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
-        let logfile = config.pearl().disks_events_logfile();
-        let logger = DisksEventsLogger::new(&logfile);
+        let logfile = config.pearl().disks_events_logfile().clone();
+        let logger = DisksEventsLogger::new(logfile).await;
 
         let run_sem = Arc::new(Semaphore::new(config.init_par_degree()));
         let data = settings
@@ -39,7 +39,10 @@ impl Pearl {
             init_par_degree: config.init_par_degree(),
         }
     }
+}
 
+#[async_trait]
+impl MetricsProducer for Pearl {
     async fn blobs_count(&self) -> (usize, usize) {
         let mut cnt = 0;
         for dc in self.disk_controllers.iter() {
@@ -176,12 +179,5 @@ impl BackendStorage for Pearl {
         for dc in self.disk_controllers.iter() {
             dc.close_unneeded_active_blobs(soft, hard).await;
         }
-    }
-
-    async fn collect_metrics(&self) -> BackendMetrics {
-        let active_disks_cnt = self.active_disks_count().await;
-        let (blobs_cnt, aliens_cnt) = self.blobs_count().await;
-        let index_memory = self.index_memory().await;
-        BackendMetrics::new(active_disks_cnt, blobs_cnt, aliens_cnt, index_memory)
     }
 }

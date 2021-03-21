@@ -4,6 +4,9 @@ use super::prelude::*;
 pub struct StubBackend {}
 
 #[async_trait]
+impl MetricsProducer for StubBackend {}
+
+#[async_trait]
 impl BackendStorage for StubBackend {
     async fn run_backend(&self) -> Result<()> {
         Ok(())

@@ -424,7 +424,7 @@ impl Group {
         Self::sort_by_priority(&mut close, &is_small);
 
         while close.len() > hard {
-            let (_, holder) = close.pop().unwrap();
+            let (_, holder) = close.pop().expect("Vector is empty!");
             holder.close_active_blob().await;
             info!("active blob of {} closed by hard cap", holder.get_id());
         }

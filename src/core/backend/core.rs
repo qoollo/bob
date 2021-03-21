@@ -3,14 +3,6 @@ use super::prelude::*;
 const BACKEND_STARTING: i64 = 0;
 const BACKEND_STARTED: i64 = 1;
 
-#[derive(Default, new)]
-pub(crate) struct BackendMetrics {
-    pub active_disks_cnt: usize,
-    pub blobs_cnt: usize,
-    pub aliens_cnt: usize,
-    pub index_memory: usize,
-}
-
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Operation {
     vdisk_id: VDiskID,
@@ -82,7 +74,7 @@ impl Operation {
 }
 
 #[async_trait]
-pub(crate) trait BackendStorage: Debug {
+pub(crate) trait BackendStorage: Debug + MetricsProducer {
     async fn run_backend(&self) -> Result<()>;
 
     async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
@@ -101,10 +93,6 @@ pub(crate) trait BackendStorage: Debug {
         result
     }
 
-    async fn collect_metrics(&self) -> BackendMetrics {
-        Default::default()
-    }
-
     async fn shutdown(&self);
 
     // Should return pair: slice of normal disks and disk with aliens (because some method require
@@ -117,6 +105,21 @@ pub(crate) trait BackendStorage: Debug {
     async fn close_unneeded_active_blobs(&self, _soft: usize, _hard: usize) {}
 }
 
+#[async_trait]
+pub(crate) trait MetricsProducer {
+    async fn blobs_count(&self) -> (usize, usize) {
+        (0, 0)
+    }
+
+    async fn active_disks_count(&self) -> usize {
+        0
+    }
+
+    async fn index_memory(&self) -> usize {
+        0
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct Backend {
     inner: Arc<dyn BackendStorage + Send + Sync>,
@@ -124,17 +127,25 @@ pub(crate) struct Backend {
 }
 
 impl Backend {
-    pub(crate) fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
+    pub(crate) async fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         let inner: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
-            BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config)),
+            BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config).await),
         };
         Self { inner, mapper }
     }
 
-    pub(crate) async fn collect_metrics(&self) -> BackendMetrics {
-        self.inner.collect_metrics().await
+    pub(crate) async fn blobs_count(&self) -> (usize, usize) {
+        self.inner.blobs_count().await
+    }
+
+    pub(crate) async fn active_disks_count(&self) -> usize {
+        self.inner.active_disks_count().await
+    }
+
+    pub(crate) async fn index_memory(&self) -> usize {
+        self.inner.index_memory().await
     }
 
     pub(crate) fn mapper(&self) -> &Virtual {

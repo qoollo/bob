@@ -119,6 +119,9 @@ impl MemBackend {
 }
 
 #[async_trait]
+impl MetricsProducer for MemBackend {}
+
+#[async_trait]
 impl BackendStorage for MemBackend {
     async fn run_backend(&self) -> Result<()> {
         debug!("run mem backend");
