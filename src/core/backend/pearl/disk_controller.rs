@@ -463,6 +463,7 @@ impl DiskController {
             }
         }
         futures.collect::<()>().await;
+        self.change_state(GroupsState::NotReady).await;
     }
 
     pub(crate) async fn blobs_count(&self) -> usize {
