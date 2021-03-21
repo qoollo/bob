@@ -158,7 +158,9 @@ impl DiskController {
         match new_state {
             GroupsState::NotReady => {
                 gauge!(self.disk_state_metric.clone(), DISK_IS_NOT_ACTIVE);
-                self.logger.log(self.disk_name(), "off").await;
+                self.logger
+                    .log(self.disk_name(), "off", self.is_alien)
+                    .await;
                 info!("Disk is not ready");
             }
             GroupsState::MaybeReady | GroupsState::Initialized => {
@@ -167,7 +169,7 @@ impl DiskController {
             }
             GroupsState::Ready => {
                 gauge!(self.disk_state_metric.clone(), DISK_IS_ACTIVE);
-                self.logger.log(self.disk_name(), "on").await;
+                self.logger.log(self.disk_name(), "on", self.is_alien).await;
                 info!("Disk is ready");
             }
         }

@@ -30,13 +30,20 @@ impl DisksEventsLogger {
     }
 
     async fn write_header(f: &mut File) -> Result<()> {
-        f.write_all(b"disk_name;new_state;datetime\n").await?;
+        f.write_all(b"disk_name;is_alien;new_state;datetime\n")
+            .await?;
         f.sync_all().map_err(|e| e.into()).await
     }
 
-    pub(crate) async fn log(&self, disk_name: &str, event: &str) {
+    pub(crate) async fn log(&self, disk_name: &str, event: &str, is_alien: bool) {
         let cur_time = Local::now();
-        let log_msg = format!("{};{};{}\n", disk_name, event, cur_time.format("%+"));
+        let log_msg = format!(
+            "{};{};{};{}\n",
+            disk_name,
+            is_alien,
+            event,
+            cur_time.format("%+")
+        );
         let mut flock = self.fd.write().await;
         if let Err(e) = flock.write_all(log_msg.as_bytes()).await {
             error!("Can't write disk event!!! (reason: {:?})", e);
