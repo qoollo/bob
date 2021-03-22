@@ -18,16 +18,19 @@ pub struct Grinder {
 
 impl Grinder {
     /// Creates new instance of the Grinder
-    pub fn new(mapper: Virtual, config: &NodeConfig) -> Grinder {
+    pub async fn new(mapper: Virtual, config: &NodeConfig) -> Grinder {
         let nodes = mapper.nodes().values().cloned().collect::<Vec<_>>();
         let link_manager = Arc::new(LinkManager::new(nodes.as_slice(), config.check_interval()));
         let mapper = Arc::new(mapper);
-        let backend = Arc::new(Backend::new(mapper.clone(), config));
-        let cleaner = Arc::new(Cleaner::new(
+        let backend = Arc::new(Backend::new(mapper.clone(), config).await);
+
+        let cleaner = Cleaner::new(
             config.cleanup_interval(),
             config.open_blobs_soft(),
             config.hard_open_blobs(),
-        ));
+        );
+        let cleaner = Arc::new(cleaner);
+
         let counter = Arc::new(BlobsCounter::new(config.count_interval()));
         Grinder {
             backend: backend.clone(),

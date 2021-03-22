@@ -8,22 +8,21 @@ static PEARL_PATH: &str = "/tmp/d1/";
 const KEY_ID: u64 = 1;
 const TIMESTAMP: u64 = 1;
 
-fn drop_pearl() {
+async fn drop_pearl() {
     let path = PathBuf::from(PEARL_PATH);
     if path.exists() {
-        remove_dir_all(path).unwrap();
+        remove_dir_all(path).await.unwrap();
     }
 }
 
 async fn create_backend(node_config: &str, cluster_config: &str) -> PearlBackend {
     let cluster = ClusterConfig::get_from_string(cluster_config).unwrap();
-    debug!("cluster: {:?}", cluster);
     let node = NodeConfig::get_from_string(node_config, &cluster).unwrap();
     debug!("node: {:?}", node);
 
     let mapper = Arc::new(Virtual::new(&node, &cluster).await);
     debug!("mapper: {:?}", mapper);
-    PearlBackend::new(mapper, &node)
+    PearlBackend::new(mapper, &node).await
 }
 
 async fn backend() -> PearlBackend {
@@ -68,7 +67,7 @@ vdisks:
 
 #[tokio::test]
 async fn test_write_multiple_read() {
-    drop_pearl();
+    drop_pearl().await;
     let vdisk_id = 0;
     let backend = backend().await;
     backend.run_backend().await.unwrap();
@@ -87,5 +86,5 @@ async fn test_write_multiple_read() {
     assert_eq!(TIMESTAMP, res.unwrap().meta().timestamp());
     let res = backend.get(operation, KEY_ID).await;
     assert_eq!(TIMESTAMP, res.unwrap().meta().timestamp());
-    drop_pearl();
+    drop_pearl().await;
 }

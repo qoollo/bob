@@ -118,7 +118,7 @@ async fn create_cluster(
         todo!("mock");
     }
 
-    let backend = Arc::new(Backend::new(mapper.clone(), &node));
+    let backend = Arc::new(Backend::new(mapper.clone(), &node).await);
     (Quorum::new(backend.clone(), mapper, node.quorum()), backend)
 }
 

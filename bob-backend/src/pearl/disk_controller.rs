@@ -31,7 +31,7 @@ pub(crate) struct DiskController {
 }
 
 impl DiskController {
-    pub(crate) fn new(
+    pub(crate) async fn new(
         disk: DiskPath,
         vdisks: Vec<VDiskId>,
         config: &NodeConfig,
@@ -39,10 +39,11 @@ impl DiskController {
         settings: Arc<Settings>,
         is_alien: bool,
     ) -> Arc<Self> {
-        let mut new_dc = Self {
+        let dump_sem = Arc::new(Semaphore::new(config.disk_access_par_degree()));
+        let new_dc = Self {
             disk,
             vdisks,
-            dump_sem: Arc::new(Semaphore::new(config.disk_access_par_degree())),
+            dump_sem,
             run_sem,
             node_name: config.name().to_owned(),
             groups: Arc::new(RwLock::new(Vec::new())),
@@ -50,7 +51,10 @@ impl DiskController {
             settings,
             is_alien,
         };
-        new_dc.sync_init().expect("Can't start new disk controller");
+        new_dc
+            .init()
+            .await
+            .expect("Can't start new disk controller");
         let new_dc = Arc::new(new_dc);
         let cloned_dc = new_dc.clone();
         tokio::spawn(async move { cloned_dc.monitor_task().await });
@@ -114,16 +118,9 @@ impl DiskController {
         }
     }
 
-    // this init is done in `new` sync method. Monitor use async init.
-    pub(crate) fn sync_init(&mut self) -> BackendResult<()> {
-        self.groups = Arc::new(RwLock::new(self.get_groups()?));
-        self.state = Arc::new(RwLock::new(GroupsState::Initialized));
-        Ok(())
-    }
-
     pub(crate) async fn init(&self) -> BackendResult<()> {
         if *self.state.read().await == GroupsState::NotReady {
-            let groups = self.get_groups()?;
+            let groups = self.get_groups().await?;
             *self.groups.write().await = groups;
             *self.state.write().await = GroupsState::Initialized;
             Ok(())
@@ -132,9 +129,9 @@ impl DiskController {
         }
     }
 
-    fn get_groups(&self) -> BackendResult<Vec<Group>> {
+    async fn get_groups(&self) -> BackendResult<Vec<Group>> {
         if self.is_alien {
-            self.collect_alien_groups()
+            self.collect_alien_groups().await
         } else {
             Ok(self.collect_normal_groups())
         }
@@ -159,13 +156,13 @@ impl DiskController {
             .collect()
     }
 
-    pub(crate) fn collect_alien_groups(&self) -> BackendResult<Vec<Group>> {
-        let groups = self
-            .settings
-            .clone()
-            .collect_alien_groups(self.disk.name().to_owned(), self.dump_sem.clone())?;
+    pub(crate) async fn collect_alien_groups(&self) -> BackendResult<Vec<Group>> {
+        let settings = self.settings.clone();
+        let groups = settings
+            .collect_alien_groups(self.disk.name().to_owned(), self.dump_sem.clone())
+            .await?;
         trace!(
-            "count alien vdisk groups (start or recovery): {}",
+            "alien vdisk groups count (start or recovery): {}",
             groups.len()
         );
         Ok(groups)
@@ -203,13 +200,13 @@ impl DiskController {
             return Ok(g);
         }
 
-        self.settings
+        let group = self
+            .settings
             .clone()
             .create_group(operation, &self.node_name, self.dump_sem.clone())
-            .map(|g| {
-                write_lock_groups.push(g.clone());
-                g
-            })
+            .await?;
+        write_lock_groups.push(group.clone());
+        Ok(group)
     }
 
     async fn run_groups(groups: Arc<RwLock<Vec<Group>>>) -> AnyResult<()> {
