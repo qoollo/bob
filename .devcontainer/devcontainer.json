@@ -2,5 +2,8 @@
     "name": "Bob Dev",
     "build": {
         "dockerfile": "Dockerfile"
-    }
+    },
+    "extensions": [
+        "rust-lang.rust"
+    ]
 }
