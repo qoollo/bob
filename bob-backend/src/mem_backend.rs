@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use crate::core::{MetricsProducer, BackendStorage, Operation};
+use crate::core::{BackendStorage, MetricsProducer, Operation};
 
 #[derive(Clone, Debug, Default)]
 pub struct VDisk {

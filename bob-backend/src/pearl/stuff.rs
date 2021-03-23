@@ -13,7 +13,7 @@ impl Stuff {
                 .to_str()
                 .ok_or_else(|| Error::storage("invalid some path, check vdisk or disk names"))?;
 
-            let res = create_dir_all(&path)
+            create_dir_all(&path)
                 .await
                 .map(|_| info!("create directory: {}", dir))
                 .map_err(|e| match e.kind() {

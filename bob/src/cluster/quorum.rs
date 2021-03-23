@@ -2,9 +2,8 @@ use crate::prelude::*;
 
 use super::{
     operations::{
-        Tasks,
         group_keys_by_nodes, lookup_local_alien, lookup_local_node, lookup_remote_aliens,
-        lookup_remote_nodes, put_at_least, put_local_all, put_local_node, put_sup_nodes,
+        lookup_remote_nodes, put_at_least, put_local_all, put_local_node, put_sup_nodes, Tasks,
     },
     Cluster,
 };

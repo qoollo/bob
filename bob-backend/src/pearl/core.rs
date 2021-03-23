@@ -3,12 +3,10 @@ use std::iter::once;
 use crate::prelude::*;
 
 use super::{
-    data::Key,
-    disk_controller::DiskController,
-    disk_controller::logger::DisksEventsLogger,
-    settings::Settings
+    data::Key, disk_controller::logger::DisksEventsLogger, disk_controller::DiskController,
+    settings::Settings,
 };
-use crate::core::{MetricsProducer, BackendStorage, Operation};
+use crate::core::{BackendStorage, MetricsProducer, Operation};
 
 pub type BackendResult<T> = std::result::Result<T, Error>;
 pub type PearlStorage = Storage<Key>;
@@ -98,7 +96,7 @@ impl BackendStorage for Pearl {
         Ok(())
     }
 
-    async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put(&self, op: Operation, key: BobKey, data: BobData) -> BackendResult<()> {
         debug!("PUT[{}] to pearl backend. operation: {:?}", key, op);
         let dc_option = self
             .disk_controllers
@@ -118,7 +116,7 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> BackendResult<()> {
         debug!("PUT[alien][{}] to pearl backend, operation: {:?}", key, op);
         self.alien_disk_controller.put_alien(op, key, data).await
     }
@@ -137,7 +135,7 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
+    async fn get_alien(&self, op: Operation, key: BobKey) -> BackendResult<BobData> {
         debug!("Get[alien][{}] from pearl backend", key);
         if self.alien_disk_controller.can_process_operation(&op) {
             self.alien_disk_controller.get_alien(op, key).await
@@ -146,7 +144,7 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn exist(&self, operation: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
+    async fn exist(&self, operation: Operation, keys: &[BobKey]) -> BackendResult<Vec<bool>> {
         let dc_option = self
             .disk_controllers
             .iter()
@@ -158,7 +156,7 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
+    async fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> BackendResult<Vec<bool>> {
         if self.alien_disk_controller.can_process_operation(&operation) {
             self.alien_disk_controller.exist(operation, &keys).await
         } else {

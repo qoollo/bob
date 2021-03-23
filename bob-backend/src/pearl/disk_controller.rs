@@ -1,8 +1,8 @@
 use tokio::time::{interval, Interval};
 
 pub(crate) mod logger;
-use logger::DisksEventsLogger;
 use crate::{core::Operation, prelude::*};
+use logger::DisksEventsLogger;
 
 use super::{core::BackendResult, settings::Settings, Group};
 
@@ -55,7 +55,7 @@ impl DiskController {
     ) -> Arc<Self> {
         let disk_state_metric = format!("{}.{}", DISKS_FOLDER, disk.name());
         let dump_sem = Arc::new(Semaphore::new(config.disk_access_par_degree()));
-        let mut new_dc = Self {
+        let new_dc = Self {
             disk,
             vdisks,
             dump_sem,
@@ -178,13 +178,15 @@ impl DiskController {
             }
             GroupsState::Ready => {
                 gauge!(self.disk_state_metric.clone(), DISK_IS_ACTIVE);
-                self.logger.log(self.disk().name(), "on", self.is_alien).await;
+                self.logger
+                    .log(self.disk().name(), "on", self.is_alien)
+                    .await;
                 info!("Disk is ready");
             }
         }
     }
 
-    pub(crate) async fn init(&self) -> BackendResult<()> {
+    async fn init(&self) -> BackendResult<()> {
         let state = self.state.read().await.clone();
         if state == GroupsState::NotReady || state == GroupsState::MaybeReady {
             let groups = self.get_groups().await?;
@@ -216,7 +218,7 @@ impl DiskController {
         group_opt.ok_or(Error::vdisk_not_found(vdisk_id).into())
     }
 
-    pub(crate) fn collect_normal_groups(&self) -> Vec<Group> {
+    fn collect_normal_groups(&self) -> Vec<Group> {
         self.vdisks
             .iter()
             .copied()
@@ -235,7 +237,7 @@ impl DiskController {
             .collect()
     }
 
-    pub(crate) async fn collect_alien_groups(&self) -> BackendResult<Vec<Group>> {
+    async fn collect_alien_groups(&self) -> BackendResult<Vec<Group>> {
         let settings = self.settings.clone();
         let groups = settings
             .collect_alien_groups(self.disk.name().to_owned(), self.dump_sem.clone())

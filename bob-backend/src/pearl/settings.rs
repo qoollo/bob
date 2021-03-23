@@ -1,6 +1,9 @@
 use crate::prelude::*;
 
-use super::{core::BackendResult, disk_controller::DiskController, disk_controller::logger::DisksEventsLogger, group::Group, stuff::Stuff};
+use super::{
+    core::BackendResult, disk_controller::logger::DisksEventsLogger,
+    disk_controller::DiskController, group::Group, stuff::Stuff,
+};
 use crate::core::Operation;
 
 const DEFAULT_ALIEN_DISK_NAME: &str = "alien_disk";
@@ -90,7 +93,8 @@ impl Settings {
             self.clone(),
             true,
             logger,
-        ).await;
+        )
+        .await;
         Ok(dc)
     }
 

@@ -1,5 +1,5 @@
-use crate::prelude::*;
 use crate::link_manager::LinkManager;
+use crate::prelude::*;
 
 pub(crate) type Tasks = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>;
 
