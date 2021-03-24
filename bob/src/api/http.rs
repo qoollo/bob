@@ -500,12 +500,7 @@ fn get_data(_bob: State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>>, Sta
     let result = runtime()
         .block_on(async { _bob.grinder().get(key, &opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
-    let mime_type = infer::get(result.inner());
-    let mime_type = match mime_type {
-        None => ContentType::Any,
-        Some(t) => ContentType::from_str(t.mime_type()).unwrap_or_default(),
-    };
-    Ok(Content(mime_type, result.inner().to_owned()))
+    Ok(Content(data_to_type(&result), result.inner().to_owned()))
 }
 
 #[post("/data/<key>", data = "<data>")]
@@ -597,5 +592,12 @@ impl From<bob_common::error::Error> for StatusExt {
             ok: false,
             msg: err.to_string(),
         }
+    }
+}
+
+pub(crate) fn data_to_type(data: &BobData) -> ContentType {
+    match infer::get(data.inner()) {
+        None => ContentType::Any,
+        Some(t) => ContentType::from_str(t.mime_type()).unwrap_or_default(),
     }
 }
