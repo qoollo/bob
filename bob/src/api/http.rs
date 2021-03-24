@@ -19,6 +19,8 @@ use tokio::{
     runtime::Runtime,
 };
 
+mod s3;
+
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
     Attach,
@@ -109,6 +111,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         config.set_port(port);
         Rocket::custom(config)
             .manage(bob)
+            .mount("/s3", s3::routes())
             .mount("/", routes)
             .launch();
     };
