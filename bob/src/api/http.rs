@@ -1,17 +1,21 @@
 use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
-use bob_common::{data::VDisk as DataVDisk, node::Disk as NodeDisk};
+use bob_common::{
+    data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk},
+    node::Disk as NodeDisk,
+};
 use futures::{future::BoxFuture, FutureExt};
 use rocket::{
-    http::{RawStr, Status},
+    http::{ContentType, RawStr, Status},
     request::FromParam,
-    response::{Responder, Result as RocketResult},
-    Config, Request, Response, Rocket, State,
+    response::{Content, Responder, Result as RocketResult},
+    Config, Data, Request, Response, Rocket, State,
 };
 use rocket_contrib::json::Json;
 use std::{
-    io::Cursor,
+    io::{Cursor, ErrorKind, Read},
     path::{Path, PathBuf},
+    str::FromStr,
     thread,
 };
 use tokio::{
@@ -104,6 +108,8 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         finalize_outdated_blobs,
         vdisk_records_count,
         distribution_function,
+        get_data,
+        put_data
     ];
     let task = move || {
         info!("API server started");
@@ -488,6 +494,39 @@ async fn read_directory_children(mut read_dir: ReadDir, name: String, path: Stri
     }
 }
 
+#[get("/data/<key>")]
+fn get_data(_bob: State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>>, StatusExt> {
+    let opts = BobOptions::new_get(None);
+    let result = runtime()
+        .block_on(async { _bob.grinder().get(key, &opts).await })
+        .map_err(|err| -> StatusExt { err.into() })?;
+    let mime_type = infer::get(result.inner());
+    let mime_type = match mime_type {
+        None => ContentType::Any,
+        Some(t) => ContentType::from_str(t.mime_type()).unwrap_or_default(),
+    };
+    Ok(Content(mime_type, result.inner().to_owned()))
+}
+
+#[post("/data/<key>", data = "<data>")]
+fn put_data(_bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt, StatusExt> {
+    let mut data_buf = vec![];
+    data.open()
+        .read_to_end(&mut data_buf)
+        .map_err(|err| -> StatusExt { err.into() })?;
+    let data = BobData::new(
+        data_buf,
+        BobMeta::new(chrono::Local::now().timestamp() as u64),
+    );
+
+    let opts = BobOptions::new_put(None);
+    runtime()
+        .block_on(async { _bob.grinder().put(key, data, opts).await })
+        .map_err(|err| -> StatusExt { err.into() })?;
+
+    Ok(Status::Created.into())
+}
+
 impl<'r> FromParam<'r> for Action {
     type Error = &'r RawStr;
 
@@ -523,6 +562,40 @@ impl From<Status> for StatusExt {
             status,
             ok: true,
             msg: status.reason.to_owned(),
+        }
+    }
+}
+
+impl From<std::io::Error> for StatusExt {
+    fn from(err: std::io::Error) -> Self {
+        Self {
+            status: match err.kind() {
+                ErrorKind::NotFound => Status::NotFound,
+                _ => Status::BadRequest,
+            }, // TODO: Complete match
+            ok: false,
+            msg: err.to_string(),
+        }
+    }
+}
+
+impl From<bob_common::error::Error> for StatusExt {
+    fn from(err: bob_common::error::Error) -> Self {
+        let status = if err.is_duplicate() {
+            Status::Conflict
+        } else if err.is_internal() {
+            Status::InternalServerError
+        } else if err.is_key_not_found() {
+            Status::NotFound
+        } else if err.is_not_ready() {
+            Status::InternalServerError
+        } else {
+            Status::BadRequest
+        };
+        Self {
+            status,
+            ok: false,
+            msg: err.to_string(),
         }
     }
 }
