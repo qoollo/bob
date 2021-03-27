@@ -170,18 +170,18 @@ impl DiskController {
                 self.logger
                     .log(self.disk().name(), "off", self.is_alien)
                     .await;
-                info!("Disk is not ready");
+                error!("Disk is not ready!");
             }
             GroupsState::MaybeReady | GroupsState::Initialized => {
                 gauge!(self.disk_state_metric.clone(), DIR_IS_AVAILABLE);
-                info!("Dir is available but disk is not running");
+                warn!("Dir is available, but disk is not running");
             }
             GroupsState::Ready => {
                 gauge!(self.disk_state_metric.clone(), DISK_IS_ACTIVE);
                 self.logger
                     .log(self.disk().name(), "on", self.is_alien)
                     .await;
-                info!("Disk is ready");
+                warn!("Disk is ready");
             }
         }
     }

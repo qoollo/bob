@@ -174,7 +174,7 @@ impl Holder {
                 e.downcast_ref::<PearlError>()
                     .map_or(Error::possible_disk_disconnection(), |err| {
                         match err.kind() {
-                            PearlErrorKind::WorkDirUnavailable(_) => {
+                            PearlErrorKind::WorkDirUnavailable { .. } => {
                                 Error::possible_disk_disconnection()
                             }
                             _ => Error::internal(),
