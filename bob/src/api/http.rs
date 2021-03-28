@@ -104,7 +104,8 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         delete_partition,
         alien,
         remount_vdisks_group,
-        start_disk_controller,
+        start_all_disk_controllers,
+        stop_all_disk_controllers,
         get_local_replica_directories,
         nodes,
         disks_list,
@@ -268,8 +269,38 @@ fn distribution_function(bob: State<BobServer>) -> Json<DistrFunc> {
     })
 }
 
+#[post("/disks/<disk_name>/stop")]
+fn stop_all_disk_controllers(
+    bob: State<BobServer>,
+    disk_name: String,
+) -> Result<StatusExt, StatusExt> {
+    use futures::stream::{FuturesUnordered, StreamExt};
+    let backend = bob.grinder().backend().inner();
+    let (dcs, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    let tasks = async move {
+        dcs.iter()
+            .chain(std::iter::once(&adc))
+            .filter(|dc| dc.disk().name() == disk_name)
+            .map(|dc| dc.stop())
+            .collect::<FuturesUnordered<_>>()
+            .collect::<Vec<()>>()
+            .await;
+    };
+    runtime().block_on(tasks);
+    Ok(StatusExt::new(
+        Status::Ok,
+        true,
+        "Disk controllers are stopped".to_owned(),
+    ))
+}
+
 #[post("/disks/<disk_name>/start")]
-fn start_disk_controller(bob: State<BobServer>, disk_name: String) -> Result<StatusExt, StatusExt> {
+fn start_all_disk_controllers(
+    bob: State<BobServer>,
+    disk_name: String,
+) -> Result<StatusExt, StatusExt> {
     use futures::stream::{FuturesUnordered, StreamExt};
     let backend = bob.grinder().backend().inner();
     let (dcs, adc) = backend

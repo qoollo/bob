@@ -184,9 +184,23 @@ paths:
                   $ref: '#/components/schemas/DiskState'
         default:
           $ref: '#/components/responses/DefaultError'
+  /disks/<disk_name>/stop:
+    post:
+      summary: Stops all disks controller for disk
+      parameters:
+        - $ref: '#/components/parameters/DiskNameParam'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/DefaultError'
   /disks/<disk_name>/start:
     post:
-      summary: Trying to start disk controller for disk
+      summary: Trying to start all disk controllers for disk
       parameters:
         - $ref: '#/components/parameters/DiskNameParam'
       responses:

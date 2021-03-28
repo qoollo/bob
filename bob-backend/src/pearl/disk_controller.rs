@@ -93,6 +93,11 @@ impl DiskController {
         self.groups_run().await
     }
 
+    pub async fn stop(&self) {
+        let _permit = self.monitor_sem.acquire().await.expect("Sem is closed");
+        self.change_state(GroupsState::NotReady).await;
+    }
+
     async fn monitor_wait(state: Arc<RwLock<GroupsState>>, check_interval: &mut Interval) {
         while *state.read().await != GroupsState::Ready {
             check_interval.tick().await;
@@ -112,13 +117,13 @@ impl DiskController {
                         self.change_state(GroupsState::MaybeReady).await;
                     }
                     GroupsState::MaybeReady | GroupsState::Initialized => {
-                        info!(
+                        warn!(
                             "Work dir is available, but disk is not running ({:?})",
                             self.disk
                         );
                     }
                     GroupsState::Ready => {
-                        info!("Disk is available: {:?}", self.disk);
+                        warn!("Disk is available: {:?}", self.disk);
                     }
                 }
             } else {
