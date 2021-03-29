@@ -6,7 +6,7 @@ use crate::data::{BobKey, VDiskId};
 
 #[derive(Debug, Clone, ErrorTrait)]
 pub struct Error {
-    ctx: Kind,
+    pub ctx: Kind,
 }
 
 impl Error {

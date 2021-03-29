@@ -495,16 +495,16 @@ async fn read_directory_children(mut read_dir: ReadDir, name: String, path: Stri
 }
 
 #[get("/data/<key>")]
-fn get_data(_bob: State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>>, StatusExt> {
+fn get_data(bob: State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>>, StatusExt> {
     let opts = BobOptions::new_get(None);
     let result = runtime()
-        .block_on(async { _bob.grinder().get(key, &opts).await })
+        .block_on(async { bob.grinder().get(key, &opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
     Ok(Content(data_to_type(&result), result.inner().to_owned()))
 }
 
 #[post("/data/<key>", data = "<data>")]
-fn put_data(_bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt, StatusExt> {
+fn put_data(bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt, StatusExt> {
     let mut data_buf = vec![];
     data.open()
         .read_to_end(&mut data_buf)
@@ -516,7 +516,7 @@ fn put_data(_bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt
 
     let opts = BobOptions::new_put(None);
     runtime()
-        .block_on(async { _bob.grinder().put(key, data, opts).await })
+        .block_on(async { bob.grinder().put(key, data, opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
 
     Ok(Status::Created.into())
@@ -576,16 +576,13 @@ impl From<std::io::Error> for StatusExt {
 
 impl From<bob_common::error::Error> for StatusExt {
     fn from(err: bob_common::error::Error) -> Self {
-        let status = if err.is_duplicate() {
-            Status::Conflict
-        } else if err.is_internal() {
-            Status::InternalServerError
-        } else if err.is_key_not_found() {
-            Status::NotFound
-        } else if err.is_not_ready() {
-            Status::InternalServerError
-        } else {
-            Status::BadRequest
+        use bob_common::error::Kind;
+        let status = match err.ctx {
+            Kind::DuplicateKey => Status::Conflict,
+            Kind::Internal => Status::InternalServerError,
+            Kind::VDiskIsNotReady => Status::InternalServerError,
+            Kind::KeyNotFound(_) => Status::NotFound,
+            _ => Status::BadRequest,
         };
         Self {
             status,
