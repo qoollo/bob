@@ -117,13 +117,13 @@ impl DiskController {
                         self.change_state(GroupsState::MaybeReady).await;
                     }
                     GroupsState::MaybeReady | GroupsState::Initialized => {
-                        warn!(
+                        info!(
                             "Work dir is available, but disk is not running ({:?})",
                             self.disk
                         );
                     }
                     GroupsState::Ready => {
-                        warn!("Disk is available: {:?}", self.disk);
+                        info!("Disk is available: {:?}", self.disk);
                     }
                 }
             } else {
