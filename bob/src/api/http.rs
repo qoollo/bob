@@ -500,7 +500,7 @@ fn get_data(bob: State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>>, Stat
     let result = runtime()
         .block_on(async { bob.grinder().get(key, &opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
-    Ok(Content(data_to_type(&result), result.inner().to_owned()))
+    Ok(Content(infer_data_type(&result), result.inner().to_owned()))
 }
 
 #[post("/data/<key>", data = "<data>")]
@@ -592,7 +592,7 @@ impl From<bob_common::error::Error> for StatusExt {
     }
 }
 
-pub(crate) fn data_to_type(data: &BobData) -> ContentType {
+pub(crate) fn infer_data_type(data: &BobData) -> ContentType {
     match infer::get(data.inner()) {
         None => ContentType::Any,
         Some(t) => ContentType::from_str(t.mime_type()).unwrap_or_default(),
