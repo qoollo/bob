@@ -1,4 +1,5 @@
 use std::{
+    convert::TryInto,
     io::{Cursor, Read},
     str::FromStr,
 };
@@ -47,8 +48,6 @@ pub(crate) fn routes() -> impl Into<Vec<Route>> {
 #[derive(Debug, Default)]
 pub(crate) struct GetObjectHeaders {
     content_type: Option<ContentType>,
-    if_match: Option<String>,
-    if_none_match: Option<String>,
     if_modified_since: Option<u64>,
     if_unmodified_since: Option<u64>,
 }
@@ -61,14 +60,14 @@ impl<'r> FromRequest<'_, 'r> for GetObjectHeaders {
             content_type: headers
                 .get_one("response-content-type")
                 .and_then(|x| ContentType::from_str(x).ok()),
-            if_match: headers.get_one("If-Match").map(|x| x.to_string()),
-            if_none_match: headers.get_one("If-None-Match").map(|x| x.to_string()),
             if_modified_since: headers
                 .get_one("If-Modified-Since")
-                .and_then(|x| x.parse().ok()),
+                .and_then(|x| chrono::DateTime::parse_from_rfc2822(x).ok())
+                .and_then(|x| x.timestamp().try_into().ok()),
             if_unmodified_since: headers
                 .get_one("If-Unmodified-Since")
-                .and_then(|x| x.parse().ok()),
+                .and_then(|x| chrono::DateTime::parse_from_rfc2822(x).ok())
+                .and_then(|x| x.timestamp().try_into().ok()),
         })
     }
 }
