@@ -579,7 +579,7 @@ impl From<std::io::Error> for StatusExt {
 impl From<bob_common::error::Error> for StatusExt {
     fn from(err: bob_common::error::Error) -> Self {
         use bob_common::error::Kind;
-        let status = match err.ctx {
+        let status = match err.kind() {
             Kind::DuplicateKey => Status::Conflict,
             Kind::Internal => Status::InternalServerError,
             Kind::VDiskIsNotReady => Status::InternalServerError,

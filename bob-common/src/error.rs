@@ -6,13 +6,18 @@ use crate::data::{BobKey, VDiskId};
 
 #[derive(Debug, Clone, ErrorTrait)]
 pub struct Error {
-    pub ctx: Kind,
+    ctx: Kind,
 }
 
 impl Error {
     fn new(ctx: Kind) -> Self {
         Self { ctx }
     }
+
+    pub fn kind(&self) -> &Kind {
+        &self.ctx
+    }
+
     pub fn is_not_ready(&self) -> bool {
         self.ctx == Kind::VDiskIsNotReady
     }
