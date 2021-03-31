@@ -141,6 +141,7 @@ impl DiskController {
                     self.log_state_change(&new_state).await;
                     // if disk is broken (either are indices in groups) we should drop groups, because
                     // otherwise we'll hold broken indices (for active blob of broken disk) in RAM
+                    self.shutdown().await;
                     self.groups.write().await.clear();
                 }
             }
@@ -469,7 +470,6 @@ impl DiskController {
             }
         }
         futures.collect::<()>().await;
-        self.change_state(GroupsState::NotReady).await;
     }
 
     pub(crate) async fn blobs_count(&self) -> usize {

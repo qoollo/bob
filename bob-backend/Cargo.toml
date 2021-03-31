@@ -38,7 +38,8 @@ version = "1.3"
 features = ["full"]
 
 [dependencies.pearl]
-version = "0.5.12"
+git = "https://github.com/qoollo/pearl"
+branch = "observer-force-shutdown-on-close"
 
 [build-dependencies]
 tonic-build = "0.4.0"
