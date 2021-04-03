@@ -80,7 +80,7 @@ impl Operation {
 }
 
 #[async_trait]
-pub trait BackendStorage: Debug + MetricsProducer {
+pub trait BackendStorage: Debug + MetricsProducer + Send + Sync {
     async fn run_backend(&self) -> AnyResult<()>;
 
     async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
@@ -112,7 +112,7 @@ pub trait BackendStorage: Debug + MetricsProducer {
 }
 
 #[async_trait]
-pub trait MetricsProducer {
+pub trait MetricsProducer: Send + Sync {
     async fn blobs_count(&self) -> (usize, usize) {
         (0, 0)
     }

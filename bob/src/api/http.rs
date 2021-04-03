@@ -188,8 +188,7 @@ fn find_group(bob: &State<BobServer>, vdisk_id: u32) -> Result<PearlGroup, Statu
             StatusExt::new(Status::NotFound, false, err)
         })
     };
-    let rt = Runtime::new().expect("create runtime");
-    rt.block_on(task)
+    runtime().block_on(task)
 }
 
 #[get("/status")]

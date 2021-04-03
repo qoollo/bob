@@ -9,27 +9,19 @@ pub(crate) struct DisksEventsLogger {
 }
 
 impl DisksEventsLogger {
-    pub(crate) async fn new(filename: impl AsRef<Path>) -> Self {
+    pub(crate) async fn new(filename: impl AsRef<Path>) -> IOResult<Self> {
         let fd = if filename.as_ref().exists() {
-            OpenOptions::new()
-                .append(true)
-                .open(filename)
-                .await
-                .expect("Can't open log file for disks events")
+            OpenOptions::new().append(true).open(filename).await?
         } else {
-            let mut f = File::create(filename)
-                .await
-                .expect("Can't create log file for disks events");
-            Self::write_header(&mut f)
-                .await
-                .expect("Failed to write header for DisksEventsLogger");
+            let mut f = File::create(filename).await?;
+            Self::write_header(&mut f).await?;
             f
         };
         let fd = Arc::new(RwLock::new(fd));
-        Self { fd }
+        Ok(Self { fd })
     }
 
-    async fn write_header(f: &mut File) -> AnyResult<()> {
+    async fn write_header(f: &mut File) -> IOResult<()> {
         f.write_all(b"disk_name;is_alien;new_state;datetime\n")
             .await?;
         f.sync_all().await.map_err(|e| e.into())

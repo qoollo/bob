@@ -1,3 +1,4 @@
+use futures::future::ready;
 use std::iter::once;
 
 use crate::prelude::*;
@@ -25,7 +26,9 @@ impl Pearl {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
         let logfile = config.pearl().disks_events_logfile().clone();
-        let logger = DisksEventsLogger::new(logfile).await;
+        let logger = DisksEventsLogger::new(logfile)
+            .await
+            .expect("create logger");
 
         let run_sem = Arc::new(Semaphore::new(config.init_par_degree()));
         let data = settings
@@ -38,8 +41,7 @@ impl Pearl {
         let alien_disk_controller = settings
             .clone()
             .read_alien_directory(config, run_sem, logger)
-            .await
-            .expect("vec of pearl groups");
+            .await;
 
         Self {
             settings,
@@ -54,20 +56,26 @@ impl Pearl {
 #[async_trait]
 impl MetricsProducer for Pearl {
     async fn blobs_count(&self) -> (usize, usize) {
-        let mut cnt = 0;
-        for dc in self.disk_controllers.iter() {
-            cnt += dc.blobs_count().await
-        }
+        let futs: FuturesUnordered<_> = self
+            .disk_controllers
+            .iter()
+            .cloned()
+            .map(|dc| async move { dc.blobs_count().await })
+            .collect();
+        let cnt = futs.fold(0, |cnt, dc_cnt| ready(cnt + dc_cnt)).await;
         let alien_cnt = self.alien_disk_controller.blobs_count().await;
         (cnt, alien_cnt)
     }
 
     async fn index_memory(&self) -> usize {
-        let mut cnt = 0;
-        for dc in self.disk_controllers.iter() {
-            cnt += dc.index_memory().await
-        }
-        cnt += self.alien_disk_controller.index_memory().await;
+        let futs: FuturesUnordered<_> = self
+            .disk_controllers
+            .iter()
+            .chain(once(&self.alien_disk_controller))
+            .cloned()
+            .map(|dc| async move { dc.index_memory().await })
+            .collect();
+        let cnt = futs.fold(0, |cnt, dc_cnt| ready(cnt + dc_cnt)).await;
         cnt
     }
 

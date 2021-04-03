@@ -73,7 +73,7 @@ impl Settings {
         config: &NodeConfig,
         run_sem: Arc<Semaphore>,
         logger: DisksEventsLogger,
-    ) -> BackendResult<Arc<DiskController>> {
+    ) -> Arc<DiskController> {
         let disk_name = config
             .pearl()
             .alien_disk()
@@ -95,7 +95,7 @@ impl Settings {
             logger,
         )
         .await;
-        Ok(dc)
+        dc
     }
 
     pub(crate) async fn collect_alien_groups(

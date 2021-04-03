@@ -11,16 +11,13 @@ use bob_common::metrics::DISKS_FOLDER;
 const CHECK_INTERVAL: Duration = Duration::from_millis(5000);
 
 const DISK_IS_NOT_ACTIVE: i64 = 0;
-const DIR_IS_AVAILABLE: i64 = 1;
-const DISK_IS_ACTIVE: i64 = 2;
+const DISK_IS_ACTIVE: i64 = 1;
 
 #[derive(Clone, Debug, PartialEq)]
 enum GroupsState {
     // group vector is empty or broken:
     // state before init OR after disk becomes unavailable
     NotReady = 0,
-    // work dir is available, but disk hasn't started
-    MaybeReady = 1,
     // groups are read from disk but don't run
     Initialized = 2,
     // groups are ready to process request
@@ -113,10 +110,7 @@ impl DiskController {
             if Self::is_work_dir_available(self.disk.path()) {
                 let state = self.state.read().await.clone();
                 match state {
-                    GroupsState::NotReady => {
-                        self.change_state(GroupsState::MaybeReady).await;
-                    }
-                    GroupsState::MaybeReady | GroupsState::Initialized => {
+                    GroupsState::NotReady | GroupsState::Initialized => {
                         info!(
                             "Work dir is available, but disk is not running ({:?})",
                             self.disk
@@ -135,26 +129,23 @@ impl DiskController {
 
     async fn change_state(&self, new_state: GroupsState) {
         let mut wlock = self.state.write().await;
-        match new_state {
-            GroupsState::NotReady => {
-                if *wlock != GroupsState::NotReady {
-                    self.log_state_change(&new_state).await;
-                    // if disk is broken (either are indices in groups) we should drop groups, because
-                    // otherwise we'll hold broken indices (for active blob of broken disk) in RAM
-                    self.shutdown().await;
-                    self.groups.write().await.clear();
-                }
+        let old_state = wlock.clone();
+        match (old_state, &new_state) {
+            (old_state, GroupsState::NotReady) if old_state != GroupsState::NotReady => {
+                self.log_state_change(&new_state).await;
+                // if disk is broken (either are indices in groups) we should drop groups, because
+                // otherwise we'll hold broken indices (for active blob of broken disk) in RAM
+                self.shutdown().await;
+                self.groups.write().await.clear();
             }
-            GroupsState::Initialized | GroupsState::MaybeReady => {
-                if *wlock != GroupsState::MaybeReady || *wlock != GroupsState::Initialized {
-                    self.log_state_change(&new_state).await;
-                }
+            (GroupsState::NotReady, GroupsState::Initialized) => {
+                self.log_state_change(&new_state).await;
             }
-            GroupsState::Ready => {
-                if *wlock != GroupsState::Ready {
-                    self.log_state_change(&new_state).await
-                }
+            (GroupsState::Initialized, GroupsState::Ready) => {
+                self.log_state_change(&new_state).await
             }
+            (old_state, new_state) if old_state == *new_state => debug!("Identity transformation"),
+            _ => error!("Invalid transformation"),
         }
         *wlock = new_state;
     }
@@ -178,9 +169,8 @@ impl DiskController {
                     .await;
                 error!("Disk is not ready: {:?}", self.disk);
             }
-            GroupsState::MaybeReady | GroupsState::Initialized => {
-                gauge!(self.disk_state_metric.clone(), DIR_IS_AVAILABLE);
-                warn!("Dir is available, but disk is not running: {:?}", self.disk);
+            GroupsState::Initialized => {
+                warn!("Disk is initialized: {:?}", self.disk);
             }
             GroupsState::Ready => {
                 gauge!(self.disk_state_metric.clone(), DISK_IS_ACTIVE);
@@ -194,7 +184,7 @@ impl DiskController {
 
     async fn init(&self) -> BackendResult<()> {
         let state = self.state.read().await.clone();
-        if state == GroupsState::NotReady || state == GroupsState::MaybeReady {
+        if state == GroupsState::NotReady {
             let groups = self.get_groups().await?;
             *self.groups.write().await = groups;
             self.change_state(GroupsState::Initialized).await;
@@ -306,26 +296,27 @@ impl DiskController {
     async fn groups_run(&self) -> AnyResult<()> {
         let state = self.state.read().await.clone();
         match state {
-            GroupsState::Initialized => {
-                let res = {
-                    let _permit = self.run_sem.acquire().await.expect("Semaphore is closed");
-                    Self::run_groups(self.groups.clone()).await
-                };
-                if let Err(e) = res {
-                    error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
-                    if !Self::is_work_dir_available(self.disk.path()) {
-                        self.change_state(GroupsState::NotReady).await;
-                    }
-                    Err(e)
-                } else {
-                    self.change_state(GroupsState::Ready).await;
-                    info!("All groups are running on disk: {:?}", self.disk);
-                    Ok(())
-                }
-            }
+            GroupsState::Initialized => self.groups_run_initialized().await,
             GroupsState::Ready => Ok(()),
-            GroupsState::NotReady | GroupsState::MaybeReady => Err(Error::internal().into()),
+            GroupsState::NotReady => Err(Error::internal().into()),
         }
+    }
+
+    async fn groups_run_initialized(&self) -> AnyResult<()> {
+        let res = {
+            let _permit = self.run_sem.acquire().await.expect("Semaphore is closed");
+            Self::run_groups(self.groups.clone()).await
+        };
+        if let Err(e) = &res {
+            error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
+            if !Self::is_work_dir_available(self.disk.path()) {
+                self.change_state(GroupsState::NotReady).await;
+            }
+        } else {
+            self.change_state(GroupsState::Ready).await;
+            info!("All groups are running on disk: {:?}", self.disk);
+        }
+        res
     }
 
     pub(crate) async fn put_alien(
