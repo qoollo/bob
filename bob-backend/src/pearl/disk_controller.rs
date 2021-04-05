@@ -128,10 +128,13 @@ impl DiskController {
     }
 
     async fn change_state(&self, new_state: GroupsState) {
-        let mut wlock = self.state.write().await;
-        let old_state = wlock.clone();
-        match (old_state, &new_state) {
-            (old_state, GroupsState::NotReady) if old_state != GroupsState::NotReady => {
+        let mut state_wlock = self.state.write().await;
+        if *state_wlock == new_state {
+            debug!("Identity transformation");
+            return;
+        }
+        match (&*state_wlock, &new_state) {
+            (_, GroupsState::NotReady) => {
                 self.log_state_change(&new_state).await;
                 // if disk is broken (either are indices in groups) we should drop groups, because
                 // otherwise we'll hold broken indices (for active blob of broken disk) in RAM
@@ -144,10 +147,9 @@ impl DiskController {
             (GroupsState::Initialized, GroupsState::Ready) => {
                 self.log_state_change(&new_state).await
             }
-            (old_state, new_state) if old_state == *new_state => debug!("Identity transformation"),
             _ => error!("Invalid transformation"),
         }
-        *wlock = new_state;
+        *state_wlock = new_state;
     }
 
     // on pearl level only write operations can map OS errors into work_dir error, so this

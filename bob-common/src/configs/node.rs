@@ -328,7 +328,7 @@ impl Pearl {
                 })
                 .unwrap_or("/tmp".to_owned()),
         );
-        tmp_dir.push("/bob_events.csv");
+        tmp_dir.push("bob_events.csv");
         tmp_dir.to_str().expect("Path is not UTF-8").to_owned()
     }
 
