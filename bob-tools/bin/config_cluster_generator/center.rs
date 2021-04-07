@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result as AnyResult};
 use bob::{
-    ClusterConfig, ClusterNodeConfig as ClusterNode, ClusterRackConfig as ClusterRack,
+    ClusterConfig, ClusterNodeConfig as ClusterNode, ClusterRackConfig as ClusterRack, DiskPath,
     ReplicaConfig as Replica, VDiskConfig as VDisk,
 };
 use std::{
@@ -21,7 +21,7 @@ impl Center {
         Self { racks: Vec::new() }
     }
 
-    pub fn mark_new(&mut self, disks: &[(&ClusterNode, &str)], racks: &[&ClusterRack]) {
+    pub fn mark_new(&mut self, disks: &[(&ClusterNode, &DiskPath)], racks: &[&ClusterRack]) {
         for rack in self.racks.iter_mut() {
             if racks.iter().any(|&new_rack| rack.name == new_rack.name()) {
                 rack.is_old = false;
@@ -221,7 +221,7 @@ impl Rack {
         }
     }
 
-    pub fn mark_new(&mut self, disks: &[(&ClusterNode, &str)]) {
+    pub fn mark_new(&mut self, disks: &[(&ClusterNode, &DiskPath)]) {
         for node in self.nodes.iter_mut() {
             node.mark_new(disks);
         }
@@ -312,11 +312,11 @@ impl Node {
         }
     }
 
-    pub fn mark_new(&mut self, disks: &[(&ClusterNode, &str)]) {
+    pub fn mark_new(&mut self, disks: &[(&ClusterNode, &DiskPath)]) {
         let mut old_node = false;
         for disk in self.disks.iter_mut() {
             for (new_node, new_disk) in disks {
-                if self.name == new_node.name() && disk.name.as_str() == *new_disk {
+                if self.name == new_node.name() && disk.name.as_str() == new_disk.name() {
                     disk.is_old = false;
                     break;
                 } else {
@@ -446,13 +446,13 @@ pub fn get_structure(config: &ClusterConfig, use_racks: bool) -> AnyResult<Cente
 pub fn get_new_disks<'a>(
     old_nodes: &'a [ClusterNode],
     new_nodes: &'a [ClusterNode],
-) -> impl Iterator<Item = (&'a ClusterNode, &'a str)> {
+) -> impl Iterator<Item = (&'a ClusterNode, &'a DiskPath)> {
     let old_disks = old_nodes
         .iter()
-        .flat_map(|node| node.disks().iter().map(move |disk| (node, disk.name())));
+        .flat_map(|node| node.disks().iter().map(move |disk| (node, disk)));
     new_nodes
         .iter()
-        .flat_map(|node| node.disks().iter().map(move |disk| (node, disk.name())))
+        .flat_map(|node| node.disks().iter().map(move |disk| (node, disk)))
         .filter(move |(node, disk)| {
             old_disks
                 .clone()
