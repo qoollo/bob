@@ -46,7 +46,7 @@ impl Center {
                 .iter()
                 .flat_map(|n| n.disks.iter().map(move |d| (n, d)))
         });
-        let (node, disk) = disks.min_by_key(|r| r.1.used_count.load(ORD))?;
+        let (node, disk) = disks.min_by_key(|r| r.1.used_count())?;
         node.inc();
         disk.inc();
         Some((node, disk))
@@ -59,10 +59,10 @@ impl Center {
                 .flat_map(|n| n.disks.iter().map(move |d| (n, d)))
         });
 
-        let min_key = disks.clone().map(|x| x.1.used_count.load(ORD)).min()?;
+        let min_key = disks.clone().map(|x| x.1.used_count()).min()?;
 
         let (node, disk) = disks.find(|(node, disk)| {
-            disk.used_count.load(ORD) == min_key
+            disk.used_count() == min_key
                 && list.contains(&Replica::new(node.name.clone(), disk.name.clone()))
         })?;
 
@@ -72,10 +72,7 @@ impl Center {
     }
 
     fn next_rack(&self) -> Option<&Rack> {
-        let rack = self
-            .racks
-            .iter()
-            .min_by_key(|r: &&Rack| r.used_count.load(ORD))?;
+        let rack = self.racks.iter().min_by_key(|r: &&Rack| r.used_count())?;
         rack.inc();
         Some(rack)
     }
@@ -84,11 +81,12 @@ impl Center {
         if list.is_empty() {
             return None;
         }
-        let min_key = self.racks.iter().map(|x| x.used_count.load(ORD)).min()?;
+        let min_key = self.racks.iter().map(|x| x.used_count()).min()?;
 
-        let rack = self.racks.iter().find(|&rack| {
-            rack.used_count.load(ORD) == min_key && list.contains(&rack.name.as_str())
-        })?;
+        let rack = self
+            .racks
+            .iter()
+            .find(|&rack| rack.used_count() == min_key && list.contains(&rack.name.as_str()))?;
 
         rack.inc();
         Some(rack)
@@ -231,7 +229,7 @@ impl Rack {
             .iter()
             .filter(|node| !replicas.contains(&&node.name))
             .flat_map(|n| n.disks.iter().map(move |d| (n, d)))
-            .min_by_key(|(_, d)| d.used_count.load(ORD))
+            .min_by_key(|(_, d)| d.used_count())
             .unwrap_or(self.min_used_disk()?);
         node.inc();
         disk.inc();
@@ -245,10 +243,10 @@ impl Rack {
             .filter(|node| !replicas.contains(&&node.name))
             .flat_map(|n| n.disks.iter().map(move |d| (n, d)));
 
-        let min_key = disks.clone().map(|(_, d)| d.used_count.load(ORD)).min()?;
+        let min_key = disks.clone().map(|(_, d)| d.used_count()).min()?;
 
         let (node, disk) = disks.find(|(node, disk)| {
-            min_key == disk.used_count.load(ORD)
+            min_key == disk.used_count()
                 && list.contains(&Replica::new(node.name.clone(), disk.name.clone()))
         })?;
 
@@ -261,7 +259,11 @@ impl Rack {
         self.nodes
             .iter()
             .flat_map(|n| n.disks.iter().map(move |d| (n, d)))
-            .min_by_key(|(_, d)| d.used_count.load(ORD))
+            .min_by_key(|(_, d)| d.used_count())
+    }
+
+    fn used_count(&self) -> usize {
+        self.used_count.load(ORD)
     }
 }
 
@@ -311,6 +313,10 @@ impl Node {
     fn inc(&self) {
         self.used_count.fetch_add(1, ORD);
     }
+
+    fn used_count(&self) -> usize {
+        self.used_count.load(ORD)
+    }
 }
 
 #[derive(Debug)]
@@ -331,6 +337,10 @@ impl Disk {
 
     fn inc(&self) {
         self.used_count.fetch_add(1, ORD);
+    }
+
+    fn used_count(&self) -> usize {
+        self.used_count.load(ORD)
     }
 }
 
