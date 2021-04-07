@@ -120,7 +120,7 @@ pub(crate) fn get_object(
     Ok(GetObjectOutput { data, content_type })
 }
 
-#[put("/default/<key>", data = "<data>")]
+#[put("/default/<key>", data = "<data>", rank = 2)]
 pub(crate) fn put_object(
     bob: State<BobServer>,
     key: BobKey,
@@ -141,4 +141,70 @@ pub(crate) fn put_object(
         .map_err(|err| -> StatusExt { err.into() })?;
 
     Ok(StatusS3::from(StatusExt::from(Status::Created)))
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct CopyObjectHeaders {
+    if_modified_since: Option<u64>,
+    if_unmodified_since: Option<u64>,
+    source_key: BobKey,
+}
+
+impl<'r> FromRequest<'_, 'r> for CopyObjectHeaders {
+    type Error = StatusS3;
+    fn from_request(request: &Request<'r>) -> Outcome<Self, Self::Error> {
+        let headers = request.headers();
+        let source_key = match headers
+            .get_one("x-amz-copy-source")
+            .and_then(|x| x.parse().ok())
+        {
+            Some(key) => key,
+            None => return Outcome::Forward(()),
+        };
+        Outcome::Success(CopyObjectHeaders {
+            if_modified_since: headers
+                .get_one("If-Modified-Since")
+                .and_then(|x| chrono::DateTime::parse_from_rfc2822(x).ok())
+                .and_then(|x| x.timestamp().try_into().ok()),
+            if_unmodified_since: headers
+                .get_one("If-Unmodified-Since")
+                .and_then(|x| chrono::DateTime::parse_from_rfc2822(x).ok())
+                .and_then(|x| x.timestamp().try_into().ok()),
+            source_key,
+        })
+    }
+}
+
+#[put("/default/<key>")]
+pub(crate) fn copy_object(
+    bob: State<BobServer>,
+    key: BobKey,
+    headers: CopyObjectHeaders,
+) -> Result<StatusS3, StatusS3> {
+    let opts = BobOptions::new_get(None);
+    let data = super::runtime()
+        .block_on(async { bob.grinder().get(key, &opts).await })
+        .map_err(|err| -> StatusExt { err.into() })?;
+    let last_modified = data.meta().timestamp();
+    match headers.if_modified_since {
+        Some(time) if time > last_modified => return Err(StatusS3::Status(Status::NotModified)),
+        _ => {}
+    };
+    match headers.if_unmodified_since {
+        Some(time) if time < last_modified => {
+            return Err(StatusS3::Status(Status::PreconditionFailed))
+        }
+        _ => {}
+    };
+    let data = BobData::new(
+        data.into_inner(),
+        BobMeta::new(chrono::Local::now().timestamp() as u64),
+    );
+
+    let opts = BobOptions::new_put(None);
+    super::runtime()
+        .block_on(async { bob.grinder().put(key, data, opts).await })
+        .map_err(|err| -> StatusExt { err.into() })?;
+
+    Ok(StatusS3::from(StatusExt::from(Status::Ok)))
 }
