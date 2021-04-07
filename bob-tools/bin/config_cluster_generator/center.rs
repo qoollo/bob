@@ -9,6 +9,7 @@ use std::{
 };
 
 const ORD: Ordering = Ordering::Relaxed;
+const REPLICA_IN_FIRST_RACK: usize = 2;
 
 #[derive(Debug)]
 pub struct Center {
@@ -111,6 +112,10 @@ impl Center {
         Ok(rack)
     }
 
+    fn should_place_in_first_rack(vdisk: &VDisk) -> bool {
+        vdisk.replicas().len() == REPLICA_IN_FIRST_RACK
+    }
+
     pub fn create_vdisk(&self, id: u32, replicas_count: usize) -> VDisk {
         let mut vdisk = VDisk::new(id);
         let first_rack = self.next_rack().expect("no racks in setup");
@@ -119,7 +124,7 @@ impl Center {
 
         while vdisk.replicas().len() < replicas_count {
             let banned_nodes = get_used_nodes_names(vdisk.replicas());
-            let (node, disk) = if vdisk.replicas().len() == 2 {
+            let (node, disk) = if Center::should_place_in_first_rack(&vdisk) {
                 first_rack.next_disk(&banned_nodes).map_or_else(
                     |_| self.next_rack()?.next_disk(&banned_nodes),
                     |x| {
