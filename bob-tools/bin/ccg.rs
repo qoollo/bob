@@ -7,7 +7,7 @@ use anyhow::{anyhow, Result as AnyResult};
 use bob::{ClusterConfig, ClusterNodeConfig as ClusterNode};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use config_cluster_generator::{
-    center::{check_expand_configs, get_new_disks, get_new_racks, get_pairs_count, get_structure},
+    center::{check_expand_configs, get_new_disks, get_new_racks, get_pairs_count, Center},
     utils::{init_logger, lcm, read_config_from_file, write_to_file},
 };
 
@@ -99,9 +99,9 @@ fn simple_expand(
     mut hardware_config: ClusterConfig,
     use_racks: bool,
 ) -> AnyResult<ClusterConfig> {
-    let mut center = get_structure(&hardware_config, use_racks)?;
+    let mut center = Center::from_cluster_config(&hardware_config, use_racks)?;
     center.validate()?;
-    let old_center = get_structure(&config, use_racks)?;
+    let old_center = Center::from_cluster_config(&config, use_racks)?;
     old_center.validate()?;
     check_expand_configs(&old_center, &center, use_racks)?;
 
@@ -133,7 +133,7 @@ fn simple_gen(
     vdisks_counts_match: bool,
     use_racks: bool,
 ) -> AnyResult<ClusterConfig> {
-    let center = get_structure(&config, use_racks)?;
+    let center = Center::from_cluster_config(&config, use_racks)?;
     center.validate()?;
     if !vdisks_counts_match {
         vdisks_count = vdisks_count.max(lcm(center.disks_count(), replicas_count));

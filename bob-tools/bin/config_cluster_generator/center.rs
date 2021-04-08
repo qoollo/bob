@@ -21,6 +21,79 @@ impl Center {
         Self { racks: Vec::new() }
     }
 
+    pub fn from_cluster_config(config: &ClusterConfig, use_racks: bool) -> AnyResult<Center> {
+        let nodes = config
+            .nodes()
+            .iter()
+            .map(|node| {
+                Node::new(
+                    node.name(),
+                    node.disks()
+                        .iter()
+                        .map(|d| Disk::new(d.name(), true))
+                        .collect(),
+                    true,
+                )
+            })
+            .collect();
+        let mut center = Center::new();
+        if !use_racks || config.racks().is_empty() {
+            let rack = Rack::new("unknown".to_string(), nodes, true);
+            center.push(rack);
+            debug!("Center::from_cluster_config: OK");
+            return Ok(center);
+        }
+        let mut racks = HashMap::new();
+        let mut node_rack_map = HashMap::new();
+        for rack in config.racks() {
+            racks
+                .insert(
+                    rack.name(),
+                    Rack::new(rack.name().to_string(), vec![], true),
+                )
+                .ok_or_else(|| {
+                    anyhow!(
+                        "Center::from_cluster_config: config contains duplicate racks [{}]",
+                        rack.name()
+                    )
+                })?;
+            for node in rack.nodes() {
+                node_rack_map.insert(node, rack.name())
+            .ok_or_else(|| {
+                anyhow!(
+                            "Center::from_cluster_config: config contains duplicate nodes in racks [rack: {}, node: {}]",
+                            rack.name(), node.as_str()
+                )
+            })?;
+            }
+        }
+        for node in nodes {
+            let rack_name = node_rack_map.get(&node.name).ok_or_else(|| {
+                anyhow!(
+                    "Center::from_cluster_config: not found rack for node [node_name: {}]",
+                    &node.name
+                )
+            })?;
+            let rack = racks.get_mut(rack_name).ok_or_else(|| {
+                anyhow!(
+                    "Center::from_cluster_config: rack not found [rack_name: {}]",
+                    rack_name
+                )
+            })?;
+            rack.nodes.push(node);
+        }
+        for (_, rack) in racks {
+            center.push(rack);
+        }
+        if center.disks_count() == 0 {
+            return Err(anyhow!(
+                "Center::from_cluster_config: config should contain disks"
+            ));
+        }
+        debug!("Center::from_cluster_config: OK");
+        Ok(center)
+    }
+
     pub fn mark_new(&mut self, disks: &[(&ClusterNode, &DiskPath)], racks: &[&ClusterRack]) {
         for rack in self.racks.iter_mut() {
             if racks.iter().any(|&new_rack| rack.name == new_rack.name()) {
@@ -42,7 +115,7 @@ impl Center {
         self.racks.iter().fold(0, |acc, r| acc + r.disks_count())
     }
 
-    fn next_disk(&self) -> AnyResult<(&Node, &Disk)> {
+    fn next_disk(&self) -> (&Node, &Disk) {
         let disks = self.racks.iter().flat_map(|r| {
             r.nodes
                 .iter()
@@ -50,10 +123,10 @@ impl Center {
         });
         let (node, disk) = disks
             .min_by_key(|r| r.1.used_count())
-            .ok_or_else(|| anyhow!("Empty disks list"))?;
+            .expect("checked by constructor");
         node.inc();
         disk.inc();
-        Ok((node, disk))
+        (node, disk)
     }
 
     fn next_disk_from_list(&self, list: &[Replica]) -> AnyResult<(&Node, &Disk)> {
@@ -67,7 +140,7 @@ impl Center {
             .clone()
             .map(|x| x.1.used_count())
             .min()
-            .ok_or_else(|| anyhow!("Empty disks list"))?;
+            .expect("checked by constructor");
 
         let (node, disk) = disks
             .find(|(node, disk)| {
@@ -81,14 +154,14 @@ impl Center {
         Ok((node, disk))
     }
 
-    fn next_rack(&self) -> AnyResult<&Rack> {
+    fn next_rack(&self) -> &Rack {
         let rack = self
             .racks
             .iter()
             .min_by_key(|r: &&Rack| r.used_count())
-            .ok_or_else(|| anyhow!("Empty racks list"))?;
+            .expect("checked by constructor");
         rack.inc();
-        Ok(rack)
+        rack
     }
 
     fn next_rack_from_list(&self, list: &[&str]) -> AnyResult<&Rack> {
@@ -100,7 +173,7 @@ impl Center {
             .iter()
             .map(|x| x.used_count())
             .min()
-            .ok_or_else(|| anyhow!("Empty racks list"))?;
+            .expect("checked by constructor");
 
         let rack = self
             .racks
@@ -118,7 +191,7 @@ impl Center {
 
     pub fn create_vdisk(&self, id: u32, replicas_count: usize) -> VDisk {
         let mut vdisk = VDisk::new(id);
-        let first_rack = self.next_rack().expect("no racks in setup");
+        let first_rack = self.next_rack();
         let (node, disk) = first_rack.next_disk(&[]).expect("no disks in setup");
         vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
 
@@ -126,16 +199,14 @@ impl Center {
             let banned_nodes = get_used_nodes_names(vdisk.replicas());
             let (node, disk) = if Center::should_place_in_first_rack(&vdisk) {
                 first_rack.next_disk(&banned_nodes).map_or_else(
-                    |_| self.next_rack()?.next_disk(&banned_nodes),
+                    |_| self.next_rack().next_disk(&banned_nodes),
                     |x| {
                         first_rack.inc();
                         Ok(x)
                     },
                 )
             } else {
-                self.next_rack()
-                    .expect("no racks in setup")
-                    .next_disk(&banned_nodes)
+                self.next_rack().next_disk(&banned_nodes)
             }
             .expect("no disks in setup");
             vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
@@ -149,8 +220,7 @@ impl Center {
         let mut vdisk = VDisk::new(old_vdisk.id());
         let (node, disk) = self
             .next_disk_from_list(old_vdisk.replicas())
-            .or_else(|_| self.next_disk())
-            .expect("no disks in setup");
+            .unwrap_or_else(|_| self.next_disk());
         vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
 
         let preferred_racks: Vec<_> = self
@@ -170,8 +240,7 @@ impl Center {
         while vdisk.replicas().len() < replicas_count {
             let rack = self
                 .next_rack_from_list(&preferred_racks)
-                .or_else(|_| self.next_rack())
-                .expect("no racks in setup");
+                .unwrap_or_else(|_| self.next_rack());
             let banned_nodes = get_used_nodes_names(vdisk.replicas());
             let (node, disk) = rack
                 .next_disk_from_list(&banned_nodes, old_vdisk.replicas())
@@ -373,74 +442,6 @@ fn get_used_nodes_names(replicas: &[Replica]) -> Vec<String> {
 
 pub fn get_pairs_count(nodes: &[ClusterNode]) -> usize {
     nodes.iter().fold(0, |acc, n| acc + n.disks().len())
-}
-
-pub fn get_structure(config: &ClusterConfig, use_racks: bool) -> AnyResult<Center> {
-    let nodes = config
-        .nodes()
-        .iter()
-        .map(|node| {
-            Node::new(
-                node.name(),
-                node.disks()
-                    .iter()
-                    .map(|d| Disk::new(d.name(), true))
-                    .collect(),
-                true,
-            )
-        })
-        .collect();
-    let mut center = Center::new();
-    if !use_racks || config.racks().is_empty() {
-        let rack = Rack::new("unknown".to_string(), nodes, true);
-        center.push(rack);
-        debug!("get_structure: OK");
-        return Ok(center);
-    }
-    let mut racks = HashMap::new();
-    let mut node_rack_map = HashMap::new();
-    for rack in config.racks() {
-        racks
-            .insert(
-                rack.name(),
-                Rack::new(rack.name().to_string(), vec![], true),
-            )
-            .ok_or_else(|| {
-                anyhow!(
-                    "config contains duplicate racks, get_structure: ERR [{}]",
-                    rack.name()
-                )
-            })?;
-        for node in rack.nodes() {
-            node_rack_map.insert(node, rack.name())
-            .ok_or_else(|| {
-                anyhow!(
-                            "config contains duplicate nodes in racks, get_structure: ERR [rack: {}, node: {}]",
-                            rack.name(), node.as_str()
-                )
-            })?;
-        }
-    }
-    for node in nodes {
-        let rack_name = node_rack_map.get(&node.name).ok_or_else(|| {
-            anyhow!(
-                "not found rack for node, get_structure: ERR [node_name: {}]",
-                &node.name
-            )
-        })?;
-        let rack = racks.get_mut(rack_name).ok_or_else(|| {
-            anyhow!(
-                "rack not found, get_structure: ERR [rack_name: {}]",
-                rack_name
-            )
-        })?;
-        rack.nodes.push(node);
-    }
-    for (_, rack) in racks {
-        center.push(rack);
-    }
-    debug!("get_structure: OK");
-    Ok(center)
 }
 
 pub fn get_new_disks<'a>(
