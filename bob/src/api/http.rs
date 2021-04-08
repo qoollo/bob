@@ -12,7 +12,6 @@ use rocket_contrib::json::Json;
 use std::{
     io::Cursor,
     path::{Path, PathBuf},
-    thread,
 };
 use tokio::{
     fs::{read_dir, ReadDir},
@@ -84,12 +83,6 @@ pub(crate) struct DistrFunc {
 fn block_on<F: Future>(handle: &Handle, f: F) -> F::Output {
     block_in_place(|| handle.block_on(f))
 }
-
-// fn runtime() -> Runtime {
-//     // TODO: run web server on same runtime as bob (update to async rocket when it's stable)
-//     debug!("HOT FIX: run web server on same runtime as bob");
-//     Runtime::new().expect("create runtime")
-// }
 
 pub(crate) fn spawn(bob: BobServer, port: u16) {
     let routes = routes![
