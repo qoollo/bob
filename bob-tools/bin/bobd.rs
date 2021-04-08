@@ -1,6 +1,7 @@
 use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper};
 use clap::{App, Arg, ArgMatches};
 use std::net::ToSocketAddrs;
+use tokio::runtime::Handle;
 use tonic::transport::Server;
 
 #[macro_use]
@@ -30,7 +31,7 @@ async fn main() {
     println!("Node config: {:?}", node_config);
     let node = cluster.get(node_config).await.unwrap();
 
-    log4rs::init_file(node.log_config(), Default::default()).unwrap();
+    log4rs::init_file(node.log_config(), Default::default()).expect("can't find log config");
 
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
     let mut addr = node.bind().to_socket_addrs().unwrap().next().unwrap();
@@ -48,7 +49,8 @@ async fn main() {
 
     let metrics = init_counters(&node, &addr.to_string());
 
-    let bob = BobServer::new(Grinder::new(mapper, &node).await);
+    let handle = Handle::current();
+    let bob = BobServer::new(Grinder::new(mapper, &node).await, handle);
 
     info!("Start backend");
     bob.run_backend().await.unwrap();
