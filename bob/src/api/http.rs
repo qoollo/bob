@@ -1,7 +1,7 @@
 use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{data::VDisk as DataVDisk, node::Disk as NodeDisk};
-use futures::{future::BoxFuture, FutureExt};
+use futures::{future::BoxFuture, Future, FutureExt};
 use rocket::{
     http::{RawStr, Status},
     request::FromParam,
@@ -16,7 +16,8 @@ use std::{
 };
 use tokio::{
     fs::{read_dir, ReadDir},
-    runtime::Runtime,
+    runtime::{Handle, Runtime},
+    task::block_in_place,
 };
 
 #[derive(Debug, Clone)]
@@ -80,11 +81,16 @@ pub(crate) struct DistrFunc {
     func: String,
 }
 
-fn runtime() -> Runtime {
-    // TODO: run web server on same runtime as bob (update to async rocket when it's stable)
-    debug!("HOT FIX: run web server on same runtime as bob");
-    Runtime::new().expect("create runtime")
+fn block_on<F: Future>(f: F) -> F::Output {
+    let handle = Handle::current();
+    block_in_place(|| handle.block_on(f))
 }
+
+// fn runtime() -> Runtime {
+//     // TODO: run web server on same runtime as bob (update to async rocket when it's stable)
+//     debug!("HOT FIX: run web server on same runtime as bob");
+//     Runtime::new().expect("create runtime")
+// }
 
 pub(crate) fn spawn(bob: BobServer, port: u16) {
     let routes = routes![
