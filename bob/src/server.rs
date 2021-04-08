@@ -1,4 +1,4 @@
-use tokio::runtime::Handle;
+use tokio::{runtime::Handle, task::block_in_place};
 
 use crate::prelude::*;
 
@@ -21,8 +21,8 @@ impl Server {
         }
     }
 
-    pub fn handle(&self) -> &Handle {
-        &self.handle
+    pub fn block_on<F: Future>(&self, f: F) -> F::Output {
+        block_in_place(|| self.handle.block_on(f))
     }
 
     pub(crate) fn grinder(&self) -> &Grinder {
