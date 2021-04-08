@@ -81,8 +81,7 @@ pub(crate) struct DistrFunc {
     func: String,
 }
 
-fn block_on<F: Future>(f: F) -> F::Output {
-    let handle = Handle::current();
+fn block_on<F: Future>(handle: &Handle, f: F) -> F::Output {
     block_in_place(|| handle.block_on(f))
 }
 
@@ -109,7 +108,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         vdisk_records_count,
         distribution_function,
     ];
-    let task = move || {
+    let task = async move {
         info!("API server started");
         let mut config = Config::production();
         config.set_port(port);
@@ -118,7 +117,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
             .mount("/", routes)
             .launch();
     };
-    thread::spawn(task);
+    tokio::spawn(task);
 }
 
 fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
@@ -237,7 +236,8 @@ fn vdisks(bob: State<BobServer>) -> Json<Vec<VDisk>> {
 #[delete("/blobs/outdated")]
 fn finalize_outdated_blobs(bob: State<BobServer>) -> StatusExt {
     let bob = bob.clone();
-    runtime().spawn(async move {
+    let handle = bob.handle().clone();
+    block_on(&handle, async move {
         let backend = bob.grinder().backend();
         backend.close_unneeded_active_blobs(1, 1).await;
     });
@@ -257,7 +257,7 @@ fn vdisk_by_id(bob: State<BobServer>, vdisk_id: u32) -> Option<Json<VDisk>> {
 fn vdisk_records_count(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<u64>, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     let holders = group.holders();
-    let sum = runtime().block_on(async move {
+    let sum = block_on(bob.handle(), async move {
         let pearls = holders.read().await;
         let pearls: &[_] = pearls.as_ref();
         let mut sum = 0;
@@ -274,7 +274,7 @@ fn partitions(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<VDiskPartitio
     let group = find_group(&bob, vdisk_id)?;
     debug!("group with provided vdisk_id found");
     let holders = group.holders();
-    let pearls = runtime().block_on(holders.read());
+    let pearls = block_on(bob.handle(), holders.read());
     debug!("get pearl holders: OK");
     let pearls: &[_] = pearls.as_ref();
     let partitions = pearls.iter().map(Holder::get_id).collect();
@@ -390,7 +390,7 @@ fn delete_partition(
             Err(StatusExt::new(Status::BadRequest, true, msg))
         }
     };
-    runtime().block_on(task)
+    block_on(bob.handle(), task)
 }
 
 async fn drop_directories(
@@ -443,7 +443,7 @@ fn get_local_replica_directories(
         .filter(|r| r.node == local_node_name)
     {
         let path = PathBuf::from(replica.path);
-        let dir = runtime().block_on(create_directory(&path)).ok_or_else(|| {
+        let dir = block_on(bob.handle(), create_directory(&path)).ok_or_else(|| {
             StatusExt::new(
                 Status::InternalServerError,
                 false,
