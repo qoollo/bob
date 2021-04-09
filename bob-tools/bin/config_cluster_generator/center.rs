@@ -5,20 +5,83 @@ use bob::{
 };
 use std::{
     collections::{HashMap, HashSet},
+    ops::AddAssign,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
 const ORD: Ordering = Ordering::Relaxed;
 const REPLICA_IN_FIRST_RACK: usize = 2;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
+struct Counter {
+    racks_used_count: HashMap<String, usize>,
+    nodes_used_count: HashMap<String, usize>,
+    disks_used_count: HashMap<(String, String), usize>,
+}
+
+impl Counter {
+    fn add_rack(&mut self, rack: &Rack) {
+        self.racks_used_count.insert(rack.name.clone(), 0);
+    }
+    fn add_node(&mut self, node: &Node) {
+        self.nodes_used_count.insert(node.name.clone(), 0);
+    }
+    fn add_disk(&mut self, node: &Node, disk: &Disk) {
+        self.disks_used_count
+            .insert((node.name.clone(), disk.name.clone()), 0);
+    }
+    fn inc_rack_used_count(&mut self, rack: &Rack) {
+        self.racks_used_count
+            .get_mut(&rack.name)
+            .expect("added by constructor")
+            .add_assign(1);
+    }
+
+    fn inc_node_used_count(&mut self, node: &Node) {
+        self.nodes_used_count
+            .get_mut(&node.name)
+            .expect("added by constructor")
+            .add_assign(1);
+    }
+
+    fn inc_disk_used_count(&mut self, node: &Node, disk: &Disk) {
+        self.disks_used_count
+            .get_mut(&(node.name.clone(), disk.name.clone()))
+            .expect("added by constructor")
+            .add_assign(1);
+    }
+
+    fn rack_used_count(&self, rack: &Rack) -> usize {
+        *self
+            .racks_used_count
+            .get(&rack.name)
+            .expect("added by constructor")
+    }
+
+    fn node_used_count(&self, node: &Node) -> usize {
+        *self
+            .nodes_used_count
+            .get(&node.name)
+            .expect("added by constructor")
+    }
+
+    fn disk_used_count(&self, node: &Node, disk: &Disk) -> usize {
+        *self
+            .disks_used_count
+            .get(&(node.name.clone(), disk.name.clone()))
+            .expect("added by constructor")
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct Center {
     racks: Vec<Rack>,
+    counter: Counter,
 }
 
 impl Center {
     pub fn new() -> Self {
-        Self { racks: Vec::new() }
+        Self::default()
     }
 
     pub fn from_cluster_config(config: &ClusterConfig, use_racks: bool) -> AnyResult<Center> {
@@ -108,6 +171,13 @@ impl Center {
     }
 
     pub fn push(&mut self, item: Rack) {
+        self.counter.add_rack(&item);
+        for node in item.nodes.iter() {
+            self.counter.add_node(node);
+            for disk in node.disks.iter() {
+                self.counter.add_disk(node, disk);
+            }
+        }
         self.racks.push(item)
     }
 
@@ -115,21 +185,21 @@ impl Center {
         self.racks.iter().fold(0, |acc, r| acc + r.disks_count())
     }
 
-    fn next_disk(&self) -> (&Node, &Disk) {
+    fn next_disk(&mut self) -> (&Node, &Disk) {
         let disks = self.racks.iter().flat_map(|r| {
             r.nodes
                 .iter()
                 .flat_map(|n| n.disks.iter().map(move |d| (n, d)))
         });
         let (node, disk) = disks
-            .min_by_key(|r| r.1.used_count())
+            .min_by_key(|(node, disk)| self.counter.disk_used_count(node, disk))
             .expect("checked by constructor");
-        node.inc();
-        disk.inc();
+        self.counter.inc_node_used_count(node);
+        self.counter.inc_disk_used_count(node, disk);
         (node, disk)
     }
 
-    fn next_disk_from_list(&self, list: &[Replica]) -> AnyResult<(&Node, &Disk)> {
+    fn next_disk_from_list(&mut self, list: &[Replica]) -> AnyResult<(&Node, &Disk)> {
         let mut disks = self.racks.iter().flat_map(|r| {
             r.nodes
                 .iter()
@@ -138,50 +208,52 @@ impl Center {
 
         let min_key = disks
             .clone()
-            .map(|x| x.1.used_count())
+            .map(|(node, disk)| self.counter.disk_used_count(node, disk))
             .min()
             .expect("checked by constructor");
 
         let (node, disk) = disks
             .find(|(node, disk)| {
-                disk.used_count() == min_key
+                self.counter.disk_used_count(node, disk) == min_key
                     && list.contains(&Replica::new(node.name.clone(), disk.name.clone()))
             })
             .ok_or_else(|| anyhow!("Can't find disk"))?;
 
-        node.inc();
-        disk.inc();
+        self.counter.inc_node_used_count(node);
+        self.counter.inc_disk_used_count(node, disk);
         Ok((node, disk))
     }
 
-    fn next_rack(&self) -> &Rack {
+    fn next_rack(&mut self) -> &Rack {
         let rack = self
             .racks
             .iter()
-            .min_by_key(|r: &&Rack| r.used_count())
+            .min_by_key(|rack| self.counter.rack_used_count(rack))
             .expect("checked by constructor");
-        rack.inc();
+        self.counter.inc_rack_used_count(rack);
         rack
     }
 
-    fn next_rack_from_list(&self, list: &[&str]) -> AnyResult<&Rack> {
+    fn next_rack_from_list(&mut self, list: &[String]) -> AnyResult<&Rack> {
         if list.is_empty() {
             return Err(anyhow!("Empty list"));
         }
         let min_key = self
             .racks
             .iter()
-            .map(|x| x.used_count())
+            .map(|rack| self.counter.rack_used_count(rack))
             .min()
             .expect("checked by constructor");
 
         let rack = self
             .racks
             .iter()
-            .find(|&rack| rack.used_count() == min_key && list.contains(&rack.name.as_str()))
+            .find(|&rack| {
+                self.counter.rack_used_count(rack) == min_key && list.contains(&rack.name)
+            })
             .ok_or_else(|| anyhow!("Can't find rack"))?;
 
-        rack.inc();
+        self.counter.inc_rack_used_count(rack);
         Ok(rack)
     }
 
@@ -189,24 +261,26 @@ impl Center {
         vdisk.replicas().len() == REPLICA_IN_FIRST_RACK
     }
 
-    pub fn create_vdisk(&self, id: u32, replicas_count: usize) -> VDisk {
+    pub fn create_vdisk(&mut self, id: u32, replicas_count: usize) -> VDisk {
         let mut vdisk = VDisk::new(id);
         let first_rack = self.next_rack();
-        let (node, disk) = first_rack.next_disk(&[]).expect("no disks in setup");
+        let (node, disk) = first_rack
+            .next_disk(&mut self.counter, &[])
+            .expect("no disks in setup");
         vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
 
         while vdisk.replicas().len() < replicas_count {
             let banned_nodes = get_used_nodes_names(vdisk.replicas());
             let (node, disk) = if Center::should_place_in_first_rack(&vdisk) {
-                first_rack.next_disk(&banned_nodes).map_or_else(
-                    |_| self.next_rack().next_disk(&banned_nodes),
-                    |x| {
-                        first_rack.inc();
+                match first_rack.next_disk(&mut self.counter, &banned_nodes) {
+                    Ok(x) => {
+                        self.counter.inc_rack_used_count(first_rack);
                         Ok(x)
-                    },
-                )
+                    }
+                    Err(_) => self.next_rack().next_disk(&mut self.counter, &banned_nodes),
+                }
             } else {
-                self.next_rack().next_disk(&banned_nodes)
+                self.next_rack().next_disk(&mut self.counter, &banned_nodes)
             }
             .expect("no disks in setup");
             vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
@@ -215,12 +289,13 @@ impl Center {
         vdisk
     }
 
-    pub fn create_vdisk_from_another(&self, old_vdisk: &VDisk) -> VDisk {
+    pub fn create_vdisk_from_another(&mut self, old_vdisk: &VDisk) -> VDisk {
         let replicas_count = old_vdisk.replicas().len();
         let mut vdisk = VDisk::new(old_vdisk.id());
-        let (node, disk) = self
-            .next_disk_from_list(old_vdisk.replicas())
-            .unwrap_or_else(|_| self.next_disk());
+        let (node, disk) = match self.next_disk_from_list(old_vdisk.replicas()) {
+            Ok(x) => x,
+            Err(_) => self.next_disk(),
+        };
         vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
 
         let preferred_racks: Vec<_> = self
@@ -234,18 +309,24 @@ impl Center {
                     .map(|r| r.node())
                     .any(|node| node_names.contains(&node))
             })
-            .map(|rack| rack.name.as_str())
+            .map(|rack| rack.name.as_str().to_owned())
             .collect();
 
         while vdisk.replicas().len() < replicas_count {
-            let rack = self
-                .next_rack_from_list(&preferred_racks)
-                .unwrap_or_else(|_| self.next_rack());
             let banned_nodes = get_used_nodes_names(vdisk.replicas());
-            let (node, disk) = rack
-                .next_disk_from_list(&banned_nodes, old_vdisk.replicas())
-                .or_else(move |_| rack.next_disk(&banned_nodes))
-                .expect("no disks in setup");
+            let rack = match self.next_rack_from_list(&preferred_racks) {
+                Ok(x) => x,
+                Err(_) => self.next_rack(),
+            };
+            let (node, disk) = match rack.next_disk_from_list(
+                &mut self.counter,
+                &banned_nodes,
+                old_vdisk.replicas(),
+            ) {
+                Ok(x) => Ok(x),
+                Err(_) => rack.next_disk(&mut self.counter, &banned_nodes),
+            }
+            .expect("no disks in setup");
             vdisk.push_replica(Replica::new(node.name.clone(), disk.name.clone()));
             debug!("replica added: {} {}", node.name, disk.name);
         }
@@ -304,25 +385,22 @@ impl Rack {
         self.nodes.iter().fold(0, |acc, n| acc + n.disks_count())
     }
 
-    fn inc(&self) {
-        self.used_count.fetch_add(1, ORD);
-    }
-
-    fn next_disk(&self, replicas: &[String]) -> AnyResult<(&Node, &Disk)> {
+    fn next_disk(&self, counter: &mut Counter, replicas: &[String]) -> AnyResult<(&Node, &Disk)> {
         let (node, disk) = self
             .nodes
             .iter()
             .filter(|node| !replicas.contains(&&node.name))
             .flat_map(|n| n.disks.iter().map(move |d| (n, d)))
-            .min_by_key(|(_, d)| d.used_count())
-            .unwrap_or(self.min_used_disk()?);
-        node.inc();
-        disk.inc();
+            .min_by_key(|(node, disk)| counter.disk_used_count(node, disk))
+            .unwrap_or(self.min_used_disk(counter)?);
+        counter.inc_node_used_count(node);
+        counter.inc_disk_used_count(node, disk);
         Ok((node, disk))
     }
 
     fn next_disk_from_list(
         &self,
+        counter: &mut Counter,
         replicas: &[String],
         list: &[Replica],
     ) -> AnyResult<(&Node, &Disk)> {
@@ -334,32 +412,28 @@ impl Rack {
 
         let min_key = disks
             .clone()
-            .map(|(_, d)| d.used_count())
+            .map(|(node, disk)| counter.disk_used_count(node, disk))
             .min()
             .ok_or_else(|| anyhow!("Empty disks list"))?;
 
         let (node, disk) = disks
             .find(|(node, disk)| {
-                min_key == disk.used_count()
+                min_key == counter.disk_used_count(node, disk)
                     && list.contains(&Replica::new(node.name.clone(), disk.name.clone()))
             })
             .ok_or_else(|| anyhow!("Can't find disk"))?;
 
-        node.inc();
-        disk.inc();
+        counter.inc_node_used_count(node);
+        counter.inc_disk_used_count(node, disk);
         Ok((node, disk))
     }
 
-    fn min_used_disk(&self) -> AnyResult<(&Node, &Disk)> {
+    fn min_used_disk(&self, counter: &Counter) -> AnyResult<(&Node, &Disk)> {
         self.nodes
             .iter()
             .flat_map(|n| n.disks.iter().map(move |d| (n, d)))
-            .min_by_key(|(_, d)| d.used_count())
+            .min_by_key(|(node, disk)| counter.disk_used_count(node, disk))
             .ok_or_else(|| anyhow!("Empty disks list"))
-    }
-
-    fn used_count(&self) -> usize {
-        self.used_count.load(ORD)
     }
 }
 
@@ -405,10 +479,6 @@ impl Node {
     fn disks_count(&self) -> usize {
         self.disks.len()
     }
-
-    fn inc(&self) {
-        self.used_count.fetch_add(1, ORD);
-    }
 }
 
 #[derive(Debug)]
@@ -425,14 +495,6 @@ impl Disk {
             used_count: AtomicUsize::new(0),
             is_old,
         }
-    }
-
-    fn inc(&self) {
-        self.used_count.fetch_add(1, ORD);
-    }
-
-    fn used_count(&self) -> usize {
-        self.used_count.load(ORD)
     }
 }
 
