@@ -70,7 +70,7 @@ async fn test_write_multiple_read() {
     drop_pearl().await;
     let vdisk_id = 0;
     let backend = backend().await;
-    backend.run_backend().await.unwrap();
+    backend.run().await.unwrap();
     let path = DiskPath::new(DISK_NAME.to_owned(), "".to_owned());
     let operation = Operation::new_local(vdisk_id, path);
     let data = BobData::new(vec![], BobMeta::new(TIMESTAMP));

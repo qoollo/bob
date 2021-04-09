@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use crate::core::{BackendStorage, Operation};
+use crate::core::{BackendStorage, Operation, BACKEND_STARTED, BACKEND_STARTING};
 
 #[derive(Clone, Debug, Default)]
 pub struct VDisk {
@@ -107,8 +107,10 @@ impl MemBackend {
 
 #[async_trait]
 impl BackendStorage for MemBackend {
-    async fn run_backend(&self) -> AnyResult<()> {
+    async fn run(&self) -> AnyResult<()> {
+        gauge!(BACKEND_STATE, BACKEND_STARTING);
         debug!("run mem backend");
+        gauge!(BACKEND_STATE, BACKEND_STARTED);
         Ok(())
     }
 
@@ -162,4 +164,12 @@ impl BackendStorage for MemBackend {
     }
 
     async fn shutdown(&self) {}
+
+    async fn index_memory(&self) -> usize {
+        0
+    }
+
+    async fn blobs_count(&self) -> (usize, usize) {
+        (0, 0)
+    }
 }
