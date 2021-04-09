@@ -6,8 +6,8 @@ use crate::{
     stub_backend::StubBackend,
 };
 
-const BACKEND_STARTING: i64 = 0;
-const BACKEND_STARTED: i64 = 1;
+pub const BACKEND_STARTING: i64 = 0;
+pub const BACKEND_STARTED: i64 = 1;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Operation {
@@ -80,7 +80,7 @@ impl Operation {
 
 #[async_trait]
 pub trait BackendStorage: Debug {
-    async fn run_backend(&self) -> AnyResult<()>;
+    async fn run(&self) -> AnyResult<()>;
 
     async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
     async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
@@ -91,20 +91,9 @@ pub trait BackendStorage: Debug {
     async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 
-    async fn run(&self) -> AnyResult<()> {
-        gauge!(BACKEND_STATE, BACKEND_STARTING);
-        let result = self.run_backend().await;
-        gauge!(BACKEND_STATE, BACKEND_STARTED);
-        result
-    }
+    async fn blobs_count(&self) -> (usize, usize);
 
-    async fn blobs_count(&self) -> (usize, usize) {
-        (0, 0)
-    }
-
-    async fn index_memory(&self) -> usize {
-        0
-    }
+    async fn index_memory(&self) -> usize;
 
     async fn shutdown(&self);
 
