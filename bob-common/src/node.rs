@@ -153,9 +153,9 @@ impl Output<BobData> {
 impl Disk {
     pub fn new(disk_path: String, disk_name: String, node_name: Name) -> Self {
         Self {
+            node_name,
             disk_path,
             disk_name,
-            node_name,
         }
     }
 
