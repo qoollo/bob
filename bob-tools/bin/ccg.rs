@@ -117,7 +117,7 @@ fn simple_expand(
     debug!("vdisks count: OK [{}]", vdisks_count);
     let mut vdisks = Vec::with_capacity(vdisks_count);
     for vdisk in config.vdisks() {
-        let vdisk = center.create_vdisk_from_another(vdisk);
+        let vdisk = center.create_vdisk_from_another(vdisk)?;
         debug!("vdisk added: {}", vdisk.id());
         vdisks.push(vdisk);
     }
@@ -133,7 +133,7 @@ fn simple_gen(
     vdisks_counts_match: bool,
     use_racks: bool,
 ) -> AnyResult<ClusterConfig> {
-    let center = Center::from_cluster_config(&config, use_racks)?;
+    let mut center = Center::from_cluster_config(&config, use_racks)?;
     center.validate()?;
     if !vdisks_counts_match {
         vdisks_count = vdisks_count.max(lcm(center.disks_count(), replicas_count));
@@ -141,7 +141,7 @@ fn simple_gen(
     debug!("new vdisks count: OK [{}]", vdisks_count);
     let mut vdisks = Vec::new();
     while vdisks.len() < vdisks_count {
-        let vdisk = center.create_vdisk(vdisks.len() as u32, replicas_count);
+        let vdisk = center.create_vdisk(vdisks.len() as u32, replicas_count)?;
         debug!("vdisk added: {}", vdisk.id());
         vdisks.push(vdisk);
     }
