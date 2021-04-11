@@ -105,19 +105,24 @@ impl Center {
                     rack.name(),
                     Rack::new(rack.name().to_string(), vec![], true),
                 )
-                .ok_or_else(|| {
-                    anyhow!(
-                        "Center::from_cluster_config: config contains duplicate racks [{}]",
-                        rack.name()
-                    )
-                })?;
+                .map_or_else(
+                    || Ok(()),
+                    |_| {
+                        Err(anyhow!(
+                            "Center::from_cluster_config: config contains duplicate racks [{}]",
+                            rack.name()
+                        ))
+                    },
+                )?;
             for node in rack.nodes() {
                 node_rack_map.insert(node, rack.name())
-            .ok_or_else(|| {
-                anyhow!(
+            .map_or_else(
+                    || Ok(()),
+                |_| {
+                Err(anyhow!(
                             "Center::from_cluster_config: config contains duplicate nodes in racks [rack: {}, node: {}]",
                             rack.name(), node.as_str()
-                )
+                ))
             })?;
             }
         }
@@ -357,6 +362,7 @@ impl Center {
         if nodes_names.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err(anyhow!("config contains duplicates nodes names"));
         }
+        debug!("Center::validate: OK");
         Ok(())
     }
 }
