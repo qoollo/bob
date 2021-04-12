@@ -27,5 +27,4 @@ RUN echo "(curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nigh
     && rustup default nightly-2021-03-25 \
     && rustup component add rust-analysis \
     && rustup component add rust-src \
-    && rustup component add rls \
-    && rustup component add rustfmt" | sh
+    && rustup component add rls" | sh
