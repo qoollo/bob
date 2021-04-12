@@ -93,6 +93,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         change_partition_state,
         delete_partition,
         alien,
+        get_alien_directory,
         remount_vdisks_group,
         start_all_disk_controllers,
         stop_all_disk_controllers,
@@ -524,6 +525,17 @@ fn alien(_bob: State<BobServer>) -> &'static str {
     "alien"
 }
 
+#[get("/alien/dir")]
+fn get_alien_directory(bob: State<BobServer>) -> Result<Json<Dir>, StatusExt> {
+    let backend = bob.grinder().backend().inner();
+    let (_, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    let path = PathBuf::from(adc.disk().path());
+    let dir = bob.block_on(create_directory(&path))?;
+    Ok(Json(dir))
+}
+
 #[get("/vdisks/<vdisk_id>/replicas/local/dirs")]
 fn get_local_replica_directories(
     bob: State<BobServer>,
@@ -544,52 +556,52 @@ fn get_local_replica_directories(
         .filter(|r| r.node == local_node_name)
     {
         let path = PathBuf::from(replica.path);
-        let dir = bob.block_on(create_directory(&path)).ok_or_else(|| {
-            StatusExt::new(
-                Status::InternalServerError,
-                false,
-                format!("Failed to get dirs for replica {:?}", path),
-            )
-        })?;
+        let dir = bob.block_on(create_directory(&path))?;
         result.push(dir);
     }
     Ok(Json(result))
 }
 
-fn create_directory(root_path: &Path) -> BoxFuture<Option<Dir>> {
+fn create_directory(root_path: &Path) -> BoxFuture<Result<Dir, StatusExt>> {
     async move {
-        let name = root_path.file_name()?.to_str()?;
-        let root_path_str = root_path.to_str()?;
+        let name = root_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or(internal(format!(
+                "failed to get filename for {:?}",
+                root_path
+            )))?;
+        let root_path_str = root_path
+            .to_str()
+            .ok_or(internal(format!("failed to get path for {:?}", root_path)))?;
         let result = read_dir(root_path).await;
         match result {
-            Ok(read_dir) => Some(
-                read_directory_children(read_dir, name.to_string(), root_path_str.to_string())
-                    .await,
-            ),
-            Err(e) => {
-                error!("read path {:?} failed: {}", root_path, e);
-                None
-            }
+            Ok(read_dir) => Ok(read_directory_children(read_dir, name, root_path_str).await),
+            Err(e) => Err(internal(format!("read path {:?} failed: {}", root_path, e))),
         }
     }
     .boxed()
 }
 
-async fn read_directory_children(mut read_dir: ReadDir, name: String, path: String) -> Dir {
+async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) -> Dir {
     let mut children = Vec::new();
     while let Some(child) = read_dir.next_entry().await.transpose() {
         if let Ok(entry) = child {
             let dir = create_directory(&entry.path()).await;
-            if let Some(dir) = dir {
+            if let Ok(dir) = dir {
                 children.push(dir);
             }
         }
     }
     Dir {
-        name,
-        path,
+        name: name.to_string(),
+        path: path.to_string(),
         children,
     }
+}
+
+fn internal(message: String) -> StatusExt {
+    StatusExt::new(Status::InternalServerError, false, message)
 }
 
 impl<'r> FromParam<'r> for Action {

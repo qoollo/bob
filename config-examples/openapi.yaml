@@ -250,17 +250,31 @@ paths:
                   type: string
         default:
           $ref: '#/components/responses/DefaultError'
+  /alien/dir:
+    get:
+      summary: Return directory of alien
+      operationId: getAlienDir
+      responses:
+        '200': 
+          description: "Directory"
+          content:
+            application/json:
+              schema:
+                ref: '#/components/schemas/Dir'
+        default:
+          $ref: '#/components/responses/DefaultError'
   /vdisks/<vdisk_id>/replicas/local/dirs:
     get:
       summary: Returns directories of local replicas of vdisk
       operationId: getReplicasLocalDirs
       responses:
         '200':
-          description: "A JSON array with alien Node names info"
+          description: "A JSON array with dirs"
           content:
             application/json:
-              schema:
-                ref: '#/components/schemas/Dir
+              type: array
+              items:
+                ref: '#/components/schemas/Dir'
         default:
           $ref: '#/components/responses/DefaultError'
 
