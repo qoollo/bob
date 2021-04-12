@@ -12,12 +12,8 @@ use rocket_contrib::json::Json;
 use std::{
     io::Cursor,
     path::{Path, PathBuf},
-    thread,
 };
-use tokio::{
-    fs::{read_dir, ReadDir},
-    runtime::Runtime,
-};
+use tokio::fs::{read_dir, ReadDir};
 
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
@@ -87,12 +83,6 @@ pub(crate) struct DiskState {
     is_active: bool,
 }
 
-fn runtime() -> Runtime {
-    // TODO: run web server on same runtime as bob (update to async rocket when it's stable)
-    debug!("HOT FIX: run web server on same runtime as bob");
-    Runtime::new().expect("create runtime")
-}
-
 pub(crate) fn spawn(bob: BobServer, port: u16) {
     let routes = routes![
         status,
@@ -113,7 +103,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         vdisk_records_count,
         distribution_function,
     ];
-    let task = move || {
+    let task = async move {
         info!("API server started");
         let mut config = Config::production();
         config.set_port(port);
@@ -122,7 +112,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
             .mount("/", routes)
             .launch();
     };
-    thread::spawn(task);
+    tokio::spawn(task);
 }
 
 fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
@@ -188,7 +178,7 @@ fn find_group(bob: &State<BobServer>, vdisk_id: u32) -> Result<PearlGroup, Statu
             StatusExt::new(Status::NotFound, false, err)
         })
     };
-    runtime().block_on(task)
+    bob.block_on(task)
 }
 
 #[get("/status")]
@@ -255,7 +245,7 @@ fn disks_list(bob: State<BobServer>) -> Result<Json<Vec<DiskState>>, StatusExt> 
         disks
     };
 
-    let disks = runtime().block_on(task);
+    let disks = bob.block_on(task);
 
     Ok(Json(disks))
 }
@@ -287,7 +277,7 @@ fn stop_all_disk_controllers(
             .collect::<Vec<()>>()
             .await;
     };
-    runtime().block_on(tasks);
+    bob.block_on(tasks);
     Ok(StatusExt::new(
         Status::Ok,
         true,
@@ -331,7 +321,7 @@ fn start_all_disk_controllers(
             Err(err_string)
         }
     };
-    match runtime().block_on(task) {
+    match bob.block_on(task) {
         Ok(()) => {
             let msg = format!(
                 "all disk controllers for disk '{}' successfully started",
@@ -356,8 +346,7 @@ fn vdisks(bob: State<BobServer>) -> Json<Vec<VDisk>> {
 
 #[delete("/blobs/outdated")]
 fn finalize_outdated_blobs(bob: State<BobServer>) -> StatusExt {
-    let bob = bob.clone();
-    runtime().spawn(async move {
+    bob.block_on(async {
         let backend = bob.grinder().backend();
         backend.close_unneeded_active_blobs(1, 1).await;
     });
@@ -377,7 +366,7 @@ fn vdisk_by_id(bob: State<BobServer>, vdisk_id: u32) -> Option<Json<VDisk>> {
 fn vdisk_records_count(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<u64>, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     let holders = group.holders();
-    let sum = runtime().block_on(async move {
+    let sum = bob.block_on(async {
         let pearls = holders.read().await;
         let pearls: &[_] = pearls.as_ref();
         let mut sum = 0;
@@ -394,7 +383,7 @@ fn partitions(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<VDiskPartitio
     let group = find_group(&bob, vdisk_id)?;
     debug!("group with provided vdisk_id found");
     let holders = group.holders();
-    let pearls = runtime().block_on(holders.read());
+    let pearls = bob.block_on(holders.read());
     debug!("get pearl holders: OK");
     let pearls: &[_] = pearls.as_ref();
     let partitions = pearls.iter().map(Holder::get_id).collect();
@@ -418,17 +407,14 @@ fn partition_by_id(
     debug!("group with provided vdisk_id found");
     let holders = group.holders();
     debug!("get pearl holders: OK");
-    // TODO: run web server on same runtime as bob
-    debug!("HOT FIX: run web server on same runtime as bob");
-    let rt = Runtime::new().expect("create runtime");
-    let pearls = rt.block_on(holders.read());
+    let pearls = bob.block_on(holders.read());
     let pearl = pearls.iter().find(|pearl| pearl.get_id() == partition_id);
     let partition = pearl.map(|p| Partition {
         node_name: group.node_name().to_owned(),
         disk_name: group.disk_name().to_owned(),
         vdisk_id: group.vdisk_id(),
         timestamp: p.start_timestamp(),
-        records_count: rt.block_on(p.records_count()),
+        records_count: bob.block_on(p.records_count()),
     });
     partition.map(Json).ok_or_else(|| {
         let err = format!(
@@ -449,20 +435,17 @@ fn change_partition_state(
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     let group = group.clone();
-    // TODO: run web server on same runtime as bob
-    debug!("HOT FIX: run web server on same runtime as bob");
-    let rt = Runtime::new().expect("create runtime");
     let res = format!(
         "partitions with timestamp {} on vdisk {} is successfully {:?}ed",
         timestamp, vdisk_id, action
     );
-    let task = async move {
+    let task = async {
         match action {
             Action::Attach => group.attach(timestamp).await,
             Action::Detach => group.detach(timestamp).await.map(|_| ()),
         }
     };
-    match rt.block_on(task) {
+    match bob.block_on(task) {
         Ok(_) => {
             info!("{}", res);
             Ok(StatusExt::new(Status::Ok, true, res))
@@ -475,10 +458,8 @@ fn change_partition_state(
 fn remount_vdisks_group(bob: State<BobServer>, vdisk_id: u32) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     let group = group.clone();
-    debug!("HOT FIX: run web server on same runtime as bob");
-    let rt = Runtime::new().expect("create runtime");
     let task = group.remount();
-    match rt.block_on(task) {
+    match bob.block_on(task) {
         Ok(_) => {
             info!("vdisks group {} successfully restarted", vdisk_id);
             Ok(StatusExt::new(
@@ -510,7 +491,7 @@ fn delete_partition(
             Err(StatusExt::new(Status::BadRequest, true, msg))
         }
     };
-    runtime().block_on(task)
+    bob.block_on(task)
 }
 
 async fn drop_directories(
@@ -563,7 +544,7 @@ fn get_local_replica_directories(
         .filter(|r| r.node == local_node_name)
     {
         let path = PathBuf::from(replica.path);
-        let dir = runtime().block_on(create_directory(&path)).ok_or_else(|| {
+        let dir = bob.block_on(create_directory(&path)).ok_or_else(|| {
             StatusExt::new(
                 Status::InternalServerError,
                 false,

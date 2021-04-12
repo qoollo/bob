@@ -10,7 +10,7 @@ pub(crate) struct Quorum {
 
 impl Quorum {
     pub(crate) fn new(mapper: Arc<Virtual>, quorum: usize) -> Self {
-        Self { quorum, mapper }
+        Self { mapper, quorum }
     }
 
     #[inline]
