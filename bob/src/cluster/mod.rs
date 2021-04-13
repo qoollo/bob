@@ -1,6 +1,7 @@
 mod operations;
 mod quorum;
 mod simple;
+
 #[cfg(test)]
 mod tests;
 
