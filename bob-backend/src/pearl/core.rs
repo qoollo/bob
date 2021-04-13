@@ -3,7 +3,7 @@ use std::iter::once;
 use crate::prelude::*;
 
 use super::{data::Key, disk_controller::DiskController, settings::Settings};
-use crate::core::{BackendStorage, Operation, BACKEND_STARTED, BACKEND_STARTING};
+use crate::core::{BackendStorage, Operation};
 
 pub type BackendResult<T> = std::result::Result<T, Error>;
 pub type PearlStorage = Storage<Key>;
@@ -48,8 +48,7 @@ impl Pearl {
 
 #[async_trait]
 impl BackendStorage for Pearl {
-    async fn run(&self) -> AnyResult<()> {
-        gauge!(BACKEND_STATE, BACKEND_STARTING);
+    async fn run_backend(&self) -> AnyResult<()> {
         // vec![vec![]; n] macro requires Clone trait, and future does not implement it
         let start = Instant::now();
         let futs = FuturesUnordered::new();
@@ -58,9 +57,8 @@ impl BackendStorage for Pearl {
             futs.push(async move { dc.run().await })
         }
         futs.fold(Ok(()), |s, n| async move { s.and(n) }).await?;
-        let dur = std::time::Instant::now() - start;
+        let dur = Instant::now() - start;
         debug!("pearl backend init took {:?}", dur);
-        gauge!(BACKEND_STATE, BACKEND_STARTED);
         Ok(())
     }
 

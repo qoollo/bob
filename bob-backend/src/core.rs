@@ -79,8 +79,14 @@ impl Operation {
 }
 
 #[async_trait]
-pub trait BackendStorage: Debug {
-    async fn run(&self) -> AnyResult<()>;
+pub trait BackendStorage: Debug + Send + Sync + 'static {
+    async fn run_backend(&self) -> AnyResult<()>;
+    async fn run(&self) -> AnyResult<()> {
+        gauge!(BACKEND_STATE, BACKEND_STARTING);
+        let result = self.run_backend().await;
+        gauge!(BACKEND_STATE, BACKEND_STARTED);
+        result
+    }
 
     async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
     async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
@@ -91,9 +97,13 @@ pub trait BackendStorage: Debug {
     async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 
-    async fn blobs_count(&self) -> (usize, usize);
+    async fn blobs_count(&self) -> (usize, usize) {
+        (0, 0)
+    }
 
-    async fn index_memory(&self) -> usize;
+    async fn index_memory(&self) -> usize {
+        0
+    }
 
     async fn shutdown(&self);
 
@@ -104,13 +114,13 @@ pub trait BackendStorage: Debug {
 
 #[derive(Debug)]
 pub struct Backend {
-    inner: Arc<dyn BackendStorage + Send + Sync>,
+    inner: Arc<dyn BackendStorage>,
     mapper: Arc<Virtual>,
 }
 
 impl Backend {
     pub async fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
-        let inner: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
+        let inner: Arc<dyn BackendStorage> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
             BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config).await),

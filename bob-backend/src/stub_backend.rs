@@ -1,15 +1,13 @@
 use crate::prelude::*;
 
-use crate::core::{BackendStorage, Operation, BACKEND_STARTED, BACKEND_STARTING};
+use crate::core::{BackendStorage, Operation};
 
 #[derive(Clone, Debug)]
 pub struct StubBackend {}
 
 #[async_trait]
 impl BackendStorage for StubBackend {
-    async fn run(&self) -> AnyResult<()> {
-        gauge!(BACKEND_STATE, BACKEND_STARTING);
-        gauge!(BACKEND_STATE, BACKEND_STARTED);
+    async fn run_backend(&self) -> AnyResult<()> {
         Ok(())
     }
 
@@ -61,12 +59,4 @@ impl BackendStorage for StubBackend {
     }
 
     async fn shutdown(&self) {}
-
-    async fn index_memory(&self) -> usize {
-        0
-    }
-
-    async fn blobs_count(&self) -> (usize, usize) {
-        (0, 0)
-    }
 }
