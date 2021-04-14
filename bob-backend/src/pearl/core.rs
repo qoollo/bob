@@ -99,7 +99,7 @@ impl BackendStorage for Pearl {
             futs.push(async move { dc.run().await })
         }
         futs.fold(Ok(()), |s, n| async move { s.and(n) }).await?;
-        let dur = std::time::Instant::now() - start;
+        let dur = Instant::now() - start;
         debug!("pearl backend init took {:?}", dur);
         Ok(())
     }

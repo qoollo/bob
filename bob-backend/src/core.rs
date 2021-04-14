@@ -6,8 +6,8 @@ use crate::{
     stub_backend::StubBackend,
 };
 
-const BACKEND_STARTING: i64 = 0;
-const BACKEND_STARTED: i64 = 1;
+pub const BACKEND_STARTING: i64 = 0;
+pub const BACKEND_STARTED: i64 = 1;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Operation {
@@ -80,8 +80,14 @@ impl Operation {
 }
 
 #[async_trait]
-pub trait BackendStorage: Debug + MetricsProducer + Send + Sync {
+pub trait BackendStorage: Debug  + MetricsProducer + Send + Sync + 'static {
     async fn run_backend(&self) -> AnyResult<()>;
+    async fn run(&self) -> AnyResult<()> {
+        gauge!(BACKEND_STATE, BACKEND_STARTING);
+        let result = self.run_backend().await;
+        gauge!(BACKEND_STATE, BACKEND_STARTED);
+        result
+    }
 
     async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
     async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
@@ -91,13 +97,6 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync {
 
     async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
-
-    async fn run(&self) -> AnyResult<()> {
-        gauge!(BACKEND_STATE, BACKEND_STARTING);
-        let result = self.run_backend().await;
-        gauge!(BACKEND_STATE, BACKEND_STARTED);
-        result
-    }
 
     async fn shutdown(&self);
 
@@ -128,13 +127,13 @@ pub trait MetricsProducer: Send + Sync {
 
 #[derive(Debug)]
 pub struct Backend {
-    inner: Arc<dyn BackendStorage + Send + Sync>,
+    inner: Arc<dyn BackendStorage>,
     mapper: Arc<Virtual>,
 }
 
 impl Backend {
     pub async fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
-        let inner: Arc<dyn BackendStorage + Send + Sync + 'static> = match config.backend_type() {
+        let inner: Arc<dyn BackendStorage> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
             BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config).await),
