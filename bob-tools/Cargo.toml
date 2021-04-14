@@ -1,6 +1,6 @@
 [package]
 name = "bob-tools"
-version = "1.6.0"
+version = "1.6.1"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
