@@ -267,7 +267,7 @@ impl Holder {
                 e.downcast_ref::<IOError>().map_or(
                     e.downcast_ref::<Error>()
                         .cloned()
-                        .unwrap_or(storage_error.clone()),
+                        .unwrap_or_else(|| storage_error.clone()),
                     |os_error| match os_error.kind() {
                         IOErrorKind::Other | IOErrorKind::PermissionDenied => {
                             Error::possible_disk_disconnection()

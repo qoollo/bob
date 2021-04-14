@@ -24,7 +24,7 @@ impl DisksEventsLogger {
     async fn write_header(f: &mut File) -> IOResult<()> {
         f.write_all(b"disk_name;is_alien;new_state;datetime\n")
             .await?;
-        f.sync_all().await.map_err(|e| e.into())
+        f.sync_all().await
     }
 
     pub(crate) async fn log(&self, disk_name: &str, event: &str, is_alien: bool) {

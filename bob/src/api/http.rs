@@ -166,7 +166,7 @@ fn find_group(bob: &State<BobServer>, vdisk_id: u32) -> Result<PearlGroup, Statu
     debug!("get vdisks groups: OK");
     let needed_dc = dcs
         .iter()
-        .find(|dc| dc.vdisks().iter().find(|&&vd| vd == vdisk_id).is_some())
+        .find(|dc| dc.vdisks().iter().any(|&vd| vd == vdisk_id))
         .ok_or_else(|| {
             let err = format!("Disk Controller with vdisk #{} not found", vdisk_id);
             warn!("{}", err);
@@ -302,7 +302,7 @@ fn start_all_disk_controllers(
         .filter(|dc| dc.disk().name() == disk_name)
         .map(|dc| dc.run())
         .collect::<FuturesUnordered<_>>();
-    if target_dcs.len() == 0 {
+    if target_dcs.is_empty() {
         let err = format!("Disk Controller with name '{}' not found", disk_name);
         warn!("{}", err);
         return Err(StatusExt::new(Status::NotFound, false, err));
@@ -316,7 +316,7 @@ fn start_all_disk_controllers(
                 async move { err_string }
             })
             .await;
-        if err_string.len() == 0 {
+        if err_string.is_empty() {
             Ok(())
         } else {
             Err(err_string)
@@ -331,11 +331,7 @@ fn start_all_disk_controllers(
             info!("{}", msg);
             Ok(StatusExt::new(Status::Ok, true, msg))
         }
-        Err(e) => Err(StatusExt::new(
-            Status::InternalServerError,
-            false,
-            e.to_string(),
-        )),
+        Err(e) => Err(StatusExt::new(Status::InternalServerError, false, e)),
     }
 }
 
@@ -435,7 +431,6 @@ fn change_partition_state(
     action: Action,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
-    let group = group.clone();
     let res = format!(
         "partitions with timestamp {} on vdisk {} is successfully {:?}ed",
         timestamp, vdisk_id, action
@@ -458,7 +453,6 @@ fn change_partition_state(
 #[post("/vdisks/<vdisk_id>/remount")]
 fn remount_vdisks_group(bob: State<BobServer>, vdisk_id: u32) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
-    let group = group.clone();
     let task = group.remount();
     match bob.block_on(task) {
         Ok(_) => {
@@ -567,13 +561,10 @@ fn create_directory(root_path: &Path) -> BoxFuture<Result<Dir, StatusExt>> {
         let name = root_path
             .file_name()
             .and_then(|n| n.to_str())
-            .ok_or(internal(format!(
-                "failed to get filename for {:?}",
-                root_path
-            )))?;
+            .ok_or_else(|| internal(format!("failed to get filename for {:?}", root_path)))?;
         let root_path_str = root_path
             .to_str()
-            .ok_or(internal(format!("failed to get path for {:?}", root_path)))?;
+            .ok_or_else(|| internal(format!("failed to get path for {:?}", root_path)))?;
         let result = read_dir(root_path).await;
         match result {
             Ok(read_dir) => Ok(read_directory_children(read_dir, name, root_path_str).await),

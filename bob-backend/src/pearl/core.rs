@@ -25,7 +25,7 @@ impl Pearl {
     pub async fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
-        let logfile = config.pearl().disks_events_logfile().clone();
+        let logfile = config.pearl().disks_events_logfile();
         let logger = DisksEventsLogger::new(logfile)
             .await
             .expect("create logger");

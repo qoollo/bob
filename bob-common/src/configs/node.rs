@@ -326,7 +326,7 @@ impl Pearl {
                 .fold(Err(VarError::NotPresent), |acc, elem| {
                     std::env::var(elem).or(acc)
                 })
-                .unwrap_or("/tmp".to_owned()),
+                .unwrap_or_else(|_| "/tmp".to_owned()),
         );
         tmp_dir.push("bob_events.csv");
         tmp_dir.to_str().expect("Path is not UTF-8").to_owned()

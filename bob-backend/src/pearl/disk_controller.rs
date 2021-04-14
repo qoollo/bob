@@ -213,7 +213,7 @@ impl DiskController {
     pub async fn vdisk_group(&self, vdisk_id: VDiskId) -> AnyResult<Group> {
         let groups = self.groups.read().await;
         let group_opt = groups.iter().find(|g| g.vdisk_id() == vdisk_id).cloned();
-        group_opt.ok_or(Error::vdisk_not_found(vdisk_id).into())
+        group_opt.ok_or_else(|| Error::vdisk_not_found(vdisk_id).into())
     }
 
     fn collect_normal_groups(&self) -> Vec<Group> {

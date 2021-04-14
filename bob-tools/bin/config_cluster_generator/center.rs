@@ -289,20 +289,17 @@ pub fn get_new_disks<'a>(
     old_nodes: &'a [ClusterNode],
     new_nodes: &'a [ClusterNode],
 ) -> impl Iterator<Item = (&'a ClusterNode, &'a str)> {
-    let old_disks = old_nodes
+    let mut old_disks = old_nodes
         .iter()
         .flat_map(|node| node.disks().iter().map(move |disk| (node, disk.name())));
     new_nodes
         .iter()
         .flat_map(|node| node.disks().iter().map(move |disk| (node, disk.name())))
         .filter(move |(node, disk)| {
-            old_disks
-                .clone()
-                .find(|(old_node, old_disk)| {
-                    node.name() == old_node.name()
-                        && node.address() == old_node.address()
-                        && disk == old_disk
-                })
-                .is_none()
+            !old_disks.any(|(old_node, old_disk)| {
+                node.name() == old_node.name()
+                    && node.address() == old_node.address()
+                    && disk == &old_disk
+            })
         })
 }
