@@ -14,7 +14,7 @@ const REPLICA_IN_FIRST_RACK: usize = 2;
 struct Counter {
     racks_used_count: HashMap<String, usize>,
     nodes_used_count: HashMap<String, usize>,
-    disks_used_count: HashMap<(String, String), usize>,
+    disks_used_count: HashMap<String, HashMap<String, usize>>,
 }
 
 impl Counter {
@@ -26,7 +26,10 @@ impl Counter {
     }
     fn add_disk(&mut self, node: &str, disk: &str) {
         self.disks_used_count
-            .insert((node.to_string(), disk.to_string()), 0);
+            .entry(node.to_string())
+            .or_default()
+            .entry(disk.to_string())
+            .or_default();
     }
     fn inc_rack_used_count(&mut self, rack: &str) {
         self.racks_used_count
@@ -44,7 +47,9 @@ impl Counter {
 
     fn inc_disk_used_count(&mut self, node: &str, disk: &str) {
         self.disks_used_count
-            .get_mut(&(node.to_string(), disk.to_string()))
+            .get_mut(node)
+            .expect("added by constructor")
+            .get_mut(disk)
             .expect("added by constructor")
             .add_assign(1);
     }
@@ -59,7 +64,9 @@ impl Counter {
     fn disk_used_count(&self, node: &str, disk: &str) -> usize {
         *self
             .disks_used_count
-            .get(&(node.to_string(), disk.to_string()))
+            .get(node)
+            .expect("added by constructor")
+            .get(disk)
             .expect("added by constructor")
     }
 }
