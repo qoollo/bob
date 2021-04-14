@@ -32,19 +32,22 @@ pub(crate) mod prelude {
     pub use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
     pub use futures::{stream::FuturesUnordered, StreamExt, TryFutureExt};
     pub use pearl::{
-        filter::Config as BloomConfig, rio, Builder, Error as PearlError, ErrorKind,
-        Key as KeyTrait, Storage,
+        filter::Config as BloomConfig, rio, Builder, Error as PearlError,
+        ErrorKind as PearlErrorKind, Key as KeyTrait, Storage,
     };
     pub use std::{
         collections::{hash_map::Entry, HashMap},
         convert::TryInto,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
-        fs::{create_dir_all, read_dir, remove_dir_all, remove_file, DirEntry, Metadata},
-        io::Result as IOResult,
+        fs::Metadata,
+        io::{Error as IOError, ErrorKind as IOErrorKind, Result as IOResult},
         path::{Path, PathBuf},
         sync::Arc,
         time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     };
     pub use stopwatch::Stopwatch;
-    pub use tokio::sync::{RwLock, Semaphore};
+    pub use tokio::{
+        fs::{create_dir_all, read_dir, remove_dir_all, remove_file, DirEntry},
+        sync::{RwLock, Semaphore},
+    };
 }

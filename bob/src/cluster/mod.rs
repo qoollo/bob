@@ -1,11 +1,11 @@
 mod operations;
 mod quorum;
 mod simple;
+
 #[cfg(test)]
 mod tests;
 
 use crate::prelude::*;
-
 use quorum::Quorum;
 use simple::Quorum as SimpleQuorum;
 

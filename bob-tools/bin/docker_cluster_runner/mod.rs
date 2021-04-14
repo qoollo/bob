@@ -238,6 +238,7 @@ impl TestClusterConfiguration {
             ),
             10,
             true,
+            "/tmp/bob_events.csv".to_owned(),
         )
     }
 

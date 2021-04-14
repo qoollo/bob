@@ -1,3 +1,5 @@
+use tokio::{runtime::Handle, task::block_in_place};
+
 use crate::prelude::*;
 
 use super::grinder::Grinder;
@@ -5,16 +7,22 @@ use super::grinder::Grinder;
 /// Struct contains `Grinder` and receives incomming GRPC requests
 #[derive(Clone, Debug)]
 pub struct Server {
+    handle: Handle,
     grinder: Arc<Grinder>,
 }
 
 impl Server {
     /// Creates new bob server
     #[must_use]
-    pub fn new(grinder: Grinder) -> Self {
+    pub fn new(grinder: Grinder, handle: Handle) -> Self {
         Self {
+            handle,
             grinder: Arc::new(grinder),
         }
+    }
+
+    pub fn block_on<F: Future>(&self, f: F) -> F::Output {
+        block_in_place(|| self.handle.block_on(f))
     }
 
     pub(crate) fn grinder(&self) -> &Grinder {

@@ -17,8 +17,8 @@ use tokio::time::sleep;
 
 use super::quorum::Quorum;
 
-fn ping_ok(client: &mut BobClient, node: Node) {
-    let cl = node;
+fn ping_ok(_client: &mut BobClient, node: Node) {
+    let _cl = node;
 
     // client
     //     .expect_ping()
@@ -26,7 +26,7 @@ fn ping_ok(client: &mut BobClient, node: Node) {
     todo!("mock");
 }
 
-fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
+fn put_ok(_client: &mut BobClient, _node: Node, _call: Arc<CountCall>) {
     // client.expect_put().returning(move |_key, _data, _options| {
     //     call.put_inc();
     //     test_utils::put_ok(node.name().to_owned())
@@ -34,7 +34,7 @@ fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
     todo!("mock");
 }
 
-fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
+fn put_err(_client: &mut BobClient, _node: Node, _call: Arc<CountCall>) {
     // debug!("mock BobClient return error on PUT");
     // client.expect_put().returning(move |_key, _data, _options| {
     //     call.put_inc();
@@ -43,7 +43,7 @@ fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
     todo!("mock");
 }
 
-fn get_ok_timestamp(client: &mut BobClient, node: Node, call: Arc<CountCall>, timestamp: u64) {
+fn get_ok_timestamp(_client: &mut BobClient, _node: Node, _call: Arc<CountCall>, _timestamp: u64) {
     // trace!("get ok timestamp");
     // client.expect_get().returning(move |_key, _options| {
     //     call.get_inc();
@@ -52,7 +52,7 @@ fn get_ok_timestamp(client: &mut BobClient, node: Node, call: Arc<CountCall>, ti
     todo!("mock");
 }
 
-fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
+fn get_err(_client: &mut BobClient, _node: Node, _call: Arc<CountCall>) {
     // info!("get err");
     // client.expect_get().returning(move |_key, _options| {
     //     info!("mock client returning closure");
@@ -62,6 +62,7 @@ fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
     todo!("mock");
 }
 
+#[allow(dead_code)]
 struct CountCall {
     put_count: AtomicU64,
     get_count: AtomicU64,
@@ -75,6 +76,7 @@ impl CountCall {
         }
     }
 
+    #[allow(dead_code)]
     fn put_inc(&self) {
         self.put_count.fetch_add(1, Ordering::SeqCst);
     }
@@ -83,6 +85,7 @@ impl CountCall {
         self.put_count.load(Ordering::Relaxed)
     }
 
+    #[allow(dead_code)]
     fn get_inc(&self) {
         debug!("increment get count");
         self.get_count.fetch_add(1, Ordering::SeqCst);
@@ -104,10 +107,10 @@ fn prepare_configs(
 async fn create_cluster(
     node: &NodeConfig,
     cluster: &ClusterConfig,
-    map: &[(&str, Call, Arc<CountCall>)],
+    _map: &[(&str, Call, Arc<CountCall>)],
 ) -> (Quorum, Arc<Backend>) {
     let mapper = Arc::new(Virtual::new(&node, &cluster).await);
-    for node in mapper.nodes().values() {
+    for _node in mapper.nodes().values() {
         // let mut client = BobClient::default();
         // let (_, func, call) = map
         // .iter()
@@ -118,7 +121,7 @@ async fn create_cluster(
         todo!("mock");
     }
 
-    let backend = Arc::new(Backend::new(mapper.clone(), &node));
+    let backend = Arc::new(Backend::new(mapper.clone(), &node).await);
     (Quorum::new(backend.clone(), mapper, node.quorum()), backend)
 }
 
@@ -156,14 +159,7 @@ fn create_node(
                 get_err(client, n, c);
             }
         };
-        f(
-            client,
-            n.clone(),
-            call.clone(),
-            set_put_ok,
-            set_get_ok,
-            returned_timestamp,
-        );
+        f(client, n, call, set_put_ok, set_get_ok, returned_timestamp);
         // client.expect_clone().returning(move || {
         //     let mut cl = BobClient::default();
         //     f(

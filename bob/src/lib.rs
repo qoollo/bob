@@ -84,6 +84,7 @@ mod prelude {
 }
 
 #[cfg(test)]
+#[allow(dead_code)]
 pub(crate) mod test_utils {
     use bob_common::{
         bob_client::{GetResult, PingResult, PutResult},

@@ -1,6 +1,7 @@
 use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper};
-use clap::{App, Arg};
+use clap::{App, Arg, ArgMatches};
 use std::net::ToSocketAddrs;
+use tokio::runtime::Handle;
 use tonic::transport::Server;
 
 #[macro_use]
@@ -8,46 +9,7 @@ extern crate log;
 
 #[tokio::main]
 async fn main() {
-    let matches = App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .arg(
-            Arg::with_name("cluster")
-                .help("cluster config file")
-                .takes_value(true)
-                .short("c")
-                .long("cluster"),
-        )
-        .arg(
-            Arg::with_name("node")
-                .help("node config file")
-                .takes_value(true)
-                .short("n")
-                .long("node"),
-        )
-        .arg(
-            Arg::with_name("name")
-                .help("node name")
-                .takes_value(true)
-                .short("a")
-                .long("name"),
-        )
-        .arg(
-            Arg::with_name("threads")
-                .help("count threads")
-                .takes_value(true)
-                .short("t")
-                .long("threads")
-                .default_value("4"),
-        )
-        .arg(
-            Arg::with_name("http_api_port")
-                .help("http api port")
-                .default_value("8000")
-                .short("p")
-                .long("port")
-                .takes_value(true),
-        )
-        .get_matches();
+    let matches = get_matches();
 
     if matches.value_of("cluster").is_none() {
         eprintln!("Expect cluster config");
@@ -63,13 +25,13 @@ async fn main() {
 
     let cluster_config = matches.value_of("cluster").unwrap();
     println!("Cluster config: {:?}", cluster_config);
-    let cluster = ClusterConfig::try_get(cluster_config).unwrap();
+    let cluster = ClusterConfig::try_get(cluster_config).await.unwrap();
 
     let node_config = matches.value_of("node").unwrap();
     println!("Node config: {:?}", node_config);
-    let node = cluster.get(node_config).unwrap();
+    let node = cluster.get(node_config).await.unwrap();
 
-    log4rs::init_file(node.log_config(), Default::default()).unwrap();
+    log4rs::init_file(node.log_config(), Default::default()).expect("can't find log config");
 
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
     let mut addr = node.bind().to_socket_addrs().unwrap().next().unwrap();
@@ -87,7 +49,8 @@ async fn main() {
 
     let metrics = init_counters(&node, &addr.to_string());
 
-    let bob = BobServer::new(Grinder::new(mapper, &node));
+    let handle = Handle::current();
+    let bob = BobServer::new(Grinder::new(mapper, &node).await, handle);
 
     info!("Start backend");
     bob.run_backend().await.unwrap();
@@ -135,4 +98,47 @@ fn spawn_signal_handler(
         std::process::exit(0);
     });
     Ok(())
+}
+
+fn get_matches<'a>() -> ArgMatches<'a> {
+    App::new(env!("CARGO_PKG_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .arg(
+            Arg::with_name("cluster")
+                .help("cluster config file")
+                .takes_value(true)
+                .short("c")
+                .long("cluster"),
+        )
+        .arg(
+            Arg::with_name("node")
+                .help("node config file")
+                .takes_value(true)
+                .short("n")
+                .long("node"),
+        )
+        .arg(
+            Arg::with_name("name")
+                .help("node name")
+                .takes_value(true)
+                .short("a")
+                .long("name"),
+        )
+        .arg(
+            Arg::with_name("threads")
+                .help("count threads")
+                .takes_value(true)
+                .short("t")
+                .long("threads")
+                .default_value("4"),
+        )
+        .arg(
+            Arg::with_name("http_api_port")
+                .help("http api port")
+                .default_value("8000")
+                .short("p")
+                .long("port")
+                .takes_value(true),
+        )
+        .get_matches()
 }

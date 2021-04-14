@@ -1,6 +1,7 @@
 use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{data::VDisk as DataVDisk, node::Disk as NodeDisk};
+use futures::{future::BoxFuture, FutureExt};
 use rocket::{
     http::{RawStr, Status},
     request::FromParam,
@@ -9,12 +10,10 @@ use rocket::{
 };
 use rocket_contrib::json::Json;
 use std::{
-    fs::ReadDir,
     io::Cursor,
     path::{Path, PathBuf},
-    thread,
 };
-use tokio::runtime::Runtime;
+use tokio::fs::{read_dir, ReadDir};
 
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
@@ -74,13 +73,14 @@ pub(crate) struct Dir {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct DistrFunc {
-    func: String
+    func: String,
 }
 
-fn runtime() -> Runtime {
-    // TODO: run web server on same runtime as bob (update to async rocket when it's stable)
-    debug!("HOT FIX: run web server on same runtime as bob");
-    Runtime::new().expect("create runtime")
+#[derive(Debug, Serialize)]
+pub(crate) struct DiskState {
+    name: String,
+    path: String,
+    is_active: bool,
 }
 
 pub(crate) fn spawn(bob: BobServer, port: u16) {
@@ -93,14 +93,18 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         change_partition_state,
         delete_partition,
         alien,
+        get_alien_directory,
         remount_vdisks_group,
+        start_all_disk_controllers,
+        stop_all_disk_controllers,
         get_local_replica_directories,
         nodes,
+        disks_list,
         finalize_outdated_blobs,
         vdisk_records_count,
         distribution_function,
     ];
-    let task = move || {
+    let task = async move {
         info!("API server started");
         let mut config = Config::production();
         config.set_port(port);
@@ -109,7 +113,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
             .mount("/", routes)
             .launch();
     };
-    thread::spawn(task);
+    tokio::spawn(task);
 }
 
 fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
@@ -152,19 +156,30 @@ fn not_acceptable_backend() -> Status {
     status
 }
 
-fn find_group<'a>(bob: &'a State<BobServer>, vdisk_id: u32) -> Result<&'a PearlGroup, StatusExt> {
+// !notice: only finds normal group
+fn find_group(bob: &State<BobServer>, vdisk_id: u32) -> Result<PearlGroup, StatusExt> {
     let backend = bob.grinder().backend().inner();
     debug!("get backend: OK");
-    let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
+    let (dcs, _) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
     debug!("get vdisks groups: OK");
-    groups
+    let needed_dc = dcs
         .iter()
-        .find(|group| group.vdisk_id() == vdisk_id)
+        .find(|dc| dc.vdisks().iter().any(|&vd| vd == vdisk_id))
         .ok_or_else(|| {
-            let err = format!("vdisk with id: {} not found", vdisk_id);
+            let err = format!("Disk Controller with vdisk #{} not found", vdisk_id);
+            warn!("{}", err);
+            StatusExt::new(Status::NotFound, false, err)
+        })?;
+    let task = async move {
+        needed_dc.vdisk_group(vdisk_id).await.map_err(|_| {
+            let err = format!("Disk Controller with vdisk #{} not found", vdisk_id);
             warn!("{}", err);
             StatusExt::new(Status::NotFound, false, err)
         })
+    };
+    bob.block_on(task)
 }
 
 #[get("/status")]
@@ -211,10 +226,113 @@ fn nodes(bob: State<BobServer>) -> Json<Vec<Node>> {
     Json(nodes)
 }
 
+#[get("/disks/list")]
+fn disks_list(bob: State<BobServer>) -> Result<Json<Vec<DiskState>>, StatusExt> {
+    let backend = bob.grinder().backend().inner();
+    let (dcs, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+
+    let task = async move {
+        let mut disks = Vec::new();
+        for dc in dcs.iter().chain(std::iter::once(&adc)) {
+            let disk_path = dc.disk();
+            disks.push(DiskState {
+                name: disk_path.name().to_owned(),
+                path: disk_path.path().to_owned(),
+                is_active: dc.is_ready().await,
+            });
+        }
+        disks
+    };
+
+    let disks = bob.block_on(task);
+
+    Ok(Json(disks))
+}
+
 #[get("/metadata/distrfunc")]
 fn distribution_function(bob: State<BobServer>) -> Json<DistrFunc> {
     let mapper = bob.grinder().backend().mapper();
-    Json(DistrFunc { func: format!("{:?}", mapper.distribution_func()) })
+    Json(DistrFunc {
+        func: format!("{:?}", mapper.distribution_func()),
+    })
+}
+
+#[post("/disks/<disk_name>/stop")]
+fn stop_all_disk_controllers(
+    bob: State<BobServer>,
+    disk_name: String,
+) -> Result<StatusExt, StatusExt> {
+    use futures::stream::{FuturesUnordered, StreamExt};
+    let backend = bob.grinder().backend().inner();
+    let (dcs, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    let tasks = async move {
+        dcs.iter()
+            .chain(std::iter::once(&adc))
+            .filter(|dc| dc.disk().name() == disk_name)
+            .map(|dc| dc.stop())
+            .collect::<FuturesUnordered<_>>()
+            .collect::<Vec<()>>()
+            .await;
+    };
+    bob.block_on(tasks);
+    Ok(StatusExt::new(
+        Status::Ok,
+        true,
+        "Disk controllers are stopped".to_owned(),
+    ))
+}
+
+#[post("/disks/<disk_name>/start")]
+fn start_all_disk_controllers(
+    bob: State<BobServer>,
+    disk_name: String,
+) -> Result<StatusExt, StatusExt> {
+    use futures::stream::{FuturesUnordered, StreamExt};
+    let backend = bob.grinder().backend().inner();
+    let (dcs, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    let target_dcs = dcs
+        .iter()
+        .chain(std::iter::once(&adc))
+        .filter(|dc| dc.disk().name() == disk_name)
+        .map(|dc| dc.run())
+        .collect::<FuturesUnordered<_>>();
+    if target_dcs.is_empty() {
+        let err = format!("Disk Controller with name '{}' not found", disk_name);
+        warn!("{}", err);
+        return Err(StatusExt::new(Status::NotFound, false, err));
+    }
+    let task = async move {
+        let err_string = target_dcs
+            .fold(String::new(), |mut err_string, res| {
+                if let Err(e) = res {
+                    err_string.push_str(&(e.to_string() + "\n"));
+                }
+                async move { err_string }
+            })
+            .await;
+        if err_string.is_empty() {
+            Ok(())
+        } else {
+            Err(err_string)
+        }
+    };
+    match bob.block_on(task) {
+        Ok(()) => {
+            let msg = format!(
+                "all disk controllers for disk '{}' successfully started",
+                disk_name
+            );
+            info!("{}", msg);
+            Ok(StatusExt::new(Status::Ok, true, msg))
+        }
+        Err(e) => Err(StatusExt::new(Status::InternalServerError, false, e)),
+    }
 }
 
 #[get("/vdisks")]
@@ -225,8 +343,7 @@ fn vdisks(bob: State<BobServer>) -> Json<Vec<VDisk>> {
 
 #[delete("/blobs/outdated")]
 fn finalize_outdated_blobs(bob: State<BobServer>) -> StatusExt {
-    let bob = bob.clone();
-    runtime().spawn(async move {
+    bob.block_on(async {
         let backend = bob.grinder().backend();
         backend.close_unneeded_active_blobs(1, 1).await;
     });
@@ -246,7 +363,7 @@ fn vdisk_by_id(bob: State<BobServer>, vdisk_id: u32) -> Option<Json<VDisk>> {
 fn vdisk_records_count(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<u64>, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
     let holders = group.holders();
-    let sum = runtime().block_on(async move {
+    let sum = bob.block_on(async {
         let pearls = holders.read().await;
         let pearls: &[_] = pearls.as_ref();
         let mut sum = 0;
@@ -263,7 +380,7 @@ fn partitions(bob: State<BobServer>, vdisk_id: u32) -> Result<Json<VDiskPartitio
     let group = find_group(&bob, vdisk_id)?;
     debug!("group with provided vdisk_id found");
     let holders = group.holders();
-    let pearls = runtime().block_on(holders.read());
+    let pearls = bob.block_on(holders.read());
     debug!("get pearl holders: OK");
     let pearls: &[_] = pearls.as_ref();
     let partitions = pearls.iter().map(Holder::get_id).collect();
@@ -287,17 +404,14 @@ fn partition_by_id(
     debug!("group with provided vdisk_id found");
     let holders = group.holders();
     debug!("get pearl holders: OK");
-    // TODO: run web server on same runtime as bob
-    debug!("HOT FIX: run web server on same runtime as bob");
-    let rt = Runtime::new().expect("create runtime");
-    let pearls = rt.block_on(holders.read());
+    let pearls = bob.block_on(holders.read());
     let pearl = pearls.iter().find(|pearl| pearl.get_id() == partition_id);
     let partition = pearl.map(|p| Partition {
         node_name: group.node_name().to_owned(),
         disk_name: group.disk_name().to_owned(),
         vdisk_id: group.vdisk_id(),
         timestamp: p.start_timestamp(),
-        records_count: rt.block_on(p.records_count()),
+        records_count: bob.block_on(p.records_count()),
     });
     partition.map(Json).ok_or_else(|| {
         let err = format!(
@@ -317,21 +431,17 @@ fn change_partition_state(
     action: Action,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
-    let group = group.clone();
-    // TODO: run web server on same runtime as bob
-    debug!("HOT FIX: run web server on same runtime as bob");
-    let rt = Runtime::new().expect("create runtime");
     let res = format!(
         "partitions with timestamp {} on vdisk {} is successfully {:?}ed",
         timestamp, vdisk_id, action
     );
-    let task = async move {
+    let task = async {
         match action {
             Action::Attach => group.attach(timestamp).await,
             Action::Detach => group.detach(timestamp).await.map(|_| ()),
         }
     };
-    match rt.block_on(task) {
+    match bob.block_on(task) {
         Ok(_) => {
             info!("{}", res);
             Ok(StatusExt::new(Status::Ok, true, res))
@@ -343,11 +453,8 @@ fn change_partition_state(
 #[post("/vdisks/<vdisk_id>/remount")]
 fn remount_vdisks_group(bob: State<BobServer>, vdisk_id: u32) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
-    let group = group.clone();
-    debug!("HOT FIX: run web server on same runtime as bob");
-    let rt = Runtime::new().expect("create runtime");
     let task = group.remount();
-    match rt.block_on(task) {
+    match bob.block_on(task) {
         Ok(_) => {
             info!("vdisks group {} successfully restarted", vdisk_id);
             Ok(StatusExt::new(
@@ -367,40 +474,37 @@ fn delete_partition(
     timestamp: u64,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(&bob, vdisk_id)?;
-    let pearls = futures::executor::block_on(group.detach(timestamp));
-    if let Ok(holders) = pearls {
-        drop_directories(holders, timestamp, vdisk_id)
-    } else {
-        Err(StatusExt::new(
-            Status::BadRequest,
-            true,
-            format!(
+    let task = async {
+        let pearls = group.detach(timestamp).await;
+        if let Ok(holders) = pearls {
+            drop_directories(holders, timestamp, vdisk_id).await
+        } else {
+            let msg = format!(
                 "partitions with timestamp {} not found on vdisk {} or it is active",
                 timestamp, vdisk_id
-            ),
-        ))
-    }
+            );
+            Err(StatusExt::new(Status::BadRequest, true, msg))
+        }
+    };
+    bob.block_on(task)
 }
 
-fn drop_directories(
+async fn drop_directories(
     holders: Vec<Holder>,
     timestamp: u64,
     vdisk_id: u32,
 ) -> Result<StatusExt, StatusExt> {
     let mut result = String::new();
     for holder in holders {
-        if let Err(e) = holder.drop_directory() {
-            let msg = format!(
+        let msg = if let Err(e) = holder.drop_directory().await {
+            format!(
                 "partitions with timestamp {} delete failed on vdisk {}, error: {}",
                 timestamp, vdisk_id, e
-            );
-            result.push_str(&msg);
+            )
         } else {
-            result.push_str(&format!(
-                "successfully deleted partitions with timestamp {}",
-                timestamp
-            ));
-        }
+            format!("partitions deleted with timestamp {}", timestamp)
+        };
+        result.push_str(&msg);
         result.push('\n');
     }
     if result.is_empty() {
@@ -413,6 +517,17 @@ fn drop_directories(
 #[get("/alien")]
 fn alien(_bob: State<BobServer>) -> &'static str {
     "alien"
+}
+
+#[get("/alien/dir")]
+fn get_alien_directory(bob: State<BobServer>) -> Result<Json<Dir>, StatusExt> {
+    let backend = bob.grinder().backend().inner();
+    let (_, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    let path = PathBuf::from(adc.disk().path());
+    let dir = bob.block_on(create_directory(&path))?;
+    Ok(Json(dir))
 }
 
 #[get("/vdisks/<vdisk_id>/replicas/local/dirs")]
@@ -435,51 +550,49 @@ fn get_local_replica_directories(
         .filter(|r| r.node == local_node_name)
     {
         let path = PathBuf::from(replica.path);
-        let dir = create_directory(&path).ok_or_else(|| {
-            StatusExt::new(
-                Status::InternalServerError,
-                false,
-                format!("Failed to get dirs for replica {:?}", path),
-            )
-        })?;
+        let dir = bob.block_on(create_directory(&path))?;
         result.push(dir);
     }
     Ok(Json(result))
 }
 
-fn create_directory(root_path: &Path) -> Option<Dir> {
-    let name = root_path.file_name()?.to_str()?;
-    let root_path_str = root_path.to_str()?;
-    let result = std::fs::read_dir(root_path);
-    match result {
-        Ok(read_dir) => Some(read_directory_children(
-            read_dir,
-            name.to_string(),
-            root_path_str.to_string(),
-        )),
-        Err(e) => {
-            error!("read path {:?} failed: {}", root_path, e);
-            None
+fn create_directory(root_path: &Path) -> BoxFuture<Result<Dir, StatusExt>> {
+    async move {
+        let name = root_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| internal(format!("failed to get filename for {:?}", root_path)))?;
+        let root_path_str = root_path
+            .to_str()
+            .ok_or_else(|| internal(format!("failed to get path for {:?}", root_path)))?;
+        let result = read_dir(root_path).await;
+        match result {
+            Ok(read_dir) => Ok(read_directory_children(read_dir, name, root_path_str).await),
+            Err(e) => Err(internal(format!("read path {:?} failed: {}", root_path, e))),
         }
+    }
+    .boxed()
+}
+
+async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) -> Dir {
+    let mut children = Vec::new();
+    while let Some(child) = read_dir.next_entry().await.transpose() {
+        if let Ok(entry) = child {
+            let dir = create_directory(&entry.path()).await;
+            if let Ok(dir) = dir {
+                children.push(dir);
+            }
+        }
+    }
+    Dir {
+        name: name.to_string(),
+        path: path.to_string(),
+        children,
     }
 }
 
-fn read_directory_children(read_dir: ReadDir, name: String, path: String) -> Dir {
-    let children = read_dir
-        .filter_map(Result::ok)
-        .filter_map(|child| {
-            if child.path().is_dir() {
-                create_directory(&child.path())
-            } else {
-                None
-            }
-        })
-        .collect();
-    Dir {
-        name,
-        path,
-        children,
-    }
+fn internal(message: String) -> StatusExt {
+    StatusExt::new(Status::InternalServerError, false, message)
 }
 
 impl<'r> FromParam<'r> for Action {

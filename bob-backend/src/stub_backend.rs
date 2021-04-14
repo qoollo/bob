@@ -1,9 +1,12 @@
 use crate::prelude::*;
 
-use crate::core::{BackendStorage, Operation};
+use crate::core::{BackendStorage, MetricsProducer, Operation};
 
 #[derive(Clone, Debug)]
 pub struct StubBackend {}
+
+#[async_trait]
+impl MetricsProducer for StubBackend {}
 
 #[async_trait]
 impl BackendStorage for StubBackend {

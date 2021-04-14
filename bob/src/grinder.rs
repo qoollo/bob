@@ -18,16 +18,18 @@ pub struct Grinder {
 
 impl Grinder {
     /// Creates new instance of the Grinder
-    pub fn new(mapper: Virtual, config: &NodeConfig) -> Grinder {
+    pub async fn new(mapper: Virtual, config: &NodeConfig) -> Grinder {
         let nodes = mapper.nodes().values().cloned().collect::<Vec<_>>();
         let link_manager = Arc::new(LinkManager::new(nodes.as_slice(), config.check_interval()));
         let mapper = Arc::new(mapper);
-        let backend = Arc::new(Backend::new(mapper.clone(), config));
-        let cleaner = Arc::new(Cleaner::new(
+        let backend = Arc::new(Backend::new(mapper.clone(), config).await);
+        let cleaner = Cleaner::new(
             config.cleanup_interval(),
             config.open_blobs_soft(),
             config.hard_open_blobs(),
-        ));
+        );
+        let cleaner = Arc::new(cleaner);
+
         let counter = Arc::new(BlobsCounter::new(config.count_interval()));
         Grinder {
             backend: backend.clone(),
@@ -115,7 +117,7 @@ impl Grinder {
             }
 
             timing!(CLIENT_GET_TIMER, time.elapsed().as_nanos() as u64);
-            trace!(">>>- - - - - GRINDER PUT FINISHED - - - - -");
+            trace!(">>>- - - - - GRINDER GET FINISHED - - - - -");
             result
         } else {
             trace!(
@@ -133,8 +135,8 @@ impl Grinder {
             if result.is_err() {
                 counter!(GRINDER_GET_ERROR_COUNT_COUNTER, 1);
             }
-            counter!(GRINDER_GET_TIMER, time.elapsed().as_nanos() as u64);
-            trace!(">>>- - - - - GRINDER PUT FINISHED - - - - -");
+            timing!(GRINDER_GET_TIMER, time.elapsed().as_nanos() as u64);
+            trace!(">>>- - - - - GRINDER GET FINISHED - - - - -");
             result
         }
     }
