@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 use crate::{
     mem_backend::MemBackend,
-    pearl::{Group, Holder, Pearl},
+    pearl::{DiskController, Pearl},
     stub_backend::StubBackend,
 };
 
@@ -54,11 +54,12 @@ impl Operation {
         }
     }
 
-    pub fn clone_alien(&self) -> Self {
+    // local operation doesn't contain remote node, so node name is passed through argument
+    pub fn clone_local_alien(&self, local_node_name: &str) -> Self {
         Self {
             vdisk_id: self.vdisk_id,
             disk_path: None,
-            remote_node_name: Some(self.remote_node_name.as_ref().unwrap().to_owned()),
+            remote_node_name: Some(local_node_name.to_owned()),
         }
     }
 
@@ -79,7 +80,7 @@ impl Operation {
 }
 
 #[async_trait]
-pub trait BackendStorage: Debug + Send + Sync + 'static {
+pub trait BackendStorage: Debug  + MetricsProducer + Send + Sync + 'static {
     async fn run_backend(&self) -> AnyResult<()>;
     async fn run(&self) -> AnyResult<()> {
         gauge!(BACKEND_STATE, BACKEND_STARTING);
@@ -97,18 +98,30 @@ pub trait BackendStorage: Debug + Send + Sync + 'static {
     async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 
+    async fn shutdown(&self);
+
+    // Should return pair: slice of normal disks and disk with aliens (because some method require
+    // to work with only normal disk_controllers, we should return alien disk_controller explicitly
+    // but not as part of other disk_controllers)
+    fn disk_controllers(&self) -> Option<(&[Arc<DiskController>], Arc<DiskController>)> {
+        None
+    }
+
+    async fn close_unneeded_active_blobs(&self, _soft: usize, _hard: usize) {}
+}
+
+#[async_trait]
+pub trait MetricsProducer: Send + Sync {
     async fn blobs_count(&self) -> (usize, usize) {
         (0, 0)
     }
 
-    async fn index_memory(&self) -> usize {
+    async fn active_disks_count(&self) -> usize {
         0
     }
 
-    async fn shutdown(&self);
-
-    fn vdisks_groups(&self) -> Option<&[Group]> {
-        None
+    async fn index_memory(&self) -> usize {
+        0
     }
 }
 
@@ -130,6 +143,10 @@ impl Backend {
 
     pub async fn blobs_count(&self) -> (usize, usize) {
         self.inner.blobs_count().await
+    }
+
+    pub async fn active_disks_count(&self) -> usize {
+        self.inner.active_disks_count().await
     }
 
     pub async fn index_memory(&self) -> usize {
@@ -221,8 +238,7 @@ impl Backend {
                         local_err
                     );
                     // write to alien/<local name>
-                    // FIXME: panics when disk is unavailable
-                    let mut op = operation.clone_alien();
+                    let mut op = operation.clone_local_alien(self.mapper().local_node_name());
                     op.set_remote_folder(self.mapper.local_node_name().to_owned());
                     self.inner
                         .put_alien(op, key, data)
@@ -333,62 +349,6 @@ impl Backend {
     }
 
     pub async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
-        let groups = if let Some(groups) = self.inner.vdisks_groups() {
-            groups
-        } else {
-            return;
-        };
-        for group in groups {
-            let holders_lock = group.holders();
-            let mut holders_write = holders_lock.write().await;
-            let holders: &mut Vec<_> = holders_write.as_mut();
-
-            let mut total_open_blobs = 0;
-            let mut close = vec![];
-            for h in holders.iter_mut() {
-                if !h.active_blob_is_empty().await {
-                    total_open_blobs += 1;
-                    if h.is_outdated() && h.no_writes_recently().await {
-                        close.push(h);
-                    }
-                }
-            }
-            let soft = soft.saturating_sub(total_open_blobs - close.len());
-            let hard = hard.saturating_sub(total_open_blobs - close.len());
-
-            debug!(
-                "closing outdated blobs according to limits ({}, {})",
-                soft, hard
-            );
-
-            let mut is_small = vec![];
-            for h in &close {
-                is_small.push(h.active_blob_is_small().await);
-            }
-
-            let mut close: Vec<_> = close.into_iter().enumerate().collect();
-            Self::sort_by_priority(&mut close, &is_small);
-
-            while close.len() > hard {
-                let (_, holder) = close.pop().unwrap();
-                holder.close_active_blob().await;
-                info!("active blob of {} closed by hard cap", holder.get_id());
-            }
-
-            while close.len() > soft && close.last().map_or(false, |(ind, _)| !is_small[*ind]) {
-                let (_, holder) = close.pop().unwrap();
-                holder.close_active_blob().await;
-                info!("active blob of {} closed by soft cap", holder.get_id());
-            }
-        }
-    }
-
-    fn sort_by_priority(close: &mut [(usize, &mut Holder)], is_small: &[bool]) {
-        use std::cmp::Ordering;
-        close.sort_by(|(i, x), (j, y)| match (is_small[*i], is_small[*j]) {
-            (true, false) => Ordering::Greater,
-            (false, true) => Ordering::Less,
-            _ => x.end_timestamp().cmp(&y.end_timestamp()),
-        });
+        self.inner.close_unneeded_active_blobs(soft, hard).await
     }
 }

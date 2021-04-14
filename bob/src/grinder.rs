@@ -23,7 +23,6 @@ impl Grinder {
         let link_manager = Arc::new(LinkManager::new(nodes.as_slice(), config.check_interval()));
         let mapper = Arc::new(mapper);
         let backend = Arc::new(Backend::new(mapper.clone(), config).await);
-
         let cleaner = Cleaner::new(
             config.cleanup_interval(),
             config.open_blobs_soft(),
@@ -118,7 +117,7 @@ impl Grinder {
             }
 
             timing!(CLIENT_GET_TIMER, time.elapsed().as_nanos() as u64);
-            trace!(">>>- - - - - GRINDER PUT FINISHED - - - - -");
+            trace!(">>>- - - - - GRINDER GET FINISHED - - - - -");
             result
         } else {
             trace!(
@@ -136,8 +135,8 @@ impl Grinder {
             if result.is_err() {
                 counter!(GRINDER_GET_ERROR_COUNT_COUNTER, 1);
             }
-            counter!(GRINDER_GET_TIMER, time.elapsed().as_nanos() as u64);
-            trace!(">>>- - - - - GRINDER PUT FINISHED - - - - -");
+            timing!(GRINDER_GET_TIMER, time.elapsed().as_nanos() as u64);
+            trace!(">>>- - - - - GRINDER GET FINISHED - - - - -");
             result
         }
     }

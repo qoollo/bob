@@ -47,6 +47,34 @@ loggers:
       - stdout
     # [bool] if true, logger won't delete existing configs on start
     additive: false
+  bob_backend:
+    # level applies only to bob-backend
+    level: info
+    appenders:
+      - requests
+      - stdout
+    additive: false
+  bob_common:
+    # level applies only to bob-common
+    level: info
+    appenders:
+      - requests
+      - stdout
+    additive: false
+  bob_tools:
+    # level applies only to bob-tools
+    level: info
+    appenders:
+      - requests
+      - stdout
+    additive: false
+  bob_grpc:
+    # level applies only to bob-grpc
+    level: info
+    appenders:
+      - requests
+      - stdout
+    additive: false
   # pearl - low level IO lib
   pearl:
     # level applies only to pearl
@@ -55,15 +83,5 @@ loggers:
       - requests
       - stdout
     additive: false
-  # dipstick - graphite lib
-  dipstick:
-    # level applies only to dipstick
-    level: off
-    appenders:
-      - requests
-      - stdout
-  # inner module of the dipstick (dev)
-  dipstick::core::scheduler:
-    level: off
   h2:
     level: off

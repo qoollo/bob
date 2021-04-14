@@ -6,7 +6,6 @@ mod simple;
 mod tests;
 
 use crate::prelude::*;
-
 use quorum::Quorum;
 use simple::Quorum as SimpleQuorum;
 

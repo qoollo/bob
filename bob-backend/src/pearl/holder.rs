@@ -163,16 +163,27 @@ impl Holder {
     async fn write_disk(storage: PearlStorage, key: Key, data: BobData) -> BackendResult<()> {
         counter!(PEARL_PUT_COUNTER, 1);
         let timer = Instant::now();
-        storage
+        let res = storage
             .write(key, Data::from(data).to_vec())
             .await
-            .unwrap_or_else(|e| {
+            .map_err(|e| {
                 counter!(PEARL_PUT_ERROR_COUNTER, 1);
                 error!("error on write: {:?}", e);
+                // on pearl level before write in storage it performs `contain` check which
+                // may fail with OS error (that also means that disk is possibly disconnected)
+                e.downcast_ref::<PearlError>()
+                    .map_or(Error::possible_disk_disconnection(), |err| {
+                        match err.kind() {
+                            PearlErrorKind::WorkDirUnavailable { .. } => {
+                                Error::possible_disk_disconnection()
+                            }
+                            _ => Error::internal(),
+                        }
+                    })
                 //TODO check duplicate
             });
         counter!(PEARL_PUT_TIMER, timer.elapsed().as_nanos() as u64);
-        Ok(())
+        res
     }
 
     #[allow(clippy::cast_possible_truncation)]
@@ -191,7 +202,7 @@ impl Holder {
                     counter!(PEARL_GET_ERROR_COUNTER, 1);
                     trace!("error on read: {:?}", e);
                     match e.downcast_ref::<PearlError>().unwrap().kind() {
-                        ErrorKind::RecordNotFound => Error::key_not_found(key),
+                        PearlErrorKind::RecordNotFound => Error::key_not_found(key),
                         _ => Error::storage(e.to_string()),
                     }
                 });
@@ -242,7 +253,7 @@ impl Holder {
         }
     }
 
-    pub async fn prepare_storage(&self) -> AnyResult<()> {
+    pub async fn prepare_storage(&self) -> Result<(), Error> {
         debug!("backend pearl holder prepare storage");
         self.config
             .try_multiple_times_async(
@@ -251,6 +262,20 @@ impl Holder {
                 self.config.fail_retry_timeout(),
             )
             .await
+            .map_err(|e| {
+                let storage_error = Error::storage("Failed to init holder");
+                e.downcast_ref::<IOError>().map_or(
+                    e.downcast_ref::<Error>()
+                        .cloned()
+                        .unwrap_or(storage_error.clone()),
+                    |os_error| match os_error.kind() {
+                        IOErrorKind::Other | IOErrorKind::PermissionDenied => {
+                            Error::possible_disk_disconnection()
+                        }
+                        _ => storage_error,
+                    },
+                )
+            })
     }
 
     async fn init_holder(&self) -> AnyResult<()> {

@@ -76,6 +76,13 @@ pub(crate) struct DistrFunc {
     func: String,
 }
 
+#[derive(Debug, Serialize)]
+pub(crate) struct DiskState {
+    name: String,
+    path: String,
+    is_active: bool,
+}
+
 pub(crate) fn spawn(bob: BobServer, port: u16) {
     let routes = routes![
         status,
@@ -86,9 +93,13 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         change_partition_state,
         delete_partition,
         alien,
+        get_alien_directory,
         remount_vdisks_group,
+        start_all_disk_controllers,
+        stop_all_disk_controllers,
         get_local_replica_directories,
         nodes,
+        disks_list,
         finalize_outdated_blobs,
         vdisk_records_count,
         distribution_function,
@@ -145,19 +156,30 @@ fn not_acceptable_backend() -> Status {
     status
 }
 
-fn find_group<'a>(bob: &'a State<BobServer>, vdisk_id: u32) -> Result<&'a PearlGroup, StatusExt> {
+// !notice: only finds normal group
+fn find_group(bob: &State<BobServer>, vdisk_id: u32) -> Result<PearlGroup, StatusExt> {
     let backend = bob.grinder().backend().inner();
     debug!("get backend: OK");
-    let groups = backend.vdisks_groups().ok_or_else(not_acceptable_backend)?;
+    let (dcs, _) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
     debug!("get vdisks groups: OK");
-    groups
+    let needed_dc = dcs
         .iter()
-        .find(|group| group.vdisk_id() == vdisk_id)
+        .find(|dc| dc.vdisks().iter().find(|&&vd| vd == vdisk_id).is_some())
         .ok_or_else(|| {
-            let err = format!("vdisk with id: {} not found", vdisk_id);
+            let err = format!("Disk Controller with vdisk #{} not found", vdisk_id);
+            warn!("{}", err);
+            StatusExt::new(Status::NotFound, false, err)
+        })?;
+    let task = async move {
+        needed_dc.vdisk_group(vdisk_id).await.map_err(|_| {
+            let err = format!("Disk Controller with vdisk #{} not found", vdisk_id);
             warn!("{}", err);
             StatusExt::new(Status::NotFound, false, err)
         })
+    };
+    bob.block_on(task)
 }
 
 #[get("/status")]
@@ -204,12 +226,117 @@ fn nodes(bob: State<BobServer>) -> Json<Vec<Node>> {
     Json(nodes)
 }
 
+#[get("/disks/list")]
+fn disks_list(bob: State<BobServer>) -> Result<Json<Vec<DiskState>>, StatusExt> {
+    let backend = bob.grinder().backend().inner();
+    let (dcs, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+
+    let task = async move {
+        let mut disks = Vec::new();
+        for dc in dcs.iter().chain(std::iter::once(&adc)) {
+            let disk_path = dc.disk();
+            disks.push(DiskState {
+                name: disk_path.name().to_owned(),
+                path: disk_path.path().to_owned(),
+                is_active: dc.is_ready().await,
+            });
+        }
+        disks
+    };
+
+    let disks = bob.block_on(task);
+
+    Ok(Json(disks))
+}
+
 #[get("/metadata/distrfunc")]
 fn distribution_function(bob: State<BobServer>) -> Json<DistrFunc> {
     let mapper = bob.grinder().backend().mapper();
     Json(DistrFunc {
         func: format!("{:?}", mapper.distribution_func()),
     })
+}
+
+#[post("/disks/<disk_name>/stop")]
+fn stop_all_disk_controllers(
+    bob: State<BobServer>,
+    disk_name: String,
+) -> Result<StatusExt, StatusExt> {
+    use futures::stream::{FuturesUnordered, StreamExt};
+    let backend = bob.grinder().backend().inner();
+    let (dcs, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    let tasks = async move {
+        dcs.iter()
+            .chain(std::iter::once(&adc))
+            .filter(|dc| dc.disk().name() == disk_name)
+            .map(|dc| dc.stop())
+            .collect::<FuturesUnordered<_>>()
+            .collect::<Vec<()>>()
+            .await;
+    };
+    bob.block_on(tasks);
+    Ok(StatusExt::new(
+        Status::Ok,
+        true,
+        "Disk controllers are stopped".to_owned(),
+    ))
+}
+
+#[post("/disks/<disk_name>/start")]
+fn start_all_disk_controllers(
+    bob: State<BobServer>,
+    disk_name: String,
+) -> Result<StatusExt, StatusExt> {
+    use futures::stream::{FuturesUnordered, StreamExt};
+    let backend = bob.grinder().backend().inner();
+    let (dcs, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    let target_dcs = dcs
+        .iter()
+        .chain(std::iter::once(&adc))
+        .filter(|dc| dc.disk().name() == disk_name)
+        .map(|dc| dc.run())
+        .collect::<FuturesUnordered<_>>();
+    if target_dcs.len() == 0 {
+        let err = format!("Disk Controller with name '{}' not found", disk_name);
+        warn!("{}", err);
+        return Err(StatusExt::new(Status::NotFound, false, err));
+    }
+    let task = async move {
+        let err_string = target_dcs
+            .fold(String::new(), |mut err_string, res| {
+                if let Err(e) = res {
+                    err_string.push_str(&(e.to_string() + "\n"));
+                }
+                async move { err_string }
+            })
+            .await;
+        if err_string.len() == 0 {
+            Ok(())
+        } else {
+            Err(err_string)
+        }
+    };
+    match bob.block_on(task) {
+        Ok(()) => {
+            let msg = format!(
+                "all disk controllers for disk '{}' successfully started",
+                disk_name
+            );
+            info!("{}", msg);
+            Ok(StatusExt::new(Status::Ok, true, msg))
+        }
+        Err(e) => Err(StatusExt::new(
+            Status::InternalServerError,
+            false,
+            e.to_string(),
+        )),
+    }
 }
 
 #[get("/vdisks")]
@@ -398,6 +525,17 @@ fn alien(_bob: State<BobServer>) -> &'static str {
     "alien"
 }
 
+#[get("/alien/dir")]
+fn get_alien_directory(bob: State<BobServer>) -> Result<Json<Dir>, StatusExt> {
+    let backend = bob.grinder().backend().inner();
+    let (_, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    let path = PathBuf::from(adc.disk().path());
+    let dir = bob.block_on(create_directory(&path))?;
+    Ok(Json(dir))
+}
+
 #[get("/vdisks/<vdisk_id>/replicas/local/dirs")]
 fn get_local_replica_directories(
     bob: State<BobServer>,
@@ -418,52 +556,52 @@ fn get_local_replica_directories(
         .filter(|r| r.node == local_node_name)
     {
         let path = PathBuf::from(replica.path);
-        let dir = bob.block_on(create_directory(&path)).ok_or_else(|| {
-            StatusExt::new(
-                Status::InternalServerError,
-                false,
-                format!("Failed to get dirs for replica {:?}", path),
-            )
-        })?;
+        let dir = bob.block_on(create_directory(&path))?;
         result.push(dir);
     }
     Ok(Json(result))
 }
 
-fn create_directory(root_path: &Path) -> BoxFuture<Option<Dir>> {
+fn create_directory(root_path: &Path) -> BoxFuture<Result<Dir, StatusExt>> {
     async move {
-        let name = root_path.file_name()?.to_str()?;
-        let root_path_str = root_path.to_str()?;
+        let name = root_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or(internal(format!(
+                "failed to get filename for {:?}",
+                root_path
+            )))?;
+        let root_path_str = root_path
+            .to_str()
+            .ok_or(internal(format!("failed to get path for {:?}", root_path)))?;
         let result = read_dir(root_path).await;
         match result {
-            Ok(read_dir) => Some(
-                read_directory_children(read_dir, name.to_string(), root_path_str.to_string())
-                    .await,
-            ),
-            Err(e) => {
-                error!("read path {:?} failed: {}", root_path, e);
-                None
-            }
+            Ok(read_dir) => Ok(read_directory_children(read_dir, name, root_path_str).await),
+            Err(e) => Err(internal(format!("read path {:?} failed: {}", root_path, e))),
         }
     }
     .boxed()
 }
 
-async fn read_directory_children(mut read_dir: ReadDir, name: String, path: String) -> Dir {
+async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) -> Dir {
     let mut children = Vec::new();
     while let Some(child) = read_dir.next_entry().await.transpose() {
         if let Ok(entry) = child {
             let dir = create_directory(&entry.path()).await;
-            if let Some(dir) = dir {
+            if let Ok(dir) = dir {
                 children.push(dir);
             }
         }
     }
     Dir {
-        name,
-        path,
+        name: name.to_string(),
+        path: path.to_string(),
         children,
     }
+}
+
+fn internal(message: String) -> StatusExt {
+    StatusExt::new(Status::InternalServerError, false, message)
 }
 
 impl<'r> FromParam<'r> for Action {

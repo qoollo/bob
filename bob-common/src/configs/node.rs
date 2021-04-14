@@ -8,6 +8,7 @@ use futures::Future;
 use humantime::Duration as HumanDuration;
 use std::{
     cell::{Ref, RefCell},
+    env::VarError,
     fmt::Debug,
     net::SocketAddr,
     time::Duration,
@@ -15,6 +16,7 @@ use std::{
 use tokio::time::sleep;
 
 const PLACEHOLDER: &str = "~";
+const TMP_DIR_ENV_VARS: [&str; 3] = ["TMP", "TEMP", "TMPDIR"];
 
 pub const LOCAL_ADDRESS: &str = "{local_address}";
 pub const NODE_NAME: &str = "{node_name}";
@@ -177,9 +179,9 @@ impl MetricsConfig {
             |c| !(('a'..='z').contains(&c) || ('A'..='Z').contains(&c) || ("._".contains(c)));
         if prefix.starts_with('.')
             || prefix.ends_with('.')
-            || prefix.contains("..")
-            // check if there is '{', '}' or other invalid chars left
-            || prefix.find(invalid_char_predicate).is_some()
+                || prefix.contains("..")
+                // check if there is '{', '}' or other invalid chars left
+                || prefix.find(invalid_char_predicate).is_some()
         {
             let msg = "Graphite 'prefix' is invalid".to_string();
             error!("{}", msg);
@@ -232,6 +234,8 @@ pub struct Pearl {
     hash_chars_count: u32,
     #[serde(default = "Pearl::default_enable_aio")]
     enable_aio: bool,
+    #[serde(default = "Pearl::default_disks_events_logfile")]
+    disks_events_logfile: String,
 }
 
 impl Pearl {
@@ -308,6 +312,24 @@ impl Pearl {
 
     fn default_enable_aio() -> bool {
         true
+    }
+
+    pub fn disks_events_logfile(&self) -> &str {
+        &self.disks_events_logfile
+    }
+
+    fn default_disks_events_logfile() -> String {
+        use std::path::PathBuf;
+        let mut tmp_dir = PathBuf::from(
+            TMP_DIR_ENV_VARS
+                .iter()
+                .fold(Err(VarError::NotPresent), |acc, elem| {
+                    std::env::var(elem).or(acc)
+                })
+                .unwrap_or("/tmp".to_owned()),
+        );
+        tmp_dir.push("bob_events.csv");
+        tmp_dir.to_str().expect("Path is not UTF-8").to_owned()
     }
 
     pub fn hash_chars_count(&self) -> u32 {

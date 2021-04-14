@@ -1,6 +1,7 @@
+use crate::link_manager::LinkManager;
 use crate::prelude::*;
 
-use crate::link_manager::LinkManager;
+pub(crate) type Tasks = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>;
 
 pub(crate) async fn get_any(
     key: BobKey,
@@ -72,10 +73,7 @@ pub(crate) async fn put_at_least(
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
     options: PutOptions,
-) -> (
-    FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>,
-    Vec<NodeOutput<Error>>,
-) {
+) -> (Tasks, Vec<NodeOutput<Error>>) {
     let mut handles: FuturesUnordered<_> = target_nodes
         .cloned()
         .map(|node| call_node_put(key, data.clone(), node, options.clone()))
@@ -222,7 +220,8 @@ pub(crate) async fn put_sup_nodes(
         .await;
         debug!("{:?}", result);
         if let Err(e) = result {
-            ret.push(e);
+            let target_node = options.remote_nodes[0].to_owned();
+            ret.push(NodeOutput::new(target_node, e.into_inner()));
         }
     }
 

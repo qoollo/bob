@@ -29,6 +29,10 @@ impl Error {
         self.ctx == Kind::Internal
     }
 
+    pub fn is_possible_disk_disconnection(&self) -> bool {
+        self.ctx == Kind::PossibleDiskDisconnection
+    }
+
     pub fn internal() -> Self {
         Self::new(Kind::Internal)
     }
@@ -59,6 +63,10 @@ impl Error {
 
     pub fn dc_is_not_available() -> Self {
         Self::new(Kind::DCIsNotAvailable)
+    }
+
+    pub fn possible_disk_disconnection() -> Self {
+        Self::new(Kind::PossibleDiskDisconnection)
     }
 
     pub fn vdisk_is_not_ready() -> Self {
@@ -107,6 +115,7 @@ impl From<Error> for Status {
             Kind::Storage(msg) => Self::internal(format!("Storage {}", msg)),
             Kind::VDiskIsNotReady => Self::internal("VDiskIsNotReady"),
             Kind::DCIsNotAvailable => Status::internal("Disk Controller is not available"),
+            Kind::PossibleDiskDisconnection => Self::internal("Possibly disk was disconnected"),
             Kind::Failed(msg) => Self::internal(format!("Failed {}", msg)),
             Kind::Internal => Self::internal("Internal"),
             Kind::PearlChangeState(msg) => Self::internal(format!("PearlChangeState {}", msg)),
@@ -161,6 +170,7 @@ pub enum Kind {
     DuplicateKey,
     KeyNotFound(BobKey),
     DCIsNotAvailable,
+    PossibleDiskDisconnection,
     VDiskIsNotReady,
     Failed(String),
     Internal,

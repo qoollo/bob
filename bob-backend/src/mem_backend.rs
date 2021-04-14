@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use crate::core::{BackendStorage, Operation};
+use crate::core::{BackendStorage, MetricsProducer, Operation};
 
 #[derive(Clone, Debug, Default)]
 pub struct VDisk {
@@ -104,6 +104,9 @@ impl MemBackend {
         }
     }
 }
+
+#[async_trait]
+impl MetricsProducer for MemBackend {}
 
 #[async_trait]
 impl BackendStorage for MemBackend {
