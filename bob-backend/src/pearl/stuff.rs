@@ -9,10 +9,23 @@ impl Stuff {
         if path.exists() {
             trace!("directory: {:?} exists", path);
         } else {
-            create_dir_all(&path).await.map_err(|e| {
-                let msg = format!("cannot create directory: {}, error: {}", path.display(), e);
-                Error::storage(msg)
-            })?;
+            let dir = path
+                .to_str()
+                .ok_or_else(|| Error::storage("invalid some path, check vdisk or disk names"))?;
+
+            create_dir_all(&path)
+                .await
+                .map(|_| info!("create directory: {}", dir))
+                .map_err(|e| match e.kind() {
+                    IOErrorKind::PermissionDenied | IOErrorKind::Other => {
+                        Error::possible_disk_disconnection()
+                    }
+                    _ => Error::storage(format!(
+                        "cannot create directory: {}, error: {}",
+                        dir,
+                        e.to_string()
+                    )),
+                })?;
             info!("dir created: {}", path.display());
         }
         Ok(())

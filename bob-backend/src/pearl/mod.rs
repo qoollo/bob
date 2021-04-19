@@ -9,4 +9,4 @@ mod stuff;
 #[cfg(test)]
 mod tests;
 
-pub use self::{core::Pearl, group::Group, holder::Holder};
+pub use self::{core::Pearl, disk_controller::DiskController, group::Group, holder::Holder};

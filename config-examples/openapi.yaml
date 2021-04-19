@@ -169,6 +169,49 @@ paths:
                 type: string
         default:
           $ref: '#/components/responses/DefaultError'
+  /disks/list:
+    get:
+      summary: Returns the list of disks with their states
+      operationID: getDisks
+      responses:
+        '200':
+          description: "A JSON array with disks and their states"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DiskState'
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /disks/<disk_name>/stop:
+    post:
+      summary: Stops all disks controller for disk
+      parameters:
+        - $ref: '#/components/parameters/DiskNameParam'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /disks/<disk_name>/start:
+    post:
+      summary: Trying to start all disk controllers for disk
+      parameters:
+        - $ref: '#/components/parameters/DiskNameParam'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/DefaultError'
   /vdisks/<vdisk_id>/remount:
     post:
       summary: Remount partitions on vdisk
@@ -207,17 +250,31 @@ paths:
                   type: string
         default:
           $ref: '#/components/responses/DefaultError'
+  /alien/dir:
+    get:
+      summary: Return directory of alien
+      operationId: getAlienDir
+      responses:
+        '200': 
+          description: "Directory"
+          content:
+            application/json:
+              schema:
+                ref: '#/components/schemas/Dir'
+        default:
+          $ref: '#/components/responses/DefaultError'
   /vdisks/<vdisk_id>/replicas/local/dirs:
     get:
       summary: Returns directories of local replicas of vdisk
       operationId: getReplicasLocalDirs
       responses:
         '200':
-          description: "A JSON array with alien Node names info"
+          description: "A JSON array with dirs"
           content:
             application/json:
-              schema:
-                ref: '#/components/schemas/Dir
+              type: array
+              items:
+                ref: '#/components/schemas/Dir'
         default:
           $ref: '#/components/responses/DefaultError'
 
@@ -230,6 +287,12 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
   parameters:
+    DiskNameParam:
+      name: DiskName
+      in: path
+      required: true
+      schema:
+        type: string
     VDiskIdParam:
       name: VDiskId
       in: path
@@ -250,6 +313,18 @@ components:
       required:
         - name
         - address
+    DiskState:
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+        is_active:
+          type: boolean
+      required:
+        - name
+        - path
+        - is_active
     VDisk:
       properties:
         id:

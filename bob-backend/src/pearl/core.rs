@@ -1,9 +1,13 @@
+use futures::future::ready;
 use std::iter::once;
 
 use crate::prelude::*;
 
-use super::{data::Key, disk_controller::DiskController, settings::Settings};
-use crate::core::{BackendStorage, Operation};
+use super::{
+    data::Key, disk_controller::logger::DisksEventsLogger, disk_controller::DiskController,
+    settings::Settings,
+};
+use crate::core::{BackendStorage, MetricsProducer, Operation};
 
 pub type BackendResult<T> = std::result::Result<T, Error>;
 pub type PearlStorage = Storage<Key>;
@@ -21,20 +25,23 @@ impl Pearl {
     pub async fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
+        let logfile = config.pearl().disks_events_logfile();
+        let logger = DisksEventsLogger::new(logfile)
+            .await
+            .expect("create logger");
 
         let run_sem = Arc::new(Semaphore::new(config.init_par_degree()));
         let data = settings
             .clone()
-            .read_group_from_disk(config, run_sem.clone())
+            .read_group_from_disk(config, run_sem.clone(), logger.clone())
             .await;
         let disk_controllers: Arc<[_]> = Arc::from(data.as_slice());
         trace!("count vdisk groups: {}", disk_controllers.len());
 
         let alien_disk_controller = settings
             .clone()
-            .read_alien_directory(config, run_sem)
-            .await
-            .expect("vec of pearl groups");
+            .read_alien_directory(config, run_sem, logger)
+            .await;
 
         Self {
             settings,
@@ -43,6 +50,41 @@ impl Pearl {
             node_name: config.name().to_string(),
             init_par_degree: config.init_par_degree(),
         }
+    }
+}
+
+#[async_trait]
+impl MetricsProducer for Pearl {
+    async fn blobs_count(&self) -> (usize, usize) {
+        let futs: FuturesUnordered<_> = self
+            .disk_controllers
+            .iter()
+            .cloned()
+            .map(|dc| async move { dc.blobs_count().await })
+            .collect();
+        let cnt = futs.fold(0, |cnt, dc_cnt| ready(cnt + dc_cnt)).await;
+        let alien_cnt = self.alien_disk_controller.blobs_count().await;
+        (cnt, alien_cnt)
+    }
+
+    async fn index_memory(&self) -> usize {
+        let futs: FuturesUnordered<_> = self
+            .disk_controllers
+            .iter()
+            .chain(once(&self.alien_disk_controller))
+            .cloned()
+            .map(|dc| async move { dc.index_memory().await })
+            .collect();
+        let cnt = futs.fold(0, |cnt, dc_cnt| ready(cnt + dc_cnt)).await;
+        cnt
+    }
+
+    async fn active_disks_count(&self) -> usize {
+        let mut cnt = 0;
+        for dc in self.disk_controllers.iter() {
+            cnt += dc.is_ready().await as usize;
+        }
+        cnt
     }
 }
 
@@ -57,12 +99,12 @@ impl BackendStorage for Pearl {
             futs.push(async move { dc.run().await })
         }
         futs.fold(Ok(()), |s, n| async move { s.and(n) }).await?;
-        let dur = std::time::Instant::now() - start;
+        let dur = Instant::now() - start;
         debug!("pearl backend init took {:?}", dur);
         Ok(())
     }
 
-    async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put(&self, op: Operation, key: BobKey, data: BobData) -> BackendResult<()> {
         debug!("PUT[{}] to pearl backend. operation: {:?}", key, op);
         let dc_option = self
             .disk_controllers
@@ -82,7 +124,7 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> BackendResult<()> {
         debug!("PUT[alien][{}] to pearl backend, operation: {:?}", key, op);
         self.alien_disk_controller.put_alien(op, key, data).await
     }
@@ -101,7 +143,7 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
+    async fn get_alien(&self, op: Operation, key: BobKey) -> BackendResult<BobData> {
         debug!("Get[alien][{}] from pearl backend", key);
         if self.alien_disk_controller.can_process_operation(&op) {
             self.alien_disk_controller.get_alien(op, key).await
@@ -110,7 +152,7 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn exist(&self, operation: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
+    async fn exist(&self, operation: Operation, keys: &[BobKey]) -> BackendResult<Vec<bool>> {
         let dc_option = self
             .disk_controllers
             .iter()
@@ -122,7 +164,7 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
+    async fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> BackendResult<Vec<bool>> {
         if self.alien_disk_controller.can_process_operation(&operation) {
             self.alien_disk_controller.exist(operation, &keys).await
         } else {
@@ -132,32 +174,25 @@ impl BackendStorage for Pearl {
 
     async fn shutdown(&self) {
         use futures::stream::FuturesUnordered;
+        use std::iter::once;
         info!("begin shutdown");
-        let futures = FuturesUnordered::new();
-        for dc in self.disk_controllers.iter() {
-            futures.push(async move { dc.shutdown().await })
-        }
-        let _ = futures.collect::<()>().await;
-        // TODO: process alien disk with other ones
-        self.alien_disk_controller.shutdown().await;
+        let futures = self
+            .disk_controllers
+            .iter()
+            .chain(once(&self.alien_disk_controller))
+            .map(|dc| async move { dc.shutdown().await })
+            .collect::<FuturesUnordered<_>>();
+        futures.collect::<()>().await;
         info!("shutting down done");
     }
 
-    async fn blobs_count(&self) -> (usize, usize) {
-        let mut cnt = 0;
-        for dc in self.disk_controllers.iter() {
-            cnt += dc.blobs_count().await
-        }
-        let alien_cnt = self.alien_disk_controller.blobs_count().await;
-        (cnt, alien_cnt)
+    fn disk_controllers(&self) -> Option<(&[Arc<DiskController>], Arc<DiskController>)> {
+        Some((&self.disk_controllers, self.alien_disk_controller.clone()))
     }
 
-    async fn index_memory(&self) -> usize {
-        let mut cnt = 0;
+    async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
         for dc in self.disk_controllers.iter() {
-            cnt += dc.index_memory().await
+            dc.close_unneeded_active_blobs(soft, hard).await;
         }
-        cnt += self.alien_disk_controller.index_memory().await;
-        cnt
     }
 }

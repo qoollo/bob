@@ -1,6 +1,6 @@
 [package]
 name = "bob-backend"
-version = "1.6.0"
+version = "1.6.1"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
@@ -34,11 +34,11 @@ metrics = { version = "0.12.1", features = ["std"] }
 #metrics = "0.12.1"
 
 [dependencies.tokio]
-version = "1.3"
+version = "1.4"
 features = ["full"]
 
 [dependencies.pearl]
-version = "0.5.8"
+version = "=0.5.14"
 
 [build-dependencies]
 tonic-build = "0.4.0"

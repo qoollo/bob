@@ -99,7 +99,7 @@ pub(crate) fn get_object(
     headers: GetObjectHeaders,
 ) -> Result<GetObjectOutput, StatusS3> {
     let opts = BobOptions::new_get(None);
-    let data = super::runtime()
+    let data = bob
         .block_on(async { bob.grinder().get(key, &opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
     let content_type = match headers.content_type {
@@ -136,8 +136,7 @@ pub(crate) fn put_object(
     );
 
     let opts = BobOptions::new_put(None);
-    super::runtime()
-        .block_on(async { bob.grinder().put(key, data, opts).await })
+    bob.block_on(async { bob.grinder().put(key, data, opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
 
     Ok(StatusS3::from(StatusExt::from(Status::Created)))
@@ -182,7 +181,7 @@ pub(crate) fn copy_object(
     headers: CopyObjectHeaders,
 ) -> Result<StatusS3, StatusS3> {
     let opts = BobOptions::new_get(None);
-    let data = super::runtime()
+    let data = bob
         .block_on(async { bob.grinder().get(key, &opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
     let last_modified = data.meta().timestamp();
@@ -202,8 +201,7 @@ pub(crate) fn copy_object(
     );
 
     let opts = BobOptions::new_put(None);
-    super::runtime()
-        .block_on(async { bob.grinder().put(key, data, opts).await })
+    bob.block_on(async { bob.grinder().put(key, data, opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
 
     Ok(StatusS3::from(StatusExt::from(Status::Ok)))
