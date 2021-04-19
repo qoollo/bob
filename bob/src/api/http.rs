@@ -2,6 +2,7 @@ use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk},
+    error::Error as BobError,
     node::Disk as NodeDisk,
 };
 use futures::{future::BoxFuture, FutureExt};
@@ -13,7 +14,7 @@ use rocket::{
 };
 use rocket_contrib::json::Json;
 use std::{
-    io::{Cursor, ErrorKind, Read},
+    io::{Cursor, Error as IoError, ErrorKind, Read},
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -670,8 +671,8 @@ impl From<Status> for StatusExt {
     }
 }
 
-impl From<std::io::Error> for StatusExt {
-    fn from(err: std::io::Error) -> Self {
+impl From<IoError> for StatusExt {
+    fn from(err: IoError) -> Self {
         Self {
             status: match err.kind() {
                 ErrorKind::NotFound => Status::NotFound,
@@ -683,8 +684,8 @@ impl From<std::io::Error> for StatusExt {
     }
 }
 
-impl From<bob_common::error::Error> for StatusExt {
-    fn from(err: bob_common::error::Error) -> Self {
+impl From<BobError> for StatusExt {
+    fn from(err: BobError) -> Self {
         use bob_common::error::Kind;
         let status = match err.kind() {
             Kind::DuplicateKey => Status::Conflict,
