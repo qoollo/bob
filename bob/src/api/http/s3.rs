@@ -102,10 +102,9 @@ pub(crate) fn get_object(
     let data = bob
         .block_on(async { bob.grinder().get(key, &opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
-    let content_type = match headers.content_type {
-        Some(t) => t,
-        None => infer_data_type(&data),
-    };
+    let content_type = headers
+        .content_type
+        .unwrap_or_else(|| infer_data_type(&data));
     let last_modified = data.meta().timestamp();
     match headers.if_modified_since {
         Some(time) if time > last_modified => return Err(StatusS3::Status(Status::NotModified)),
