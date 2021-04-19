@@ -105,11 +105,11 @@ fn simple_expand(
     old_center.validate()?;
     check_expand_configs(&old_center, &center, use_racks)?;
 
-    let new_disks: Vec<_> = get_new_disks(config.nodes(), hardware_config.nodes()).collect();
+    let new_disks = get_new_disks(config.nodes(), hardware_config.nodes());
     let new_racks = if !use_racks {
         vec![]
     } else {
-        get_new_racks(config.racks(), hardware_config.racks()).collect()
+        get_new_racks(config.racks(), hardware_config.racks())
     };
     center.mark_new(&new_disks, &new_racks);
 

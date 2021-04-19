@@ -33,7 +33,6 @@ pub use bob_common::{
         Cluster as ClusterConfig, Node as ClusterNodeConfig, Rack as ClusterRackConfig,
         Replica as ReplicaConfig, VDisk as VDiskConfig,
     },
-    data::DiskPath,
     mapper::Virtual as VirtualMapper,
     metrics::init_counters,
 };
