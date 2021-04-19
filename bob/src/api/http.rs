@@ -604,26 +604,21 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
 #[get("/data/<key>")]
 fn get_data(bob: State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>>, StatusExt> {
     let opts = BobOptions::new_get(None);
-    let result = bob
-        .block_on(async { bob.grinder().get(key, &opts).await })
-        .map_err(|err| -> StatusExt { err.into() })?;
+    let result = bob.block_on(async { bob.grinder().get(key, &opts).await })?;
     Ok(Content(infer_data_type(&result), result.inner().to_owned()))
 }
 
 #[post("/data/<key>", data = "<data>")]
 fn put_data(bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt, StatusExt> {
     let mut data_buf = vec![];
-    data.open()
-        .read_to_end(&mut data_buf)
-        .map_err(|err| -> StatusExt { err.into() })?;
+    data.open().read_to_end(&mut data_buf)?;
     let data = BobData::new(
         data_buf,
         BobMeta::new(chrono::Local::now().timestamp() as u64),
     );
 
     let opts = BobOptions::new_put(None);
-    bob.block_on(async { bob.grinder().put(key, data, opts).await })
-        .map_err(|err| -> StatusExt { err.into() })?;
+    bob.block_on(async { bob.grinder().put(key, data, opts).await })?;
 
     Ok(Status::Created.into())
 }
