@@ -1,7 +1,12 @@
 use crate::prelude::*;
 
-use super::{core::BackendResult, disk_controller::DiskController, group::Group, stuff::Stuff};
+use super::{
+    core::BackendResult, disk_controller::logger::DisksEventsLogger,
+    disk_controller::DiskController, group::Group, stuff::Stuff,
+};
 use crate::core::Operation;
+
+const DEFAULT_ALIEN_DISK_NAME: &str = "alien_disk";
 
 #[derive(Debug)]
 pub struct Settings {
@@ -42,12 +47,21 @@ impl Settings {
         self: Arc<Self>,
         config: &NodeConfig,
         run_sem: Arc<Semaphore>,
+        logger: DisksEventsLogger,
     ) -> Vec<Arc<DiskController>> {
         let local_disks = self.mapper.local_disks().iter().cloned();
         local_disks
             .map(|disk| {
                 let vdisks = self.mapper.get_vdisks_by_disk(disk.name());
-                DiskController::new(disk, vdisks, config, run_sem.clone(), self.clone(), false)
+                DiskController::new(
+                    disk,
+                    vdisks,
+                    config,
+                    run_sem.clone(),
+                    self.clone(),
+                    false,
+                    logger.clone(),
+                )
             })
             .collect::<FuturesUnordered<_>>()
             .collect()
@@ -58,11 +72,12 @@ impl Settings {
         self: Arc<Self>,
         config: &NodeConfig,
         run_sem: Arc<Semaphore>,
-    ) -> BackendResult<Arc<DiskController>> {
+        logger: DisksEventsLogger,
+    ) -> Arc<DiskController> {
         let disk_name = config
             .pearl()
             .alien_disk()
-            .map_or_else(String::new, str::to_owned);
+            .map_or_else(|| DEFAULT_ALIEN_DISK_NAME.to_owned(), str::to_owned);
         let path = self
             .alien_folder
             .clone()
@@ -70,8 +85,17 @@ impl Settings {
             .into_string()
             .expect("Path is not utf8 encoded");
         let alien_disk = DiskPath::new(disk_name, path);
-        let dc = DiskController::new(alien_disk, Vec::new(), config, run_sem, self, true).await;
-        Ok(dc)
+        let dc = DiskController::new(
+            alien_disk,
+            Vec::new(),
+            config,
+            run_sem,
+            self.clone(),
+            true,
+            logger,
+        )
+        .await;
+        dc
     }
 
     pub(crate) async fn collect_alien_groups(
@@ -194,11 +218,13 @@ impl Settings {
             .get_vdisks_ids()
             .into_iter()
             .find(|vdisk| *vdisk == vdisk_id);
-        vdisk.map(|id| (entry, id)).ok_or({
+        if let Some(data) = vdisk.map(|id| (entry, id)) {
+            Ok(data)
+        } else {
             let msg = format!("cannot find vdisk with id: {:?}", vdisk_id);
             error!("{}", msg);
-            Error::failed(msg)
-        })
+            Err(Error::failed(msg))
+        }
     }
 
     async fn try_read_path(entry: IOResult<DirEntry>) -> BackendResult<(DirEntry, Metadata)> {

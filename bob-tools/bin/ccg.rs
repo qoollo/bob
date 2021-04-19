@@ -92,7 +92,7 @@ fn expand_config(
 ) -> Option<ClusterConfig> {
     let mut center = get_structure(&hardware_config);
     let removed_disks: Vec<_> = get_new_disks(hardware_config.nodes(), config.nodes()).collect();
-    if removed_disks.len() > 0 {
+    if !removed_disks.is_empty() {
         debug!("some disks or nodes was removed: ERR {:?}", removed_disks);
         return None;
     }

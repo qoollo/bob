@@ -46,8 +46,8 @@ pub mod b_client {
                 .map_err(|e| e.to_string())?;
             Ok(Self {
                 node,
-                client,
                 operation_timeout,
+                client,
                 metrics,
             })
         }

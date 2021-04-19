@@ -19,6 +19,12 @@ impl AsRef<[u8]> for Key {
     }
 }
 
+impl AsRef<Key> for Key {
+    fn as_ref(&self) -> &Key {
+        self
+    }
+}
+
 pub struct Data {
     data: Vec<u8>,
     timestamp: u64,

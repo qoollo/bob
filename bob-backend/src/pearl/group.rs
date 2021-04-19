@@ -106,7 +106,7 @@ impl Group {
     }
 
     // find in all pearls actual pearl and try create new
-    async fn get_actual_holder(&self, data: &BobData) -> AnyResult<Holder> {
+    async fn get_actual_holder(&self, data: &BobData) -> Result<Holder, Error> {
         self.find_actual_holder(data)
             .or_else(|e| {
                 debug!("cannot find pearl: {}", e);
@@ -131,7 +131,7 @@ impl Group {
     }
 
     // create pearl for current write
-    async fn create_write_pearl(&self, ts: u64) -> AnyResult<Holder> {
+    async fn create_write_pearl(&self, ts: u64) -> Result<Holder, Error> {
         let mut indexes = self.created_holder_indexes.write().await;
         let created_holder_index = indexes.get(&ts).copied();
         let index = if let Some(exisiting_index) = created_holder_index {
@@ -154,36 +154,35 @@ impl Group {
         Ok(self.holders.read().await[index].clone())
     }
 
-    async fn try_create_write_pearl(&self, timestamp: u64) -> AnyResult<usize> {
+    async fn try_create_write_pearl(&self, timestamp: u64) -> Result<usize, Error> {
         info!("creating pearl for timestamp {}", timestamp);
         let pearl = self.create_pearl_by_timestamp(timestamp);
         self.save_pearl(pearl.clone()).await
     }
 
-    async fn save_pearl(&self, holder: Holder) -> AnyResult<usize> {
+    async fn save_pearl(&self, holder: Holder) -> Result<usize, Error> {
         holder.prepare_storage().await?;
         debug!("backend pearl group save pearl storage prepared");
         Ok(self.add(holder).await)
     }
 
     pub async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
-        let holder = self
-            .get_actual_holder(&data)
-            .await
-            .map_err(|e| Error::failed(format!("{:#?}", e)))?;
+        let holder = self.get_actual_holder(&data).await?;
         Self::put_common(holder, key, data).await
     }
 
     async fn put_common(holder: Holder, key: BobKey, data: BobData) -> Result<(), Error> {
         let result = holder.write(key, data).await;
         if let Err(e) = result {
+            // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
+            // holder but instead try to restart the whole disk
+            if e.is_possible_disk_disconnection() {
+                return Err(e);
+            }
             if !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
-                holder
-                    .prepare_storage()
-                    .await
-                    .map_err(|e| Error::storage(format!("{:#?}", e)))?;
+                holder.prepare_storage().await?;
                 debug!("backend pearl group put common storage prepared");
             }
         }
@@ -231,10 +230,7 @@ impl Group {
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {
                 holder.try_reinit().await?;
-                holder
-                    .prepare_storage()
-                    .await
-                    .map_err(|e| Error::storage(format!("{:#?}", e)))?;
+                holder.prepare_storage().await?;
                 debug!("backend pearl group get common storage prepared");
             }
         }
@@ -281,9 +277,7 @@ impl Group {
             Err(Error::pearl_change_state(msg))
         } else {
             let holder = self.create_pearl_by_timestamp(start_timestamp);
-            self.save_pearl(holder)
-                .await
-                .map_err(|e| Error::storage(format!("{:#?}", e)))?;
+            self.save_pearl(holder).await?;
             Ok(())
         }
     }
@@ -400,6 +394,59 @@ impl Group {
         }
         hex.truncate(self.settings.config().hash_chars_count() as usize);
         String::from_utf8(hex).unwrap()
+    }
+
+    pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
+        let holders_lock = self.holders();
+        let mut holders_write = holders_lock.write().await;
+        let holders: &mut Vec<_> = holders_write.as_mut();
+
+        let mut total_open_blobs = 0;
+        let mut close = vec![];
+        for h in holders.iter_mut() {
+            if !h.active_blob_is_empty().await {
+                total_open_blobs += 1;
+                if h.is_outdated() && h.no_writes_recently().await {
+                    close.push(h);
+                }
+            }
+        }
+        let soft = soft.saturating_sub(total_open_blobs - close.len());
+        let hard = hard.saturating_sub(total_open_blobs - close.len());
+
+        debug!(
+            "closing outdated blobs according to limits ({}, {})",
+            soft, hard
+        );
+
+        let mut is_small = vec![];
+        for h in &close {
+            is_small.push(h.active_blob_is_small().await);
+        }
+
+        let mut close: Vec<_> = close.into_iter().enumerate().collect();
+        Self::sort_by_priority(&mut close, &is_small);
+
+        while close.len() > hard {
+            let (_, holder) = close.pop().expect("Vector is empty!");
+            holder.close_active_blob().await;
+            info!("active blob of {} closed by hard cap", holder.get_id());
+        }
+
+        while close.len() > soft && close.last().map_or(false, |(ind, _)| !is_small[*ind]) {
+            let (_, holder) = close.pop().unwrap();
+            holder.close_active_blob().await;
+            info!("active blob of {} closed by soft cap", holder.get_id());
+        }
+    }
+
+    fn sort_by_priority(close: &mut [(usize, &mut Holder)], is_small: &[bool]) {
+        use std::cmp::Ordering;
+        close.sort_by(|(i, x), (j, y)| match (is_small[*i], is_small[*j]) {
+            (true, false) => Ordering::Greater,
+            (false, true) => Ordering::Less,
+            _ => x.end_timestamp().cmp(&y.end_timestamp()),
+        });
     }
 }
 
