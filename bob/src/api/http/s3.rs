@@ -106,16 +106,16 @@ pub(crate) fn get_object(
         .content_type
         .unwrap_or_else(|| infer_data_type(&data));
     let last_modified = data.meta().timestamp();
-    match headers.if_modified_since {
-        Some(time) if time > last_modified => return Err(StatusS3::Status(Status::NotModified)),
-        _ => {}
-    };
-    match headers.if_unmodified_since {
-        Some(time) if time < last_modified => {
-            return Err(StatusS3::Status(Status::PreconditionFailed))
+    if let Some(time) = headers.if_modified_since {
+        if time > last_modified {
+            return Err(StatusS3::Status(Status::NotModified));
         }
-        _ => {}
-    };
+    }
+    if let Some(time) = headers.if_unmodified_since {
+        if time < last_modified {
+            return Err(StatusS3::Status(Status::PreconditionFailed));
+        }
+    }
     Ok(GetObjectOutput { data, content_type })
 }
 
@@ -184,16 +184,16 @@ pub(crate) fn copy_object(
         .block_on(async { bob.grinder().get(key, &opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
     let last_modified = data.meta().timestamp();
-    match headers.if_modified_since {
-        Some(time) if time > last_modified => return Err(StatusS3::Status(Status::NotModified)),
-        _ => {}
-    };
-    match headers.if_unmodified_since {
-        Some(time) if time < last_modified => {
-            return Err(StatusS3::Status(Status::PreconditionFailed))
+    if let Some(time) = headers.if_modified_since {
+        if time > last_modified {
+            return Err(StatusS3::Status(Status::NotModified));
         }
-        _ => {}
-    };
+    }
+    if let Some(time) = headers.if_unmodified_since {
+        if time < last_modified {
+            return Err(StatusS3::Status(Status::PreconditionFailed));
+        }
+    }
     let data = BobData::new(
         data.into_inner(),
         BobMeta::new(chrono::Local::now().timestamp() as u64),
