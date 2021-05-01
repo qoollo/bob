@@ -408,17 +408,16 @@ async fn main() {
     let stop_token: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     // let _ = spawn_disks_worker(stop_token.clone()).await;
 
-    LOG_PB.println("Bob will be benchmarked now");
-    LOG_PB.println(&format!(
-        "target: {:?}\r\nbenchmark configuration: {:?}\r\ntotal task configuration: {:?}",
+    println!("Bob will be benchmarked now");
+    println!(
+        "target: {:?}\nbenchmark configuration: {:?}\ntotal task configuration: {:?}",
         net_conf, benchmark_conf, task_conf,
-    ));
+    );
+
+    LOG_PB.tick();
 
     let stat_thread = spawn_statistics_thread(&benchmark_conf, &stop_token);
 
-    tokio::spawn(async {
-        MPB.join().unwrap();
-    });
     MAIN_PB.set_length(benchmark_conf.repeat);
 
     let workers = run_workers(&benchmark_conf, &net_conf, &task_conf);
@@ -432,7 +431,6 @@ async fn main() {
     if let Err(e) = stat_thread.await {
         LOG_PB.println(&format!("error awaiting stat thread: {:?}", e));
     }
-    finish_all_pb();
 }
 
 async fn run_workers(
@@ -484,6 +482,7 @@ async fn stat_worker(
     request_bytes: u64,
     save_name: Option<String>,
     save_period_sec: u64,
+    mpb_join: JoinHandle<()>,
 ) {
     let (put_speed_values, get_speed_values, elapsed) = print_periodic_stat(
         stop_token,
@@ -493,6 +492,8 @@ async fn stat_worker(
         save_name,
         save_period_sec,
     );
+    finish_all_pb();
+    mpb_join.await;
     print_averages(&stat, &put_speed_values, &get_speed_values, elapsed);
     print_errors_with_codes(stat).await
 }
@@ -500,16 +501,16 @@ async fn stat_worker(
 async fn print_errors_with_codes(stat: Arc<Statistics>) {
     let guard = stat.get_errors.lock().await;
     if !guard.is_empty() {
-        LOG_PB.println("get errors:");
+        println!("get errors:");
         for (&code, count) in guard.iter() {
-            LOG_PB.println(&format!("{:?} = {}", Code::from(code), count));
+            println!("{:?} = {}", Code::from(code), count);
         }
     }
     let guard = stat.put_errors.lock().await;
     if !guard.is_empty() {
-        LOG_PB.println("put errors:");
+        println!("put errors:");
         for (&code, count) in guard.iter() {
-            LOG_PB.println(&format!("{:?} = {}", Code::from(code), count));
+            println!("{:?} = {}", Code::from(code), count);
         }
     }
 }
@@ -527,7 +528,7 @@ fn print_averages(
             .unwrap_or_default(),
         stat.put_error_count.load(Ordering::Relaxed) + stat.get_error_count.load(Ordering::Relaxed),
     );
-    LOG_PB.println(&format!(
+    println!(
         "GET: speed: {} kb/s, resp time: {:>6.2} ms",
         average(&get_speed_values),
         finite_or_default(
@@ -535,8 +536,8 @@ fn print_averages(
                 / (stat.get_count_st.load(Ordering::Relaxed) as f64)
                 / 1e9
         ),
-    ));
-    LOG_PB.println(&format!(
+    );
+    println!(
         "PUT: speed: {} kb/s, resp time: {:>6.2} ms",
         average(&put_speed_values),
         finite_or_default(
@@ -544,7 +545,7 @@ fn print_averages(
                 / (stat.put_count_st.load(Ordering::Relaxed) as f64)
                 / 1e9
         ),
-    ));
+    );
     if get_matches().is_present("verify") {
         stat_message = format!(
             "{}, verified put threads: {}",
@@ -552,7 +553,7 @@ fn print_averages(
             stat.verified_puts.load(Ordering::Relaxed)
         );
     }
-    LOG_PB.println(&stat_message);
+    println!("{}", &stat_message);
 }
 
 fn print_periodic_stat(
@@ -857,6 +858,9 @@ fn spawn_statistics_thread(
     let bytes_amount = benchmark_conf.request_amount_bytes;
     let save_name = benchmark_conf.save_name.clone();
     let save_period_sec = benchmark_conf.save_period_sec;
+    let mpb_join = tokio::spawn(async {
+        MPB.join_and_clear().unwrap();
+    });
     tokio::spawn(stat_worker(
         stop_token,
         1000,
@@ -864,6 +868,7 @@ fn spawn_statistics_thread(
         bytes_amount,
         save_name,
         save_period_sec,
+        mpb_join,
     ))
 }
 
