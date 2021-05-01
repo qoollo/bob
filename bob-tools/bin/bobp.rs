@@ -4,23 +4,70 @@ use bob::{
 };
 
 use clap::{App, Arg, ArgMatches};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use lazy_static::lazy_static;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::ops::Sub;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::RwLock;
+use std::sync::{Arc, Mutex as StdMutex};
 use std::thread;
 use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
+use sysinfo::{DiskExt, RefreshKind, System, SystemExt};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+use tokio::time::interval;
 use tokio::time::sleep;
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request, Status};
 
 #[macro_use]
 extern crate log;
+
+fn pb_with_prefix(prefix: &str) -> ProgressBar {
+    let pb = ProgressBar::new_spinner()
+        .with_style(ProgressStyle::default_spinner().template("{prefix}: {msg}"));
+    pb.set_prefix(prefix);
+    pb
+}
+
+fn pb2_with_prefix(prefix: &str) -> ProgressBar {
+    let style = ProgressStyle::default_bar().progress_chars("█▉▊▋▌▍▎▏  ");
+    let pb = ProgressBar::new(100).with_style(style);
+    pb.set_prefix(prefix);
+    pb
+}
+
+lazy_static! {
+    static ref MPB: MultiProgress = MultiProgress::new();
+    static ref LOG_PB: ProgressBar = MPB.add(pb_with_prefix("LOG"));
+    static ref MAIN_PB: ProgressBar = MPB.add(pb2_with_prefix("REPEATS"));
+    static ref SECOND_PB: ProgressBar = MPB.add(pb2_with_prefix("REQUESTS"));
+    static ref GET_PB: ProgressBar = MPB.add(pb_with_prefix("GET"));
+    static ref PUT_PB: ProgressBar = MPB.add(pb_with_prefix("PUT"));
+    static ref SYSTEM: RwLock<System> = RwLock::new(System::new_with_specifics(
+        RefreshKind::new()
+            .with_disks()
+            .with_disks_list()
+            .with_memory(),
+    ));
+    static ref START: Instant = Instant::now();
+    static ref SAVE_LOCK: StdMutex<()> = StdMutex::new(());
+}
+
+fn finish_all_pb() {
+    MAIN_PB.finish_and_clear();
+    SECOND_PB.finish_and_clear();
+    LOG_PB.finish_and_clear();
+    GET_PB.finish_and_clear();
+    PUT_PB.finish_and_clear();
+}
+
+const ORD: Ordering = Ordering::Relaxed;
 
 #[derive(Clone)]
 struct NetConfig {
@@ -52,12 +99,12 @@ impl NetConfig {
                 Ok(client) => return client,
                 Err(e) => {
                     sleep(Duration::from_millis(1000)).await;
-                    println!(
+                    LOG_PB.set_message(&format!(
                         "{:?}",
                         e.source()
                             .and_then(|e| e.downcast_ref::<hyper::Error>())
                             .unwrap()
-                    );
+                    ));
                 }
             }
         }
@@ -155,6 +202,9 @@ struct Statistics {
     get_size_bytes: AtomicU64,
 
     verified_puts: AtomicU64,
+
+    mode: RwLock<String>,
+    iteration: AtomicU64,
 }
 
 impl Statistics {
@@ -193,15 +243,84 @@ impl Statistics {
     }
 }
 
+#[derive(Debug, Serialize)]
+struct StatisticsToSave {
+    timestamp: u128,
+    put_total: u64,
+    put_error_count: u64,
+
+    get_total: u64,
+    get_error_count: u64,
+
+    put_time_ns_st: u64,
+    put_count_st: u64,
+
+    get_time_ns_st: u64,
+    get_count_st: u64,
+
+    get_size_bytes: u64,
+
+    verified_puts: u64,
+
+    disks: HashMap<String, (u64, u64)>,
+
+    mode: String,
+
+    iteration: u64,
+}
+
+impl StatisticsToSave {
+    fn new(stats: &Arc<Statistics>) -> Self {
+        SYSTEM.write().unwrap().refresh_all();
+        let sys = SYSTEM.read().unwrap();
+        Self {
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis(),
+            get_total: stats.get_total.load(ORD),
+            get_count_st: stats.get_count_st.load(ORD),
+            get_time_ns_st: stats.get_time_ns_st.load(ORD),
+            get_size_bytes: stats.get_size_bytes.load(ORD),
+            get_error_count: stats.get_error_count.load(ORD),
+            put_count_st: stats.put_count_st.load(ORD),
+            put_error_count: stats.put_error_count.load(ORD),
+            put_time_ns_st: stats.put_time_ns_st.load(ORD),
+            put_total: stats.put_total.load(ORD),
+            verified_puts: stats.verified_puts.load(ORD),
+            disks: sys
+                .get_disks()
+                .iter()
+                .map(|disk| {
+                    (
+                        format!(
+                            "{}:{}",
+                            disk.get_name().to_str().unwrap(),
+                            disk.get_mount_point().to_str().unwrap()
+                        ),
+                        (disk.get_available_space(), disk.get_total_space()),
+                    )
+                })
+                .collect(),
+            mode: stats.mode.read().unwrap().clone(),
+            iteration: stats.iteration.load(ORD),
+        }
+    }
+}
+
+#[derive(Clone)]
 struct BenchmarkConfig {
     workers_count: u64,
     behavior: Behavior,
     statistics: Arc<Statistics>,
     time: Option<Duration>,
     request_amount_bytes: u64,
+    save_name: Option<String>,
+    save_period_sec: u64,
+    repeat: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Behavior {
     Put,
     Get,
@@ -237,6 +356,9 @@ impl BenchmarkConfig {
                 .value_of("time")
                 .map(|t| Duration::from_secs(t.parse().expect("error parsing time"))),
             request_amount_bytes: matches.value_or_default("payload"),
+            save_name: matches.value_of("metrics").map(|x| x.to_string()),
+            repeat: matches.value_or_default("repeat"),
+            save_period_sec: matches.value_or_default("save_period"),
         }
     }
 }
@@ -279,33 +401,79 @@ impl<'a, T: Copy + Sub<Output = T>> DiffContainer<'a, T> {
 #[tokio::main]
 async fn main() {
     let matches = get_matches();
-
     let net_conf = NetConfig::from_matches(&matches);
     let task_conf = TaskConfig::from_matches(&matches);
     let benchmark_conf = BenchmarkConfig::from_matches(&matches);
 
-    println!("Bob will be benchmarked now");
-    println!(
+    let stop_token: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    // let _ = spawn_disks_worker(stop_token.clone()).await;
+
+    LOG_PB.println("Bob will be benchmarked now");
+    LOG_PB.println(&format!(
         "target: {:?}\r\nbenchmark configuration: {:?}\r\ntotal task configuration: {:?}",
         net_conf, benchmark_conf, task_conf,
-    );
-
-    let stop_token: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    ));
 
     let stat_thread = spawn_statistics_thread(&benchmark_conf, &stop_token);
 
-    let workers = spawn_workers(&net_conf, &task_conf, &benchmark_conf);
+    tokio::spawn(async {
+        MPB.join().unwrap();
+    });
+    MAIN_PB.set_length(benchmark_conf.repeat);
+
+    let workers = run_workers(&benchmark_conf, &net_conf, &task_conf);
 
     if let Some(time) = benchmark_conf.time {
         sleep(time).await;
     } else {
-        for worker in workers {
-            let _ = worker.await;
-        }
+        workers.await;
     }
     stop_token.store(true, Ordering::Relaxed);
     if let Err(e) = stat_thread.await {
-        eprintln!("error awaiting stat thread: {:?}", e);
+        LOG_PB.println(&format!("error awaiting stat thread: {:?}", e));
+    }
+    finish_all_pb();
+}
+
+async fn run_workers(
+    benchmark_conf: &BenchmarkConfig,
+    net_conf: &NetConfig,
+    task_conf: &TaskConfig,
+) {
+    let mut task_conf = task_conf.clone();
+    let stats = benchmark_conf.statistics.clone();
+    let save_name = benchmark_conf.save_name.as_ref();
+    for _ in 0..benchmark_conf.repeat {
+        match benchmark_conf.behavior {
+            Behavior::Test => {
+                let mut benchmark_conf = benchmark_conf.clone();
+                benchmark_conf.behavior = Behavior::Put;
+                *stats.mode.write().unwrap() = format!("{:?}", benchmark_conf.behavior);
+                let workers = spawn_workers(&net_conf, &task_conf, &benchmark_conf);
+                for worker in workers {
+                    let _ = worker.await;
+                }
+                save_stat(&stats, save_name);
+                benchmark_conf.behavior = Behavior::Get;
+                *stats.mode.write().unwrap() = format!("{:?}", benchmark_conf.behavior);
+                let workers = spawn_workers(&net_conf, &task_conf, &benchmark_conf);
+                for worker in workers {
+                    let _ = worker.await;
+                }
+                save_stat(&stats, save_name);
+            }
+            _ => {
+                *stats.mode.write().unwrap() = format!("{:?}", benchmark_conf.behavior);
+                let workers = spawn_workers(&net_conf, &task_conf, &benchmark_conf);
+                for worker in workers {
+                    let _ = worker.await;
+                }
+                save_stat(&stats, save_name);
+            }
+        }
+        MAIN_PB.inc(1);
+        task_conf.low_idx += task_conf.count;
+        benchmark_conf.statistics.iteration.fetch_add(1, ORD);
     }
 }
 
@@ -314,9 +482,17 @@ async fn stat_worker(
     period_ms: u64,
     stat: Arc<Statistics>,
     request_bytes: u64,
+    save_name: Option<String>,
+    save_period_sec: u64,
 ) {
-    let (put_speed_values, get_speed_values, elapsed) =
-        print_periodic_stat(stop_token, period_ms, &stat, request_bytes);
+    let (put_speed_values, get_speed_values, elapsed) = print_periodic_stat(
+        stop_token,
+        period_ms,
+        &stat,
+        request_bytes,
+        save_name,
+        save_period_sec,
+    );
     print_averages(&stat, &put_speed_values, &get_speed_values, elapsed);
     print_errors_with_codes(stat).await
 }
@@ -324,16 +500,16 @@ async fn stat_worker(
 async fn print_errors_with_codes(stat: Arc<Statistics>) {
     let guard = stat.get_errors.lock().await;
     if !guard.is_empty() {
-        println!("get errors:");
+        LOG_PB.println("get errors:");
         for (&code, count) in guard.iter() {
-            println!("{:?} = {}", Code::from(code), count);
+            LOG_PB.println(&format!("{:?} = {}", Code::from(code), count));
         }
     }
     let guard = stat.put_errors.lock().await;
     if !guard.is_empty() {
-        println!("put errors:");
+        LOG_PB.println("put errors:");
         for (&code, count) in guard.iter() {
-            println!("{:?} = {}", Code::from(code), count);
+            LOG_PB.println(&format!("{:?} = {}", Code::from(code), count));
         }
     }
 }
@@ -344,33 +520,39 @@ fn print_averages(
     get_speed_values: &[f64],
     elapsed: Duration,
 ) {
-    println!(
-        "avg total: {} rps | total err: {}\r\n\
-        put: {:>6.2} kb/s | get: {:>6.2} kb/s\r\n\
-        put resp time, ms: {:>6.2} | get resp time, ms: {:>6.2}",
+    let mut stat_message = format!(
+        "STAT: avg total: {} rps, total err: {}",
         ((stat.put_total.load(Ordering::Relaxed) + stat.get_total.load(Ordering::Relaxed)) * 1000)
             .checked_div(elapsed.as_millis() as u64)
             .unwrap_or_default(),
         stat.put_error_count.load(Ordering::Relaxed) + stat.get_error_count.load(Ordering::Relaxed),
-        average(&put_speed_values),
+    );
+    LOG_PB.println(&format!(
+        "GET: speed: {} kb/s, resp time: {:>6.2} ms",
         average(&get_speed_values),
-        finite_or_default(
-            (stat.put_time_ns_st.load(Ordering::Relaxed) as f64)
-                / (stat.put_count_st.load(Ordering::Relaxed) as f64)
-                / 1e9
-        ),
         finite_or_default(
             (stat.get_time_ns_st.load(Ordering::Relaxed) as f64)
                 / (stat.get_count_st.load(Ordering::Relaxed) as f64)
                 / 1e9
         ),
-    );
+    ));
+    LOG_PB.println(&format!(
+        "PUT: speed: {} kb/s, resp time: {:>6.2} ms",
+        average(&put_speed_values),
+        finite_or_default(
+            (stat.put_time_ns_st.load(Ordering::Relaxed) as f64)
+                / (stat.put_count_st.load(Ordering::Relaxed) as f64)
+                / 1e9
+        ),
+    ));
     if get_matches().is_present("verify") {
-        println!(
-            "verified put threads: {}",
+        stat_message = format!(
+            "{}, verified put threads: {}",
+            stat_message,
             stat.verified_puts.load(Ordering::Relaxed)
         );
     }
+    LOG_PB.println(&stat_message);
 }
 
 fn print_periodic_stat(
@@ -378,6 +560,8 @@ fn print_periodic_stat(
     period_ms: u64,
     stat: &Arc<Statistics>,
     request_bytes: u64,
+    save_name: Option<String>,
+    save_period_sec: u64,
 ) -> (Vec<f64>, Vec<f64>, Duration) {
     let pause = time::Duration::from_millis(period_ms);
     let mut put_count = DiffContainer::new(Box::new(|| stat.put_total.load(Ordering::Relaxed)));
@@ -395,8 +579,14 @@ fn print_periodic_stat(
     let mut get_speed_values = vec![];
     let k = request_bytes as f64 / period_ms as f64 * 1000.0 / 1024.0;
     let start = Instant::now();
+    save_stat(stat, save_name.as_ref());
+    let mut last_save = Instant::now();
     while !stop_token.load(Ordering::Relaxed) {
         thread::sleep(pause);
+        if last_save.elapsed() > Duration::from_secs(save_period_sec) {
+            save_stat(stat, save_name.as_ref());
+            last_save = Instant::now();
+        }
         let put_count_spd = put_count.get_diff() * 1000 / period_ms;
         let get_count_spd = get_count.get_diff() * 1000 / period_ms;
         let cur_st_put_time = put_time_st.get_diff() as f64;
@@ -414,21 +604,24 @@ fn print_periodic_stat(
         if get_spd > 0.0 {
             get_speed_values.push(get_spd);
         }
-        println!(
-            "put: {:>6} rps  | get {:>6} rps   | put err: {:5}     | get err: {:5}\r\n\
-            put: {:>6.2} kb/s | get: {:>6.2} kb/s | put lat: {:>6.2} ms | get lat: {:>6.2} ms",
-            put_count_spd,
+        GET_PB.set_message(&format!(
+            "{:>7} rps, {:>7.2} kb/s, {:5} errors, {:>7.2} ms",
             get_count_spd,
-            put_error,
-            get_error,
-            put_spd,
             get_spd,
-            finite_or_default(cur_st_put_time / cur_st_put_count / 1e9),
+            get_error,
             finite_or_default(cur_st_get_time / cur_st_get_count / 1e9)
-        );
+        ));
+        PUT_PB.set_message(&format!(
+            "{:>7} rps, {:>7.2} kb/s, {:5} errors, {:>7.2} ms",
+            put_count_spd,
+            put_spd,
+            put_error,
+            finite_or_default(cur_st_put_time / cur_st_put_count / 1e9)
+        ));
     }
+    save_stat(stat, save_name.as_ref());
     let elapsed = start.elapsed();
-    println!("Total statistics, elapsed: {:?}", elapsed);
+    LOG_PB.println(&format!("Total statistics, elapsed: {:?}", elapsed));
     (put_speed_values, get_speed_values, elapsed)
 }
 
@@ -472,6 +665,7 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
             }
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
+        SECOND_PB.inc(1);
     }
 }
 
@@ -501,14 +695,15 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
             stat.save_put_error(status).await;
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
+        SECOND_PB.inc(1);
     }
-    let req = Request::new(ExistRequest {
-        keys: (task_conf.low_idx..upper_idx)
-            .map(|i| BlobKey { key: i })
-            .collect(),
-        options: task_conf.find_get_options(),
-    });
     if get_matches().is_present("verify") {
+        let req = Request::new(ExistRequest {
+            keys: (task_conf.low_idx..upper_idx)
+                .map(|i| BlobKey { key: i })
+                .collect(),
+            options: task_conf.find_get_options(),
+        });
         let res = client.exist(req).await;
         if let Ok(res) = res {
             if res.into_inner().exist.iter().all(|b| *b) {
@@ -518,8 +713,14 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     }
 }
 
-async fn test_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
+async fn test_worker(
+    net_conf: NetConfig,
+    task_conf: TaskConfig,
+    stat: Arc<Statistics>,
+    save_name: Option<String>,
+) {
     put_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
+    save_stat(&stat, save_name.as_ref());
     get_worker(net_conf, task_conf, stat).await;
 }
 
@@ -575,6 +776,11 @@ fn spawn_workers(
     benchmark_conf: &BenchmarkConfig,
 ) -> Vec<tokio::task::JoinHandle<()>> {
     let task_size = task_conf.count / benchmark_conf.workers_count;
+    SECOND_PB.set_position(0);
+    SECOND_PB.set_length(task_conf.count);
+    if let Behavior::Test = benchmark_conf.behavior {
+        SECOND_PB.set_length(SECOND_PB.length() * 2);
+    }
     (0..benchmark_conf.workers_count)
         .map(|i| {
             let nc = net_conf.clone();
@@ -595,11 +801,51 @@ fn spawn_workers(
             match benchmark_conf.behavior {
                 Behavior::Put => tokio::spawn(put_worker(nc, tc, stat_inner)),
                 Behavior::Get => tokio::spawn(get_worker(nc, tc, stat_inner)),
-                Behavior::Test => tokio::spawn(test_worker(nc, tc, stat_inner)),
+                Behavior::Test => tokio::spawn(test_worker(
+                    nc,
+                    tc,
+                    stat_inner,
+                    benchmark_conf.save_name.clone(),
+                )),
                 Behavior::PingPong => tokio::spawn(ping_pong_worker(nc, tc, stat_inner)),
             }
         })
         .collect()
+}
+
+fn save_stat(stats: &Arc<Statistics>, name: Option<&String>) {
+    let _lock = SAVE_LOCK.lock().unwrap();
+    use std::io::Write;
+    let name = match name {
+        Some(name) => name,
+        _ => return,
+    };
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(true)
+        .open(name);
+    match file {
+        Ok(mut file) => {
+            let time = START.elapsed().as_secs();
+            let save_stats = StatisticsToSave::new(stats);
+            let save_stats = match serde_json::to_string(&save_stats) {
+                Ok(res) => res,
+                _ => return,
+            };
+            if let Err(err) = writeln!(file, "{}", save_stats) {
+                LOG_PB.println(&format!("Save log error: {}", err));
+                if let Err(err) = file.flush() {
+                    LOG_PB.println(&format!("Flush log error: {}", err));
+                }
+            } else {
+                LOG_PB.set_message(&format!("Log saved {}", time));
+            }
+        }
+        Err(err) => {
+            LOG_PB.println(&format!("Save log error: {}", err));
+        }
+    }
 }
 
 fn spawn_statistics_thread(
@@ -609,7 +855,16 @@ fn spawn_statistics_thread(
     let stop_token = stop_token.clone();
     let stat = benchmark_conf.statistics.clone();
     let bytes_amount = benchmark_conf.request_amount_bytes;
-    tokio::spawn(stat_worker(stop_token, 1000, stat, bytes_amount))
+    let save_name = benchmark_conf.save_name.clone();
+    let save_period_sec = benchmark_conf.save_period_sec;
+    tokio::spawn(stat_worker(
+        stop_token,
+        1000,
+        stat,
+        bytes_amount,
+        save_name,
+        save_period_sec,
+    ))
 }
 
 fn create_blob(task_conf: &TaskConfig) -> Blob {
@@ -623,6 +878,55 @@ fn create_blob(task_conf: &TaskConfig) -> Blob {
         data: vec![0_u8; task_conf.payload_size as usize],
         meta: Some(meta),
     }
+}
+
+#[allow(dead_code)]
+async fn spawn_disks_worker(stop_token: Arc<AtomicBool>) {
+    const REFRESH_RATE: u64 = 5;
+    let style = ProgressStyle::default_bar();
+    SYSTEM.write().unwrap().refresh_all();
+    let sys = SYSTEM.read().unwrap();
+    let mut intv = interval(Duration::from_secs(REFRESH_RATE));
+    let mut pbs = HashMap::new();
+    for disk in sys.get_disks() {
+        let pb = MPB.add(ProgressBar::new(100).with_style(style.clone()));
+        pb.set_prefix(&format!("{:>15}", disk.get_name().to_str().unwrap()));
+        pbs.insert(disk.get_name().to_owned(), pb);
+    }
+    let mem_pb = MPB.add(ProgressBar::new(sys.get_total_memory()).with_style(style));
+    mem_pb.set_prefix(&format!("{:>15}", "MEMORY"));
+    mem_pb.set_position(sys.get_used_memory());
+    mem_pb.set_message(&format!(
+        "{:.2}%",
+        sys.get_used_memory() as f64 / sys.get_used_memory() as f64 * 100.0
+    ));
+
+    tokio::spawn(async move {
+        while !stop_token.load(Ordering::Relaxed) {
+            intv.tick().await;
+            SYSTEM.write().unwrap().refresh_all();
+            let sys = SYSTEM.read().unwrap();
+            let disks = sys.get_disks();
+            mem_pb.set_position(sys.get_used_memory());
+            mem_pb.set_message(&format!(
+                "{:.2}%",
+                sys.get_used_memory() as f64 / sys.get_total_memory() as f64 * 100.0
+            ));
+            for disk in disks {
+                if let Some(pb) = pbs.get(disk.get_name()) {
+                    let total = disk.get_total_space();
+                    let avail = disk.get_available_space();
+                    let filled = total - avail;
+                    pb.set_length(total);
+                    pb.set_position(filled);
+                    pb.set_message(&format!("{:.2}%", filled as f64 / total as f64 * 100.0));
+                }
+            }
+        }
+        for (_, pb) in pbs.into_iter() {
+            pb.finish_and_clear();
+        }
+    });
 }
 
 fn get_matches() -> ArgMatches<'static> {
@@ -706,6 +1010,28 @@ fn get_matches() -> ArgMatches<'static> {
                 .help("verify results of put requests")
                 .takes_value(false)
                 .long("verify"),
+        )
+        .arg(
+            Arg::with_name("metrics")
+                .help("metrics file")
+                .takes_value(true)
+                .long("metrics")
+                .short("m"),
+        )
+        .arg(
+            Arg::with_name("save_period")
+                .help("metrics save period(sec)")
+                .takes_value(true)
+                .long("save-period")
+                .short("s"),
+        )
+        .arg(
+            Arg::with_name("repeat")
+                .help("Repeat task")
+                .takes_value(true)
+                .long("repeat")
+                .default_value("1")
+                .short("r"),
         )
         .get_matches()
 }
