@@ -124,6 +124,7 @@ struct TaskConfig {
     payload_size: u64,
     direct: bool,
     measure_time: bool,
+    time: Option<Duration>,
 }
 
 impl TaskConfig {
@@ -133,6 +134,9 @@ impl TaskConfig {
             count: matches.value_or_default("count"),
             payload_size: matches.value_or_default("payload"),
             direct: matches.is_present("direct"),
+            time: matches
+                .value_of("time")
+                .map(|t| Duration::from_secs(t.parse().expect("error parsing time"))),
             measure_time: false,
         }
     }
@@ -169,8 +173,12 @@ impl Debug for TaskConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(
             f,
-            "payload size: {}, count: {}",
-            self.payload_size, self.count
+            "payload size: {}, count: {}, time: {}",
+            self.payload_size,
+            self.count,
+            self.time
+                .map(|t| format!("{:?}", t))
+                .unwrap_or_else(|| "infinite".to_string()),
         )?;
         if self.direct {
             write!(f, ", direct")
@@ -313,7 +321,6 @@ struct BenchmarkConfig {
     workers_count: u64,
     behavior: Behavior,
     statistics: Arc<Statistics>,
-    time: Option<Duration>,
     request_amount_bytes: u64,
     save_name: Option<String>,
     save_period_sec: u64,
@@ -352,9 +359,6 @@ impl BenchmarkConfig {
                 .parse()
                 .expect("incorrect behavior"),
             statistics: Arc::new(Statistics::default()),
-            time: matches
-                .value_of("time")
-                .map(|t| Duration::from_secs(t.parse().expect("error parsing time"))),
             request_amount_bytes: matches.value_or_default("payload"),
             save_name: matches.value_of("metrics").map(|x| x.to_string()),
             repeat: matches.value_or_default("repeat"),
@@ -367,12 +371,8 @@ impl Debug for BenchmarkConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(
             f,
-            "workers count: {}, time: {}, behaviour: {:?}",
-            self.workers_count,
-            self.time
-                .map(|t| format!("{:?}", t))
-                .unwrap_or_else(|| "infinite".to_string()),
-            self.behavior
+            "workers count: {}, behaviour: {:?}",
+            self.workers_count, self.behavior
         )
     }
 }
@@ -420,13 +420,8 @@ async fn main() {
 
     MAIN_PB.set_length(benchmark_conf.repeat);
 
-    let workers = run_workers(&benchmark_conf, &net_conf, &task_conf);
+    run_workers(&benchmark_conf, &net_conf, &task_conf).await;
 
-    if let Some(time) = benchmark_conf.time {
-        sleep(time).await;
-    } else {
-        workers.await;
-    }
     stop_token.store(true, Ordering::Relaxed);
     if let Err(e) = stat_thread.await {
         LOG_PB.println(&format!("error awaiting stat thread: {:?}", e));
@@ -493,7 +488,9 @@ async fn stat_worker(
         save_period_sec,
     );
     finish_all_pb();
-    mpb_join.await;
+    if let Err(err) = mpb_join.await {
+        println!("Join progress bar error: {}", err);
+    }
     print_averages(&stat, &put_speed_values, &get_speed_values, elapsed);
     print_errors_with_codes(stat).await
 }
@@ -644,6 +641,7 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let options = task_conf.find_get_options();
     let upper_idx = task_conf.low_idx + task_conf.count;
     let measure_time = task_conf.is_time_measurement_thread();
+    let worker_start = Instant::now();
     for i in task_conf.low_idx..upper_idx {
         let request = Request::new(GetRequest {
             key: Some(BlobKey { key: i }),
@@ -667,6 +665,11 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
         SECOND_PB.inc(1);
+        if let Some(time) = &task_conf.time {
+            if Instant::now().duration_since(worker_start) > *time {
+                break;
+            }
+        }
     }
 }
 
@@ -798,6 +801,7 @@ fn spawn_workers(
                 payload_size: task_conf.payload_size,
                 direct: task_conf.direct,
                 measure_time: i == 0,
+                time: task_conf.time,
             };
             match benchmark_conf.behavior {
                 Behavior::Put => tokio::spawn(put_worker(nc, tc, stat_inner)),
@@ -1028,6 +1032,7 @@ fn get_matches() -> ArgMatches<'static> {
                 .help("metrics save period(sec)")
                 .takes_value(true)
                 .long("save-period")
+                .default_value("120")
                 .short("s"),
         )
         .arg(
