@@ -679,6 +679,7 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let options: Option<PutOptions> = task_conf.find_put_options();
     let measure_time = task_conf.is_time_measurement_thread();
     let upper_idx = task_conf.low_idx + task_conf.count;
+    let worker_start = Instant::now();
     for i in task_conf.low_idx..upper_idx {
         let blob = create_blob(&task_conf);
         let key = BlobKey { key: i };
@@ -700,6 +701,11 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
         SECOND_PB.inc(1);
+        if let Some(time) = &task_conf.time {
+            if Instant::now().duration_since(worker_start) > *time {
+                break;
+            }
+        }
     }
     if get_matches().is_present("verify") {
         let req = Request::new(ExistRequest {
@@ -735,6 +741,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
     let put_options = task_conf.find_put_options();
     let measure_time = task_conf.is_time_measurement_thread();
     let upper_idx = task_conf.low_idx + task_conf.count;
+    let worker_start = Instant::now();
     for i in task_conf.low_idx..upper_idx {
         let blob = create_blob(&task_conf);
         let key = BlobKey { key: i };
@@ -771,6 +778,12 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
             stat.save_get_error(status).await;
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
+        SECOND_PB.inc(1);
+        if let Some(time) = &task_conf.time {
+            if Instant::now().duration_since(worker_start) > *time {
+                break;
+            }
+        }
     }
 }
 
