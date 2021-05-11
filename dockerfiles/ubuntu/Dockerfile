@@ -11,25 +11,37 @@ RUN rustup install $RUST_TC_VER \
 WORKDIR /usr/src/bob
 
 # crates downloading and initial build
-COPY Cargo.toml Cargo.toml
-RUN mkdir target && mkdir src/bin -p
+RUN mkdir -p bob/src bob-backend/src bob-common/src bob-grpc/src bob-tools/bin
+RUN mkdir target
 ENV OUT_DIR /usr/src/bob/target
+COPY Cargo.toml Cargo.toml
+COPY bob/Cargo.toml bob/Cargo.toml
+COPY bob-backend/Cargo.toml bob-backend/Cargo.toml
+COPY bob-common/Cargo.toml bob-common/Cargo.toml
+COPY bob-grpc/Cargo.toml bob-grpc/Cargo.toml
+COPY bob-tools/Cargo.toml bob-tools/Cargo.toml
 
-RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > src/lib.rs \
-  && echo "fn main() {println!(\"if you see this, the build broke\")}" > src/bin/bobd.rs \
-  && echo "fn main() {println!(\"if you see this, the build broke\")}" > src/bin/bobc.rs \
-  && echo "fn main() {println!(\"if you see this, the build broke\")}" > src/bin/bobp.rs \
-  && echo "fn main() {println!(\"if you see this, the build broke\")}" > src/bin/ccg.rs \
-  && echo "fn main() {println!(\"if you see this, the build broke\")}" > src/bin/dcr.rs \
+RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/lib.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-backend/src/lib.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-common/src/lib.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-grpc/src/lib.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-tools/bin/bobd.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-tools/bin/bobc.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-tools/bin/bobp.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-tools/bin/ccg.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-tools/bin/dcr.rs \
   && cargo build --release --target=x86_64-unknown-linux-gnu
 
+
 # separate stage for proto build
-RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grpc {tonic::include_proto!(\"bob_storage\");}" > src/lib.rs \
-  && mkdir proto
-COPY proto/* proto/
-COPY build.rs .
-RUN cargo build --release --target=x86_64-unknown-linux-gnu \
-  && rm -f target/x86_64-unknown-linux-gnu/release/deps/bob*
+# TODO Enable
+
+# RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grpc {tonic::include_proto!(\"bob_storage\");}" > bob-grpc/src/lib.rs \
+  # && mkdir -p bob-grpc/proto
+# COPY bob-grpc/proto/* bob-grpc/proto/
+# COPY bob-grpc/build.rs bob-grpc/build.rs
+# RUN cargo build --release --target=x86_64-unknown-linux-gnu \
+  # && rm -f target/x86_64-unknown-linux-musl/release/deps/bob*
 
 # final build
 COPY . .
