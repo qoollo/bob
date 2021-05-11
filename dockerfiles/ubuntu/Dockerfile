@@ -34,14 +34,12 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/
 
 
 # separate stage for proto build
-# TODO Enable
-
-# RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grpc {tonic::include_proto!(\"bob_storage\");}" > bob-grpc/src/lib.rs \
-  # && mkdir -p bob-grpc/proto
-# COPY bob-grpc/proto/* bob-grpc/proto/
-# COPY bob-grpc/build.rs bob-grpc/build.rs
-# RUN cargo build --release --target=x86_64-unknown-linux-gnu \
-  # && rm -f target/x86_64-unknown-linux-musl/release/deps/bob*
+RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grpc {include!(\"bob_storage.rs\");}" > bob-grpc/src/lib.rs \
+  && mkdir -p bob-grpc/proto
+COPY bob-grpc/proto/* bob-grpc/proto/
+COPY bob-grpc/build.rs bob-grpc/build.rs
+RUN cargo build --release --target=x86_64-unknown-linux-gnu \
+  && rm -f target/x86_64-unknown-linux-musl/release/deps/bob*
 
 # final build
 COPY . .
