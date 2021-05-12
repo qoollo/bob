@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate serde_derive;
+use crc::crc32::checksum_castagnoli as crc32;
 use std::{
     error::Error,
     fmt::{Debug, Display, Formatter, Result as FmtResult},
@@ -68,6 +69,7 @@ impl Blob {
 
     fn write_header(&mut self, header: &BlobHeader) -> AnyResult<()> {
         bincode::serialize_into(&mut self.file, header)?;
+        self.position += bincode::serialized_size(&header)?;
         Ok(())
     }
 
@@ -78,9 +80,11 @@ impl Blob {
 
         let mut meta = vec![0; header.meta_size as usize];
         self.file.read_exact(&mut meta)?;
+        self.position += header.meta_size;
 
         let mut data = vec![0; header.data_size as usize];
         self.file.read_exact(&mut data)?;
+        self.position += header.data_size;
 
         let record = Record { header, meta, data };
         record.validate()?;
@@ -89,8 +93,11 @@ impl Blob {
 
     fn write_record(&mut self, record: &Record) -> AnyResult<()> {
         bincode::serialize_into(&mut self.file, &record.header)?;
+        self.position += bincode::serialized_size(&record.header)?;
         self.file.write_all(&record.meta)?;
+        self.position += record.meta.len() as u64;
         self.file.write_all(&record.data)?;
+        self.position += record.data.len() as u64;
         Ok(())
     }
 }
@@ -129,6 +136,17 @@ impl Header {
         if self.magic_byte != RECORD_MAGIC_BYTE {
             return Err(ValidationError("record header magic byte is invalid".to_string()).into());
         }
+        let mut header = self.clone();
+        header.header_checksum = 0;
+        let serialized = bincode::serialize(&header)?;
+        let checksum = crc32(&serialized);
+        if self.header_checksum != checksum {
+            return Err(ValidationError(format!(
+                "wrong header checksum: '{}' != '{}'",
+                self.header_checksum, checksum
+            ))
+            .into());
+        }
         Ok(())
     }
 }
@@ -153,7 +171,14 @@ impl Debug for Record {
 impl Record {
     fn validate(&self) -> AnyResult<()> {
         self.header.validate()?;
-        // TODO: Validate checksums
+        let checksum = crc32(&self.data);
+        if self.header.data_checksum != checksum {
+            return Err(ValidationError(format!(
+                "wrong data checksum: '{}' != '{}'",
+                self.header.data_checksum, checksum
+            ))
+            .into());
+        }
         Ok(())
     }
 }
@@ -165,16 +190,23 @@ fn main() {
 }
 
 fn try_main() -> AnyResult<()> {
+    init_logger()?;
+    log::info!("Logger initialized");
     let settings = Settings::from_matches()?;
     let mut input = Blob::reader(&settings.input)?;
+    log::info!("Blob reader created");
     let mut output = Blob::writer(&settings.output)?;
+    log::info!("Blob writer created");
     let header = input.read_header()?;
     output.write_header(&header)?;
+    log::info!("Input blob header version: {}", header.version);
+    let mut count = 0;
     while !input.is_eof() {
         match input.read_record() {
             Ok(record) => {
                 output.write_record(&record)?;
                 log::debug!("Record written: {:?}", record);
+                count += 1;
             }
             Err(error) => {
                 log::info!("Record read error: {}", error);
@@ -182,6 +214,11 @@ fn try_main() -> AnyResult<()> {
             }
         }
     }
+    log::info!(
+        "{} records written, totally {} bytes",
+        count,
+        output.position
+    );
     Ok(())
 }
 
@@ -207,7 +244,7 @@ impl Settings {
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
-    App::new(env!("CARGO_PKG_NAME"))
+    App::new(format!("Blob recovery tool, {}", env!("CARGO_PKG_NAME")))
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
             Arg::with_name(INPUT_BLOB_OPT)
@@ -226,4 +263,9 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .long("output"),
         )
         .get_matches()
+}
+
+fn init_logger() -> AnyResult<()> {
+    env_logger::try_init()?;
+    Ok(())
 }
