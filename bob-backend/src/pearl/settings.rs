@@ -158,7 +158,7 @@ impl Settings {
             remote_node_name.to_owned(),
             disk_name,
             path,
-            node_name.to_owned(),
+            format!("a{}", node_name),
             dump_sem,
         );
         Ok(group)
