@@ -1,5 +1,7 @@
 use crate::prelude::*;
 
+include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
+
 #[derive(Clone, Debug)]
 pub struct Key(Vec<u8>);
 
@@ -10,7 +12,7 @@ impl From<u64> for Key {
 }
 
 impl KeyTrait for Key {
-    const LEN: u16 = 8;
+    const LEN: u16 = KEY_SIZE;
 }
 
 impl AsRef<[u8]> for Key {
