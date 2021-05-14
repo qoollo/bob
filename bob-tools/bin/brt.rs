@@ -27,32 +27,19 @@ impl Display for ValidationError {
 
 impl Error for ValidationError {}
 
-struct Blob {
+struct BlobReader {
     file: File,
     position: u64,
     len: u64,
 }
 
-impl Blob {
-    fn reader(path: &str) -> AnyResult<Self> {
+impl BlobReader {
+    fn new(path: &str) -> AnyResult<Self> {
         let file = OpenOptions::new().read(true).open(path)?;
-        Ok(Blob {
+        Ok(BlobReader {
             len: file.metadata()?.len(),
             file,
             position: 0,
-        })
-    }
-
-    fn writer(path: &str) -> AnyResult<Self> {
-        let file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(path)?;
-        Ok(Blob {
-            file,
-            position: 0,
-            len: 0,
         })
     }
 
@@ -65,12 +52,6 @@ impl Blob {
         header.validate()?;
         self.position += bincode::serialized_size(&header)?;
         Ok(header)
-    }
-
-    fn write_header(&mut self, header: &BlobHeader) -> AnyResult<()> {
-        bincode::serialize_into(&mut self.file, header)?;
-        self.position += bincode::serialized_size(&header)?;
-        Ok(())
     }
 
     fn read_record(&mut self) -> AnyResult<Record> {
@@ -90,14 +71,36 @@ impl Blob {
         record.validate()?;
         Ok(record)
     }
+}
+
+struct BlobWriter {
+    file: File,
+    written: u64,
+}
+
+impl BlobWriter {
+    fn new(path: &str) -> AnyResult<Self> {
+        let file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)?;
+        Ok(BlobWriter { file, written: 0 })
+    }
+
+    fn write_header(&mut self, header: &BlobHeader) -> AnyResult<()> {
+        bincode::serialize_into(&mut self.file, header)?;
+        self.written += bincode::serialized_size(&header)?;
+        Ok(())
+    }
 
     fn write_record(&mut self, record: &Record) -> AnyResult<()> {
         bincode::serialize_into(&mut self.file, &record.header)?;
-        self.position += bincode::serialized_size(&record.header)?;
+        self.written += bincode::serialized_size(&record.header)?;
         self.file.write_all(&record.meta)?;
-        self.position += record.meta.len() as u64;
+        self.written += record.meta.len() as u64;
         self.file.write_all(&record.data)?;
-        self.position += record.data.len() as u64;
+        self.written += record.data.len() as u64;
         Ok(())
     }
 }
@@ -179,9 +182,9 @@ fn try_main() -> AnyResult<()> {
     init_logger()?;
     log::info!("Logger initialized");
     let settings = Settings::from_matches()?;
-    let mut input = Blob::reader(&settings.input)?;
+    let mut input = BlobReader::new(&settings.input)?;
     log::info!("Blob reader created");
-    let mut output = Blob::writer(&settings.output)?;
+    let mut output = BlobWriter::new(&settings.output)?;
     log::info!("Blob writer created");
     let header = input.read_header()?;
     output.write_header(&header)?;
@@ -203,7 +206,7 @@ fn try_main() -> AnyResult<()> {
     log::info!(
         "{} records written, totally {} bytes",
         count,
-        output.position
+        output.written
     );
     Ok(())
 }
