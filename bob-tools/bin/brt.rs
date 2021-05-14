@@ -139,14 +139,7 @@ impl Header {
         let mut header = self.clone();
         header.header_checksum = 0;
         let serialized = bincode::serialize(&header)?;
-        let checksum = crc32(&serialized);
-        if self.header_checksum != checksum {
-            return Err(ValidationError(format!(
-                "wrong header checksum: '{}' != '{}'",
-                self.header_checksum, checksum
-            ))
-            .into());
-        }
+        validate_bytes(&serialized, self.header_checksum)?;
         Ok(())
     }
 }
@@ -171,14 +164,7 @@ impl Debug for Record {
 impl Record {
     fn validate(&self) -> AnyResult<()> {
         self.header.validate()?;
-        let checksum = crc32(&self.data);
-        if self.header.data_checksum != checksum {
-            return Err(ValidationError(format!(
-                "wrong data checksum: '{}' != '{}'",
-                self.header.data_checksum, checksum
-            ))
-            .into());
-        }
+        validate_bytes(&self.data, self.header.data_checksum)?;
         Ok(())
     }
 }
@@ -219,6 +205,18 @@ fn try_main() -> AnyResult<()> {
         count,
         output.position
     );
+    Ok(())
+}
+
+fn validate_bytes(a: &[u8], checksum: u32) -> AnyResult<()> {
+    let actual_checksum = crc32(&a);
+    if actual_checksum != checksum {
+        return Err(ValidationError(format!(
+            "wrong data checksum: '{}' != '{}'",
+            actual_checksum, checksum
+        ))
+        .into());
+    }
     Ok(())
 }
 
