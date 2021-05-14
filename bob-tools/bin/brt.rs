@@ -5,7 +5,7 @@ use std::{
     error::Error,
     fmt::{Debug, Display, Formatter, Result as FmtResult},
     fs::{File, OpenOptions},
-    io::{Read, Write},
+    io::{Read, Seek, SeekFrom, Write},
 };
 
 use anyhow::Result as AnyResult;
@@ -13,6 +13,7 @@ use clap::{App, Arg, ArgMatches};
 
 const INPUT_BLOB_OPT: &str = "input blob";
 const OUTPUT_BLOB_OPT: &str = "output blob";
+const VALIDATE_EVERY_OPT: &str = "record cache";
 const RECORD_MAGIC_BYTE: u64 = 0xacdc_bcde;
 const BLOB_MAGIC_BYTE: u64 = 0xdeaf_abcd;
 
@@ -34,12 +35,22 @@ struct BlobReader {
 }
 
 impl BlobReader {
-    fn new(path: &str) -> AnyResult<Self> {
+    fn from_path(path: &str) -> AnyResult<Self> {
         let file = OpenOptions::new().read(true).open(path)?;
         Ok(BlobReader {
             len: file.metadata()?.len(),
             file,
             position: 0,
+        })
+    }
+
+    fn from_file(mut file: File) -> AnyResult<BlobReader> {
+        let position = file.seek(SeekFrom::Current(0))?;
+        let len = file.metadata()?.len();
+        Ok(BlobReader {
+            file,
+            position,
+            len,
         })
     }
 
@@ -75,17 +86,30 @@ impl BlobReader {
 
 struct BlobWriter {
     file: File,
+    cache: Option<Vec<Record>>,
+    written_cached: u64,
     written: u64,
 }
 
 impl BlobWriter {
-    fn new(path: &str) -> AnyResult<Self> {
+    fn from_path(path: &str, should_cache_written: bool) -> AnyResult<Self> {
         let file = OpenOptions::new()
+            .read(true)
             .write(true)
             .create(true)
             .truncate(true)
             .open(path)?;
-        Ok(BlobWriter { file, written: 0 })
+        let cache = if should_cache_written {
+            Some(vec![])
+        } else {
+            None
+        };
+        Ok(BlobWriter {
+            file,
+            written: 0,
+            cache,
+            written_cached: 0,
+        })
     }
 
     fn write_header(&mut self, header: &BlobHeader) -> AnyResult<()> {
@@ -94,13 +118,57 @@ impl BlobWriter {
         Ok(())
     }
 
-    fn write_record(&mut self, record: &Record) -> AnyResult<()> {
+    fn write_record(&mut self, record: Record) -> AnyResult<()> {
         bincode::serialize_into(&mut self.file, &record.header)?;
-        self.written += bincode::serialized_size(&record.header)?;
+        let mut written = 0;
+        written += bincode::serialized_size(&record.header)?;
         self.file.write_all(&record.meta)?;
-        self.written += record.meta.len() as u64;
+        written += record.meta.len() as u64;
         self.file.write_all(&record.data)?;
-        self.written += record.data.len() as u64;
+        written += record.data.len() as u64;
+        log::debug!("Record written: {:?}", record);
+        if let Some(cache) = &mut self.cache {
+            cache.push(record);
+            self.written_cached += written;
+        }
+        self.written += written;
+        Ok(())
+    }
+
+    fn clear_cache(&mut self) {
+        if let Some(cache) = &mut self.cache {
+            cache.clear();
+            self.written_cached = 0;
+        }
+    }
+
+    fn validate_written_records(&mut self) -> AnyResult<()> {
+        let cache = if let Some(cache) = &mut self.cache {
+            cache
+        } else {
+            return Ok(());
+        };
+        if cache.is_empty() {
+            return Ok(());
+        }
+        log::debug!("Start validation of written records");
+        let current_position = self.written;
+        let start_position = current_position
+            .checked_sub(self.written_cached)
+            .expect("Should be correct");
+        let mut file = self.file.try_clone()?;
+        file.seek(SeekFrom::Start(start_position))?;
+        let mut reader = BlobReader::from_file(file)?;
+        for record in cache.iter() {
+            let written_record = reader.read_record()?;
+            if record != &written_record {
+                return Err(
+                    ValidationError("Written and cached records is not equal".to_string()).into(),
+                );
+            }
+        }
+        self.file.seek(SeekFrom::Start(current_position))?;
+        log::debug!("{} written records validated", cache.len());
         Ok(())
     }
 }
@@ -182,19 +250,19 @@ fn try_main() -> AnyResult<()> {
     init_logger()?;
     log::info!("Logger initialized");
     let settings = Settings::from_matches()?;
-    let mut input = BlobReader::new(&settings.input)?;
+    let should_validate_written = settings.validate_every != 0;
+    let mut reader = BlobReader::from_path(&settings.input)?;
     log::info!("Blob reader created");
-    let mut output = BlobWriter::new(&settings.output)?;
+    let mut writer = BlobWriter::from_path(&settings.output, should_validate_written)?;
     log::info!("Blob writer created");
-    let header = input.read_header()?;
-    output.write_header(&header)?;
+    let header = reader.read_header()?;
+    writer.write_header(&header)?;
     log::info!("Input blob header version: {}", header.version);
     let mut count = 0;
-    while !input.is_eof() {
-        match input.read_record() {
+    while !reader.is_eof() {
+        match reader.read_record() {
             Ok(record) => {
-                output.write_record(&record)?;
-                log::debug!("Record written: {:?}", record);
+                writer.write_record(record)?;
                 count += 1;
             }
             Err(error) => {
@@ -202,11 +270,19 @@ fn try_main() -> AnyResult<()> {
                 break;
             }
         }
+        if should_validate_written && count % settings.validate_every == 0 {
+            writer.validate_written_records()?;
+            writer.clear_cache();
+        }
+    }
+    if should_validate_written {
+        writer.validate_written_records()?;
+        writer.clear_cache();
     }
     log::info!(
         "{} records written, totally {} bytes",
         count,
-        output.written
+        writer.written
     );
     Ok(())
 }
@@ -226,6 +302,7 @@ fn validate_bytes(a: &[u8], checksum: u32) -> AnyResult<()> {
 struct Settings {
     input: String,
     output: String,
+    validate_every: usize,
 }
 
 impl Settings {
@@ -240,6 +317,10 @@ impl Settings {
                 .value_of(OUTPUT_BLOB_OPT)
                 .expect("Required")
                 .to_string(),
+            validate_every: matches
+                .value_of(VALIDATE_EVERY_OPT)
+                .expect("Has default")
+                .parse()?,
         })
     }
 }
@@ -262,6 +343,15 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .required(true)
                 .short("o")
                 .long("output"),
+        )
+        .arg(
+            Arg::with_name(VALIDATE_EVERY_OPT)
+                .help("validate every N records")
+                .takes_value(true)
+                .default_value("100")
+                .short("s")
+                .value_name("N")
+                .long("cache-size"),
         )
         .get_matches()
 }
