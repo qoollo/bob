@@ -8,7 +8,63 @@ use std::{
     hash::Hash,
 };
 
-pub type BobKey = u64;
+include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
+
+#[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
+pub struct BobKey([u8; KEY_SIZE]);
+
+impl From<Vec<u8>> for BobKey {
+    fn from(v: Vec<u8>) -> Self {
+        if v.len() > KEY_SIZE {
+            panic!("expected key size {}, received {}", KEY_SIZE, v.len());
+        }
+        let mut data = [0; KEY_SIZE];
+        for (ind, elem) in v.into_iter().enumerate() {
+            data[ind] = elem;
+        }
+        Self(data)
+    }
+}
+
+impl Into<Vec<u8>> for BobKey {
+    fn into(self) -> Vec<u8> {
+        self.iter().cloned().collect()
+    }
+}
+
+impl Into<[u8; KEY_SIZE]> for BobKey {
+    fn into(self) -> [u8; KEY_SIZE] {
+        self.0
+    }
+}
+
+impl BobKey {
+    pub fn iter(&self) -> impl Iterator<Item = &u8> {
+        self.0.iter()
+    }
+}
+
+impl std::fmt::Display for BobKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { 
+        for key in self.iter() {
+            write!(f, "{:x}", key)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::str::FromStr for BobKey {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, ()> {
+        let mut data = [0; KEY_SIZE];
+        for i in (0..s.len()).step_by(2) {
+            if let Ok(n) = u8::from_str_radix(&s[i..i + 2], 16) {
+                data[i / 2] = n
+            }
+        }
+        Ok(Self(data))
+    }
+}
 
 pub type VDiskId = u32;
 

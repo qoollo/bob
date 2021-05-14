@@ -5,9 +5,9 @@ include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
 #[derive(Clone, Debug)]
 pub struct Key(Vec<u8>);
 
-impl From<u64> for Key {
-    fn from(key: u64) -> Self {
-        Self(key.to_be_bytes().to_vec())
+impl<T: Into<Vec<u8>>> From<T> for Key {
+    fn from(t: T) -> Self {
+        Self(t.into())
     }
 }
 

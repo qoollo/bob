@@ -452,7 +452,7 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let measure_time = task_conf.is_time_measurement_thread();
     for i in task_conf.low_idx..upper_idx {
         let request = Request::new(GetRequest {
-            key: Some(BlobKey { key: i }),
+            key: Some(BlobKey { key: i.to_be_bytes().to_vec() }),
             options: options.clone(),
         });
         let res = if measure_time {
@@ -483,7 +483,7 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
         let blob = create_blob(&task_conf);
-        let key = BlobKey { key: i };
+        let key = BlobKey { key: i.to_be_bytes().to_vec() };
         let req = Request::new(PutRequest {
             key: Some(key),
             data: Some(blob),
@@ -504,7 +504,7 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     }
     let req = Request::new(ExistRequest {
         keys: (task_conf.low_idx..upper_idx)
-            .map(|i| BlobKey { key: i })
+            .map(|i| BlobKey { key: i.to_be_bytes().to_vec() })
             .collect(),
         options: task_conf.find_get_options(),
     });
@@ -532,7 +532,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
         let blob = create_blob(&task_conf);
-        let key = BlobKey { key: i };
+        let key = BlobKey { key: i.to_be_bytes().to_vec() };
         let put_request = Request::new(PutRequest {
             key: Some(key.clone()),
             data: Some(blob),
