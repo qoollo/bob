@@ -3,6 +3,7 @@ FROM rust:1.47.0 as cargo-build
 
 # rust toolchain version
 ARG RUST_TC_VER=nightly-2020-10-17
+ARG KEY_SIZE=8
 
 RUN rustup install $RUST_TC_VER \
   && rustup default $RUST_TC_VER \
@@ -43,6 +44,7 @@ RUN cargo build --release --target=x86_64-unknown-linux-gnu \
 
 # final build
 COPY . .
+ENV BOB_KEY_SIZE=${KEY_SIZE}
 RUN cargo build --release --target=x86_64-unknown-linux-gnu
 
 # bobd image
