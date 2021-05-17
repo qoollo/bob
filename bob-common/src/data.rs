@@ -11,14 +11,14 @@ use std::{
 include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
-pub struct BobKey([u8; KEY_SIZE]);
+pub struct BobKey([u8; BOB_KEY_SIZE]);
 
 impl From<Vec<u8>> for BobKey {
     fn from(v: Vec<u8>) -> Self {
-        if v.len() > KEY_SIZE {
-            panic!("expected key size {}, received {}", KEY_SIZE, v.len());
+        if v.len() > BOB_KEY_SIZE {
+            panic!("expected key size {}, received {}", BOB_KEY_SIZE, v.len());
         }
-        let mut data = [0; KEY_SIZE];
+        let mut data = [0; BOB_KEY_SIZE];
         for (ind, elem) in v.into_iter().enumerate() {
             data[ind] = elem;
         }
@@ -32,8 +32,8 @@ impl Into<Vec<u8>> for BobKey {
     }
 }
 
-impl Into<[u8; KEY_SIZE]> for BobKey {
-    fn into(self) -> [u8; KEY_SIZE] {
+impl Into<[u8; BOB_KEY_SIZE]> for BobKey {
+    fn into(self) -> [u8; BOB_KEY_SIZE] {
         self.0
     }
 }
@@ -56,7 +56,7 @@ impl std::fmt::Display for BobKey {
 impl std::str::FromStr for BobKey {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, ()> {
-        let mut data = [0; KEY_SIZE];
+        let mut data = [0; BOB_KEY_SIZE];
         for i in (0..s.len()).step_by(2) {
             if let Ok(n) = u8::from_str_radix(&s[i..i + 2], 16) {
                 data[i / 2] = n

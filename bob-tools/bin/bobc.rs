@@ -120,8 +120,8 @@ fn get_key_value(matches: &'_ ArgMatches<'_>) -> u64 {
 
 fn get_key(k: u64) -> Vec<u8> {
     // TODO move to static
-    let key_size = option_env!("KEY_SIZE")
+    let key_size = option_env!("BOB_KEY_SIZE")
         .map_or(Ok(8), str::parse)
-        .expect("Could not parse KEY_SIZE");
+        .expect("Could not parse BOB_KEY_SIZE");
     k.to_be_bytes().iter().take(key_size).cloned().collect()
 }

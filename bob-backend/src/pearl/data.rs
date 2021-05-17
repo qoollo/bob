@@ -12,7 +12,7 @@ impl<T: Into<Vec<u8>>> From<T> for Key {
 }
 
 impl KeyTrait for Key {
-    const LEN: u16 = KEY_SIZE;
+    const LEN: u16 = BOB_KEY_SIZE;
 }
 
 impl AsRef<[u8]> for Key {

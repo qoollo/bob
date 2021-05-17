@@ -81,9 +81,9 @@ struct TaskConfig {
 
 impl TaskConfig {
     fn from_matches(matches: &ArgMatches) -> Self {
-        let key_size = option_env!("KEY_SIZE")
+        let key_size = option_env!("BOB_KEY_SIZE")
             .map_or(Ok(8), str::parse)
-            .expect("Could not parse KEY_SIZE");
+            .expect("Could not parse BOB_KEY_SIZE");
         Self {
             low_idx: matches.value_or_default("first"),
             count: matches.value_or_default("count"),
