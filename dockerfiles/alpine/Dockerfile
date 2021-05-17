@@ -3,6 +3,7 @@ FROM rust:1.47.0 as cargo-build
 
 # rust toolchain version
 ARG RUST_TC_VER=nightly-2020-10-17
+ARG KEY_SIZE=8
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends musl-tools \
@@ -36,6 +37,7 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/
 
 
 # separate stage for proto build
+ENV BOB_KEY_SIZE=${KEY_SIZE}
 RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grpc {include!(\"bob_storage.rs\");}" > bob-grpc/src/lib.rs \
   && mkdir -p bob-grpc/proto
 COPY bob-grpc/proto/* bob-grpc/proto/
