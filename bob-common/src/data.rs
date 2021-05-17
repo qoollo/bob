@@ -6,6 +6,7 @@ use bob_grpc::{GetOptions, GetSource, PutOptions};
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::Hash,
+    convert::TryInto,
 };
 
 include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
@@ -15,13 +16,7 @@ pub struct BobKey([u8; BOB_KEY_SIZE]);
 
 impl From<Vec<u8>> for BobKey {
     fn from(v: Vec<u8>) -> Self {
-        if v.len() > BOB_KEY_SIZE {
-            panic!("expected key size {}, received {}", BOB_KEY_SIZE, v.len());
-        }
-        let mut data = [0; BOB_KEY_SIZE];
-        for (ind, elem) in v.into_iter().enumerate() {
-            data[ind] = elem;
-        }
+        let data = v.try_into().expect("key size mismatch");
         Self(data)
     }
 }
