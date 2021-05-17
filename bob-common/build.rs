@@ -4,7 +4,7 @@ use std::io::Write;
 use std::path::Path;
 
 fn main() {
-    let out_dir = env::var("OUT_DIR").expect("No OUD_DIR");
+    let out_dir = env::var("OUT_DIR").expect("No OUT_DIR");
     let dest_path = Path::new(&out_dir).join("key_constants.rs");
     let mut f = File::create(&dest_path).expect("Could not create file");
     let key_size = option_env!("BOB_KEY_SIZE");

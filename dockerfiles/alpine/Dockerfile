@@ -37,7 +37,6 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/
 
 
 # separate stage for proto build
-ENV BOB_KEY_SIZE=${KEY_SIZE}
 RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grpc {include!(\"bob_storage.rs\");}" > bob-grpc/src/lib.rs \
   && mkdir -p bob-grpc/proto
 COPY bob-grpc/proto/* bob-grpc/proto/
@@ -47,6 +46,7 @@ RUN cargo build --release --target=x86_64-unknown-linux-musl \
 
 # final build
 COPY . .
+ENV BOB_KEY_SIZE=${KEY_SIZE}
 RUN cargo build --release --target=x86_64-unknown-linux-musl
 
 # bobd image
