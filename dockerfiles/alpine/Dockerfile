@@ -2,7 +2,7 @@
 FROM rust:1.47.0 as cargo-build
 
 # rust toolchain version
-ARG RUST_TC_VER=nightly-2020-10-17
+ARG RUST_TC_VER=nightly-2021-05-19
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends musl-tools \
