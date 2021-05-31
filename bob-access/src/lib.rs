@@ -1,18 +1,30 @@
+#[macro_use]
+extern crate log;
+
 use std::task::{Context, Poll};
 
+use tonic::transport::NamedService;
 use tower::{Layer, Service};
 
+#[derive(Debug, Default)]
 pub struct AccessControlLayer {}
 
+#[derive(Debug, Clone)]
 pub struct AccessControlService<S> {
     service: S,
+}
+
+impl AccessControlLayer {
+    pub fn new() -> Self {
+        Self {}
+    }
 }
 
 impl<S> Layer<S> for AccessControlLayer {
     type Service = AccessControlService<S>;
 
-    fn layer(&self, inner: S) -> Self::Service {
-        todo!()
+    fn layer(&self, service: S) -> Self::Service {
+        AccessControlService { service }
     }
 }
 
@@ -31,7 +43,14 @@ where
     }
 
     fn call(&mut self, req: Request) -> Self::Future {
-        todo!("check credentials/give access rights");
+        warn!("TODO: check credentials/give access rights");
         self.service.call(req)
     }
+}
+
+impl<S> NamedService for AccessControlService<S>
+where
+    S: NamedService,
+{
+    const NAME: &'static str = S::NAME;
 }
