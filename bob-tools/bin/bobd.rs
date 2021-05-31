@@ -1,8 +1,10 @@
 use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper};
+use bob_access::AccessControlLayer;
 use clap::{App, Arg, ArgMatches};
 use std::net::ToSocketAddrs;
 use tokio::runtime::Handle;
 use tonic::transport::Server;
+use tower::Layer;
 
 #[macro_use]
 extern crate log;
@@ -66,6 +68,7 @@ async fn main() {
     let factory = Factory::new(node.operation_timeout(), metrics);
     bob.run_periodic_tasks(factory);
     let new_service = BobApiServer::new(bob);
+    let new_service = AccessControlLayer::new().layer(new_service);
 
     Server::builder()
         .tcp_nodelay(true)
