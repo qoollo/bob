@@ -2,7 +2,9 @@
 extern crate log;
 
 mod authenticator;
+mod credentials;
 mod error;
+mod settings;
 
 use std::task::{Context, Poll};
 

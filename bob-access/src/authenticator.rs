@@ -1,7 +1,5 @@
-use crate::error::Error;
+use crate::{credentials::Credentials, error::Error};
 
 pub trait Authenticator {
     fn check_credentials(&self, credentials: Credentials) -> Result<(), Error>;
 }
-
-pub struct Credentials {}
