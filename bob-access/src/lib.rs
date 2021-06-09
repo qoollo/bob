@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate log;
 
+mod authenticator;
+mod error;
+
 use std::task::{Context, Poll};
 
 use tonic::transport::NamedService;
