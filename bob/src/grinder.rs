@@ -182,6 +182,26 @@ impl Grinder {
         self.cleaner.spawn_task(self.backend.clone());
         self.counter.spawn_task(self.backend.clone());
     }
+
+    pub(crate) async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<u64, Error> {
+        trace!(">>>- - - - - GRINDER DELETE START - - - - -");
+        let sw = Stopwatch::start_new();
+        trace!(
+            "pass request to backend, /{:.3}ms/",
+            sw.elapsed().as_secs_f64() * 1000.0
+        );
+        debug!(
+            "DELETE[{}] flag FORCE_NODE is on - will handle it by local node.",
+            key
+        );
+        let result = self.backend.delete(key, with_aliens).await;
+        trace!(
+            "backend processed delete, /{:.3}ms/",
+            sw.elapsed().as_secs_f64() * 1000.0
+        );
+        trace!(">>>- - - - - GRINDER DELETE FINISHED - - - - -");
+        result
+    }
 }
 
 impl Debug for Grinder {

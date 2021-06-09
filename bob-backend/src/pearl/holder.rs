@@ -362,6 +362,28 @@ impl Holder {
             .build()
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
+
+    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
+        let state = self.storage.read().await;
+        if state.is_ready() {
+            let storage = state.get();
+            trace!("Vdisk: {}, delete key: {}", self.vdisk, key);
+            let res = storage
+                .mark_all_as_deleted(Key::from(key))
+                .await
+                .map_err(|e| {
+                    trace!("error on delete: {:?}", e);
+                    match e.downcast_ref::<PearlError>().unwrap().kind() {
+                        PearlErrorKind::RecordNotFound => Error::key_not_found(key),
+                        _ => Error::storage(e.to_string()),
+                    }
+                });
+            res
+        } else {
+            trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
+            Err(Error::vdisk_is_not_ready())
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
