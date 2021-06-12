@@ -258,7 +258,7 @@ impl DiskController {
         operation: &'op Operation,
     ) -> Option<Group> {
         pearls
-            .find(|group| group.can_process_operation(&operation))
+            .find(|group| group.can_process_operation(operation))
             .cloned()
     }
 
@@ -434,7 +434,7 @@ impl DiskController {
                 .find(|g| g.can_process_operation(&operation))
                 .cloned();
             if let Some(group) = group_option {
-                Ok(group.exist(&keys).await)
+                Ok(group.exist(keys).await)
             } else {
                 Err(Error::internal())
             }

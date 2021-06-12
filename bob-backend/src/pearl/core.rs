@@ -158,7 +158,7 @@ impl BackendStorage for Pearl {
             .iter()
             .find(|dc| dc.can_process_operation(&operation));
         if let Some(disk_controller) = dc_option {
-            disk_controller.exist(operation, &keys).await
+            disk_controller.exist(operation, keys).await
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -166,7 +166,7 @@ impl BackendStorage for Pearl {
 
     async fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> BackendResult<Vec<bool>> {
         if self.alien_disk_controller.can_process_operation(&operation) {
-            self.alien_disk_controller.exist(operation, &keys).await
+            self.alien_disk_controller.exist(operation, keys).await
         } else {
             Err(Error::dc_is_not_available())
         }
