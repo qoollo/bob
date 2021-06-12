@@ -1,5 +1,5 @@
 use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper};
-use bob_access::AccessControlLayer;
+use bob_access::{AccessControlLayer, StubAuthenticator};
 use clap::{App, Arg, ArgMatches};
 use std::net::ToSocketAddrs;
 use tokio::runtime::Handle;
@@ -68,7 +68,10 @@ async fn main() {
     let factory = Factory::new(node.operation_timeout(), metrics);
     bob.run_periodic_tasks(factory);
     let new_service = BobApiServer::new(bob);
-    let new_service = AccessControlLayer::new().layer(new_service);
+    let authenticator = StubAuthenticator::new();
+    let new_service = AccessControlLayer::new()
+        .with_authenticator(authenticator)
+        .layer(new_service);
 
     Server::builder()
         .tcp_nodelay(true)

@@ -6,36 +6,54 @@ mod credentials;
 mod error;
 mod settings;
 
+pub use authenticator::StubAuthenticator;
+
 use std::task::{Context, Poll};
 
+use authenticator::Authenticator;
 use tonic::transport::NamedService;
 use tower::{Layer, Service};
 
 #[derive(Debug, Default)]
-pub struct AccessControlLayer {}
+pub struct AccessControlLayer<A> {
+    authenticator: Option<A>,
+}
 
 #[derive(Debug, Clone)]
-pub struct AccessControlService<S> {
+pub struct AccessControlService<A, S> {
+    authenticator: A,
     service: S,
 }
 
-impl AccessControlLayer {
+impl<A> AccessControlLayer<A> {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            authenticator: None,
+        }
+    }
+
+    pub fn with_authenticator(mut self, authenticator: A) -> Self {
+        self.authenticator = Some(authenticator);
+        self
     }
 }
 
-impl<S> Layer<S> for AccessControlLayer {
-    type Service = AccessControlService<S>;
+impl<A, S> Layer<S> for AccessControlLayer<A> {
+    type Service = AccessControlService<A, S>;
 
     fn layer(&self, service: S) -> Self::Service {
-        AccessControlService { service }
+        let authenticator = todo!("init authenticator");
+        AccessControlService {
+            service,
+            authenticator,
+        }
     }
 }
 
-impl<S, Request> Service<Request> for AccessControlService<S>
+impl<A, S, Request> Service<Request> for AccessControlService<A, S>
 where
     S: Service<Request>,
+    A: Authenticator,
 {
     type Response = S::Response;
 
@@ -49,11 +67,16 @@ where
 
     fn call(&mut self, req: Request) -> Self::Future {
         warn!("TODO: check credentials/give access rights");
-        self.service.call(req)
+        let credentials = todo!("extract credentials from request");
+        if let Err(e) = self.authenticator.check_credentials(credentials) {
+            todo!("print log and drop request");
+        } else {
+            self.service.call(req)
+        }
     }
 }
 
-impl<S> NamedService for AccessControlService<S>
+impl<A, S> NamedService for AccessControlService<A, S>
 where
     S: NamedService,
 {
