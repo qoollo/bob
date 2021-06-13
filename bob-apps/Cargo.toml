@@ -1,11 +1,11 @@
 [package]
-name = "bob-tools"
+name = "bob-apps"
 version = "1.6.1"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
 [dependencies]
-bob = { version = "1.5.1-alpha.4", path = "../bob" }
+bob = { path = "../bob" }
 
 anyhow = "1.0.38"
 http = "0.2.3"

@@ -3,5 +3,5 @@ members = [
     "bob",
     "bob-backend",
     "bob-common",
-    "bob-tools",
+    "bob-apps",
 ]
