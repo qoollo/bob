@@ -1,3 +1,5 @@
+use rand::prelude::*;
+
 use bob::{
     Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetOptions, GetRequest, GetSource,
     PutOptions, PutRequest,
@@ -76,6 +78,7 @@ struct TaskConfig {
     count: u64,
     payload_size: u64,
     direct: bool,
+    random: bool,
     measure_time: bool,
 }
 
@@ -86,6 +89,7 @@ impl TaskConfig {
             count: matches.value_or_default("count"),
             payload_size: matches.value_or_default("payload"),
             direct: matches.is_present("direct"),
+            random: matches.is_present("random"),
             measure_time: false,
         }
     }
@@ -115,6 +119,10 @@ impl TaskConfig {
 
     fn is_time_measurement_thread(&self) -> bool {
         self.measure_time
+    }
+
+    fn is_random(&self) -> bool {
+        self.random
     }
 }
 
@@ -450,9 +458,13 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let options = task_conf.find_get_options();
     let upper_idx = task_conf.low_idx + task_conf.count;
     let measure_time = task_conf.is_time_measurement_thread();
-    for i in task_conf.low_idx..upper_idx {
+    let mut keys: Vec<_> = (task_conf.low_idx..upper_idx).collect();
+    if task_conf.is_random() {
+        keys.shuffle(&mut thread_rng());
+    }
+    for key in keys {
         let request = Request::new(GetRequest {
-            key: Some(BlobKey { key: i }),
+            key: Some(BlobKey { key }),
             options: options.clone(),
         });
         let res = if measure_time {
@@ -590,6 +602,7 @@ fn spawn_workers(
                 count,
                 payload_size: task_conf.payload_size,
                 direct: task_conf.direct,
+                random: task_conf.random,
                 measure_time: i == 0,
             };
             match benchmark_conf.behavior {
@@ -706,6 +719,13 @@ fn get_matches() -> ArgMatches<'static> {
                 .help("verify results of put requests")
                 .takes_value(false)
                 .long("verify"),
+        )
+        .arg(
+            Arg::with_name("random")
+                .help("keys in get operation are shuffled")
+                .takes_value(false)
+                .short("r")
+                .long("random"),
         )
         .get_matches()
 }
