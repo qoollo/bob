@@ -38,7 +38,9 @@ impl<T> Extractor<TRequest<T>> for BasicExtractor {
             .to_str()
             .map_err(|e| Error::unknown(e.to_string()))?;
 
-        Ok(Credentials::basic(username, password))
+        Ok(Credentials::new()
+            .with_username_password(username, password)
+            .with_address(req.remote_addr()))
     }
 }
 
@@ -51,7 +53,9 @@ impl<'r> Extractor<RRequest<'r>> for BasicExtractor {
         let password = headers
             .get_one("password")
             .ok_or_else(|| Error::credentials_not_provided("password"))?;
-        Ok(Credentials::basic(username, password))
+        Ok(Credentials::new()
+            .with_username_password(username, password)
+            .with_address(req.remote()))
     }
 }
 
@@ -66,7 +70,9 @@ impl<T> Extractor<TRequest<T>> for TokenExtractor {
             .ok_or_else(|| Error::credentials_not_provided("token"))?
             .to_str()
             .map_err(|e| Error::unknown(e.to_string()))?;
-        Ok(Credentials::token(token))
+        Ok(Credentials::new()
+            .with_token(token)
+            .with_address(req.remote_addr()))
     }
 }
 
@@ -76,27 +82,9 @@ impl<'r> Extractor<RRequest<'r>> for TokenExtractor {
         let token = headers
             .get_one("token")
             .ok_or_else(|| Error::credentials_not_provided("token"))?;
-        Ok(Credentials::token(token))
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct AddressExtractor {}
-
-impl<T> Extractor<TRequest<T>> for AddressExtractor {
-    fn extract(&self, req: &TRequest<T>) -> Result<Credentials, Error> {
-        req.remote_addr()
-            .map(|addr| Credentials::address(addr))
-            .ok_or_else(|| Error::credentials_not_provided("address"))
-    }
-}
-
-impl<'r> Extractor<RRequest<'r>> for AddressExtractor {
-    fn extract(&self, req: &RRequest) -> Result<Credentials, Error> {
-        // X-Real-IP header not allowed because of possible security issues
-        req.remote()
-            .map(|addr| Credentials::address(addr))
-            .ok_or_else(|| Error::credentials_not_provided("address"))
+        Ok(Credentials::new()
+            .with_token(token)
+            .with_address(req.remote()))
     }
 }
 
@@ -104,7 +92,6 @@ impl<'r> Extractor<RRequest<'r>> for AddressExtractor {
 pub struct MultiExtractor {
     basic_extractor: BasicExtractor,
     token_extractor: TokenExtractor,
-    address_extractor: AddressExtractor,
 }
 
 impl<T> Extractor<TRequest<T>> for MultiExtractor {
@@ -118,7 +105,7 @@ impl<T> Extractor<TRequest<T>> for MultiExtractor {
         } else if token_credentials.is_ok() {
             token_credentials
         } else {
-            self.address_extractor.extract(req)
+            Ok(Credentials::new().with_address(req.remote_addr()))
         }
     }
 }
@@ -134,7 +121,7 @@ impl<'r> Extractor<RRequest<'r>> for MultiExtractor {
         } else if token_credentials.is_ok() {
             token_credentials
         } else {
-            self.address_extractor.extract(req)
+            Ok(Credentials::new().with_address(req.remote()))
         }
     }
 }
