@@ -1,6 +1,9 @@
 use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
-use bob_common::{data::VDisk as DataVDisk, node::Disk as NodeDisk};
+use bob_common::{
+    data::{BobKey, VDisk as DataVDisk},
+    node::Disk as NodeDisk,
+};
 use futures::{future::BoxFuture, FutureExt};
 use rocket::{
     http::{RawStr, Status},
@@ -103,6 +106,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         finalize_outdated_blobs,
         vdisk_records_count,
         distribution_function,
+        delete_records_by_key
     ];
     let task = async move {
         info!("API server started");
@@ -593,6 +597,13 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
 
 fn internal(message: String) -> StatusExt {
     StatusExt::new(Status::InternalServerError, false, message)
+}
+
+#[delete("/data/<key>")]
+fn delete_records_by_key(bob: State<BobServer>, key: BobKey) -> Result<StatusExt, StatusExt> {
+    bob.block_on(bob.grinder().delete(key, true))
+        .map_err(|e| internal(e.to_string()))
+        .map(|res| StatusExt::new(Status::Ok, true, format!("{}", res)))
 }
 
 impl<'r> FromParam<'r> for Action {

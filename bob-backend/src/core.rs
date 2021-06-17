@@ -80,7 +80,7 @@ impl Operation {
 }
 
 #[async_trait]
-pub trait BackendStorage: Debug  + MetricsProducer + Send + Sync + 'static {
+pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
     async fn run_backend(&self) -> AnyResult<()>;
     async fn run(&self) -> AnyResult<()> {
         gauge!(BACKEND_STATE, BACKEND_STARTING);
@@ -97,6 +97,9 @@ pub trait BackendStorage: Debug  + MetricsProducer + Send + Sync + 'static {
 
     async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
+
+    async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error>;
+    async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error>;
 
     async fn shutdown(&self);
 
@@ -350,5 +353,46 @@ impl Backend {
 
     pub async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
         self.inner.close_unneeded_active_blobs(soft, hard).await
+    }
+
+    pub async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<u64, Error> {
+        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let mut total_count = 0;
+        if let Some(path) = disk_path {
+            trace!("DELETE[{}] try delete normal", key);
+            total_count += self
+                .delete_single(key, Operation::new_local(vdisk_id, path.clone()))
+                .await
+                .map_err(|e| {
+                    debug!("DELETE[{}] delete alien error: {}", key, e);
+                })
+                .unwrap_or(0);
+        }
+        if with_aliens {
+            trace!("DELETE[{}] try delete from alien", key);
+            let op = Operation::new_alien(vdisk_id);
+            total_count += self
+                .delete_single(key, op)
+                .await
+                .map_err(|e| {
+                    debug!("DELETE[{}] delete alien error: {}", key, e);
+                })
+                .unwrap_or(0);
+        }
+        Ok(total_count)
+    }
+
+    async fn delete_single(&self, key: BobKey, operation: Operation) -> Result<u64, Error> {
+        if operation.is_data_alien() {
+            debug!("DELETE[{}] from backend, foreign data", key);
+            self.inner.delete_alien(operation, key).await
+        } else {
+            debug!(
+                "DELETE[{}][{}] from backend",
+                key,
+                operation.disk_name_local()
+            );
+            self.inner.delete(operation, key).await
+        }
     }
 }

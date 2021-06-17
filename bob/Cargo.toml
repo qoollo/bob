@@ -44,9 +44,9 @@ version = "1.4"
 features = ["full"]
 
 [dependencies.pearl]
-version = "=0.5.14"
-# git = "https://github.com/qoollo/pearl"
-# branch = "observer-force-shutdown-on-close"
+# version = "=0.5.14"
+git = "https://github.com/qoollo/pearl"
+branch = "mark-records-as-deleted"
 
 [build-dependencies]
 tonic-build = "0.4.0"
