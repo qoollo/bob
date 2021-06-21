@@ -648,6 +648,11 @@ impl DataKey {
             .for_each(|(a, b)| {
                 *a = *b;
             });
+        if bytes.len() > BOB_KEY_SIZE {
+            if !bytes.iter().rev().skip(BOB_KEY_SIZE).all(|&b| b == 0) {
+                return Err(parse_error("Key overflow"));
+            }
+        }
         Ok(Self(BobKey::from(bytes)))
     }
 
