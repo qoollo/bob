@@ -1,5 +1,7 @@
 use crate::{credentials::Credentials, error::Error};
 
+mod users_storage;
+
 pub trait Authenticator: Clone {
     fn check_credentials(&self, credentials: Credentials) -> Result<(), Error>;
 }
