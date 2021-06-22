@@ -8,3 +8,5 @@ edition = "2018"
 tower = "*"
 tonic = "*"
 log = "*"
+serde = {version = "1.0", features = ["derive"] }
+jsonwebtoken = "7"

@@ -6,6 +6,7 @@ mod credentials;
 mod error;
 mod extractor;
 mod settings;
+mod token;
 
 pub use authenticator::StubAuthenticator;
 pub use extractor::StubExtractor;
