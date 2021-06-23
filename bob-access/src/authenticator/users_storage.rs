@@ -1,10 +1,10 @@
 use crate::error::Error;
 use serde::Deserialize;
 
-mod hashmap;
+pub mod hashmap;
 
 #[derive(Debug, Clone, Deserialize, Default)]
-struct Perms {
+pub struct Perms {
     #[serde(default)]
     read: bool,
     #[serde(default)]
@@ -15,15 +15,15 @@ struct Perms {
     write_rest: bool,
 }
 
-#[derive(Debug)]
-struct User {
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct User {
     username: String,
     password: String,
     perms: Perms,
 }
 
 impl User {
-    fn new(username: String, password: String, perms: Perms) -> Self {
+    pub fn new(username: String, password: String, perms: Perms) -> Self {
         Self {
             username,
             password,
@@ -31,27 +31,27 @@ impl User {
         }
     }
 
-    fn password(&self) -> &str {
+    pub fn password(&self) -> &str {
         &self.password
     }
 
-    fn can_read(&self) -> bool {
+    pub fn can_read(&self) -> bool {
         self.perms.read
     }
 
-    fn can_write(&self) -> bool {
+    pub fn can_write(&self) -> bool {
         self.perms.write
     }
 
-    fn can_read_rest(&self) -> bool {
+    pub fn can_read_rest(&self) -> bool {
         self.perms.read_rest
     }
 
-    fn can_write_rest(&self) -> bool {
+    pub fn can_write_rest(&self) -> bool {
         self.perms.write_rest
     }
 }
 
-trait UsersStorageTrait {
+pub trait UsersStorageTrait: Default + Clone {
     fn get_user<'a>(&'a self, username: &str) -> Result<&'a User, Error>;
 }

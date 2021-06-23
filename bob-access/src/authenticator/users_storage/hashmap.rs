@@ -3,12 +3,13 @@ use crate::error::Error;
 use serde::Deserialize;
 use std::{collections::HashMap, fs::File};
 
-pub(crate) struct UsersMap {
+#[derive(Default, Clone, Debug)]
+pub struct UsersMap {
     inner: HashMap<String, User>,
 }
 
 impl UsersMap {
-    pub(crate) fn from_file(filename: &str) -> Result<Self, Error> {
+    pub fn from_file(filename: &str) -> Result<Self, Error> {
         let f = File::open(filename).map_err(|e| {
             Error::validation(format!(
                 "Can't open file {} (reason: {})",

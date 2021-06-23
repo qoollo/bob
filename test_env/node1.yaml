@@ -1,4 +1,5 @@
 log_config: /bob/config-examples/logger.yaml
+users_config: /bob/config-examples/users.yaml 
 name: node1
 quorum: 3
 operation_timeout: 3sec
