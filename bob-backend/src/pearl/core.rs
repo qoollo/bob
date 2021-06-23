@@ -22,13 +22,13 @@ pub struct Pearl {
 }
 
 impl Pearl {
-    pub async fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> Self {
+    pub async fn new(mapper: Arc<Virtual>, config: &NodeConfig) -> BackendResult<Self> {
         debug!("initializing pearl backend");
         let settings = Arc::new(Settings::new(config, mapper));
         let logfile = config.pearl().disks_events_logfile();
-        let logger = DisksEventsLogger::new(logfile)
-            .await
-            .expect("create logger");
+        let logger = DisksEventsLogger::new(logfile).await.map_err(|e| {
+            Error::disk_events_logger("disk events logger initialization failed", e)
+        })?;
 
         let run_sem = Arc::new(Semaphore::new(config.init_par_degree()));
         let data = settings
@@ -43,13 +43,14 @@ impl Pearl {
             .read_alien_directory(config, run_sem, logger)
             .await;
 
-        Self {
+        let pearl = Self {
             settings,
             disk_controllers,
             alien_disk_controller,
             node_name: config.name().to_string(),
             init_par_degree: config.init_par_degree(),
-        }
+        };
+        Ok(pearl)
     }
 }
 
