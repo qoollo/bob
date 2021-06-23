@@ -1,5 +1,5 @@
 use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper};
-use bob_access::{AccessControlLayer, StubAuthenticator, StubExtractor};
+use bob_access::{AccessControlLayer, StubAuthenticator, StubExtractor, UsersMap};
 use clap::{App, Arg, ArgMatches};
 use std::net::ToSocketAddrs;
 use tokio::runtime::Handle;
@@ -68,7 +68,9 @@ async fn main() {
     let factory = Factory::new(node.operation_timeout(), metrics);
     bob.run_periodic_tasks(factory);
     let new_service = BobApiServer::new(bob);
-    let authenticator = StubAuthenticator::new();
+    let users_storage =
+        UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
+    let authenticator = StubAuthenticator::new(users_storage);
     let extractor = StubExtractor::new();
     let new_service = AccessControlLayer::new()
         .with_authenticator(authenticator)
