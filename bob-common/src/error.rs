@@ -13,6 +13,11 @@ impl Error {
     fn new(ctx: Kind) -> Self {
         Self { ctx }
     }
+
+    pub fn kind(&self) -> &Kind {
+        &self.ctx
+    }
+
     pub fn is_not_ready(&self) -> bool {
         self.ctx == Kind::VDiskIsNotReady
     }

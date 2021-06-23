@@ -1,9 +1,14 @@
 # Bob
 Bob is distributing storage system designed for byte data like photos. It is has decentralized architecture where each node can handleuser calls. [Pearl](https://github.com/qoollo/pearl) uses like backend storage.
 
+More information can be found on [wiki](https://github.com/qoollo/bob/wiki).
+
 # Api
 Bob use grpc [Api](https://github.com/qoollo/bob/blob/master/proto/bob.proto).
-Dont type any fields for PutOptions and GetOptions structs.
+Dont type any fields for PutOptions and GetOptions structs. 
+
+Detailed API description
+can be found on [wiki](https://github.com/qoollo/bob/wiki/gRPC-API).
 
 ## BobMeta
 ```
@@ -72,3 +77,10 @@ Under vdisk info in folder it has timestemp folder info.
 You can use [bobc](https://github.com/qoollo/bob/blob/master/src/bin/bobc.rs) and [bobp](https://github.com/qoollo/bob/blob/master/src/bin/bobp.rs) like examples
 
 Also you can use [dcr](https://github.com/qoollo/bob/blob/master/src/bin/dcr.rs) to create and start docker-compose configuration. By default dcr takes configuration from file [dcr_config.yaml](https://github.com/qoollo/bob/blob/master/dcr_config.yaml). All configuration files are saved in cluster_test directory. SSH can be used to connect to running dockers. Can be used with flag -g to generate configs without starting dockers.
+
+# Performance
+
+Bob can handle more than 10k RPS. 
+
+Detailed tests and hardware configuration can be found on 
+[wiki](https://github.com/qoollo/bob/wiki/Performance-tests).

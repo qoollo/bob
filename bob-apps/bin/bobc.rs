@@ -18,24 +18,29 @@ async fn main() {
             "put" => {
                 let value = sub_mathes.value_of("size").unwrap();
                 let size = value.parse().expect("size must be usize");
-                info!("PUT key: \"{}\" size: \"{}\"", key, size);
-                put(key, size).await;
+                let addr = sub_mathes
+                    .value_of("uri")
+                    .expect("has default value")
+                    .parse()
+                    .expect("wrong format of url");
+                info!("PUT key: \"{}\" size: \"{}\" to \"{}\"", key, size, addr);
+                put(key, size, addr).await;
             }
             "get" => {
-                info!("GET key:\"{}\" command", key);
-                get(key).await;
+                let addr = sub_mathes
+                    .value_of("uri")
+                    .expect("has default value")
+                    .parse()
+                    .expect("wrong format of url");
+                info!("GET key:\"{}\" from  \"{}\"", key, addr);
+                get(key, addr).await;
             }
             _ => {}
         }
     }
 }
 
-async fn put(key: u64, size: usize) {
-    let addr: Uri = get_matches()
-        .value_of("uri")
-        .expect("has default value")
-        .parse()
-        .expect("wrong format of url");
+async fn put(key: u64, size: usize, addr: Uri) {
     let mut client = BobApiClient::connect(addr).await.unwrap();
 
     let timestamp = SystemTime::now()
@@ -60,12 +65,7 @@ async fn put(key: u64, size: usize) {
     info!("{:#?}", res);
 }
 
-async fn get(key: u64) {
-    let addr: Uri = get_matches()
-        .value_of("uri")
-        .expect("has default value")
-        .parse()
-        .expect("wrong format of url");
+async fn get(key: u64, addr: Uri) {
     let mut client = BobApiClient::connect(addr).await.unwrap();
 
     let message = GetRequest {
