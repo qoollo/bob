@@ -11,7 +11,7 @@ use rocket::{
     response::{Content, Responder, Result as RocketResult},
     Config, Data, Request, Response, Rocket, State,
 };
-use rocket_contrib::json::Json;
+use rocket_contrib::{json::Json, uuid::Uuid};
 use std::{
     io::{Cursor, ErrorKind, Read},
     path::{Path, PathBuf},
@@ -657,8 +657,8 @@ impl DataKey {
     }
 
     fn from_guid(guid: &str) -> Result<Self, StatusExt> {
-        let guid = uuid::Uuid::from_str(guid).map_err(|e| parse_error(e.to_string()))?;
-        Self::from_bytes(guid.as_u128().to_be_bytes().into())
+        let guid = Uuid::from_str(guid).map_err(|e| parse_error(e.to_string()))?;
+        Self::from_bytes(guid.as_bytes().to_vec())
     }
 
     fn from_hex(hex: &str) -> Result<Self, StatusExt> {
@@ -680,32 +680,11 @@ impl DataKey {
     }
 
     fn from_decimal(decimal: &str) -> Result<Self, StatusExt> {
-        let mut bignum = vec![0];
-        for c in decimal.as_bytes() {
-            let c = *c - '0' as u8;
-            bignum = muladd_bignum(bignum, 10, c as u64);
-        }
-        let bignum = bignum
-            .into_iter()
-            .rev()
-            .flat_map(|v| v.to_be_bytes())
-            .collect();
-        Self::from_bytes(bignum)
+        let number = decimal
+            .parse::<u128>()
+            .map_err(|e| parse_error(e.to_string()))?;
+        Self::from_bytes(number.to_be_bytes().into())
     }
-}
-
-fn muladd_bignum(mut bignum: Vec<u64>, mul: u64, add: u64) -> Vec<u64> {
-    let mul = mul as u128;
-    let mut add = add as u128;
-    for val in bignum.iter_mut() {
-        let new_val = *val as u128 * mul + add;
-        *val = (new_val % u64::MAX as u128) as u64;
-        add = new_val / u64::MAX as u128;
-    }
-    if add != 0 {
-        bignum.push(add as u64);
-    }
-    bignum
 }
 
 impl<'r> FromParam<'r> for DataKey {
