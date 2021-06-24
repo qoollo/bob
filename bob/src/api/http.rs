@@ -686,6 +686,7 @@ impl DataKey {
                 )
                 .expect("All chars is ascii hexdigits")
             })
+            .rev()
             .collect();
         Self::from_bytes(bytes)
     }
