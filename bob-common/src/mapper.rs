@@ -143,12 +143,9 @@ impl Virtual {
     }
 
     fn get_vdisk_id_by_mod(key: BobKey, len: usize) -> usize {
-        let mut rem = 0;
-        for byte in key.iter() {
-            rem += *byte as usize % len;
-            rem %= len;
-        }
-        rem
+        key.iter().rev().fold([0, 1], |[rem, bmult], &byte| {
+            [(rem + bmult * byte as usize) % len, (bmult << 8) % len]
+        })[0]
     }
 
     /// Returns ref to `VDisk` with given ID
