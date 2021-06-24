@@ -16,7 +16,14 @@ pub struct BobKey([u8; BOB_KEY_SIZE]);
 
 impl From<u64> for BobKey {
     fn from(n: u64) -> Self {
-        Self(n.to_be_bytes())
+        let mut key = [0; BOB_KEY_SIZE];
+        key.iter_mut()
+            .rev()
+            .zip(n.to_be_bytes().iter().rev())
+            .for_each(|(a, b)| {
+                *a = *b;
+            });
+        Self(key)
     }
 }
 
