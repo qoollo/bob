@@ -4,15 +4,21 @@ use crate::{
 };
 use bob_grpc::{GetOptions, GetSource, PutOptions};
 use std::{
+    convert::TryInto,
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::Hash,
-    convert::TryInto,
 };
 
 include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
 pub struct BobKey([u8; BOB_KEY_SIZE]);
+
+impl From<u64> for BobKey {
+    fn from(n: u64) -> Self {
+        Self(n.to_be_bytes())
+    }
+}
 
 impl From<Vec<u8>> for BobKey {
     fn from(v: Vec<u8>) -> Self {
@@ -34,13 +40,13 @@ impl Into<[u8; BOB_KEY_SIZE]> for BobKey {
 }
 
 impl BobKey {
-    pub fn iter(&self) -> impl Iterator<Item = &u8> {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &u8> {
         self.0.iter()
     }
 }
 
 impl std::fmt::Display for BobKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { 
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         for key in self.iter() {
             write!(f, "{:x}", key)?;
         }
