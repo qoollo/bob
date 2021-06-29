@@ -193,7 +193,7 @@ impl Group {
         let holders = self.holders.read().await;
         let mut has_error = false;
         let mut results = vec![];
-        for holder in holders.iter() {
+        for holder in holders.iter().rev() {
             let get = Self::get_common(holder.clone(), key).await;
             match get {
                 Ok(data) => {
