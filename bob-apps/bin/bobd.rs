@@ -1,4 +1,4 @@
-use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper};
+use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper, api::http::get_version};
 use clap::{App, Arg, ArgMatches};
 use std::net::ToSocketAddrs;
 use tokio::runtime::Handle;
@@ -102,7 +102,7 @@ fn spawn_signal_handler(
 
 fn get_matches<'a>() -> ArgMatches<'a> {
     App::new(env!("CARGO_PKG_NAME"))
-        .version(format!("{}-{}", env!("CARGO_PKG_VERSION"), option_env!("BOB_COMMIT_HASH").unwrap_or("undefined")).as_str())
+        .version(get_version().as_str())
         .arg(
             Arg::with_name("cluster")
                 .help("cluster config file")

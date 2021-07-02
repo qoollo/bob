@@ -87,9 +87,18 @@ pub(crate) struct DiskState {
     is_active: bool,
 }
 
+pub fn get_version() -> String {
+    format!(
+        "{}-{}",
+        env!("CARGO_PKG_VERSION"),
+        option_env!("BOB_COMMIT_HASH").unwrap_or("undefined")
+    )
+}
+
 pub(crate) fn spawn(bob: BobServer, port: u16) {
     let routes = routes![
         status,
+        version,
         vdisks,
         vdisk_by_id,
         partitions,
@@ -200,6 +209,11 @@ fn status(bob: State<BobServer>) -> Json<Node> {
         vdisks,
     };
     Json(node)
+}
+
+#[get("/version")]
+fn version(_bob: State<BobServer>) -> String {
+    get_version()
 }
 
 #[get("/nodes")]
