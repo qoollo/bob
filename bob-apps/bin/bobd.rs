@@ -102,7 +102,7 @@ fn spawn_signal_handler(
 
 fn get_matches<'a>() -> ArgMatches<'a> {
     App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
+        .version(format!("{}-{}", env!("CARGO_PKG_VERSION"), option_env!("BOB_COMMIT_HASH").unwrap_or("undefined")).as_str())
         .arg(
             Arg::with_name("cluster")
                 .help("cluster config file")
