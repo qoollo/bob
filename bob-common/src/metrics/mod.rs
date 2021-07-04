@@ -1,6 +1,9 @@
 use crate::configs::node::{Node as NodeConfig, LOCAL_ADDRESS, METRICS_NAME, NODE_NAME};
+use metrics::register_counter;
+use metrics_util::MetricKindMask;
 use pearl::init_pearl;
 use std::{
+    net::SocketAddr,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -92,9 +95,9 @@ impl BobClient {
 
     #[allow(clippy::cast_possible_truncation)]
     pub(crate) fn put_timer_stop(&self, timer: Timer) {
-        timing!(
+        histogram!(
             self.prefix.clone() + ".put_timer",
-            timer.elapsed().as_nanos() as u64
+            timer.elapsed().as_nanos() as f64
         );
     }
 
@@ -107,9 +110,9 @@ impl BobClient {
     }
 
     pub(crate) fn get_timer_stop(&self, timer: Timer) {
-        timing!(
+        histogram!(
             self.prefix.clone() + ".get_timer",
-            timer.elapsed().as_nanos() as u64
+            timer.elapsed().as_nanos() as f64
         );
     }
 
@@ -126,9 +129,9 @@ impl BobClient {
     }
 
     pub(crate) fn exist_timer_stop(&self, timer: Timer) {
-        timing!(
+        histogram!(
             self.prefix.clone() + ".exist_timer",
-            timer.elapsed().as_nanos() as u64
+            timer.elapsed().as_nanos() as f64
         );
     }
 }
@@ -159,21 +162,13 @@ impl ContainerBuilder for MetricsContainer {
 }
 
 /// initializes bob counters with given config and address of the local node
+#[allow(unused_variables)]
 pub fn init_counters(
     node_config: &NodeConfig,
     local_address: &str,
 ) -> Arc<dyn ContainerBuilder + Send + Sync> {
-    let prefix_pattern = node_config
-        .metrics()
-        .prefix()
-        .map_or(format!("{}.{}", NODE_NAME, LOCAL_ADDRESS), str::to_owned);
-    let prefix = resolve_prefix_pattern(prefix_pattern, node_config, local_address);
-    exporter::GraphiteBuilder::new()
-        .set_address(node_config.metrics().graphite().to_string())
-        .set_interval(Duration::from_secs(1))
-        .set_prefix(prefix)
-        .install()
-        .expect("Can't install metrics");
+    install_prometheus();
+    //install_graphite(node_config, local_address);
     let container = MetricsContainer::new(Duration::from_secs(1), CLIENTS_METRICS_DIR.to_owned());
     info!(
         "metrics container initialized with update interval: {}ms",
@@ -187,6 +182,38 @@ pub fn init_counters(
     metrics
 }
 
+fn init_grinder() {
+    register_counter!(GRINDER_GET_COUNTER);
+    register_counter!(GRINDER_PUT_COUNTER);
+    register_counter!(GRINDER_EXIST_COUNTER);
+    register_counter!(GRINDER_GET_ERROR_COUNT_COUNTER);
+    register_counter!(GRINDER_PUT_ERROR_COUNT_COUNTER);
+    register_counter!(GRINDER_EXIST_ERROR_COUNT_COUNTER);
+}
+
+fn init_backend() {
+    register_counter!(BACKEND_STATE);
+    register_counter!(BLOBS_COUNT);
+    register_counter!(ALIEN_BLOBS_COUNT);
+}
+
+fn init_link_manager() {
+    register_counter!(AVAILABLE_NODES_COUNT);
+}
+
+fn install_prometheus() {
+    metrics_exporter_prometheus::PrometheusBuilder::new()
+        .listen_address(
+            "0.0.0.0:9000"
+                .parse::<SocketAddr>()
+                .expect("Bad metrics address"),
+        )
+        .idle_timeout(MetricKindMask::ALL, Some(Duration::from_secs(2)))
+        .install()
+        .expect("Can't install metrics");
+}
+
+#[allow(unused)]
 fn resolve_prefix_pattern(
     mut pattern: String,
     node_config: &NodeConfig,
@@ -206,21 +233,17 @@ fn resolve_prefix_pattern(
     pattern
 }
 
-fn init_grinder() {
-    counter!(GRINDER_GET_COUNTER, 0);
-    counter!(GRINDER_PUT_COUNTER, 0);
-    counter!(GRINDER_EXIST_COUNTER, 0);
-    counter!(GRINDER_GET_ERROR_COUNT_COUNTER, 0);
-    counter!(GRINDER_PUT_ERROR_COUNT_COUNTER, 0);
-    counter!(GRINDER_EXIST_ERROR_COUNT_COUNTER, 0);
-}
-
-fn init_backend() {
-    counter!(BACKEND_STATE, 0);
-    counter!(BLOBS_COUNT, 0);
-    counter!(ALIEN_BLOBS_COUNT, 0);
-}
-
-fn init_link_manager() {
-    counter!(AVAILABLE_NODES_COUNT, 0);
+#[allow(unused)]
+fn install_graphite(node_config: &NodeConfig, local_address: &str) {
+    let prefix_pattern = node_config
+        .metrics()
+        .prefix()
+        .map_or(format!("{}.{}", NODE_NAME, LOCAL_ADDRESS), str::to_owned);
+    let prefix = resolve_prefix_pattern(prefix_pattern, node_config, local_address);
+    exporter::GraphiteBuilder::new()
+        .set_address(node_config.metrics().graphite().to_string())
+        .set_interval(Duration::from_secs(1))
+        .set_prefix(prefix)
+        .install()
+        .expect("Can't install metrics");
 }
