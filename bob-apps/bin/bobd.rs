@@ -1,5 +1,5 @@
 use bob::{
-    api::http::{get_bob_build_time, get_bob_version},
+    api::http::{get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version},
     init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper,
 };
 use clap::{App, Arg, ArgMatches};
@@ -105,7 +105,16 @@ fn spawn_signal_handler(
 
 fn get_matches<'a>() -> ArgMatches<'a> {
     App::new(env!("CARGO_PKG_NAME"))
-        .version(format!("{}, built at {}", get_bob_version(), get_bob_build_time()).as_str())
+        .version(
+            format!(
+                "{}, built on {}, (pearl {}, built on {})",
+                get_bob_version(),
+                get_bob_build_time(),
+                get_pearl_version(),
+                get_pearl_build_time(),
+            )
+            .as_str(),
+        )
         .arg(
             Arg::with_name("cluster")
                 .help("cluster config file")

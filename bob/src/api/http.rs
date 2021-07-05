@@ -111,6 +111,14 @@ pub fn get_bob_build_time() -> &'static str {
     crate::build_time::BUILD_TIME
 }
 
+pub fn get_pearl_version() -> String {
+    pearl::get_pearl_version()
+}
+
+pub fn get_pearl_build_time() -> &'static str {
+    pearl::get_pearl_build_time()
+}
+
 pub(crate) fn spawn(bob: BobServer, port: u16) {
     let routes = routes![
         status,
@@ -235,8 +243,8 @@ fn version(_bob: State<BobServer>) -> Json<VersionInfo> {
             build_time: get_bob_build_time().to_string(),
         },
         pearl_version: Version {
-            version: pearl::get_pearl_version(),
-            build_time: pearl::get_pearl_build_time().to_string(),
+            version: get_pearl_version(),
+            build_time: get_pearl_build_time().to_string(),
         },
     })
 }
