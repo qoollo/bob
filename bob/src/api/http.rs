@@ -218,7 +218,7 @@ fn status(bob: State<BobServer>) -> Json<Node> {
 
 #[get("/version")]
 fn version(_bob: State<BobServer>) -> String {
-    get_version()
+    get_bob_version()
 }
 
 #[get("/nodes")]
