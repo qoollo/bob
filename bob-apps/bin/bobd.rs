@@ -1,4 +1,4 @@
-use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper, api::http::get_version};
+use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper, api::http::get_bob_version};
 use clap::{App, Arg, ArgMatches};
 use std::net::ToSocketAddrs;
 use tokio::runtime::Handle;
