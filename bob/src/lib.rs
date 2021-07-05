@@ -25,6 +25,7 @@ pub mod counter;
 pub mod grinder;
 pub mod link_manager;
 pub mod server;
+pub mod build_time;
 
 pub use crate::{grinder::Grinder, server::Server as BobServer};
 pub use bob_common::{
