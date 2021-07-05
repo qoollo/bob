@@ -87,9 +87,42 @@ pub(crate) struct DiskState {
     is_active: bool,
 }
 
+#[derive(Debug, Serialize)]
+pub(crate) struct Version {
+    version: String,
+    build_time: String,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct VersionInfo {
+    bob_version: Version,
+    pearl_version: Version,
+}
+
+pub fn get_bob_version() -> String {
+    format!(
+        "{}-{}",
+        env!("CARGO_PKG_VERSION"),
+        option_env!("BOB_COMMIT_HASH").unwrap_or("hash-undefined"),
+    )
+}
+
+pub fn get_bob_build_time() -> &'static str {
+    crate::build_time::BUILD_TIME
+}
+
+pub fn get_pearl_version() -> String {
+    pearl::get_pearl_version()
+}
+
+pub fn get_pearl_build_time() -> &'static str {
+    pearl::get_pearl_build_time()
+}
+
 pub(crate) fn spawn(bob: BobServer, port: u16) {
     let routes = routes![
         status,
+        version,
         vdisks,
         vdisk_by_id,
         partitions,
@@ -200,6 +233,20 @@ fn status(bob: State<BobServer>) -> Json<Node> {
         vdisks,
     };
     Json(node)
+}
+
+#[get("/version")]
+fn version(_bob: State<BobServer>) -> Json<VersionInfo> {
+    Json(VersionInfo {
+        bob_version: Version {
+            version: get_bob_version(),
+            build_time: get_bob_build_time().to_string(),
+        },
+        pearl_version: Version {
+            version: get_pearl_version(),
+            build_time: get_pearl_build_time().to_string(),
+        },
+    })
 }
 
 #[get("/nodes")]
