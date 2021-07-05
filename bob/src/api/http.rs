@@ -89,10 +89,9 @@ pub(crate) struct DiskState {
 
 pub fn get_bob_version() -> String {
     format!(
-        "{}-{}-{}",
+        "{}-{}",
         env!("CARGO_PKG_VERSION"),
         option_env!("BOB_COMMIT_HASH").unwrap_or("hash-undefined"),
-        get_bob_build_time()
     )
 }
 
