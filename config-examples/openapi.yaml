@@ -409,3 +409,19 @@ components:
           type: string
           enum:
             - Mod
+    Version:
+      type: object
+      properties:
+        version:
+          type: string
+        build_time:
+          type: string
+    VersionInfo:
+      type: object
+      properties:
+        bobversion:
+          type:
+            $ref: '#/components/schemas/Version'
+        pearlversion:
+          type:
+            $ref: '#/components/schemas/Version'

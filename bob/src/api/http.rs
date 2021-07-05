@@ -87,6 +87,18 @@ pub(crate) struct DiskState {
     is_active: bool,
 }
 
+#[derive(Debug, Serialize)]
+pub(crate) struct Version {
+    version: String,
+    build_time: String,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct VersionInfo {
+    bob_version: Version,
+    pearl_version: Version,
+}
+
 pub fn get_bob_version() -> String {
     format!(
         "{}-{}",
@@ -216,8 +228,17 @@ fn status(bob: State<BobServer>) -> Json<Node> {
 }
 
 #[get("/version")]
-fn version(_bob: State<BobServer>) -> String {
-    get_bob_version()
+fn version(_bob: State<BobServer>) -> Json<VersionInfo> {
+    Json(VersionInfo {
+        bob_version: Version {
+            version: get_bob_version(),
+            build_time: get_bob_build_time().to_string(),
+        },
+        pearl_version: Version {
+            version: pearl::get_pearl_version(),
+            build_time: pearl::get_pearl_build_time().to_string(),
+        },
+    })
 }
 
 #[get("/nodes")]
