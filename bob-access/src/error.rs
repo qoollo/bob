@@ -1,3 +1,5 @@
+use tonic::metadata::errors::ToStrError;
+
 #[derive(Debug)]
 pub struct Error {
     kind: Kind,
@@ -10,15 +12,22 @@ impl Error {
         }
     }
 
-    pub fn unknown(message: impl Into<String>) -> Self {
+    pub fn conversion_error(error: ToStrError) -> Self {
         Self {
-            kind: Kind::Unknown(message.into()),
+            kind: Kind::ConversionError(error),
+        }
+    }
+
+    pub fn multiple_credentials_types() -> Self {
+        Self {
+            kind: Kind::MultipleCredentialsTypes,
         }
     }
 }
 
 #[derive(Debug)]
 enum Kind {
-    Unknown(String),
+    ConversionError(ToStrError),
     CredentialsNotProvided(String),
+    MultipleCredentialsTypes,
 }
