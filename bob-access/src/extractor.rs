@@ -38,9 +38,10 @@ impl<T> Extractor<TRequest<T>> for BasicExtractor {
             .to_str()
             .map_err(|e| Error::unknown(e.to_string()))?;
 
-        Ok(Credentials::new()
+        Ok(Credentials::builder()
             .with_username_password(username, password)
-            .with_address(req.remote_addr()))
+            .with_address(req.remote_addr())
+            .build())
     }
 }
 
@@ -53,9 +54,10 @@ impl<'r> Extractor<RRequest<'r>> for BasicExtractor {
         let password = headers
             .get_one("password")
             .ok_or_else(|| Error::credentials_not_provided("password"))?;
-        Ok(Credentials::new()
+        Ok(Credentials::builder()
             .with_username_password(username, password)
-            .with_address(req.remote()))
+            .with_address(req.remote())
+            .build())
     }
 }
 
@@ -70,9 +72,10 @@ impl<T> Extractor<TRequest<T>> for TokenExtractor {
             .ok_or_else(|| Error::credentials_not_provided("token"))?
             .to_str()
             .map_err(|e| Error::unknown(e.to_string()))?;
-        Ok(Credentials::new()
+        Ok(Credentials::builder()
             .with_token(token)
-            .with_address(req.remote_addr()))
+            .with_address(req.remote_addr())
+            .build())
     }
 }
 
@@ -82,9 +85,10 @@ impl<'r> Extractor<RRequest<'r>> for TokenExtractor {
         let token = headers
             .get_one("token")
             .ok_or_else(|| Error::credentials_not_provided("token"))?;
-        Ok(Credentials::new()
+        Ok(Credentials::builder()
             .with_token(token)
-            .with_address(req.remote()))
+            .with_address(req.remote())
+            .build())
     }
 }
 
@@ -105,7 +109,9 @@ impl<T> Extractor<TRequest<T>> for MultiExtractor {
         } else if token_credentials.is_ok() {
             token_credentials
         } else {
-            Ok(Credentials::new().with_address(req.remote_addr()))
+            Ok(Credentials::builder()
+                .with_address(req.remote_addr())
+                .build())
         }
     }
 }
@@ -121,7 +127,7 @@ impl<'r> Extractor<RRequest<'r>> for MultiExtractor {
         } else if token_credentials.is_ok() {
             token_credentials
         } else {
-            Ok(Credentials::new().with_address(req.remote()))
+            Ok(Credentials::builder().with_address(req.remote()).build())
         }
     }
 }

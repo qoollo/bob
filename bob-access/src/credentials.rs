@@ -6,22 +6,30 @@ pub struct Credentials {
     kind: Option<CredentialsKind>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CredentialsKind {
     Basic { username: String, password: String },
     Token(String),
 }
 
 impl Credentials {
-    pub fn new() -> Self {
-        Default::default()
+    pub fn builder() -> CredentialsBuilder {
+        CredentialsBuilder::default()
     }
+}
 
+#[derive(Debug, Default)]
+pub struct CredentialsBuilder {
+    kind: Option<CredentialsKind>,
+    address: Option<SocketAddr>,
+}
+
+impl CredentialsBuilder {
     pub fn with_username_password(
-        mut self,
+        &mut self,
         username: impl Into<String>,
         password: impl Into<String>,
-    ) -> Self {
+    ) -> &mut Self {
         self.kind = Some(CredentialsKind::Basic {
             username: username.into(),
             password: password.into(),
@@ -29,13 +37,20 @@ impl Credentials {
         self
     }
 
-    pub fn with_token(mut self, token: impl Into<String>) -> Self {
+    pub fn with_token(&mut self, token: impl Into<String>) -> &mut Self {
         self.kind = Some(CredentialsKind::Token(token.into()));
         self
     }
 
-    pub fn with_address(mut self, address: Option<SocketAddr>) -> Self {
+    pub fn with_address(&mut self, address: Option<SocketAddr>) -> &mut Self {
         self.address = address;
         self
+    }
+
+    pub fn build(&self) -> Credentials {
+        Credentials {
+            address: self.address.clone(),
+            kind: self.kind.clone(),
+        }
     }
 }
