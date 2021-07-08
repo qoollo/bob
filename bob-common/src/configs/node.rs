@@ -123,6 +123,7 @@ impl BackendSettings {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MetricsConfig {
     name: Option<String>,
+    graphite_enabled: bool,
     graphite: String,
     prefix: Option<String>,
 }
@@ -134,6 +135,10 @@ impl MetricsConfig {
 
     pub(crate) fn name(&self) -> Option<&str> {
         self.name.as_deref()
+    }
+
+    pub(crate) fn graphite_enabled(&self) -> bool {
+        self.graphite_enabled
     }
 
     pub(crate) fn graphite(&self) -> &str {

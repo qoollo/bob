@@ -24,6 +24,7 @@ pearl:                             # used only for 'backend_type: pearl'
     timestamp_period: 1d           # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms # each thread will wait this period if another thread creating pearl. required for 'pearl'
 
-metrics:                           # optional, send metrics
-  name: bob                        # optional, add base name for metrics
-  graphite: 127.0.0.1:2003         # optional, send metrics to graphite
+metrics:                           # send metrics
+  name: bob                        # add base name for metrics
+  graphite_enabled: true           # enable graphite sink
+  graphite: 127.0.0.1:2003         # send metrics to graphite
