@@ -9,11 +9,13 @@ use std::{
 };
 
 use anyhow::Result as AnyResult;
-use clap::{App, Arg, ArgMatches};
+use clap::{App, Arg, ArgMatches, SubCommand};
 
 const INPUT_BLOB_OPT: &str = "input blob";
 const OUTPUT_BLOB_OPT: &str = "output blob";
 const VALIDATE_EVERY_OPT: &str = "record cache";
+const DISK_PATH_OPT: &str = "disk path";
+const BLOB_SUFFIX_OPT: &str = "blob suffix";
 const RECORD_MAGIC_BYTE: u64 = 0xacdc_bcde;
 const BLOB_MAGIC_BYTE: u64 = 0xdeaf_abcd;
 
@@ -250,6 +252,73 @@ fn try_main() -> AnyResult<()> {
     init_logger()?;
     log::info!("Logger initialized");
     let settings = Settings::from_matches()?;
+    match settings {
+        Settings::Recovery(settings) => recovery_command(&settings),
+        Settings::Validate(settings) => validate_command(&settings),
+    }
+}
+
+fn validate_blob(path: &str) -> AnyResult<()> {
+    let mut reader = BlobReader::from_path(path)?;
+    reader.read_header()?;
+    while !reader.is_eof() {
+        reader.read_record()?;
+    }
+    Ok(())
+}
+
+fn validate_blobs_recursive(path: &str, settings: &ValidateSettings) -> AnyResult<Vec<String>> {
+    let mut result = vec![];
+    for entry in std::fs::read_dir(path)?
+        .into_iter()
+        .filter_map(|entry| match entry {
+            Ok(entry) => Some(entry),
+            Err(e) => {
+                log::error!("[{}] read dir error: {}", path, e);
+                None
+            }
+        })
+    {
+        let entry_path = entry.path().as_os_str().to_str().unwrap().to_string();
+        match entry.file_type() {
+            Ok(ftype) if ftype.is_dir() => {
+                let invalid_blobs = match validate_blobs_recursive(&entry_path, settings) {
+                    Ok(blobs) => blobs,
+                    Err(err) => {
+                        log::error!("[{}] validate blobs error: {}", entry_path, err);
+                        vec![]
+                    }
+                };
+                result.extend(invalid_blobs);
+            }
+            Ok(ftype) if ftype.is_file() && entry_path.ends_with(&settings.blob_suffix) => {
+                match validate_blob(&entry_path) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        log::error!("[{}] blob validation error: {}", entry_path, err);
+                        result.push(entry_path.to_string());
+                    }
+                }
+            }
+            Err(err) => {
+                log::error!("[{}] filetype check error: {}", entry_path, err);
+            }
+            _ => {}
+        }
+    }
+    Ok(result)
+}
+
+fn validate_command(settings: &ValidateSettings) -> AnyResult<()> {
+    let result = validate_blobs_recursive(&settings.path, settings)?;
+    eprintln!("Corrupted blobs:");
+    for path in result {
+        eprintln!("{}", path);
+    }
+    Ok(())
+}
+
+fn recovery_command(settings: &RecoverySettings) -> AnyResult<()> {
     let should_validate_written = settings.validate_every != 0;
     let mut reader = BlobReader::from_path(&settings.input)?;
     log::info!("Blob reader created");
@@ -299,35 +368,74 @@ fn validate_bytes(a: &[u8], checksum: u32) -> AnyResult<()> {
     Ok(())
 }
 
-struct Settings {
+enum Settings {
+    Recovery(RecoverySettings),
+    Validate(ValidateSettings),
+}
+
+struct RecoverySettings {
     input: String,
     output: String,
     validate_every: usize,
 }
 
+struct ValidateSettings {
+    path: String,
+    blob_suffix: String,
+}
+
 impl Settings {
     fn from_matches() -> AnyResult<Settings> {
         let matches = get_matches();
-        Ok(Settings {
-            input: matches
-                .value_of(INPUT_BLOB_OPT)
-                .expect("Required")
-                .to_string(),
-            output: matches
-                .value_of(OUTPUT_BLOB_OPT)
-                .expect("Required")
-                .to_string(),
-            validate_every: matches
-                .value_of(VALIDATE_EVERY_OPT)
-                .expect("Has default")
-                .parse()?,
-        })
+        match matches.subcommand() {
+            ("recovery", Some(matches)) => Ok(Settings::Recovery(RecoverySettings {
+                input: matches
+                    .value_of(INPUT_BLOB_OPT)
+                    .expect("Required")
+                    .to_string(),
+                output: matches
+                    .value_of(OUTPUT_BLOB_OPT)
+                    .expect("Required")
+                    .to_string(),
+                validate_every: matches
+                    .value_of(VALIDATE_EVERY_OPT)
+                    .expect("Has default")
+                    .parse()?,
+            })),
+            ("validate", Some(matches)) => Ok(Settings::Validate(ValidateSettings {
+                path: matches
+                    .value_of(DISK_PATH_OPT)
+                    .expect("Required")
+                    .to_string(),
+                blob_suffix: matches
+                    .value_of(BLOB_SUFFIX_OPT)
+                    .expect("Required")
+                    .to_string(),
+            })),
+            _ => Err(anyhow::anyhow!("Unknown command")),
+        }
     }
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
-    App::new(format!("Blob recovery tool, {}", env!("CARGO_PKG_NAME")))
-        .version(env!("CARGO_PKG_VERSION"))
+    let validate_command = SubCommand::with_name("validate")
+        .arg(
+            Arg::with_name(DISK_PATH_OPT)
+                .help("disk path")
+                .short("p")
+                .long("path")
+                .takes_value(true)
+                .required(true),
+        )
+        .arg(
+            Arg::with_name(BLOB_SUFFIX_OPT)
+                .help("blob suffix")
+                .short("s")
+                .long("suffix")
+                .default_value("blob")
+                .takes_value(true),
+        );
+    let recovery_command = SubCommand::with_name("recovery")
         .arg(
             Arg::with_name(INPUT_BLOB_OPT)
                 .help("input blob")
@@ -352,7 +460,12 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .short("s")
                 .value_name("N")
                 .long("cache-size"),
-        )
+        );
+
+    App::new(format!("Blob recovery tool, {}", env!("CARGO_PKG_NAME")))
+        .version(env!("CARGO_PKG_VERSION"))
+        .subcommand(recovery_command)
+        .subcommand(validate_command)
         .get_matches()
 }
 
