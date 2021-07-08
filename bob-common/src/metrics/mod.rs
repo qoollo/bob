@@ -168,12 +168,18 @@ pub fn init_counters(
         .prefix()
         .map_or(format!("{}.{}", NODE_NAME, LOCAL_ADDRESS), str::to_owned);
     let prefix = resolve_prefix_pattern(prefix_pattern, node_config, local_address);
-    exporter::GraphiteBuilder::new()
-        .set_address(node_config.metrics().graphite().to_string())
-        .set_interval(Duration::from_secs(1))
-        .set_prefix(prefix)
-        .install()
-        .expect("Can't install metrics");
+    if node_config.metrics().graphite_enabled() {
+        exporter::GraphiteBuilder::new()
+            .set_address(node_config.metrics().graphite().to_string())
+            .set_interval(Duration::from_secs(1))
+            .set_prefix(prefix)
+            .install()
+            .expect("Can't install metrics");
+    }
+    if node_config.metrics().prometheus_enabled() {
+        // TODO add prometheus
+        error!("Prometheus sink is not ready");
+    }
     let container = MetricsContainer::new(Duration::from_secs(1), CLIENTS_METRICS_DIR.to_owned());
     info!(
         "metrics container initialized with update interval: {}ms",
