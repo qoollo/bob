@@ -28,3 +28,4 @@ metrics:                           # send metrics
   name: bob                        # add base name for metrics
   graphite_enabled: true           # enable graphite sink
   graphite: 127.0.0.1:2003         # send metrics to graphite
+  prometheus_enabled: false        # enable prometheus sink

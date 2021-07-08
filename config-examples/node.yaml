@@ -72,3 +72,5 @@ metrics:
   graphite_enabled: true
   # send metrics to graphite
   graphite: 127.0.0.1:2003
+  # enable prometheus sink
+  prometheus_enabled: false

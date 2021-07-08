@@ -125,6 +125,7 @@ pub struct MetricsConfig {
     name: Option<String>,
     graphite_enabled: bool,
     graphite: String,
+    prometheus_enabled: bool,
     prefix: Option<String>,
 }
 
@@ -139,6 +140,10 @@ impl MetricsConfig {
 
     pub(crate) fn graphite_enabled(&self) -> bool {
         self.graphite_enabled
+    }
+
+    pub(crate) fn prometheus_enabled(&self) -> bool {
+        self.prometheus_enabled
     }
 
     pub(crate) fn graphite(&self) -> &str {

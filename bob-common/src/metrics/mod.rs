@@ -176,6 +176,10 @@ pub fn init_counters(
             .install()
             .expect("Can't install metrics");
     }
+    if node_config.metrics().prometheus_enabled() {
+        // TODO add prometheus
+        error!("Prometheus is not ready");
+    }
     let container = MetricsContainer::new(Duration::from_secs(1), CLIENTS_METRICS_DIR.to_owned());
     info!(
         "metrics container initialized with update interval: {}ms",
