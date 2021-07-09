@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate serde_derive;
+use bincode::serialize_into;
 use crc::crc32::checksum_castagnoli as crc32;
 use std::{
     error::Error,
@@ -16,6 +17,10 @@ const OUTPUT_BLOB_OPT: &str = "output blob";
 const VALIDATE_EVERY_OPT: &str = "record cache";
 const DISK_PATH_OPT: &str = "disk path";
 const BLOB_SUFFIX_OPT: &str = "blob suffix";
+const INDEX_SUFFIX_OPT: &str = "index suffix";
+const VALIDATE_INDEX_COMMAND: &str = "validate-index";
+const VALIDATE_COMMAND: &str = "validate";
+const RECOVERY_COMMAND: &str = "recovery";
 const RECORD_MAGIC_BYTE: u64 = 0xacdc_bcde;
 const BLOB_MAGIC_BYTE: u64 = 0xdeaf_abcd;
 
@@ -29,6 +34,46 @@ impl Display for ValidationError {
 }
 
 impl Error for ValidationError {}
+
+struct IndexReader {
+    buf: Vec<u8>,
+    position: u64,
+}
+
+impl IndexReader {
+    fn from_path(path: &str) -> AnyResult<Self> {
+        let mut buf = vec![];
+        OpenOptions::new()
+            .read(true)
+            .open(path)?
+            .read_to_end(&mut buf)?;
+        Ok(Self { buf, position: 0 })
+    }
+
+    fn is_eof(&self) -> bool {
+        self.position >= self.buf.len() as u64
+    }
+
+    fn read_header(&mut self) -> AnyResult<IndexHeader> {
+        let header: IndexHeader = bincode::deserialize(&self.buf[self.position as usize..])?;
+        header.validate(&mut self.buf)?;
+        self.position += bincode::serialized_size(&header)?;
+        Ok(header)
+    }
+
+    fn read_filter(&mut self) -> AnyResult<BloomFilter> {
+        let header: BloomFilter = bincode::deserialize(&self.buf[self.position as usize..])?;
+        self.position += bincode::serialized_size(&header)?;
+        Ok(header)
+    }
+
+    fn read_record_header(&mut self) -> AnyResult<Header> {
+        let header: Header = bincode::deserialize(&self.buf[self.position as usize..])?;
+        header.validate()?;
+        self.position += bincode::serialized_size(&header)?;
+        Ok(header)
+    }
+}
 
 struct BlobReader {
     file: File,
@@ -175,6 +220,65 @@ impl BlobWriter {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BloomConfig {
+    pub elements: usize,
+    pub hashers_count: usize,
+    pub max_buf_bits_count: usize,
+    pub buf_increase_step: usize,
+    pub preferred_false_positive_rate: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BloomFilter {
+    config: BloomConfig,
+    buf: Vec<usize>,
+    bits_count: usize,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct IndexHeader {
+    records_count: usize,
+    record_header_size: usize,
+    filter_buf_size: usize,
+    hash: Vec<u8>,
+    version: u64,
+    written: u8,
+}
+
+impl IndexHeader {
+    fn validate(&self, buf: &mut Vec<u8>) -> AnyResult<()> {
+        if self.written != 1 {
+            return Err(ValidationError("Header is corrupt".to_string()).into());
+        }
+        if !self.hash_valid(buf)? {
+            return Err(ValidationError("header hash mismatch".to_string()).into());
+        }
+        if self.version != 1 {
+            return Err(ValidationError("header version mismatch".to_string()).into());
+        }
+        Ok(())
+    }
+
+    fn hash_valid(&self, buf: &mut Vec<u8>) -> AnyResult<bool> {
+        let mut header = self.clone();
+        let hash = header.hash.clone();
+        header.hash = vec![0; ring::digest::SHA256.output_len];
+        header.written = 0;
+        serialize_into(buf.as_mut_slice(), &header)?;
+        let new_hash = get_hash(&buf);
+        Ok(hash == new_hash)
+    }
+}
+
+fn get_hash(buf: &[u8]) -> Vec<u8> {
+    use ring::digest::{Context, SHA256};
+    let mut context = Context::new(&SHA256);
+    context.update(buf);
+    let digest = context.finish();
+    digest.as_ref().to_vec()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct BlobHeader {
     magic_byte: u64,
@@ -255,7 +359,21 @@ fn try_main() -> AnyResult<()> {
     match settings {
         Settings::Recovery(settings) => recovery_command(&settings),
         Settings::Validate(settings) => validate_command(&settings),
+        Settings::ValidateIndex(settings) => validate_index_command(&settings),
     }
+}
+
+fn validate_index(path: &str) -> AnyResult<()> {
+    let mut reader = IndexReader::from_path(path)?;
+    let header = reader.read_header()?;
+    reader.read_filter()?;
+    for _ in 0..header.records_count {
+        if reader.is_eof() {
+            return Err(ValidationError("invalid records count, can't read more".into()).into());
+        }
+        reader.read_record_header()?;
+    }
+    Ok(())
 }
 
 fn validate_blob(path: &str) -> AnyResult<()> {
@@ -318,6 +436,57 @@ fn validate_command(settings: &ValidateSettings) -> AnyResult<()> {
     Ok(())
 }
 
+fn validate_index_recursive(path: &str, settings: &ValidateSettings) -> AnyResult<Vec<String>> {
+    let mut result = vec![];
+    for entry in std::fs::read_dir(path)?
+        .into_iter()
+        .filter_map(|entry| match entry {
+            Ok(entry) => Some(entry),
+            Err(e) => {
+                log::error!("[{}] read dir error: {}", path, e);
+                None
+            }
+        })
+    {
+        let entry_path = entry.path().as_os_str().to_str().unwrap().to_string();
+        match entry.file_type() {
+            Ok(ftype) if ftype.is_dir() => {
+                let invalid_blobs = match validate_index_recursive(&entry_path, settings) {
+                    Ok(blobs) => blobs,
+                    Err(err) => {
+                        log::error!("[{}] validate index error: {}", entry_path, err);
+                        vec![]
+                    }
+                };
+                result.extend(invalid_blobs);
+            }
+            Ok(ftype) if ftype.is_file() && entry_path.ends_with(&settings.blob_suffix) => {
+                match validate_index(&entry_path) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        log::error!("[{}] index validation error: {}", entry_path, err);
+                        result.push(entry_path.to_string());
+                    }
+                }
+            }
+            Err(err) => {
+                log::error!("[{}] filetype check error: {}", entry_path, err);
+            }
+            _ => {}
+        }
+    }
+    Ok(result)
+}
+
+fn validate_index_command(settings: &ValidateSettings) -> AnyResult<()> {
+    let result = validate_index_recursive(&settings.path, settings)?;
+    eprintln!("Corrupted index files:");
+    for path in result {
+        eprintln!("{}", path);
+    }
+    Ok(())
+}
+
 fn recovery_command(settings: &RecoverySettings) -> AnyResult<()> {
     let should_validate_written = settings.validate_every != 0;
     let mut reader = BlobReader::from_path(&settings.input)?;
@@ -371,6 +540,7 @@ fn validate_bytes(a: &[u8], checksum: u32) -> AnyResult<()> {
 enum Settings {
     Recovery(RecoverySettings),
     Validate(ValidateSettings),
+    ValidateIndex(ValidateSettings),
 }
 
 struct RecoverySettings {
@@ -388,7 +558,7 @@ impl Settings {
     fn from_matches() -> AnyResult<Settings> {
         let matches = get_matches();
         match matches.subcommand() {
-            ("recovery", Some(matches)) => Ok(Settings::Recovery(RecoverySettings {
+            (RECOVERY_COMMAND, Some(matches)) => Ok(Settings::Recovery(RecoverySettings {
                 input: matches
                     .value_of(INPUT_BLOB_OPT)
                     .expect("Required")
@@ -402,7 +572,7 @@ impl Settings {
                     .expect("Has default")
                     .parse()?,
             })),
-            ("validate", Some(matches)) => Ok(Settings::Validate(ValidateSettings {
+            (VALIDATE_COMMAND, Some(matches)) => Ok(Settings::Validate(ValidateSettings {
                 path: matches
                     .value_of(DISK_PATH_OPT)
                     .expect("Required")
@@ -412,13 +582,25 @@ impl Settings {
                     .expect("Required")
                     .to_string(),
             })),
+            (VALIDATE_INDEX_COMMAND, Some(matches)) => {
+                Ok(Settings::ValidateIndex(ValidateSettings {
+                    path: matches
+                        .value_of(DISK_PATH_OPT)
+                        .expect("Required")
+                        .to_string(),
+                    blob_suffix: matches
+                        .value_of(INDEX_SUFFIX_OPT)
+                        .expect("Required")
+                        .to_string(),
+                }))
+            }
             _ => Err(anyhow::anyhow!("Unknown command")),
         }
     }
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
-    let validate_command = SubCommand::with_name("validate")
+    let validate_command = SubCommand::with_name(VALIDATE_COMMAND)
         .arg(
             Arg::with_name(DISK_PATH_OPT)
                 .help("disk path")
@@ -435,7 +617,24 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .default_value("blob")
                 .takes_value(true),
         );
-    let recovery_command = SubCommand::with_name("recovery")
+    let validate_index_command = SubCommand::with_name(VALIDATE_INDEX_COMMAND)
+        .arg(
+            Arg::with_name(DISK_PATH_OPT)
+                .help("disk path")
+                .short("p")
+                .long("path")
+                .takes_value(true)
+                .required(true),
+        )
+        .arg(
+            Arg::with_name(INDEX_SUFFIX_OPT)
+                .help("index suffix")
+                .short("s")
+                .long("suffix")
+                .default_value("index")
+                .takes_value(true),
+        );
+    let recovery_command = SubCommand::with_name(RECOVERY_COMMAND)
         .arg(
             Arg::with_name(INPUT_BLOB_OPT)
                 .help("input blob")
@@ -466,6 +665,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .version(env!("CARGO_PKG_VERSION"))
         .subcommand(recovery_command)
         .subcommand(validate_command)
+        .subcommand(validate_index_command)
         .get_matches()
 }
 
