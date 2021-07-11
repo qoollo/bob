@@ -6,6 +6,7 @@ use super::{
 use crate::data::DiskPath;
 use futures::Future;
 use humantime::Duration as HumanDuration;
+use std::sync::{Arc, Mutex};
 use std::{
     cell::{Ref, RefCell},
     env::VarError,
@@ -214,7 +215,7 @@ impl Validatable for MetricsConfig {
 }
 
 /// Contains params for detailed pearl configuration in pearl backend.
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Pearl {
     #[serde(default = "Pearl::default_max_blob_size")]
     max_blob_size: u64,
@@ -233,7 +234,7 @@ pub struct Pearl {
     #[serde(default = "Pearl::default_hash_chars_count")]
     hash_chars_count: u32,
     #[serde(default = "Pearl::default_enable_aio")]
-    enable_aio: bool,
+    enable_aio: Arc<Mutex<bool>>,
     #[serde(default = "Pearl::default_disks_events_logfile")]
     disks_events_logfile: String,
     #[serde(default)]
@@ -316,8 +317,8 @@ impl Pearl {
         10
     }
 
-    fn default_enable_aio() -> bool {
-        true
+    fn default_enable_aio() -> Arc<Mutex<bool>> {
+        Arc::new(Mutex::new(true))
     }
 
     pub fn disks_events_logfile(&self) -> &str {
@@ -343,7 +344,11 @@ impl Pearl {
     }
 
     pub fn is_aio_enabled(&self) -> bool {
-        self.enable_aio
+        self.enable_aio.lock().unwrap().clone()
+    }
+
+    pub fn set_aio(&self, new_value: bool) {
+        *self.enable_aio.lock().unwrap() = new_value;
     }
 
     fn check_unset(&self) -> Result<(), String> {
@@ -429,7 +434,7 @@ pub enum BackendType {
 }
 
 /// Node configuration struct, stored in node.yaml.
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Node {
     log_config: String,
     name: String,
