@@ -14,6 +14,7 @@ pub struct Grinder {
     cluster: Arc<dyn Cluster + Send + Sync>,
     cleaner: Arc<Cleaner>,
     counter: Arc<BlobsCounter>,
+    hw_counter: Arc<HWCounter>,
 }
 
 impl Grinder {
@@ -29,6 +30,7 @@ impl Grinder {
             config.hard_open_blobs(),
         );
         let cleaner = Arc::new(cleaner);
+        let hw_counter = Arc::new(HWCounter::new(&mapper));
 
         let counter = Arc::new(BlobsCounter::new(config.count_interval()));
         Grinder {
@@ -181,6 +183,7 @@ impl Grinder {
         self.link_manager.spawn_checker(client_factory);
         self.cleaner.spawn_task(self.backend.clone());
         self.counter.spawn_task(self.backend.clone());
+        self.hw_counter.spawn_task();
     }
 }
 
