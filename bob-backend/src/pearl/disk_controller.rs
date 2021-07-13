@@ -38,6 +38,7 @@ pub struct DiskController {
     is_alien: bool,
     disk_state_metric: String,
     logger: DisksEventsLogger,
+    blobs_count_cached: Arc<RwLock<u64>>,
 }
 
 impl DiskController {
@@ -65,6 +66,7 @@ impl DiskController {
             is_alien,
             disk_state_metric,
             logger,
+            blobs_count_cached: Arc::new(RwLock::new(0)),
         };
         new_dc
             .init()
@@ -124,7 +126,14 @@ impl DiskController {
                 error!("Disk is unavailable: {:?}", self.disk);
                 self.change_state(GroupsState::NotReady).await;
             }
+            self.update_metrics().await;
         }
+    }
+
+    async fn update_metrics(&self) {
+        let counter_name = format!("{}_blobs_count", self.disk_state_metric);
+        let blobs_count = self.blobs_count_cached.read().await.clone();
+        counter!(counter_name, blobs_count);
     }
 
     async fn change_state(&self, new_state: GroupsState) {
@@ -466,7 +475,7 @@ impl DiskController {
     }
 
     pub(crate) async fn blobs_count(&self) -> usize {
-        if *self.state.read().await == GroupsState::Ready {
+        let cnt = if *self.state.read().await == GroupsState::Ready {
             let mut cnt = 0;
             for group in self.groups.read().await.iter() {
                 let holders_guard = group.holders();
@@ -478,7 +487,9 @@ impl DiskController {
             cnt
         } else {
             0
-        }
+        };
+        *self.blobs_count_cached.write().await = cnt as u64;
+        cnt
     }
 
     pub(crate) async fn index_memory(&self) -> usize {
