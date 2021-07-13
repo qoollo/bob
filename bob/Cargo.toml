@@ -40,7 +40,7 @@ tonic = { version = "0.4.0", features = ["prost"] }
 tower = "0.4.3"
 tower-service = "0.3.0"
 fs2 = "0.4"
-systemstat = "0.1.8"
+sysinfo = "0.19"
 
 [dependencies.pearl]
 version = "=0.5.14"

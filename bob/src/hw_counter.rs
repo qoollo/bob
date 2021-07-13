@@ -2,66 +2,104 @@ use crate::prelude::*;
 use bob_common::metrics::{
     AMOUNT_DESCRIPTORS, CPU_LOAD, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE,
 };
-use std::{fs, path::Path};
-use systemstat::{Platform, System};
+use std::path::{Path, PathBuf};
+use sysinfo::{DiskExt, ProcessExt, System, SystemExt};
 
-const DESCRS_DIR: &Path = Path::new("/proc/self/fd/");
+const DESCRS_DIR: &str = "/proc/self/fd/";
 
 pub(crate) struct HWCounter {
-    disks: Vec<DiskPath>,
+    disks: HashMap<PathBuf, String>,
     interval_time: Duration,
-    sys: System,
 }
 
 impl HWCounter {
-    pub(crate) fn new(mapper: Virtual, interval_time: Duration) -> Self {
+    pub(crate) fn new(mapper: Arc<Virtual>, interval_time: Duration) -> Self {
+        let disks = Self::collect_used_disks(mapper.local_disks());
         Self {
-            disks: mapper.local_disks().to_vec(),
+            disks,
             interval_time,
-            sys: System::new(),
         }
+    }
+
+    fn collect_used_disks(disks: &[DiskPath]) -> HashMap<PathBuf, String> {
+        System::new_all()
+            .disks()
+            .iter()
+            .filter_map(|d| {
+                let path = d.mount_point();
+                disks
+                    .iter()
+                    .find(move |dp| {
+                        let dpath = Path::new(dp.path());
+                        dpath.starts_with(&path)
+                    })
+                    .map(|config_disk| {
+                        let diskpath = path.to_str().expect("Not UTF-8").to_owned();
+                        (PathBuf::from(diskpath), config_disk.name().to_owned())
+                    })
+            })
+            .collect()
     }
 
     pub(crate) fn spawn_task(&self) {
         tokio::spawn(Self::task(self.interval_time, self.disks.clone()));
     }
 
-    async fn task(t: Duration, disks: Vec<DiskPath>) {
+    async fn task(t: Duration, disks: HashMap<PathBuf, String>) {
         let mut interval = interval(t);
+        let mut sys = System::new_all();
+        let pid = std::process::id() as i32;
+
         loop {
-            // DelayedMeasurement shouldn't be unwrapped immediately (check in docs)
-            let cpu_load = sys.cpu_load_aggregate().expect("Can't get cpu load");
             interval.tick().await;
-            gauge!(TOTAL_SPACE, Self::total_space(&disks) as i64);
-            gauge!(FREE_SPACE, Self::free_space(&disks) as i64);
-            let mem = self.sys.memory().expect("Can't get memory amount");
-            gauge!(TOTAL_RAM, mem.total as i64);
-            gauge!(FREE_RAM, mem.free as i64);
+            sys.refresh_all();
+            sys.refresh_disks();
+            let proc = sys.process(pid).expect("Can't get process stat descriptor");
+
+            let (total_space, free_space) = Self::space(&sys, &disks);
+            gauge!(TOTAL_SPACE, total_space as i64);
+            gauge!(FREE_SPACE, free_space as i64);
+            let used_mem = sys.used_memory() / 1024; // in Mb
+            let free_mem = sys.free_memory() / 1024; // in Mb
+            gauge!(TOTAL_RAM, used_mem as i64);
+            gauge!(FREE_RAM, free_mem as i64);
             gauge!(AMOUNT_DESCRIPTORS, Self::descr_amount() as i64);
-            gauge!(CPU_LOAD, cpu_load.done() as i64);
+            gauge!(CPU_LOAD, proc.cpu_usage() as i64);
         }
     }
 
-    fn total_space(disks: &[DiskPath]) -> u64 {
-        let mut bytes = 0u64;
-        for dpath in disks.iter().map(|d| d.path()) {
-            bytes += fs2::total_space(dpath).expect("Can't get space info for disk path");
-        }
-        bytes
-    }
-
-    fn free_space(disks: &[DiskPath]) -> u64 {
-        let mut bytes = 0u64;
-        for dpath in disks.iter().map(|d| d.path()) {
-            bytes += fs2::free_space(dpath).expect("Can't get space info for disk path");
-        }
-        bytes
+    // FIXME: maybe it's better to cache needed disks, but I am not sure, that they would be
+    // refreshed, if I clone them
+    // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
+    // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
+    fn space(sys: &System, disks: &HashMap<PathBuf, String>) -> (u64, u64) {
+        sys.disks()
+            .iter()
+            .filter_map(|disk| {
+                disks
+                    .get(disk.mount_point())
+                    .map(|diskname| (disk, diskname))
+            })
+            .fold((0, 0), |(total, free), (disk, diskname)| {
+                let disk_total = disk.total_space();
+                let disk_free = disk.available_space();
+                println!(
+                    "{} (with path {}): total = {}, free = {};",
+                    diskname,
+                    disk.mount_point()
+                        .to_str()
+                        .expect("Can't parse mount point"),
+                    disk_total,
+                    disk_free
+                );
+                (total + disk_total / 1024, free + disk_free / 1024) // in Mb
+            })
     }
 
     fn descr_amount() -> u64 {
         // FIXME: didn't find better way, but iterator's `count` method has O(n) complexity (it may
         // become very slow)
-        let d = fs::read_dir(DESCRS_DIR).expect("Can't open proc dir");
+        let d = std::fs::read_dir(DESCRS_DIR).expect("Can't open proc dir");
         d.count() as u64 - 2 // exclude '.' and '..'
     }
 }
