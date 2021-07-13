@@ -6,8 +6,8 @@ use super::{
     stuff::Stuff,
 };
 use bob_common::metrics::pearl::{
-    PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
-    PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
+    PEARL_GET_BYTES_COUNTER, PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER,
+    PEARL_PUT_BYTES_COUNTER, PEARL_PUT_COUNTER, PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
 };
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
@@ -158,14 +158,25 @@ impl Holder {
         }
     }
 
+    // NOTE: stack + heap size (in fact that's serialized size)
+    // NOTE: can be calculated like `Data::from(data).len()`, but that's less efficient
+    fn calc_data_size(data: &BobData) -> u64 {
+        (std::mem::size_of::<BobData>() + data.inner().len()) as u64
+    }
+
     // @TODO remove redundant return result
     #[allow(clippy::cast_possible_truncation)]
     async fn write_disk(storage: PearlStorage, key: Key, data: BobData) -> BackendResult<()> {
         counter!(PEARL_PUT_COUNTER, 1);
+        let data_size = Self::calc_data_size(&data);
         let timer = Instant::now();
         let res = storage
             .write(key, Data::from(data).to_vec())
             .await
+            .map(|e| {
+                counter!(PEARL_PUT_BYTES_COUNTER, data_size);
+                e
+            })
             .map_err(|e| {
                 counter!(PEARL_PUT_ERROR_COUNTER, 1);
                 error!("error on write: {:?}", e);
@@ -197,7 +208,10 @@ impl Holder {
             let res = storage
                 .read(Key::from(key))
                 .await
-                .map(|r| Data::from_bytes(&r))
+                .map(|r| {
+                    counter!(PEARL_GET_BYTES_COUNTER, r.len() as u64);
+                    Data::from_bytes(&r)
+                })
                 .map_err(|e| {
                     counter!(PEARL_GET_ERROR_COUNTER, 1);
                     trace!("error on read: {:?}", e);

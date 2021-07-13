@@ -9,25 +9,25 @@ mod exporter;
 pub mod pearl;
 
 /// Counts number of PUT requests, processed by Grinder
-pub const GRINDER_PUT_COUNTER: &str = "grinder.put_count";
+pub const GRINDER_PUT_COUNTER: &str = "cluster_grinder.put_count";
 /// Counts number of PUT requests return error, processed by Grinder
-pub const GRINDER_PUT_ERROR_COUNT_COUNTER: &str = "grinder.put_error_count";
+pub const GRINDER_PUT_ERROR_COUNT_COUNTER: &str = "cluster_grinder.put_error_count";
 /// Measures processing time of the PUT request
-pub const GRINDER_PUT_TIMER: &str = "grinder.put_timer";
+pub const GRINDER_PUT_TIMER: &str = "cluster_grinder.put_timer";
 
 /// Counts number of GET requests, processed by Grinder
-pub const GRINDER_GET_COUNTER: &str = "grinder.get_count";
+pub const GRINDER_GET_COUNTER: &str = "cluster_grinder.get_count";
 /// Counts number of GET requests return error, processed by Grinder
-pub const GRINDER_GET_ERROR_COUNT_COUNTER: &str = "grinder.get_error_count";
+pub const GRINDER_GET_ERROR_COUNT_COUNTER: &str = "cluster_grinder.get_error_count";
 /// Measures processing time of the GET request
-pub const GRINDER_GET_TIMER: &str = "grinder.get_timer";
+pub const GRINDER_GET_TIMER: &str = "cluster_grinder.get_timer";
 
 /// Counts number of EXIST requests, processed by Grinder
-pub const GRINDER_EXIST_COUNTER: &str = "grinder.exist_count";
+pub const GRINDER_EXIST_COUNTER: &str = "cluster_grinder.exist_count";
 /// Counts number of EXIST requests return error, processed by Grinder
-pub const GRINDER_EXIST_ERROR_COUNT_COUNTER: &str = "grinder.exist_error_count";
+pub const GRINDER_EXIST_ERROR_COUNT_COUNTER: &str = "cluster_grinder.exist_error_count";
 /// Measures processing time of the EXIST request
-pub const GRINDER_EXIST_TIMER: &str = "grinder.exist_timer";
+pub const GRINDER_EXIST_TIMER: &str = "cluster_grinder.exist_timer";
 
 /// Counts number of PUT requests, processed by Client
 pub const CLIENT_PUT_COUNTER: &str = "client.put_count";
