@@ -45,6 +45,7 @@ metrics = { version = "0.12.1", features = ["std"] }
 #metrics = "0.12.1"
 bincode = "1.3"
 crc = "1.8"
+walkdir = "2"
 
 [dependencies.tokio]
 version = "1.4"
