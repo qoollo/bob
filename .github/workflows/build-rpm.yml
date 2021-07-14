@@ -1,0 +1,57 @@
+name: build-rpm
+
+on:
+  push:
+    branches: [ 266-build-with-gitlab-actions ]
+  release:
+    types: [ created ]
+    
+jobs:
+
+  build-release:
+    runs-on: ubuntu-latest
+    env:
+      TARGET: "x86_64-unknown-linux-musl"
+      ARCH: "x86_64"
+      BUILD_MODE: "release"
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Building release
+        run: |
+          rustup target add $TARGET
+          echo $TARGET $BUILD_MODE
+          BASE_PATH="/bob-dist/bob"
+          if [ "$BUILD_MODE" == "release" ]; then BUILD_OPT="--release"; else BUILD_OPT=""; fi
+          echo $BUILD_OPT
+          cargo build $BUILD_OPT --target=$TARGET
+          mkdir -p $BASE_PATH/$CI_COMMIT_REF_SLUG/$TARGET/$BUILD_MODE/
+          FILE_NAME="$BASE_PATH/$CI_COMMIT_REF_SLUG/$TARGET/$BUILD_MODE/bob-$ARCH-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:8}"
+          cp ./target/$TARGET/$BUILD_MODE/bobd $FILE_NAME
+          gzip -f $FILE_NAME
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: bob-binaries
+          path: |
+            ./target/$TARGET/$BUILD_MODE/bobd
+            ./target/$TARGET/$BUILD_MODE/bobp
+            ./target/$TARGET/$BUILD_MODE/ccg
+ 
+  build-rpm:
+    runs-on: ubuntu-latest
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Dowload artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: bob-binaries
+      - name: build rpm
+        run: |
+          VERSION=$(cat bob-tools/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')
+          echo Version:$VERSION
+          sed -i "s/current_version/$VERSION/" bob.spec
+          cur_dir_name=${PWD##*/}
+          mkdir -p ./rpmbuild/{SOURCES,BUILD,RPMS,SPECS,SRPMS}
+          tar czf ./rpmbuild/SOURCES/bob-${VERSION}.tar.gz --absolute-names ../${cur_dir_name}/target ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml ../${cur_dir_name}/bob.service --transform s/${cur_dir_name}/bob-${VERSION}/
+          rpmbuild -ba --define "_topdir ${PWD}/rpmbuild" bob.spec
