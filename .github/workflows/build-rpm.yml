@@ -14,11 +14,14 @@ jobs:
       TARGET: "x86_64-unknown-linux-musl"
       ARCH: "x86_64"
       BUILD_MODE: "release"
+      RUST_TC_VER: nightly-2021-06-23
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Building release
         run: |
+          rustup install $RUST_TC_VER
+          rustup default $RUST_TC_VER
           rustup target add $TARGET
           echo $TARGET $BUILD_MODE
           BASE_PATH="/bob-dist/bob"
@@ -40,6 +43,7 @@ jobs:
  
   build-rpm:
     runs-on: ubuntu-latest
+    needs: build-release
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
