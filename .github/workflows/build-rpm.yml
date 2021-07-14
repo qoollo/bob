@@ -40,9 +40,10 @@ jobs:
  
   build-rpm:
     runs-on: ubuntu-latest
+    steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
-      - name: Dowload artifact
+      - name: Dowтload artifact
         uses: actions/download-artifact@v2
         with:
           name: bob-binaries
