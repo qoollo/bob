@@ -9,6 +9,7 @@ on:
 jobs:
 
   build-release:
+    runs-on: ubuntu-latest
     container: rust:1.47.0
     env:
       TARGET: "x86_64-unknown-linux-musl"
