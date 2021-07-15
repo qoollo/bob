@@ -4,7 +4,7 @@ License: MIT
 Version: current_version
 Release: 1%{?dist}
 Source0: %{name}-%{version}.tar.gz
-Group: System Environment/Libraries
+Group: Applications/Databases
 BuildArch: noarch
 
 %global debug_package %{nil}

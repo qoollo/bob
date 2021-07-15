@@ -9,7 +9,7 @@ on:
 jobs:
 
   build-release:
-    runs-on: ubuntu-latest
+    container: rust:1.47.0
     env:
       TARGET: "x86_64-unknown-linux-musl"
       ARCH: "x86_64"
@@ -47,7 +47,7 @@ jobs:
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
-      - name: Dowтload artifact
+      - name: Download artifact
         uses: actions/download-artifact@v2
         with:
           name: bob-binaries
