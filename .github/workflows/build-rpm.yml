@@ -10,6 +10,7 @@ jobs:
 
   build-release:
     runs-on: ubuntu-latest
+    container: rust:1.53.0
     env:
       TARGET: "x86_64-unknown-linux-musl"
       ARCH: "x86_64"
