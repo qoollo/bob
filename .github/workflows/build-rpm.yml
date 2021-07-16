@@ -25,14 +25,15 @@ jobs:
           rustup default $RUST_TC_VER
           rustup target add $TARGET
           cargo build --$BUILD_MODE --target=$TARGET
+      - run: ls -l target/$TARGET/$BUILD_MODE/   
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
           name: bob-binaries
-          path: |
-            target/$TARGET/$BUILD_MODE/bobd
-            target/$TARGET/$BUILD_MODE/bobp
-            target/$TARGET/$BUILD_MODE/ccg
+          path:
+            - target/$TARGET/$BUILD_MODE/bobd
+            - target/$TARGET/$BUILD_MODE/bobp
+            - target/$TARGET/$BUILD_MODE/ccg
  
   build-rpm:
     runs-on: ubuntu-latest
