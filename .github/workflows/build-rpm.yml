@@ -31,9 +31,9 @@ jobs:
         with:
           name: bob-binaries
           path:
-            - target/$TARGET/$BUILD_MODE/bobd
-            - target/$TARGET/$BUILD_MODE/bobp
-            - target/$TARGET/$BUILD_MODE/ccg
+            target/$TARGET/$BUILD_MODE/bobd
+            target/$TARGET/$BUILD_MODE/bobp
+            target/$TARGET/$BUILD_MODE/ccg
  
   build-rpm:
     runs-on: ubuntu-latest
