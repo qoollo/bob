@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Building release
         run: |
-          apt-get update && apt-get install -y --no-install-recommends musl-tools
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
           rustup install $RUST_TC_VER
           rustup default $RUST_TC_VER
           rustup target add $TARGET
