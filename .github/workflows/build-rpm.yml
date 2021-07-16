@@ -3,14 +3,13 @@ name: build-rpm
 on:
   push:
     branches: [ 266-build-with-gitlab-actions ]
-  release:
-    types: [ created ]
+    tags:
+      - '*'
     
 jobs:
 
   build-release:
     runs-on: ubuntu-latest
-    container: rust:1.47.0
     env:
       TARGET: "x86_64-unknown-linux-musl"
       ARCH: "x86_64"
