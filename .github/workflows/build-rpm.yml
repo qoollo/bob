@@ -13,7 +13,6 @@ jobs:
     container: rust:1.53.0
     env:
       TARGET: "x86_64-unknown-linux-musl"
-      ARCH: "x86_64"
       BUILD_MODE: "release"
       RUST_TC_VER: nightly-2021-06-23
     steps:
@@ -25,13 +24,7 @@ jobs:
           rustup install $RUST_TC_VER
           rustup default $RUST_TC_VER
           rustup target add $TARGET
-          echo $TARGET $BUILD_MODE
-          BASE_PATH="/bob-dist/bob"
           cargo build --$BUILD_MODE --target=$TARGET
-          mkdir -p $BASE_PATH/$CI_COMMIT_REF_SLUG/$TARGET/$BUILD_MODE/
-          FILE_NAME="$BASE_PATH/$CI_COMMIT_REF_SLUG/$TARGET/$BUILD_MODE/bob-$ARCH-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:8}"
-          cp ./target/$TARGET/$BUILD_MODE/bobd $FILE_NAME
-          gzip -f $FILE_NAME
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
