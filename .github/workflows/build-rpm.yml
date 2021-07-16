@@ -26,9 +26,7 @@ jobs:
           rustup target add $TARGET
           echo $TARGET $BUILD_MODE
           BASE_PATH="/bob-dist/bob"
-          if [ "$BUILD_MODE" == "release" ]; then BUILD_OPT="--release"; else BUILD_OPT=""; fi
-          echo $BUILD_OPT
-          cargo build $BUILD_OPT --target=$TARGET
+          cargo build --$BUILD_MODE --target=$TARGET
           mkdir -p $BASE_PATH/$CI_COMMIT_REF_SLUG/$TARGET/$BUILD_MODE/
           FILE_NAME="$BASE_PATH/$CI_COMMIT_REF_SLUG/$TARGET/$BUILD_MODE/bob-$ARCH-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:8}"
           cp ./target/$TARGET/$BUILD_MODE/bobd $FILE_NAME
