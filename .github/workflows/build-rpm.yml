@@ -21,17 +21,18 @@ jobs:
       - name: Building release
         run: |
           apt-get update && apt-get install -y --no-install-recommends musl-tools
-          rustup install $RUST_TC_VER
-          rustup default $RUST_TC_VER
-          rustup target add $TARGET
-          cargo build --$BUILD_MODE --target=$TARGET
-          ls -l target/$TARGET/$BUILD_MODE/   
+          rustup install ${{ env.RUST_TC_VER }}
+          rustup default ${{ env.RUST_TC_VER }}
+          rustup target add ${{ env.TARGET }}
+          cargo build --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}  
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
           name: bob-binaries
-          path:
-            target/$TARGET/$BUILD_MODE/bobd
+          path: |
+            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd
+            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobp
+            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
  
   build-rpm:
     runs-on: ubuntu-latest
