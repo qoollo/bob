@@ -46,7 +46,7 @@ jobs:
           name: bob-binaries
       - name: build rpm
         run: |
-          VERSION=$(cat bob-tools/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')
+          VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')
           echo Version:$VERSION
           sed -i "s/current_version/$VERSION/" bob.spec
           cur_dir_name=${PWD##*/}
