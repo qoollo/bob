@@ -19,12 +19,12 @@ impl Counter {
         loop {
             interval.tick().await;
             let (normal_blobs, alien_blobs) = backend.blobs_count().await;
-            gauge!(BLOBS_COUNT, normal_blobs as i64);
-            gauge!(ALIEN_BLOBS_COUNT, alien_blobs as i64);
+            gauge!(BLOBS_COUNT, normal_blobs as f64);
+            gauge!(ALIEN_BLOBS_COUNT, alien_blobs as f64);
             let active_disks = backend.active_disks_count().await;
-            gauge!(ACTIVE_DISKS_COUNT, active_disks as i64);
+            gauge!(ACTIVE_DISKS_COUNT, active_disks as f64);
             let index_memory = backend.index_memory().await;
-            gauge!(INDEX_MEMORY, index_memory as i64);
+            gauge!(INDEX_MEMORY, index_memory as f64);
         }
     }
 }

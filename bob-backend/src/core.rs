@@ -6,8 +6,8 @@ use crate::{
     stub_backend::StubBackend,
 };
 
-pub const BACKEND_STARTING: i64 = 0;
-pub const BACKEND_STARTED: i64 = 1;
+pub const BACKEND_STARTING: f64 = 0f64;
+pub const BACKEND_STARTED: f64 = 1f64;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Operation {

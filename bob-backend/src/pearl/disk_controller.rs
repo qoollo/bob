@@ -10,8 +10,8 @@ use bob_common::metrics::DISKS_FOLDER;
 
 const CHECK_INTERVAL: Duration = Duration::from_millis(5000);
 
-const DISK_IS_NOT_ACTIVE: i64 = 0;
-const DISK_IS_ACTIVE: i64 = 1;
+const DISK_IS_NOT_ACTIVE: f64 = 0f64;
+const DISK_IS_ACTIVE: f64 = 1f64;
 
 #[derive(Clone, Debug, PartialEq)]
 enum GroupsState {
