@@ -5,14 +5,21 @@ at least one recorder is expected\
 (no reason to build and install global\
 recorder without any local exporters)";
 
+mod rate_processor;
+use rate_processor::RateProcessor;
+
 pub(crate) struct GlobalRecorder {
     recorders: Vec<Box<dyn Recorder>>,
+    rate_processor: RateProcessor,
 }
 
 impl GlobalRecorder {
     pub(crate) fn new(recorders: Vec<Box<dyn Recorder>>) -> Self {
         assert!(recorders.len() != 0, "{}", NO_RECORDERS_MSG);
-        Self { recorders }
+        Self {
+            recorders,
+            rate_processor: RateProcessor::run_task(),
+        }
     }
 }
 
@@ -52,6 +59,7 @@ impl Recorder for GlobalRecorder {
     }
 
     fn increment_counter(&self, key: &Key, value: u64) {
+        self.rate_processor.process(key, value);
         for rec in self.recorders.iter() {
             rec.increment_counter(key, value);
         }

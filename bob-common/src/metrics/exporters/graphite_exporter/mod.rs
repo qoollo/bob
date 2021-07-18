@@ -89,11 +89,6 @@ impl GraphiteBuilder {
         self
     }
 
-    pub(crate) fn install(self) -> Result<(), SetRecorderError> {
-        let recorder = self.build();
-        metrics::set_boxed_recorder(Box::new(recorder))
-    }
-
     pub(crate) fn build(self) -> GraphiteRecorder {
         let (tx, rx) = channel(BUFFER_SIZE);
         let recorder = GraphiteRecorder { tx };
