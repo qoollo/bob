@@ -234,6 +234,7 @@ pub struct Pearl {
     #[serde(default = "Pearl::default_hash_chars_count")]
     hash_chars_count: u32,
     #[serde(default = "Pearl::default_enable_aio")]
+    // NOTE: `AtomicBool` can be used instead of `Mutex<bool>`
     enable_aio: Arc<Mutex<bool>>,
     #[serde(default = "Pearl::default_disks_events_logfile")]
     disks_events_logfile: String,
