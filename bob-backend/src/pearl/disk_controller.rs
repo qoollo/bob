@@ -131,9 +131,9 @@ impl DiskController {
     }
 
     async fn update_metrics(&self) {
-        let counter_name = format!("{}_blobs_count", self.disk_state_metric);
+        let gauge_name = format!("{}_blobs_count", self.disk_state_metric);
         let blobs_count = self.blobs_count_cached.read().await.clone();
-        counter!(counter_name, blobs_count);
+        gauge!(gauge_name, blobs_count as i64);
     }
 
     async fn change_state(&self, new_state: GroupsState) {

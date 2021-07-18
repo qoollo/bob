@@ -48,6 +48,9 @@ impl HWCounter {
     async fn task(t: Duration, disks: HashMap<PathBuf, String>) {
         let mut interval = interval(t);
         let mut sys = System::new_all();
+        let mut dcounter = DescrCounter::new();
+        let total_mem = sys.total_memory() / 1024; // in Mb
+        debug!("total mem in mb: {}", total_mem);
         let pid = std::process::id() as i32;
 
         loop {
@@ -57,13 +60,13 @@ impl HWCounter {
             let proc = sys.process(pid).expect("Can't get process stat descriptor");
 
             let (total_space, free_space) = Self::space(&sys, &disks);
-            gauge!(TOTAL_SPACE, total_space as i64);
+            gauge!(TOTAL_SPACE, (total_space - free_space) as i64); // i.e. used space
             gauge!(FREE_SPACE, free_space as i64);
             let used_mem = sys.used_memory() / 1024; // in Mb
-            let free_mem = sys.free_memory() / 1024; // in Mb
+            println!("used mem in mb: {}", used_mem);
             gauge!(TOTAL_RAM, used_mem as i64);
-            gauge!(FREE_RAM, free_mem as i64);
-            gauge!(AMOUNT_DESCRIPTORS, Self::descr_amount() as i64);
+            gauge!(FREE_RAM, (total_mem - used_mem) as i64);
+            gauge!(AMOUNT_DESCRIPTORS, dcounter.descr_amount() as i64);
             gauge!(CPU_LOAD, proc.cpu_usage() as i64);
         }
     }
@@ -81,9 +84,9 @@ impl HWCounter {
                     .map(|diskname| (disk, diskname))
             })
             .fold((0, 0), |(total, free), (disk, diskname)| {
-                let disk_total = disk.total_space();
-                let disk_free = disk.available_space();
-                println!(
+                let disk_total = disk.total_space() / 1024 / 1024; // in Mb
+                let disk_free = disk.available_space() / 1024 / 1024; // in Mb
+                trace!(
                     "{} (with path {}): total = {}, free = {};",
                     diskname,
                     disk.mount_point()
@@ -92,14 +95,61 @@ impl HWCounter {
                     disk_total,
                     disk_free
                 );
-                (total + disk_total / 1024, free + disk_free / 1024) // in Mb
+                (total + disk_total, free + disk_free)
             })
     }
+}
 
-    fn descr_amount() -> u64 {
-        // FIXME: didn't find better way, but iterator's `count` method has O(n) complexity (it may
-        // become very slow)
-        let d = std::fs::read_dir(DESCRS_DIR).expect("Can't open proc dir");
-        d.count() as u64 - 2 // exclude '.' and '..'
+// this constant means, that `descriptors amount` value will be recalculated only on every
+// `CACHED_TIMES`-th `descr_amount` function call (on other hand last calculated (i.e. cached) value
+// will be returned)
+const CACHED_TIMES: usize = 10;
+
+struct DescrCounter {
+    value: u64,
+    cached_times: usize,
+}
+
+impl DescrCounter {
+    fn new() -> Self {
+        DescrCounter {
+            value: 0,
+            cached_times: 0,
+        }
+    }
+
+    fn descr_amount(&mut self) -> u64 {
+        if self.cached_times == 0 {
+            self.cached_times = CACHED_TIMES;
+            Self::descr_count()
+        } else {
+            self.cached_times -= 1;
+            self.value
+        }
+    }
+
+    fn descr_count() -> u64 {
+        // FIXME: didn't find better way, but iterator's `count` method has O(n) complexity
+        // isolated tests (notice that in this case directory may be cached, so it works more
+        // quickly):
+        // | fds amount | running (secs) |
+        // | 1.000.000  |      0.6       |
+        // |  500.000   |      0.29      |
+        // |  250.000   |      0.15      |
+        //
+        //     for bob (tested on
+        //                 Laptop: HP Pavilion Laptop 15-ck0xx,
+        //                 OS: 5.12.16-1-MANJARO)
+        //
+        //  without payload:
+        //  |  10.000   |      0.006     |
+        //  with payload
+        //  |  10.000   |      0.018     |
+        let d = std::fs::read_dir(DESCRS_DIR);
+        if let Ok(d) = d {
+            d.count() as u64 - 4 // exclude stdin, stdout, stderr and `read_dir` instance
+        } else {
+            0 // proc is unsupported
+        }
     }
 }
