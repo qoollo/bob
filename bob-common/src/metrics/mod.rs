@@ -1,5 +1,6 @@
 use crate::configs::node::{Node as NodeConfig, LOCAL_ADDRESS, METRICS_NAME, NODE_NAME};
-use metrics::register_counter;
+use metrics::{register_counter, Recorder};
+use metrics_exporter_prometheus::PrometheusRecorder;
 use metrics_util::MetricKindMask;
 use pearl::init_pearl;
 use std::{
@@ -8,8 +9,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-mod exporter;
+mod exporters;
 pub mod pearl;
+
+use exporters::global_exporter::GlobalRecorder;
+use exporters::graphite_exporter::GraphiteRecorder;
 
 /// Counts number of PUT requests, processed by Grinder
 pub const GRINDER_PUT_COUNTER: &str = "grinder.put_count";
@@ -167,8 +171,9 @@ pub fn init_counters(
     node_config: &NodeConfig,
     local_address: &str,
 ) -> Arc<dyn ContainerBuilder + Send + Sync> {
-    install_prometheus();
+    //install_prometheus();
     //install_graphite(node_config, local_address);
+    install_global(node_config, local_address);
     let container = MetricsContainer::new(Duration::from_secs(1), CLIENTS_METRICS_DIR.to_owned());
     info!(
         "metrics container initialized with update interval: {}ms",
@@ -201,7 +206,25 @@ fn init_link_manager() {
     register_counter!(AVAILABLE_NODES_COUNT);
 }
 
+fn install_global(node_config: &NodeConfig, local_address: &str) {
+    let graphite_rec = build_graphite(node_config, local_address);
+    let prometheus_rec = build_prometheus();
+    let recorders: Vec<Box<dyn Recorder>> = vec![Box::new(graphite_rec), Box::new(prometheus_rec)];
+    install_global_recorder(recorders);
+}
+
+fn install_global_recorder(recorders: Vec<Box<dyn Recorder>>) {
+    let global_rec = GlobalRecorder::new(recorders);
+    metrics::set_boxed_recorder(Box::new(global_rec)).expect("Can't set global recorder");
+}
+
+#[allow(unused)]
 fn install_prometheus() {
+    let recorder = build_prometheus();
+    metrics::set_boxed_recorder(Box::new(recorder)).expect("Can't set Prometheus recorder");
+}
+
+fn build_prometheus() -> PrometheusRecorder {
     metrics_exporter_prometheus::PrometheusBuilder::new()
         .listen_address(
             "0.0.0.0:9000"
@@ -209,8 +232,7 @@ fn install_prometheus() {
                 .expect("Bad metrics address"),
         )
         .idle_timeout(MetricKindMask::ALL, Some(Duration::from_secs(2)))
-        .install()
-        .expect("Can't install metrics");
+        .build()
 }
 
 #[allow(unused)]
@@ -235,15 +257,19 @@ fn resolve_prefix_pattern(
 
 #[allow(unused)]
 fn install_graphite(node_config: &NodeConfig, local_address: &str) {
+    let recorder = build_graphite(node_config, local_address);
+    metrics::set_boxed_recorder(Box::new(recorder)).expect("Can't set graphite recorder");
+}
+
+fn build_graphite(node_config: &NodeConfig, local_address: &str) -> GraphiteRecorder {
     let prefix_pattern = node_config
         .metrics()
         .prefix()
         .map_or(format!("{}.{}", NODE_NAME, LOCAL_ADDRESS), str::to_owned);
     let prefix = resolve_prefix_pattern(prefix_pattern, node_config, local_address);
-    exporter::GraphiteBuilder::new()
+    exporters::graphite_exporter::GraphiteBuilder::new()
         .set_address(node_config.metrics().graphite().to_string())
         .set_interval(Duration::from_secs(1))
         .set_prefix(prefix)
-        .install()
-        .expect("Can't install metrics");
+        .build()
 }
