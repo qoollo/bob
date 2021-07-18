@@ -355,6 +355,7 @@ impl Holder {
                 Err(e) => {
                     warn!("bob will start with standard sync fs io api");
                     warn!("can't start with AIO, cause: {}", e);
+                    self.config.set_aio(false);
                     builder
                 }
             }
