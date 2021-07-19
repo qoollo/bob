@@ -53,3 +53,23 @@ jobs:
           mkdir -p ./rpmbuild/{SOURCES,BUILD,RPMS,SPECS,SRPMS}
           tar czf ./rpmbuild/SOURCES/bob-${VERSION}.tar.gz ../${cur_dir_name}/bobd ../${cur_dir_name}/bobp ../${cur_dir_name}/ccg ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml ../${cur_dir_name}/bob.service --transform s/${cur_dir_name}/bob-${VERSION}/
           rpmbuild -ba --define "_topdir ${PWD}/rpmbuild" bob.spec
+
+  build-deb:
+    runs-on: ubuntu-latest
+    needs: build-release
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: bob-binaries
+      - name: build deb
+        run: |
+          VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')
+          echo Version:$VERSION
+          mkdir -p bob_${VERSION}_all/{DEBIAN,usr/bin}
+          cp control bob_${VERSION}_all/DEBIAN/
+          cp {bobd,bobp,ccg} bob_${VERSION}_all/usr/bin/
+          sed -i "s/current_version/${VERSION}/" bob_${VERSION}_all/DEBIAN/control
+          dpkg-deb --build ./bob_${VERSION}_all
