@@ -2,12 +2,13 @@ Name: bob
 Summary: Bob is distributing storage system
 License: MIT
 Version: current_version
-Release: 1%{?dist}
+Release: 1
 Source0: %{name}-%{version}.tar.gz
 Group: Applications/Databases
 BuildArch: noarch
 
 %global debug_package %{nil}
+%define _binaries_in_noarch_packages_terminate_build 0
 
 %description
 Bob is distributing storage system designed for byte data like photos. It is has decentralized architecture where each node can handleuser calls. Pearl uses like backend storage.
