@@ -51,5 +51,6 @@ jobs:
           sed -i "s/current_version/$VERSION/" bob.spec
           cur_dir_name=${PWD##*/}
           mkdir -p ./rpmbuild/{SOURCES,BUILD,RPMS,SPECS,SRPMS}
-          tar czf ./rpmbuild/SOURCES/bob-${VERSION}.tar.gz --absolute-names ../${cur_dir_name}/target ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml ../${cur_dir_name}/bob.service --transform s/${cur_dir_name}/bob-${VERSION}/
+          ls -l
+          tar czf ./rpmbuild/SOURCES/bob-${VERSION}.tar.gz --absolute-names ../${cur_dir_name}/bobd ../${cur_dir_name}/bobp ../${cur_dir_name}/ccg ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml ../${cur_dir_name}/bob.service --transform s/${cur_dir_name}/bob-${VERSION}/
           rpmbuild -ba --define "_topdir ${PWD}/rpmbuild" bob.spec
