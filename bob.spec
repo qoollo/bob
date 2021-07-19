@@ -22,9 +22,9 @@ rm -rf %{buildroot}
 mkdir -p %{buildroot}/usr/bin/
 mkdir -p %{buildroot}/etc/bob/
 mkdir -p %{buildroot}/etc/systemd/system/
-cp %{_builddir}/%{name}-%{version}/target/x86_64-unknown-linux-musl/release/bobd %{buildroot}/usr/bin/
-cp %{_builddir}/%{name}-%{version}/target/x86_64-unknown-linux-musl/release/bobp %{buildroot}/usr/bin/
-cp %{_builddir}/%{name}-%{version}/target/x86_64-unknown-linux-musl/release/ccg %{buildroot}/usr/bin/
+cp %{_builddir}/%{name}-%{version}/bobd %{buildroot}/usr/bin/
+cp %{_builddir}/%{name}-%{version}/bobp %{buildroot}/usr/bin/
+cp %{_builddir}/%{name}-%{version}/ccg %{buildroot}/usr/bin/
 cp %{_builddir}/%{name}-%{version}/config-examples/cluster.yaml %{buildroot}/etc/bob/
 cp %{_builddir}/%{name}-%{version}/config-examples/node.yaml %{buildroot}/etc/bob/
 cp %{_builddir}/%{name}-%{version}/config-examples/logger.yaml %{buildroot}/etc/bob/
