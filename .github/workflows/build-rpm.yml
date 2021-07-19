@@ -46,7 +46,6 @@ jobs:
           name: bob-binaries
       - name: build rpm
         run: |
-          yum install -y rpm-build
           VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')
           echo Version:$VERSION
           sed -i "s/current_version/$VERSION/" bob.spec
