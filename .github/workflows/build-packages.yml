@@ -78,9 +78,11 @@ jobs:
       - name: build deb
         run: |
           echo Version:${{ env.VERSION }}
-          mkdir -p bob_${{ env.VERSION }}_all/{DEBIAN,usr/bin}
+          mkdir -p bob_${{ env.VERSION }}_all/{DEBIAN,usr/bin,etc/bob,etc/systemd/system}
           cp control bob_${{ env.VERSION }}_all/DEBIAN/
           cp {bobd,bobp,ccg} bob_${{ env.VERSION }}_all/usr/bin/
+          cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}_all/etc/bob/
+          cp bob.service bob_${{ env.VERSION }}_all/etc/systemd/system/
           sed -i "s/current_version/${{ env.VERSION }}/" bob_${{ env.VERSION }}_all/DEBIAN/control
           dpkg-deb --build ./bob_${{ env.VERSION }}_all
       - name: Upload deb to release
