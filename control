@@ -3,5 +3,5 @@ Version: current_version
 Section: unknown
 Priority: optional
 Architecture: all
-Maintainer: qoollo <info@qoollo.com>
+Maintainer: qoollo.com <info@qoollo.com>
 Description: Bob is distributing storage system
