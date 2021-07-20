@@ -55,10 +55,16 @@ async fn main() {
     info!("Start backend");
     bob.run_backend().await.unwrap();
     info!("Start API server");
-    let http_api_port = matches
+    let http_api_port = if let Some(port) = matches
         .value_of("http_api_port")
         .and_then(|v| v.parse().ok())
-        .expect("expect http_api_port port");
+    {
+        port
+    } else if let Some(port) = node.http_api_port() {
+        port
+    } else {
+        panic!("expect http_api_port port");
+    };
     bob.run_api_server(http_api_port);
 
     create_signal_handlers(&bob).unwrap();
@@ -135,7 +141,6 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .arg(
             Arg::with_name("http_api_port")
                 .help("http api port")
-                .default_value("8000")
                 .short("p")
                 .long("port")
                 .takes_value(true),
