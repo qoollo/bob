@@ -1,6 +1,6 @@
 use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper};
 use clap::{App, Arg, ArgMatches};
-use std::net::ToSocketAddrs;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::runtime::Handle;
 use tonic::transport::Server;
 
@@ -34,7 +34,16 @@ async fn main() {
     log4rs::init_file(node.log_config(), Default::default()).expect("can't find log config");
 
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
-    let mut addr = node.bind().to_socket_addrs().unwrap().next().unwrap();
+
+    let mut addr = if let Some(addr) = node.bind_to_ip_address() {
+        addr
+    } else if let Ok(addr) = node.bind().parse() {
+        addr
+    } else if let Some(port) = port_from_address(node.bind().as_str()) {
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port)
+    } else {
+        panic!("Can't determine ip address to bind");
+    };
 
     let node_name = matches.value_of("name");
     if let Some(name) = node_name {
@@ -44,7 +53,13 @@ async fn main() {
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
         mapper = VirtualMapper::new(&node, &cluster).await;
-        addr = finded.address().to_socket_addrs().unwrap().next().unwrap();
+        addr = if let Ok(addr) = finded.address().parse() {
+            addr
+        } else if let Some(port) = port_from_address(finded.address()) {
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port)
+        } else {
+            panic!("Can't determine ip address to bind");
+        };
     }
 
     let metrics = init_counters(&node, &addr.to_string());
@@ -73,6 +88,11 @@ async fn main() {
         .serve(addr)
         .await
         .unwrap();
+}
+
+fn port_from_address(addr: &str) -> Option<u16> {
+    addr.rsplit_once(':')
+        .and_then(|(_, port)| port.parse::<u16>().ok())
 }
 
 fn create_signal_handlers(server: &BobServer) -> Result<(), Box<dyn std::error::Error>> {
