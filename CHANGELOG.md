@@ -1,4 +1,8 @@
-### [Unreleased]
+# Changelog
+Bob versions changelog
+
+
+## [Unreleased]
 #### Added
 - Add api method to start disk ([#182](https://github.com/qoollo/bob/pull/182))
 - Rest api for data ([#187](https://github.com/qoollo/bob/pull/187))
@@ -13,12 +17,12 @@
 - Fix dockerfiles ([#203](https://github.com/qoollo/bob/pull/203))
 
 
-### [1.6.1] - 2021-04-14
+## [1.6.1] - 2021-04-14
 #### Updated
 - upgrade pearl to v0.5.14
 
 
-### [1.6.0] - 2021-03-08
+## [1.6.0] - 2021-03-08
 #### Changed
 - Reorganisation (#175)
   - split crate into separate subcrates bob, bob-backend, bob-tools
@@ -38,7 +42,7 @@
   - Fix test in dcr
 
 
-### [1.5.1] - 2021-02-24
+## [1.5.1] - 2021-02-24
 #### Changed
 - parallel index dumping
 
@@ -56,7 +60,7 @@
 - Update pearl to 0.5.8
 
 
-### [1.5.0] - 2021-01-20
+## [1.5.0] - 2021-01-20
 #### Changed
 - Complete code review and deep refactoring
 - Stability and performance improvements
@@ -92,13 +96,13 @@
 - stable tokio runtime
 
 
-### [1.4.0] - 2020-03-27
+## [1.4.0] - 2020-03-27
 #### Updated
 - API add partition delete
 - bobp errors detalization
 
 
-### [1.3.0] - 2020-03-02
+## [1.3.0] - 2020-03-02
 #### Updated
 - pearl updated, improved check existence performance
 
@@ -106,16 +110,16 @@
 - misc minor fixes
 
 
-### [1.2.1] - 2020-02-06
+## [1.2.1] - 2020-02-06
 
 
-### [1.2.0] - 2020-01-28
+## [1.2.0] - 2020-01-28
 #### Added
 - Config cluster generator
 - bob test utility
 
 
-### [1.1.1] - 2020-01-17
+## [1.1.1] - 2020-01-17
 #### Fixed
 - bobd cli version
 
@@ -123,9 +127,9 @@
 - tonic up to 0.1.0
 
 
-### [1.1.0] - 2019-12-26
+## [1.1.0] - 2019-12-26
 
 
-### [1.0.0] - 2019-10-03
+## [1.0.0] - 2019-10-03
 #### Changed
 - Initial version
