@@ -139,7 +139,12 @@ impl Backend {
         let inner: Arc<dyn BackendStorage> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
-            BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config).await),
+            BackendType::Pearl => {
+                let pearl = Pearl::new(mapper.clone(), config)
+                    .await
+                    .expect("pearl initialization failed");
+                Arc::new(pearl)
+            }
         };
         Self { inner, mapper }
     }

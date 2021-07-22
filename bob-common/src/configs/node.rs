@@ -236,9 +236,15 @@ pub struct Pearl {
     enable_aio: bool,
     #[serde(default = "Pearl::default_disks_events_logfile")]
     disks_events_logfile: String,
+    #[serde(default)]
+    bloom_filter_max_buf_bits_count: Option<usize>,
 }
 
 impl Pearl {
+    pub fn max_buf_bits_count(&self) -> Option<usize> {
+        self.bloom_filter_max_buf_bits_count
+    }
+
     pub fn alien_disk(&self) -> Option<&str> {
         self.alien_disk.as_deref()
     }

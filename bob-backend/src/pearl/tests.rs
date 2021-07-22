@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use super::Pearl as PearlBackend;
+use super::{core::BackendResult, Pearl as PearlBackend};
 use crate::core::{BackendStorage, Operation};
 
 static DISK_NAME: &str = "disk1";
@@ -15,7 +15,7 @@ async fn drop_pearl() {
     }
 }
 
-async fn create_backend(node_config: &str, cluster_config: &str) -> PearlBackend {
+async fn create_backend(node_config: &str, cluster_config: &str) -> BackendResult<PearlBackend> {
     let cluster = ClusterConfig::get_from_string(cluster_config).unwrap();
     let node = NodeConfig::get_from_string(node_config, &cluster).unwrap();
     debug!("node: {:?}", node);
@@ -62,7 +62,7 @@ vdisks:
 ";
     debug!("node_config: {}", node_config);
     debug!("cluster_config: {}", cluster_config);
-    create_backend(node_config, cluster_config).await
+    create_backend(node_config, cluster_config).await.unwrap()
 }
 
 #[tokio::test]
