@@ -417,7 +417,7 @@ impl Rack {
         let (node, disk) = self
             .nodes
             .iter()
-            .filter(|node| !replicas.contains(&&node.name))
+            .filter(|node| !replicas.contains(&node.name))
             .flat_map(|n| n.disks.iter().map(move |d| (n, d)))
             .min_by_key(|(node, disk)| counter.disk_used_count(&node.name, &disk.name))
             .unwrap_or(self.min_used_disk(counter)?);
@@ -433,7 +433,7 @@ impl Rack {
         let mut disks = self
             .nodes
             .iter()
-            .filter(|node| !replicas.contains(&&node.name))
+            .filter(|node| !replicas.contains(&node.name))
             .flat_map(|n| n.disks.iter().map(move |d| (n, d)));
 
         let min_key = disks
