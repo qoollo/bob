@@ -7,6 +7,7 @@ Bob versions changelog
 - Add api method to start disk ([#182](https://github.com/qoollo/bob/pull/182))
 - Rest api for data ([#187](https://github.com/qoollo/bob/pull/187))
 - Add bloom filter buffer size to config ([#218](https://github.com/qoollo/bob/pull/218))
+- Add tool for blob recovery (brt) ([#205](http://github.com/qoollo/bob/pull/205))
 
 #### Changed
 - rename bob-tools, remove redundant versions of workspace deps ([#220](https://github.com/qoollo/bob/pull/220))
