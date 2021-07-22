@@ -58,7 +58,7 @@ jobs:
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: rpmbuild/RPMS/noarch/bob-${{ env.VERSION }}-1.x86_64.rpm
+          file: rpmbuild/RPMS/x86_64/bob-${{ env.VERSION }}-1.x86_64.rpm
           asset_name: bob-${{ env.VERSION }}-1.x86_64.rpm
           tag: v1.6.1
           overwrite: true
