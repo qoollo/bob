@@ -1,0 +1,26 @@
+---
+log_config: /configs/logger.yaml
+name: node2
+quorum: 2
+operation_timeout: 15sec
+check_interval: 5000ms
+cleanup_interval: 60s
+cluster_policy: quorum
+backend_type: pearl
+pearl:
+  max_blob_size: 10000000000
+  max_data_in_blob: 100000
+  blob_file_name_prefix: bob
+  fail_retry_timeout: 100ms
+  fail_retry_count: 3
+  alien_disk: disk_0
+  allow_duplicates: true
+  settings:
+    root_dir_name: bob
+    alien_root_dir_name: alien
+    timestamp_period: 1d
+    create_pearl_wait_delay: 100ms
+  hash_chars_count: 10
+metrics:
+  name: bob
+  graphite: "127.0.0.1:2003"

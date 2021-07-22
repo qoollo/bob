@@ -1,0 +1,98 @@
+version: "3.7"
+
+services:
+  bob_node0:
+    image: bob-image
+    volumes:
+      - "~/bob/data:/data"
+      - "~/bob/configs:/configs"
+      - "~/bob/ssh:/local_ssh"
+      - "~/bob/logs:/var/log/bob"
+    command: "cluster.yaml node0.yaml"
+    hostname: bob_node0
+    ports:
+      - target: 20000
+        published: 20000
+        protocol: tcp
+        mode: host
+    networks:
+      - bobnet
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.bob.replica == 1
+
+  bob_node1:
+    image: bob-image
+    volumes:
+      - "~/bob/data:/data"
+      - "~/bob/configs:/configs"
+      - "~/bob/ssh:/local_ssh"
+      - "~/bob/logs:/var/log/bob"
+    command: "cluster.yaml node1.yaml"
+    hostname: bob_node1
+    ports:
+      - target: 20000
+        published: 20000
+        protocol: tcp
+        mode: host
+    networks:
+      - bobnet
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.bob.replica == 2
+
+  bob_node2:
+    image: bob-image
+    volumes:
+      - "~/bob/data:/data"
+      - "~/bob/configs:/configs"
+      - "~/bob/ssh:/local_ssh"
+      - "~/bob/logs:/var/log/bob"
+    command: "cluster.yaml node2.yaml"
+    hostname: bob_node2
+    ports:
+      - target: 20000
+        published: 20000
+        protocol: tcp
+        mode: host
+    networks:
+      - bobnet
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.bob.replica == 3
+
+  bob_node3:
+    image: bob-image
+    volumes:
+      - "~/bob/data:/data"
+      - "~/bob/configs:/configs"
+      - "~/bob/ssh:/local_ssh"
+      - "~/bob/logs:/var/log/bob"
+    command: "cluster.yaml node3.yaml"
+    hostname: bob_node3
+    ports:
+      - target: 20000
+        published: 20000
+        protocol: tcp
+        mode: host
+    networks:
+      - bobnet
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.bob.replica == 4
+
+networks:
+  bobnet:
+    external: true
