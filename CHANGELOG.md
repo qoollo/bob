@@ -7,6 +7,7 @@ Bob versions changelog
 - Add api method to start disk ([#182](https://github.com/qoollo/bob/pull/182))
 - Rest api for data ([#187](https://github.com/qoollo/bob/pull/187))
 - Add bloom filter buffer size to config ([#218](https://github.com/qoollo/bob/pull/218))
+- Add bind ip address to config ([#270](https://github.com/qoollo/bob/pull/270))
 
 #### Changed
 - rename bob-tools, remove redundant versions of workspace deps ([#220](https://github.com/qoollo/bob/pull/220))
@@ -15,6 +16,7 @@ Bob versions changelog
 #### Fixed
 - Fix backend storage trait object safety issue ([#197](https://github.com/qoollo/bob/pull/197))
 - Fix dockerfiles ([#203](https://github.com/qoollo/bob/pull/203))
+- Fix connectivity issues in Docker Swarm (use 0.0.0.0 in some cases) ([#270](https://github.com/qoollo/bob/pull/270))
 
 
 ## [1.6.1] - 2021-04-14
