@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result as AnyResult};
 use bob::ClusterConfig;
 use chrono::Local;
 use env_logger::fmt::Color;
@@ -33,15 +34,15 @@ pub fn init_logger() {
     debug!("init logger: OK");
 }
 
-pub fn read_config_from_file(name: &str) -> Option<ClusterConfig> {
+pub fn read_config_from_file(name: &str) -> AnyResult<ClusterConfig> {
     let file = open_file(name)?;
     let content = read_file(file)?;
     let config = deserialize(content)?;
     debug!("read from file: OK");
-    Some(config)
+    Ok(config)
 }
 
-fn open_file(name: &str) -> Option<File> {
+fn open_file(name: &str) -> AnyResult<File> {
     OpenOptions::new()
         .read(true)
         .create(false)
@@ -50,17 +51,15 @@ fn open_file(name: &str) -> Option<File> {
             debug!("open file: OK");
             f
         })
-        .map_err(|e| error!("open file: ERR [{}]", e))
-        .ok()
+        .map_err(|e| anyhow!("open file: ERR [{}]", e))
 }
 
-pub fn read_file(mut file: File) -> Option<String> {
+pub fn read_file(mut file: File) -> AnyResult<String> {
     let mut buf = String::new();
     file.read_to_string(&mut buf)
         .map(|n| debug!("read file: OK [{}b]", n))
-        .map_err(|e| error!("read file: ERR [{}]", e))
-        .ok()?;
-    Some(buf)
+        .map_err(|e| anyhow!("read file: ERR [{}]", e))?;
+    Ok(buf)
 }
 
 pub fn write_to_file(mut output: String, name: String) {
@@ -75,14 +74,13 @@ pub fn write_to_file(mut output: String, name: String) {
     debug!("write to file: OK");
 }
 
-fn deserialize(content: String) -> Option<ClusterConfig> {
+fn deserialize(content: String) -> AnyResult<ClusterConfig> {
     serde_yaml::from_str(content.as_str())
         .map(|c: ClusterConfig| {
             debug!("deserialize: OK [nodes count: {}]", c.nodes().len());
             c
         })
-        .map_err(|e| error!("deserialize: ERR [{}]", e))
-        .ok()
+        .map_err(|e| anyhow!("deserialize: ERR [{}]", e))
 }
 
 /// greatest common divider
