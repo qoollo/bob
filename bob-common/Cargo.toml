@@ -5,29 +5,29 @@ authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qooll
 edition = "2018"
 
 [dependencies]
-bob-grpc = { version = "1.5.1-alpha.4", path = "../bob-grpc" }
+async-trait = "0.1"
+bitflags = "1.2.1"
+bob-grpc = { path = "../bob-grpc" }
+bytes = "1.0.1"
+cfg-if = "1.0"
+chrono = "0.4"
+futures = { version = "0.3.12", features = ["thread-pool"] }
 
 http = "0.2.3"
-futures = { version = "0.3.12", features = ["thread-pool"] }
+humantime = "2.1.0"
+hyper = "0.14.2"
+lazy_static = "1.4.0"
+log = "0.4"
+metrics = { version = "0.12.1", features = ["std"] }
+mockall = "0.9.0"
+prost = "0.7.0"
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.8"
-log = "0.4"
-bitflags = "1.2.1"
-prost = "0.7.0"
-bytes = "1.0.1"
-hyper = "0.14.2"
-humantime = "2.1.0"
-chrono = "0.4"
-mockall = "0.9.0"
-cfg-if = "1.0"
+thiserror = "1.0"
 tonic = { version = "0.4.0", features = ["prost"] }
 tower = "0.4.3"
 tower-service = "0.3.0"
-async-trait = "0.1"
-lazy_static = "1.4.0"
-thiserror = "1.0"
-metrics = { version = "0.12.1", features = ["std"] }
 #metrics = "0.12.1"
 
 [dependencies.tokio]

@@ -335,11 +335,16 @@ impl Holder {
         let prefix = self.config.blob_file_name_prefix();
         let max_data = self.config.max_data_in_blob();
         let max_blob_size = self.config.max_blob_size();
+        let mut filter_config = BloomConfig::default();
+        if let Some(count) = self.config.max_buf_bits_count() {
+            filter_config.max_buf_bits_count = count;
+            debug!("bloom filter max buffer bits count set to: {}", count);
+        }
         let builder = builder
             .blob_file_name_prefix(prefix)
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
-            .set_filter_config(BloomConfig::default())
+            .set_filter_config(filter_config)
             .set_dump_sem(self.dump_sem.clone());
         let builder = if self.config.is_aio_enabled() {
             match rio::new() {
