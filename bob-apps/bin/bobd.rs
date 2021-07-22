@@ -35,15 +35,25 @@ async fn main() {
 
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
 
-    let mut addr = if let Some(addr) = node.bind_to_ip_address() {
-        addr
-    } else if let Ok(addr) = node.bind().parse() {
-        addr
-    } else if let Some(port) = port_from_address(node.bind().as_str()) {
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port)
-    } else {
-        panic!("Can't determine ip address to bind");
-    };
+    let mut addr = match (
+        node.bind_to_ip_address(),
+        node.bind().parse(),
+        port_from_address(node.bind().as_str()),
+    ) {
+        (Some(addr1), Ok(addr2), _) => {
+            if addr1 == addr2 {
+                Some(addr1)
+            } else {
+                log::error!("Addresses provided in node config and cluster config are not equal: {:?} != {:?}", addr1, addr2);
+                None
+            }
+        }
+        (Some(addr), _, _) => Some(addr),
+        (_, Ok(addr), _) => Some(addr),
+        (_, _, Some(port)) => Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port)),
+        _ => None,
+    }
+    .expect("Can't determine ip address to bind");
 
     let node_name = matches.value_of("name");
     if let Some(name) = node_name {
@@ -61,6 +71,7 @@ async fn main() {
             panic!("Can't determine ip address to bind");
         };
     }
+    warn!("Start listening on: {:?}", addr);
 
     let metrics = init_counters(&node, &addr.to_string());
 
