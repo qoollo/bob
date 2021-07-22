@@ -58,8 +58,8 @@ jobs:
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: rpmbuild/RPMS/noarch/bob-${{ env.VERSION }}-1.noarch.rpm
-          asset_name: bob-${{ env.VERSION }}-1.noarch.rpm
+          file: rpmbuild/RPMS/noarch/bob-${{ env.VERSION }}-1.x86_64.rpm
+          asset_name: bob-${{ env.VERSION }}-1.x86_64.rpm
           tag: v1.6.1
           overwrite: true
 
@@ -78,18 +78,47 @@ jobs:
       - name: build deb
         run: |
           echo Version:${{ env.VERSION }}
-          mkdir -p bob_${{ env.VERSION }}_all/{DEBIAN,usr/bin,etc/bob,etc/systemd/system}
-          cp control bob_${{ env.VERSION }}_all/DEBIAN/
-          cp {bobd,bobp,ccg} bob_${{ env.VERSION }}_all/usr/bin/
-          cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}_all/etc/bob/
-          cp bob.service bob_${{ env.VERSION }}_all/etc/systemd/system/
-          sed -i "s/current_version/${{ env.VERSION }}/" bob_${{ env.VERSION }}_all/DEBIAN/control
-          dpkg-deb --build ./bob_${{ env.VERSION }}_all
+          mkdir -p bob_${{ env.VERSION }}_amd64/{DEBIAN,usr/bin,etc/bob,etc/systemd/system}
+          cp control bob_${{ env.VERSION }}_amd64/DEBIAN/
+          cp {bobd,bobp,ccg} bob_${{ env.VERSION }}_amd64/usr/bin/
+          cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}_amd64/etc/bob/
+          cp bob.service bob_${{ env.VERSION }}_amd64/etc/systemd/system/
+          sed -i "s/current_version/${{ env.VERSION }}/" bob_${{ env.VERSION }}_amd64/DEBIAN/control
+          dpkg-deb --build ./bob_${{ env.VERSION }}_amd64
       - name: Upload deb to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: bob_${{ env.VERSION }}_all.deb
-          asset_name: bob_${{ env.VERSION }}_all.deb
+          file: bob_${{ env.VERSION }}_amd64.deb
+          asset_name: bob_${{ env.VERSION }}_amd64.deb
+          tag: v1.6.1
+          overwrite: true
+
+  upload-zip-file:
+    runs-on: ubuntu-latest
+    needs: build-release
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: bob-binaries
+      - name: Set env
+        run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+      - name: add zip file
+        run: |
+          echo Version:${{ env.VERSION }}
+          mkdir -p bob_${{ env.VERSION }}/{usr/bin,etc/bob,etc/systemd/system}
+          cp {bobd,bobp,ccg} bob_${{ env.VERSION }}/usr/bin/
+          cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}/etc/bob/
+          cp bob.service bob_${{ env.VERSION }}/etc/systemd/system/
+          zip -r bob_${{ env.VERSION }}.zip bob_${{ env.VERSION }}
+      - name: Upload zip file to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: bob_${{ env.VERSION }}.zip
+          asset_name: bob_${{ env.VERSION }}.zip
           tag: v1.6.1
           overwrite: true

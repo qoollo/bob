@@ -5,7 +5,7 @@ Version: current_version
 Release: 1
 Source0: %{name}-%{version}.tar.gz
 Group: Applications/Databases
-BuildArch: noarch
+BuildArch: x86_64
 
 %global debug_package %{nil}
 %define _binaries_in_noarch_packages_terminate_build 0

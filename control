@@ -2,6 +2,6 @@ Package: bob
 Version: current_version
 Section: unknown
 Priority: optional
-Architecture: all
+Architecture: amd64
 Maintainer: qoollo.com <info@qoollo.com>
 Description: Bob is distributing storage system
