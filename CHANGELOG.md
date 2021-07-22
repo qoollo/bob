@@ -12,6 +12,7 @@ Bob versions changelog
 #### Changed
 - rename bob-tools, remove redundant versions of workspace deps ([#220](https://github.com/qoollo/bob/pull/220))
 - add DiskEventsLogger error ([#230](https://github.com/qoollo/bob/pull/230))
+- add blob and index verification to blob recovery tool ([#230](https://github.com/qoollo/bob/pull/230))
 
 #### Fixed
 - Fix backend storage trait object safety issue ([#197](https://github.com/qoollo/bob/pull/197))
