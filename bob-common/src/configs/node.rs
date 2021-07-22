@@ -456,9 +456,13 @@ pub struct Node {
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
     disk_access_par_degree: usize,
+    http_api_port: Option<u16>,
 }
 
 impl NodeConfig {
+    pub fn http_api_port(&self) -> Option<u16> {
+        self.http_api_port
+    }
     /// Get node name.
     pub fn name(&self) -> &str {
         &self.name
@@ -706,6 +710,7 @@ pub mod tests {
             init_par_degree: 1,
             disk_access_par_degree: 1,
             count_interval: "10000ms".to_string(),
+            http_api_port: None,
         }
     }
 }
