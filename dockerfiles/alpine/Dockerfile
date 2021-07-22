@@ -2,7 +2,7 @@
 FROM rust:1.47.0 as cargo-build
 
 # rust toolchain version
-ARG RUST_TC_VER=nightly-2020-10-17
+ARG RUST_TC_VER=nightly-2021-06-23
 ARG KEY_SIZE=8
 
 RUN apt-get update \
@@ -72,22 +72,22 @@ RUN chown bobd:bobd bobd \
   && mkdir ~/.ssh \
   && chmod 600 -R ~/.ssh \
   && echo -e "#!/bin/bash\n\
-    cp /local_ssh/* ~/.ssh\n\
-    chown -R root ~/.ssh\n\
-    eval $(ssh-agent)\n\
-    ssh-add ~/.ssh/id_rsa\n\
-    /usr/sbin/sshd -D &" >> prep.sh \
+  cp /local_ssh/* ~/.ssh\n\
+  chown -R root ~/.ssh\n\
+  eval $(ssh-agent)\n\
+  ssh-add ~/.ssh/id_rsa\n\
+  /usr/sbin/sshd -D &" >> prep.sh \
   && chmod +x prep.sh \
   && echo -e "#!/bin/bash\n\
-    trap 'kill -TERM \$! && wait' SIGTERM\n\
-    ./bobd -c /configs/\$1 -n /configs/\$2 &\n\
-    wait" >> bobd.sh \
+  trap 'kill -TERM \$! && wait' SIGTERM\n\
+  ./bobd -c /configs/\$1 -n /configs/\$2 &\n\
+  wait" >> bobd.sh \
   && chmod +x bobd.sh \
   && echo -e "#!/bin/bash\n\
-    trap 'kill -TERM \$! && wait' SIGTERM\n\
-    sudo -S ./prep.sh\n\
-    ./bobd.sh \$1 \$2 & \n\
-    wait" >> run.sh \
+  trap 'kill -TERM \$! && wait' SIGTERM\n\
+  sudo -S ./prep.sh\n\
+  ./bobd.sh \$1 \$2 & \n\
+  wait" >> run.sh \
   && chmod +x run.sh
 
 EXPOSE 80
