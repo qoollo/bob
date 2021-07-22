@@ -107,6 +107,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         finalize_outdated_blobs,
         vdisk_records_count,
         distribution_function,
+        delete_records_by_key,
         get_data,
         put_data
     ];
@@ -631,6 +632,13 @@ fn put_data(bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt,
 
 fn internal(message: String) -> StatusExt {
     StatusExt::new(Status::InternalServerError, false, message)
+}
+
+#[delete("/data/<key>")]
+fn delete_records_by_key(bob: State<BobServer>, key: BobKey) -> Result<StatusExt, StatusExt> {
+    bob.block_on(bob.grinder().delete(key, true))
+        .map_err(|e| internal(e.to_string()))
+        .map(|res| StatusExt::new(Status::Ok, true, format!("{}", res)))
 }
 
 impl<'r> FromParam<'r> for Action {
