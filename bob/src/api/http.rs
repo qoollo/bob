@@ -1,7 +1,7 @@
 use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
-    data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk},
+    data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
     node::Disk as NodeDisk,
 };
 use futures::{future::BoxFuture, FutureExt};
@@ -11,7 +11,7 @@ use rocket::{
     response::{Content, Responder, Result as RocketResult},
     Config, Data, Request, Response, Rocket, State,
 };
-use rocket_contrib::json::Json;
+use rocket_contrib::{json::Json, uuid::Uuid};
 use std::{
     io::{Cursor, ErrorKind, Read},
     path::{Path, PathBuf},
@@ -86,6 +86,8 @@ pub(crate) struct DiskState {
     path: String,
     is_active: bool,
 }
+
+pub(crate) struct DataKey(BobKey);
 
 pub(crate) fn spawn(bob: BobServer, port: u16) {
     let routes = routes![
@@ -598,10 +600,14 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
 }
 
 #[get("/data/<key>")]
-fn get_data(bob: State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>>, StatusExt> {
+fn get_data(bob: State<BobServer>, key: &RawStr) -> Result<Content<Vec<u8>>, StatusExt> {
+    let key = key
+        .url_decode()
+        .map_err(|e| parse_error(e.to_string()))
+        .and_then(|key| DataKey::from_str(&key))?;
     let opts = BobOptions::new_get(None);
     let result = bob
-        .block_on(async { bob.grinder().get(key, &opts).await })
+        .block_on(async { bob.grinder().get(key.0, &opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
     let mime_type = infer::get(result.inner());
     let mime_type = match mime_type {
@@ -612,7 +618,11 @@ fn get_data(bob: State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>>, Stat
 }
 
 #[post("/data/<key>", data = "<data>")]
-fn put_data(bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt, StatusExt> {
+fn put_data(bob: State<BobServer>, key: &RawStr, data: Data) -> Result<StatusExt, StatusExt> {
+    let key = key
+        .url_decode()
+        .map_err(|e| parse_error(e.to_string()))
+        .and_then(|key| DataKey::from_str(&key))?;
     let mut data_buf = vec![];
     data.open()
         .read_to_end(&mut data_buf)
@@ -623,7 +633,7 @@ fn put_data(bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt,
     );
 
     let opts = BobOptions::new_put(None);
-    bob.block_on(async { bob.grinder().put(key, data, opts).await })
+    bob.block_on(async { bob.grinder().put(key.0, data, opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
 
     Ok(Status::Created.into())
@@ -631,6 +641,84 @@ fn put_data(bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt,
 
 fn internal(message: String) -> StatusExt {
     StatusExt::new(Status::InternalServerError, false, message)
+}
+
+fn parse_error(message: impl Into<String>) -> StatusExt {
+    StatusExt::new(Status::BadRequest, false, message.into())
+}
+
+impl DataKey {
+    fn from_bytes(bytes: Vec<u8>) -> Result<Self, StatusExt> {
+        let mut key = [0u8; BOB_KEY_SIZE];
+        key.iter_mut()
+            .rev()
+            .zip(bytes.iter().rev())
+            .for_each(|(a, b)| {
+                *a = *b;
+            });
+        if bytes.len() > BOB_KEY_SIZE {
+            if !bytes.iter().rev().skip(BOB_KEY_SIZE).all(|&b| b == 0) {
+                return Err(parse_error("Key overflow"));
+            }
+        }
+        Ok(Self(BobKey::from(key.to_vec())))
+    }
+
+    fn from_guid(guid: &str) -> Result<Self, StatusExt> {
+        let guid = Uuid::from_str(guid)
+            .map_err(|e| parse_error(format!("GUID parse error: {}", e.to_string())))?;
+        Self::from_bytes(guid.as_bytes().to_vec())
+    }
+
+    fn from_hex(hex: &str) -> Result<Self, StatusExt> {
+        if !hex.as_bytes().iter().all(|c| c.is_ascii_hexdigit()) {
+            return Err(parse_error(
+                "Hex parse error: non hexadecimal symbol in parameter",
+            ));
+        }
+        let bytes = hex
+            .as_bytes()
+            .rchunks(2)
+            .map(|c| {
+                u8::from_str_radix(
+                    std::str::from_utf8(c).expect("All chars is ascii hexdigits"),
+                    16,
+                )
+                .expect("All chars is ascii hexdigits")
+            })
+            .rev()
+            .collect();
+        Self::from_bytes(bytes)
+    }
+
+    fn from_decimal(decimal: &str) -> Result<Self, StatusExt> {
+        let number = decimal
+            .parse::<u128>()
+            .map_err(|e| parse_error(format!("Decimal parse error: {}", e.to_string())))?;
+        Self::from_bytes(number.to_be_bytes().into())
+    }
+}
+
+impl FromStr for DataKey {
+    type Err = StatusExt;
+
+    fn from_str(param: &str) -> Result<Self, Self::Err> {
+        if param.starts_with('{') && param.ends_with('}') {
+            Self::from_guid(&param[1..param.len() - 1])
+        } else if param.contains('-') {
+            Self::from_guid(param)
+        } else if param.starts_with("0x") {
+            Self::from_hex(param.get(2..).unwrap_or(""))
+        } else if param.chars().all(|c| c.is_ascii_digit()) {
+            Self::from_decimal(param)
+        } else {
+            Err(StatusExt::new(
+                Status::BadRequest,
+                false,
+                "Invalid key format".into(),
+            ))
+        }
+    }
 }
 
 impl<'r> FromParam<'r> for Action {
