@@ -32,10 +32,6 @@ tonic = { version = "0.4.0", features = ["prost"] }
 tower = "0.4.3"
 tower-service = "0.3.0"
 
-[dependencies.pearl]
-version = "=0.5.14"
-#metrics = "0.12.1"
-
 [dependencies.tokio]
 version = "1.4"
 features = ["full"]

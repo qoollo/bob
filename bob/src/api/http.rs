@@ -107,7 +107,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         finalize_outdated_blobs,
         vdisk_records_count,
         distribution_function,
-        delete_records_by_key
+        delete_records_by_key,
         get_data,
         put_data
     ];
