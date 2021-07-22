@@ -23,6 +23,7 @@ pub mod cleaner;
 pub mod cluster;
 pub mod counter;
 pub mod grinder;
+pub mod hw_counter;
 pub mod link_manager;
 pub mod server;
 
