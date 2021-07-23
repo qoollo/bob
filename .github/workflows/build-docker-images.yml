@@ -26,7 +26,7 @@ jobs:
           context: .
           file: dockerfiles/alpine/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/bob:${{ env.VERSION }}-alpine3.12
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/bob:${{ env.VERSION }}-alpine3.12,${{ secrets.DOCKERHUB_USERNAME }}/bob:latest
 
   build-ubuntu-image:
     runs-on: ubuntu-latest

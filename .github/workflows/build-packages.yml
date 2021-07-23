@@ -78,11 +78,14 @@ jobs:
       - name: build deb
         run: |
           echo Version:${{ env.VERSION }}
-          mkdir -p bob_${{ env.VERSION }}_amd64/{DEBIAN,usr/bin,etc/bob,etc/systemd/system}
-          cp control bob_${{ env.VERSION }}_amd64/DEBIAN/
+          mkdir -p bob_${{ env.VERSION }}_amd64/{DEBIAN,usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
+          cp {control,postinst} bob_${{ env.VERSION }}_amd64/DEBIAN/
+          chmod +x bob_${{ env.VERSION }}_amd64/DEBIAN/postinst
           cp {bobd,bobp,ccg} bob_${{ env.VERSION }}_amd64/usr/bin/
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}_amd64/etc/bob/
           cp bob.service bob_${{ env.VERSION }}_amd64/etc/systemd/system/
+          cp bob.service bob_${{ env.VERSION }}_amd64/lib/systemd/system/
+          cp bob_limits.conf bob_${{ env.VERSION }}_amd64/etc/security/limits.d/bob.conf
           sed -i "s/current_version/${{ env.VERSION }}/" bob_${{ env.VERSION }}_amd64/DEBIAN/control
           dpkg-deb --build ./bob_${{ env.VERSION }}_amd64
       - name: Upload deb to release
@@ -109,10 +112,12 @@ jobs:
       - name: add zip file
         run: |
           echo Version:${{ env.VERSION }}
-          mkdir -p bob_${{ env.VERSION }}/{usr/bin,etc/bob,etc/systemd/system}
+          mkdir -p bob_${{ env.VERSION }}/{usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
           cp {bobd,bobp,ccg} bob_${{ env.VERSION }}/usr/bin/
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}/etc/bob/
           cp bob.service bob_${{ env.VERSION }}/etc/systemd/system/
+          cp bob.service bob_${{ env.VERSION }}/lib/systemd/system/
+          cp bob_limits.conf bob_${{ env.VERSION }}/etc/security/limits.d/bob.conf
           zip -r bob_${{ env.VERSION }}.zip bob_${{ env.VERSION }}
       - name: Upload zip file to release
         uses: svenstaro/upload-release-action@v2

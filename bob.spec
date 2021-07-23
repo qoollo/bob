@@ -23,6 +23,8 @@ rm -rf %{buildroot}
 mkdir -p %{buildroot}/usr/bin/
 mkdir -p %{buildroot}/etc/bob/
 mkdir -p %{buildroot}/etc/systemd/system/
+mkdir -p %{buildroot}/lib/systemd/system/
+mkdir -p %{buildroot}/etc/security/limits.d/
 cp %{_builddir}/%{name}-%{version}/bobd %{buildroot}/usr/bin/
 cp %{_builddir}/%{name}-%{version}/bobp %{buildroot}/usr/bin/
 cp %{_builddir}/%{name}-%{version}/ccg %{buildroot}/usr/bin/
@@ -30,9 +32,18 @@ cp %{_builddir}/%{name}-%{version}/config-examples/cluster.yaml %{buildroot}/etc
 cp %{_builddir}/%{name}-%{version}/config-examples/node.yaml %{buildroot}/etc/bob/
 cp %{_builddir}/%{name}-%{version}/config-examples/logger.yaml %{buildroot}/etc/bob/
 cp bob.service %{buildroot}/etc/systemd/system/
+cp bob.service %{buildroot}/lib/systemd/system/
+cp bob_limits.conf %{buildroot}/etc/security/limits.d/bob.conf
 
 %clean
 rm -rf %{buildroot}
+
+%post
+# Add user
+BOB_USER=bob
+if ! getent passwd ${BOB_USER} > /dev/null; then
+  adduser --system ${BOB_USER} --create-home > /dev/null
+fi
 
 %files
 /usr/bin/bobd
@@ -42,3 +53,5 @@ rm -rf %{buildroot}
 %config(noreplace) /etc/bob/node.yaml
 %config(noreplace) /etc/bob/logger.yaml
 /etc/systemd/system/bob.service
+/lib/systemd/system/bob.service
+/etc/security/limits.d/bob.conf
