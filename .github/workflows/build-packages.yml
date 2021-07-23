@@ -61,6 +61,7 @@ jobs:
           file: rpmbuild/RPMS/x86_64/bob-${{ env.VERSION }}-1.x86_64.rpm
           asset_name: bob-${{ env.VERSION }}-1.x86_64.rpm
           tag: v1.6.1
+#          tag: ${{ github.ref }}
           overwrite: true
 
   build-deb:
@@ -95,6 +96,7 @@ jobs:
           file: bob_${{ env.VERSION }}_amd64.deb
           asset_name: bob_${{ env.VERSION }}_amd64.deb
           tag: v1.6.1
+#          tag: ${{ github.ref }}
           overwrite: true
 
   upload-zip-file:
@@ -125,5 +127,6 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: bob_${{ env.VERSION }}.zip
           asset_name: bob_${{ env.VERSION }}.zip
+#          tag: ${{ github.ref }}
           tag: v1.6.1
           overwrite: true
