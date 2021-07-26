@@ -31,6 +31,7 @@ jobs:
 
   build-ubuntu-image:
     runs-on: ubuntu-latest
+    environment: prod
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2

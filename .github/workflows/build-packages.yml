@@ -54,6 +54,23 @@ jobs:
           mkdir -p ./rpmbuild/{SOURCES,BUILD,RPMS,SPECS,SRPMS}
           tar czf ./rpmbuild/SOURCES/bob-${{ env.VERSION }}.tar.gz ../${cur_dir_name}/{bobd,bobp,ccg,bob_limits.conf,bob.service} ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml --transform s/${cur_dir_name}/bob-${{ env.VERSION }}/
           rpmbuild -ba --define "_topdir ${PWD}/rpmbuild" bob.spec
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: bob-rpm
+          path: bob-${{ env.VERSION }}-1.x86_64.rpm
+
+  upload-rpm:
+    runs-on: ubuntu-latest
+    needs: build-rpm
+    environment: prod
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: bob-rpm
+      - name: Set env
+        run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
       - name: Upload rpm to release
         uses: svenstaro/upload-release-action@v2
         with:
@@ -89,6 +106,24 @@ jobs:
           cp bob_limits.conf bob_${{ env.VERSION }}_amd64/etc/security/limits.d/bob.conf
           sed -i "s/current_version/${{ env.VERSION }}/" bob_${{ env.VERSION }}_amd64/DEBIAN/control
           dpkg-deb --build ./bob_${{ env.VERSION }}_amd64
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: bob-deb
+          path: bob_${{ env.VERSION }}_amd64.deb
+
+
+  upload-rpm:
+    runs-on: ubuntu-latest
+    needs: build-deb
+    environment: prod
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: bob-deb
+      - name: Set env
+        run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
       - name: Upload deb to release
         uses: svenstaro/upload-release-action@v2
         with:
@@ -99,7 +134,7 @@ jobs:
 #          tag: ${{ github.ref }}
           overwrite: true
 
-  upload-zip-file:
+  zip-file:
     runs-on: ubuntu-latest
     needs: build-release
     steps:
@@ -121,6 +156,23 @@ jobs:
           cp bob.service bob_${{ env.VERSION }}/lib/systemd/system/
           cp bob_limits.conf bob_${{ env.VERSION }}/etc/security/limits.d/bob.conf
           zip -r bob_${{ env.VERSION }}.zip bob_${{ env.VERSION }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: bob-zip
+          path: bob_${{ env.VERSION }}.zip
+
+  upload-zip:
+    runs-on: ubuntu-latest
+    needs: zip-file
+    environment: prod
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: bob-zip
+      - name: Set env
+        run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
       - name: Upload zip file to release
         uses: svenstaro/upload-release-action@v2
         with:
