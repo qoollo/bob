@@ -7,7 +7,7 @@ use tokio::time::{interval, timeout};
 use super::retry_socket::RetrySocket;
 use super::{Metric, MetricInner, MetricKey, MetricValue, TimeStamp};
 
-const METRICS_RECV_TIMEOUT: Duration = Duration::from_millis(100);
+const METRICS_RECV_TIMEOUT: Duration = Duration::from_millis(0);
 
 // this function runs in other thread, so it would be better if it will take control of arguments
 // themselves, not just references
