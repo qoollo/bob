@@ -1,13 +1,11 @@
 use log::{debug, trace};
 use std::collections::HashMap;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc::Receiver;
-use tokio::time::{interval, timeout};
+use tokio::time::timeout;
 
 use super::retry_socket::RetrySocket;
 use super::{Metric, MetricInner, MetricKey, MetricValue, TimeStamp};
-
-const METRICS_RECV_TIMEOUT: Duration = Duration::from_millis(0);
 
 // this function runs in other thread, so it would be better if it will take control of arguments
 // themselves, not just references
@@ -23,18 +21,21 @@ pub(super) async fn send_metrics(
     let mut counters_map = HashMap::new();
     let mut gauges_map = HashMap::new();
     let mut times_map = HashMap::new();
-    let mut send_interval = interval(send_interval);
 
     loop {
-        send_interval.tick().await;
-        while let Ok(m) = timeout(METRICS_RECV_TIMEOUT, rx.recv()).await {
-            match m {
-                Some(Metric::Counter(counter)) => process_counter(&mut counters_map, counter),
-                Some(Metric::Gauge(gauge)) => process_gauge(&mut gauges_map, gauge),
-                Some(Metric::Time(time)) => process_time(&mut times_map, time),
-                // if recv returns None, then sender is dropped, then no more metrics would come
-                None => return,
+        let next_flush = Instant::now() + send_interval;
+        let mut current_time = Instant::now();
+        while current_time < next_flush {
+            if let Ok(m) = timeout(next_flush - current_time, rx.recv()).await {
+                match m {
+                    Some(Metric::Counter(counter)) => process_counter(&mut counters_map, counter),
+                    Some(Metric::Gauge(gauge)) => process_gauge(&mut gauges_map, gauge),
+                    Some(Metric::Time(time)) => process_time(&mut times_map, time),
+                    // if recv returns None, then sender is dropped, then no more metrics would come
+                    None => return,
+                }
             }
+            current_time = Instant::now();
         }
 
         if socket.check_connection().is_ok() {
