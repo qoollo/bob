@@ -58,7 +58,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: bob-rpm
-          path: bob-${{ env.VERSION }}-1.x86_64.rpm
+          path: rpmbuild/RPMS/x86_64/bob-${{ env.VERSION }}-1.x86_64.rpm
 
   upload-rpm:
     runs-on: ubuntu-latest
@@ -77,7 +77,7 @@ jobs:
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: rpmbuild/RPMS/x86_64/bob-${{ env.VERSION }}-1.x86_64.rpm
+          file: bob-${{ env.VERSION }}-1.x86_64.rpm
           asset_name: bob-${{ env.VERSION }}-1.x86_64.rpm
           tag: v1.6.1
 #          tag: ${{ github.ref }}
