@@ -102,16 +102,13 @@ impl<T> Extractor<TRequest<T>> for MultiExtractor {
     fn extract(&self, req: &TRequest<T>) -> Result<Credentials, Error> {
         let basic_credentials = self.basic_extractor.extract(req);
         let token_credentials = self.token_extractor.extract(req);
-        if basic_credentials.is_ok() && token_credentials.is_ok() {
-            Err(Error::multiple_credentials_types())
-        } else if basic_credentials.is_ok() {
-            basic_credentials
-        } else if token_credentials.is_ok() {
-            token_credentials
-        } else {
-            Ok(Credentials::builder()
+        match (basic_credentials.is_ok(), token_credentials.is_ok()) {
+            (true, true) => Err(Error::multiple_credentials_types()),
+            (true, false) => basic_credentials,
+            (false, true) => token_credentials,
+            _ => Ok(Credentials::builder()
                 .with_address(req.remote_addr())
-                .build())
+                .build()),
         }
     }
 }
