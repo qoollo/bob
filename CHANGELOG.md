@@ -7,6 +7,7 @@ Bob versions changelog
 - Add api method to start disk ([#182](https://github.com/qoollo/bob/pull/182))
 - Rest api for data ([#187](https://github.com/qoollo/bob/pull/187))
 - Add bloom filter buffer size to config ([#218](https://github.com/qoollo/bob/pull/218))
+- Add Amazon S3 GetObject and PutObject api ([#193](https://github.com/qoollo/bob/pull/193))
 - Add tool for blob recovery (brt) ([#205](https://github.com/qoollo/bob/pull/205))
 
 #### Changed
