@@ -277,6 +277,30 @@ paths:
                 ref: '#/components/schemas/Dir'
         default:
           $ref: '#/components/responses/DefaultError'
+  /data/<key>:
+    get:
+      summary: Returns data by key
+      operationId: getDataByKey
+      parameters:
+        - $ref: '#/components/parameters/DataKeyParam'
+      responses:
+        "200":
+          description: "Binary data with inferred content type"
+        default:
+          $ref: "#/components/responses/DefaultError"
+    post:
+      summary: Add data to storage by key
+      operationId: postDataByKey
+      parameters:
+        - $ref: '#/components/parameters/DataKeyParam'
+      requestBody:
+        description: Binary data
+        required: true
+      responses:
+        "200":
+          description: "Data successfully added"
+        default:
+          $ref: "#/components/responses/DefaultError"
 
 components:
   responses:
@@ -299,6 +323,12 @@ components:
       required: true
       schema:
         type: integer
+    DataKeyParam:
+      name: DataKey
+      in: path
+      required: true
+      schema:
+        type: string
   schemas:
     Node:
       properties:

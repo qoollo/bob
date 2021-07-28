@@ -2,6 +2,7 @@ use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk},
+    error::Error as BobError,
     node::Disk as NodeDisk,
 };
 use futures::{future::BoxFuture, FutureExt};
@@ -14,11 +15,13 @@ use rocket::{
     Config, Data, Request, Response, Rocket, State,
 };
 use std::{
-    io::{Cursor, ErrorKind},
+    io::{Cursor, Error as IoError, ErrorKind},
     path::{Path, PathBuf},
     str::FromStr,
 };
 use tokio::fs::{read_dir, ReadDir};
+
+mod s3;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
@@ -116,6 +119,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
     config.port = port;
     let task = Rocket::custom(config)
         .manage(bob)
+        .mount("/s3", s3::routes())
         .mount("/", routes)
         .launch();
 
@@ -590,17 +594,8 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
 #[get("/data/<key>")]
 async fn get_data(bob: &State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>>, StatusExt> {
     let opts = BobOptions::new_get(None);
-    let result = bob
-        .grinder()
-        .get(key, &opts)
-        .await
-        .map_err(|err| -> StatusExt { err.into() })?;
-    let mime_type = infer::get(result.inner());
-    let mime_type = match mime_type {
-        None => ContentType::Any,
-        Some(t) => ContentType::from_str(t.mime_type()).unwrap_or_default(),
-    };
-    Ok(Content(mime_type, result.inner().to_owned()))
+    let result = bob.grinder().get(key, &opts).await?;
+    Ok(Content(infer_data_type(&result), result.inner().to_owned()))
 }
 
 #[post("/data/<key>", data = "<data>")]
@@ -609,22 +604,14 @@ async fn put_data(
     key: BobKey,
     data: Data<'_>,
 ) -> Result<StatusExt, StatusExt> {
-    let data_buf = data
-        .open(ByteUnit::max_value())
-        .into_bytes()
-        .await
-        .map(|res| res.value)
-        .map_err(|err| -> StatusExt { err.into() })?;
+    let data_buf = data.open(ByteUnit::max_value()).into_bytes().await?.value;
     let data = BobData::new(
         data_buf,
         BobMeta::new(chrono::Local::now().timestamp() as u64),
     );
 
     let opts = BobOptions::new_put(None);
-    bob.grinder()
-        .put(key, data, opts)
-        .await
-        .map_err(|err| -> StatusExt { err.into() })?;
+    bob.grinder().put(key, data, opts).await?;
 
     Ok(Status::Created.into())
 }
@@ -672,8 +659,8 @@ impl From<Status> for StatusExt {
     }
 }
 
-impl From<std::io::Error> for StatusExt {
-    fn from(err: std::io::Error) -> Self {
+impl From<IoError> for StatusExt {
+    fn from(err: IoError) -> Self {
         Self {
             status: match err.kind() {
                 ErrorKind::NotFound => Status::NotFound,
@@ -685,8 +672,8 @@ impl From<std::io::Error> for StatusExt {
     }
 }
 
-impl From<bob_common::error::Error> for StatusExt {
-    fn from(err: bob_common::error::Error) -> Self {
+impl From<BobError> for StatusExt {
+    fn from(err: BobError) -> Self {
         use bob_common::error::Kind;
         let status = match err.kind() {
             Kind::DuplicateKey => Status::Conflict,
@@ -700,5 +687,12 @@ impl From<bob_common::error::Error> for StatusExt {
             ok: false,
             msg: err.to_string(),
         }
+    }
+}
+
+pub(crate) fn infer_data_type(data: &BobData) -> ContentType {
+    match infer::get(data.inner()) {
+        None => ContentType::Any,
+        Some(t) => ContentType::from_str(t.mime_type()).unwrap_or_default(),
     }
 }
