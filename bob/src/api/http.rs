@@ -649,6 +649,11 @@ fn parse_error(message: impl Into<String>) -> StatusExt {
 
 impl DataKey {
     fn from_bytes(bytes: Vec<u8>) -> Result<Self, StatusExt> {
+        if bytes.len() > BOB_KEY_SIZE {
+            if !bytes.iter().rev().skip(BOB_KEY_SIZE).all(|&b| b == 0) {
+                return Err(parse_error("Key overflow"));
+            }
+        }
         let mut key = [0u8; BOB_KEY_SIZE];
         key.iter_mut()
             .rev()
@@ -656,11 +661,6 @@ impl DataKey {
             .for_each(|(a, b)| {
                 *a = *b;
             });
-        if bytes.len() > BOB_KEY_SIZE {
-            if !bytes.iter().rev().skip(BOB_KEY_SIZE).all(|&b| b == 0) {
-                return Err(parse_error("Key overflow"));
-            }
-        }
         Ok(Self(BobKey::from(key.to_vec())))
     }
 
