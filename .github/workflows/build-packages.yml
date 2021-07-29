@@ -5,6 +5,7 @@ on:
     branches: [ 266-build-with-gitlab-actions ]
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
     
 jobs:
 
@@ -50,6 +51,7 @@ jobs:
         run: |
           echo Version:${{ env.VERSION }}
           sed -i "s/current_version/${{ env.VERSION }}/" bob.spec
+          sed -i "s/release_number/${{ env.GITHUB_RUN_ID }}/" bob.spec
           cur_dir_name=${PWD##*/}
           mkdir -p ./rpmbuild/{SOURCES,BUILD,RPMS,SPECS,SRPMS}
           tar czf ./rpmbuild/SOURCES/bob-${{ env.VERSION }}.tar.gz ../${cur_dir_name}/{bobd,bobp,ccg,bob_limits.conf,bob.service} ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml --transform s/${cur_dir_name}/bob-${{ env.VERSION }}/
@@ -58,7 +60,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: bob-rpm
-          path: rpmbuild/RPMS/x86_64/bob-${{ env.VERSION }}-1.x86_64.rpm
+          path: rpmbuild/RPMS/x86_64/bob-${{ env.VERSION }}-${{ env.GITHUB_RUN_ID }}.x86_64.rpm
 
   upload-rpm:
     runs-on: ubuntu-latest
@@ -77,8 +79,8 @@ jobs:
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: bob-${{ env.VERSION }}-1.x86_64.rpm
-          asset_name: bob-${{ env.VERSION }}-1.x86_64.rpm
+          file: bob-${{ env.VERSION }}-${{ env.GITHUB_RUN_ID }}.x86_64.rpm
+          asset_name: bob-${{ env.VERSION }}.x86_64.rpm
           tag: v1.6.1
 #          tag: ${{ github.ref }}
           overwrite: true

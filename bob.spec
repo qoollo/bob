@@ -2,7 +2,7 @@ Name: bob
 Summary: Bob is distributing storage system
 License: MIT
 Version: current_version
-Release: 1
+Release: release_number
 Source0: %{name}-%{version}.tar.gz
 Group: Applications/Databases
 BuildArch: x86_64
