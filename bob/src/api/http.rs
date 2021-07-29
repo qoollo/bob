@@ -2,6 +2,7 @@ use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
+    error::Error as BobError,
     node::Disk as NodeDisk,
 };
 use futures::{future::BoxFuture, FutureExt};
@@ -13,11 +14,13 @@ use rocket::{
 };
 use rocket_contrib::{json::Json, uuid::Uuid};
 use std::{
-    io::{Cursor, ErrorKind, Read},
+    io::{Cursor, Error as IoError, ErrorKind, Read},
     path::{Path, PathBuf},
     str::FromStr,
 };
 use tokio::fs::{read_dir, ReadDir};
+
+mod s3;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Action {
@@ -87,6 +90,7 @@ pub(crate) struct DiskState {
     is_active: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct DataKey(BobKey);
 
 pub(crate) fn spawn(bob: BobServer, port: u16) {
@@ -118,6 +122,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         config.set_port(port);
         Rocket::custom(config)
             .manage(bob)
+            .mount("/s3", s3::routes())
             .mount("/", routes)
             .launch();
     };
@@ -600,43 +605,36 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
 }
 
 #[get("/data/<key>")]
-fn get_data(bob: State<BobServer>, key: &RawStr) -> Result<Content<Vec<u8>>, StatusExt> {
-    let key = key
-        .url_decode()
-        .map_err(|e| parse_error(e.to_string()))
-        .and_then(|key| DataKey::from_str(&key))?;
+fn get_data(bob: State<BobServer>, key: DataKey) -> Result<Content<Vec<u8>>, StatusExt> {
     let opts = BobOptions::new_get(None);
-    let result = bob
-        .block_on(async { bob.grinder().get(key.0, &opts).await })
-        .map_err(|err| -> StatusExt { err.into() })?;
-    let mime_type = infer::get(result.inner());
-    let mime_type = match mime_type {
-        None => ContentType::Any,
-        Some(t) => ContentType::from_str(t.mime_type()).unwrap_or_default(),
-    };
-    Ok(Content(mime_type, result.inner().to_owned()))
+    let result = bob.block_on(async { bob.grinder().get(key.0, &opts).await })?;
+    Ok(Content(infer_data_type(&result), result.inner().to_owned()))
 }
 
 #[post("/data/<key>", data = "<data>")]
-fn put_data(bob: State<BobServer>, key: &RawStr, data: Data) -> Result<StatusExt, StatusExt> {
-    let key = key
-        .url_decode()
-        .map_err(|e| parse_error(e.to_string()))
-        .and_then(|key| DataKey::from_str(&key))?;
+fn put_data(bob: State<BobServer>, key: DataKey, data: Data) -> Result<StatusExt, StatusExt> {
     let mut data_buf = vec![];
-    data.open()
-        .read_to_end(&mut data_buf)
-        .map_err(|err| -> StatusExt { err.into() })?;
+    data.open().read_to_end(&mut data_buf)?;
     let data = BobData::new(
         data_buf,
         BobMeta::new(chrono::Local::now().timestamp() as u64),
     );
 
     let opts = BobOptions::new_put(None);
-    bob.block_on(async { bob.grinder().put(key.0, data, opts).await })
-        .map_err(|err| -> StatusExt { err.into() })?;
+    bob.block_on(async { bob.grinder().put(key.0, data, opts).await })?;
 
     Ok(Status::Created.into())
+}
+
+impl FromParam<'_> for DataKey {
+    type Error = StatusExt;
+
+    fn from_param(param: &RawStr) -> Result<Self, Self::Error> {
+        param
+            .url_decode()
+            .map_err(|e| parse_error(e.to_string()))
+            .and_then(|key| DataKey::from_str(&key))
+    }
 }
 
 fn internal(message: String) -> StatusExt {
@@ -760,8 +758,8 @@ impl From<Status> for StatusExt {
     }
 }
 
-impl From<std::io::Error> for StatusExt {
-    fn from(err: std::io::Error) -> Self {
+impl From<IoError> for StatusExt {
+    fn from(err: IoError) -> Self {
         Self {
             status: match err.kind() {
                 ErrorKind::NotFound => Status::NotFound,
@@ -773,8 +771,8 @@ impl From<std::io::Error> for StatusExt {
     }
 }
 
-impl From<bob_common::error::Error> for StatusExt {
-    fn from(err: bob_common::error::Error) -> Self {
+impl From<BobError> for StatusExt {
+    fn from(err: BobError) -> Self {
         use bob_common::error::Kind;
         let status = match err.kind() {
             Kind::DuplicateKey => Status::Conflict,
@@ -788,5 +786,12 @@ impl From<bob_common::error::Error> for StatusExt {
             ok: false,
             msg: err.to_string(),
         }
+    }
+}
+
+pub(crate) fn infer_data_type(data: &BobData) -> ContentType {
+    match infer::get(data.inner()) {
+        None => ContentType::Any,
+        Some(t) => ContentType::from_str(t.mime_type()).unwrap_or_default(),
     }
 }
