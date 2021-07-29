@@ -31,7 +31,8 @@ async fn main() {
     println!("Node config: {:?}", node_config);
     let node = cluster.get(node_config).await.unwrap();
 
-    log4rs::init_file(node.log_config(), Default::default()).expect("can't find log config");
+    log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
+        .expect("can't find log config");
 
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
     let mut addr = node.bind().to_socket_addrs().unwrap().next().unwrap();
