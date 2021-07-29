@@ -632,7 +632,7 @@ impl FromParam<'_> for DataKey {
     fn from_param(param: &RawStr) -> Result<Self, Self::Error> {
         param
             .url_decode()
-            .map_err(|e| parse_error(e.to_string()))
+            .map_err(|e| bad_request(e.to_string()))
             .and_then(|key| DataKey::from_str(&key))
     }
 }
@@ -641,7 +641,7 @@ fn internal(message: String) -> StatusExt {
     StatusExt::new(Status::InternalServerError, false, message)
 }
 
-fn parse_error(message: impl Into<String>) -> StatusExt {
+fn bad_request(message: impl Into<String>) -> StatusExt {
     StatusExt::new(Status::BadRequest, false, message.into())
 }
 
@@ -649,7 +649,7 @@ impl DataKey {
     fn from_bytes(bytes: Vec<u8>) -> Result<Self, StatusExt> {
         if bytes.len() > BOB_KEY_SIZE {
             if !bytes.iter().rev().skip(BOB_KEY_SIZE).all(|&b| b == 0) {
-                return Err(parse_error("Key overflow"));
+                return Err(bad_request("Key overflow"));
             }
         }
         let mut key = [0u8; BOB_KEY_SIZE];
@@ -664,13 +664,13 @@ impl DataKey {
 
     fn from_guid(guid: &str) -> Result<Self, StatusExt> {
         let guid = Uuid::from_str(guid)
-            .map_err(|e| parse_error(format!("GUID parse error: {}", e.to_string())))?;
+            .map_err(|e| bad_request(format!("GUID parse error: {}", e.to_string())))?;
         Self::from_bytes(guid.as_bytes().to_vec())
     }
 
     fn from_hex(hex: &str) -> Result<Self, StatusExt> {
         if !hex.as_bytes().iter().all(|c| c.is_ascii_hexdigit()) {
-            return Err(parse_error(
+            return Err(bad_request(
                 "Hex parse error: non hexadecimal symbol in parameter",
             ));
         }
@@ -692,7 +692,7 @@ impl DataKey {
     fn from_decimal(decimal: &str) -> Result<Self, StatusExt> {
         let number = decimal
             .parse::<u128>()
-            .map_err(|e| parse_error(format!("Decimal parse error: {}", e.to_string())))?;
+            .map_err(|e| bad_request(format!("Decimal parse error: {}", e.to_string())))?;
         Self::from_bytes(number.to_be_bytes().into())
     }
 }
