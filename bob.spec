@@ -1,6 +1,7 @@
 Name: bob
 Summary: Bob is distributing storage system
 License: MIT
+URL: https://github.com/qoollo/bob
 Version: current_version
 Release: release_number
 Source0: %{name}-%{version}.tar.gz
