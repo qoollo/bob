@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 pub mod hashmap;
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, PartialEq, Copy, Clone, Deserialize, Default)]
 pub struct Perms {
     #[serde(default)]
     read: bool,
@@ -13,6 +13,17 @@ pub struct Perms {
     read_rest: bool,
     #[serde(default)]
     write_rest: bool,
+}
+
+impl Perms {
+    pub fn new(read: bool, write: bool, read_rest: bool, write_rest: bool) -> Self {
+        Self {
+            read,
+            write,
+            read_rest,
+            write_rest,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -52,6 +63,6 @@ impl User {
     }
 }
 
-pub trait UsersStorageTrait: Default + Clone {
+pub trait UsersStorage: Default + Clone {
     fn get_user<'a>(&'a self, username: &str) -> Result<&'a User, Error>;
 }
