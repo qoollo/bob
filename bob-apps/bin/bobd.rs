@@ -96,6 +96,7 @@ fn spawn_signal_handler(
         task.recv().await;
         debug!("Got signal {:?}", s);
         server.shutdown().await;
+        log::logger().flush();
         std::process::exit(0);
     });
     Ok(())
