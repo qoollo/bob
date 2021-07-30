@@ -2,7 +2,6 @@ name: build-packages
 
 on:
   push:
-    branches: [ 266-build-with-gitlab-actions ]
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
@@ -81,8 +80,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: bob-${{ env.VERSION }}-${{ github.run_id }}.x86_64.rpm
           asset_name: bob-${{ env.VERSION }}.x86_64.rpm
-          tag: v1.6.1
-#          tag: ${{ github.ref }}
+          tag: ${{ github.ref }}
           overwrite: true
 
   build-deb:
@@ -136,8 +134,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: bob_${{ env.VERSION }}_amd64.deb
           asset_name: bob_${{ env.VERSION }}_amd64.deb
-          tag: v1.6.1
-#          tag: ${{ github.ref }}
+          tag: ${{ github.ref }}
           overwrite: true
 
   zip-file:
@@ -187,6 +184,5 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: bob_${{ env.VERSION }}.zip
           asset_name: bob_${{ env.VERSION }}.zip
-#          tag: ${{ github.ref }}
-          tag: v1.6.1
+          tag: ${{ github.ref }}
           overwrite: true
