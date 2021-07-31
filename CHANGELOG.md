@@ -7,11 +7,14 @@ Bob versions changelog
 - Add api method to start disk ([#182](https://github.com/qoollo/bob/pull/182))
 - Rest api for data ([#187](https://github.com/qoollo/bob/pull/187))
 - Add bloom filter buffer size to config ([#218](https://github.com/qoollo/bob/pull/218))
+- Setup build with GitHub actions ([#266](https://github.com/qoollo/bob/pull/273))
+- Add Amazon S3 GetObject and PutObject api ([#193](https://github.com/qoollo/bob/pull/193))
 - Add REST API method for data deletion ([#221](https://github.com/qoollo/bob/pull/221))
 
 #### Changed
 - rename bob-tools, remove redundant versions of workspace deps ([#220](https://github.com/qoollo/bob/pull/220))
 - add DiskEventsLogger error ([#230](https://github.com/qoollo/bob/pull/230))
+- add methods for data to REST API specification ([#234](https://github.com/qoollo/bob/pull/234))
 
 #### Fixed
 - Fix backend storage trait object safety issue ([#197](https://github.com/qoollo/bob/pull/197))
