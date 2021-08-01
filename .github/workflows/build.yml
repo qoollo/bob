@@ -1,0 +1,27 @@
+name: build
+
+on:
+  pull_request:
+      types: [ opened, synchronize, reopened, ready_for_review, labeled, unlabeled ]
+  push:
+    branches: [ master ]
+    
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    container: rust:1.53.0
+    env:
+      TARGET: "x86_64-unknown-linux-musl"
+      BUILD_MODE: "release"
+      RUST_TC_VER: nightly-2021-06-23
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Building release
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends musl-tools
+          rustup install ${{ env.RUST_TC_VER }}
+          rustup default ${{ env.RUST_TC_VER }}
+          rustup target add ${{ env.TARGET }}
+          cargo build --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}  
