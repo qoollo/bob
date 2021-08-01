@@ -9,6 +9,7 @@ Bob versions changelog
 - Add bloom filter buffer size to config ([#218](https://github.com/qoollo/bob/pull/218))
 - Setup build with GitHub actions ([#266](https://github.com/qoollo/bob/pull/273))
 - Add Amazon S3 GetObject and PutObject api ([#193](https://github.com/qoollo/bob/pull/193))
+- Add variable key size ([#133](https://github.com/qoollo/bob/pull/207))
 
 #### Changed
 - rename bob-tools, remove redundant versions of workspace deps ([#220](https://github.com/qoollo/bob/pull/220))
