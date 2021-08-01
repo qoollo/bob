@@ -9,11 +9,14 @@ Bob versions changelog
 - Add bloom filter buffer size to config ([#218](https://github.com/qoollo/bob/pull/218))
 - Setup build with GitHub actions ([#266](https://github.com/qoollo/bob/pull/273))
 - Add Amazon S3 GetObject and PutObject api ([#193](https://github.com/qoollo/bob/pull/193))
+- Prometheus metrics exporter ([#251](https://github.com/qoollo/bob/pull/251))
+- Rate metrics ([#251](https://github.com/qoollo/bob/pull/251))
 
 #### Changed
 - rename bob-tools, remove redundant versions of workspace deps ([#220](https://github.com/qoollo/bob/pull/220))
 - add DiskEventsLogger error ([#230](https://github.com/qoollo/bob/pull/230))
 - add methods for data to REST API specification ([#234](https://github.com/qoollo/bob/pull/234))
+- Global exporter is used, different exporters may be load conditionally ([#251](https://github.com/qoollo/bob/pull/251))
 
 #### Fixed
 - Fix backend storage trait object safety issue ([#197](https://github.com/qoollo/bob/pull/197))
