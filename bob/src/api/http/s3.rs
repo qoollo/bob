@@ -6,10 +6,10 @@ use std::{
 
 use super::{infer_data_type, StatusExt};
 use crate::server::Server as BobServer;
-use bob_common::data::{BobData, BobKey, BobMeta, BobOptions};
+use bob_common::data::{BobData, BobMeta, BobOptions};
 use rocket::{
     get,
-    http::{ContentType, Header, Status},
+    http::{ContentType, Header, Status, RawStr},
     put,
     request::{FromRequest, Outcome},
     response,
@@ -95,9 +95,10 @@ impl<'r> Responder<'r> for GetObjectOutput {
 #[get("/default/<key>")]
 pub(crate) fn get_object(
     bob: State<BobServer>,
-    key: BobKey,
+    key: &RawStr,
     headers: GetObjectHeaders,
 ) -> Result<GetObjectOutput, StatusS3> {
+    let key = key.as_bytes().into();
     let opts = BobOptions::new_get(None);
     let data = bob
         .block_on(async { bob.grinder().get(key, &opts).await })
@@ -122,7 +123,7 @@ pub(crate) fn get_object(
 #[put("/default/<key>", data = "<data>", rank = 2)]
 pub(crate) fn put_object(
     bob: State<BobServer>,
-    key: BobKey,
+    key: &RawStr,
     data: Data,
 ) -> Result<StatusS3, StatusS3> {
     let mut data_buf = vec![];
@@ -135,7 +136,7 @@ pub(crate) fn put_object(
     );
 
     let opts = BobOptions::new_put(None);
-    bob.block_on(async { bob.grinder().put(key, data, opts).await })
+    bob.block_on(async { bob.grinder().put(key.as_bytes().into(), data, opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
 
     Ok(StatusS3::from(StatusExt::from(Status::Created)))
@@ -145,7 +146,7 @@ pub(crate) fn put_object(
 pub(crate) struct CopyObjectHeaders {
     if_modified_since: Option<u64>,
     if_unmodified_since: Option<u64>,
-    source_key: BobKey,
+    source_key: String,
 }
 
 impl<'r> FromRequest<'_, 'r> for CopyObjectHeaders {
@@ -154,7 +155,7 @@ impl<'r> FromRequest<'_, 'r> for CopyObjectHeaders {
         let headers = request.headers();
         let source_key = match headers
             .get_one("x-amz-copy-source")
-            .and_then(|x| x.parse().ok())
+            .map(|x| x.to_string())
         {
             Some(key) => key,
             None => return Outcome::Forward(()),
@@ -176,9 +177,10 @@ impl<'r> FromRequest<'_, 'r> for CopyObjectHeaders {
 #[put("/default/<key>")]
 pub(crate) fn copy_object(
     bob: State<BobServer>,
-    key: BobKey,
+    key: &RawStr,
     headers: CopyObjectHeaders,
 ) -> Result<StatusS3, StatusS3> {
+    let key = key.as_bytes().into();
     let opts = BobOptions::new_get(None);
     let data = bob
         .block_on(async { bob.grinder().get(key, &opts).await })

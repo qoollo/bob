@@ -27,6 +27,13 @@ impl From<u64> for BobKey {
     }
 }
 
+impl<'a> From<&'a [u8]> for BobKey {
+    fn from(a: &[u8]) -> Self {
+        let data = a.try_into().expect("key size mismatch");
+        Self(data)
+    }
+}
+
 impl From<Vec<u8>> for BobKey {
     fn from(v: Vec<u8>) -> Self {
         let data = v.try_into().expect("key size mismatch");
@@ -71,6 +78,12 @@ impl std::str::FromStr for BobKey {
             }
         }
         Ok(Self(data))
+    }
+}
+
+impl Default for BobKey {
+    fn default() -> Self {
+        BobKey([0; BOB_KEY_SIZE])
     }
 }
 

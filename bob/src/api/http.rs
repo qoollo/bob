@@ -1,7 +1,7 @@
 use crate::server::Server as BobServer;
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
-    data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk},
+    data::{BobData, BobMeta, BobOptions, VDisk as DataVDisk},
     error::Error as BobError,
     node::Disk as NodeDisk,
 };
@@ -602,14 +602,14 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
 }
 
 #[get("/data/<key>")]
-fn get_data(bob: State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>>, StatusExt> {
+fn get_data(bob: State<BobServer>, key: &RawStr) -> Result<Content<Vec<u8>>, StatusExt> {
     let opts = BobOptions::new_get(None);
-    let result = bob.block_on(async { bob.grinder().get(key, &opts).await })?;
+    let result = bob.block_on(async { bob.grinder().get(key.as_bytes().into(), &opts).await })?;
     Ok(Content(infer_data_type(&result), result.inner().to_owned()))
 }
 
 #[post("/data/<key>", data = "<data>")]
-fn put_data(bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt, StatusExt> {
+fn put_data(bob: State<BobServer>, key: &RawStr, data: Data) -> Result<StatusExt, StatusExt> {
     let mut data_buf = vec![];
     data.open().read_to_end(&mut data_buf)?;
     let data = BobData::new(
@@ -618,7 +618,7 @@ fn put_data(bob: State<BobServer>, key: BobKey, data: Data) -> Result<StatusExt,
     );
 
     let opts = BobOptions::new_put(None);
-    bob.block_on(async { bob.grinder().put(key, data, opts).await })?;
+    bob.block_on(async { bob.grinder().put(key.as_bytes().into(), data, opts).await })?;
 
     Ok(Status::Created.into())
 }
