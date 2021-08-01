@@ -6,15 +6,19 @@ use super::{
 use crate::data::DiskPath;
 use futures::Future;
 use humantime::Duration as HumanDuration;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::{
     cell::{Ref, RefCell},
     env::VarError,
     fmt::Debug,
     net::SocketAddr,
+    sync::atomic::AtomicBool,
     time::Duration,
 };
 use tokio::time::sleep;
+
+const AIO_FLAG_ORDERING: Ordering = Ordering::SeqCst;
 
 const PLACEHOLDER: &str = "~";
 const TMP_DIR_ENV_VARS: [&str; 3] = ["TMP", "TEMP", "TMPDIR"];
@@ -234,8 +238,7 @@ pub struct Pearl {
     #[serde(default = "Pearl::default_hash_chars_count")]
     hash_chars_count: u32,
     #[serde(default = "Pearl::default_enable_aio")]
-    // NOTE: `AtomicBool` can be used instead of `Mutex<bool>`
-    enable_aio: Arc<Mutex<bool>>,
+    enable_aio: Arc<AtomicBool>,
     #[serde(default = "Pearl::default_disks_events_logfile")]
     disks_events_logfile: String,
     #[serde(default)]
@@ -318,8 +321,8 @@ impl Pearl {
         10
     }
 
-    fn default_enable_aio() -> Arc<Mutex<bool>> {
-        Arc::new(Mutex::new(true))
+    fn default_enable_aio() -> Arc<AtomicBool> {
+        Arc::new(AtomicBool::new(true))
     }
 
     pub fn disks_events_logfile(&self) -> &str {
@@ -345,11 +348,11 @@ impl Pearl {
     }
 
     pub fn is_aio_enabled(&self) -> bool {
-        self.enable_aio.lock().unwrap().clone()
+        self.enable_aio.load(AIO_FLAG_ORDERING)
     }
 
     pub fn set_aio(&self, new_value: bool) {
-        *self.enable_aio.lock().unwrap() = new_value;
+        self.enable_aio.store(new_value, AIO_FLAG_ORDERING);
     }
 
     fn check_unset(&self) -> Result<(), String> {
