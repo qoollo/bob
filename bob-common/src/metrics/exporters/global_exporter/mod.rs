@@ -15,7 +15,9 @@ pub(crate) struct GlobalRecorder {
 
 impl GlobalRecorder {
     pub(crate) fn new(recorders: Vec<Box<dyn Recorder>>) -> Self {
-        assert!(recorders.len() != 0, "{}", NO_RECORDERS_MSG);
+        if recorders.is_empty() {
+            panic!("{}", NO_RECORDERS_MSG);
+        }
         Self {
             recorders,
             rate_processor: RateProcessor::run_task(),
@@ -23,7 +25,6 @@ impl GlobalRecorder {
     }
 }
 
-// NOTE: first recorder is processed separately to avoid redundant clone (value is moved)
 impl Recorder for GlobalRecorder {
     fn register_gauge(
         &self,
@@ -65,7 +66,6 @@ impl Recorder for GlobalRecorder {
         }
     }
 
-    #[allow(clippy::cast_sign_loss)]
     fn update_gauge(&self, key: &Key, value: GaugeValue) {
         for rec in self.recorders.iter() {
             rec.update_gauge(key, value.clone());

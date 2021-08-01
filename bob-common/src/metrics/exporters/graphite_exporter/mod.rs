@@ -150,7 +150,8 @@ impl Recorder for GraphiteRecorder {
         let val = if let GaugeValue::Absolute(val) = value {
             val
         } else {
-            todo!("Diffs are not supported at the moment");
+            error!("Diffs are not supported at the moment");
+            return;
         };
         self.push_metric(Metric::Gauge(MetricInner::new(
             key.name().to_owned(),
