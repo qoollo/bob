@@ -13,6 +13,11 @@ impl Error {
     fn new(ctx: Kind) -> Self {
         Self { ctx }
     }
+
+    pub fn kind(&self) -> &Kind {
+        &self.ctx
+    }
+
     pub fn is_not_ready(&self) -> bool {
         self.ctx == Kind::VDiskIsNotReady
     }
@@ -82,6 +87,10 @@ impl Error {
         let ctx = Kind::RequestFailedCompletely(msg);
         Self::new(ctx)
     }
+
+    pub fn disk_events_logger(msg: impl Display, error: impl Display) -> Self {
+        Self::new(Kind::DisksEventsLogger(format!("{}: {}", msg, error)))
+    }
 }
 
 impl Display for Error {
@@ -123,6 +132,9 @@ impl From<Error> for Status {
                 "Request failed on both stages local and alien: {}",
                 msg
             )),
+            Kind::DisksEventsLogger(msg) => {
+                Self::internal(format!("disk events logger error: {}", msg))
+            }
         }
     }
 }
@@ -176,4 +188,5 @@ pub enum Kind {
     Internal,
     PearlChangeState(String),
     RequestFailedCompletely(String),
+    DisksEventsLogger(String),
 }

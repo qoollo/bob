@@ -1,0 +1,188 @@
+name: build-packages
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
+    
+jobs:
+
+  build-release:
+    runs-on: ubuntu-latest
+    container: rust:1.53.0
+    env:
+      TARGET: "x86_64-unknown-linux-musl"
+      BUILD_MODE: "release"
+      RUST_TC_VER: nightly-2021-06-23
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Building release
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends musl-tools
+          rustup install ${{ env.RUST_TC_VER }}
+          rustup default ${{ env.RUST_TC_VER }}
+          rustup target add ${{ env.TARGET }}
+          cargo build --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}  
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: bob-binaries
+          path: |
+            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd
+            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobp
+            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
+ 
+  build-rpm:
+    runs-on: ubuntu-latest
+    needs: build-release
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: bob-binaries
+      - name: Set env
+        run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+      - name: build rpm
+        run: |
+          echo Version:${{ env.VERSION }}
+          sed -i "s/current_version/${{ env.VERSION }}/" bob.spec
+          sed -i "s/release_number/${{ github.run_id }}/" bob.spec
+          cur_dir_name=${PWD##*/}
+          mkdir -p ./rpmbuild/{SOURCES,BUILD,RPMS,SPECS,SRPMS}
+          tar czf ./rpmbuild/SOURCES/bob-${{ env.VERSION }}.tar.gz ../${cur_dir_name}/{bobd,bobp,ccg,bob_limits.conf,bob.service} ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml --transform s/${cur_dir_name}/bob-${{ env.VERSION }}/
+          rpmbuild -ba --define "_topdir ${PWD}/rpmbuild" bob.spec
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: bob-rpm
+          path: rpmbuild/RPMS/x86_64/bob-${{ env.VERSION }}-${{ github.run_id }}.x86_64.rpm
+
+  upload-rpm:
+    runs-on: ubuntu-latest
+    needs: build-rpm
+    environment: prod
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: bob-rpm
+      - name: Set env
+        run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+      - name: Upload rpm to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: bob-${{ env.VERSION }}-${{ github.run_id }}.x86_64.rpm
+          asset_name: bob-${{ env.VERSION }}.x86_64.rpm
+          tag: ${{ github.ref }}
+          overwrite: true
+
+  build-deb:
+    runs-on: ubuntu-latest
+    needs: build-release
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: bob-binaries
+      - name: Set env
+        run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+      - name: build deb
+        run: |
+          echo Version:${{ env.VERSION }}
+          mkdir -p bob_${{ env.VERSION }}_amd64/{DEBIAN,usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
+          cp {control,postinst} bob_${{ env.VERSION }}_amd64/DEBIAN/
+          chmod +x bob_${{ env.VERSION }}_amd64/DEBIAN/postinst
+          cp {bobd,bobp,ccg} bob_${{ env.VERSION }}_amd64/usr/bin/
+          cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}_amd64/etc/bob/
+          cp bob.service bob_${{ env.VERSION }}_amd64/etc/systemd/system/
+          cp bob.service bob_${{ env.VERSION }}_amd64/lib/systemd/system/
+          cp bob_limits.conf bob_${{ env.VERSION }}_amd64/etc/security/limits.d/bob.conf
+          sed -i "s/current_version/${{ env.VERSION }}/" bob_${{ env.VERSION }}_amd64/DEBIAN/control
+          dpkg-deb --build ./bob_${{ env.VERSION }}_amd64
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: bob-deb
+          path: bob_${{ env.VERSION }}_amd64.deb
+
+
+  upload-deb:
+    runs-on: ubuntu-latest
+    needs: build-deb
+    environment: prod
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: bob-deb
+      - name: Set env
+        run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+      - name: Upload deb to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: bob_${{ env.VERSION }}_amd64.deb
+          asset_name: bob_${{ env.VERSION }}_amd64.deb
+          tag: ${{ github.ref }}
+          overwrite: true
+
+  zip-file:
+    runs-on: ubuntu-latest
+    needs: build-release
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: bob-binaries
+      - name: Set env
+        run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+      - name: add zip file
+        run: |
+          echo Version:${{ env.VERSION }}
+          mkdir -p bob_${{ env.VERSION }}/{usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
+          cp {bobd,bobp,ccg} bob_${{ env.VERSION }}/usr/bin/
+          cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}/etc/bob/
+          cp bob.service bob_${{ env.VERSION }}/etc/systemd/system/
+          cp bob.service bob_${{ env.VERSION }}/lib/systemd/system/
+          cp bob_limits.conf bob_${{ env.VERSION }}/etc/security/limits.d/bob.conf
+          zip -r bob_${{ env.VERSION }}.zip bob_${{ env.VERSION }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: bob-zip
+          path: bob_${{ env.VERSION }}.zip
+
+  upload-zip:
+    runs-on: ubuntu-latest
+    needs: zip-file
+    environment: prod
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: bob-zip
+      - name: Set env
+        run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+      - name: Upload zip file to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: bob_${{ env.VERSION }}.zip
+          asset_name: bob_${{ env.VERSION }}.zip
+          tag: ${{ github.ref }}
+          overwrite: true

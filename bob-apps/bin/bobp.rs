@@ -364,8 +364,8 @@ fn print_averages(
             .checked_div(elapsed.as_millis() as u64)
             .unwrap_or_default(),
         stat.put_error_count.load(Ordering::Relaxed) + stat.get_error_count.load(Ordering::Relaxed),
-        average(&put_speed_values),
-        average(&get_speed_values),
+        average(put_speed_values),
+        average(get_speed_values),
         finite_or_default(
             (stat.put_time_ns_st.load(Ordering::Relaxed) as f64)
                 / (stat.put_count_st.load(Ordering::Relaxed) as f64)
