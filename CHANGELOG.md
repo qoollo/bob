@@ -14,6 +14,7 @@ Bob versions changelog
 - rename bob-tools, remove redundant versions of workspace deps ([#220](https://github.com/qoollo/bob/pull/220))
 - add DiskEventsLogger error ([#230](https://github.com/qoollo/bob/pull/230))
 - add methods for data to REST API specification ([#234](https://github.com/qoollo/bob/pull/234))
+- once aio is failed, it's disabled in config ([#263](https://github.com/qoollo/bob/pull/263))
 
 #### Fixed
 - Fix backend storage trait object safety issue ([#197](https://github.com/qoollo/bob/pull/197))
