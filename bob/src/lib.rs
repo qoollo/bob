@@ -19,13 +19,14 @@ extern crate async_trait;
 extern crate metrics;
 
 pub mod api;
+pub mod build_time;
 pub mod cleaner;
 pub mod cluster;
 pub mod counter;
 pub mod grinder;
 pub mod link_manager;
 pub mod server;
-pub mod build_time;
+pub mod version_helpers;
 
 pub use crate::{grinder::Grinder, server::Server as BobServer};
 pub use bob_common::{
@@ -40,6 +41,9 @@ pub use bob_common::{
 pub use bob_grpc::{
     bob_api_client::BobApiClient, bob_api_server::BobApiServer, Blob, BlobKey, BlobMeta,
     ExistRequest, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
+};
+pub use crate::version_helpers::{
+    get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
 };
 
 mod prelude {

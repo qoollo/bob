@@ -1,5 +1,5 @@
 use bob::{
-    api::http::{get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version},
+    version_helpers::{get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version},
     init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper,
 };
 use clap::{App, Arg, ArgMatches};

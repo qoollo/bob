@@ -19,6 +19,7 @@ use std::{
     str::FromStr,
 };
 use tokio::fs::{read_dir, ReadDir};
+use crate::version_helpers::{get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version};
 
 mod s3;
 
@@ -100,26 +101,6 @@ pub(crate) struct Version {
 pub(crate) struct VersionInfo {
     bob_version: Version,
     pearl_version: Version,
-}
-
-pub fn get_bob_version() -> String {
-    format!(
-        "{}-{}",
-        env!("CARGO_PKG_VERSION"),
-        option_env!("BOB_COMMIT_HASH").unwrap_or("hash-undefined"),
-    )
-}
-
-pub fn get_bob_build_time() -> &'static str {
-    crate::build_time::BUILD_TIME
-}
-
-pub fn get_pearl_version() -> String {
-    pearl::get_pearl_version()
-}
-
-pub fn get_pearl_build_time() -> &'static str {
-    pearl::get_pearl_build_time()
 }
 
 pub(crate) fn spawn(bob: BobServer, port: u16) {
