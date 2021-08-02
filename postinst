@@ -1,0 +1,4 @@
+BOB_USER=bob
+if ! getent passwd ${BOB_USER} > /dev/null; then
+  useradd --system ${BOB_USER} --create-home > /dev/null
+fi
