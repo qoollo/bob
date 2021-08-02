@@ -1,0 +1,14 @@
+[Unit]
+Description=bob
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=bob
+Restart=on-failure
+ExecStart=/usr/bin/bobd -c /etc/bob/cluster.yaml -n /etc/bob/node.yaml
+LimitNOFILE=500000
+
+[Install]
+WantedBy=multi-user.target
