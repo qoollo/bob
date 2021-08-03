@@ -1,0 +1,46 @@
+nodes:
+  - name: node1
+    address: 127.0.0.1:20000
+    disks:
+      - name: disk1
+        path: /tmp/d1/d1
+  - name: node2
+    address: 127.0.0.1:20001
+    disks:
+      - name: disk1
+        path: /tmp/d1/d2
+      - name: disk2
+        path: /tmp/d2/d2
+  - name: node3
+    address: 127.0.0.1:20002
+    disks:
+      - name: disk1
+        path: /tmp/d1/d3
+  - name: node4
+    address: 127.0.0.1:20003
+    disks:
+      - name: disk1
+        path: /tmp/d1/d4
+  - name: node5
+    address: 127.0.0.1:20004
+    disks:
+      - name: disk1
+        path: /tmp/d1/d5
+  - name: node6
+    address: 127.0.0.1:20005
+    disks:
+      - name: disk1
+        path: /tmp/d1/d6
+racks:
+  - name: rack1
+    nodes:
+      - node1
+      - node2
+  - name: rack2
+    nodes:
+      - node3
+      - node4
+      - node5
+  - name: rack3
+    nodes:
+      - node6
