@@ -11,7 +11,7 @@ jobs:
 
   build-alpine-image:
     runs-on: ubuntu-latest
-    environment: prod
+#    environment: prod
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
@@ -35,7 +35,7 @@ jobs:
 
   build-ubuntu-image:
     runs-on: ubuntu-latest
-    environment: prod
+#    environment: prod
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
