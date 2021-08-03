@@ -20,6 +20,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Building release
         run: |
+          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
           apt-get update && apt-get install -y --no-install-recommends musl-tools
           rustup install ${{ env.RUST_TC_VER }}
           rustup default ${{ env.RUST_TC_VER }}
