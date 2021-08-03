@@ -1,4 +1,4 @@
-name: build
+name: tests
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ on:
     
 jobs:
 
-  build:
+  tests:
     runs-on: ubuntu-latest
     container: rust:1.53.0
     env:
