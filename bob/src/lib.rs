@@ -31,8 +31,8 @@ pub use crate::{grinder::Grinder, server::Server as BobServer};
 pub use bob_common::{
     bob_client::Factory,
     configs::cluster::{
-        Cluster as ClusterConfig, Node as ClusterNodeConfig, Replica as ReplicaConfig,
-        VDisk as VDiskConfig,
+        Cluster as ClusterConfig, Node as ClusterNodeConfig, Rack as ClusterRackConfig,
+        Replica as ReplicaConfig, VDisk as VDiskConfig,
     },
     mapper::Virtual as VirtualMapper,
     metrics::init_counters,
