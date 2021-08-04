@@ -7,7 +7,7 @@ mod error;
 mod extractor;
 mod settings;
 
-pub use authenticator::StubAuthenticator;
+pub use authenticator::{users_storage::hashmap::UsersMap, StubAuthenticator};
 pub use extractor::StubExtractor;
 
 use std::task::{Context, Poll};
