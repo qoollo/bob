@@ -10,3 +10,4 @@ tonic = "*"
 log = "*"
 serde = { version="1.0", features=["derive"] }
 serde_yaml = "0.8"
+rocket = "0.4.6"
