@@ -50,23 +50,23 @@ async fn main() {
         }
         (Some(addr), _, _) => Some(addr),
         (_, Ok(addr), _) => Some(addr),
-        (_, _, Some(port)) => Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port)),
+        (_, _, Some(port)) => Some(bind_all_interfaces(port)),
         _ => None,
     }
     .expect("Can't determine ip address to bind");
 
     let node_name = matches.value_of("name");
     if let Some(name) = node_name {
-        let finded = cluster
+        let found = cluster
             .nodes()
             .iter()
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
         mapper = VirtualMapper::new(&node, &cluster).await;
-        addr = if let Ok(addr) = finded.address().parse() {
+        addr = if let Ok(addr) = found.address().parse() {
             addr
-        } else if let Some(port) = port_from_address(finded.address()) {
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port)
+        } else if let Some(port) = port_from_address(found.address()) {
+            bind_all_interfaces(port)
         } else {
             panic!("Can't determine ip address to bind");
         };
@@ -99,6 +99,10 @@ async fn main() {
         .serve(addr)
         .await
         .unwrap();
+}
+
+fn bind_all_interfaces(port: u16) -> SocketAddr {
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port)
 }
 
 fn port_from_address(addr: &str) -> Option<u16> {

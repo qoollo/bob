@@ -37,11 +37,9 @@ pub struct Disk {
 
 impl Node {
     pub async fn new(name: String, address: &str, index: u16) -> Self {
-        error!("address: [{}]", address);
-        let address = address.to_string();
         Self {
             name,
-            address,
+            address: address.to_string(),
             index,
             conn: Arc::default(),
         }
