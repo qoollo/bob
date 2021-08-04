@@ -1,5 +1,7 @@
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate serde;
 
 mod authenticator;
 mod credentials;
@@ -7,7 +9,7 @@ mod error;
 mod extractor;
 mod settings;
 
-pub use authenticator::{users_storage::hashmap::UsersMap, StubAuthenticator};
+pub use authenticator::{StubAuthenticator, UsersMap};
 pub use extractor::StubExtractor;
 
 use std::task::{Context, Poll};

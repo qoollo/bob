@@ -1,8 +1,10 @@
+mod users_storage;
+
 use crate::{credentials::Credentials, error::Error};
 
 use self::users_storage::UsersStorage;
 
-pub mod users_storage;
+pub use users_storage::UsersMap;
 
 pub trait Authenticator: Clone {
     fn check_credentials(&self, credentials: Credentials) -> Result<(), Error>;

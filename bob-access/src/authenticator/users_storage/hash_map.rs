@@ -1,9 +1,11 @@
-use super::{User, UsersStorage};
-use crate::error::Error;
 use std::{collections::HashMap, fs::File};
 
-mod config;
-use config::{parse_users, ConfigUsers};
+use crate::error::Error;
+
+use super::{
+    config::{parse_users, ConfigUsers},
+    User, UsersStorage,
+};
 
 #[derive(Default, Clone, Debug)]
 pub struct UsersMap {
@@ -32,6 +34,6 @@ impl UsersMap {
 
 impl UsersStorage for UsersMap {
     fn get_user<'a>(&'a self, username: &str) -> Result<&'a User, Error> {
-        self.inner.get(username).ok_or_else(|| Error::not_found())
+        self.inner.get(username).ok_or_else(Error::not_found)
     }
 }

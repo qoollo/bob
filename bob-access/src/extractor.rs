@@ -31,12 +31,12 @@ impl<T> Extractor<TRequest<T>> for BasicExtractor {
             .get("username")
             .ok_or_else(|| Error::credentials_not_provided("username"))?
             .to_str()
-            .map_err(|e| Error::conversion_error(e))?;
+            .map_err(Error::conversion_error)?;
         let password = meta
             .get("password")
             .ok_or_else(|| Error::credentials_not_provided("password"))?
             .to_str()
-            .map_err(|e| Error::conversion_error(e))?;
+            .map_err(Error::conversion_error)?;
 
         Ok(Credentials::builder()
             .with_username_password(username, password)
@@ -71,7 +71,7 @@ impl<T> Extractor<TRequest<T>> for TokenExtractor {
             .get("token")
             .ok_or_else(|| Error::credentials_not_provided("token"))?
             .to_str()
-            .map_err(|e| Error::conversion_error(e))?;
+            .map_err(Error::conversion_error)?;
         Ok(Credentials::builder()
             .with_token(token)
             .with_address(req.remote_addr())

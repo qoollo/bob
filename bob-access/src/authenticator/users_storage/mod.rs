@@ -1,7 +1,9 @@
-use crate::error::Error;
-use serde::Deserialize;
+mod config;
+mod hash_map;
 
-pub mod hashmap;
+use crate::error::Error;
+
+pub use hash_map::UsersMap;
 
 #[derive(Debug, PartialEq, Copy, Clone, Deserialize, Default)]
 pub struct Perms {

@@ -1,8 +1,8 @@
-use super::super::Perms;
-use super::User;
-use crate::error::Error;
-use serde::Deserialize;
 use std::collections::HashMap;
+
+use crate::error::Error;
+
+use super::{Perms, User};
 
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct ConfigUser {

@@ -49,7 +49,7 @@ impl CredentialsBuilder {
 
     pub fn build(&self) -> Credentials {
         Credentials {
-            address: self.address.clone(),
+            address: self.address,
             kind: self.kind.clone(),
         }
     }
