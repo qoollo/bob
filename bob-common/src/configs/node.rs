@@ -456,11 +456,12 @@ pub struct Node {
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
     disk_access_par_degree: usize,
-    http_api_port: Option<u16>,
+    #[serde(default = "Node::default_http_api_port")]
+    http_api_port: u16,
 }
 
 impl NodeConfig {
-    pub fn http_api_port(&self) -> Option<u16> {
+    pub fn http_api_port(&self) -> u16 {
         self.http_api_port
     }
     /// Get node name.
@@ -636,6 +637,10 @@ impl NodeConfig {
     fn default_disk_access_par_degree() -> usize {
         1
     }
+
+    fn default_http_api_port() -> u16 {
+        8000
+    }
 }
 
 impl Validatable for NodeConfig {
@@ -710,7 +715,7 @@ pub mod tests {
             init_par_degree: 1,
             disk_access_par_degree: 1,
             count_interval: "10000ms".to_string(),
-            http_api_port: None,
+            http_api_port: NodeConfig::default_http_api_port(),
         }
     }
 }

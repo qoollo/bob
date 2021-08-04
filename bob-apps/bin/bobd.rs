@@ -55,16 +55,10 @@ async fn main() {
     info!("Start backend");
     bob.run_backend().await.unwrap();
     info!("Start API server");
-    let http_api_port = if let Some(port) = matches
+    let http_api_port = matches
         .value_of("http_api_port")
         .and_then(|v| v.parse().ok())
-    {
-        port
-    } else if let Some(port) = node.http_api_port() {
-        port
-    } else {
-        panic!("expect http_api_port port");
-    };
+        .unwrap_or(node.http_api_port());
     bob.run_api_server(http_api_port);
 
     create_signal_handlers(&bob).unwrap();
