@@ -10,6 +10,7 @@ Bob versions changelog
 - Setup build with GitHub actions ([#266](https://github.com/qoollo/bob/pull/273))
 - Add Amazon S3 GetObject and PutObject api ([#193](https://github.com/qoollo/bob/pull/193))
 - Support for different key sizes in REST API ([#228](http://github.com/qoollo/bob/pull/228))
+- Add racks support to CCG ([#186](https://github.com/qoollo/bob/pull/186))
 
 #### Changed
 - rename bob-tools, remove redundant versions of workspace deps ([#220](https://github.com/qoollo/bob/pull/220))
