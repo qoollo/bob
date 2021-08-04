@@ -2,7 +2,7 @@
 FROM rust:1.47.0 as cargo-build
 
 # rust toolchain version
-ARG RUST_TC_VER=nightly-2021-05-19
+ARG RUST_TC_VER=nightly-2021-06-23
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends musl-tools \
@@ -13,7 +13,7 @@ RUN apt-get update \
 WORKDIR /usr/src/bob
 
 # crates downloading and initial build
-RUN mkdir -p bob/src bob-backend/src bob-common/src bob-grpc/src bob-tools/bin
+RUN mkdir -p bob/src bob-backend/src bob-common/src bob-grpc/src bob-apps/bin
 RUN mkdir target
 ENV OUT_DIR /usr/src/bob/target
 COPY Cargo.toml Cargo.toml
@@ -21,17 +21,17 @@ COPY bob/Cargo.toml bob/Cargo.toml
 COPY bob-backend/Cargo.toml bob-backend/Cargo.toml
 COPY bob-common/Cargo.toml bob-common/Cargo.toml
 COPY bob-grpc/Cargo.toml bob-grpc/Cargo.toml
-COPY bob-tools/Cargo.toml bob-tools/Cargo.toml
+COPY bob-apps/Cargo.toml bob-apps/Cargo.toml
 
 RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/lib.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-backend/src/lib.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-common/src/lib.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-grpc/src/lib.rs \
-  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-tools/bin/bobd.rs \
-  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-tools/bin/bobc.rs \
-  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-tools/bin/bobp.rs \
-  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-tools/bin/ccg.rs \
-  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-tools/bin/dcr.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/bobd.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/bobc.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/bobp.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/ccg.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/dcr.rs \
   && cargo build --release --target=x86_64-unknown-linux-musl
 
 

@@ -190,7 +190,7 @@ impl TestClusterConfiguration {
     fn create_cluster(&self) -> Cluster {
         let nodes = self.create_nodes();
         let vdisks = self.create_vdisks();
-        Cluster::new(nodes, vdisks, DistributionFunc::default())
+        Cluster::new(nodes, vdisks, vec![], DistributionFunc::default())
     }
 
     fn create_named_node_configuration(&self, node_index: u32) -> (String, Node) {
