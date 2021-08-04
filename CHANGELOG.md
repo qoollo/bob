@@ -9,6 +9,7 @@ Bob versions changelog
 - Add bloom filter buffer size to config ([#218](https://github.com/qoollo/bob/pull/218))
 - Setup build with GitHub actions ([#266](https://github.com/qoollo/bob/pull/273))
 - Add Amazon S3 GetObject and PutObject api ([#193](https://github.com/qoollo/bob/pull/193))
+- Add racks support to CCG ([#186](https://github.com/qoollo/bob/pull/186))
 - Add the ability to disable metrics ([#241](https://github.com/qoollo/bob/pull/253))
 
 #### Changed
