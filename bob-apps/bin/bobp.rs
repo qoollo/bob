@@ -1,3 +1,4 @@
+use std::iter::repeat;
 use bob::{
     Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetOptions, GetRequest, GetSource,
     PutOptions, PutRequest,
@@ -122,10 +123,9 @@ impl TaskConfig {
     }
 
     fn get_proper_key(&self, key: u64) -> Vec<u8> {
-        let data = key.to_le_bytes();
-        (0_u8..(self.key_size - data.len()) as u8)
-            .chain(data.iter().take(self.key_size).cloned())
-            .collect()
+        let mut data = key.to_le_bytes().to_vec();
+        data.extend(repeat(0).take(self.key_size - data.len()));
+        data
     }
 }
 

@@ -18,10 +18,9 @@ impl From<u64> for BobKey {
     fn from(n: u64) -> Self {
         let mut key = [0; BOB_KEY_SIZE];
         key.iter_mut()
-            .rev()
-            .zip(n.to_le_bytes().iter().rev())
+            .zip(n.to_le_bytes())
             .for_each(|(a, b)| {
-                *a = *b;
+                *a = b;
             });
         Self(key)
     }
