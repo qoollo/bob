@@ -1,8 +1,8 @@
-use std::iter::repeat;
 use bob::{
     Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetOptions, GetRequest, GetSource,
     PutOptions, PutRequest,
 };
+use std::iter::repeat;
 
 use clap::{App, Arg, ArgMatches};
 use std::collections::HashMap;
@@ -124,7 +124,10 @@ impl TaskConfig {
 
     fn get_proper_key(&self, key: u64) -> Vec<u8> {
         let mut data = key.to_le_bytes().to_vec();
-        data.extend(repeat(0).take(self.key_size - data.len()));
+        let diff = self.key_size - data.len();
+        if diff > 0 {
+            data.extend(repeat(0).take(diff));
+        }
         data
     }
 }

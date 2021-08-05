@@ -1,11 +1,11 @@
 #[macro_use]
 extern crate log;
 
-use std::iter::repeat;
 use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use http::Uri;
 use log::LevelFilter;
+use std::iter::repeat;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tonic::Request;
 
@@ -121,6 +121,9 @@ fn get_key(k: u64) -> Vec<u8> {
         .map_or(Ok(8), str::parse)
         .expect("Could not parse BOB_KEY_SIZE");
     let mut data = k.to_le_bytes().to_vec();
-    data.extend(repeat(0).take(key_size - data.len()));
+    let diff = key_size - data.len();
+    if diff > 0 {
+        data.extend(repeat(0).take(diff));
+    }
     data
 }
