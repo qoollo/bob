@@ -122,10 +122,9 @@ impl TaskConfig {
     }
 
     fn get_proper_key(&self, key: u64) -> Vec<u8> {
-        key.to_be_bytes()
-            .iter()
-            .take(self.key_size)
-            .cloned()
+        let data = key.to_le_bytes();
+        (0_u8..(self.key_size - data.len()) as u8)
+            .chain(data.iter().take(self.key_size).cloned())
             .collect()
     }
 }
@@ -521,7 +520,7 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let req = Request::new(ExistRequest {
         keys: (task_conf.low_idx..upper_idx)
             .map(|i| BlobKey {
-                key: i.to_be_bytes().to_vec(),
+                key: task_conf.get_proper_key(i),
             })
             .collect(),
         options: task_conf.find_get_options(),

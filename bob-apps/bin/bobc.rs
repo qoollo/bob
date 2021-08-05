@@ -53,9 +53,7 @@ async fn put(key: u64, size: usize, addr: Uri) {
         meta: Some(meta),
     };
     let message = PutRequest {
-        key: Some(BlobKey {
-            key: get_key(key),
-        }),
+        key: Some(BlobKey { key: get_key(key) }),
         data: Some(blob),
         options: None,
     };
@@ -69,9 +67,7 @@ async fn get(key: u64, addr: Uri) {
     let mut client = BobApiClient::connect(addr).await.unwrap();
 
     let message = GetRequest {
-        key: Some(BlobKey {
-            key: get_key(key),
-        }),
+        key: Some(BlobKey { key: get_key(key) }),
         options: None,
     };
     let get_req = Request::new(message);
@@ -123,5 +119,8 @@ fn get_key(k: u64) -> Vec<u8> {
     let key_size = option_env!("BOB_KEY_SIZE")
         .map_or(Ok(8), str::parse)
         .expect("Could not parse BOB_KEY_SIZE");
-    k.to_be_bytes().iter().take(key_size).cloned().collect()
+    let data = k.to_le_bytes();
+    (0_u8..(key_size - data.len()) as u8)
+        .chain(data.iter().take(key_size).cloned())
+        .collect()
 }

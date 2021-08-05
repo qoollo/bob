@@ -19,7 +19,7 @@ impl From<u64> for BobKey {
         let mut key = [0; BOB_KEY_SIZE];
         key.iter_mut()
             .rev()
-            .zip(n.to_be_bytes().iter().rev())
+            .zip(n.to_le_bytes().iter().rev())
             .for_each(|(a, b)| {
                 *a = *b;
             });
