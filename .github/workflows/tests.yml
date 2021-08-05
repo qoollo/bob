@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
-      - name: Building release
+      - name: Tests
         run: |
           apt-get update && apt-get install -y --no-install-recommends musl-tools
           rustup install ${{ env.RUST_TC_VER }}
