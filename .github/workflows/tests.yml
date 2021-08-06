@@ -2,7 +2,7 @@ name: tests
 
 on:
   pull_request:
-      types: [ opened, synchronize, reopened, ready_for_review, labeled, unlabeled ]
+      types: [ opened, synchronize, reopened, ready_for_review ]
   push:
     branches: [ master, 276-tests-with-github-actions]
     
