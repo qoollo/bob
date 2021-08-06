@@ -19,7 +19,7 @@ jobs:
       - name: Set env variable and install packages
         run: |
           export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
-          apt-get update && apt-get install -y --no-install-recommends musl-tools
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
