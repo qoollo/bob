@@ -333,12 +333,13 @@ impl Holder {
         mut storage: Storage<Key>,
         settings: &Option<Arc<Settings>>,
     ) -> Result<(), Error> {
-        let res = if settings.is_some()
-            && !self.is_actual(settings.as_ref().unwrap().get_actual_timestamp_start())
+        let res = if settings
+            .map(|s| self.is_actual(s.get_actual_timestamp_start()))
+            .unwrap_or(false)
         {
-            storage.init_noactive().await
-        } else {
             storage.init().await
+        } else {
+            storage.init_noactive().await
         };
         match res {
             Ok(_) => {
