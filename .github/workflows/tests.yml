@@ -10,15 +10,15 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
-    container: rust:1.53.0
-    env:
-      RUST_TC_VER: nightly-2021-06-23
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          default: true
       - name: Tests
         run: |
-          apt-get update && apt-get install -y --no-install-recommends musl-tools
-          rustup install ${{ env.RUST_TC_VER }}
-          rustup default ${{ env.RUST_TC_VER }}
+          sudo apt-get update && apt-get install -y --no-install-recommends musl-tools
           cargo test

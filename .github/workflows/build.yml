@@ -4,7 +4,7 @@ on:
   pull_request:
       types: [ opened, synchronize, reopened, ready_for_review, labeled, unlabeled ]
   push:
-    branches: [ master, 276-tests-with-github-actions]
+    branches: [ master, 276-tests-with-github-actions ]
     
 jobs:
 
@@ -26,8 +26,8 @@ jobs:
           toolchain: nightly
           target: ${{ env.TARGET }}
           default: true
-      - name: Build release    
+      - name: Build release
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}    
+          args: --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}
