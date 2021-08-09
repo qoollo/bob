@@ -404,30 +404,41 @@ where
     let mut result = vec![];
     let mut count = 0;
     let mut last_log = Instant::now();
-    for entry in walkdir::WalkDir::new(path)
+    for entry in std::fs::read_dir(path)?
         .into_iter()
         .filter_map(|res| match res {
             Ok(entry) => Some(entry),
             Err(err) => {
-                log::error!("[{}] walkdir error: {}", path, err);
+                log::error!("[{}] read dir error: {}", path, err);
                 None
             }
         })
     {
-        let entry_path = entry.path().as_os_str().to_str().unwrap().to_string();
-        if entry.file_type().is_file() && entry_path.ends_with(&suffix) {
-            match validate(entry_path.as_ref()) {
-                Ok(_) => {}
-                Err(err) => {
-                    log::error!("[{}] validation error: {}", entry_path, err);
-                    result.push(entry_path.to_string());
+        match entry.file_type() {
+            Ok(file_type) if file_type.is_dir() => {
+                result.extend(validate_recursive(path, suffix, validate.clone())?);
+            }
+            Ok(file_type) if file_type.is_file() => {
+                let entry_path = entry.path().as_os_str().to_str().unwrap().to_string();
+                if entry_path.ends_with(&suffix) {
+                    match validate(entry_path.as_ref()) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            log::error!("[{}] validation error: {}", entry_path, err);
+                            result.push(entry_path.to_string());
+                        }
+                    }
+                    count += 1;
+                    if last_log.elapsed() >= Duration::from_secs(1) {
+                        log::info!("{} files validated", count);
+                        last_log = Instant::now();
+                    }
                 }
             }
-            count += 1;
-            if last_log.elapsed() >= Duration::from_secs(1) {
-                log::info!("{} files validated", count);
-                last_log = Instant::now();
+            Err(err) => {
+                log::error!("[{}] file type error: {}", path, err);
             }
+            _ => {}
         }
     }
     Ok(result)
