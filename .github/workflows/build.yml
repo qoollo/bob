@@ -24,7 +24,8 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
-          target: ${{ env.TARGET }} 
+          target: ${{ env.TARGET }}
+          default: true
       - name: Build release    
         uses: actions-rs/cargo@v1
         with:
