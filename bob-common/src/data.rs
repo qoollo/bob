@@ -17,11 +17,9 @@ pub struct BobKey([u8; BOB_KEY_SIZE]);
 impl From<u64> for BobKey {
     fn from(n: u64) -> Self {
         let mut key = [0; BOB_KEY_SIZE];
-        key.iter_mut()
-            .zip(n.to_le_bytes())
-            .for_each(|(a, b)| {
-                *a = b;
-            });
+        key.iter_mut().zip(n.to_le_bytes()).for_each(|(a, b)| {
+            *a = b;
+        });
         Self(key)
     }
 }
@@ -61,7 +59,7 @@ impl BobKey {
 impl std::fmt::Display for BobKey {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         for key in self.iter() {
-            write!(f, "{:x}", key)?;
+            write!(f, "{:02X}", key)?;
         }
         Ok(())
     }
