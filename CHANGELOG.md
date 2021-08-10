@@ -20,6 +20,7 @@ Bob versions changelog
 #### Fixed
 - Fix backend storage trait object safety issue ([#197](https://github.com/qoollo/bob/pull/197))
 - Fix dockerfiles ([#203](https://github.com/qoollo/bob/pull/203))
+- Fix actual holder creation condition([#280](https://github.com/qoollo/bob/pull/280))
 
 
 ## [1.6.1] - 2021-04-14
