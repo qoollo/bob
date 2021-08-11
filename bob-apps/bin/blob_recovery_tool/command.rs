@@ -13,11 +13,13 @@ const DELETE_OPT: &str = "index delete";
 const VALIDATE_INDEX_COMMAND: &str = "validate-index";
 const VALIDATE_BLOB_COMMAND: &str = "validate-blob";
 const RECOVERY_COMMAND: &str = "recovery";
+const REVERSE_BYTE_ORDER_COMMAND: &str = "reverse-byte-order";
 
 pub enum MainCommand {
     Recovery(RecoveryBlobCommand),
     Validate(ValidateBlobCommand),
     ValidateIndex(ValidateIndexCommand),
+    ReverseByteOrder(ReverseByteOrderCommand),
 }
 
 pub struct RecoveryBlobCommand {
@@ -83,7 +85,12 @@ pub struct ValidateBlobCommand {
 
 impl ValidateBlobCommand {
     fn run(&self) -> AnyResult<()> {
-        let result = validate_files_recursive(&self.path, &self.blob_suffix, validate_blob)?;
+        let result = process_files_recursive(
+            &self.path,
+            &self.blob_suffix,
+            |path, _| validate_blob(path),
+            "Blob validation",
+        )?;
         print_result(&result, "blob");
 
         if self.fix && !result.is_empty() {
@@ -98,7 +105,7 @@ impl ValidateBlobCommand {
                         log::error!("Error: {}", err);
                     }
                     _ => {
-                        log::info!("[{}] recovered, backup saved to {:?}", path, backup_path);
+                        log::warn!("[{}] recovered, backup saved to {:?}", path, backup_path);
                     }
                 }
             }
@@ -183,7 +190,12 @@ pub struct ValidateIndexCommand {
 
 impl ValidateIndexCommand {
     fn run(&self) -> AnyResult<()> {
-        let result = validate_files_recursive(&self.path, &self.index_suffix, validate_index)?;
+        let result = process_files_recursive(
+            &self.path,
+            &self.index_suffix,
+            |path, _| validate_index(path),
+            "Index validation",
+        )?;
         print_result(&result, "index");
 
         if self.delete && !result.is_empty() {
@@ -194,10 +206,10 @@ impl ValidateIndexCommand {
             for path in result {
                 match std::fs::remove_file(&path) {
                     Ok(_) => {
-                        log::info!("[{}] index file removed", path);
+                        log::warn!("[{}] index file removed", path);
                     }
                     Err(err) => {
-                        log::info!("[{}] failed to remove index file: {}", path, err);
+                        log::warn!("[{}] failed to remove index file: {}", path, err);
                     }
                 }
             }
@@ -248,6 +260,85 @@ impl ValidateIndexCommand {
     }
 }
 
+pub struct ReverseByteOrderCommand {
+    input_path: PathBuf,
+    output_path: PathBuf,
+    blob_suffix: String,
+    validate_every: usize,
+}
+
+impl ReverseByteOrderCommand {
+    fn run(&self) -> AnyResult<()> {
+        process_files_recursive(
+            &self.input_path,
+            &self.blob_suffix,
+            |path, relative_path| {
+                let output_dir = self.output_path.join(relative_path);
+                std::fs::create_dir_all(&output_dir)?;
+                let output = output_dir.join(path.file_name().expect("Must be filename"));
+                recovery_blob_with(
+                    &path,
+                    &output,
+                    self.validate_every,
+                    Record::with_reversed_key_bytes,
+                )?;
+                Ok(())
+            },
+            "Reverse key byte order",
+        )?;
+        Ok(())
+    }
+
+    fn subcommand<'a, 'b>() -> App<'a, 'b> {
+        SubCommand::with_name(REVERSE_BYTE_ORDER_COMMAND)
+            .arg(
+                Arg::with_name(INPUT_OPT)
+                    .help("input disk path")
+                    .short("i")
+                    .long("input")
+                    .takes_value(true)
+                    .required(true),
+            )
+            .arg(
+                Arg::with_name(OUTPUT_OPT)
+                    .help("output disk path")
+                    .short("o")
+                    .long("output")
+                    .takes_value(true)
+                    .required(true),
+            )
+            .arg(
+                Arg::with_name(SUFFIX_OPT)
+                    .help("blob suffix")
+                    .short("s")
+                    .long("suffix")
+                    .default_value("blob")
+                    .takes_value(true),
+            )
+            .arg(
+                Arg::with_name(VALIDATE_EVERY_OPT)
+                    .help("validate every N records")
+                    .takes_value(true)
+                    .default_value("100")
+                    .short("c")
+                    .value_name("N")
+                    .long("cache-size"),
+            )
+    }
+
+    fn from_matches(matches: &ArgMatches) -> AnyResult<ReverseByteOrderCommand> {
+        Ok(ReverseByteOrderCommand {
+            input_path: matches.value_of(INPUT_OPT).expect("Required").into(),
+            output_path: matches.value_of(OUTPUT_OPT).expect("Required").into(),
+            blob_suffix: matches.value_of(SUFFIX_OPT).expect("Required").to_string(),
+            validate_every: matches
+                .value_of(VALIDATE_EVERY_OPT)
+                .expect("Has default")
+                .parse()?,
+        })
+    }
+}
+
 impl MainCommand {
     pub fn run() -> AnyResult<()> {
         let settings = MainCommand::from_matches()?;
@@ -255,6 +346,7 @@ impl MainCommand {
             MainCommand::Recovery(settings) => settings.run(),
             MainCommand::Validate(settings) => settings.run(),
             MainCommand::ValidateIndex(settings) => settings.run(),
+            MainCommand::ReverseByteOrder(settings) => settings.run(),
         }
     }
 
@@ -264,6 +356,7 @@ impl MainCommand {
             .subcommand(RecoveryBlobCommand::subcommand())
             .subcommand(ValidateBlobCommand::subcommand())
             .subcommand(ValidateIndexCommand::subcommand())
+            .subcommand(ReverseByteOrderCommand::subcommand())
             .get_matches()
     }
 
@@ -278,6 +371,9 @@ impl MainCommand {
             )),
             (VALIDATE_INDEX_COMMAND, Some(matches)) => Ok(MainCommand::ValidateIndex(
                 ValidateIndexCommand::from_matches(matches)?,
+            )),
+            (REVERSE_BYTE_ORDER_COMMAND, Some(matches)) => Ok(MainCommand::ReverseByteOrder(
+                ReverseByteOrderCommand::from_matches(matches)?,
             )),
             _ => Err(anyhow::anyhow!("Unknown command")),
         }

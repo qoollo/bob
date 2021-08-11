@@ -88,6 +88,21 @@ pub(crate) struct Header {
     pub header_checksum: u32,
 }
 
+impl Header {
+    pub(crate) fn with_reversed_key_bytes(mut self) -> AnyResult<Self> {
+        self.key.reverse();
+        self.update_checksum()?;
+        Ok(self)
+    }
+
+    fn update_checksum(&mut self) -> AnyResult<()> {
+        self.header_checksum = 0;
+        let serialized = bincode::serialize(&self)?;
+        self.header_checksum = calculate_checksum(&serialized);
+        Ok(())
+    }
+}
+
 impl Validatable for Header {
     fn validate(&self) -> AnyResult<()> {
         if self.magic_byte != RECORD_MAGIC_BYTE {
@@ -108,6 +123,13 @@ pub(crate) struct Record {
     pub header: Header,
     pub meta: Vec<u8>,
     pub data: Vec<u8>,
+}
+
+impl Record {
+    pub(crate) fn with_reversed_key_bytes(mut self) -> AnyResult<Self> {
+        self.header = self.header.with_reversed_key_bytes()?;
+        Ok(self)
+    }
 }
 
 impl Debug for Record {
