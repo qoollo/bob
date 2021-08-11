@@ -124,9 +124,10 @@ impl TaskConfig {
 
     fn get_proper_key(&self, key: u64) -> Vec<u8> {
         let mut data = key.to_le_bytes().to_vec();
-        let diff = self.key_size - data.len();
-        if diff > 0 {
-            data.extend(repeat(0).take(diff));
+        if self.key_size > data.len() {
+            data.extend(repeat(0).take(self.key_size - data.len()));
+        } else if self.key_size < data.len() {
+            data.resize(self.key_size, 0);
         }
         data
     }

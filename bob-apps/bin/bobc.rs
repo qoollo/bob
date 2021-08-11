@@ -121,9 +121,10 @@ fn get_key(k: u64) -> Vec<u8> {
         .map_or(Ok(8), str::parse)
         .expect("Could not parse BOB_KEY_SIZE");
     let mut data = k.to_le_bytes().to_vec();
-    let diff = key_size - data.len();
-    if diff > 0 {
-        data.extend(repeat(0).take(diff));
+    if key_size > data.len() {
+        data.extend(repeat(0).take(key_size - data.len()));
+    } else if key_size < data.len() {
+        data.resize(key_size, 0);
     }
     data
 }
