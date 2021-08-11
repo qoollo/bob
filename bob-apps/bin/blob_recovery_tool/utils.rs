@@ -219,3 +219,14 @@ where
     );
     Ok(())
 }
+
+pub(crate) fn print_result(result: &[String], file_type: &str) {
+    if result.is_empty() {
+        log::info!("All {} files is valid", file_type);
+    } else {
+        for value in result {
+            log::info!("Print corrupted {} files", file_type);
+            println!("{}", value);
+        }
+    }
+}

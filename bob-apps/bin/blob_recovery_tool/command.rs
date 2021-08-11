@@ -84,43 +84,23 @@ pub struct ValidateBlobCommand {
 impl ValidateBlobCommand {
     fn run(&self) -> AnyResult<()> {
         let result = validate_files_recursive(&self.path, &self.blob_suffix, validate_blob)?;
-
-        if !result.is_empty() {
-            if !self.fix {
-                log::info!("Print corrupted blobs");
-                for path in &result {
-                    println!("{}", path);
-                }
-            }
-        } else {
-            log::info!("All blobs is valid");
-        }
+        print_result(&result, "blob");
 
         if self.fix && !result.is_empty() {
             if self.confirm && !ask_confirmation("Fix invalid blob files?")? {
                 return Ok(());
             }
 
-            let mut fails = vec![];
             for path in &result {
                 let backup_path = get_backup_path(path, &self.backup_suffix)?;
                 match move_and_recover_blob(&path, &backup_path, self.validate_every) {
                     Err(err) => {
                         log::error!("Error: {}", err);
-                        fails.push(path);
                     }
                     _ => {
                         log::info!("[{}] recovered, backup saved to {:?}", path, backup_path);
                     }
                 }
-            }
-            if !fails.is_empty() {
-                log::info!("Print not recovered blobs");
-                for path in fails {
-                    println!("{}", path);
-                }
-            } else {
-                log::info!("All blobs recovered");
             }
         }
         Ok(())
@@ -204,22 +184,13 @@ pub struct ValidateIndexCommand {
 impl ValidateIndexCommand {
     fn run(&self) -> AnyResult<()> {
         let result = validate_files_recursive(&self.path, &self.index_suffix, validate_index)?;
-
-        if !result.is_empty() {
-            println!("Corrupted index files:");
-            for path in &result {
-                println!("{}", path);
-            }
-        } else {
-            println!("All index files is valid");
-        }
+        print_result(&result, "index");
 
         if self.delete && !result.is_empty() {
             if self.confirm && !ask_confirmation("Delete invalid index files?")? {
                 return Ok(());
             }
 
-            let mut fails = vec![];
             for path in result {
                 match std::fs::remove_file(&path) {
                     Ok(_) => {
@@ -227,14 +198,7 @@ impl ValidateIndexCommand {
                     }
                     Err(err) => {
                         log::info!("[{}] failed to remove index file: {}", path, err);
-                        fails.push(path);
                     }
-                }
-            }
-            if !fails.is_empty() {
-                println!("Failed to remove these files:");
-                for path in fails {
-                    println!("{}", path);
                 }
             }
         }
