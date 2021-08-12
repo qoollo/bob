@@ -8,7 +8,6 @@ use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use http::Uri;
 use log::LevelFilter;
-use std::iter::repeat;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tonic::Request;
 
@@ -134,10 +133,6 @@ fn get_key_value(matches: &'_ ArgMatches<'_>) -> u64 {
 
 fn get_key(k: u64) -> Vec<u8> {
     let mut data = k.to_le_bytes().to_vec();
-    if *KEY_SIZE > data.len() {
-        data.extend(repeat(0).take(*KEY_SIZE - data.len()));
-    } else if *KEY_SIZE < data.len() {
-        data.resize(*KEY_SIZE, 0);
-    }
+    data.resize(*KEY_SIZE, 0);
     data
 }
