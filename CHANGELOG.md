@@ -11,6 +11,7 @@ Bob versions changelog
 - Add Amazon S3 GetObject and PutObject api ([#193](https://github.com/qoollo/bob/pull/193))
 - Add tool for blob recovery (brt) ([#205](https://github.com/qoollo/bob/pull/205))
 - Add racks support to CCG ([#186](https://github.com/qoollo/bob/pull/186))
+- Add brt mode to reverse byte order ([#286](https://github.com/qoollo/bob/pull/286))
 
 #### Changed
 - rename bob-tools, remove redundant versions of workspace deps ([#220](https://github.com/qoollo/bob/pull/220))
