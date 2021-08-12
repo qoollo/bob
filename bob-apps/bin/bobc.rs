@@ -120,10 +120,19 @@ fn get_key(k: u64) -> Vec<u8> {
     let key_size = option_env!("BOB_KEY_SIZE")
         .map_or(Ok(8), str::parse)
         .expect("Could not parse BOB_KEY_SIZE");
+
     let mut data = k.to_le_bytes().to_vec();
     if key_size > data.len() {
         data.extend(repeat(0).take(key_size - data.len()));
     } else if key_size < data.len() {
+        if data.iter().skip(key_size).find(|&&d| d != 0).is_some() {
+            panic!(
+                "Key {} is out of bounds for current keysize {} (max {})",
+                k,
+                key_size,
+                256_u64.pow(key_size as u32)
+            );
+        }
         data.resize(key_size, 0);
     }
     data

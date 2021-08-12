@@ -85,9 +85,22 @@ impl TaskConfig {
         let key_size = option_env!("BOB_KEY_SIZE")
             .map_or(Ok(8), str::parse)
             .expect("Could not parse BOB_KEY_SIZE");
+        let low_idx = matches.value_or_default("first");
+        let count = matches.value_or_default("count");
+        if key_size < std::mem::size_of::<u64>() {
+            let max_allowed = 256_u64.pow(key_size as u32) - 1;
+            if low_idx + count > max_allowed {
+                panic!(
+                    "max possible index for keysize={} is {}, but task includes keys up to {}",
+                    key_size,
+                    max_allowed,
+                    low_idx + count
+                );
+            }
+        }
         Self {
-            low_idx: matches.value_or_default("first"),
-            count: matches.value_or_default("count"),
+            low_idx,
+            count,
             payload_size: matches.value_or_default("payload"),
             direct: matches.is_present("direct"),
             measure_time: false,
