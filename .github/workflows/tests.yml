@@ -18,7 +18,9 @@ jobs:
         with:
           toolchain: nightly
           default: true
+      - name: Install packages
+        run: sudo apt-get update && apt-get install -y --no-install-recommends musl-tools
       - name: Tests
-        run: |
-          sudo apt-get update && apt-get install -y --no-install-recommends musl-tools
-          cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
