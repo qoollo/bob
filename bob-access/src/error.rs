@@ -6,6 +6,10 @@ pub struct Error {
 }
 
 impl Error {
+    pub fn invalid_token(message: impl Into<String>) -> Self {
+        Self {
+            kind: Kind::InvalidToken(message.into()),
+
     pub fn credentials_not_provided(message: impl Into<String>) -> Self {
         Self {
             kind: Kind::CredentialsNotProvided(message.into()),
@@ -28,6 +32,7 @@ impl Error {
 #[derive(Debug)]
 enum Kind {
     Unknown,
+    InvalidToken(String),
     Validation(String),
     Os(String),
     NotFound,
