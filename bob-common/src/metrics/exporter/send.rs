@@ -7,7 +7,7 @@ use tokio::time::timeout;
 use super::retry_socket::RetrySocket;
 use super::{Metric, MetricInner, MetricKey, MetricValue, TimeStamp};
 
-const TCP_CHANNEL_SIZE: usize = 1024;
+const TCP_SENDER_BUFFER_SIZE: usize = 1024;
 
 // this function runs in other thread, so it would be better if it will take control of arguments
 // themselves, not just references
@@ -44,13 +44,13 @@ pub(super) async fn send_metrics(
         flush_gauges(&gauges_map, &mut res_string, &prefix, ts).await;
         flush_times(&mut times_map, &mut res_string, &prefix, ts).await;
         if let Err(e) = socket_sender.send(res_string).await {
-            debug!("Can't send data to tcp sender task (reason: {})", e);
+            warn!("Can't send data to tcp sender task (reason: {})", e);
         };
     }
 }
 
 async fn spawn_tcp_sender_task(address: String) -> Sender<String> {
-    let (tx, rx) = channel(TCP_CHANNEL_SIZE);
+    let (tx, rx) = channel(TCP_SENDER_BUFFER_SIZE);
     let socket = RetrySocket::new(address.parse().expect("Can't read address from String")).await;
     tokio::spawn(tcp_sender_task(socket, rx));
     tx
@@ -59,14 +59,14 @@ async fn spawn_tcp_sender_task(address: String) -> Sender<String> {
 async fn tcp_sender_task(mut socket: RetrySocket, mut rx: Receiver<String>) {
     while let Some(data) = rx.recv().await {
         if let Err(e) = socket.write_all(data.as_bytes()).await {
-            debug!(
+            warn!(
                 "Can't write data to socket (reason: {}, data: {:?})",
                 e, data
             );
             continue;
         }
         if let Err(e) = socket.flush().await {
-            debug!("Can't flush socket (reason: {})", e);
+            warn!("Can't flush socket (reason: {})", e);
         }
     }
     info!("Metrics thread is done.");
