@@ -2,6 +2,7 @@ use bob::{
     Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetOptions, GetRequest, GetSource,
     PutOptions, PutRequest,
 };
+use std::iter::repeat;
 
 use clap::{App, Arg, ArgMatches};
 use std::collections::HashMap;
@@ -84,9 +85,22 @@ impl TaskConfig {
         let key_size = option_env!("BOB_KEY_SIZE")
             .map_or(Ok(8), str::parse)
             .expect("Could not parse BOB_KEY_SIZE");
+        let low_idx = matches.value_or_default("first");
+        let count = matches.value_or_default("count");
+        if key_size < std::mem::size_of::<u64>() {
+            let max_allowed = 256_u64.pow(key_size as u32) - 1;
+            if low_idx + count > max_allowed {
+                panic!(
+                    "max possible index for keysize={} is {}, but task includes keys up to {}",
+                    key_size,
+                    max_allowed,
+                    low_idx + count
+                );
+            }
+        }
         Self {
-            low_idx: matches.value_or_default("first"),
-            count: matches.value_or_default("count"),
+            low_idx,
+            count,
             payload_size: matches.value_or_default("payload"),
             direct: matches.is_present("direct"),
             measure_time: false,
@@ -122,11 +136,13 @@ impl TaskConfig {
     }
 
     fn get_proper_key(&self, key: u64) -> Vec<u8> {
-        key.to_be_bytes()
-            .iter()
-            .take(self.key_size)
-            .cloned()
-            .collect()
+        let mut data = key.to_le_bytes().to_vec();
+        if self.key_size > data.len() {
+            data.extend(repeat(0).take(self.key_size - data.len()));
+        } else if self.key_size < data.len() {
+            data.resize(self.key_size, 0);
+        }
+        data
     }
 }
 
@@ -521,7 +537,7 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let req = Request::new(ExistRequest {
         keys: (task_conf.low_idx..upper_idx)
             .map(|i| BlobKey {
-                key: i.to_be_bytes().to_vec(),
+                key: task_conf.get_proper_key(i),
             })
             .collect(),
         options: task_conf.find_get_options(),

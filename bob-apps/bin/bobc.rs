@@ -1,12 +1,22 @@
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate lazy_static;
+
 use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use http::Uri;
 use log::LevelFilter;
+use std::iter::repeat;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tonic::Request;
+
+lazy_static! {
+    static ref KEY_SIZE: usize = option_env!("BOB_KEY_SIZE")
+        .map_or(Ok(8), str::parse)
+        .expect("Could not parse BOB_KEY_SIZE");
+}
 
 #[tokio::main]
 async fn main() {
@@ -53,9 +63,7 @@ async fn put(key: u64, size: usize, addr: Uri) {
         meta: Some(meta),
     };
     let message = PutRequest {
-        key: Some(BlobKey {
-            key: get_key(key),
-        }),
+        key: Some(BlobKey { key: get_key(key) }),
         data: Some(blob),
         options: None,
     };
@@ -69,9 +77,7 @@ async fn get(key: u64, addr: Uri) {
     let mut client = BobApiClient::connect(addr).await.unwrap();
 
     let message = GetRequest {
-        key: Some(BlobKey {
-            key: get_key(key),
-        }),
+        key: Some(BlobKey { key: get_key(key) }),
         options: None,
     };
     let get_req = Request::new(message);
@@ -110,18 +116,28 @@ fn get_matches<'a>() -> ArgMatches<'a> {
 }
 
 fn get_key_value(matches: &'_ ArgMatches<'_>) -> u64 {
-    matches
+    let key = matches
         .value_of("key")
         .expect("key arg is required")
         .to_string()
         .parse()
-        .expect("key must be u64")
+        .expect("key must be u64");
+    let max_allowed_key = 256_u64.pow(*KEY_SIZE as u32) - 1;
+    if key > max_allowed_key {
+        panic!(
+            "Key {} is not allowed by keysize {} (max allowed key is {})",
+            key, *KEY_SIZE, max_allowed_key
+        );
+    }
+    key
 }
 
 fn get_key(k: u64) -> Vec<u8> {
-    // TODO move to static
-    let key_size = option_env!("BOB_KEY_SIZE")
-        .map_or(Ok(8), str::parse)
-        .expect("Could not parse BOB_KEY_SIZE");
-    k.to_be_bytes().iter().take(key_size).cloned().collect()
+    let mut data = k.to_le_bytes().to_vec();
+    if *KEY_SIZE > data.len() {
+        data.extend(repeat(0).take(*KEY_SIZE - data.len()));
+    } else if *KEY_SIZE < data.len() {
+        data.resize(*KEY_SIZE, 0);
+    }
+    data
 }

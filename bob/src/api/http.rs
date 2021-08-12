@@ -647,10 +647,8 @@ fn bad_request(message: impl Into<String>) -> StatusExt {
 
 impl DataKey {
     fn from_bytes(bytes: Vec<u8>) -> Result<Self, StatusExt> {
-        if bytes.len() > BOB_KEY_SIZE {
-            if !bytes.iter().rev().skip(BOB_KEY_SIZE).all(|&b| b == 0) {
-                return Err(bad_request("Key overflow"));
-            }
+        if bytes.len() > BOB_KEY_SIZE && !bytes.iter().rev().skip(BOB_KEY_SIZE).all(|&b| b == 0) {
+            return Err(bad_request("Key overflow"));
         }
         let mut key = [0u8; BOB_KEY_SIZE];
         key.iter_mut()
@@ -693,7 +691,7 @@ impl DataKey {
         let number = decimal
             .parse::<u128>()
             .map_err(|e| bad_request(format!("Decimal parse error: {}", e.to_string())))?;
-        Self::from_bytes(number.to_be_bytes().into())
+        Self::from_bytes(number.to_le_bytes().into())
     }
 }
 

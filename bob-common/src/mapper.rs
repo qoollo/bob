@@ -143,7 +143,7 @@ impl Virtual {
     }
 
     fn get_vdisk_id_by_mod(key: BobKey, len: usize) -> usize {
-        key.iter().rev().fold([0, 1], |[rem, bmult], &byte| {
+        key.iter().fold([0, 1], |[rem, bmult], &byte| {
             [(rem + bmult * byte as usize) % len, (bmult << 8) % len]
         })[0]
     }
