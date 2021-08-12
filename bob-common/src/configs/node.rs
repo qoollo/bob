@@ -236,9 +236,15 @@ pub struct Pearl {
     enable_aio: bool,
     #[serde(default = "Pearl::default_disks_events_logfile")]
     disks_events_logfile: String,
+    #[serde(default)]
+    bloom_filter_max_buf_bits_count: Option<usize>,
 }
 
 impl Pearl {
+    pub fn max_buf_bits_count(&self) -> Option<usize> {
+        self.bloom_filter_max_buf_bits_count
+    }
+
     pub fn alien_disk(&self) -> Option<&str> {
         self.alien_disk.as_deref()
     }
@@ -426,6 +432,7 @@ pub enum BackendType {
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Node {
     log_config: String,
+    users_config: String,
     name: String,
     quorum: usize,
     operation_timeout: String,
@@ -473,6 +480,11 @@ impl NodeConfig {
     /// Get log config file path.
     pub fn log_config(&self) -> &str {
         &self.log_config
+    }
+
+    /// Get users config file path
+    pub fn users_config(&self) -> &str {
+        &self.users_config
     }
 
     pub fn cluster_policy(&self) -> &str {
@@ -596,6 +608,7 @@ impl NodeConfig {
             || self.check_interval == PLACEHOLDER
             || self.cluster_policy == PLACEHOLDER
             || self.log_config == PLACEHOLDER
+            || self.users_config == PLACEHOLDER
             || self.name == PLACEHOLDER
             || self.operation_timeout == PLACEHOLDER
         {
@@ -660,6 +673,10 @@ impl Validatable for NodeConfig {
             let msg = "field \'cluster_policy\' for \'config\' is empty".to_string();
             error!("{}", msg);
             Err(msg)
+        } else if self.users_config.is_empty() {
+            let msg = "field \'users_config\' for \'config\' is empty".to_string();
+            error!("{}", msg);
+            Err(msg)
         } else if self.log_config.is_empty() {
             let msg = "field \'log_config\' for \'config\' is empty".to_string();
             error!("{}", msg);
@@ -684,6 +701,7 @@ pub mod tests {
     pub fn node_config(name: &str, quorum: usize) -> NodeConfig {
         NodeConfig {
             log_config: "".to_string(),
+            users_config: "".to_string(),
             name: name.to_string(),
             quorum,
             operation_timeout: "3sec".to_string(),

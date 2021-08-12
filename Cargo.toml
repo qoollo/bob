@@ -1,8 +1,8 @@
 [workspace]
 members = [
     "bob",
+    "bob-apps",
     "bob-backend",
     "bob-common",
-    "bob-tools",
     "bob-access",
 ]
