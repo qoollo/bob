@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate lazy_static;
+
 use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use http::Uri;
@@ -8,6 +11,12 @@ use log::LevelFilter;
 use std::iter::repeat;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tonic::Request;
+
+lazy_static! {
+    static ref KEY_SIZE: usize = option_env!("BOB_KEY_SIZE")
+        .map_or(Ok(8), str::parse)
+        .expect("Could not parse BOB_KEY_SIZE");
+}
 
 #[tokio::main]
 async fn main() {
@@ -107,33 +116,28 @@ fn get_matches<'a>() -> ArgMatches<'a> {
 }
 
 fn get_key_value(matches: &'_ ArgMatches<'_>) -> u64 {
-    matches
+    let key = matches
         .value_of("key")
         .expect("key arg is required")
         .to_string()
         .parse()
-        .expect("key must be u64")
+        .expect("key must be u64");
+    let max_allowed_key = 256_u64.pow(*KEY_SIZE as u32) - 1;
+    if key > max_allowed_key {
+        panic!(
+            "Key {} is not allowed by keysize {} (max allowed key is {})",
+            key, *KEY_SIZE, max_allowed_key
+        );
+    }
+    key
 }
 
 fn get_key(k: u64) -> Vec<u8> {
-    // TODO move to static
-    let key_size = option_env!("BOB_KEY_SIZE")
-        .map_or(Ok(8), str::parse)
-        .expect("Could not parse BOB_KEY_SIZE");
-
     let mut data = k.to_le_bytes().to_vec();
-    if key_size > data.len() {
-        data.extend(repeat(0).take(key_size - data.len()));
-    } else if key_size < data.len() {
-        if data.iter().skip(key_size).find(|&&d| d != 0).is_some() {
-            panic!(
-                "Key {} is out of bounds for current keysize {} (max {})",
-                k,
-                key_size,
-                256_u64.pow(key_size as u32)
-            );
-        }
-        data.resize(key_size, 0);
+    if *KEY_SIZE > data.len() {
+        data.extend(repeat(0).take(*KEY_SIZE - data.len()));
+    } else if *KEY_SIZE < data.len() {
+        data.resize(*KEY_SIZE, 0);
     }
     data
 }
