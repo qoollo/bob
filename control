@@ -1,0 +1,8 @@
+Package: bob
+Version: current_version
+Section: unknown
+Priority: optional
+Architecture: amd64
+Maintainer: Qoollo <info@qoollo.com>
+Homepage: https://github.com/qoollo/bob
+Description: Bob is distributing storage system
