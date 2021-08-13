@@ -1,8 +1,8 @@
 use std::{convert::TryInto, io::Cursor, str::FromStr};
 
-use super::{infer_data_type, StatusExt};
+use super::{infer_data_type, DataKey, StatusExt};
 use crate::server::Server as BobServer;
-use bob_common::data::{BobData, BobKey, BobMeta, BobOptions};
+use bob_common::data::{BobData, BobMeta, BobOptions};
 use rocket::{
     data::ByteUnit,
     get,
@@ -105,9 +105,10 @@ impl Responder<'_, 'static> for GetObjectOutput {
 #[get("/default/<key>")]
 pub(crate) async fn get_object(
     bob: &State<BobServer>,
-    key: BobKey,
+    key: Result<DataKey, StatusExt>,
     headers: GetObjectHeaders,
 ) -> Result<GetObjectOutput, StatusS3> {
+    let key = key?.0;
     let opts = BobOptions::new_get(None);
     let data = bob.grinder().get(key, &opts).await?;
     let content_type = headers
@@ -130,9 +131,10 @@ pub(crate) async fn get_object(
 #[put("/default/<key>", data = "<data>", rank = 2)]
 pub(crate) async fn put_object(
     bob: &State<BobServer>,
-    key: BobKey,
+    key: Result<DataKey, StatusExt>,
     data: Data<'_>,
 ) -> Result<StatusS3, StatusS3> {
+    let key = key?.0;
     let data_buf = data.open(ByteUnit::max_value()).into_bytes().await?.value;
     let data = BobData::new(
         data_buf,
@@ -145,11 +147,11 @@ pub(crate) async fn put_object(
     Ok(StatusS3::from(StatusExt::from(Status::Created)))
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct CopyObjectHeaders {
     if_modified_since: Option<u64>,
     if_unmodified_since: Option<u64>,
-    source_key: BobKey,
+    source_key: DataKey,
 }
 
 #[rocket::async_trait]
@@ -181,9 +183,10 @@ impl<'r> FromRequest<'r> for CopyObjectHeaders {
 #[put("/default/<key>")]
 pub(crate) async fn copy_object(
     bob: &State<BobServer>,
-    key: BobKey,
+    key: Result<DataKey, StatusExt>,
     headers: CopyObjectHeaders,
 ) -> Result<StatusS3, StatusS3> {
+    let key = key?.0;
     let opts = BobOptions::new_get(None);
     let data = bob.grinder().get(key, &opts).await?;
     let last_modified = data.meta().timestamp();

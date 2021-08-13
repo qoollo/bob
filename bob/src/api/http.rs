@@ -4,7 +4,7 @@ use crate::version_helpers::{
 };
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
-    data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk},
+    data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
     error::Error as BobError,
     node::Disk as NodeDisk,
 };
@@ -14,7 +14,7 @@ use rocket::{
     http::{ContentType, Status},
     request::FromParam,
     response::{content::Custom as Content, Responder, Result as RocketResult},
-    serde::json::Json,
+    serde::{json::Json, uuid::Uuid},
     Config, Data, Request, Response, Rocket, State,
 };
 use std::{
@@ -93,6 +93,9 @@ pub(crate) struct DiskState {
     path: String,
     is_active: bool,
 }
+
+#[derive(Debug)]
+pub(crate) struct DataKey(BobKey);
 
 #[derive(Debug, Serialize)]
 pub(crate) struct Version {
@@ -622,7 +625,11 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
 }
 
 #[get("/data/<key>")]
-async fn get_data(bob: &State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>>, StatusExt> {
+async fn get_data(
+    bob: &State<BobServer>,
+    key: Result<DataKey, StatusExt>,
+) -> Result<Content<Vec<u8>>, StatusExt> {
+    let key = key?.0;
     let opts = BobOptions::new_get(None);
     let result = bob.grinder().get(key, &opts).await?;
     Ok(Content(infer_data_type(&result), result.inner().to_owned()))
@@ -631,9 +638,10 @@ async fn get_data(bob: &State<BobServer>, key: BobKey) -> Result<Content<Vec<u8>
 #[post("/data/<key>", data = "<data>")]
 async fn put_data(
     bob: &State<BobServer>,
-    key: BobKey,
+    key: Result<DataKey, StatusExt>,
     data: Data<'_>,
 ) -> Result<StatusExt, StatusExt> {
+    let key = key?.0;
     let data_buf = data.open(ByteUnit::max_value()).into_bytes().await?.value;
     let data = BobData::new(
         data_buf,
@@ -642,12 +650,89 @@ async fn put_data(
 
     let opts = BobOptions::new_put(None);
     bob.grinder().put(key, data, opts).await?;
-
     Ok(Status::Created.into())
+}
+
+impl FromParam<'_> for DataKey {
+    type Error = StatusExt;
+
+    fn from_param(param: &str) -> Result<Self, Self::Error> {
+        DataKey::from_str(param)
+    }
 }
 
 fn internal(message: String) -> StatusExt {
     StatusExt::new(Status::InternalServerError, false, message)
+}
+
+fn bad_request(message: impl Into<String>) -> StatusExt {
+    StatusExt::new(Status::BadRequest, false, message.into())
+}
+
+impl DataKey {
+    fn from_bytes(mut bytes: Vec<u8>) -> Result<Self, StatusExt> {
+        if bytes.len() > BOB_KEY_SIZE && !bytes.iter().skip(BOB_KEY_SIZE).all(|&b| b == 0) {
+            return Err(bad_request("Key overflow"));
+        }
+        bytes.resize(BOB_KEY_SIZE, 0);
+        Ok(Self(bytes.into()))
+    }
+
+    fn from_guid(guid: &str) -> Result<Self, StatusExt> {
+        let guid = Uuid::from_str(guid)
+            .map_err(|e| bad_request(format!("GUID parse error: {}", e.to_string())))?;
+        Self::from_bytes(guid.as_bytes().to_vec())
+    }
+
+    fn from_hex(hex: &str) -> Result<Self, StatusExt> {
+        if !hex.as_bytes().iter().all(|c| c.is_ascii_hexdigit()) {
+            return Err(bad_request(
+                "Hex parse error: non hexadecimal symbol in parameter",
+            ));
+        }
+        let bytes = hex
+            .as_bytes()
+            .rchunks(2)
+            .map(|c| {
+                u8::from_str_radix(
+                    std::str::from_utf8(c).expect("All chars is ascii hexdigits"),
+                    16,
+                )
+                .expect("All chars is ascii hexdigits")
+            })
+            .rev()
+            .collect();
+        Self::from_bytes(bytes)
+    }
+
+    fn from_decimal(decimal: &str) -> Result<Self, StatusExt> {
+        let number = decimal
+            .parse::<u128>()
+            .map_err(|e| bad_request(format!("Decimal parse error: {}", e.to_string())))?;
+        Self::from_bytes(number.to_le_bytes().into())
+    }
+}
+
+impl FromStr for DataKey {
+    type Err = StatusExt;
+
+    fn from_str(param: &str) -> Result<Self, Self::Err> {
+        if param.starts_with('{') && param.ends_with('}') {
+            Self::from_guid(&param[1..param.len() - 1])
+        } else if param.contains('-') {
+            Self::from_guid(param)
+        } else if param.starts_with("0x") {
+            Self::from_hex(param.get(2..).unwrap_or(""))
+        } else if param.chars().all(|c| c.is_ascii_digit()) {
+            Self::from_decimal(param)
+        } else {
+            Err(StatusExt::new(
+                Status::BadRequest,
+                false,
+                "Invalid key format".into(),
+            ))
+        }
+    }
 }
 
 impl<'r> FromParam<'r> for Action {

@@ -12,6 +12,8 @@ Bob versions changelog
 - Add tool for blob recovery (brt) ([#205](https://github.com/qoollo/bob/pull/205))
 - Add racks support to CCG ([#186](https://github.com/qoollo/bob/pull/186))
 - Add bind ip address to config ([#270](https://github.com/qoollo/bob/pull/270))
+- Add variable key size ([#133](https://github.com/qoollo/bob/pull/207))
+- Support for different key sizes in REST API ([#228](http://github.com/qoollo/bob/pull/228))
 
 #### Changed
 - rename bob-tools, remove redundant versions of workspace deps ([#220](https://github.com/qoollo/bob/pull/220))

@@ -198,13 +198,15 @@ async fn simple_one_node_put_ok() {
 
     let key = 1;
     let result = quorum
-        .put(key, BobData::new(vec![], BobMeta::new(11)))
+        .put(BobKey::from(key), BobData::new(vec![], BobMeta::new(11)))
         .await;
 
     assert!(result.is_ok());
     // assert_eq!(1, calls[0].1.put_count());
     warn!("can't track put result, because it doesn't pass through mock client");
-    let get = backend.get_local(key, Operation::new_alien(0)).await;
+    let get = backend
+        .get_local(BobKey::from(key), Operation::new_alien(0))
+        .await;
     assert!(get.err().unwrap().is_key_not_found());
 }
 
@@ -228,7 +230,7 @@ async fn simple_two_node_one_vdisk_cluster_put_ok() {
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
     let key = 2;
     let result = quorum
-        .put(key, BobData::new(vec![], BobMeta::new(11)))
+        .put(BobKey::from(key), BobData::new(vec![], BobMeta::new(11)))
         .await;
     sleep(Duration::from_millis(1)).await;
 
@@ -237,7 +239,9 @@ async fn simple_two_node_one_vdisk_cluster_put_ok() {
     warn!("can't track put result, because it doesn't pass through mock client");
     assert_eq!(1, calls[1].1.put_count());
 
-    let get = backend.get_local(key, Operation::new_alien(0)).await;
+    let get = backend
+        .get_local(BobKey::from(key), Operation::new_alien(0))
+        .await;
     assert!(get.err().unwrap().is_key_not_found());
 }
 
@@ -261,23 +265,31 @@ async fn simple_two_node_two_vdisk_one_replica_cluster_put_ok() {
         .collect();
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
 
-    let mut result = quorum.put(3, BobData::new(vec![], BobMeta::new(11))).await;
+    let mut result = quorum
+        .put(BobKey::from(3), BobData::new(vec![], BobMeta::new(11)))
+        .await;
 
     assert!(result.is_ok());
     assert_eq!(0, calls[0].1.put_count());
     assert_eq!(1, calls[1].1.put_count());
 
-    result = quorum.put(4, BobData::new(vec![], BobMeta::new(11))).await;
+    result = quorum
+        .put(BobKey::from(3), BobData::new(vec![], BobMeta::new(11)))
+        .await;
 
     assert!(result.is_ok());
     // assert_eq!(1, calls[0].1.put_count());
     warn!("can't track put result, because it doesn't pass through mock client");
     assert_eq!(1, calls[1].1.put_count());
     let key = 3;
-    let mut get = backend.get_local(key, Operation::new_alien(0)).await;
+    let mut get = backend
+        .get_local(BobKey::from(key), Operation::new_alien(0))
+        .await;
     assert!(get.err().unwrap().is_key_not_found());
     let key = 4;
-    get = backend.get_local(key, Operation::new_alien(0)).await;
+    get = backend
+        .get_local(BobKey::from(key), Operation::new_alien(0))
+        .await;
     assert!(get.err().unwrap().is_key_not_found());
 }
 
@@ -329,7 +341,9 @@ async fn two_node_one_vdisk_cluster_one_node_failed_put_ok() {
         .collect();
     let (quorum, _) = create_cluster(&node, &cluster, &actions).await;
 
-    let result = quorum.put(5, BobData::new(vec![], BobMeta::new(11))).await;
+    let result = quorum
+        .put(BobKey::from(5), BobData::new(vec![], BobMeta::new(11)))
+        .await;
     sleep(Duration::from_millis(1000)).await;
 
     assert!(result.is_ok());
@@ -358,7 +372,9 @@ async fn three_node_two_vdisk_cluster_second_node_failed_put_ok() {
     let (quorum, _) = create_cluster(&node, &cluster, &actions).await;
 
     sleep(Duration::from_millis(1)).await;
-    let result = quorum.put(0, BobData::new(vec![], BobMeta::new(11))).await;
+    let result = quorum
+        .put(BobKey::from(0), BobData::new(vec![], BobMeta::new(11)))
+        .await;
     sleep(Duration::from_millis(1000)).await;
     assert!(result.is_ok());
     // assert_eq!(1, calls[0].1.put_count());
@@ -419,7 +435,9 @@ async fn three_node_two_vdisk_cluster_one_node_failed_put_ok2() {
         .collect();
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
 
-    let result = quorum.put(0, BobData::new(vec![], BobMeta::new(11))).await;
+    let result = quorum
+        .put(BobKey::from(0), BobData::new(vec![], BobMeta::new(11)))
+        .await;
     sleep(Duration::from_millis(1000)).await;
 
     assert!(result.is_ok());
@@ -428,7 +446,9 @@ async fn three_node_two_vdisk_cluster_one_node_failed_put_ok2() {
     assert_eq!(1, calls[1].1.put_count());
     assert_eq!(0, calls[2].1.put_count());
 
-    let get = backend.get_local(0, Operation::new_alien(0)).await;
+    let get = backend
+        .get_local(BobKey::from(0), Operation::new_alien(0))
+        .await;
     assert!(get.is_err());
 }
 
@@ -452,7 +472,9 @@ async fn three_node_one_vdisk_cluster_one_node_failed_put_ok() {
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
 
     info!("put local: 0");
-    let result = quorum.put(0, BobData::new(vec![], BobMeta::new(11))).await;
+    let result = quorum
+        .put(BobKey::from(0), BobData::new(vec![], BobMeta::new(11)))
+        .await;
     assert!(result.is_ok());
     // assert_eq!(1, calls[0].1.put_count());
     warn!("can't track put result, because it doesn't pass through mock client");
@@ -461,7 +483,9 @@ async fn three_node_one_vdisk_cluster_one_node_failed_put_ok() {
 
     sleep(Duration::from_millis(32)).await;
     info!("get local backend: 0");
-    let get = backend.get_local(0, Operation::new_alien(0)).await;
+    let get = backend
+        .get_local(BobKey::from(0), Operation::new_alien(0))
+        .await;
     debug!("{:?}", get);
     assert!(get.is_ok());
 }
@@ -478,7 +502,7 @@ async fn simple_one_node_get_err() {
     info!("actions created");
     let (quorum, _) = create_cluster(&node, &cluster, &actions).await;
     info!("cluster created");
-    let result = quorum.get(102).await;
+    let result = quorum.get(BobKey::from(102)).await;
     info!("request finished");
     assert!(result.is_err());
 }
@@ -497,7 +521,7 @@ async fn simple_two_node_get_ok() {
 
     let (quorum, _) = create_cluster(&node, &cluster, &actions).await;
 
-    let result = quorum.get(110).await;
+    let result = quorum.get(BobKey::from(110)).await;
 
     assert!(result.is_ok());
     assert_eq!(1, result.unwrap().meta().timestamp());
