@@ -40,7 +40,9 @@ tower = "0.4.3"
 tower-service = "0.3.0"
 
 [dependencies.pearl]
-version = "=0.5.14"
+version = "=0.6.0"
+# git = "https://github.com/qoollo/pearl"
+# branch = "106-extend-version"
 
 [dependencies.tokio]
 version = "1.4"
@@ -50,3 +52,4 @@ features = ["full"]
 
 [build-dependencies]
 tonic-build = "0.4.0"
+chrono = "0.4"

@@ -17,6 +17,18 @@ paths:
                 $ref: '#/components/schemas/Node'
         default:
           $ref: '#/components/responses/DefaultError'
+  /version:
+    get:
+      summary: Returns server version
+      operationId: getVersion
+      responses:
+        '200':
+          description: "Version string"
+          content: 
+            text/plain:
+              schema:
+                type: string
+                example: 1.6.1-cb85dca16f40567b262c393abff15be01d4a2df5
   /nodes:
     get:
       summary: Returns a list of known nodes
@@ -427,3 +439,19 @@ components:
           type: string
           enum:
             - Mod
+    Version:
+      type: object
+      properties:
+        version:
+          type: string
+        build_time:
+          type: string
+    VersionInfo:
+      type: object
+      properties:
+        bobversion:
+          type:
+            $ref: '#/components/schemas/Version'
+        pearlversion:
+          type:
+            $ref: '#/components/schemas/Version'

@@ -33,7 +33,7 @@ tower = "0.4.3"
 tower-service = "0.3.0"
 
 [dependencies.pearl]
-version = "=0.5.14"
+version = "=0.6.0"
 #metrics = "0.12.1"
 
 [dependencies.tokio]
