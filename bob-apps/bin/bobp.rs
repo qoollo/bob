@@ -81,9 +81,7 @@ struct TaskConfig {
 
 impl TaskConfig {
     fn from_matches(matches: &ArgMatches) -> Self {
-        let key_size = option_env!("BOB_KEY_SIZE")
-            .map_or(Ok(8), str::parse)
-            .expect("Could not parse BOB_KEY_SIZE");
+        let key_size = matches.value_or_default("keysize");
         let low_idx = matches.value_or_default("first");
         let count = matches.value_or_default("count");
         if key_size < std::mem::size_of::<u64>() {
@@ -738,6 +736,14 @@ fn get_matches() -> ArgMatches<'static> {
                 .help("verify results of put requests")
                 .takes_value(false)
                 .long("verify"),
+        )
+        .arg(
+            Arg::with_name("keysize")
+                .help("size of the binary key")
+                .takes_value(true)
+                .long("keysize")
+                .short("k")
+                .default_value("8"),
         )
         .get_matches()
 }
