@@ -4,12 +4,12 @@ use std::{
     str::FromStr,
 };
 
-use super::{infer_data_type, StatusExt};
+use super::{infer_data_type, DataKey, StatusExt};
 use crate::server::Server as BobServer;
 use bob_common::data::{BobData, BobMeta, BobOptions};
 use rocket::{
     get,
-    http::{ContentType, Header, Status, RawStr},
+    http::{ContentType, Header, Status},
     put,
     request::{FromRequest, Outcome},
     response,
@@ -95,13 +95,12 @@ impl<'r> Responder<'r> for GetObjectOutput {
 #[get("/default/<key>")]
 pub(crate) fn get_object(
     bob: State<BobServer>,
-    key: &RawStr,
+    key: DataKey,
     headers: GetObjectHeaders,
 ) -> Result<GetObjectOutput, StatusS3> {
-    let key = key.as_bytes().into();
     let opts = BobOptions::new_get(None);
     let data = bob
-        .block_on(async { bob.grinder().get(key, &opts).await })
+        .block_on(async { bob.grinder().get(key.0, &opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
     let content_type = headers
         .content_type
@@ -123,7 +122,7 @@ pub(crate) fn get_object(
 #[put("/default/<key>", data = "<data>", rank = 2)]
 pub(crate) fn put_object(
     bob: State<BobServer>,
-    key: &RawStr,
+    key: DataKey,
     data: Data,
 ) -> Result<StatusS3, StatusS3> {
     let mut data_buf = vec![];
@@ -136,17 +135,17 @@ pub(crate) fn put_object(
     );
 
     let opts = BobOptions::new_put(None);
-    bob.block_on(async { bob.grinder().put(key.as_bytes().into(), data, opts).await })
+    bob.block_on(async { bob.grinder().put(key.0, data, opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
 
     Ok(StatusS3::from(StatusExt::from(Status::Created)))
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct CopyObjectHeaders {
     if_modified_since: Option<u64>,
     if_unmodified_since: Option<u64>,
-    source_key: String,
+    source_key: DataKey,
 }
 
 impl<'r> FromRequest<'_, 'r> for CopyObjectHeaders {
@@ -155,7 +154,7 @@ impl<'r> FromRequest<'_, 'r> for CopyObjectHeaders {
         let headers = request.headers();
         let source_key = match headers
             .get_one("x-amz-copy-source")
-            .map(|x| x.to_string())
+            .and_then(|x| x.parse().ok())
         {
             Some(key) => key,
             None => return Outcome::Forward(()),
@@ -177,13 +176,12 @@ impl<'r> FromRequest<'_, 'r> for CopyObjectHeaders {
 #[put("/default/<key>")]
 pub(crate) fn copy_object(
     bob: State<BobServer>,
-    key: &RawStr,
+    key: DataKey,
     headers: CopyObjectHeaders,
 ) -> Result<StatusS3, StatusS3> {
-    let key = key.as_bytes().into();
     let opts = BobOptions::new_get(None);
     let data = bob
-        .block_on(async { bob.grinder().get(key, &opts).await })
+        .block_on(async { bob.grinder().get(key.0, &opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
     let last_modified = data.meta().timestamp();
     if let Some(time) = headers.if_modified_since {
@@ -202,7 +200,7 @@ pub(crate) fn copy_object(
     );
 
     let opts = BobOptions::new_put(None);
-    bob.block_on(async { bob.grinder().put(key, data, opts).await })
+    bob.block_on(async { bob.grinder().put(key.0, data, opts).await })
         .map_err(|err| -> StatusExt { err.into() })?;
 
     Ok(StatusS3::from(StatusExt::from(Status::Ok)))
