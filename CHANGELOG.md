@@ -23,6 +23,7 @@ Bob versions changelog
 - Fix backend storage trait object safety issue ([#197](https://github.com/qoollo/bob/pull/197))
 - Fix dockerfiles ([#203](https://github.com/qoollo/bob/pull/203))
 - Fix connectivity issues in Docker Swarm (use 0.0.0.0 in some cases) ([#270](https://github.com/qoollo/bob/pull/270))
+- Fix metrics gaps in graphite (change timeout logic in sending thread, [#274](https://github.com/qoollo/bob/pull/275))
 
 
 ## [1.6.1] - 2021-04-14
