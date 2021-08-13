@@ -105,11 +105,12 @@ impl Responder<'_, 'static> for GetObjectOutput {
 #[get("/default/<key>")]
 pub(crate) async fn get_object(
     bob: &State<BobServer>,
-    key: DataKey,
+    key: Result<DataKey, StatusExt>,
     headers: GetObjectHeaders,
 ) -> Result<GetObjectOutput, StatusS3> {
+    let key = key?.0;
     let opts = BobOptions::new_get(None);
-    let data = bob.grinder().get(key.0, &opts).await?;
+    let data = bob.grinder().get(key, &opts).await?;
     let content_type = headers
         .content_type
         .unwrap_or_else(|| infer_data_type(&data));
@@ -130,9 +131,10 @@ pub(crate) async fn get_object(
 #[put("/default/<key>", data = "<data>", rank = 2)]
 pub(crate) async fn put_object(
     bob: &State<BobServer>,
-    key: DataKey,
+    key: Result<DataKey, StatusExt>,
     data: Data<'_>,
 ) -> Result<StatusS3, StatusS3> {
+    let key = key?.0;
     let data_buf = data.open(ByteUnit::max_value()).into_bytes().await?.value;
     let data = BobData::new(
         data_buf,
@@ -140,7 +142,7 @@ pub(crate) async fn put_object(
     );
 
     let opts = BobOptions::new_put(None);
-    bob.grinder().put(key.0, data, opts).await?;
+    bob.grinder().put(key, data, opts).await?;
 
     Ok(StatusS3::from(StatusExt::from(Status::Created)))
 }
@@ -181,11 +183,12 @@ impl<'r> FromRequest<'r> for CopyObjectHeaders {
 #[put("/default/<key>")]
 pub(crate) async fn copy_object(
     bob: &State<BobServer>,
-    key: DataKey,
+    key: Result<DataKey, StatusExt>,
     headers: CopyObjectHeaders,
 ) -> Result<StatusS3, StatusS3> {
+    let key = key?.0;
     let opts = BobOptions::new_get(None);
-    let data = bob.grinder().get(key.0, &opts).await?;
+    let data = bob.grinder().get(key, &opts).await?;
     let last_modified = data.meta().timestamp();
     if let Some(time) = headers.if_modified_since {
         if time > last_modified {
@@ -203,7 +206,7 @@ pub(crate) async fn copy_object(
     );
 
     let opts = BobOptions::new_put(None);
-    bob.grinder().put(key.0, data, opts).await?;
+    bob.grinder().put(key, data, opts).await?;
 
     Ok(StatusS3::from(StatusExt::from(Status::Ok)))
 }

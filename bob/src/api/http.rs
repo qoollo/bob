@@ -595,18 +595,23 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
 }
 
 #[get("/data/<key>")]
-async fn get_data(bob: &State<BobServer>, key: DataKey) -> Result<Content<Vec<u8>>, StatusExt> {
+async fn get_data(
+    bob: &State<BobServer>,
+    key: Result<DataKey, StatusExt>,
+) -> Result<Content<Vec<u8>>, StatusExt> {
+    let key = key?.0;
     let opts = BobOptions::new_get(None);
-    let result = bob.grinder().get(key.0, &opts).await?;
+    let result = bob.grinder().get(key, &opts).await?;
     Ok(Content(infer_data_type(&result), result.inner().to_owned()))
 }
 
 #[post("/data/<key>", data = "<data>")]
 async fn put_data(
     bob: &State<BobServer>,
-    key: DataKey,
+    key: Result<DataKey, StatusExt>,
     data: Data<'_>,
 ) -> Result<StatusExt, StatusExt> {
+    let key = key?.0;
     let data_buf = data.open(ByteUnit::max_value()).into_bytes().await?.value;
     let data = BobData::new(
         data_buf,
@@ -614,7 +619,7 @@ async fn put_data(
     );
 
     let opts = BobOptions::new_put(None);
-    bob.grinder().put(key.0, data, opts).await?;
+    bob.grinder().put(key, data, opts).await?;
     Ok(Status::Created.into())
 }
 
@@ -635,18 +640,12 @@ fn bad_request(message: impl Into<String>) -> StatusExt {
 }
 
 impl DataKey {
-    fn from_bytes(bytes: Vec<u8>) -> Result<Self, StatusExt> {
-        if bytes.len() > BOB_KEY_SIZE && !bytes.iter().rev().skip(BOB_KEY_SIZE).all(|&b| b == 0) {
+    fn from_bytes(mut bytes: Vec<u8>) -> Result<Self, StatusExt> {
+        if bytes.len() > BOB_KEY_SIZE && !bytes.iter().skip(BOB_KEY_SIZE).all(|&b| b == 0) {
             return Err(bad_request("Key overflow"));
         }
-        let mut key = [0u8; BOB_KEY_SIZE];
-        key.iter_mut()
-            .rev()
-            .zip(bytes.iter().rev())
-            .for_each(|(a, b)| {
-                *a = *b;
-            });
-        Ok(Self(BobKey::from(key.to_vec())))
+        bytes.resize(BOB_KEY_SIZE, 0);
+        Ok(Self(bytes.into()))
     }
 
     fn from_guid(guid: &str) -> Result<Self, StatusExt> {
