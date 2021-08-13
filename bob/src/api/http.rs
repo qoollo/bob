@@ -1,4 +1,7 @@
 use crate::server::Server as BobServer;
+use crate::version_helpers::{
+    get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
+};
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk},
@@ -20,7 +23,6 @@ use std::{
     str::FromStr,
 };
 use tokio::fs::{read_dir, ReadDir};
-use crate::version_helpers::{get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version};
 
 mod s3;
 
@@ -211,7 +213,7 @@ async fn status(bob: &State<BobServer>) -> Json<Node> {
     let mapper = bob.grinder().backend().mapper();
     let name = mapper.local_node_name().to_owned();
     let address = mapper.local_node_address().to_owned();
-    let vdisks = collect_disks_info(&bob);
+    let vdisks = collect_disks_info(bob);
     let node = Node {
         name,
         address,
@@ -221,7 +223,7 @@ async fn status(bob: &State<BobServer>) -> Json<Node> {
 }
 
 #[get("/version")]
-fn version(_bob: State<BobServer>) -> Json<VersionInfo> {
+fn version(_bob: &State<BobServer>) -> Json<VersionInfo> {
     Json(VersionInfo {
         bob_version: Version {
             version: get_bob_version(),
@@ -238,7 +240,7 @@ fn version(_bob: State<BobServer>) -> Json<VersionInfo> {
 async fn nodes(bob: &State<BobServer>) -> Json<Vec<Node>> {
     let mapper = bob.grinder().backend().mapper();
     let mut nodes = vec![];
-    let vdisks = collect_disks_info(&bob);
+    let vdisks = collect_disks_info(bob);
     for node in mapper.nodes().values() {
         let vdisks: Vec<VDisk> = vdisks
             .iter()
@@ -363,7 +365,7 @@ async fn start_all_disk_controllers(
 
 #[get("/vdisks")]
 async fn vdisks(bob: &State<BobServer>) -> Json<Vec<VDisk>> {
-    let vdisks = collect_disks_info(&bob);
+    let vdisks = collect_disks_info(bob);
     Json(vdisks)
 }
 
@@ -380,7 +382,7 @@ async fn finalize_outdated_blobs(bob: &State<BobServer>) -> StatusExt {
 
 #[get("/vdisks/<vdisk_id>")]
 async fn vdisk_by_id(bob: &State<BobServer>, vdisk_id: u32) -> Option<Json<VDisk>> {
-    get_vdisk_by_id(&bob, vdisk_id).map(Json)
+    get_vdisk_by_id(bob, vdisk_id).map(Json)
 }
 
 #[get("/vdisks/<vdisk_id>/records/count")]
@@ -388,7 +390,7 @@ async fn vdisk_records_count(
     bob: &State<BobServer>,
     vdisk_id: u32,
 ) -> Result<Json<u64>, StatusExt> {
-    let group = find_group(&bob, vdisk_id).await?;
+    let group = find_group(bob, vdisk_id).await?;
     let holders = group.holders();
     let pearls = holders.read().await;
     let pearls: &[_] = pearls.as_ref();
@@ -404,7 +406,7 @@ async fn partitions(
     bob: &State<BobServer>,
     vdisk_id: u32,
 ) -> Result<Json<VDiskPartitions>, StatusExt> {
-    let group = find_group(&bob, vdisk_id).await?;
+    let group = find_group(bob, vdisk_id).await?;
     debug!("group with provided vdisk_id found");
     let holders = group.holders();
     let pearls = holders.read().await;
@@ -427,7 +429,7 @@ async fn partition_by_id(
     vdisk_id: u32,
     partition_id: String,
 ) -> Result<Json<Partition>, StatusExt> {
-    let group = find_group(&bob, vdisk_id).await?;
+    let group = find_group(bob, vdisk_id).await?;
     debug!("group with provided vdisk_id found");
     let holders = group.holders();
     debug!("get pearl holders: OK");
@@ -461,7 +463,7 @@ async fn change_partition_state(
     timestamp: u64,
     action: Action,
 ) -> Result<StatusExt, StatusExt> {
-    let group = find_group(&bob, vdisk_id).await?;
+    let group = find_group(bob, vdisk_id).await?;
     let res = format!(
         "partitions with timestamp {} on vdisk {} is successfully {:?}ed",
         timestamp, vdisk_id, action
@@ -484,7 +486,7 @@ async fn remount_vdisks_group(
     bob: &State<BobServer>,
     vdisk_id: u32,
 ) -> Result<StatusExt, StatusExt> {
-    let group = find_group(&bob, vdisk_id).await?;
+    let group = find_group(bob, vdisk_id).await?;
     match group.remount().await {
         Ok(_) => {
             info!("vdisks group {} successfully restarted", vdisk_id);
@@ -504,7 +506,7 @@ async fn delete_partition(
     vdisk_id: u32,
     timestamp: u64,
 ) -> Result<StatusExt, StatusExt> {
-    let group = find_group(&bob, vdisk_id).await?;
+    let group = find_group(bob, vdisk_id).await?;
     let pearls = group.detach(timestamp).await;
     if let Ok(holders) = pearls {
         drop_directories(holders, timestamp, vdisk_id).await
@@ -563,7 +565,7 @@ async fn get_local_replica_directories(
     bob: &State<BobServer>,
     vdisk_id: u32,
 ) -> Result<Json<Vec<Dir>>, StatusExt> {
-    let vdisk: VDisk = get_vdisk_by_id(&bob, vdisk_id).ok_or_else(|| {
+    let vdisk: VDisk = get_vdisk_by_id(bob, vdisk_id).ok_or_else(|| {
         StatusExt::new(
             Status::NotFound,
             false,

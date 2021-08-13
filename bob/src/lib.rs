@@ -8,8 +8,6 @@
 //! Library requires tokio runtime.
 
 #[macro_use]
-extern crate log;
-#[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate rocket;
@@ -28,6 +26,9 @@ pub mod link_manager;
 pub mod server;
 pub mod version_helpers;
 
+pub use crate::version_helpers::{
+    get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
+};
 pub use crate::{grinder::Grinder, server::Server as BobServer};
 pub use bob_common::{
     bob_client::Factory,
@@ -41,9 +42,6 @@ pub use bob_common::{
 pub use bob_grpc::{
     bob_api_client::BobApiClient, bob_api_server::BobApiServer, Blob, BlobKey, BlobMeta,
     ExistRequest, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
-};
-pub use crate::version_helpers::{
-    get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
 };
 
 mod prelude {
