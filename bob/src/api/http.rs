@@ -1,4 +1,7 @@
 use crate::server::Server as BobServer;
+use crate::version_helpers::{
+    get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
+};
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
@@ -94,9 +97,22 @@ pub(crate) struct DiskState {
 #[derive(Debug)]
 pub(crate) struct DataKey(BobKey);
 
+#[derive(Debug, Serialize)]
+pub(crate) struct Version {
+    version: String,
+    build_time: String,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct VersionInfo {
+    bob_version: Version,
+    pearl_version: Version,
+}
+
 pub(crate) fn spawn(bob: BobServer, port: u16) {
     let routes = routes![
         status,
+        version,
         vdisks,
         vdisk_by_id,
         partitions,
@@ -207,6 +223,20 @@ async fn status(bob: &State<BobServer>) -> Json<Node> {
         vdisks,
     };
     Json(node)
+}
+
+#[get("/version")]
+fn version(_bob: &State<BobServer>) -> Json<VersionInfo> {
+    Json(VersionInfo {
+        bob_version: Version {
+            version: get_bob_version(),
+            build_time: get_bob_build_time().to_string(),
+        },
+        pearl_version: Version {
+            version: get_pearl_version(),
+            build_time: get_pearl_build_time().to_string(),
+        },
+    })
 }
 
 #[get("/nodes")]
