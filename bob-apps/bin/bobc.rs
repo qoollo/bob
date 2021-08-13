@@ -102,7 +102,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .takes_value(true)
         .long("keysize")
         .short("k")
-        .default_value("8");
+        .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8"));
     let put_sc = SubCommand::with_name("put")
         .arg(&key_arg)
         .arg(size_arg)
