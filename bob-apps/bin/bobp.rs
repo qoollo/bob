@@ -743,7 +743,7 @@ fn get_matches() -> ArgMatches<'static> {
                 .takes_value(true)
                 .long("keysize")
                 .short("k")
-                .default_value("8"),
+                .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8")),
         )
         .get_matches()
 }
