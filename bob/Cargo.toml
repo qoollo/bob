@@ -41,8 +41,9 @@ tower = "0.4.3"
 tower-service = "0.3.0"
 
 [dependencies.pearl]
-git = "https://github.com/qoollo/pearl"
-branch = "106-extend-version"
+version = "=0.6.0"
+# git = "https://github.com/qoollo/pearl"
+# branch = "106-extend-version"
 
 [dependencies.tokio]
 version = "1.4"
