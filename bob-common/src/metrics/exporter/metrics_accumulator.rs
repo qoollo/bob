@@ -9,6 +9,8 @@ use super::{Metric, MetricInner, MetricKey, MetricValue, TimeStamp};
 
 const METRICS_RECV_TIMEOUT: Duration = Duration::from_millis(100);
 
+pub(crate) type SharedMetricsSnapshot = Arc<RwLock<MetricsSnapshot>>;
+
 #[derive(Default, Clone)]
 pub(crate) struct MetricsSnapshot {
     pub(crate) counters_map: HashMap<MetricKey, CounterEntry>,
@@ -29,6 +31,7 @@ impl MetricsSnapshot {
         self.gauges_map
             .insert(gauge.key, GaugeEntry::new(gauge.value, gauge.timestamp));
     }
+
     fn process_time(&mut self, time: MetricInner) {
         let entry = self
             .times_map
@@ -58,7 +61,7 @@ pub(crate) struct MetricsAccumulator {
     rx: Receiver<Metric>,
     interval: Duration,
     snapshot: MetricsSnapshot,
-    pub(crate) readable_snapshot: Arc<RwLock<MetricsSnapshot>>,
+    readable_snapshot: SharedMetricsSnapshot,
 }
 
 impl MetricsAccumulator {
@@ -91,6 +94,10 @@ impl MetricsAccumulator {
             let mut w = self.readable_snapshot.write().await;
             *w = self.snapshot.update_and_get_moment_snapshot();
         }
+    }
+
+    pub(crate) fn get_shared_snapshot(&self) -> SharedMetricsSnapshot {
+        self.readable_snapshot.clone()
     }
 }
 

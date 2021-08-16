@@ -1,6 +1,10 @@
+use crate::metrics::exporter::metrics_accumulator::MetricsAccumulator;
+use crate::metrics::exporter::metrics_accumulator::MetricsSnapshot;
 use metrics::{Key, Recorder, SetRecorderError};
+use std::sync::Arc;
 use std::{io::Error as IOError, time::Duration};
 use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::RwLock;
 
 pub(super) mod metrics_accumulator;
 mod retry_socket;
@@ -56,7 +60,7 @@ impl MetricInner {
     }
 }
 
-pub(crate) struct GraphiteRecorder {
+pub(crate) struct MetricsRecorder {
     tx: Sender<Metric>,
 }
 
@@ -90,20 +94,29 @@ impl GraphiteBuilder {
         self
     }
 
-    pub(crate) fn install(self) -> Result<(), SetRecorderError> {
-        let recorder = self.build();
-        metrics::set_boxed_recorder(Box::new(recorder))
+    pub(crate) fn install(self) -> Result<Arc<RwLock<MetricsSnapshot>>, SetRecorderError> {
+        let (recorder, metrics) = self.build();
+        metrics::set_boxed_recorder(Box::new(recorder))?;
+        Ok(metrics)
     }
 
-    pub(crate) fn build(self) -> GraphiteRecorder {
+    pub(crate) fn build(self) -> (MetricsRecorder, Arc<RwLock<MetricsSnapshot>>) {
         let (tx, rx) = channel(BUFFER_SIZE);
-        let recorder = GraphiteRecorder { tx };
-        tokio::spawn(send_metrics(rx, self.address, self.interval, self.prefix));
-        recorder
+        let recorder = MetricsRecorder { tx };
+        let accumulator = MetricsAccumulator::new(rx, self.interval);
+        let metrics = accumulator.get_shared_snapshot();
+        tokio::spawn(accumulator.run());
+        tokio::spawn(send_metrics(
+            metrics.clone(),
+            self.address,
+            self.interval,
+            self.prefix,
+        ));
+        (recorder, metrics)
     }
 }
 
-impl GraphiteRecorder {
+impl MetricsRecorder {
     fn push_metric(&self, m: Metric) {
         if let Err(e) = self.tx.try_send(m) {
             error!(
@@ -114,7 +127,7 @@ impl GraphiteRecorder {
     }
 }
 
-impl Recorder for GraphiteRecorder {
+impl Recorder for MetricsRecorder {
     fn increment_counter(&self, key: Key, value: u64) {
         self.push_metric(Metric::Counter(MetricInner::new(
             key.name().into_owned(),
