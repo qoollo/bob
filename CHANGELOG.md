@@ -12,7 +12,7 @@ Bob versions changelog
 #### Updated
 
 
-## [1.7.0] - 2021-08-13
+## [2.0.0-alpha.1] - 2021-08-16
 #### Added
 - Add api method to start disk (#182)
 - Rest api for data (#187)
