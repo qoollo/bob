@@ -2,6 +2,7 @@ use metrics::{Key, Recorder, SetRecorderError};
 use std::{io::Error as IOError, time::Duration};
 use tokio::sync::mpsc::{channel, Sender};
 
+pub(super) mod metrics_accumulator;
 mod retry_socket;
 mod send;
 use send::send_metrics;
