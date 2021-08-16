@@ -1,4 +1,3 @@
-use log::{debug, trace};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -41,7 +40,7 @@ impl MetricsSnapshot {
     }
 
     fn update_and_get_moment_snapshot(&mut self) -> Self {
-        for (k, entry) in self.times_map.iter_mut() {
+        for (_, entry) in self.times_map.iter_mut() {
             let mean_time = match entry.measurements_amount {
                 0 => entry.mean.expect("No mean time provided"),
                 val => entry.summary_time / val,

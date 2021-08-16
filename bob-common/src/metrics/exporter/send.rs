@@ -6,12 +6,10 @@ use log::{debug, trace};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::mpsc::Receiver;
-use tokio::time::{interval, timeout};
+use tokio::time::interval;
 
 use super::retry_socket::RetrySocket;
-use super::{Metric, MetricInner, MetricKey, MetricValue, TimeStamp};
-
-const METRICS_RECV_TIMEOUT: Duration = Duration::from_millis(100);
+use super::{Metric, MetricKey};
 
 // this function runs in other thread, so it would be better if it will take control of arguments
 // themselves, not just references
