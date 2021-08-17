@@ -3,21 +3,24 @@ use tokio::{runtime::Handle, task::block_in_place};
 use crate::prelude::*;
 
 use super::grinder::Grinder;
+use bob_common::metrics::SharedMetricsSnapshot;
 
 /// Struct contains `Grinder` and receives incomming GRPC requests
 #[derive(Clone, Debug)]
 pub struct Server {
     handle: Handle,
     grinder: Arc<Grinder>,
+    shared_metrics: SharedMetricsSnapshot,
 }
 
 impl Server {
     /// Creates new bob server
     #[must_use]
-    pub fn new(grinder: Grinder, handle: Handle) -> Self {
+    pub fn new(grinder: Grinder, handle: Handle, shared_metrics: SharedMetricsSnapshot) -> Self {
         Self {
             handle,
             grinder: Arc::new(grinder),
+            shared_metrics,
         }
     }
 
@@ -27,6 +30,10 @@ impl Server {
 
     pub(crate) fn grinder(&self) -> &Grinder {
         self.grinder.as_ref()
+    }
+
+    pub(crate) fn metrics(&self) -> &SharedMetricsSnapshot {
+        &self.shared_metrics
     }
 
     /// Call to run HTTP API server, not required for normal functioning

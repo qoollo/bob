@@ -47,10 +47,10 @@ async fn main() {
         addr = finded.address().to_socket_addrs().unwrap().next().unwrap();
     }
 
-    let metrics = init_counters(&node, &addr.to_string());
+    let (metrics, shared_metrics) = init_counters(&node, &addr.to_string());
 
     let handle = Handle::current();
-    let bob = BobServer::new(Grinder::new(mapper, &node).await, handle);
+    let bob = BobServer::new(Grinder::new(mapper, &node).await, handle, shared_metrics);
 
     info!("Start backend");
     bob.run_backend().await.unwrap();

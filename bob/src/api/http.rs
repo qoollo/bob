@@ -114,7 +114,8 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         vdisk_records_count,
         distribution_function,
         get_data,
-        put_data
+        put_data,
+        metrics
     ];
     let task = async move {
         info!("API server started");
@@ -207,6 +208,22 @@ fn status(bob: State<BobServer>) -> Json<Node> {
         vdisks,
     };
     Json(node)
+}
+
+#[get("/metrics")]
+fn metrics(bob: State<BobServer>) -> Json<Vec<(String, String)>> {
+    let mut res = vec![];
+    let metrics = bob.block_on(bob.metrics().read());
+    for (k, v) in &metrics.counters_map {
+        res.push((format!("{:?}", k), format!("{:?}", v)));
+    }
+    for (k, v) in &metrics.gauges_map {
+        res.push((format!("{:?}", k), format!("{:?}", v)));
+    }
+    for (k, v) in &metrics.times_map {
+        res.push((format!("{:?}", k), format!("{:?}", v)));
+    }
+    Json(res)
 }
 
 #[get("/nodes")]

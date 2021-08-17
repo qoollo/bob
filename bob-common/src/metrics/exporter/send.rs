@@ -1,14 +1,11 @@
-use crate::metrics::exporter::metrics_accumulator::CounterEntry;
-use crate::metrics::exporter::metrics_accumulator::GaugeEntry;
-use crate::metrics::exporter::metrics_accumulator::SharedMetricsSnapshot;
-use crate::metrics::exporter::metrics_accumulator::TimeEntry;
+use crate::metrics::snapshot::{CounterEntry, GaugeEntry, MetricKey, TimeEntry};
+use crate::metrics::SharedMetricsSnapshot;
 use log::{debug, trace};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::interval;
 
 use super::retry_socket::RetrySocket;
-use super::MetricKey;
 
 // this function runs in other thread, so it would be better if it will take control of arguments
 // themselves, not just references
@@ -19,9 +16,6 @@ pub(super) async fn send_metrics(
     send_interval: Duration,
     prefix: String,
 ) {
-    // let accumulator = MetricsAccumulator::new(rx, send_interval);
-    // let readable = accumulator.readable_snapshot.clone();
-    // tokio::spawn(accumulator.run());
     let mut socket =
         RetrySocket::new(address.parse().expect("Can't read address from String")).await;
     let mut send_interval = interval(send_interval);

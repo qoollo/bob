@@ -1,15 +1,13 @@
-use crate::metrics::exporter::metrics_accumulator::MetricsAccumulator;
-use crate::metrics::exporter::metrics_accumulator::MetricsSnapshot;
+use crate::metrics::accumulator::MetricsAccumulator;
+use crate::metrics::snapshot::{Metric, MetricInner};
+use crate::metrics::SharedMetricsSnapshot;
 use metrics::{Key, Recorder, SetRecorderError};
-use std::sync::Arc;
+use send::send_metrics;
 use std::{io::Error as IOError, time::Duration};
 use tokio::sync::mpsc::{channel, Sender};
-use tokio::sync::RwLock;
 
-pub(super) mod metrics_accumulator;
 mod retry_socket;
 mod send;
-use send::send_metrics;
 
 const DEFAULT_ADDRESS: &str = "127.0.0.1:2003";
 const DEFAULT_PREFIX: &str = "node.127_0_0_1";
@@ -31,32 +29,6 @@ impl From<IOError> for Error {
 impl From<SetRecorderError> for Error {
     fn from(e: SetRecorderError) -> Self {
         Error::Recorder(e)
-    }
-}
-
-enum Metric {
-    Gauge(MetricInner),
-    Counter(MetricInner),
-    Time(MetricInner),
-}
-
-type MetricKey = String;
-type TimeStamp = i64;
-type MetricValue = u64;
-
-struct MetricInner {
-    key: MetricKey,
-    value: MetricValue,
-    timestamp: TimeStamp,
-}
-
-impl MetricInner {
-    fn new(key: MetricKey, value: MetricValue, timestamp: TimeStamp) -> MetricInner {
-        MetricInner {
-            key,
-            value,
-            timestamp,
-        }
     }
 }
 
@@ -94,25 +66,30 @@ impl GraphiteBuilder {
         self
     }
 
-    pub(crate) fn install(self) -> Result<Arc<RwLock<MetricsSnapshot>>, SetRecorderError> {
-        let (recorder, metrics) = self.build();
+    pub(crate) fn install(self) -> Result<SharedMetricsSnapshot, SetRecorderError> {
+        let (recorder, shared) = self.build();
         metrics::set_boxed_recorder(Box::new(recorder))?;
-        Ok(metrics)
+        Ok(shared)
     }
 
-    pub(crate) fn build(self) -> (MetricsRecorder, Arc<RwLock<MetricsSnapshot>>) {
-        let (tx, rx) = channel(BUFFER_SIZE);
-        let recorder = MetricsRecorder { tx };
-        let accumulator = MetricsAccumulator::new(rx, self.interval);
-        let metrics = accumulator.get_shared_snapshot();
+    pub(crate) fn build(self) -> (MetricsRecorder, SharedMetricsSnapshot) {
+        let (recorder, accumulator) = self.create_recorder_accumulator();
+        let shared = accumulator.get_shared_snapshot();
         tokio::spawn(accumulator.run());
         tokio::spawn(send_metrics(
-            metrics.clone(),
+            shared.clone(),
             self.address,
             self.interval,
             self.prefix,
         ));
-        (recorder, metrics)
+        (recorder, shared)
+    }
+
+    pub(crate) fn create_recorder_accumulator(&self) -> (MetricsRecorder, MetricsAccumulator) {
+        let (tx, rx) = channel(BUFFER_SIZE);
+        let recorder = MetricsRecorder { tx };
+        let accumulator = MetricsAccumulator::new(rx, self.interval);
+        (recorder, accumulator)
     }
 }
 
