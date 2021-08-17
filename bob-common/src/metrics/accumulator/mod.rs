@@ -40,8 +40,8 @@ impl MetricsAccumulator {
                 }
             }
 
-            let mut w = self.readable_snapshot.write().await;
-            *w = self.snapshot.update_and_get_moment_snapshot();
+            let s = self.snapshot.update_and_get_moment_snapshot();
+            *self.readable_snapshot.write().await = s;
         }
     }
 
