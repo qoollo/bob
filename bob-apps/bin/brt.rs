@@ -288,7 +288,7 @@ fn try_main() -> AnyResult<()> {
 }
 
 fn validate_bytes(a: &[u8], checksum: u32) -> AnyResult<()> {
-    let actual_checksum = crc32(&a);
+    let actual_checksum = crc32(a);
     if actual_checksum != checksum {
         return Err(ValidationError(format!(
             "wrong data checksum: '{}' != '{}'",
