@@ -5,6 +5,10 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 
+- Prometheus metrics exporter ([#240](https://github.com/qoollo/bob/pull/251))
+- Rate metrics ([#242](https://github.com/qoollo/bob/pull/251))
+- Global exporter is used, different exporters may be load conditionally ([No issue](https://github.com/qoollo/bob/pull/251))
+
 #### Changed
 
 #### Fixed
