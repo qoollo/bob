@@ -13,6 +13,8 @@ Bob versions changelog
 
 #### Fixed
 
+- Add brt to dockerfiles (https://github.com/qoollo/bob/pull/296)
+
 #### Updated
 
 
