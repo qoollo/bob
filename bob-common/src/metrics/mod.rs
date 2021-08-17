@@ -1,12 +1,15 @@
 use crate::configs::node::{Node as NodeConfig, LOCAL_ADDRESS, METRICS_NAME, NODE_NAME};
 use pearl::init_pearl;
+pub use snapshot::SharedMetricsSnapshot;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
 
-mod exporter;
+pub mod accumulator;
+pub mod exporter;
 pub mod pearl;
+pub mod snapshot;
 
 /// Counts number of PUT requests, processed by Grinder
 pub const GRINDER_PUT_COUNTER: &str = "grinder.put_count";
@@ -159,16 +162,20 @@ impl ContainerBuilder for MetricsContainer {
 }
 
 /// initializes bob counters with given config and address of the local node
+/// returns metrics and readable metrics snapshot
 pub fn init_counters(
     node_config: &NodeConfig,
     local_address: &str,
-) -> Arc<dyn ContainerBuilder + Send + Sync> {
+) -> (
+    Arc<dyn ContainerBuilder + Send + Sync>,
+    SharedMetricsSnapshot,
+) {
     let prefix_pattern = node_config
         .metrics()
         .prefix()
         .map_or(format!("{}.{}", NODE_NAME, LOCAL_ADDRESS), str::to_owned);
     let prefix = resolve_prefix_pattern(prefix_pattern, node_config, local_address);
-    exporter::GraphiteBuilder::new()
+    let shared = exporter::GraphiteBuilder::new()
         .set_address(node_config.metrics().graphite().to_string())
         .set_interval(Duration::from_secs(1))
         .set_prefix(prefix)
@@ -184,7 +191,7 @@ pub fn init_counters(
     init_backend();
     init_link_manager();
     init_pearl();
-    metrics
+    (metrics, shared)
 }
 
 fn resolve_prefix_pattern(

@@ -3,21 +3,24 @@ use tokio::{runtime::Handle, task::block_in_place};
 use crate::prelude::*;
 
 use super::grinder::Grinder;
+use bob_common::metrics::SharedMetricsSnapshot;
 
 /// Struct contains `Grinder` and receives incomming GRPC requests
 #[derive(Clone, Debug)]
 pub struct Server {
     handle: Handle,
     grinder: Arc<Grinder>,
+    shared_metrics: SharedMetricsSnapshot,
 }
 
 impl Server {
     /// Creates new bob server
     #[must_use]
-    pub fn new(grinder: Grinder, handle: Handle) -> Self {
+    pub fn new(grinder: Grinder, handle: Handle, shared_metrics: SharedMetricsSnapshot) -> Self {
         Self {
             handle,
             grinder: Arc::new(grinder),
+            shared_metrics,
         }
     }
 
@@ -27,6 +30,10 @@ impl Server {
 
     pub(crate) fn grinder(&self) -> &Grinder {
         self.grinder.as_ref()
+    }
+
+    pub(crate) fn metrics(&self) -> &SharedMetricsSnapshot {
+        &self.shared_metrics
     }
 
     /// Call to run HTTP API server, not required for normal functioning
@@ -58,18 +65,18 @@ impl Server {
     }
 }
 
-fn put_extract(req: PutRequest) -> Option<(u64, Vec<u8>, u64, Option<PutOptions>)> {
+fn put_extract(req: PutRequest) -> Option<(BobKey, Vec<u8>, u64, Option<PutOptions>)> {
     let key = req.key?.key;
     let blob = req.data?;
     let timestamp = blob.meta.as_ref()?.timestamp;
     let options = req.options;
-    Some((key, blob.data, timestamp, options))
+    Some((key.into(), blob.data, timestamp, options))
 }
 
-fn get_extract(req: GetRequest) -> Option<(u64, Option<GetOptions>)> {
+fn get_extract(req: GetRequest) -> Option<(BobKey, Option<GetOptions>)> {
     let key = req.key?.key;
     let options = req.options;
-    Some((key, options))
+    Some((key.into(), options))
 }
 
 type ApiResult<T> = Result<Response<T>, Status>;
@@ -189,8 +196,9 @@ impl BobApi for Server {
     async fn exist(&self, req: Request<ExistRequest>) -> ApiResult<ExistResponse> {
         let sw = Stopwatch::start_new();
         let req = req.into_inner();
-        let keys = req.keys.iter().map(|k| k.key).collect::<Vec<_>>();
-        let options = BobOptions::new_get(req.options);
+        let ExistRequest { keys, options } = req;
+        let keys = keys.into_iter().map(|k| k.key.into()).collect::<Vec<_>>();
+        let options = BobOptions::new_get(options);
         let exist = self
             .grinder
             .exist(&keys, &options)

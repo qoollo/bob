@@ -11,18 +11,41 @@ Bob versions changelog
 - Add Amazon S3 GetObject and PutObject api ([#193](https://github.com/qoollo/bob/pull/193))
 - Add tool for blob recovery (brt) ([#205](https://github.com/qoollo/bob/pull/205))
 - Add racks support to CCG ([#186](https://github.com/qoollo/bob/pull/186))
-- Add bind ip address to config ([#270](https://github.com/qoollo/bob/pull/270))
+- Add variable key size ([#133](https://github.com/qoollo/bob/pull/207))
+- Support for different key sizes in REST API ([#228](http://github.com/qoollo/bob/pull/228))
 
 #### Changed
-- rename bob-tools, remove redundant versions of workspace deps ([#220](https://github.com/qoollo/bob/pull/220))
-- add DiskEventsLogger error ([#230](https://github.com/qoollo/bob/pull/230))
-- add methods for data to REST API specification ([#234](https://github.com/qoollo/bob/pull/234))
-- Update Rocket to 0.5 ([#233](https://github.com/qoollo/bob/pull/233))
 
 #### Fixed
-- Fix backend storage trait object safety issue ([#197](https://github.com/qoollo/bob/pull/197))
-- Fix dockerfiles ([#203](https://github.com/qoollo/bob/pull/203))
-- Fix connectivity issues in Docker Swarm (use 0.0.0.0 in some cases) ([#270](https://github.com/qoollo/bob/pull/270))
+
+#### Updated
+
+
+## [2.0.0-alpha.1] - 2021-08-16
+#### Added
+- Add api method to start disk (#182)
+- Rest api for data (#187)
+- Add bloom filter buffer size to config (#218)
+- Setup build with GitHub actions (#266)
+- Add Amazon S3 GetObject and PutObject api (#193)
+- Add tool for blob recovery (brt) (#205)
+- Add racks support to CCG (#186)
+- Add bind ip address to config (#270)
+- Add variable key size (#133)
+- Support for different key sizes in REST API (#228)
+
+#### Changed
+- rename bob-tools, remove redundant versions of workspace deps (#220)
+- add DiskEventsLogger error (#230)
+- add methods for data to REST API specification (#234)
+- Update Rocket to 0.5 (#233)
+- Extend bob version (#247)
+
+#### Fixed
+- Fix backend storage trait object safety issue (#197)
+- Fix dockerfiles (#203)
+- Fix connectivity issues in Docker Swarm (use 0.0.0.0 in some cases) (#270)
+- Fix metrics gaps in graphite (#274)
 
 
 ## [1.6.1] - 2021-04-14

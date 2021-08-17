@@ -1,4 +1,7 @@
-use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper};
+use bob::{
+    version_helpers::{get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version},
+    init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper,
+};
 use clap::{App, Arg, ArgMatches};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::runtime::Handle;
@@ -73,10 +76,10 @@ async fn main() {
     }
     warn!("Start listening on: {:?}", addr);
 
-    let metrics = init_counters(&node, &addr.to_string());
+    let (metrics, shared_metrics) = init_counters(&node, &addr.to_string());
 
     let handle = Handle::current();
-    let bob = BobServer::new(Grinder::new(mapper, &node).await, handle);
+    let bob = BobServer::new(Grinder::new(mapper, &node).await, handle, shared_metrics);
 
     info!("Start backend");
     bob.run_backend().await.unwrap();
@@ -137,7 +140,16 @@ fn spawn_signal_handler(
 
 fn get_matches<'a>() -> ArgMatches<'a> {
     App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
+        .version(
+            format!(
+                "{}, built on {}, (pearl {}, built on {})",
+                get_bob_version(),
+                get_bob_build_time(),
+                get_pearl_version(),
+                get_pearl_build_time(),
+            )
+            .as_str(),
+        )
         .arg(
             Arg::with_name("cluster")
                 .help("cluster config file")
