@@ -4,8 +4,9 @@ use log::trace;
 use std::collections::HashMap;
 
 use super::retry_socket::RetrySocket;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::time::interval;
 
 const TCP_SENDER_BUFFER_SIZE: usize = 1024;
 
@@ -15,17 +16,13 @@ const TCP_SENDER_BUFFER_SIZE: usize = 1024;
 pub(super) async fn send_metrics(
     metrics: SharedMetricsSnapshot,
     address: String,
-    send_interval: Duration,
+    check_interval: Duration,
     prefix: String,
 ) {
     let socket_sender = spawn_tcp_sender_task(address).await;
-
+    let mut interval = interval(check_interval);
     loop {
-        let next_flush = Instant::now() + send_interval;
-        let mut current_time = Instant::now();
-        while current_time < next_flush {
-            current_time = Instant::now();
-        }
+        interval.tick().await;
         let mut res_string = String::new();
         let ts = chrono::Local::now().timestamp();
         let l = metrics.read().await;
