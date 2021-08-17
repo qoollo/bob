@@ -4,15 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Add api method to start disk ([#182](https://github.com/qoollo/bob/pull/182))
-- Rest api for data ([#187](https://github.com/qoollo/bob/pull/187))
-- Add bloom filter buffer size to config ([#218](https://github.com/qoollo/bob/pull/218))
-- Setup build with GitHub actions ([#266](https://github.com/qoollo/bob/pull/273))
-- Add Amazon S3 GetObject and PutObject api ([#193](https://github.com/qoollo/bob/pull/193))
-- Add tool for blob recovery (brt) ([#205](https://github.com/qoollo/bob/pull/205))
-- Add racks support to CCG ([#186](https://github.com/qoollo/bob/pull/186))
-- Add variable key size ([#133](https://github.com/qoollo/bob/pull/207))
-- Support for different key sizes in REST API ([#228](http://github.com/qoollo/bob/pull/228))
+- Add REST API metrics (#255)
 
 #### Changed
 
