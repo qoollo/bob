@@ -1,7 +1,7 @@
 use crate::metrics::accumulator::MetricsAccumulator;
 use crate::metrics::snapshot::{Metric, MetricInner};
 use crate::metrics::SharedMetricsSnapshot;
-use metrics::{Key, Recorder, SetRecorderError};
+use metrics::{GaugeValue, Key, Recorder, SetRecorderError};
 use send::send_metrics;
 use std::{io::Error as IOError, time::Duration};
 use tokio::sync::mpsc::{channel, Sender};
@@ -104,28 +104,62 @@ impl MetricsRecorder {
     }
 }
 
+// TODO: impl recorder in proper way
 impl Recorder for MetricsRecorder {
-    fn increment_counter(&self, key: Key, value: u64) {
+    fn register_gauge(
+        &self,
+        key: &Key,
+        _unit: Option<metrics::Unit>,
+        _description: Option<&'static str>,
+    ) {
+        self.update_gauge(key, GaugeValue::Absolute(0f64));
+    }
+
+    fn register_counter(
+        &self,
+        key: &Key,
+        _unit: Option<metrics::Unit>,
+        _description: Option<&'static str>,
+    ) {
+        self.increment_counter(key, 0);
+    }
+
+    fn register_histogram(
+        &self,
+        key: &Key,
+        _unit: Option<metrics::Unit>,
+        _description: Option<&'static str>,
+    ) {
+        self.record_histogram(key, 0f64);
+    }
+
+    fn increment_counter(&self, key: &Key, value: u64) {
         self.push_metric(Metric::Counter(MetricInner::new(
-            key.name().into_owned(),
+            key.name().to_owned(),
             value,
             -1,
         )));
     }
 
     #[allow(clippy::cast_sign_loss)]
-    fn update_gauge(&self, key: Key, value: i64) {
+    fn update_gauge(&self, key: &Key, value: GaugeValue) {
+        let val = if let GaugeValue::Absolute(val) = value {
+            val
+        } else {
+            error!("Diffs are not supported at the moment");
+            return;
+        };
         self.push_metric(Metric::Gauge(MetricInner::new(
-            key.name().into_owned(),
-            value as u64,
+            key.name().to_owned(),
+            val as u64,
             -1,
         )));
     }
 
-    fn record_histogram(&self, key: Key, value: u64) {
+    fn record_histogram(&self, key: &Key, value: f64) {
         self.push_metric(Metric::Time(MetricInner::new(
-            key.name().into_owned(),
-            value,
+            key.name().to_owned(),
+            value as u64,
             -1,
         )));
     }

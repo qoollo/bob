@@ -6,9 +6,15 @@ Bob versions changelog
 #### Added
 - Add REST API metrics (#255)
 
+- Prometheus metrics exporter ([#240](https://github.com/qoollo/bob/pull/251))
+- Rate metrics ([#242](https://github.com/qoollo/bob/pull/251))
+- Global exporter is used, different exporters may be load conditionally ([No issue](https://github.com/qoollo/bob/pull/251))
+
 #### Changed
 
 #### Fixed
+
+- Add brt to dockerfiles (https://github.com/qoollo/bob/pull/296)
 
 #### Updated
 
