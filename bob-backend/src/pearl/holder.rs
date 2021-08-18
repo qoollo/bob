@@ -128,9 +128,19 @@ impl Holder {
             .as_secs()
     }
 
-    pub async fn close_active_blob(&mut self) {
-        let storage = self.storage.write().await;
-        storage.storage().close_active_blob().await;
+    pub async fn close_active_blob(&self) {
+        let storage = self.storage.read().await;
+        // NOTE: during active blob dump (no matter sync or async close) Pearl (~Holder) storage is
+        // partly blocked in the same way, the only difference is:
+        // 1 [sync case]. Operations will be done one by one, so only one holder would be blocked
+        //   at every moment (cleaner will work longer + if there would be a query for not existing
+        //   records (so all holders should be checked) bob will be able to fetch records only
+        //   between one by one active blob dump queue, because at every moment one holder will be
+        //   blocked)
+        // 2 [async case]. Operations will be done concurrently, so more holders would be blocked
+        //   at every moment, but the whole operation will be performed faster (but remember about
+        //   disk_sem and other things, which may slow down this concurrent dump)
+        storage.storage().close_active_blob_async().await;
         warn!("Active blob of {} closed", self.get_id());
     }
 

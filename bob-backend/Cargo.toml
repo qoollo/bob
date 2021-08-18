@@ -36,7 +36,10 @@ tower = "0.4.3"
 tower-service = "0.3.0"
 
 [dependencies.pearl]
-version = "=0.6.1"
+#FIXME: change on Pearl version, when it will be released
+git = "https://github.com/qoollo/pearl"
+branch = "117-optional-active-blob"
+#version = "=0.6.1"
 #metrics = "0.12.1"
 
 [dependencies.tokio]
