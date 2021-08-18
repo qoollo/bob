@@ -8,6 +8,7 @@ Bob versions changelog
 - Prometheus metrics exporter ([#240](https://github.com/qoollo/bob/pull/251))
 - Rate metrics ([#242](https://github.com/qoollo/bob/pull/251))
 - Global exporter is used, different exporters may be load conditionally ([No issue](https://github.com/qoollo/bob/pull/251))
+- Add log file rotation to logger.yaml in examples ([#289](https://github.com/qoollo/bob/pull/297))
 
 #### Changed
 
