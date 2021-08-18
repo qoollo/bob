@@ -6,6 +6,7 @@ Bob versions changelog
 #### Added
 
 #### Changed
+- Cleaner closes blobs instead of update ([#285](https://github.com/qoollo/bob/pull/300))
 
 #### Fixed
 
