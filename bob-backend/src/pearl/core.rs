@@ -196,4 +196,21 @@ impl BackendStorage for Pearl {
             dc.close_unneeded_active_blobs(soft, hard).await;
         }
     }
+
+    async fn offload_old_filters(&self, limit: usize) {
+        let limit = limit / (self.disk_controllers.len() + 1);
+        for dc in self.disk_controllers.iter() {
+            dc.offload_old_filters(limit).await;
+        }
+        self.alien_disk_controller.offload_old_filters(limit).await;
+    }
+
+    async fn filter_memory_allocated(&self) -> usize {
+        let mut memory = 0;
+        for dc in self.disk_controllers.iter() {
+            memory += dc.filter_memory_allocated().await;
+        }
+        memory += self.alien_disk_controller.filter_memory_allocated().await;
+        memory
+    }
 }

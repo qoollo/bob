@@ -27,6 +27,7 @@ impl Grinder {
             config.cleanup_interval(),
             config.open_blobs_soft(),
             config.hard_open_blobs(),
+            config.filter_memory_limit(),
         );
         let cleaner = Arc::new(cleaner);
 

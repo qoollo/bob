@@ -448,6 +448,32 @@ impl Group {
             _ => x.end_timestamp().cmp(&y.end_timestamp()),
         });
     }
+
+    pub(crate) async fn offload_old_filters(&self, limit: usize) {
+        let holders_lock = self.holders();
+        let mut holders = holders_lock.write().await;
+
+        let mut holders_size = vec![];
+        for h in holders.iter_mut() {
+            holders_size.push((h.filter_memory_allocated().await, h));
+        }
+        holders_size.sort_by(|a, b| b.1.end_timestamp().cmp(&a.1.end_timestamp()));
+        let mut cum_size = 0;
+        for (size, holder) in holders_size {
+            cum_size += size;
+            if cum_size > limit {
+                holder.offload_filter().await;
+            }
+        }
+    }
+
+    pub(crate) async fn filter_memory_allocated(&self) -> usize {
+        let mut memory = 0;
+        for holder in self.holders().read().await.iter() {
+            memory += holder.filter_memory_allocated().await;
+        }
+        memory
+    }
 }
 
 lazy_static! {

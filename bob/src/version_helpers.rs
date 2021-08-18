@@ -1,4 +1,3 @@
-
 pub fn get_bob_version() -> String {
     format!(
         "{}-{}",
@@ -12,9 +11,11 @@ pub fn get_bob_build_time() -> &'static str {
 }
 
 pub fn get_pearl_version() -> String {
-    pearl::get_pearl_version()
+    //pearl::get_pearl_version()
+    "pearl".into()
 }
 
 pub fn get_pearl_build_time() -> &'static str {
-    pearl::get_pearl_build_time()
+    //pearl::get_pearl_build_time()
+    "time"
 }

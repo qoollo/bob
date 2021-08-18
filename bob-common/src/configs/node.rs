@@ -452,6 +452,7 @@ pub struct Node {
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
+    filter_memory_limit: Option<usize>,
     #[serde(default = "Node::default_init_par_degree")]
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
@@ -592,6 +593,10 @@ impl NodeConfig {
             .unwrap_or(10)
     }
 
+    pub fn filter_memory_limit(&self) -> Option<usize> {
+        self.filter_memory_limit
+    }
+
     #[inline]
     pub fn init_par_degree(&self) -> usize {
         self.init_par_degree
@@ -712,6 +717,7 @@ pub mod tests {
             disk_access_par_degree: 1,
             count_interval: "10000ms".to_string(),
             bind_to_ip_address: None,
+            filter_memory_limit: None,
         }
     }
 }

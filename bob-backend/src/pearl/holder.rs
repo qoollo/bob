@@ -134,6 +134,17 @@ impl Holder {
         warn!("Active blob of {} closed", self.get_id());
     }
 
+    pub async fn offload_filter(&self) {
+        let storage = self.storage.write().await;
+        storage.storage().offload_bloom().await;
+        debug!("Offload bloom filter of {}", self.get_id());
+    }
+
+    pub async fn filter_memory_allocated(&self) -> usize {
+        let storage = self.storage.read().await;
+        storage.storage().filter_memory_allocated().await
+    }
+
     pub async fn update(&self, storage: Storage<Key>) {
         let mut st = self.storage.write().await;
         st.set(storage.clone());
