@@ -1,23 +1,24 @@
-use crate::configs::node::{Node as NodeConfig, LOCAL_ADDRESS, METRICS_NAME, NODE_NAME};
+use crate::{
+    configs::node::{Node as NodeConfig, LOCAL_ADDRESS, METRICS_NAME, NODE_NAME},
+    metrics::collector::establish_global_collector,
+};
 use metrics::{register_counter, Recorder};
 use metrics_exporter_prometheus::PrometheusRecorder;
 use metrics_util::MetricKindMask;
 use pearl::init_pearl;
-pub use snapshot::SharedMetricsSnapshot;
 use std::{
     net::SocketAddr,
     sync::Arc,
     time::{Duration, Instant},
 };
 
-pub mod accumulator;
+pub mod collector;
 mod exporters;
 pub mod pearl;
-pub mod snapshot;
 
 use exporters::global_exporter::GlobalRecorder;
 
-use self::exporters::graphite_exporter::MetricsRecorder;
+pub use self::collector::SharedMetricsSnapshot;
 
 /// Counts number of PUT requests, processed by Grinder
 pub const GRINDER_PUT_COUNTER: &str = "grinder.put_count";
@@ -214,11 +215,12 @@ fn init_link_manager() {
 }
 
 fn install_global(node_config: &NodeConfig, local_address: &str) -> SharedMetricsSnapshot {
-    let (graphite_rec, shared) = build_graphite(node_config, local_address);
+    let (recorder, metrics) = establish_global_collector(Duration::from_secs(1));
+    build_graphite(node_config, local_address, metrics.clone());
     let prometheus_rec = build_prometheus();
-    let recorders: Vec<Box<dyn Recorder>> = vec![Box::new(graphite_rec), Box::new(prometheus_rec)];
+    let recorders: Vec<Box<dyn Recorder>> = vec![Box::new(recorder), Box::new(prometheus_rec)];
     install_global_recorder(recorders);
-    shared
+    metrics
 }
 
 fn install_global_recorder(recorders: Vec<Box<dyn Recorder>>) {
@@ -265,14 +267,12 @@ fn resolve_prefix_pattern(
 
 #[allow(unused)]
 fn install_graphite(node_config: &NodeConfig, local_address: &str) {
-    let (recorder, shared) = build_graphite(node_config, local_address);
+    let (recorder, metrics) = establish_global_collector(Duration::from_secs(1));
+    build_graphite(node_config, local_address, metrics);
     metrics::set_boxed_recorder(Box::new(recorder)).expect("Can't set graphite recorder");
 }
 
-fn build_graphite(
-    node_config: &NodeConfig,
-    local_address: &str,
-) -> (MetricsRecorder, SharedMetricsSnapshot) {
+fn build_graphite(node_config: &NodeConfig, local_address: &str, metrics: SharedMetricsSnapshot) {
     let prefix_pattern = node_config
         .metrics()
         .prefix()
@@ -282,5 +282,5 @@ fn build_graphite(
         .set_address(node_config.metrics().graphite().to_string())
         .set_interval(Duration::from_secs(1))
         .set_prefix(prefix)
-        .build()
+        .build(metrics);
 }

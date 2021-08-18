@@ -1,4 +1,4 @@
-use crate::metrics::snapshot::{CounterEntry, GaugeEntry, MetricKey, TimeEntry};
+use crate::metrics::collector::snapshot::{CounterEntry, GaugeEntry, MetricKey, TimeEntry};
 use crate::metrics::SharedMetricsSnapshot;
 use log::trace;
 use std::collections::HashMap;
