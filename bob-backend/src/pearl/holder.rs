@@ -1,4 +1,6 @@
 use crate::prelude::*;
+use futures::Future;
+use std::pin::Pin;
 
 use super::{
     core::{BackendResult, PearlStorage},
@@ -9,6 +11,60 @@ use bob_common::metrics::pearl::{
     PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
     PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
 };
+
+trait CondChecker: Send + Sync {
+    fn check(&self) -> Pin<Box<dyn Future<Output = bool>>>;
+}
+
+async fn soft_check(storage: Arc<RwLock<PearlSync>>, max_data_in_blob: u64) -> bool {
+    let active = storage.read().await.active_blob_records_count().await as u64;
+    active * SMALL_RECORDS_COUNT_MUL > max_data_in_blob
+}
+
+async fn hard_check(storage: Arc<RwLock<PearlSync>>, _: u64) -> bool {
+    let active = storage.read().await.active_blob_records_count().await as u64;
+    active > 0
+}
+
+type CheckFn = fn(Arc<RwLock<PearlSync>>, u64) -> Pin<Box<dyn Future<Output = bool>>>;
+
+pub struct ConditionChecker {
+    storage: Arc<RwLock<PearlSync>>,
+    max_data_in_blob: u64,
+    check_fn: CheckFn,
+}
+
+impl ConditionChecker {
+    pub(super) fn spawn_hard_condition_checker(
+        storage: Arc<RwLock<PearlSync>>,
+        max_data_in_blob: u64,
+    ) -> Self {
+        Self {
+            storage,
+            max_data_in_blob,
+            check_fn: |storage, max_data_in_blob| Box::pin(hard_check(storage, max_data_in_blob)),
+        }
+    }
+
+    pub(super) fn spawn_soft_condition_checker(
+        storage: Arc<RwLock<PearlSync>>,
+        max_data_in_blob: u64,
+    ) -> Self {
+        Self {
+            storage,
+            max_data_in_blob,
+            check_fn: |storage, max_data_in_blob| Box::pin(soft_check(storage, max_data_in_blob)),
+        }
+    }
+}
+
+impl CondChecker for ConditionChecker {
+    fn check(&self) -> Pin<Box<dyn Future<Output = bool>>> {
+        let storage = self.storage.clone();
+        let max_data_in_blob = self.max_data_in_blob;
+        (self.check_fn)(storage, max_data_in_blob)
+    }
+}
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
@@ -128,7 +184,21 @@ impl Holder {
             .as_secs()
     }
 
-    pub async fn close_active_blob(&self) {
+    pub fn spawn_hard_condition_checker(&self) -> ConditionChecker {
+        ConditionChecker::spawn_hard_condition_checker(
+            self.storage.clone(),
+            self.config.max_data_in_blob(),
+        )
+    }
+
+    pub fn spawn_soft_condition_checker(&self) -> ConditionChecker {
+        ConditionChecker::spawn_soft_condition_checker(
+            self.storage.clone(),
+            self.config.max_data_in_blob(),
+        )
+    }
+
+    pub async fn close_active_blob(&self, cond_checker: ConditionChecker) {
         let storage = self.storage.read().await;
         // NOTE: during active blob dump (no matter sync or async close) Pearl (~Holder) storage is
         // partly blocked in the same way, the only difference is:
@@ -140,7 +210,11 @@ impl Holder {
         // 2 [async case]. Operations will be done concurrently, so more holders would be blocked
         //   at every moment, but the whole operation will be performed faster (but remember about
         //   disk_sem and other things, which may slow down this concurrent dump)
-        storage.storage().close_active_blob_async().await;
+        storage
+            .storage()
+            //.close_active_blob_async(Box::new(cond_checker))
+            .close_active_blob_async()
+            .await;
         warn!("Active blob of {} closed", self.get_id());
     }
 

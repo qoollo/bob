@@ -428,13 +428,15 @@ impl Group {
 
         while close.len() > hard {
             let (_, holder) = close.pop().expect("Vector is empty!");
-            holder.close_active_blob().await;
+            let condition_checker = holder.spawn_hard_condition_checker();
+            holder.close_active_blob(condition_checker).await;
             info!("active blob of {} closed by hard cap", holder.get_id());
         }
 
         while close.len() > soft && close.last().map_or(false, |(ind, _)| !is_small[*ind]) {
             let (_, holder) = close.pop().unwrap();
-            holder.close_active_blob().await;
+            let condition_checker = holder.spawn_soft_condition_checker();
+            holder.close_active_blob(condition_checker).await;
             info!("active blob of {} closed by soft cap", holder.get_id());
         }
     }
@@ -450,13 +452,13 @@ impl Group {
 }
 
 lazy_static! {
-    static ref ASCII_TRANSLATION: Vec<u8> = (0..=255)
-        .filter(|&i| (i > 47 && i < 58) // numbers
-            || (i > 64 && i < 91) // upper case letters
-            || (i > 96 && i < 123) // lower case letters
-            || (i == 45) // -
-            || (i == 43)) // +
-        .collect();
+static ref ASCII_TRANSLATION: Vec<u8> = (0..=255)
+    .filter(|&i| (i > 47 && i < 58) // numbers
+        || (i > 64 && i < 91) // upper case letters
+        || (i > 96 && i < 123) // lower case letters
+        || (i == 45) // -
+        || (i == 43)) // +
+    .collect();
 }
 
 impl Display for Group {
