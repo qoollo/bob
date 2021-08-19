@@ -1,13 +1,10 @@
-use std::{
-    convert::TryInto,
-    io::{Cursor, Read},
-    str::FromStr,
-};
+use std::{convert::TryInto, io::Cursor, str::FromStr};
 
-use super::{infer_data_type, StatusExt};
+use super::{infer_data_type, DataKey, StatusExt};
 use crate::server::Server as BobServer;
-use bob_common::data::{BobData, BobKey, BobMeta, BobOptions};
+use bob_common::data::{BobData, BobMeta, BobOptions};
 use rocket::{
+    data::ByteUnit,
     get,
     http::{ContentType, Header, Status},
     put,
@@ -29,8 +26,20 @@ impl From<StatusExt> for StatusS3 {
     }
 }
 
-impl<'r> Responder<'r> for StatusS3 {
-    fn respond_to(self, request: &Request) -> response::Result<'r> {
+impl From<std::io::Error> for StatusS3 {
+    fn from(err: std::io::Error) -> Self {
+        StatusExt::from(err).into()
+    }
+}
+
+impl From<bob_common::error::Error> for StatusS3 {
+    fn from(err: bob_common::error::Error) -> Self {
+        StatusExt::from(err).into()
+    }
+}
+
+impl Responder<'_, 'static> for StatusS3 {
+    fn respond_to(self, request: &Request) -> response::Result<'static> {
         match self {
             Self::StatusExt(status_ext) => {
                 let resp = status_ext.respond_to(request)?;
@@ -42,7 +51,7 @@ impl<'r> Responder<'r> for StatusS3 {
 }
 
 pub(crate) fn routes() -> impl Into<Vec<Route>> {
-    routes![get_object, put_object]
+    routes![get_object, put_object, copy_object]
 }
 
 #[derive(Debug, Default)]
@@ -52,9 +61,10 @@ pub(crate) struct GetObjectHeaders {
     if_unmodified_since: Option<u64>,
 }
 
-impl<'r> FromRequest<'_, 'r> for GetObjectHeaders {
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for GetObjectHeaders {
     type Error = StatusS3;
-    fn from_request(request: &Request<'r>) -> Outcome<Self, Self::Error> {
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let headers = request.headers();
         Outcome::Success(GetObjectHeaders {
             content_type: headers
@@ -78,8 +88,8 @@ pub(crate) struct GetObjectOutput {
     content_type: ContentType,
 }
 
-impl<'r> Responder<'r> for GetObjectOutput {
-    fn respond_to(self, _: &Request) -> response::Result<'r> {
+impl Responder<'_, 'static> for GetObjectOutput {
+    fn respond_to(self, _: &Request) -> response::Result<'static> {
         Response::build()
             .status(Status::Ok)
             .header(self.content_type)
@@ -87,21 +97,20 @@ impl<'r> Responder<'r> for GetObjectOutput {
                 "Last-Modified",
                 self.data.meta().timestamp().to_string(),
             ))
-            .sized_body(Cursor::new(self.data.into_inner()))
+            .streamed_body(Cursor::new(self.data.into_inner()))
             .ok()
     }
 }
 
 #[get("/default/<key>")]
-pub(crate) fn get_object(
-    bob: State<BobServer>,
-    key: BobKey,
+pub(crate) async fn get_object(
+    bob: &State<BobServer>,
+    key: Result<DataKey, StatusExt>,
     headers: GetObjectHeaders,
 ) -> Result<GetObjectOutput, StatusS3> {
+    let key = key?.0;
     let opts = BobOptions::new_get(None);
-    let data = bob
-        .block_on(async { bob.grinder().get(key, &opts).await })
-        .map_err(|err| -> StatusExt { err.into() })?;
+    let data = bob.grinder().get(key, &opts).await?;
     let content_type = headers
         .content_type
         .unwrap_or_else(|| infer_data_type(&data));
@@ -120,37 +129,35 @@ pub(crate) fn get_object(
 }
 
 #[put("/default/<key>", data = "<data>", rank = 2)]
-pub(crate) fn put_object(
-    bob: State<BobServer>,
-    key: BobKey,
-    data: Data,
+pub(crate) async fn put_object(
+    bob: &State<BobServer>,
+    key: Result<DataKey, StatusExt>,
+    data: Data<'_>,
 ) -> Result<StatusS3, StatusS3> {
-    let mut data_buf = vec![];
-    data.open()
-        .read_to_end(&mut data_buf)
-        .map_err(|err| -> StatusExt { err.into() })?;
+    let key = key?.0;
+    let data_buf = data.open(ByteUnit::max_value()).into_bytes().await?.value;
     let data = BobData::new(
         data_buf,
         BobMeta::new(chrono::Local::now().timestamp() as u64),
     );
 
     let opts = BobOptions::new_put(None);
-    bob.block_on(async { bob.grinder().put(key, data, opts).await })
-        .map_err(|err| -> StatusExt { err.into() })?;
+    bob.grinder().put(key, data, opts).await?;
 
     Ok(StatusS3::from(StatusExt::from(Status::Created)))
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct CopyObjectHeaders {
     if_modified_since: Option<u64>,
     if_unmodified_since: Option<u64>,
-    source_key: BobKey,
+    source_key: DataKey,
 }
 
-impl<'r> FromRequest<'_, 'r> for CopyObjectHeaders {
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for CopyObjectHeaders {
     type Error = StatusS3;
-    fn from_request(request: &Request<'r>) -> Outcome<Self, Self::Error> {
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let headers = request.headers();
         let source_key = match headers
             .get_one("x-amz-copy-source")
@@ -174,15 +181,14 @@ impl<'r> FromRequest<'_, 'r> for CopyObjectHeaders {
 }
 
 #[put("/default/<key>")]
-pub(crate) fn copy_object(
-    bob: State<BobServer>,
-    key: BobKey,
+pub(crate) async fn copy_object(
+    bob: &State<BobServer>,
+    key: Result<DataKey, StatusExt>,
     headers: CopyObjectHeaders,
 ) -> Result<StatusS3, StatusS3> {
+    let key = key?.0;
     let opts = BobOptions::new_get(None);
-    let data = bob
-        .block_on(async { bob.grinder().get(key, &opts).await })
-        .map_err(|err| -> StatusExt { err.into() })?;
+    let data = bob.grinder().get(key, &opts).await?;
     let last_modified = data.meta().timestamp();
     if let Some(time) = headers.if_modified_since {
         if time > last_modified {
@@ -200,8 +206,7 @@ pub(crate) fn copy_object(
     );
 
     let opts = BobOptions::new_put(None);
-    bob.block_on(async { bob.grinder().put(key, data, opts).await })
-        .map_err(|err| -> StatusExt { err.into() })?;
+    bob.grinder().put(key, data, opts).await?;
 
     Ok(StatusS3::from(StatusExt::from(Status::Ok)))
 }
