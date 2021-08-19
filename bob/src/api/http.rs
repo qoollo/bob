@@ -609,12 +609,10 @@ fn create_directory(root_path: &Path) -> BoxFuture<Result<Dir, StatusExt>> {
 
 async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) -> Dir {
     let mut children = Vec::new();
-    while let Some(child) = read_dir.next_entry().await.transpose() {
-        if let Ok(entry) = child {
-            let dir = create_directory(&entry.path()).await;
-            if let Ok(dir) = dir {
-                children.push(dir);
-            }
+    while let Ok(Some(entry)) = read_dir.next_entry().await {
+        let dir = create_directory(&entry.path()).await;
+        if let Ok(dir) = dir {
+            children.push(dir);
         }
     }
     Dir {

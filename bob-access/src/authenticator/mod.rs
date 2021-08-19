@@ -22,7 +22,7 @@ impl<Storage: UsersStorage> StubAuthenticator<Storage> {
 }
 
 impl<Storage: UsersStorage> Authenticator for StubAuthenticator<Storage> {
-    fn check_credentials(&self, credentials: Credentials) -> Result<(), Error> {
+    fn check_credentials(&self, _credentials: Credentials) -> Result<(), Error> {
         Ok(())
     }
 }

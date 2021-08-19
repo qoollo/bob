@@ -20,6 +20,8 @@ use extractor::Extractor;
 use tonic::transport::NamedService;
 use tower::{Layer, Service};
 
+pub const USERS_MAP_FILE: &str = "users.yaml";
+
 #[derive(Debug, Default)]
 pub struct AccessControlLayer<A, E> {
     authenticator: Option<A>,
@@ -52,12 +54,13 @@ impl<A, E> AccessControlLayer<A, E> {
     }
 }
 
-impl<A, E, S> Layer<S> for AccessControlLayer<A, E> {
-    type Service = AccessControlService<A, E, S>;
+impl<S> Layer<S> for AccessControlLayer<StubAuthenticator<UsersMap>, StubExtractor> {
+    type Service = AccessControlService<StubAuthenticator<UsersMap>, StubExtractor, S>;
 
     fn layer(&self, service: S) -> Self::Service {
-        let authenticator = todo!("init authenticator");
-        let extractor = todo!("init extractor");
+        let storage = UsersMap::from_file(USERS_MAP_FILE).expect("can't create UsersMap from file");
+        let authenticator = StubAuthenticator::new(storage);
+        let extractor = StubExtractor::new();
         AccessControlService {
             authenticator,
             extractor,
@@ -86,6 +89,7 @@ where
         warn!("TODO: check credentials/give access rights");
         let credentials = self.extractor.extract(&req).unwrap();
         if let Err(e) = self.authenticator.check_credentials(credentials) {
+            warn!("Unautorized request: {:?}", e);
             todo!("print log and drop request");
         } else {
             self.service.call(req)

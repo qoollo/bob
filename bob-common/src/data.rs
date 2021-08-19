@@ -38,15 +38,15 @@ impl From<Vec<u8>> for BobKey {
     }
 }
 
-impl Into<Vec<u8>> for BobKey {
-    fn into(self) -> Vec<u8> {
-        self.iter().cloned().collect()
+impl From<BobKey> for Vec<u8> {
+    fn from(val: BobKey) -> Self {
+        val.iter().cloned().collect()
     }
 }
 
-impl Into<[u8; BOB_KEY_SIZE]> for BobKey {
-    fn into(self) -> [u8; BOB_KEY_SIZE] {
-        self.0
+impl From<BobKey> for [u8; BOB_KEY_SIZE] {
+    fn from(val: BobKey) -> Self {
+        val.0
     }
 }
 

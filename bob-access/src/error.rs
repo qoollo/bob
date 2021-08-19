@@ -33,7 +33,7 @@ impl Error {
 
 #[derive(Debug)]
 enum Kind {
-    Unknown,
+    _Unknown,
     InvalidToken(String),
     Validation(String),
     Os(String),
