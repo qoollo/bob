@@ -504,19 +504,15 @@ impl DiskController {
         }
     }
 
-    pub(crate) async fn offload_old_filters(&self, limit: usize) {
-        let groups = self.groups.read().await;
-        let limit = limit / groups.len().clamp(1, usize::MAX);
-        for group in self.groups.read().await.iter() {
-            group.offload_old_filters(limit).await;
-        }
-    }
-
     pub(crate) async fn filter_memory_allocated(&self) -> usize {
         let mut memory = 0;
         for holder in self.groups.read().await.iter() {
             memory += holder.filter_memory_allocated().await;
         }
         memory
+    }
+
+    pub(crate) fn groups(&self) -> Arc<RwLock<Vec<Group>>> {
+        self.groups.clone()
     }
 }

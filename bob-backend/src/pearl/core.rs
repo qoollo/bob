@@ -198,11 +198,33 @@ impl BackendStorage for Pearl {
     }
 
     async fn offload_old_filters(&self, limit: usize) {
-        let limit = limit / (self.disk_controllers.len() + 1);
-        for dc in self.disk_controllers.iter() {
-            dc.offload_old_filters(limit).await;
+        let mut holders = vec![];
+        let mut current_size = 0;
+        for dc in self
+            .disk_controllers
+            .iter()
+            .chain(Some(&self.alien_disk_controller))
+        {
+            for group in dc.groups().read().await.iter() {
+                for holder in group.holders().read().await.iter() {
+                    let size = holder.filter_memory_allocated().await;
+                    current_size += size;
+                    holders.push((holder.clone(), size))
+                }
+            }
         }
-        self.alien_disk_controller.offload_old_filters(limit).await;
+        if current_size < limit {
+            return;
+        }
+        holders.sort_by_key(|h| h.0.end_timestamp());
+        for (holder, size) in holders {
+            if current_size < limit {
+                break;
+            }
+            holder.offload_filter().await;
+            let new_size = holder.filter_memory_allocated().await;
+            current_size = current_size.saturating_sub(size.saturating_sub(new_size));
+        }
     }
 
     async fn filter_memory_allocated(&self) -> usize {
