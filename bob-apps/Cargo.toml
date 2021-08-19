@@ -1,6 +1,6 @@
 [package]
 name = "bob-apps"
-version = "1.6.1"
+version = "2.0.0-alpha.1"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
@@ -25,12 +25,11 @@ hyper = "0.14.2"
 lazy_static = "1.4.0"
 log = "0.4"
 log4rs = "1.0.0"
-metrics = { version = "0.12.1", features = ["std"] }
+metrics = { version = "0.16", features = ["std"] }
 mockall = "0.9.0"
 prost = "0.7.0"
 ring = "0.16.19"
-rocket = "0.4.6"
-rocket_contrib = "0.4.6"
+rocket = "0.5.0-rc.1"
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.8"

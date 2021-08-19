@@ -9,6 +9,8 @@ impl Error {
     pub fn invalid_token(message: impl Into<String>) -> Self {
         Self {
             kind: Kind::InvalidToken(message.into()),
+        }
+    }
 
     pub fn credentials_not_provided(message: impl Into<String>) -> Self {
         Self {
