@@ -112,11 +112,16 @@ impl TimeEntry {
 }
 
 fn process_counter(counters_map: &mut HashMap<MetricKey, CounterEntry>, counter: MetricInner) {
+    let MetricInner {
+        key,
+        value,
+        timestamp,
+    } = counter;
     let entry = counters_map
-        .entry(counter.key.clone())
-        .or_insert_with(|| CounterEntry::new(counter.timestamp));
-    entry.sum += counter.value;
-    entry.timestamp = counter.timestamp;
+        .entry(key)
+        .or_insert_with(|| CounterEntry::new(timestamp));
+    entry.sum += value;
+    entry.timestamp = timestamp;
 }
 
 fn process_gauge(gauges_map: &mut HashMap<MetricKey, GaugeEntry>, gauge: MetricInner) {
@@ -124,12 +129,17 @@ fn process_gauge(gauges_map: &mut HashMap<MetricKey, GaugeEntry>, gauge: MetricI
 }
 
 fn process_time(times_map: &mut HashMap<MetricKey, TimeEntry>, time: MetricInner) {
+    let MetricInner {
+        key,
+        value,
+        timestamp,
+    } = time;
     let entry = times_map
-        .entry(time.key.clone())
-        .or_insert_with(|| TimeEntry::new(time.timestamp));
-    entry.summary_time += time.value;
+        .entry(key)
+        .or_insert_with(|| TimeEntry::new(timestamp));
+    entry.summary_time += value;
     entry.measurements_amount += 1;
-    entry.timestamp = time.timestamp;
+    entry.timestamp = timestamp;
 }
 
 async fn flush_counters(

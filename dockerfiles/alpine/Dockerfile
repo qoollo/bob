@@ -33,6 +33,7 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/bobp.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/ccg.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/dcr.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/brt.rs \
   && cargo build --release --target=x86_64-unknown-linux-musl
 
 
