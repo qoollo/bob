@@ -14,6 +14,7 @@ Bob versions changelog
 - Add bind ip address to config ([#270](https://github.com/qoollo/bob/pull/270))
 - Add variable key size ([#133](https://github.com/qoollo/bob/pull/207))
 - Support for different key sizes in REST API ([#228](http://github.com/qoollo/bob/pull/228))
+- Bloom filter offloading ([#301](https://github.com/qoollo/bob/pull/301))
 
 #### Changed
 - rename bob-tools, remove redundant versions of workspace deps ([#220](https://github.com/qoollo/bob/pull/220))
