@@ -14,6 +14,7 @@ Bob versions changelog
 #### Fixed
 
 - Add brt to dockerfiles (https://github.com/qoollo/bob/pull/296)
+- Bug with panic on load operation in rate processor ([#302](https://github.com/qoollo/bob/pull/306))
 
 #### Updated
 
