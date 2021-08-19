@@ -11,11 +11,11 @@ pub mod snapshot;
 pub(crate) use self::recorder::MetricsRecorder;
 pub use self::snapshot::SharedMetricsSnapshot;
 
+const BUFFER_SIZE: usize = 1_048_576; // 1 mln structs
+
 pub(crate) fn establish_global_collector(
     check_interval: Duration,
 ) -> (MetricsRecorder, SharedMetricsSnapshot) {
-    const BUFFER_SIZE: usize = 1_048_576; // 1 Mb
-
     let (tx, rx) = channel(BUFFER_SIZE);
     let recorder = MetricsRecorder::new(tx);
     let accumulator = MetricsAccumulator::new(rx, check_interval);

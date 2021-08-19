@@ -59,7 +59,6 @@ impl GraphiteBuilder {
         self
     }
 
-    // TODO move recorder and snapshot to other place?
     pub(crate) fn build(self, metrics: SharedMetricsSnapshot) {
         tokio::spawn(send_metrics(
             metrics,
