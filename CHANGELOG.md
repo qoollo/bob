@@ -8,6 +8,7 @@ Bob versions changelog
 - Rate metrics ([#242](https://github.com/qoollo/bob/pull/251))
 - Global exporter is used, different exporters may be load conditionally ([No issue](https://github.com/qoollo/bob/pull/251))
 - Run tests with GitHub Actions ([#279](https://github.com/qoollo/bob/pull/279))
+- Build docker images with build workflow ([#308](https://github.com/qoollo/bob/pull/308))
 
 #### Changed
 
