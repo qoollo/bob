@@ -82,9 +82,9 @@ jobs:
     strategy:
       matrix:
         bob_key_size: [8, 16]
-      include:
-        - bob_key_size: 16
-          asset_name_postfix: -16KB
+        include:
+          - bob_key_size: 16
+            asset_name_postfix: -16KB
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
@@ -144,9 +144,9 @@ jobs:
     strategy:
       matrix:
         bob_key_size: [8, 16]
-      include:
-        - bob_key_size: 16
-          asset_name_postfix: _16KB
+        include:
+          - bob_key_size: 16
+            asset_name_postfix: _16KB
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
@@ -203,9 +203,9 @@ jobs:
     strategy:
       matrix:
         bob_key_size: [8, 16]
-      include:
-        - bob_key_size: 16
-          asset_name_postfix: _16KB
+        include:
+          - bob_key_size: 16
+            asset_name_postfix: _16KB
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
