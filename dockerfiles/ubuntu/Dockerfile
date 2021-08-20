@@ -71,6 +71,7 @@ RUN apt-get update \
 WORKDIR /home/bob/bin/
 COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-gnu/release/bobd .
 RUN chown bobd:bobd bobd \
+  && mkdir /log && chown bobd:bobd /log \
   && mkdir ~/.ssh \
   && chmod 600 -R ~/.ssh \
   && echo "#!/bin/bash\n\
@@ -92,8 +93,11 @@ RUN chown bobd:bobd bobd \
   wait" >> run.sh \
   && chmod +x run.sh
 
+COPY dockerfiles/default-configs/ /configs
+
 EXPOSE 80
 EXPOSE 22
 EXPOSE 20000
 USER bobd
 ENTRYPOINT ["./run.sh"]
+CMD ["cluster.yaml", "node.yaml"]

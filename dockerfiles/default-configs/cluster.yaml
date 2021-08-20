@@ -1,0 +1,31 @@
+# [time] is a concatenation of spans. Where each span is an integer number and a suffix.
+# E.g.: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
+# Some supported suffixes:
+#  msec, ms -- milliseconds
+#  seconds, second, sec, s
+#  minutes, minute, min, m
+#  hours, hour, hr, h
+
+# [list] of all cluster nodes
+nodes:
+      # [str] node name
+    - name: local_node
+      # [ip:port] node address
+      address: 127.0.0.1:20000  
+      # [list] of physical node disks
+      disks:
+          # [str] name of disk, the node uses it to determine which vdisks belong to it
+        - name: disk1
+          # [str] mount point, it doesn't matter if it is a whole physical disk or a directory
+          path: /tmp/d1
+
+# [list] of all cluster vdisks
+vdisks:
+      # [uint] unique vdisk identifier
+    - id: 0
+      # [list] of vdisk replicas locations
+      replicas:
+          #[str] node name, to find target node in nodes list 
+        - node: local_node
+          #[str] disk name, to find location of the replica on the node in disks list
+          disk: disk1
