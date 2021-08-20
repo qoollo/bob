@@ -335,7 +335,7 @@ async fn start_all_disk_controllers(
         .iter()
         .chain(std::iter::once(&adc))
         .filter(|dc| dc.disk().name() == disk_name)
-        .map(|dc| dc.run())
+        .map(|dc| dc.run(|_| async {}))
         .collect::<FuturesUnordered<_>>();
     if target_dcs.is_empty() {
         let err = format!("Disk Controller with name '{}' not found", disk_name);

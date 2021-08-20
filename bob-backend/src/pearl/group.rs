@@ -5,6 +5,7 @@ use crate::{
     core::Operation,
     pearl::{core::BackendResult, settings::Settings, stuff::Stuff},
 };
+use futures::Future;
 use ring::digest::{digest, SHA256};
 
 #[derive(Clone, Debug)]
@@ -55,7 +56,11 @@ impl Group {
         }
     }
 
-    pub async fn run(&self) -> AnyResult<()> {
+    pub async fn run<F, Fut>(&self, holder_init_callback: F) -> AnyResult<()>
+    where
+        F: Fn(&Holder) -> Fut,
+        Fut: Future<Output = ()>,
+    {
         debug!("{}: read holders from disk", self);
         let config = self.settings.config();
         let holders = config
@@ -76,19 +81,24 @@ impl Group {
         debug!("{}: save holders to group", self);
         self.add_range(holders).await;
         debug!("{}: start holders", self);
-        self.run_pearls().await
+        self.run_pearls(holder_init_callback).await
     }
 
     pub async fn remount(&self) -> AnyResult<()> {
         self.holders.write().await.clear();
-        self.run().await
+        self.run(|_| async {}).await
     }
 
-    async fn run_pearls(&self) -> AnyResult<()> {
+    async fn run_pearls<F, Fut>(&self, holder_init_callback: F) -> AnyResult<()>
+    where
+        F: Fn(&Holder) -> Fut,
+        Fut: Future<Output = ()>,
+    {
         let holders = self.holders.write().await;
 
         for holder in holders.iter() {
             holder.prepare_storage().await?;
+            holder_init_callback(holder).await;
             debug!("backend pearl group run pearls storage prepared");
         }
         Ok(())

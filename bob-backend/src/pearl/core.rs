@@ -1,7 +1,7 @@
 use futures::future::ready;
 use std::iter::once;
 
-use crate::prelude::*;
+use crate::{pearl::Holder, prelude::*};
 
 use super::{
     data::Key, disk_controller::logger::DisksEventsLogger, disk_controller::DiskController,
@@ -19,6 +19,7 @@ pub struct Pearl {
     alien_disk_controller: Arc<DiskController>,
     node_name: String,
     init_par_degree: usize,
+    filter_memory_limit: Option<usize>,
 }
 
 impl Pearl {
@@ -49,8 +50,34 @@ impl Pearl {
             alien_disk_controller,
             node_name: config.name().to_string(),
             init_par_degree: config.init_par_degree(),
+            filter_memory_limit: config.filter_memory_limit(),
         };
         Ok(pearl)
+    }
+
+    async fn offload_old_filters_in_holders(holders: &mut [Holder], limit: usize) {
+        let mut holders = holders
+            .iter_mut()
+            .map(|h| async { (h.filter_memory_allocated().await, h) })
+            .collect::<FuturesUnordered<_>>()
+            .fold(vec![], |mut acc, x| async move {
+                acc.push(x);
+                acc
+            })
+            .await;
+        let mut current_size = holders.iter().map(|x| x.0).sum::<usize>();
+        if current_size < limit {
+            return;
+        }
+        holders.sort_by_key(|h| h.1.end_timestamp());
+        for (size, holder) in holders {
+            if current_size < limit {
+                break;
+            }
+            holder.offload_filter().await;
+            let new_size = holder.filter_memory_allocated().await;
+            current_size = current_size.saturating_sub(size.saturating_sub(new_size));
+        }
     }
 }
 
@@ -94,10 +121,31 @@ impl BackendStorage for Pearl {
     async fn run_backend(&self) -> AnyResult<()> {
         // vec![vec![]; n] macro requires Clone trait, and future does not implement it
         let start = Instant::now();
+        let memory_limit = self.filter_memory_limit.clone();
         let futs = FuturesUnordered::new();
         let alien_iter = once(&self.alien_disk_controller);
+        let holders = Arc::new(RwLock::new(vec![]));
         for dc in self.disk_controllers.iter().chain(alien_iter).cloned() {
-            futs.push(async move { dc.run().await })
+            let holders = holders.clone();
+            futs.push(async move {
+                if let Some(limit) = memory_limit {
+                    dc.run(|h| {
+                        let holders = holders.clone();
+                        let holder = h.clone();
+                        async move {
+                            let mut holders_lock = holders.write().await;
+                            holders_lock.push(holder);
+                            if holders_lock.len() % 100 == 0 {
+                                Self::offload_old_filters_in_holders(&mut holders_lock, limit)
+                                    .await;
+                            }
+                        }
+                    })
+                    .await
+                } else {
+                    dc.run(|_| async {}).await
+                }
+            })
         }
         futs.fold(Ok(()), |s, n| async move { s.and(n) }).await?;
         let dur = Instant::now() - start;
@@ -199,7 +247,6 @@ impl BackendStorage for Pearl {
 
     async fn offload_old_filters(&self, limit: usize) {
         let mut holders = vec![];
-        let mut current_size = 0;
         for dc in self
             .disk_controllers
             .iter()
@@ -207,32 +254,22 @@ impl BackendStorage for Pearl {
         {
             for group in dc.groups().read().await.iter() {
                 for holder in group.holders().read().await.iter() {
-                    let size = holder.filter_memory_allocated().await;
-                    current_size += size;
-                    holders.push((holder.clone(), size))
+                    holders.push(holder.clone());
                 }
             }
         }
-        if current_size < limit {
-            return;
-        }
-        holders.sort_by_key(|h| h.0.end_timestamp());
-        for (holder, size) in holders {
-            if current_size < limit {
-                break;
-            }
-            holder.offload_filter().await;
-            let new_size = holder.filter_memory_allocated().await;
-            current_size = current_size.saturating_sub(size.saturating_sub(new_size));
-        }
+        Self::offload_old_filters_in_holders(&mut holders, limit).await;
     }
 
     async fn filter_memory_allocated(&self) -> usize {
         let mut memory = 0;
-        for dc in self.disk_controllers.iter() {
+        for dc in self
+            .disk_controllers
+            .iter()
+            .chain(Some(&self.alien_disk_controller))
+        {
             memory += dc.filter_memory_allocated().await;
         }
-        memory += self.alien_disk_controller.filter_memory_allocated().await;
         memory
     }
 }
