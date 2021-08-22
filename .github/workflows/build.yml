@@ -10,18 +10,24 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    container: rust:1.53.0
     env:
       TARGET: "x86_64-unknown-linux-musl"
       BUILD_MODE: "release"
-      RUST_TC_VER: nightly-2021-06-23
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
-      - name: Building release
+      - name: Set env variable and install packages
         run: |
-          apt-get update && apt-get install -y --no-install-recommends musl-tools
-          rustup install ${{ env.RUST_TC_VER }}
-          rustup default ${{ env.RUST_TC_VER }}
-          rustup target add ${{ env.TARGET }}
-          cargo build --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}  
+          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: ${{ env.TARGET }}
+          default: true
+      - name: Build release
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}
