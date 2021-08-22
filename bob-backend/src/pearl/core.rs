@@ -1,7 +1,11 @@
 use futures::future::ready;
-use std::iter::once;
+use std::{
+    iter::once,
+    sync::atomic::{AtomicBool, Ordering},
+};
+use tokio::time::interval;
 
-use crate::{pearl::Holder, prelude::*};
+use crate::{pearl::stuff::Stuff, prelude::*};
 
 use super::{
     data::Key, disk_controller::logger::DisksEventsLogger, disk_controller::DiskController,
@@ -55,28 +59,34 @@ impl Pearl {
         Ok(pearl)
     }
 
-    async fn offload_old_filters_in_holders(holders: &mut [Holder], limit: usize) {
-        let mut holders = holders
-            .iter_mut()
-            .map(|h| async { (h.filter_memory_allocated().await, h) })
-            .collect::<FuturesUnordered<_>>()
-            .fold(vec![], |mut acc, x| async move {
-                acc.push(x);
-                acc
-            })
-            .await;
-        let mut current_size = holders.iter().map(|x| x.0).sum::<usize>();
-        if current_size < limit {
-            return;
-        }
-        holders.sort_by_key(|h| h.1.end_timestamp());
-        for (size, holder) in holders {
-            if current_size < limit {
-                break;
+    fn offloader_task(
+        dcs: Vec<Arc<DiskController>>,
+        limit: usize,
+        period: Duration,
+    ) -> RunningTask {
+        let task = RunningTask::new();
+        let ret = task.clone();
+        tokio::spawn(async move {
+            let mut interval = interval(period);
+            while task.is_running() {
+                interval.tick().await;
+                Stuff::offload_old_filters(dcs.iter(), limit).await;
             }
-            holder.offload_filter().await;
-            let new_size = holder.filter_memory_allocated().await;
-            current_size = current_size.saturating_sub(size.saturating_sub(new_size));
+        });
+        ret
+    }
+
+    fn run_offloader_task(&self, period: Duration) -> RunningTask {
+        let dcs = self
+            .disk_controllers
+            .iter()
+            .chain(Some(&self.alien_disk_controller))
+            .cloned()
+            .collect();
+        if let Some(limit) = self.filter_memory_limit {
+            Self::offloader_task(dcs, limit, period)
+        } else {
+            RunningTask::new()
         }
     }
 }
@@ -121,31 +131,11 @@ impl BackendStorage for Pearl {
     async fn run_backend(&self) -> AnyResult<()> {
         // vec![vec![]; n] macro requires Clone trait, and future does not implement it
         let start = Instant::now();
-        let memory_limit = self.filter_memory_limit.clone();
         let futs = FuturesUnordered::new();
         let alien_iter = once(&self.alien_disk_controller);
-        let holders = Arc::new(RwLock::new(vec![]));
+        let _task = self.run_offloader_task(Duration::from_secs(1));
         for dc in self.disk_controllers.iter().chain(alien_iter).cloned() {
-            let holders = holders.clone();
-            futs.push(async move {
-                if let Some(limit) = memory_limit {
-                    dc.run(|h| {
-                        let holders = holders.clone();
-                        let holder = h.clone();
-                        async move {
-                            let mut holders_lock = holders.write().await;
-                            holders_lock.push(holder);
-                            if holders_lock.len() % 100 == 0 {
-                                Self::offload_old_filters_in_holders(&mut holders_lock, limit)
-                                    .await;
-                            }
-                        }
-                    })
-                    .await
-                } else {
-                    dc.run(|_| async {}).await
-                }
-            })
+            futs.push(async move { dc.run().await });
         }
         futs.fold(Ok(()), |s, n| async move { s.and(n) }).await?;
         let dur = Instant::now() - start;
@@ -246,19 +236,14 @@ impl BackendStorage for Pearl {
     }
 
     async fn offload_old_filters(&self, limit: usize) {
-        let mut holders = vec![];
-        for dc in self
-            .disk_controllers
-            .iter()
-            .chain(Some(&self.alien_disk_controller))
-        {
-            for group in dc.groups().read().await.iter() {
-                for holder in group.holders().read().await.iter() {
-                    holders.push(holder.clone());
-                }
-            }
-        }
-        Self::offload_old_filters_in_holders(&mut holders, limit).await;
+        Stuff::offload_old_filters(
+            self.disk_controllers
+                .iter()
+                .chain(once(&self.alien_disk_controller))
+                .collect::<Vec<_>>(),
+            limit,
+        )
+        .await;
     }
 
     async fn filter_memory_allocated(&self) -> usize {
@@ -271,5 +256,32 @@ impl BackendStorage for Pearl {
             memory += dc.filter_memory_allocated().await;
         }
         memory
+    }
+}
+
+#[derive(Clone, Debug)]
+struct RunningTask {
+    running: Arc<AtomicBool>,
+}
+
+impl RunningTask {
+    fn is_running(&self) -> bool {
+        self.running.load(Ordering::Relaxed)
+    }
+
+    fn stop(&self) {
+        self.running.store(false, Ordering::Relaxed);
+    }
+
+    fn new() -> Self {
+        Self {
+            running: Arc::new(AtomicBool::new(true)),
+        }
+    }
+}
+
+impl Drop for RunningTask {
+    fn drop(&mut self) {
+        self.stop();
     }
 }

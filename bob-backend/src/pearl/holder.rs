@@ -67,6 +67,10 @@ impl Holder {
         &self.storage
     }
 
+    pub fn cloned_storage(&self) -> Arc<RwLock<PearlSync>> {
+        self.storage.clone()
+    }
+
     pub async fn blobs_count(&self) -> usize {
         let storage = self.storage.read().await;
         storage.blobs_count().await
@@ -134,15 +138,13 @@ impl Holder {
         warn!("Active blob of {} closed", self.get_id());
     }
 
-    pub async fn offload_filter(&self) {
-        let storage = self.storage.write().await;
-        storage.storage().offload_bloom().await;
+    pub async fn offload_filters(&self) {
+        self.storage.write().await.offload_filters().await;
         debug!("Offload bloom filter of {}", self.get_id());
     }
 
     pub async fn filter_memory_allocated(&self) -> usize {
-        let storage = self.storage.read().await;
-        storage.storage().filter_memory_allocated().await
+        self.storage.read().await.filter_memory_allocated().await
     }
 
     pub async fn update(&self, storage: Storage<Key>) {
@@ -452,6 +454,20 @@ impl PearlSync {
     #[inline]
     pub fn get(&self) -> PearlStorage {
         self.storage.clone().expect("cloned storage")
+    }
+
+    pub async fn filter_memory_allocated(&self) -> usize {
+        if let Some(storage) = &self.storage {
+            storage.filter_memory_allocated().await
+        } else {
+            0
+        }
+    }
+
+    pub async fn offload_filters(&self) {
+        if let Some(storage) = &self.storage {
+            storage.offload_bloom().await
+        }
     }
 }
 

@@ -1,8 +1,7 @@
-use futures::Future;
 use tokio::time::{interval, Interval};
 
 pub(crate) mod logger;
-use crate::{core::Operation, pearl::Holder, prelude::*};
+use crate::{core::Operation, prelude::*};
 use logger::DisksEventsLogger;
 
 use super::{core::BackendResult, settings::Settings, Group};
@@ -85,14 +84,10 @@ impl DiskController {
         *self.state.read().await == GroupsState::Ready
     }
 
-    pub async fn run<F, Fut>(&self, holder_init_callback: F) -> AnyResult<()>
-    where
-        F: Fn(&Holder) -> Fut + Clone,
-        Fut: Future<Output = ()>,
-    {
+    pub async fn run(&self) -> AnyResult<()> {
         let _permit = self.monitor_sem.acquire().await.expect("Sem is closed");
         self.init().await?;
-        self.groups_run(holder_init_callback).await
+        self.groups_run().await
     }
 
     pub async fn stop(&self) {
@@ -293,41 +288,26 @@ impl DiskController {
         Ok(group)
     }
 
-    async fn run_groups<F, Fut>(
-        groups: Arc<RwLock<Vec<Group>>>,
-        holder_init_callback: F,
-    ) -> AnyResult<()>
-    where
-        F: Fn(&Holder) -> Fut + Clone,
-        Fut: Future<Output = ()>,
-    {
+    async fn run_groups(groups: Arc<RwLock<Vec<Group>>>) -> AnyResult<()> {
         for group in groups.read().await.iter() {
-            group.run(holder_init_callback.clone()).await?;
+            group.run().await?;
         }
         Ok(())
     }
 
-    async fn groups_run<F, Fut>(&self, holder_init_callback: F) -> AnyResult<()>
-    where
-        F: Fn(&Holder) -> Fut + Clone,
-        Fut: Future<Output = ()>,
-    {
+    async fn groups_run(&self) -> AnyResult<()> {
         let state = self.state.read().await.clone();
         match state {
-            GroupsState::Initialized => self.groups_run_initialized(holder_init_callback).await,
+            GroupsState::Initialized => self.groups_run_initialized().await,
             GroupsState::Ready => Ok(()),
             GroupsState::NotReady => Err(Error::internal().into()),
         }
     }
 
-    async fn groups_run_initialized<F, Fut>(&self, holder_init_callback: F) -> AnyResult<()>
-    where
-        F: Fn(&Holder) -> Fut + Clone,
-        Fut: Future<Output = ()>,
-    {
+    async fn groups_run_initialized(&self) -> AnyResult<()> {
         let res = {
             let _permit = self.run_sem.acquire().await.expect("Semaphore is closed");
-            Self::run_groups(self.groups.clone(), holder_init_callback).await
+            Self::run_groups(self.groups.clone()).await
         };
         if let Err(e) = &res {
             error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
