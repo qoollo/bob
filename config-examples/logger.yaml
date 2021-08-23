@@ -48,7 +48,7 @@ appenders:
       kind: compound
       trigger:
         kind: size
-        limit: 10 mb
+        limit: 20 mb
       roller:
         kind: fixed_window
         pattern: "./log/archive/error.{}.log"
