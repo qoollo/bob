@@ -30,11 +30,11 @@ appenders:
       kind: compound
       trigger:
         kind: size
-        limit: 10 mb
+        limit: 20 mb
       roller:
         kind: fixed_window
         pattern: "./log/archive/info.{}.log"
-        count: 5
+        count: 10
     filters:
     - kind: threshold
       level: info
@@ -52,7 +52,7 @@ appenders:
       roller:
         kind: fixed_window
         pattern: "./log/archive/error.{}.log"
-        count: 5
+        count: 10
     filters:
     - kind: threshold
       level: error
