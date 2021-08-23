@@ -8,7 +8,7 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 const RATE_INTERVAL: Duration = Duration::from_secs(5);
 
-const IS_ACTIVE_ORDERING: Ordering = Ordering::AcqRel;
+const IS_ACTIVE_ORDERING: Ordering = Ordering::Relaxed;
 
 type TimeStamp = Instant;
 

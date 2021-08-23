@@ -86,8 +86,9 @@ where
     }
 
     fn call(&mut self, req: Request) -> Self::Future {
-        warn!("TODO: check credentials/give access rights");
+        debug!("request received");
         let credentials = self.extractor.extract(&req).unwrap();
+        debug!("credentials: {:#?}", credentials);
         if let Err(e) = self.authenticator.check_credentials(credentials) {
             warn!("Unautorized request: {:?}", e);
             todo!("print log and drop request");

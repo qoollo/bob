@@ -32,9 +32,9 @@ async fn main() {
     println!("Cluster config: {:?}", cluster_config);
     let cluster = ClusterConfig::try_get(cluster_config).await.unwrap();
 
-    let node_config = matches.value_of("node").unwrap();
-    println!("Node config: {:?}", node_config);
-    let node = cluster.get(node_config).await.unwrap();
+    let node_config_file = matches.value_of("node").unwrap();
+    println!("Node config: {:?}", node_config_file);
+    let node = cluster.get(node_config_file).await.unwrap();
 
     log4rs::init_file(node.log_config(), Default::default()).expect("can't find log config");
 
