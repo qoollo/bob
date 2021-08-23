@@ -1,3 +1,4 @@
+use super::settings::Settings;
 use crate::prelude::*;
 
 use super::{
@@ -264,10 +265,17 @@ impl Holder {
     }
 
     pub async fn prepare_storage(&self) -> Result<(), Error> {
+        self.prepare_storage_ext(None).await
+    }
+
+    pub(super) async fn prepare_storage_ext(
+        &self,
+        settings: Option<Arc<Settings>>,
+    ) -> Result<(), Error> {
         debug!("backend pearl holder prepare storage");
         self.config
             .try_multiple_times_async(
-                || self.init_holder(),
+                || self.init_holder(&settings),
                 "can't initialize holder",
                 self.config.fail_retry_timeout(),
             )
@@ -288,7 +296,7 @@ impl Holder {
             })
     }
 
-    async fn init_holder(&self) -> AnyResult<()> {
+    async fn init_holder(&self, settings: &Option<Arc<Settings>>) -> AnyResult<()> {
         let f = || Stuff::check_or_create_directory(&self.disk_path);
         self.config
             .try_multiple_times_async(
@@ -315,13 +323,24 @@ impl Holder {
             )
             .await
             .with_context(|| "backend pearl holder init storage failed")?;
-        self.init_pearl(storage).await?;
+        self.init_pearl(storage, settings).await?;
         debug!("backend pearl holder init holder ready #{}", self.vdisk);
         Ok(())
     }
 
-    async fn init_pearl(&self, mut storage: Storage<Key>) -> Result<(), Error> {
-        match storage.init().await {
+    async fn init_pearl(
+        &self,
+        mut storage: Storage<Key>,
+        settings: &Option<Arc<Settings>>,
+    ) -> Result<(), Error> {
+        let res = if settings.is_some()
+            && !self.is_actual(settings.as_ref().unwrap().get_actual_timestamp_start())
+        {
+            storage.init_noactive().await
+        } else {
+            storage.init().await
+        };
+        match res {
             Ok(_) => {
                 self.update(storage).await;
                 Ok(())

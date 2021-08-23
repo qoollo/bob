@@ -88,7 +88,9 @@ impl Group {
         let holders = self.holders.write().await;
 
         for holder in holders.iter() {
-            holder.prepare_storage().await?;
+            holder
+                .prepare_storage_ext(Some(self.settings.clone()))
+                .await?;
             debug!("backend pearl group run pearls storage prepared");
         }
         Ok(())
