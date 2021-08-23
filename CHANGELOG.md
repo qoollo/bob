@@ -4,19 +4,25 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Prometheus metrics exporter ([#240](https://github.com/qoollo/bob/pull/251))
-- Rate metrics ([#242](https://github.com/qoollo/bob/pull/251))
-- Global exporter is used, different exporters may be load conditionally ([No issue](https://github.com/qoollo/bob/pull/251))
-- Run tests with GitHub Actions ([#279](https://github.com/qoollo/bob/pull/279))
 
 #### Changed
 
 #### Fixed
 
-- Add brt to dockerfiles (https://github.com/qoollo/bob/pull/296)
-- Bug with panic on load operation in rate processor ([#302](https://github.com/qoollo/bob/pull/306))
-
 #### Updated
+
+
+## [2.0.0-alpha.2] - 2021-08-23
+#### Added
+- Prometheus metrics exporter (#240)
+- Rate metrics (#242)
+- Global exporter is used, different exporters may be load conditionally
+- Run tests with GitHub Actions (#279)
+
+#### Fixed
+
+- Add brt to dockerfiles (#296)
+- Bug with panic on load operation in rate processor (#302)
 
 
 ## [2.0.0-alpha.1] - 2021-08-16
