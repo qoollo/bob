@@ -15,12 +15,6 @@ jobs:
     strategy:
       matrix:
         bob_key_size: [8, 16]
-        include:
-          - bob_key_size: 8
-            image_tag_latest: ${{ secrets.DOCKERHUB_USERNAME }}/bob:latest
-        include:
-          - bob_key_size: 16
-            image_name_postfix: -16KB
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
