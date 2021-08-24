@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Add log file rotation to logger.yaml in examples ([#297](https://github.com/qoollo/bob/pull/297))
 
 #### Changed
 
