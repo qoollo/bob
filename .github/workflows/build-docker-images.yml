@@ -34,9 +34,9 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/bob
           tags: |
-            type=semver,pattern={{version}},suffix=-${{ matrix.bob_key_size }}B-alpine3.12
-            type=semver,pattern={{version}},suffix=-${{ matrix.bob_key_size }}B
-            type=semver,pattern={{version}},enable=${{ matrix.bob_key_size == 8 }}
+            type=semver,pattern={{version}},suffix=-${{ matrix.bob_key_size }}B-alpine3.12,value=v2.0.0-alpha.2
+            type=semver,pattern={{version}},suffix=-${{ matrix.bob_key_size }}B,value=v2.0.0-alpha.2
+            type=semver,pattern={{version}},enable=${{ matrix.bob_key_size == 8 }},value=v2.0.0-alpha.2
             latest,enable=${{ matrix.bob_key_size == 8 }}
       - name: Build and push alpine image
         uses: docker/build-push-action@v2
