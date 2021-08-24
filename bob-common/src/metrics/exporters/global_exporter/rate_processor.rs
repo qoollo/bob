@@ -8,7 +8,8 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 const RATE_INTERVAL: Duration = Duration::from_secs(5);
 
-const IS_ACTIVE_ORDERING: Ordering = Ordering::Relaxed;
+const IS_ACTIVE_STORE_ORDERING: Ordering = Ordering::Release;
+const IS_ACTIVE_LOAD_ORDERING: Ordering = Ordering::Acquire;
 
 type TimeStamp = Instant;
 
@@ -47,7 +48,7 @@ impl RateProcessor {
     }
 
     pub(super) fn process(&self, key: &Key, value: u64) {
-        if self.is_active.load(IS_ACTIVE_ORDERING) {
+        if self.is_active.load(IS_ACTIVE_LOAD_ORDERING) {
             if let Err(e) = self.tx.try_send(RateMessage::new(
                 key.name().to_owned(),
                 value,
@@ -59,7 +60,7 @@ impl RateProcessor {
                     }
                     TrySendError::Closed(_) => {
                         error!("Rate processor task dropped, making it inactive..");
-                        self.is_active.store(false, IS_ACTIVE_ORDERING);
+                        self.is_active.store(false, IS_ACTIVE_STORE_ORDERING);
                     }
                 }
             }
