@@ -16,8 +16,11 @@ jobs:
       matrix:
         bob_key_size: [8, 16]
         include:
+          - bob_key_size: 8
+            image_tag_latest: ${{ secrets.DOCKERHUB_USERNAME }}/bob:latest
+        include:
           - bob_key_size: 16
-            image_name_postfix: _16KB
+            image_name_postfix: -16KB
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
@@ -31,13 +34,23 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/bob
+          tags: |
+            type=semver,pattern={{version}},suffix=-${{ matrix.bob_key_size }}B-alpine3.12
+            type=semver,pattern={{version}},suffix=-${{ matrix.bob_key_size }}B
+            type=semver,pattern={{version}},enable=${{ matrix.bob_key_size == 8 }}
+            latest,enable=${{ matrix.bob_key_size == 8 }}
       - name: Build and push alpine image
         uses: docker/build-push-action@v2
         with:
           context: .
           file: dockerfiles/alpine/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/bob:${{ env.VERSION }}${{ matrix.image_name_postfix }}-alpine3.12,${{ secrets.DOCKERHUB_USERNAME }}/bob:latest
+          tags: ${{ steps.meta.outputs.tags }}
           build-args: |
             BOB_COMMIT_HASH=${BOB_COMMIT_HASH}
             BOB_KEY_SIZE=${BOB_KEY_SIZE}
@@ -50,7 +63,7 @@ jobs:
         bob_key_size: [8, 16]
         include:
           - bob_key_size: 16
-            image_name_postfix: _16KB
+            image_name_postfix: -16KB
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
