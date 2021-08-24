@@ -31,3 +31,33 @@ jobs:
         with:
           command: build
           args: --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}
+
+  build-alpine-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Set env
+        run: |
+          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
+      - name: Build alpine image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: dockerfiles/alpine/Dockerfile
+          build-args: BOB_COMMIT_HASH=${BOB_COMMIT_HASH}
+
+  build-ubuntu-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Set env
+        run: |
+          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
+      - name: Build ubuntu image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: dockerfiles/ubuntu/Dockerfile
+          build-args: BOB_COMMIT_HASH=${BOB_COMMIT_HASH}
