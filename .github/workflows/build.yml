@@ -55,7 +55,7 @@ jobs:
       - name: Set env
         run: |
           export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
-      - name: Build and push ubuntu image
+      - name: Build ubuntu image
         uses: docker/build-push-action@v2
         with:
           context: .
