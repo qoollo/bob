@@ -2,7 +2,7 @@ use crate::server::Server as BobServer;
 use crate::version_helpers::{
     get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
 };
-use bob_backend::pearl::{Group as PearlGroup, Holder};
+use bob_backend::pearl::{Group as PearlGroup, Holder, PostProcessor};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
     error::Error as BobError,
@@ -331,11 +331,12 @@ async fn start_all_disk_controllers(
     let (dcs, adc) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
+    let postprocessor = PostProcessor::default();
     let target_dcs = dcs
         .iter()
         .chain(std::iter::once(&adc))
         .filter(|dc| dc.disk().name() == disk_name)
-        .map(|dc| dc.run())
+        .map(|dc| dc.run(postprocessor.clone()))
         .collect::<FuturesUnordered<_>>();
     if target_dcs.is_empty() {
         let err = format!("Disk Controller with name '{}' not found", disk_name);

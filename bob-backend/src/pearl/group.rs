@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use super::Holder;
+use super::{Holder, PostProcessor};
 use crate::{
     core::Operation,
     pearl::{core::BackendResult, settings::Settings, stuff::Stuff},
@@ -55,7 +55,7 @@ impl Group {
         }
     }
 
-    pub async fn run(&self) -> AnyResult<()> {
+    pub async fn run(&self, pp: PostProcessor) -> AnyResult<()> {
         debug!("{}: read holders from disk", self);
         let config = self.settings.config();
         let holders = config
@@ -76,19 +76,20 @@ impl Group {
         debug!("{}: save holders to group", self);
         self.add_range(holders).await;
         debug!("{}: start holders", self);
-        self.run_pearls().await
+        self.run_pearls(pp).await
     }
 
     pub async fn remount(&self) -> AnyResult<()> {
         self.holders.write().await.clear();
-        self.run().await
+        self.run(Default::default()).await
     }
 
-    async fn run_pearls(&self) -> AnyResult<()> {
+    async fn run_pearls(&self, pp: PostProcessor) -> AnyResult<()> {
         let holders = self.holders.write().await;
 
         for holder in holders.iter() {
             holder.prepare_storage().await?;
+            pp.storage_prepared(holder).await;
             debug!("backend pearl group run pearls storage prepared");
         }
         Ok(())

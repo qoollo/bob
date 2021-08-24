@@ -1,11 +1,10 @@
 use futures::future::ready;
-use std::{
-    iter::once,
-    sync::atomic::{AtomicBool, Ordering},
-};
-use tokio::time::interval;
+use std::iter::once;
 
-use crate::{pearl::stuff::Stuff, prelude::*};
+use crate::{
+    pearl::{postprocessor::PostProcessor, stuff::Stuff},
+    prelude::*,
+};
 
 use super::{
     data::Key, disk_controller::logger::DisksEventsLogger, disk_controller::DiskController,
@@ -58,37 +57,6 @@ impl Pearl {
         };
         Ok(pearl)
     }
-
-    fn offloader_task(
-        dcs: Vec<Arc<DiskController>>,
-        limit: usize,
-        period: Duration,
-    ) -> RunningTask {
-        let task = RunningTask::new();
-        let ret = task.clone();
-        tokio::spawn(async move {
-            let mut interval = interval(period);
-            while task.is_running() {
-                interval.tick().await;
-                Stuff::offload_old_filters(dcs.iter(), limit).await;
-            }
-        });
-        ret
-    }
-
-    fn run_offloader_task(&self, period: Duration) -> RunningTask {
-        let dcs = self
-            .disk_controllers
-            .iter()
-            .chain(Some(&self.alien_disk_controller))
-            .cloned()
-            .collect();
-        if let Some(limit) = self.filter_memory_limit {
-            Self::offloader_task(dcs, limit, period)
-        } else {
-            RunningTask::new()
-        }
-    }
 }
 
 #[async_trait]
@@ -133,9 +101,10 @@ impl BackendStorage for Pearl {
         let start = Instant::now();
         let futs = FuturesUnordered::new();
         let alien_iter = once(&self.alien_disk_controller);
-        let _task = self.run_offloader_task(Duration::from_secs(1));
+        let postprocessor = PostProcessor::new(self.filter_memory_limit);
         for dc in self.disk_controllers.iter().chain(alien_iter).cloned() {
-            futs.push(async move { dc.run().await });
+            let pp = postprocessor.clone();
+            futs.push(async move { dc.run(pp).await });
         }
         futs.fold(Ok(()), |s, n| async move { s.and(n) }).await?;
         let dur = Instant::now() - start;
@@ -256,32 +225,5 @@ impl BackendStorage for Pearl {
             memory += dc.filter_memory_allocated().await;
         }
         memory
-    }
-}
-
-#[derive(Clone, Debug)]
-struct RunningTask {
-    running: Arc<AtomicBool>,
-}
-
-impl RunningTask {
-    fn is_running(&self) -> bool {
-        self.running.load(Ordering::Relaxed)
-    }
-
-    fn stop(&self) {
-        self.running.store(false, Ordering::Relaxed);
-    }
-
-    fn new() -> Self {
-        Self {
-            running: Arc::new(AtomicBool::new(true)),
-        }
-    }
-}
-
-impl Drop for RunningTask {
-    fn drop(&mut self) {
-        self.stop();
     }
 }

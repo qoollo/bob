@@ -1,7 +1,7 @@
 use tokio::time::{interval, Interval};
 
 pub(crate) mod logger;
-use crate::{core::Operation, prelude::*};
+use crate::{core::Operation, pearl::postprocessor::PostProcessor, prelude::*};
 use logger::DisksEventsLogger;
 
 use super::{core::BackendResult, settings::Settings, Group};
@@ -84,10 +84,10 @@ impl DiskController {
         *self.state.read().await == GroupsState::Ready
     }
 
-    pub async fn run(&self) -> AnyResult<()> {
+    pub async fn run(&self, pp: PostProcessor) -> AnyResult<()> {
         let _permit = self.monitor_sem.acquire().await.expect("Sem is closed");
         self.init().await?;
-        self.groups_run().await
+        self.groups_run(pp).await
     }
 
     pub async fn stop(&self) {
@@ -288,26 +288,26 @@ impl DiskController {
         Ok(group)
     }
 
-    async fn run_groups(groups: Arc<RwLock<Vec<Group>>>) -> AnyResult<()> {
+    async fn run_groups(groups: Arc<RwLock<Vec<Group>>>, pp: PostProcessor) -> AnyResult<()> {
         for group in groups.read().await.iter() {
-            group.run().await?;
+            group.run(pp.clone()).await?;
         }
         Ok(())
     }
 
-    async fn groups_run(&self) -> AnyResult<()> {
+    async fn groups_run(&self, pp: PostProcessor) -> AnyResult<()> {
         let state = self.state.read().await.clone();
         match state {
-            GroupsState::Initialized => self.groups_run_initialized().await,
+            GroupsState::Initialized => self.groups_run_initialized(pp).await,
             GroupsState::Ready => Ok(()),
             GroupsState::NotReady => Err(Error::internal().into()),
         }
     }
 
-    async fn groups_run_initialized(&self) -> AnyResult<()> {
+    async fn groups_run_initialized(&self, pp: PostProcessor) -> AnyResult<()> {
         let res = {
             let _permit = self.run_sem.acquire().await.expect("Semaphore is closed");
-            Self::run_groups(self.groups.clone()).await
+            Self::run_groups(self.groups.clone(), pp).await
         };
         if let Err(e) = &res {
             error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);

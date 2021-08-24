@@ -1,5 +1,5 @@
 use crate::{
-    pearl::{holder::PearlSync, DiskController},
+    pearl::{postprocessor::SimpleHolder, DiskController},
     prelude::*,
 };
 
@@ -108,23 +108,15 @@ impl Stuff {
     ) {
         let now = Instant::now();
         let mut holders = Self::collect_holders(iter).await;
-        let mut holders = holders
-            .iter_mut()
-            .map(|h| async { (h.filter_memory_allocated().await, h) })
-            .collect::<FuturesUnordered<_>>()
-            .fold(vec![], |mut acc, x| async move {
-                acc.push(x);
-                acc
-            })
-            .await;
-        let mut current_size = holders.iter().map(|x| x.0).sum::<usize>();
+        let mut current_size = holders.iter().map(|x| x.1).sum::<usize>();
         let initial_size = current_size;
         if current_size < limit {
             return;
         }
-        holders.sort_by_key(|h| h.1.timestamp);
+        holders.sort_by_key(|h| h.0.timestamp());
+        let holders_count = holders.len();
         let mut freed = 0;
-        for (size, holder) in holders {
+        for (holder, size) in holders {
             if current_size < limit {
                 break;
             }
@@ -135,9 +127,10 @@ impl Stuff {
         }
         let elapsed = now.elapsed();
         if freed != 0 {
-            log::info!(
-                "Filters offloaded in {}s: {} -> {}, {} freed",
+            log::error!(
+                "Filters offloaded in {}s for {} holders: {} -> {}, {} freed",
                 elapsed.as_secs_f64(),
+                holders_count,
                 initial_size,
                 current_size,
                 freed
@@ -145,55 +138,21 @@ impl Stuff {
         }
     }
 
-    async fn collect_holders(iter: impl IntoIterator<Item = &Arc<DiskController>>) -> Vec<Holder> {
+    async fn collect_holders(
+        iter: impl IntoIterator<Item = &Arc<DiskController>>,
+    ) -> Vec<(SimpleHolder, usize)> {
         let mut res = vec![];
         for dc in iter {
             for group in dc.groups().read().await.iter() {
                 for holder in group.holders().read().await.iter() {
-                    let storage = holder.cloned_storage();
-                    let timestamp = holder.end_timestamp();
-                    if storage.read().await.is_ready() {
-                        let holder = Holder { storage, timestamp };
-                        res.push(holder);
+                    let holder: SimpleHolder = holder.into();
+                    if holder.is_ready().await {
+                        let size = holder.filter_memory_allocated().await;
+                        res.push((holder, size));
                     }
                 }
             }
         }
         res
-    }
-}
-
-struct Holder {
-    storage: Arc<RwLock<PearlSync>>,
-    timestamp: u64,
-}
-
-impl Holder {
-    async fn filter_memory_allocated(&self) -> usize {
-        self.storage.read().await.filter_memory_allocated().await
-    }
-
-    async fn offload_filter(&self) {
-        self.storage.read().await.offload_filters().await
-    }
-}
-
-impl PartialOrd for Holder {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.timestamp.partial_cmp(&other.timestamp)
-    }
-}
-
-impl PartialEq for Holder {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.storage, &other.storage) && self.timestamp == other.timestamp
-    }
-}
-
-impl Eq for Holder {}
-
-impl Ord for Holder {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.timestamp.cmp(&other.timestamp)
     }
 }
