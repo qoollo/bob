@@ -84,7 +84,7 @@ jobs:
         bob_key_size: [8, 16]
         include:
           - bob_key_size: 16
-            asset_name_postfix: -16KB
+            asset_name_postfix: -key16
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
@@ -146,7 +146,7 @@ jobs:
         bob_key_size: [8, 16]
         include:
           - bob_key_size: 16
-            asset_name_postfix: _16KB
+            asset_name_postfix: _key16
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
@@ -205,7 +205,7 @@ jobs:
         bob_key_size: [8, 16]
         include:
           - bob_key_size: 16
-            asset_name_postfix: _16KB
+            asset_name_postfix: _key16
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
