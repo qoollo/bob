@@ -471,7 +471,7 @@ pub struct Node {
 
 impl NodeConfig {
     pub fn bind_to_ip_address(&self) -> Option<SocketAddr> {
-        self.bind_to_ip_address.clone()
+        self.bind_to_ip_address
     }
 
     /// Get node name.
