@@ -61,7 +61,7 @@ loggers:
       - requests
       - stdout
     additive: false
-  bob_tools:
+  bob_apps:
     # level applies only to bob-tools
     level: info
     appenders:
