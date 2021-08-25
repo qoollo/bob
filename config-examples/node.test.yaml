@@ -27,3 +27,4 @@ pearl:                             # used only for 'backend_type: pearl'
 metrics:                           # optional, send metrics
   name: bob                        # optional, add base name for metrics
   graphite: 127.0.0.1:2003         # optional, send metrics to graphite
+  prometheus_addr: "0.0.0.0:9000"  # exporter listen addr ("0.0.0.0:9000" by default)
