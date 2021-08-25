@@ -9,14 +9,27 @@ Bob versions changelog
 - Global exporter is used, different exporters may be load conditionally ([No issue](https://github.com/qoollo/bob/pull/251))
 - Run tests with GitHub Actions ([#279](https://github.com/qoollo/bob/pull/279))
 - Use default config in dockerfiles ([#290](https://github.com/qoollo/bob/pull/309))
+- Add log file rotation to logger.yaml in examples ([#297](https://github.com/qoollo/bob/pull/297))
+- Build docker images with build workflow ([#308](https://github.com/qoollo/bob/pull/308))
 
 #### Changed
 
 #### Fixed
 
-- Add brt to dockerfiles (https://github.com/qoollo/bob/pull/296)
-
 #### Updated
+
+
+## [2.0.0-alpha.2] - 2021-08-23
+#### Added
+- Prometheus metrics exporter (#240)
+- Rate metrics (#242)
+- Global exporter is used, different exporters may be load conditionally
+- Run tests with GitHub Actions (#279)
+
+#### Fixed
+
+- Add brt to dockerfiles (#296)
+- Bug with panic on load operation in rate processor (#302)
 
 
 ## [2.0.0-alpha.1] - 2021-08-16
