@@ -4,7 +4,6 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-<<<<<<< HEAD
 - Add api method to start disk ([#182](https://github.com/qoollo/bob/pull/182))
 - Rest api for data ([#187](https://github.com/qoollo/bob/pull/187))
 - Add bloom filter buffer size to config ([#218](https://github.com/qoollo/bob/pull/218))
@@ -14,10 +13,8 @@ Bob versions changelog
 - Add racks support to CCG ([#186](https://github.com/qoollo/bob/pull/186))
 - Add bind ip address to config ([#270](https://github.com/qoollo/bob/pull/270))
 - Add the ability to disable metrics ([#241](https://github.com/qoollo/bob/pull/253))
-=======
 - Add log file rotation to logger.yaml in examples ([#297](https://github.com/qoollo/bob/pull/297))
 - Build docker images with build workflow ([#308](https://github.com/qoollo/bob/pull/308))
->>>>>>> 043c21f8cc2c058d4a72b94d9bfbcc2792709f75
 
 #### Changed
 
