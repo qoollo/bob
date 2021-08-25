@@ -4,10 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Prometheus metrics exporter ([#240](https://github.com/qoollo/bob/pull/251))
-- Rate metrics ([#242](https://github.com/qoollo/bob/pull/251))
 - Global exporter is used, different exporters may be load conditionally ([No issue](https://github.com/qoollo/bob/pull/251))
-- Run tests with GitHub Actions ([#279](https://github.com/qoollo/bob/pull/279))
 - Use default config in dockerfiles ([#290](https://github.com/qoollo/bob/pull/309))
 - Add log file rotation to logger.yaml in examples ([#297](https://github.com/qoollo/bob/pull/297))
 - Build docker images with build workflow ([#308](https://github.com/qoollo/bob/pull/308))
