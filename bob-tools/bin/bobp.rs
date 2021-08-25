@@ -72,24 +72,35 @@ impl Debug for NetConfig {
     }
 }
 
+#[derive(Clone, PartialEq)]
+enum Mode {
+    Normal,
+    Random,
+}
+
 #[derive(Clone)]
 struct TaskConfig {
     low_idx: u64,
     count: u64,
     payload_size: u64,
     direct: bool,
-    random: bool,
+    mode: Mode,
     measure_time: bool,
 }
 
 impl TaskConfig {
     fn from_matches(matches: &ArgMatches) -> Self {
+        let mode = if matches.is_present("random") {
+            Mode::Random
+        } else {
+            Mode::Normal
+        };
         Self {
             low_idx: matches.value_or_default("first"),
             count: matches.value_or_default("count"),
             payload_size: matches.value_or_default("payload"),
             direct: matches.is_present("direct"),
-            random: matches.is_present("random"),
+            mode,
             measure_time: false,
         }
     }
@@ -122,7 +133,7 @@ impl TaskConfig {
     }
 
     fn is_random(&self) -> bool {
-        self.random
+        self.mode == Mode::Random
     }
 }
 
@@ -458,11 +469,14 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let options = task_conf.find_get_options();
     let upper_idx = task_conf.low_idx + task_conf.count;
     let measure_time = task_conf.is_time_measurement_thread();
-    let mut keys: Vec<_> = (task_conf.low_idx..upper_idx).collect();
-    if task_conf.is_random() {
+    let iterator: Box<dyn Send + Iterator<Item = u64>> = if task_conf.is_random() {
+        Box::new(task_conf.low_idx..upper_idx)
+    } else {
+        let mut keys: Vec<_> = (task_conf.low_idx..upper_idx).collect();
         keys.shuffle(&mut thread_rng());
-    }
-    for key in keys {
+        Box::new(keys.into_iter())
+    };
+    for key in iterator {
         let request = Request::new(GetRequest {
             key: Some(BlobKey { key }),
             options: options.clone(),
@@ -602,7 +616,7 @@ fn spawn_workers(
                 count,
                 payload_size: task_conf.payload_size,
                 direct: task_conf.direct,
-                random: task_conf.random,
+                mode: task_conf.mode.clone(),
                 measure_time: i == 0,
             };
             match benchmark_conf.behavior {
