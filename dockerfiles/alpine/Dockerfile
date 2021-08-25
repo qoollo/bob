@@ -70,7 +70,8 @@ RUN apk update \
 WORKDIR /home/bob/bin/
 COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-musl/release/bobd .
 RUN chown bobd:bobd bobd \
-  && mkdir /log && chown bobd:bobd /log \
+  && mkdir /bob/log -p && chown bobd:bobd /bob/log -R \
+  && mkdir /bob/data -p && chown bobd:bobd /bob/data -R \
   && mkdir ~/.ssh \
   && chmod 600 -R ~/.ssh \
   && echo -e "#!/bin/bash\n\

@@ -23,7 +23,7 @@ appenders:
   requests:
     kind: file
     # [path] to the log file
-    path: "/log/logs.log"
+    path: "/bob/log/logs.log"
     encoder:
       pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {l} {m}{n}"
 
