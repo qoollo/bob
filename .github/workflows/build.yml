@@ -1,0 +1,63 @@
+name: build
+
+on:
+  pull_request:
+      types: [ opened, synchronize, reopened, ready_for_review, labeled, unlabeled ]
+  push:
+    branches: [ master ]
+    
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    env:
+      TARGET: "x86_64-unknown-linux-musl"
+      BUILD_MODE: "release"
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Set env variable and install packages
+        run: |
+          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: ${{ env.TARGET }}
+          default: true
+      - name: Build release
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}
+
+  build-alpine-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Set env
+        run: |
+          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
+      - name: Build alpine image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: dockerfiles/alpine/Dockerfile
+          build-args: BOB_COMMIT_HASH=${BOB_COMMIT_HASH}
+
+  build-ubuntu-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Set env
+        run: |
+          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
+      - name: Build ubuntu image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: dockerfiles/ubuntu/Dockerfile
+          build-args: BOB_COMMIT_HASH=${BOB_COMMIT_HASH}

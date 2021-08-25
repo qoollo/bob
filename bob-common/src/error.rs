@@ -46,7 +46,7 @@ impl Error {
         Self::new(Kind::Timeout)
     }
 
-    pub fn key_not_found(key: u64) -> Self {
+    pub fn key_not_found(key: BobKey) -> Self {
         Self::new(Kind::KeyNotFound(key))
     }
 
@@ -86,6 +86,10 @@ impl Error {
         let msg = format!("local error: {}\nalien error: {}", local, alien);
         let ctx = Kind::RequestFailedCompletely(msg);
         Self::new(ctx)
+    }
+
+    pub fn disk_events_logger(msg: impl Display, error: impl Display) -> Self {
+        Self::new(Kind::DisksEventsLogger(format!("{}: {}", msg, error)))
     }
 }
 
@@ -128,6 +132,9 @@ impl From<Error> for Status {
                 "Request failed on both stages local and alien: {}",
                 msg
             )),
+            Kind::DisksEventsLogger(msg) => {
+                Self::internal(format!("disk events logger error: {}", msg))
+            }
         }
     }
 }
@@ -181,4 +188,5 @@ pub enum Kind {
     Internal,
     PearlChangeState(String),
     RequestFailedCompletely(String),
+    DisksEventsLogger(String),
 }

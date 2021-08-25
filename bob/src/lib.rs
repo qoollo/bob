@@ -8,8 +8,6 @@
 //! Library requires tokio runtime.
 
 #[macro_use]
-extern crate log;
-#[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate rocket;
@@ -19,19 +17,24 @@ extern crate async_trait;
 extern crate metrics;
 
 pub mod api;
+pub mod build_time;
 pub mod cleaner;
 pub mod cluster;
 pub mod counter;
 pub mod grinder;
 pub mod link_manager;
 pub mod server;
+pub mod version_helpers;
 
+pub use crate::version_helpers::{
+    get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
+};
 pub use crate::{grinder::Grinder, server::Server as BobServer};
 pub use bob_common::{
     bob_client::Factory,
     configs::cluster::{
-        Cluster as ClusterConfig, Node as ClusterNodeConfig, Replica as ReplicaConfig,
-        VDisk as VDiskConfig,
+        Cluster as ClusterConfig, Node as ClusterNodeConfig, Rack as ClusterRackConfig,
+        Replica as ReplicaConfig, VDisk as VDiskConfig,
     },
     mapper::Virtual as VirtualMapper,
     metrics::init_counters,

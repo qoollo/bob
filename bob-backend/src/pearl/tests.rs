@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use super::Pearl as PearlBackend;
+use super::{core::BackendResult, Pearl as PearlBackend};
 use crate::core::{BackendStorage, Operation};
 
 static DISK_NAME: &str = "disk1";
@@ -15,7 +15,7 @@ async fn drop_pearl() {
     }
 }
 
-async fn create_backend(node_config: &str, cluster_config: &str) -> PearlBackend {
+async fn create_backend(node_config: &str, cluster_config: &str) -> BackendResult<PearlBackend> {
     let cluster = ClusterConfig::get_from_string(cluster_config).unwrap();
     let node = NodeConfig::get_from_string(node_config, &cluster).unwrap();
     debug!("node: {:?}", node);
@@ -62,7 +62,7 @@ vdisks:
 ";
     debug!("node_config: {}", node_config);
     debug!("cluster_config: {}", cluster_config);
-    create_backend(node_config, cluster_config).await
+    create_backend(node_config, cluster_config).await.unwrap()
 }
 
 #[tokio::test]
@@ -74,17 +74,19 @@ async fn test_write_multiple_read() {
     let path = DiskPath::new(DISK_NAME.to_owned(), "".to_owned());
     let operation = Operation::new_local(vdisk_id, path);
     let data = BobData::new(vec![], BobMeta::new(TIMESTAMP));
-    let write = backend.put(operation.clone(), KEY_ID, data).await;
+    let write = backend
+        .put(operation.clone(), BobKey::from(KEY_ID), data)
+        .await;
     assert!(write.is_ok());
 
-    let mut read = backend.get(operation.clone(), KEY_ID).await;
+    let mut read = backend.get(operation.clone(), BobKey::from(KEY_ID)).await;
     assert_eq!(TIMESTAMP, read.unwrap().meta().timestamp());
-    read = backend.get(operation.clone(), KEY_ID).await;
+    read = backend.get(operation.clone(), BobKey::from(KEY_ID)).await;
     assert_eq!(TIMESTAMP, read.unwrap().meta().timestamp());
 
-    let res = backend.get(operation.clone(), KEY_ID).await;
+    let res = backend.get(operation.clone(), BobKey::from(KEY_ID)).await;
     assert_eq!(TIMESTAMP, res.unwrap().meta().timestamp());
-    let res = backend.get(operation, KEY_ID).await;
+    let res = backend.get(operation, BobKey::from(KEY_ID)).await;
     assert_eq!(TIMESTAMP, res.unwrap().meta().timestamp());
     drop_pearl().await;
 }

@@ -10,8 +10,8 @@ use bob_common::metrics::DISKS_FOLDER;
 
 const CHECK_INTERVAL: Duration = Duration::from_millis(5000);
 
-const DISK_IS_NOT_ACTIVE: i64 = 0;
-const DISK_IS_ACTIVE: i64 = 1;
+const DISK_IS_NOT_ACTIVE: f64 = 0f64;
+const DISK_IS_ACTIVE: f64 = 1f64;
 
 #[derive(Clone, Debug, PartialEq)]
 enum GroupsState {
@@ -258,7 +258,7 @@ impl DiskController {
         operation: &'op Operation,
     ) -> Option<Group> {
         pearls
-            .find(|group| group.can_process_operation(&operation))
+            .find(|group| group.can_process_operation(operation))
             .cloned()
     }
 
@@ -434,7 +434,7 @@ impl DiskController {
                 .find(|g| g.can_process_operation(&operation))
                 .cloned();
             if let Some(group) = group_option {
-                Ok(group.exist(&keys).await)
+                Ok(group.exist(keys).await)
             } else {
                 Err(Error::internal())
             }

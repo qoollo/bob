@@ -29,7 +29,6 @@ struct NetConfig {
     port: u16,
     target: String,
 }
-
 impl NetConfig {
     fn get_uri(&self) -> http::Uri {
         http::Uri::builder()
@@ -57,8 +56,8 @@ impl NetConfig {
                     println!(
                         "{:?}",
                         e.source()
-                            .and_then(|e| e.downcast_ref::<hyper::Error>())
-                            .unwrap()
+                        .and_then(|e| e.downcast_ref::<hyper::Error>())
+                        .unwrap()
                     );
                 }
             }
@@ -86,6 +85,7 @@ struct TaskConfig {
     direct: bool,
     mode: Mode,
     measure_time: bool,
+    key_size: usize,
 }
 
 impl TaskConfig {
@@ -95,13 +95,28 @@ impl TaskConfig {
         } else {
             Mode::Normal
         };
+        let key_size = matches.value_or_default("keysize");
+        let low_idx = matches.value_or_default("first");
+        let count = matches.value_or_default("count");
+        if key_size < std::mem::size_of::<u64>() {
+            let max_allowed = 256_u64.pow(key_size as u32) - 1;
+            if low_idx + count > max_allowed {
+                panic!(
+                    "max possible index for keysize={} is {}, but task includes keys up to {}",
+                    key_size,
+                    max_allowed,
+                    low_idx + count
+                );
+            }
+        }
         Self {
-            low_idx: matches.value_or_default("first"),
-            count: matches.value_or_default("count"),
+            low_idx,
+            count,
             payload_size: matches.value_or_default("payload"),
             direct: matches.is_present("direct"),
             mode,
             measure_time: false,
+            key_size,
         }
     }
 
@@ -134,6 +149,12 @@ impl TaskConfig {
 
     fn is_random(&self) -> bool {
         self.mode == Mode::Random
+    }
+
+    fn get_proper_key(&self, key: u64) -> Vec<u8> {
+        let mut data = key.to_le_bytes().to_vec();
+        data.resize(self.key_size, 0);
+        data
     }
 }
 
@@ -251,11 +272,11 @@ impl BenchmarkConfig {
                 .unwrap()
                 .parse()
                 .expect("incorrect behavior"),
-            statistics: Arc::new(Statistics::default()),
-            time: matches
-                .value_of("time")
-                .map(|t| Duration::from_secs(t.parse().expect("error parsing time"))),
-            request_amount_bytes: matches.value_or_default("payload"),
+                statistics: Arc::new(Statistics::default()),
+                time: matches
+                    .value_of("time")
+                    .map(|t| Duration::from_secs(t.parse().expect("error parsing time"))),
+                    request_amount_bytes: matches.value_or_default("payload"),
         }
     }
 }
@@ -267,8 +288,8 @@ impl Debug for BenchmarkConfig {
             "workers count: {}, time: {}, behaviour: {:?}",
             self.workers_count,
             self.time
-                .map(|t| format!("{:?}", t))
-                .unwrap_or_else(|| "infinite".to_string()),
+            .map(|t| format!("{:?}", t))
+            .unwrap_or_else(|| "infinite".to_string()),
             self.behavior
         )
     }
@@ -368,20 +389,20 @@ fn print_averages(
         put: {:>6.2} kb/s | get: {:>6.2} kb/s\r\n\
         put resp time, ms: {:>6.2} | get resp time, ms: {:>6.2}",
         ((stat.put_total.load(Ordering::Relaxed) + stat.get_total.load(Ordering::Relaxed)) * 1000)
-            .checked_div(elapsed.as_millis() as u64)
-            .unwrap_or_default(),
+        .checked_div(elapsed.as_millis() as u64)
+        .unwrap_or_default(),
         stat.put_error_count.load(Ordering::Relaxed) + stat.get_error_count.load(Ordering::Relaxed),
-        average(&put_speed_values),
-        average(&get_speed_values),
+        average(put_speed_values),
+        average(get_speed_values),
         finite_or_default(
             (stat.put_time_ns_st.load(Ordering::Relaxed) as f64)
-                / (stat.put_count_st.load(Ordering::Relaxed) as f64)
-                / 1e9
+            / (stat.put_count_st.load(Ordering::Relaxed) as f64)
+            / 1e9
         ),
         finite_or_default(
             (stat.get_time_ns_st.load(Ordering::Relaxed) as f64)
-                / (stat.get_count_st.load(Ordering::Relaxed) as f64)
-                / 1e9
+            / (stat.get_count_st.load(Ordering::Relaxed) as f64)
+            / 1e9
         ),
     );
     if get_matches().is_present("verify") {
@@ -478,8 +499,14 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     };
     for key in iterator {
         let request = Request::new(GetRequest {
-            key: Some(BlobKey { key }),
-            options: options.clone(),
+            <<<<<<< HEAD:bob-tools/bin/bobp.rs
+                key: Some(BlobKey { key }),
+                =======
+                    key: Some(BlobKey {
+                        key: task_conf.get_proper_key(i),
+                    }),
+                    >>>>>>> master:bob-apps/bin/bobp.rs
+                        options: options.clone(),
         });
         let res = if measure_time {
             let start = Instant::now();
@@ -495,7 +522,7 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
                 let res = payload.into_inner().data;
                 stat.get_size_bytes
                     .fetch_add(res.len() as u64, Ordering::SeqCst);
-            }
+                }
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
     }
@@ -509,7 +536,9 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
         let blob = create_blob(&task_conf);
-        let key = BlobKey { key: i };
+        let key = BlobKey {
+            key: task_conf.get_proper_key(i),
+        };
         let req = Request::new(PutRequest {
             key: Some(key),
             data: Some(blob),
@@ -530,8 +559,10 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     }
     let req = Request::new(ExistRequest {
         keys: (task_conf.low_idx..upper_idx)
-            .map(|i| BlobKey { key: i })
-            .collect(),
+            .map(|i| BlobKey {
+                key: task_conf.get_proper_key(i),
+            })
+        .collect(),
         options: task_conf.find_get_options(),
     });
     if get_matches().is_present("verify") {
@@ -558,7 +589,9 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
         let blob = create_blob(&task_conf);
-        let key = BlobKey { key: i };
+        let key = BlobKey {
+            key: task_conf.get_proper_key(i),
+        };
         let put_request = Request::new(PutRequest {
             key: Some(key.clone()),
             data: Some(blob),
@@ -618,6 +651,7 @@ fn spawn_workers(
                 direct: task_conf.direct,
                 mode: task_conf.mode.clone(),
                 measure_time: i == 0,
+                key_size: task_conf.key_size,
             };
             match benchmark_conf.behavior {
                 Behavior::Put => tokio::spawn(put_worker(nc, tc, stat_inner)),
@@ -626,7 +660,7 @@ fn spawn_workers(
                 Behavior::PingPong => tokio::spawn(ping_pong_worker(nc, tc, stat_inner)),
             }
         })
-        .collect()
+    .collect()
 }
 
 fn spawn_statistics_thread(
@@ -656,90 +690,99 @@ fn get_matches() -> ArgMatches<'static> {
     App::new("Bob benchmark tool")
         .arg(
             Arg::with_name("host")
-                .help("ip or hostname of bob")
-                .takes_value(true)
-                .short("h")
-                .long("host")
-                .default_value("127.0.0.1"),
+            .help("ip or hostname of bob")
+            .takes_value(true)
+            .short("h")
+            .long("host")
+            .default_value("127.0.0.1"),
         )
         .arg(
             Arg::with_name("port")
-                .help("port of bob")
-                .takes_value(true)
-                .short("p")
-                .long("port")
-                .default_value("20000"),
+            .help("port of bob")
+            .takes_value(true)
+            .short("p")
+            .long("port")
+            .default_value("20000"),
         )
         .arg(
             Arg::with_name("payload")
-                .help("payload size in bytes")
-                .takes_value(true)
-                .short("l")
-                .long("payload")
-                .default_value("1024"),
+            .help("payload size in bytes")
+            .takes_value(true)
+            .short("l")
+            .long("payload")
+            .default_value("1024"),
         )
         .arg(
             Arg::with_name("threads")
-                .help("worker thread count")
-                .takes_value(true)
-                .short("t")
-                .long("threads")
-                .default_value("1"),
+            .help("worker thread count")
+            .takes_value(true)
+            .short("t")
+            .long("threads")
+            .default_value("1"),
         )
         .arg(
             Arg::with_name("count")
-                .help("count of records to proceed")
-                .takes_value(true)
-                .short("c")
-                .long("count")
-                .default_value("1000000"),
+            .help("count of records to proceed")
+            .takes_value(true)
+            .short("c")
+            .long("count")
+            .default_value("1000000"),
         )
         .arg(
             Arg::with_name("first")
-                .help("first index of records to proceed")
-                .takes_value(true)
-                .short("f")
-                .long("first")
-                .default_value("0"),
+            .help("first index of records to proceed")
+            .takes_value(true)
+            .short("f")
+            .long("first")
+            .default_value("0"),
         )
         .arg(
             Arg::with_name("behavior")
-                .help("put / get / test")
-                .takes_value(true)
-                .short("b")
-                .long("behavior")
-                .default_value("test"),
+            .help("put / get / test")
+            .takes_value(true)
+            .short("b")
+            .long("behavior")
+            .default_value("test"),
         )
         .arg(
             Arg::with_name("direct")
-                .help("direct command to node")
-                .short("d")
-                .long("direct"),
+            .help("direct command to node")
+            .short("d")
+            .long("direct"),
         )
         .arg(
             Arg::with_name("time")
-                .help("max time for benchmark")
-                .takes_value(true)
-                .long("time"),
+            .help("max time for benchmark")
+            .takes_value(true)
+            .long("time"),
         )
         .arg(
             Arg::with_name("amount")
-                .help("amount of bytes to write")
-                .takes_value(true)
-                .long("amount"),
+            .help("amount of bytes to write")
+            .takes_value(true)
+            .long("amount"),
         )
         .arg(
             Arg::with_name("verify")
-                .help("verify results of put requests")
-                .takes_value(false)
-                .long("verify"),
+            .help("verify results of put requests")
+            .takes_value(false)
+            .long("verify"),
         )
         .arg(
+            <<<<<<< HEAD:bob-tools/bin/bobp.rs
             Arg::with_name("random")
-                .help("keys in get operation are shuffled")
-                .takes_value(false)
-                .short("r")
-                .long("random"),
+            .help("keys in get operation are shuffled")
+            .takes_value(false)
+            .short("r")
+            .long("random"),
+            =======
+            Arg::with_name("keysize")
+            .help("size of the binary key")
+            .takes_value(true)
+            .long("keysize")
+            .short("k")
+            .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8")),
+            >>>>>>> master:bob-apps/bin/bobp.rs
         )
         .get_matches()
 }

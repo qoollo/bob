@@ -193,7 +193,7 @@ impl Group {
         let holders = self.holders.read().await;
         let mut has_error = false;
         let mut results = vec![];
-        for holder in holders.iter() {
+        for holder in holders.iter().rev() {
             let get = Self::get_common(holder.clone(), key).await;
             match get {
                 Ok(data) => {
@@ -311,7 +311,7 @@ impl Group {
         let end_timestamp = start_timestamp + self.settings.timestamp_period_as_secs();
         let mut path = self.directory_path.clone();
         info!("creating pearl holder {}", path.as_path().display());
-        let partition_name = PartitionName::new(start_timestamp, &hash);
+        let partition_name = PartitionName::new(start_timestamp, hash);
         path.push(partition_name.to_string());
         let mut config = self.settings.config().clone();
         let prefix = config.blob_file_name_prefix().to_owned();

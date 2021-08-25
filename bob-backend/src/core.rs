@@ -6,8 +6,8 @@ use crate::{
     stub_backend::StubBackend,
 };
 
-pub const BACKEND_STARTING: i64 = 0;
-pub const BACKEND_STARTED: i64 = 1;
+pub const BACKEND_STARTING: f64 = 0f64;
+pub const BACKEND_STARTED: f64 = 1f64;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Operation {
@@ -80,7 +80,7 @@ impl Operation {
 }
 
 #[async_trait]
-pub trait BackendStorage: Debug  + MetricsProducer + Send + Sync + 'static {
+pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
     async fn run_backend(&self) -> AnyResult<()>;
     async fn run(&self) -> AnyResult<()> {
         gauge!(BACKEND_STATE, BACKEND_STARTING);
@@ -136,7 +136,12 @@ impl Backend {
         let inner: Arc<dyn BackendStorage> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
-            BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config).await),
+            BackendType::Pearl => {
+                let pearl = Pearl::new(mapper.clone(), config)
+                    .await
+                    .expect("pearl initialization failed");
+                Arc::new(pearl)
+            }
         };
         Self { inner, mapper }
     }

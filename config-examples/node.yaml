@@ -13,7 +13,7 @@
 #  years, year, y -- defined as 365.25 days
 
 # [file] logger config file
-log_config: logger.yaml
+log_config: config-examples/logger.yaml
 # [str] node name, required to match with cluster config
 name: local_node
 # [uint] min count of successful operations on replicas to consider operation successful
@@ -51,6 +51,8 @@ pearl:
   fail_retry_timeout: 100ms
   # required for 'pearl'
   alien_disk: disk1
+  # optional, sets bloom filter buffer size in bits count, best value ~= max_data_in_blob.
+  bloom_filter_max_buf_bits_count: 10000
   # describes how create and manage bob directories. required for 'pearl'
   settings:
     # root dir for bob storage. required for 'pearl'
