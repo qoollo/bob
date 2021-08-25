@@ -42,7 +42,7 @@ impl LinkManager {
             }
             info!("{}{}", status, color::Fg(color::Reset));
             let cnt = nodes.len() - err_cnt;
-            gauge!(AVAILABLE_NODES_COUNT, cnt as i64);
+            gauge!(AVAILABLE_NODES_COUNT, cnt as f64);
         }
     }
 
