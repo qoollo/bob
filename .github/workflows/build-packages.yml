@@ -82,9 +82,6 @@ jobs:
     strategy:
       matrix:
         bob_key_size: [8, 16]
-        include:
-          - bob_key_size: 16
-            asset_name_postfix: -key16
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
@@ -94,12 +91,15 @@ jobs:
           name: bob-rpm-${{ matrix.bob_key_size }}
       - name: Set env
         run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+      - name: Set asset_name_postfix
+        if: ${{ bob_key_size != 8 }}
+        run: export asset_name_postfix=-key${{ matrix.bob_key_size }}
       - name: Upload rpm to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: bob-${{ env.VERSION }}-${{ github.run_id }}.x86_64.rpm
-          asset_name: bob-${{ env.VERSION }}${{ matrix.asset_name_postfix }}.x86_64.rpm
+          asset_name: bob-${{ env.VERSION }}${{ env.asset_name_postfix }}.x86_64.rpm
           tag: ${{ github.ref }}
           overwrite: true
 
