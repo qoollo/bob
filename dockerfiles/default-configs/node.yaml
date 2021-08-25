@@ -13,7 +13,7 @@
 #  years, year, y -- defined as 365.25 days
 
 # [file] logger config file
-log_config: /configs/logger.yaml
+log_config: /bob/configs/logger.yaml
 # [str] node name, required to match with cluster config
 name: local_node
 # [uint] min count of successful operations on replicas to consider operation successful

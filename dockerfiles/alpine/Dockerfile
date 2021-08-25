@@ -72,6 +72,7 @@ COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-musl/release/bo
 RUN chown bobd:bobd bobd \
   && mkdir /bob/log -p && chown bobd:bobd /bob/log -R \
   && mkdir /bob/data -p && chown bobd:bobd /bob/data -R \
+  && mkdir /bob/configs -p && chown bobd:bobd /bob/configs -R \
   && mkdir ~/.ssh \
   && chmod 600 -R ~/.ssh \
   && echo -e "#!/bin/bash\n\
@@ -83,7 +84,7 @@ RUN chown bobd:bobd bobd \
   && chmod +x prep.sh \
   && echo -e "#!/bin/bash\n\
   trap 'kill -TERM \$! && wait' SIGTERM\n\
-  ./bobd -c /configs/\$1 -n /configs/\$2 &\n\
+  ./bobd -c /bob/configs/\$1 -n /bob/configs/\$2 &\n\
   wait" >> bobd.sh \
   && chmod +x bobd.sh \
   && echo -e "#!/bin/bash\n\
@@ -93,7 +94,7 @@ RUN chown bobd:bobd bobd \
   wait" >> run.sh \
   && chmod +x run.sh
 
-COPY dockerfiles/default-configs/ /configs
+COPY dockerfiles/default-configs/ /bob/configs
 
 EXPOSE 80
 EXPOSE 22
