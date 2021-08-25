@@ -1,6 +1,6 @@
 [package]
 name = "bob-common"
-version = "1.6.1"
+version = "2.0.0-alpha.2"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
@@ -18,7 +18,9 @@ humantime = "2.1.0"
 hyper = "0.14.2"
 lazy_static = "1.4.0"
 log = "0.4"
-metrics = { version = "0.12.1", features = ["std"] }
+metrics = { version = "0.16", features = ["std"] }
+metrics-exporter-prometheus = "0.5"
+metrics-util = "0.8"
 mockall = "0.9.0"
 prost = "0.7.0"
 serde = "1.0"
