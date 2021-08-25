@@ -7,6 +7,7 @@ Bob versions changelog
 - Use default config in dockerfiles ([#290](https://github.com/qoollo/bob/pull/309))
 - Add log file rotation to logger.yaml in examples ([#297](https://github.com/qoollo/bob/pull/297))
 - Build docker images with build workflow ([#308](https://github.com/qoollo/bob/pull/308))
+- Add random mode in get in bobp ([#215](https://github.com/qoollo/bob/pull/225))
 
 #### Changed
 
