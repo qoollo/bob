@@ -49,7 +49,7 @@ impl HWCounter {
         let mut interval = interval(t);
         let mut sys = System::new_all();
         let mut dcounter = DescrCounter::new();
-        let total_mem = sys.total_memory() / 1024; // in Mb
+        let total_mem = kb_to_mb(sys.total_memory());
         debug!("total mem in mb: {}", total_mem);
         let pid = std::process::id() as i32;
 
@@ -62,8 +62,8 @@ impl HWCounter {
             let (total_space, free_space) = Self::space(&sys, &disks);
             gauge!(TOTAL_SPACE, (total_space - free_space) as i64); // i.e. used space
             gauge!(FREE_SPACE, free_space as i64);
-            let used_mem = sys.used_memory() / 1024; // in Mb
-            println!("used mem in mb: {}", used_mem);
+            let used_mem = kb_to_mb(sys.used_memory());
+            debug!("used mem in mb: {}", used_mem);
             gauge!(TOTAL_RAM, used_mem as i64);
             gauge!(FREE_RAM, (total_mem - used_mem) as i64);
             gauge!(AMOUNT_DESCRIPTORS, dcounter.descr_amount() as i64);
@@ -84,8 +84,8 @@ impl HWCounter {
                     .map(|diskname| (disk, diskname))
             })
             .fold((0, 0), |(total, free), (disk, diskname)| {
-                let disk_total = disk.total_space() / 1024 / 1024; // in Mb
-                let disk_free = disk.available_space() / 1024 / 1024; // in Mb
+                let disk_total = bytes_to_mb(disk.total_space());
+                let disk_free = bytes_to_mb(disk.available_space());
                 trace!(
                     "{} (with path {}): total = {}, free = {};",
                     diskname,
@@ -152,4 +152,12 @@ impl DescrCounter {
             0 // proc is unsupported
         }
     }
+}
+
+fn bytes_to_mb(bytes: usize) -> usize {
+    bytes / 1024 / 1024
+}
+
+fn kb_to_mb(kbs: usize) -> usize {
+    kbs / 1024
 }
