@@ -18,7 +18,7 @@ use std::{
 };
 use tokio::time::sleep;
 
-const AIO_FLAG_ORDERING: Ordering = Ordering::SeqCst;
+const AIO_FLAG_ORDERING: Ordering = Ordering::Relaxed;
 
 const PLACEHOLDER: &str = "~";
 const TMP_DIR_ENV_VARS: [&str; 3] = ["TMP", "TEMP", "TMPDIR"];
