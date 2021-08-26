@@ -93,7 +93,7 @@ jobs:
         run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
       - name: Set asset_name_postfix
         if: ${{ matrix.bob_key_size != 8 }}
-        run: echo "asset_name_postfix=$(-key${{ matrix.bob_key_size }})" >> $GITHUB_ENV
+        run: echo "asset_name_postfix=-key${{ matrix.bob_key_size }}" >> $GITHUB_ENV
       - name: Upload rpm to release
         uses: svenstaro/upload-release-action@v2
         with:
