@@ -9,6 +9,7 @@ Bob versions changelog
 - Build docker images with build workflow ([#308](https://github.com/qoollo/bob/pull/308))
 
 #### Changed
+- once aio is failed, it's disabled in config ([#257](https://github.com/qoollo/bob/pull/263))
 
 #### Fixed
 
