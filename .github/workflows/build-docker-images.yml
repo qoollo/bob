@@ -5,7 +5,6 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
-    branches: [ 298-build-bob-versions-with-8-byte-and-16-byte-keys ]
 
 jobs:
 
