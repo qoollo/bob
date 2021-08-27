@@ -10,15 +10,19 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        bob_key_size: [8, 16]
     env:
       TARGET: "x86_64-unknown-linux-musl"
       BUILD_MODE: "release"
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
-      - name: Set env variable and install packages
+      - name: Set env variables and install packages
         run: |
           export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
+          export BOB_KEY_SIZE=${{ matrix.bob_key_size }}
           sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
