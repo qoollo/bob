@@ -129,7 +129,7 @@ impl BackendSettings {
 pub struct MetricsConfig {
     name: Option<String>,
     graphite_enabled: bool,
-    graphite: String,
+    graphite: Option<String>,
     prometheus_enabled: bool,
     prefix: Option<String>,
 }
@@ -151,12 +151,12 @@ impl MetricsConfig {
         self.prometheus_enabled
     }
 
-    pub(crate) fn graphite(&self) -> &str {
-        &self.graphite
+    pub(crate) fn graphite(&self) -> Option<&str> {
+        self.graphite.as_deref()
     }
 
     fn check_unset(&self) -> Result<(), String> {
-        if self.graphite == PLACEHOLDER {
+        if self.graphite_enabled && self.graphite.is_none() {
             let msg = "some of the fields present, but empty".to_string();
             error!("{}", msg);
             Err(msg)
@@ -180,7 +180,9 @@ impl MetricsConfig {
     }
 
     fn check_graphite_addr(&self) -> Result<(), String> {
-        if let Err(e) = self.graphite.parse::<SocketAddr>() {
+        if !self.graphite_enabled {
+            Ok(())
+        } else if let Err(e) = self.graphite().unwrap().parse::<SocketAddr>() {
             let msg = format!("field 'graphite': {} for 'metrics config' is invalid", e);
             error!("{}", msg);
             Err(msg)

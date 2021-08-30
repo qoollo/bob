@@ -277,7 +277,13 @@ fn build_graphite(node_config: &NodeConfig, local_address: &str) -> GraphiteReco
         .map_or(format!("{}.{}", NODE_NAME, LOCAL_ADDRESS), str::to_owned);
     let prefix = resolve_prefix_pattern(prefix_pattern, node_config, local_address);
     exporters::graphite_exporter::GraphiteBuilder::new()
-        .set_address(node_config.metrics().graphite().to_string())
+        .set_address(
+            node_config
+                .metrics()
+                .graphite()
+                .expect("graphite is enabled but address is not set")
+                .to_string(),
+        )
         .set_interval(Duration::from_secs(1))
         .set_prefix(prefix)
         .build()
