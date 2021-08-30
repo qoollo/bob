@@ -67,5 +67,6 @@ pearl:
 # optional, send metrics
 metrics:
   name: bob
+  graphite: 127.0.0.1:2003
   graphite_enabled: false
   prometheus_enabled: false
