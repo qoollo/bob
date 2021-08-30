@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Add the ability to disable metrics ([#241](https://github.com/qoollo/bob/pull/253))
 - Use default config in dockerfiles ([#290](https://github.com/qoollo/bob/pull/309))
 - Add log file rotation to logger.yaml in examples ([#297](https://github.com/qoollo/bob/pull/297))
 - Build docker images with build workflow ([#308](https://github.com/qoollo/bob/pull/308))
