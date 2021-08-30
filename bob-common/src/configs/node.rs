@@ -157,7 +157,7 @@ impl MetricsConfig {
 
     fn check_unset(&self) -> Result<(), String> {
         if self.graphite_enabled && self.graphite.is_none() {
-            let msg = "some of the fields present, but empty".to_string();
+            let msg = "graphite is enabled but no graphite address has been provided".to_string();
             error!("{}", msg);
             Err(msg)
         } else {
