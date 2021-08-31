@@ -4,18 +4,27 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Add the ability to disable metrics ([#241](https://github.com/qoollo/bob/pull/253))
-- Use default config in dockerfiles ([#290](https://github.com/qoollo/bob/pull/309))
-- Add log file rotation to logger.yaml in examples ([#297](https://github.com/qoollo/bob/pull/297))
-- Build docker images with build workflow ([#308](https://github.com/qoollo/bob/pull/308))
-- Build Bob versions with 8-byte and 16-byte keys ([#307](https://github.com/qoollo/bob/pull/307))
+
 
 #### Changed
-- once aio is failed, it's disabled in config ([#257](https://github.com/qoollo/bob/pull/263))
+
 
 #### Fixed
 
+
 #### Updated
+
+
+## [2.0.0-alpha.3] - 2021-08-31
+#### Added
+- Add the ability to disable metrics (#241)
+- Use default config in dockerfiles (#290)
+- Add log file rotation to logger.yaml in examples (#297)
+- Build docker images with build workflow (#308)
+- Build Bob versions with 8-byte and 16-byte keys (#307)
+
+#### Changed
+- once aio is failed, it's disabled in config (#257)
 
 
 ## [2.0.0-alpha.2] - 2021-08-23
