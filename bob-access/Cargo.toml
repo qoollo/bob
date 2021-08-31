@@ -1,6 +1,6 @@
 [package]
 name = "bob-access"
-version = "2.0.0-alpha.1"
+version = "2.0.0-alpha.2"
 authors = ["Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 

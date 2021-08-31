@@ -2,7 +2,7 @@ use bob::{
     get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version, init_counters,
     BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper,
 };
-use bob_access::{AccessControlLayer, StubAuthenticator, StubExtractor, UsersMap};
+use bob_access::{AccessControlLayer, BasicExtractor, StubAuthenticator, StubExtractor, UsersMap};
 use clap::{App, Arg, ArgMatches};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::runtime::Handle;
@@ -96,22 +96,39 @@ async fn main() {
 
     let factory = Factory::new(node.operation_timeout(), metrics);
     bob.run_periodic_tasks(factory);
-    let new_service = BobApiServer::new(bob);
-    let users_storage =
-        UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
-    let authenticator = StubAuthenticator::new(users_storage);
-    let extractor = StubExtractor::new();
-    let new_service = AccessControlLayer::new()
-        .with_authenticator(authenticator)
-        .with_extractor(extractor)
-        .layer(new_service);
-
-    Server::builder()
-        .tcp_nodelay(true)
-        .add_service(new_service)
-        .serve(addr)
-        .await
-        .unwrap();
+    let authentication_type = matches.value_of("authentication_type").unwrap();
+    match authentication_type {
+        "stub" => {
+            let bob_service = BobApiServer::new(bob);
+            let users_storage =
+                UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
+            let authenticator = StubAuthenticator::new(users_storage);
+            let new_service = AccessControlLayer::new().with_authenticator(authenticator);
+            let extractor = StubExtractor::new();
+            let new_service = new_service.with_extractor(extractor).layer(bob_service);
+            Server::builder()
+                .tcp_nodelay(true)
+                .add_service(new_service)
+                .serve(addr)
+                .await
+                .unwrap();
+        }
+        "basic" => {
+            let bob_service = BobApiServer::new(bob);
+            let users_storage =
+                UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
+            let authenticator = StubAuthenticator::new(users_storage);
+            let new_service = AccessControlLayer::new().with_authenticator(authenticator);
+            let extractor = BasicExtractor::default();
+            let new_service = new_service.with_extractor(extractor).layer(bob_service);
+            Server::builder()
+                .tcp_nodelay(true)
+                .add_service(new_service)
+                .serve(addr)
+                .await
+                .unwrap();
+        }
+    }
 }
 
 fn bind_all_interfaces(port: u16) -> SocketAddr {
@@ -195,6 +212,13 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .default_value("8000")
                 .short("p")
                 .long("port")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("authentication_type")
+                .default_value("stub")
+                .long("auth")
+                .possible_values(&["stub", "basic"])
                 .takes_value(true),
         )
         .get_matches()

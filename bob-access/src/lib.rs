@@ -11,7 +11,7 @@ mod settings;
 mod token;
 
 pub use authenticator::{StubAuthenticator, UsersMap};
-pub use extractor::StubExtractor;
+pub use extractor::{BasicExtractor, StubExtractor};
 
 use std::task::{Context, Poll};
 
@@ -58,12 +58,21 @@ impl<S> Layer<S> for AccessControlLayer<StubAuthenticator<UsersMap>, StubExtract
     type Service = AccessControlService<StubAuthenticator<UsersMap>, StubExtractor, S>;
 
     fn layer(&self, service: S) -> Self::Service {
-        let storage = UsersMap::from_file(USERS_MAP_FILE).expect("can't create UsersMap from file");
-        let authenticator = StubAuthenticator::new(storage);
-        let extractor = StubExtractor::new();
         AccessControlService {
-            authenticator,
-            extractor,
+            authenticator: self.authenticator.clone().unwrap(),
+            extractor: self.extractor.clone().unwrap(),
+            service,
+        }
+    }
+}
+
+impl<S> Layer<S> for AccessControlLayer<StubAuthenticator<UsersMap>, BasicExtractor> {
+    type Service = AccessControlService<StubAuthenticator<UsersMap>, BasicExtractor, S>;
+
+    fn layer(&self, service: S) -> Self::Service {
+        AccessControlService {
+            authenticator: self.authenticator.clone().unwrap(),
+            extractor: self.extractor.clone().unwrap(),
             service,
         }
     }
@@ -90,7 +99,7 @@ where
         let credentials = self.extractor.extract(&req).unwrap();
         debug!("credentials: {:#?}", credentials);
         if let Err(e) = self.authenticator.check_credentials(credentials) {
-            warn!("Unautorized request: {:?}", e);
+            warn!("Unauthorized request: {:?}", e);
             todo!("print log and drop request");
         } else {
             self.service.call(req)
