@@ -16,6 +16,28 @@ impl Credentials {
     pub fn builder() -> CredentialsBuilder {
         CredentialsBuilder::default()
     }
+
+    pub fn username(&self) -> Option<&str> {
+        let kind = self.kind.as_ref()?;
+        match kind {
+            CredentialsKind::Basic {
+                username,
+                password: _,
+            } => Some(username),
+            CredentialsKind::Token(_) => None,
+        }
+    }
+
+    pub fn password(&self) -> Option<&str> {
+        let kind = self.kind.as_ref()?;
+        match kind {
+            CredentialsKind::Basic {
+                username: _,
+                password,
+            } => Some(password),
+            CredentialsKind::Token(_) => None,
+        }
+    }
 }
 
 #[derive(Debug, Default)]
