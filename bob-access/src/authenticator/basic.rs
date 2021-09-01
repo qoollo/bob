@@ -14,8 +14,20 @@ impl<Storage: UsersStorage> Basic<Storage> {
 }
 
 impl<Storage: UsersStorage> Authenticator for Basic<Storage> {
-    fn check_credentials(&self, _credentials: Credentials) -> Result<(), Error> {
-        todo!();
-        Ok(())
+    fn check_credentials(&self, credentials: Credentials) -> Result<(), Error> {
+        if let Some(username) = credentials.username() {
+            let user = self.users_storage.get_user(username)?;
+            if let Some(password) = credentials.password() {
+                if user.password() == password {
+                    Ok(())
+                } else {
+                    Err(Error::unauthorized_request())
+                }
+            } else {
+                Err(Error::credentials_not_provided("missing password"))
+            }
+        } else {
+            Err(Error::credentials_not_provided("missing username"))
+        }
     }
 }
