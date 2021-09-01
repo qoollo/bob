@@ -1,4 +1,3 @@
-
 pub fn get_bob_version() -> String {
     format!(
         "{}-{}",

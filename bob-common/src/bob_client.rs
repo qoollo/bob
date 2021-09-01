@@ -17,6 +17,7 @@ pub mod b_client {
     };
     use tokio::time::timeout;
     use tonic::{
+        metadata::MetadataValue,
         transport::{Channel, Endpoint},
         Request, Response, Status,
     };
@@ -124,7 +125,10 @@ pub mod b_client {
         #[allow(dead_code)]
         pub async fn ping(&self) -> PingResult {
             let mut client = self.client.clone();
-            let result = timeout(self.operation_timeout, client.ping(Request::new(Null {}))).await;
+            let mut request = Request::new(Null {});
+            let val = MetadataValue::from_str(&format!("node-{}", self.node.name())).unwrap();
+            request.metadata_mut().insert("username", val);
+            let result = timeout(self.operation_timeout, client.ping(request)).await;
             match result {
                 Ok(Ok(_)) => Ok(NodeOutput::new(self.node.name().to_owned(), ())),
                 Ok(Err(e)) => Err(NodeOutput::new(self.node.name().to_owned(), Error::from(e))),
@@ -143,7 +147,10 @@ pub mod b_client {
             let mut client = self.client.clone();
             self.metrics.exist_count();
             let timer = BobClientMetrics::start_timer();
-            let keys = keys.into_iter().map(|key| BlobKey { key: key.into() }).collect();
+            let keys = keys
+                .into_iter()
+                .map(|key| BlobKey { key: key.into() })
+                .collect();
             let message = ExistRequest {
                 keys,
                 options: Some(options),
