@@ -10,7 +10,9 @@ mod extractor;
 mod settings;
 mod token;
 
-pub use authenticator::{StubAuthenticator, UsersMap};
+pub use authenticator::{
+    basic::Basic as BasicAuthenticator, stub::Stub as StubAuthenticator, UsersMap,
+};
 pub use extractor::{BasicExtractor, StubExtractor};
 
 use std::task::{Context, Poll};
@@ -66,8 +68,8 @@ impl<S> Layer<S> for AccessControlLayer<StubAuthenticator<UsersMap>, StubExtract
     }
 }
 
-impl<S> Layer<S> for AccessControlLayer<StubAuthenticator<UsersMap>, BasicExtractor> {
-    type Service = AccessControlService<StubAuthenticator<UsersMap>, BasicExtractor, S>;
+impl<S> Layer<S> for AccessControlLayer<BasicAuthenticator<UsersMap>, BasicExtractor> {
+    type Service = AccessControlService<BasicAuthenticator<UsersMap>, BasicExtractor, S>;
 
     fn layer(&self, service: S) -> Self::Service {
         AccessControlService {

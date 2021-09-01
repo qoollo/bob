@@ -2,7 +2,10 @@ use bob::{
     get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version, init_counters,
     BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper,
 };
-use bob_access::{AccessControlLayer, BasicExtractor, StubAuthenticator, StubExtractor, UsersMap};
+use bob_access::{
+    AccessControlLayer, BasicAuthenticator, BasicExtractor, StubAuthenticator, StubExtractor,
+    UsersMap,
+};
 use clap::{App, Arg, ArgMatches};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::runtime::Handle;
@@ -117,7 +120,7 @@ async fn main() {
             let bob_service = BobApiServer::new(bob);
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
-            let authenticator = StubAuthenticator::new(users_storage);
+            let authenticator = BasicAuthenticator::new(users_storage);
             let new_service = AccessControlLayer::new().with_authenticator(authenticator);
             let extractor = BasicExtractor::default();
             let new_service = new_service.with_extractor(extractor).layer(bob_service);

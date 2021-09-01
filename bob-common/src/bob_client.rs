@@ -128,6 +128,9 @@ pub mod b_client {
             let mut request = Request::new(Null {});
             let val = MetadataValue::from_str(&format!("node-{}", self.node.name())).unwrap();
             request.metadata_mut().insert("username", val);
+            let val = MetadataValue::from_str(&format!("{}-password", self.node.name())).unwrap();
+            request.metadata_mut().insert("password", val);
+            error!("todo: remove static username password");
             let result = timeout(self.operation_timeout, client.ping(request)).await;
             match result {
                 Ok(Ok(_)) => Ok(NodeOutput::new(self.node.name().to_owned(), ())),
