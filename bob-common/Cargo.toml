@@ -22,12 +22,12 @@ metrics = { version = "0.16", features = ["std"] }
 metrics-exporter-prometheus = "0.5"
 metrics-util = "0.8"
 mockall = "0.9.0"
-prost = "0.7.0"
+prost = "0.8.0"
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.8"
 thiserror = "1.0"
-tonic = { version = "0.4.0", features = ["prost"] }
+tonic = { version = "0.5.2", features = ["prost"] }
 tower = "0.4.3"
 tower-service = "0.3.0"
 #metrics = "0.12.1"
@@ -37,5 +37,5 @@ version = "1.4"
 features = ["full"]
 
 [build-dependencies]
-tonic-build = "0.4.0"
+tonic-build = "0.5.2"
 

@@ -27,7 +27,7 @@ log = "0.4"
 log4rs = "1.0.0"
 metrics = { version = "0.16", features = ["std"] }
 mockall = "0.9.0"
-prost = "0.7.0"
+prost = "0.8.0"
 ring = "0.16.19"
 rocket = "0.5.0-rc.1"
 serde = "1.0"
@@ -36,7 +36,7 @@ serde_yaml = "0.8"
 stopwatch = "0.0.7"
 termion = "1.5"
 thiserror = "1.0"
-tonic = { version = "0.4.0", features = ["prost"] }
+tonic = { version = "0.5.2", features = ["prost"] }
 tower = "0.4.3"
 tower-balance = "0.3.0"
 tower-load = "0.3.0"
@@ -51,7 +51,7 @@ version = "1.4"
 features = ["full"]
 
 [build-dependencies]
-tonic-build = "0.4.0"
+tonic-build = "0.5.2"
 
 [[bin]]
 name = "bobd"

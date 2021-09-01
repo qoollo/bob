@@ -1,4 +1,4 @@
-use tonic::metadata::errors::ToStrError;
+use tonic::codegen::http::header::ToStrError;
 
 #[derive(Debug)]
 pub struct Error {

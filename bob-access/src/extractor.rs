@@ -1,6 +1,6 @@
 use crate::{credentials::Credentials, error::Error};
+use http::Request;
 use rocket::Request as RRequest;
-use tonic::Request as TRequest;
 
 pub trait Extractor<Request>: Clone {
     fn extract(&self, req: &Request) -> Result<Credentials, Error>;
@@ -24,9 +24,9 @@ impl<Request> Extractor<Request> for StubExtractor {
 #[derive(Debug, Clone, Default)]
 pub struct BasicExtractor {}
 
-impl<T> Extractor<TRequest<T>> for BasicExtractor {
-    fn extract(&self, req: &TRequest<T>) -> Result<Credentials, Error> {
-        let meta = req.metadata();
+impl<T> Extractor<Request<T>> for BasicExtractor {
+    fn extract(&self, req: &Request<T>) -> Result<Credentials, Error> {
+        let meta = req.headers();
         let username = meta
             .get("username")
             .ok_or_else(|| Error::credentials_not_provided("username"))?
@@ -37,11 +37,11 @@ impl<T> Extractor<TRequest<T>> for BasicExtractor {
             .ok_or_else(|| Error::credentials_not_provided("password"))?
             .to_str()
             .map_err(Error::conversion_error)?;
-
-        Ok(Credentials::builder()
+        let creds = Credentials::builder()
             .with_username_password(username, password)
-            .with_address(req.remote_addr())
-            .build())
+            // .with_address(req.remote_addr())
+            .build();
+        Ok(creds)
     }
 }
 
@@ -64,9 +64,9 @@ impl<'r> Extractor<RRequest<'r>> for BasicExtractor {
 #[derive(Debug, Clone, Default)]
 pub struct TokenExtractor {}
 
-impl<T> Extractor<TRequest<T>> for TokenExtractor {
-    fn extract(&self, req: &TRequest<T>) -> Result<Credentials, Error> {
-        let meta = req.metadata();
+impl<T> Extractor<Request<T>> for TokenExtractor {
+    fn extract(&self, req: &Request<T>) -> Result<Credentials, Error> {
+        let meta = req.headers();
         let token = meta
             .get("token")
             .ok_or_else(|| Error::credentials_not_provided("token"))?
@@ -74,7 +74,7 @@ impl<T> Extractor<TRequest<T>> for TokenExtractor {
             .map_err(Error::conversion_error)?;
         Ok(Credentials::builder()
             .with_token(token)
-            .with_address(req.remote_addr())
+            // .with_address(req.remote_addr())
             .build())
     }
 }
@@ -98,8 +98,8 @@ pub struct MultiExtractor {
     token_extractor: TokenExtractor,
 }
 
-impl<T> Extractor<TRequest<T>> for MultiExtractor {
-    fn extract(&self, req: &TRequest<T>) -> Result<Credentials, Error> {
+impl<T> Extractor<Request<T>> for MultiExtractor {
+    fn extract(&self, req: &Request<T>) -> Result<Credentials, Error> {
         let basic_credentials = self.basic_extractor.extract(req);
         let token_credentials = self.token_extractor.extract(req);
         match (basic_credentials.is_ok(), token_credentials.is_ok()) {
@@ -107,7 +107,7 @@ impl<T> Extractor<TRequest<T>> for MultiExtractor {
             (true, false) => basic_credentials,
             (false, true) => token_credentials,
             _ => Ok(Credentials::builder()
-                .with_address(req.remote_addr())
+                // .with_address(req.remote_addr())
                 .build()),
         }
     }

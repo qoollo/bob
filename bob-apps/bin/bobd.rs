@@ -128,6 +128,9 @@ async fn main() {
                 .await
                 .unwrap();
         }
+        _ => {
+            todo!()
+        }
     }
 }
 
