@@ -5,7 +5,38 @@ pub struct Error {
     kind: Kind,
 }
 
+#[derive(Debug)]
+enum Kind {
+    _Unknown,
+    InvalidToken(String),
+    Validation(String),
+    Os(String),
+    NotFound,
+    ConversionError(ToStrError),
+    CredentialsNotProvided(String),
+    MultipleCredentialsTypes,
+    UnauthorizedRequest,
+}
+
 impl Error {
+    pub fn os(message: impl Into<String>) -> Self {
+        Self {
+            kind: Kind::Os(message.into()),
+        }
+    }
+
+    pub fn validation(message: impl Into<String>) -> Self {
+        Self {
+            kind: Kind::Validation(message.into()),
+        }
+    }
+
+    pub fn not_found() -> Self {
+        Self {
+            kind: Kind::NotFound,
+        }
+    }
+
     pub fn invalid_token(message: impl Into<String>) -> Self {
         Self {
             kind: Kind::InvalidToken(message.into()),
@@ -29,36 +60,10 @@ impl Error {
             kind: Kind::MultipleCredentialsTypes,
         }
     }
-}
 
-#[derive(Debug)]
-enum Kind {
-    _Unknown,
-    InvalidToken(String),
-    Validation(String),
-    Os(String),
-    NotFound,
-    ConversionError(ToStrError),
-    CredentialsNotProvided(String),
-    MultipleCredentialsTypes,
-}
-
-impl Error {
-    pub fn os(message: impl Into<String>) -> Self {
+    pub fn unauthorized_request() -> Self {
         Self {
-            kind: Kind::Os(message.into()),
-        }
-    }
-
-    pub fn validation(message: impl Into<String>) -> Self {
-        Self {
-            kind: Kind::Validation(message.into()),
-        }
-    }
-
-    pub fn not_found() -> Self {
-        Self {
-            kind: Kind::NotFound,
+            kind: Kind::UnauthorizedRequest,
         }
     }
 }
