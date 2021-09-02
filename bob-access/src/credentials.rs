@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 
 #[derive(Debug, Default, Clone)]
 pub struct Credentials {
@@ -37,6 +37,10 @@ impl Credentials {
             } => Some(password),
             CredentialsKind::Token(_) => None,
         }
+    }
+
+    pub fn ip(&self) -> Option<IpAddr> {
+        Some(self.address?.ip())
     }
 }
 
