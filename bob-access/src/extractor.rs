@@ -1,6 +1,7 @@
 use crate::{credentials::Credentials, error::Error};
 use http::Request;
 use rocket::Request as RRequest;
+use tonic::transport::server::TcpConnectInfo;
 
 pub trait Extractor<Request>: Clone {
     fn extract(&self, req: &Request) -> Result<Credentials, Error>;
@@ -37,9 +38,13 @@ impl<T> Extractor<Request<T>> for BasicExtractor {
             .ok_or_else(|| Error::credentials_not_provided("password"))?
             .to_str()
             .map_err(Error::conversion_error)?;
+        let addr = req
+            .extensions()
+            .get::<TcpConnectInfo>()
+            .and_then(|i| i.remote_addr());
         let creds = Credentials::builder()
             .with_username_password(username, password)
-            // .with_address(req.remote_addr())
+            .with_address(addr)
             .build();
         Ok(creds)
     }
@@ -72,10 +77,15 @@ impl<T> Extractor<Request<T>> for TokenExtractor {
             .ok_or_else(|| Error::credentials_not_provided("token"))?
             .to_str()
             .map_err(Error::conversion_error)?;
-        Ok(Credentials::builder()
+        let addr = req
+            .extensions()
+            .get::<TcpConnectInfo>()
+            .and_then(|i| i.remote_addr());
+        let creds = Credentials::builder()
             .with_token(token)
-            // .with_address(req.remote_addr())
-            .build())
+            .with_address(addr)
+            .build();
+        Ok(creds)
     }
 }
 
