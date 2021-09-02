@@ -45,6 +45,11 @@ impl<Storage: UsersStorage> Authenticator for Basic<Storage> {
             debug!("received request from node: {:?}", credentials.username());
             return Ok(());
         }
+        debug!(
+            "external request ip: {:?}, name: {:?}",
+            credentials.ip(),
+            credentials.username()
+        );
         let username = credentials
             .username()
             .ok_or_else(|| Error::credentials_not_provided("missing username"))?;
