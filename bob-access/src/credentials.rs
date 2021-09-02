@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Credentials {
     address: Option<SocketAddr>,
     kind: Option<CredentialsKind>,

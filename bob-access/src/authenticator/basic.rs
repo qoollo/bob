@@ -5,11 +5,19 @@ use super::{users_storage::UsersStorage, Authenticator};
 #[derive(Debug, Default, Clone)]
 pub struct Basic<Storage: UsersStorage> {
     users_storage: Storage,
+    nodes: Vec<Credentials>,
 }
 
 impl<Storage: UsersStorage> Basic<Storage> {
     pub fn new(users_storage: Storage) -> Self {
-        Self { users_storage }
+        Self {
+            users_storage,
+            nodes: Vec::new(),
+        }
+    }
+
+    pub fn set_nodes_credentials(&mut self, nodes: Vec<Credentials>) {
+        self.nodes = nodes;
     }
 }
 
