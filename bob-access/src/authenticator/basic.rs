@@ -30,6 +30,9 @@ impl<Storage: UsersStorage> Basic<Storage> {
     }
 
     fn is_node(&self, other: &Credentials) -> bool {
+        if self.nodes.is_empty() {
+            warn!("nodes credentials not set");
+        }
         self.nodes
             .iter()
             .any(|cred| cred.ip() == other.ip() && cred.username() == other.username())
