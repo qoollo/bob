@@ -1,3 +1,4 @@
+use std::{error::Error as StdError, fmt::Display};
 use tonic::codegen::http::header::ToStrError;
 
 #[derive(Debug)]
@@ -65,5 +66,13 @@ impl Error {
         Self {
             kind: Kind::UnauthorizedRequest,
         }
+    }
+}
+
+impl StdError for Error {}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#?}", self)
     }
 }

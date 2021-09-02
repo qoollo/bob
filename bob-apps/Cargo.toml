@@ -18,7 +18,7 @@ clap = "2.33"
 ctrlc = "3.1"
 derive-new = "0.5.8"
 env_logger = "0.8"
-futures = { version = "0.3.12", features = ["thread-pool"] }
+futures = { version = "0.3", features = ["thread-pool"] }
 http = "0.2.3"
 humantime = "2.1.0"
 hyper = "0.14.2"

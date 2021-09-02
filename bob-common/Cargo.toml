@@ -12,7 +12,7 @@ bob-grpc = { path = "../bob-grpc" }
 bytes = "1.0.1"
 cfg-if = "1.0"
 chrono = "0.4"
-futures = { version = "0.3.12", features = ["thread-pool"] }
+futures = { version = "0.3", features = ["thread-pool"] }
 http = "0.2.3"
 humantime = "2.1.0"
 hyper = "0.14.2"
