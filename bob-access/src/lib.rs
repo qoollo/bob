@@ -86,6 +86,8 @@ impl<S> Layer<S> for AccessControlLayer<BasicAuthenticator<UsersMap>, BasicExtra
     }
 }
 
+type ServiceFuture<R, E> = Pin<Box<dyn Future<Output = Result<R, E>> + Send>>;
+
 impl<A, E, S, Request> Service<Request> for AccessControlService<A, E, S>
 where
     A: Authenticator,
@@ -99,7 +101,7 @@ where
 
     type Error = Box<dyn StdError + Send + Sync>;
 
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = ServiceFuture<Self::Response, Self::Error>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx).map_err(Into::into)
@@ -111,10 +113,8 @@ where
         debug!("credentials: {:#?}", credentials);
         if let Err(e) = self.authenticator.check_credentials(credentials) {
             warn!("Unauthorized request: {:?}", e);
-            let res = Box::pin(futures::future::ready(Err(
-                Box::new(Error::unauthorized_request()) as Box<dyn StdError + Send + Sync>,
-            )));
-            res as Self::Future
+            let error = Box::new(Error::unauthorized_request()) as Self::Error;
+            Box::pin(futures::future::ready(Err(error))) as Self::Future
         } else {
             Box::pin(self.service.call(req).map_err(Into::into))
         }
