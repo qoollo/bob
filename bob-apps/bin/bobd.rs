@@ -103,12 +103,14 @@ async fn main() {
     match authentication_type {
         "stub" => {
             let bob_service = BobApiServer::new(bob);
+
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let authenticator = StubAuthenticator::new(users_storage);
-            let new_service = AccessControlLayer::new().with_authenticator(authenticator);
+            let auth_service = AccessControlLayer::new().with_authenticator(authenticator);
             let extractor = StubExtractor::new();
-            let new_service = new_service.with_extractor(extractor).layer(bob_service);
+            let new_service = auth_service.with_extractor(extractor).layer(bob_service);
+
             Server::builder()
                 .tcp_nodelay(true)
                 .add_service(new_service)
@@ -118,12 +120,14 @@ async fn main() {
         }
         "basic" => {
             let bob_service = BobApiServer::new(bob);
+
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let authenticator = BasicAuthenticator::new(users_storage);
-            let new_service = AccessControlLayer::new().with_authenticator(authenticator);
+            let auth_service = AccessControlLayer::new().with_authenticator(authenticator);
             let extractor = BasicExtractor::default();
-            let new_service = new_service.with_extractor(extractor).layer(bob_service);
+            let new_service = auth_service.with_extractor(extractor).layer(bob_service);
+
             Server::builder()
                 .tcp_nodelay(true)
                 .add_service(new_service)
@@ -132,7 +136,15 @@ async fn main() {
                 .unwrap();
         }
         _ => {
-            todo!()
+            warn!("valid authentication type not provided");
+            let bob_service = BobApiServer::new(bob);
+
+            Server::builder()
+                .tcp_nodelay(true)
+                .add_service(bob_service)
+                .serve(addr)
+                .await
+                .unwrap();
         }
     }
 }
