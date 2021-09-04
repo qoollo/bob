@@ -88,13 +88,18 @@ struct TaskConfig {
     key_size: usize,
 }
 
+fn unwrap_mode(mode: &str) -> Mode {
+    match mode.as_ref() {
+        "normal" => Mode::Normal,
+        "random" => Mode::Random,
+        _ => Mode::Normal,
+    }
+}
+
 impl TaskConfig {
     fn from_matches(matches: &ArgMatches) -> Self {
-        let mode = if matches.is_present("random") {
-            Mode::Random
-        } else {
-            Mode::Normal
-        };
+        let mode_string: String = matches.value_or_default("normal");
+        let mode = unwrap_mode(&mode_string);
         let key_size = matches.value_or_default("keysize");
         let low_idx = matches.value_or_default("first");
         let count = matches.value_or_default("count");
@@ -765,11 +770,10 @@ fn get_matches() -> ArgMatches<'static> {
                 .long("verify"),
         )
         .arg(
-            Arg::with_name("random")
+            Arg::with_name("mode")
                 .help("keys in get operation are shuffled")
                 .takes_value(false)
-                .short("r")
-                .long("random"),
+                .long("mode"),
         )
         .arg(
             Arg::with_name("keysize")
