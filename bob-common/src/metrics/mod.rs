@@ -207,10 +207,19 @@ fn init_link_manager() {
 }
 
 fn install_global(node_config: &NodeConfig, local_address: &str) {
-    let graphite_rec = build_graphite(node_config, local_address);
-    let prometheus_rec = build_prometheus(node_config);
-    let recorders: Vec<Box<dyn Recorder>> = vec![Box::new(graphite_rec), Box::new(prometheus_rec)];
-    install_global_recorder(recorders);
+    let mut recorders: Vec<Box<dyn Recorder>> = vec![];
+    if node_config.metrics().graphite_enabled() {
+        let graphite_rec = build_graphite(node_config, local_address);
+        recorders.push(Box::new(graphite_rec));
+    }
+    if node_config.metrics().prometheus_enabled() {
+        let prometheus_rec = build_prometheus(node_config);
+        recorders.push(Box::new(prometheus_rec));
+    }
+
+    if !recorders.is_empty() {
+        install_global_recorder(recorders);
+    }
 }
 
 fn install_global_recorder(recorders: Vec<Box<dyn Recorder>>) {
@@ -270,7 +279,13 @@ fn build_graphite(node_config: &NodeConfig, local_address: &str) -> GraphiteReco
         .map_or(format!("{}.{}", NODE_NAME, LOCAL_ADDRESS), str::to_owned);
     let prefix = resolve_prefix_pattern(prefix_pattern, node_config, local_address);
     exporters::graphite_exporter::GraphiteBuilder::new()
-        .set_address(node_config.metrics().graphite().to_string())
+        .set_address(
+            node_config
+                .metrics()
+                .graphite()
+                .expect("graphite is enabled but address is not set")
+                .to_string(),
+        )
         .set_interval(Duration::from_secs(1))
         .set_prefix(prefix)
         .build()
