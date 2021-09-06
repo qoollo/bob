@@ -8,6 +8,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use tokio::{pin, select};
 
 mod exporters;
 pub mod pearl;
@@ -167,13 +168,13 @@ impl ContainerBuilder for MetricsContainer {
 
 /// initializes bob counters with given config and address of the local node
 #[allow(unused_variables)]
-pub fn init_counters(
+pub async fn init_counters(
     node_config: &NodeConfig,
     local_address: &str,
 ) -> Arc<dyn ContainerBuilder + Send + Sync> {
     //install_prometheus();
     //install_graphite(node_config, local_address);
-    install_global(node_config, local_address);
+    install_global(node_config, local_address).await;
     let container = MetricsContainer::new(Duration::from_secs(1), CLIENTS_METRICS_DIR.to_owned());
     info!(
         "metrics container initialized with update interval: {}ms",
@@ -206,14 +207,14 @@ fn init_link_manager() {
     register_counter!(AVAILABLE_NODES_COUNT);
 }
 
-fn install_global(node_config: &NodeConfig, local_address: &str) {
+async fn install_global(node_config: &NodeConfig, local_address: &str) {
     let mut recorders: Vec<Box<dyn Recorder>> = vec![];
     if node_config.metrics().graphite_enabled() {
         let graphite_rec = build_graphite(node_config, local_address);
         recorders.push(Box::new(graphite_rec));
     }
     if node_config.metrics().prometheus_enabled() {
-        let prometheus_rec = build_prometheus();
+        let prometheus_rec = build_prometheus().await;
         recorders.push(Box::new(prometheus_rec));
     }
 
@@ -228,20 +229,31 @@ fn install_global_recorder(recorders: Vec<Box<dyn Recorder>>) {
 }
 
 #[allow(unused)]
-fn install_prometheus() {
-    let recorder = build_prometheus();
+async fn install_prometheus() {
+    let recorder = build_prometheus().await;
     metrics::set_boxed_recorder(Box::new(recorder)).expect("Can't set Prometheus recorder");
 }
 
-fn build_prometheus() -> PrometheusRecorder {
-    metrics_exporter_prometheus::PrometheusBuilder::new()
+async fn build_prometheus() -> PrometheusRecorder {
+    let (recorder, exporter) = metrics_exporter_prometheus::PrometheusBuilder::new()
         .listen_address(
             "0.0.0.0:9000"
                 .parse::<SocketAddr>()
                 .expect("Bad metrics address"),
         )
         .idle_timeout(MetricKindMask::ALL, Some(Duration::from_secs(2)))
-        .build()
+        .build_with_exporter()
+        .expect("Failed to set Prometheus exporter");
+
+    tokio::spawn(async move {
+        pin!(exporter);
+        loop {
+            select! {
+                _ = &mut exporter => {}
+            }
+        }
+    });
+    recorder
 }
 
 #[allow(unused)]

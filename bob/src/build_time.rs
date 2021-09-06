@@ -1,1 +1,1 @@
-pub const BUILD_TIME: &str = "time-undefined";
+pub const BUILD_TIME: &str = "06-09-2021(22:56:27)";
