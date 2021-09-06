@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+Prometheus exporter bug which occured after migration to global exporter scheme (#322)
 
 #### Updated
 
