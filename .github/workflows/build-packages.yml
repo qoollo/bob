@@ -5,6 +5,7 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
+    branches: 324-minor-build-issues
     
 jobs:
 
@@ -30,11 +31,15 @@ jobs:
           toolchain: nightly
           target: ${{ env.TARGET }}
           default: true
+      - name: Print variable
+        run: echo ${BOB_COMMIT_HASH}
       - name: Build release
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}
+      - name: Check bobd version
+        run: target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd --version
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
@@ -124,6 +129,7 @@ jobs:
           cp {control,postinst} bob_${{ env.VERSION }}_amd64/DEBIAN/
           chmod +x bob_${{ env.VERSION }}_amd64/DEBIAN/postinst
           cp {bobd,bobp,ccg} bob_${{ env.VERSION }}_amd64/usr/bin/
+          chmod +x bob_${{ env.VERSION }}_amd64/usr/bin/{bobd,bobp,ccg}
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}_amd64/etc/bob/
           cp bob.service bob_${{ env.VERSION }}_amd64/etc/systemd/system/
           cp bob.service bob_${{ env.VERSION }}_amd64/lib/systemd/system/
@@ -184,6 +190,7 @@ jobs:
           echo Version:${{ env.VERSION }}
           mkdir -p bob_${{ env.VERSION }}/{usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
           cp {bobd,bobp,ccg} bob_${{ env.VERSION }}/usr/bin/
+          chmod +x bob_${{ env.VERSION }}/usr/bin/{bobd,bobp,ccg}
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}/etc/bob/
           cp bob.service bob_${{ env.VERSION }}/etc/systemd/system/
           cp bob.service bob_${{ env.VERSION }}/lib/systemd/system/

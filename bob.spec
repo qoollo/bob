@@ -47,9 +47,9 @@ if ! getent passwd ${BOB_USER} > /dev/null; then
 fi
 
 %files
-/usr/bin/bobd
-/usr/bin/bobp
-/usr/bin/ccg
+%attr(0755, root, root) /usr/bin/bobd
+%attr(0755, root, root) /usr/bin/bobp
+%attr(0755, root, root) /usr/bin/ccg
 %config(noreplace) /etc/bob/cluster.yaml
 %config(noreplace) /etc/bob/node.yaml
 %config(noreplace) /etc/bob/logger.yaml
