@@ -27,6 +27,7 @@ jobs:
           echo ${BOB_COMMIT_HASH}
           export BOB_KEY_SIZE=${{ matrix.bob_key_size }}
           sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
+          env
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
@@ -34,7 +35,9 @@ jobs:
           target: ${{ env.TARGET }}
           default: true
       - name: Print variable
-        run: echo ${BOB_COMMIT_HASH}
+        run: |
+          echo ${BOB_COMMIT_HASH}
+          env
       - name: Build release
         uses: actions-rs/cargo@v1
         with:
