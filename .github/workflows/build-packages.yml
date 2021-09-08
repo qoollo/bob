@@ -23,7 +23,7 @@ jobs:
       - name: Set env variables and install packages
         run: |
           echo ${GITHUB_SHA}
-          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
           echo ${BOB_COMMIT_HASH}
           export BOB_KEY_SIZE=${{ matrix.bob_key_size }}
           sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
@@ -37,6 +37,7 @@ jobs:
       - name: Print variable
         run: |
           echo ${BOB_COMMIT_HASH}
+          echo ${BOB_KEY_SIZE}
           env
       - name: Build release
         uses: actions-rs/cargo@v1
