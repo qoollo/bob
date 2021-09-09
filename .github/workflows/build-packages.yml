@@ -35,6 +35,8 @@ jobs:
         with:
           command: build
           args: --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}
+      - name: Check bobd version
+        run: target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd --version
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
