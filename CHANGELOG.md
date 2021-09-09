@@ -10,9 +10,11 @@ Bob versions changelog
 
 
 #### Fixed
+- Minor build issues ([#327](https://github.com/qoollo/bob/pull/327))
 
 
 #### Updated
+- Libs: tonic, tonic-build, tower, tokio.
 
 
 ## [2.0.0-alpha.3] - 2021-08-31
