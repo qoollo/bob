@@ -27,7 +27,6 @@ struct NetConfig {
     port: u16,
     target: String,
 }
-
 impl NetConfig {
     fn get_uri(&self) -> http::Uri {
         http::Uri::builder()
@@ -77,16 +76,32 @@ struct TaskConfig {
     payload_size: u64,
     direct: bool,
     measure_time: bool,
+    key_size: usize,
 }
 
 impl TaskConfig {
     fn from_matches(matches: &ArgMatches) -> Self {
+        let key_size = matches.value_or_default("keysize");
+        let low_idx = matches.value_or_default("first");
+        let count = matches.value_or_default("count");
+        if key_size < std::mem::size_of::<u64>() {
+            let max_allowed = 256_u64.pow(key_size as u32) - 1;
+            if low_idx + count > max_allowed {
+                panic!(
+                    "max possible index for keysize={} is {}, but task includes keys up to {}",
+                    key_size,
+                    max_allowed,
+                    low_idx + count
+                );
+            }
+        }
         Self {
-            low_idx: matches.value_or_default("first"),
-            count: matches.value_or_default("count"),
+            low_idx,
+            count,
             payload_size: matches.value_or_default("payload"),
             direct: matches.is_present("direct"),
             measure_time: false,
+            key_size,
         }
     }
 
@@ -115,6 +130,12 @@ impl TaskConfig {
 
     fn is_time_measurement_thread(&self) -> bool {
         self.measure_time
+    }
+
+    fn get_proper_key(&self, key: u64) -> Vec<u8> {
+        let mut data = key.to_le_bytes().to_vec();
+        data.resize(self.key_size, 0);
+        data
     }
 }
 
@@ -452,7 +473,9 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let measure_time = task_conf.is_time_measurement_thread();
     for i in task_conf.low_idx..upper_idx {
         let request = Request::new(GetRequest {
-            key: Some(BlobKey { key: i }),
+            key: Some(BlobKey {
+                key: task_conf.get_proper_key(i),
+            }),
             options: options.clone(),
         });
         let res = if measure_time {
@@ -483,7 +506,9 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
         let blob = create_blob(&task_conf);
-        let key = BlobKey { key: i };
+        let key = BlobKey {
+            key: task_conf.get_proper_key(i),
+        };
         let req = Request::new(PutRequest {
             key: Some(key),
             data: Some(blob),
@@ -504,7 +529,9 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     }
     let req = Request::new(ExistRequest {
         keys: (task_conf.low_idx..upper_idx)
-            .map(|i| BlobKey { key: i })
+            .map(|i| BlobKey {
+                key: task_conf.get_proper_key(i),
+            })
             .collect(),
         options: task_conf.find_get_options(),
     });
@@ -532,7 +559,9 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
         let blob = create_blob(&task_conf);
-        let key = BlobKey { key: i };
+        let key = BlobKey {
+            key: task_conf.get_proper_key(i),
+        };
         let put_request = Request::new(PutRequest {
             key: Some(key.clone()),
             data: Some(blob),
@@ -591,6 +620,7 @@ fn spawn_workers(
                 payload_size: task_conf.payload_size,
                 direct: task_conf.direct,
                 measure_time: i == 0,
+                key_size: task_conf.key_size,
             };
             match benchmark_conf.behavior {
                 Behavior::Put => tokio::spawn(put_worker(nc, tc, stat_inner)),
@@ -706,6 +736,14 @@ fn get_matches() -> ArgMatches<'static> {
                 .help("verify results of put requests")
                 .takes_value(false)
                 .long("verify"),
+        )
+        .arg(
+            Arg::with_name("keysize")
+                .help("size of the binary key")
+                .takes_value(true)
+                .long("keysize")
+                .short("k")
+                .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8")),
         )
         .get_matches()
 }

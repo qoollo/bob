@@ -6,14 +6,19 @@ use super::{
 use crate::data::DiskPath;
 use futures::Future;
 use humantime::Duration as HumanDuration;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::{
     cell::{Ref, RefCell},
     env::VarError,
     fmt::Debug,
     net::SocketAddr,
+    sync::atomic::AtomicBool,
     time::Duration,
 };
 use tokio::time::sleep;
+
+const AIO_FLAG_ORDERING: Ordering = Ordering::Relaxed;
 
 const PLACEHOLDER: &str = "~";
 const TMP_DIR_ENV_VARS: [&str; 3] = ["TMP", "TEMP", "TMPDIR"];
@@ -123,7 +128,9 @@ impl BackendSettings {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MetricsConfig {
     name: Option<String>,
-    graphite: String,
+    graphite_enabled: bool,
+    graphite: Option<String>,
+    prometheus_enabled: bool,
     prefix: Option<String>,
 }
 
@@ -136,13 +143,21 @@ impl MetricsConfig {
         self.name.as_deref()
     }
 
-    pub(crate) fn graphite(&self) -> &str {
-        &self.graphite
+    pub(crate) fn graphite_enabled(&self) -> bool {
+        self.graphite_enabled
+    }
+
+    pub(crate) fn prometheus_enabled(&self) -> bool {
+        self.prometheus_enabled
+    }
+
+    pub(crate) fn graphite(&self) -> Option<&str> {
+        self.graphite.as_deref()
     }
 
     fn check_unset(&self) -> Result<(), String> {
-        if self.graphite == PLACEHOLDER {
-            let msg = "some of the fields present, but empty".to_string();
+        if self.graphite_enabled && self.graphite.is_none() {
+            let msg = "graphite is enabled but no graphite address has been provided".to_string();
             error!("{}", msg);
             Err(msg)
         } else {
@@ -165,7 +180,9 @@ impl MetricsConfig {
     }
 
     fn check_graphite_addr(&self) -> Result<(), String> {
-        if let Err(e) = self.graphite.parse::<SocketAddr>() {
+        if !self.graphite_enabled {
+            Ok(())
+        } else if let Err(e) = self.graphite().unwrap().parse::<SocketAddr>() {
             let msg = format!("field 'graphite': {} for 'metrics config' is invalid", e);
             error!("{}", msg);
             Err(msg)
@@ -214,7 +231,7 @@ impl Validatable for MetricsConfig {
 }
 
 /// Contains params for detailed pearl configuration in pearl backend.
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Pearl {
     #[serde(default = "Pearl::default_max_blob_size")]
     max_blob_size: u64,
@@ -233,7 +250,7 @@ pub struct Pearl {
     #[serde(default = "Pearl::default_hash_chars_count")]
     hash_chars_count: u32,
     #[serde(default = "Pearl::default_enable_aio")]
-    enable_aio: bool,
+    enable_aio: Arc<AtomicBool>,
     #[serde(default = "Pearl::default_disks_events_logfile")]
     disks_events_logfile: String,
     #[serde(default)]
@@ -316,8 +333,8 @@ impl Pearl {
         10
     }
 
-    fn default_enable_aio() -> bool {
-        true
+    fn default_enable_aio() -> Arc<AtomicBool> {
+        Arc::new(AtomicBool::new(true))
     }
 
     pub fn disks_events_logfile(&self) -> &str {
@@ -343,7 +360,11 @@ impl Pearl {
     }
 
     pub fn is_aio_enabled(&self) -> bool {
-        self.enable_aio
+        self.enable_aio.load(AIO_FLAG_ORDERING)
+    }
+
+    pub fn set_aio(&self, new_value: bool) {
+        self.enable_aio.store(new_value, AIO_FLAG_ORDERING);
     }
 
     fn check_unset(&self) -> Result<(), String> {
@@ -429,7 +450,7 @@ pub enum BackendType {
 }
 
 /// Node configuration struct, stored in node.yaml.
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Node {
     log_config: String,
     name: String,
@@ -456,9 +477,14 @@ pub struct Node {
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
     disk_access_par_degree: usize,
+    bind_to_ip_address: Option<SocketAddr>,
 }
 
 impl NodeConfig {
+    pub fn bind_to_ip_address(&self) -> Option<SocketAddr> {
+        self.bind_to_ip_address
+    }
+
     /// Get node name.
     pub fn name(&self) -> &str {
         &self.name
@@ -706,6 +732,7 @@ pub mod tests {
             init_par_degree: 1,
             disk_access_par_degree: 1,
             count_interval: "10000ms".to_string(),
+            bind_to_ip_address: None,
         }
     }
 }
