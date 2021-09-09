@@ -25,7 +25,7 @@ async fn test_mem_put_wrong_disk() {
     let retval = backend
         .put(
             Operation::new_local(0, DiskPath::new("invalid name".to_owned(), "".to_owned())),
-            1,
+            BobKey::from(1u64),
             BobData::new(vec![0], BobMeta::stub()),
         )
         .await;
@@ -39,7 +39,7 @@ async fn test_mem_put_get() {
     backend
         .put(
             Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
-            1,
+            BobKey::from(1u64),
             BobData::new(vec![1], BobMeta::stub()),
         )
         .await
@@ -47,7 +47,7 @@ async fn test_mem_put_get() {
     let retval = backend
         .get(
             Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
-            1,
+            BobKey::from(1u64),
         )
         .await
         .unwrap();
@@ -61,7 +61,7 @@ async fn test_mem_get_wrong_disk() {
     backend
         .put(
             Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
-            1,
+            BobKey::from(1u64),
             BobData::new(vec![1], BobMeta::stub()),
         )
         .await
@@ -69,7 +69,7 @@ async fn test_mem_get_wrong_disk() {
     let retval = backend
         .get(
             Operation::new_local(0, DiskPath::new("invalid name".to_owned(), "".to_owned())),
-            1,
+            BobKey::from(1u64),
         )
         .await;
     assert!(retval.err().unwrap().is_internal())
@@ -78,7 +78,7 @@ async fn test_mem_get_wrong_disk() {
 #[tokio::test]
 async fn test_mem_get_no_data() {
     let backend = new_direct(&["name".to_owned()], VDISKS_COUNT);
-    let key = 1;
+    let key = BobKey::from(1u64);
 
     let retval = backend
         .get(

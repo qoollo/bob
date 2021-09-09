@@ -1,0 +1,71 @@
+# [time] is a concatenation of spans. Where each span is an integer number and a suffix.
+# E.g.: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
+# Supported suffixes:
+#  nsec, ns -- microseconds
+#  usec, us -- microseconds
+#  msec, ms -- milliseconds
+#  seconds, second, sec, s
+#  minutes, minute, min, m
+#  hours, hour, hr, h
+#  days, day, d
+#  weeks, week, w
+#  months, month, M -- defined as 30.44 days
+#  years, year, y -- defined as 365.25 days
+
+# [file] logger config file
+log_config: /bob/configs/logger.yaml
+# [str] node name, required to match with cluster config
+name: local_node
+# [uint] min count of successful operations on replicas to consider operation successful
+quorum: 1
+# [time] timeout for every GRPC operation
+operation_timeout: 3sec
+# [time] interval for checking connections
+check_interval: 5000ms
+# [simple, quorum] simple - without checking status
+cluster_policy: quorum
+# type of the backend [in_memory, stub, pearl]
+backend_type: pearl
+# interval for checking for blobs cleanup
+cleanup_interval: 1h
+# soft limit for count of max blobs to remain in ram
+open_blobs_soft_limit: 2
+# hard limit for count of max blobs to remain in ram
+open_blobs_hard_limit: 10
+
+# used only for 'backend_type: pearl'
+pearl:
+  # optional, default = true, enables linux AIO
+  enable_aio: true
+  # path to logfile with info about disks states switches, default = "/tmp/bob_events.csv"
+  disks_events_logfile: "/bob/log/bob_events.csv"
+  # size in bytes. required for 'pearl'
+  max_blob_size: 1000000
+  # optional, required for 'pearl', disables search for existing keys before write
+  allow_duplicates: true
+  # optional
+  max_data_in_blob: 10000
+  # optional
+  blob_file_name_prefix: bob
+  # [time] mls, retry to reinit pearl backend after fail. required for 'pearl'
+  fail_retry_timeout: 100ms
+  # required for 'pearl'
+  alien_disk: disk1
+  # optional, sets bloom filter buffer size in bits count, best value ~= max_data_in_blob.
+  bloom_filter_max_buf_bits_count: 10000
+  # describes how create and manage bob directories. required for 'pearl'
+  settings:
+    # root dir for bob storage. required for 'pearl'
+    root_dir_name: bob
+    # root dir for alien storage in 'alien_disk'. required for 'pearl'
+    alien_root_dir_name: alien
+    # [time] period when new pearl directory created. required for 'pearl'
+    timestamp_period: 1m
+    # each thread will wait this period if another thread creating pearl. required for 'pearl'
+    create_pearl_wait_delay: 100ms
+
+# optional, send metrics
+metrics:
+  name: bob
+  graphite_enabled: false
+  prometheus_enabled: false
