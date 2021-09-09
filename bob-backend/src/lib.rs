@@ -32,8 +32,8 @@ pub(crate) mod prelude {
     pub use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
     pub use futures::{stream::FuturesUnordered, StreamExt, TryFutureExt};
     pub use pearl::{
-        filter::Config as BloomConfig, rio, Builder, Error as PearlError,
-        ErrorKind as PearlErrorKind, Key as KeyTrait, Storage,
+        bloom::hierarchical::*, bloom::traits::*, bloom::Config as BloomConfig, rio, Builder,
+        Error as PearlError, ErrorKind as PearlErrorKind, Key as KeyTrait, Storage,
     };
     pub use std::{
         collections::{hash_map::Entry, HashMap},

@@ -1,4 +1,5 @@
 use futures::future::ready;
+use pearl::BloomProvider;
 use std::iter::once;
 
 use crate::{

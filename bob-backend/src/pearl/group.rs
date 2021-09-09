@@ -9,7 +9,7 @@ use ring::digest::{digest, SHA256};
 
 #[derive(Clone, Debug)]
 pub struct Group {
-    holders: Arc<RwLock<Vec<Holder>>>,
+    holders: Arc<RwLock<HierarchicalBloom<Holder>>>,
     settings: Arc<Settings>,
     directory_path: PathBuf,
     vdisk_id: VDiskId,
@@ -31,7 +31,7 @@ impl Group {
         dump_sem: Arc<Semaphore>,
     ) -> Self {
         Self {
-            holders: Arc::new(RwLock::new(vec![])),
+            holders: Default::default(),
             settings,
             vdisk_id,
             node_name,

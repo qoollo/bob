@@ -27,7 +27,7 @@ impl SimpleHolder {
         self.storage.read().await.filter_memory_allocated().await
     }
 
-    pub(crate) async fn offload_filter(&self) {
+    pub(crate) async fn offload_filter(&self) -> usize {
         self.storage.read().await.offload_filters().await
     }
 

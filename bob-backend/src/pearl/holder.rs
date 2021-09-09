@@ -9,6 +9,7 @@ use bob_common::metrics::pearl::{
     PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
     PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
 };
+use pearl::BloomProvider;
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
@@ -382,6 +383,23 @@ impl Holder {
     }
 }
 
+#[async_trait::async_trait]
+impl BloomProvider for Holder {
+    type Key = Key;
+
+    async fn contains(&self, item: &Self::Key) -> AnyResult<Option<bool>> {
+        let storage = self.storage().read().await;
+        if let Some(storage) = storage.storage {
+            return BloomProvider::contains(&storage, item).await;
+        }
+        Ok(None)
+    }
+
+    async fn offload_buffer(&mut self, needed_memory: usize) -> usize {
+        todo!()
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum PearlState {
     // pearl is started and working
@@ -464,9 +482,11 @@ impl PearlSync {
         }
     }
 
-    pub async fn offload_filters(&self) {
+    pub async fn offload_filters(&self) -> usize {
         if let Some(storage) = &self.storage {
             storage.offload_bloom().await
+        } else {
+            0
         }
     }
 }
