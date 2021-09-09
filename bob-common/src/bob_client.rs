@@ -126,11 +126,7 @@ pub mod b_client {
         pub async fn ping(&self) -> PingResult {
             let mut client = self.client.clone();
             let mut request = Request::new(Null {});
-            let val = MetadataValue::from_str(&format!("node-{}", self.node.name())).unwrap();
-            request.metadata_mut().insert("username", val);
-            let val = MetadataValue::from_str(&format!("{}-password", self.node.name())).unwrap();
-            request.metadata_mut().insert("password", val);
-            error!("todo: remove static username password");
+            self.set_credentials(&mut request);
             let result = timeout(self.operation_timeout, client.ping(request)).await;
             match result {
                 Ok(Ok(_)) => Ok(NodeOutput::new(self.node.name().to_owned(), ())),
@@ -176,6 +172,14 @@ pub mod b_client {
                 Ok(response) => Ok(NodeOutput::new(node_name, response.into_inner().exist)),
                 Err(error) => Err(NodeOutput::new(node_name, Error::from(error))),
             }
+        }
+
+        fn set_credentials<T>(&self, req: &mut Request<T>) {
+            let val = MetadataValue::from_str(self.node.name())
+                .expect("failed to create metadata value from node name");
+            req.metadata_mut().insert("username", val);
+            let val = MetadataValue::from_str("").expect("failed to create metadata value");
+            req.metadata_mut().insert("password", val);
         }
     }
 

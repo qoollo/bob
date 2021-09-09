@@ -3,11 +3,14 @@ use bob::{
     BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper,
 };
 use bob_access::{
-    AccessControlLayer, BasicAuthenticator, BasicExtractor, StubAuthenticator, StubExtractor,
-    UsersMap,
+    AccessControlLayer, BasicAuthenticator, BasicExtractor, Credentials, StubAuthenticator,
+    StubExtractor, UsersMap,
 };
 use clap::{App, Arg, ArgMatches};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+};
 use tokio::runtime::Handle;
 use tonic::transport::Server;
 use tower::Layer;
@@ -123,7 +126,11 @@ async fn main() {
 
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
-            let authenticator = BasicAuthenticator::new(users_storage);
+            let mut authenticator = BasicAuthenticator::new(users_storage);
+            let nodes_credentials = nodes_credentials_from_cluster_config(&cluster);
+            authenticator
+                .set_nodes_credentials(nodes_credentials)
+                .expect("failed to gen nodes credentials from cluster config");
             let auth_service = AccessControlLayer::new().with_authenticator(authenticator);
             let extractor = BasicExtractor::default();
             let new_service = auth_service.with_extractor(extractor).layer(bob_service);
@@ -147,6 +154,26 @@ async fn main() {
                 .unwrap();
         }
     }
+}
+
+fn nodes_credentials_from_cluster_config(
+    cluster_config: &ClusterConfig,
+) -> HashMap<IpAddr, Credentials> {
+    cluster_config
+        .nodes()
+        .iter()
+        .map(|node| {
+            let address = node
+                .address()
+                .parse()
+                .expect("failed to parse node address");
+            let creds = Credentials::builder()
+                .with_username_password(node.name(), "")
+                .with_address(Some(address))
+                .build();
+            (creds.ip().expect("node missing ip"), creds)
+        })
+        .collect()
 }
 
 fn bind_all_interfaces(port: u16) -> SocketAddr {

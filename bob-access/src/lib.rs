@@ -13,9 +13,10 @@ mod token;
 pub use authenticator::{
     basic::Basic as BasicAuthenticator, stub::Stub as StubAuthenticator, UsersMap,
 };
+pub use credentials::Credentials;
 pub use extractor::{BasicExtractor, StubExtractor};
-use futures::{Future, TryFutureExt};
 
+use futures::{Future, TryFutureExt};
 use std::{
     error::Error as StdError,
     pin::Pin,
