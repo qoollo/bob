@@ -11,6 +11,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Minor build issues ([#327](https://github.com/qoollo/bob/pull/327))
 
 
 #### Updated

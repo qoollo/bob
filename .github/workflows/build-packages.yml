@@ -21,8 +21,8 @@ jobs:
         uses: actions/checkout@v2
       - name: Set env variables and install packages
         run: |
-          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
-          export BOB_KEY_SIZE=${{ matrix.bob_key_size }}
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
+          echo "BOB_KEY_SIZE=${{ matrix.bob_key_size }}" >> $GITHUB_ENV
           sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
@@ -35,6 +35,8 @@ jobs:
         with:
           command: build
           args: --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}
+      - name: Check bobd version
+        run: target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd --version
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
@@ -124,6 +126,7 @@ jobs:
           cp {control,postinst} bob_${{ env.VERSION }}_amd64/DEBIAN/
           chmod +x bob_${{ env.VERSION }}_amd64/DEBIAN/postinst
           cp {bobd,bobp,ccg} bob_${{ env.VERSION }}_amd64/usr/bin/
+          chmod +x bob_${{ env.VERSION }}_amd64/usr/bin/{bobd,bobp,ccg}
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}_amd64/etc/bob/
           cp bob.service bob_${{ env.VERSION }}_amd64/etc/systemd/system/
           cp bob.service bob_${{ env.VERSION }}_amd64/lib/systemd/system/
@@ -184,6 +187,7 @@ jobs:
           echo Version:${{ env.VERSION }}
           mkdir -p bob_${{ env.VERSION }}/{usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
           cp {bobd,bobp,ccg} bob_${{ env.VERSION }}/usr/bin/
+          chmod +x bob_${{ env.VERSION }}/usr/bin/{bobd,bobp,ccg}
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}/etc/bob/
           cp bob.service bob_${{ env.VERSION }}/etc/systemd/system/
           cp bob.service bob_${{ env.VERSION }}/lib/systemd/system/
