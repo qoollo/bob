@@ -13,6 +13,7 @@ Bob versions changelog
 
 
 #### Updated
+- Libs: tonic, tonic-build, tower, tokio.
 
 
 ## [2.0.0-alpha.3] - 2021-08-31
