@@ -5,7 +5,6 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
-    branches: 324-minor-build-issues
     
 jobs:
 
@@ -31,18 +30,11 @@ jobs:
           toolchain: nightly
           target: ${{ env.TARGET }}
           default: true
-      - name: Print variables
-        run: |
-          echo ${BOB_COMMIT_HASH}
-          echo ${BOB_KEY_SIZE}
-          env
       - name: Build release
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}
-      - name: Check bobd version
-        run: target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd --version
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
