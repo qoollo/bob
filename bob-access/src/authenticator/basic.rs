@@ -1,3 +1,5 @@
+use std::{collections::HashMap, net::IpAddr};
+
 use crate::{credentials::Credentials, error::Error};
 
 use super::{users_storage::UsersStorage, Authenticator};
@@ -5,20 +7,23 @@ use super::{users_storage::UsersStorage, Authenticator};
 #[derive(Debug, Default, Clone)]
 pub struct Basic<Storage: UsersStorage> {
     users_storage: Storage,
-    nodes: Vec<Credentials>,
+    nodes: HashMap<IpAddr, Credentials>,
 }
 
 impl<Storage: UsersStorage> Basic<Storage> {
     pub fn new(users_storage: Storage) -> Self {
         Self {
             users_storage,
-            nodes: Vec::new(),
+            nodes: HashMap::new(),
         }
     }
 
-    pub fn set_nodes_credentials(&mut self, nodes: Vec<Credentials>) -> Result<(), Error> {
+    pub fn set_nodes_credentials(
+        &mut self,
+        nodes: HashMap<IpAddr, Credentials>,
+    ) -> Result<(), Error> {
         if nodes
-            .iter()
+            .values()
             .all(|cred| cred.ip().is_some() && cred.username().is_some())
         {
             self.nodes = nodes;
@@ -29,19 +34,19 @@ impl<Storage: UsersStorage> Basic<Storage> {
         }
     }
 
-    fn is_node(&self, other: &Credentials) -> bool {
+    fn is_node(&self, other: &Credentials) -> Option<bool> {
         if self.nodes.is_empty() {
             warn!("nodes credentials not set");
         }
         self.nodes
-            .iter()
-            .any(|cred| cred.ip() == other.ip() && cred.username() == other.username())
+            .get(other.ip().as_ref()?)
+            .map(|cred| cred.username() == other.username())
     }
 }
 
 impl<Storage: UsersStorage> Authenticator for Basic<Storage> {
     fn check_credentials(&self, credentials: Credentials) -> Result<(), Error> {
-        if self.is_node(&credentials) {
+        if self.is_node(&credentials) == Some(true) {
             debug!("received request from node: {:?}", credentials.username());
             return Ok(());
         }

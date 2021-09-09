@@ -7,7 +7,10 @@ use bob_access::{
     StubExtractor, UsersMap,
 };
 use clap::{App, Arg, ArgMatches};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+};
 use tokio::runtime::Handle;
 use tonic::transport::Server;
 use tower::Layer;
@@ -153,7 +156,9 @@ async fn main() {
     }
 }
 
-fn nodes_credentials_from_cluster_config(cluster_config: &ClusterConfig) -> Vec<Credentials> {
+fn nodes_credentials_from_cluster_config(
+    cluster_config: &ClusterConfig,
+) -> HashMap<IpAddr, Credentials> {
     cluster_config
         .nodes()
         .iter()
@@ -162,10 +167,11 @@ fn nodes_credentials_from_cluster_config(cluster_config: &ClusterConfig) -> Vec<
                 .address()
                 .parse()
                 .expect("failed to parse node address");
-            Credentials::builder()
+            let creds = Credentials::builder()
                 .with_username_password(node.name(), "")
                 .with_address(Some(address))
-                .build()
+                .build();
+            (creds.ip().expect("node missing ip"), creds)
         })
         .collect()
 }
