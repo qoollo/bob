@@ -4,7 +4,8 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Access management
+  - Nodes authentication (#318)
 
 #### Changed
 
