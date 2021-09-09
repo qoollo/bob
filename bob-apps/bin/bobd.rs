@@ -1,6 +1,9 @@
 use bob::{
-    version_helpers::{get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version},
-    init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper,
+    init_counters,
+    version_helpers::{
+        get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
+    },
+    BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper,
 };
 use clap::{App, Arg, ArgMatches};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -88,7 +91,11 @@ async fn main() {
         .value_of("http_api_port")
         .and_then(|v| v.parse().ok())
         .unwrap_or(node.http_api_port());
-    bob.run_api_server(http_api_port);
+    let http_api_address = matches
+        .value_of("http_api_address")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(node.http_api_address());
+    bob.run_api_server(http_api_address, http_api_port);
 
     create_signal_handlers(&bob).unwrap();
 
@@ -178,6 +185,13 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .short("t")
                 .long("threads")
                 .default_value("4"),
+        )
+        .arg(
+            Arg::with_name("http_api_address")
+                .help("http api address")
+                .short("h")
+                .long("host")
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("http_api_port")
