@@ -60,14 +60,14 @@ impl HWMetricsCollector {
             let proc = sys.process(pid).expect("Can't get process stat descriptor");
 
             let (total_space, free_space) = Self::space(&sys, &disks);
-            gauge!(TOTAL_SPACE, (total_space - free_space) as i64); // i.e. used space
-            gauge!(FREE_SPACE, free_space as i64);
+            gauge!(TOTAL_SPACE, (total_space - free_space) as f64); // i.e. used space
+            gauge!(FREE_SPACE, free_space as f64);
             let used_mem = kb_to_mb(sys.used_memory());
             debug!("used mem in mb: {}", used_mem);
-            gauge!(TOTAL_RAM, used_mem as i64);
-            gauge!(FREE_RAM, (total_mem - used_mem) as i64);
-            gauge!(AMOUNT_DESCRIPTORS, dcounter.descr_amount() as i64);
-            gauge!(CPU_LOAD, proc.cpu_usage() as i64);
+            gauge!(TOTAL_RAM, used_mem as f64);
+            gauge!(FREE_RAM, (total_mem - used_mem) as f64);
+            gauge!(AMOUNT_DESCRIPTORS, dcounter.descr_amount() as f64);
+            gauge!(CPU_LOAD, proc.cpu_usage() as f64);
         }
     }
 
@@ -154,10 +154,10 @@ impl DescrCounter {
     }
 }
 
-fn bytes_to_mb(bytes: usize) -> usize {
+fn bytes_to_mb(bytes: u64) -> u64 {
     bytes / 1024 / 1024
 }
 
-fn kb_to_mb(kbs: usize) -> usize {
+fn kb_to_mb(kbs: u64) -> u64 {
     kbs / 1024
 }

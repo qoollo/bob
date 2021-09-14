@@ -4,7 +4,7 @@ use crate::{
     cleaner::Cleaner,
     cluster::{get_cluster, Cluster},
     counter::Counter as BlobsCounter,
-    hw_counter::HWMetricsCollector,
+    hw_metrics_collector::HWMetricsCollector,
     link_manager::LinkManager,
 };
 
