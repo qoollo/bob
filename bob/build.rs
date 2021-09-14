@@ -8,9 +8,12 @@ fn main() {
             "pub const BUILD_TIME: &str = \"{}\";",
             time.format("%d-%m-%Y(%H:%M:%S)")
         );
-        let _ = std::fs::write(
-            format!("{}/src/build_time.rs", env!("CARGO_MANIFEST_DIR")),
-            content,
+        let path = format!(
+            "{}/src/build_info/build_time.rs",
+            env!("CARGO_MANIFEST_DIR")
         );
+        if let Err(e) = std::fs::write(path, content) {
+            println!("failed to write build time: {}", e);
+        }
     }
 }
