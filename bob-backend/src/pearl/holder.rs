@@ -161,7 +161,7 @@ impl Holder {
     // NOTE: stack + heap size (in fact that's serialized size)
     // NOTE: can be calculated like `Data::from(data).len()`, but that's less efficient
     fn calc_data_size(data: &BobData) -> u64 {
-        (std::mem::size_of::<BobData>() + data.inner().len()) as u64
+        (std::mem::size_of::<BobData>() + std::mem::size_of_val(data.inner())) as u64
     }
 
     // @TODO remove redundant return result
@@ -170,29 +170,30 @@ impl Holder {
         counter!(PEARL_PUT_COUNTER, 1);
         let data_size = Self::calc_data_size(&data);
         let timer = Instant::now();
-        let res = storage
-            .write(key, Data::from(data).to_vec())
-            .await
-            .map(|e| {
-                counter!(PEARL_PUT_BYTES_COUNTER, data_size);
-                e
-            })
-            .map_err(|e| {
+        let res = storage.write(key, Data::from(data).to_vec()).await;
+        let res = match res {
+            Err(e) => {
                 counter!(PEARL_PUT_ERROR_COUNTER, 1);
                 error!("error on write: {:?}", e);
                 // on pearl level before write in storage it performs `contain` check which
                 // may fail with OS error (that also means that disk is possibly disconnected)
-                e.downcast_ref::<PearlError>()
-                    .map_or(Error::possible_disk_disconnection(), |err| {
-                        match err.kind() {
-                            PearlErrorKind::WorkDirUnavailable { .. } => {
-                                Error::possible_disk_disconnection()
-                            }
-                            _ => Error::internal(),
+                let new_e = e.downcast_ref::<PearlError>().map_or(
+                    Error::possible_disk_disconnection(),
+                    |err| match err.kind() {
+                        PearlErrorKind::WorkDirUnavailable { .. } => {
+                            Error::possible_disk_disconnection()
                         }
-                    })
+                        _ => Error::internal(),
+                    },
+                );
                 //TODO check duplicate
-            });
+                Err(new_e)
+            }
+            Ok(()) => {
+                counter!(PEARL_PUT_BYTES_COUNTER, data_size);
+                Ok(())
+            }
+        };
         counter!(PEARL_PUT_TIMER, timer.elapsed().as_nanos() as u64);
         res
     }

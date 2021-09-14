@@ -1,3 +1,6 @@
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+
 use tokio::time::{interval, Interval};
 
 pub(crate) mod logger;
@@ -38,7 +41,7 @@ pub struct DiskController {
     is_alien: bool,
     disk_state_metric: String,
     logger: DisksEventsLogger,
-    blobs_count_cached: Arc<RwLock<u64>>,
+    blobs_count_cached: AtomicU64,
 }
 
 impl DiskController {
@@ -66,7 +69,7 @@ impl DiskController {
             is_alien,
             disk_state_metric,
             logger,
-            blobs_count_cached: Arc::new(RwLock::new(0)),
+            blobs_count_cached: AtomicU64::new(0),
         };
         new_dc
             .init()
@@ -132,7 +135,7 @@ impl DiskController {
 
     async fn update_metrics(&self) {
         let gauge_name = format!("{}_blobs_count", self.disk_state_metric);
-        let blobs_count = self.blobs_count_cached.read().await.clone();
+        let blobs_count = self.blobs_count_cached.load(Ordering::Acquire);
         gauge!(gauge_name, blobs_count as i64);
     }
 
@@ -488,7 +491,7 @@ impl DiskController {
         } else {
             0
         };
-        *self.blobs_count_cached.write().await = cnt as u64;
+        self.blobs_count_cached.store(cnt, Ordering::Release);
         cnt
     }
 

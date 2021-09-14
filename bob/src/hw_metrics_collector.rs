@@ -7,12 +7,12 @@ use sysinfo::{DiskExt, ProcessExt, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 
-pub(crate) struct HWCounter {
+pub(crate) struct HWMetricsCollector {
     disks: HashMap<PathBuf, String>,
     interval_time: Duration,
 }
 
-impl HWCounter {
+impl HWMetricsCollector {
     pub(crate) fn new(mapper: Arc<Virtual>, interval_time: Duration) -> Self {
         let disks = Self::collect_used_disks(mapper.local_disks());
         Self {
