@@ -91,7 +91,7 @@ struct TaskConfig {
 impl FromStr for Mode {
     type Err = &'static str;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match mode.as_ref() {
+        match s {
             "normal" => Ok(Mode::Normal),
             "random" => Ok(Mode::Random),
             _ => Err("Failed to parse mode, only 'random' and 'normal' available"),
