@@ -88,18 +88,21 @@ struct TaskConfig {
     key_size: usize,
 }
 
-fn unwrap_mode(mode: &str) -> Mode {
-    match mode.as_ref() {
-        "normal" => Mode::Normal,
-        "random" => Mode::Random,
-        _ => Mode::Normal,
+impl FromStr for Mode {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match mode.as_ref() {
+            "normal" => Ok(Mode::Normal),
+            "random" => Ok(Mode::Random),
+            _ => Err("Failed to parse mode, only 'random' and 'normal' available"),
+        }
     }
 }
 
 impl TaskConfig {
     fn from_matches(matches: &ArgMatches) -> Self {
         let mode_string: String = matches.value_or_default("normal");
-        let mode = unwrap_mode(&mode_string);
+        let mode = Mode::from_str(&mode_string).unwrap_or(Mode::Normal);
         let key_size = matches.value_or_default("keysize");
         let low_idx = matches.value_or_default("first");
         let count = matches.value_or_default("count");
