@@ -31,6 +31,7 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/bobp.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/ccg.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/dcr.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/brt.rs \
   && cargo build --release --target=x86_64-unknown-linux-gnu
 
 
@@ -70,6 +71,9 @@ RUN apt-get update \
 WORKDIR /home/bob/bin/
 COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-gnu/release/bobd .
 RUN chown bobd:bobd bobd \
+  && mkdir /bob/log -p && chown bobd:bobd /bob/log -R \
+  && mkdir /bob/data -p && chown bobd:bobd /bob/data -R \
+  && mkdir /bob/configs -p && chown bobd:bobd /bob/configs -R \
   && mkdir ~/.ssh \
   && chmod 600 -R ~/.ssh \
   && echo "#!/bin/bash\n\
@@ -81,7 +85,7 @@ RUN chown bobd:bobd bobd \
   && chmod +x prep.sh \
   && echo "#!/bin/bash\n\
   trap 'kill -TERM \$! && wait' SIGTERM\n\
-  ./bobd -c /configs/\$1 -n /configs/\$2 &\n\
+  ./bobd -c /bob/configs/\$1 -n /bob/configs/\$2 &\n\
   wait" >> bobd.sh \
   && chmod +x bobd.sh \
   && echo "#!/bin/bash\n\
@@ -91,8 +95,11 @@ RUN chown bobd:bobd bobd \
   wait" >> run.sh \
   && chmod +x run.sh
 
+COPY dockerfiles/default-configs/ /bob/configs
+
 EXPOSE 80
 EXPOSE 22
 EXPOSE 20000
 USER bobd
 ENTRYPOINT ["./run.sh"]
+CMD ["cluster.yaml", "node.yaml"]

@@ -13,7 +13,7 @@
 #  years, year, y -- defined as 365.25 days
 
 # [file] logger config file
-log_config: config-examples/logger.yaml
+log_config: /bob/configs/logger.yaml
 # [str] node name, required to match with cluster config
 name: local_node
 # [uint] min count of successful operations on replicas to consider operation successful
@@ -38,7 +38,7 @@ pearl:
   # optional, default = true, enables linux AIO
   enable_aio: true
   # path to logfile with info about disks states switches, default = "/tmp/bob_events.csv"
-  disks_events_logfile: "/tmp/bob_events.csv"
+  disks_events_logfile: "/bob/log/bob_events.csv"
   # size in bytes. required for 'pearl'
   max_blob_size: 1000000
   # optional, required for 'pearl', disables search for existing keys before write
@@ -64,13 +64,8 @@ pearl:
     # each thread will wait this period if another thread creating pearl. required for 'pearl'
     create_pearl_wait_delay: 100ms
 
-# send metrics
+# optional, send metrics
 metrics:
-  # add base name for metrics
   name: bob
-  # enable graphite sink
-  graphite_enabled: true
-  # send metrics to graphite
-  graphite: 127.0.0.1:2003
-  # enable prometheus sink
+  graphite_enabled: false
   prometheus_enabled: false

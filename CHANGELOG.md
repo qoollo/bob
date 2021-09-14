@@ -5,12 +5,42 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 
+
 #### Changed
 - Cleaner closes blobs instead of update ([#285](https://github.com/qoollo/bob/pull/300))
 
+
 #### Fixed
+- Minor build issues ([#327](https://github.com/qoollo/bob/pull/327))
+
 
 #### Updated
+- Libs: tonic, tonic-build, tower, tokio.
+
+
+## [2.0.0-alpha.3] - 2021-08-31
+#### Added
+- Add the ability to disable metrics (#241)
+- Use default config in dockerfiles (#290)
+- Add log file rotation to logger.yaml in examples (#297)
+- Build docker images with build workflow (#308)
+- Build Bob versions with 8-byte and 16-byte keys (#307)
+
+#### Changed
+- once aio is failed, it's disabled in config (#257)
+
+
+## [2.0.0-alpha.2] - 2021-08-23
+#### Added
+- Prometheus metrics exporter (#240)
+- Rate metrics (#242)
+- Global exporter is used, different exporters may be load conditionally
+- Run tests with GitHub Actions (#279)
+
+#### Fixed
+
+- Add brt to dockerfiles (#296)
+- Bug with panic on load operation in rate processor (#302)
 
 
 ## [2.0.0-alpha.1] - 2021-08-16
