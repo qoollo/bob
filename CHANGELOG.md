@@ -11,7 +11,7 @@ Bob versions changelog
 
 #### Fixed
 - Minor build issues ([#327](https://github.com/qoollo/bob/pull/327))
-
+- Fix actual holder creation condition([#283](https://github.com/qoollo/bob/pull/283))
 
 #### Updated
 - Libs: tonic, tonic-build, tower, tokio.
