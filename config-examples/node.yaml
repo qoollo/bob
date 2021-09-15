@@ -33,9 +33,9 @@ open_blobs_soft_limit: 2
 # hard limit for count of max blobs to remain in ram
 open_blobs_hard_limit: 10
 # http REST api port. Defaults to 8000
-http_api_port: 9889
+http_api_port: 8000
 # http REST api address. Defaults to 0.0.0.0
-http_api_address: 127.0.0.1
+http_api_address: 0.0.0.0
 
 # used only for 'backend_type: pearl'
 pearl:
