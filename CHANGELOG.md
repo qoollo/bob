@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Add the ability to choose prometheus exporter address (#311)
 
 #### Changed
 
@@ -12,6 +12,7 @@ Bob versions changelog
 #### Fixed
 - Prometheus exporter bug which occured after migration to global exporter scheme (#322)
 - Minor build issues ([#327](https://github.com/qoollo/bob/pull/327))
+- Fix actual holder creation condition([#283](https://github.com/qoollo/bob/pull/283))
 
 #### Updated
 - Libs: tonic, tonic-build, tower, tokio.
