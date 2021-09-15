@@ -1,6 +1,9 @@
 use bob::{
-    version_helpers::{get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version},
-    init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper,
+    init_counters,
+    version_helpers::{
+        get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
+    },
+    BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper,
 };
 use clap::{App, Arg, ArgMatches};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -76,7 +79,7 @@ async fn main() {
     }
     warn!("Start listening on: {:?}", addr);
 
-    let metrics = init_counters(&node, &addr.to_string());
+    let metrics = init_counters(&node, &addr.to_string()).await;
 
     let handle = Handle::current();
     let bob = BobServer::new(Grinder::new(mapper, &node).await, handle);
