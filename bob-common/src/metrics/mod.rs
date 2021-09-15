@@ -235,26 +235,26 @@ fn install_prometheus(node_config: &NodeConfig) {
 }
 
 fn build_prometheus(node_config: &NodeConfig) -> PrometheusRecorder {
-    metrics_exporter_prometheus::PrometheusBuilder::new()
-        .listen_address(
-            node_config
-                .metrics()
-                .prometheus_addr()
-                .parse::<SocketAddr>()
-                .expect("Bad prometheus address"),
-        )
+    let addr = node_config
+        .metrics()
+        .prometheus_addr()
+        .parse::<SocketAddr>()
+        .expect("Bad prometheus address");
+    let (recorder, exporter) = metrics_exporter_prometheus::PrometheusBuilder::new()
+        .listen_address(addr)
         .idle_timeout(MetricKindMask::ALL, Some(Duration::from_secs(2)))
         .build_with_exporter()
         .expect("Failed to set Prometheus exporter");
 
-    tokio::spawn(async move {
+    let future = async move {
         pin!(exporter);
         loop {
             select! {
                 _ = &mut exporter => {}
             }
         }
-    });
+    };
+    tokio::spawn(future);
     recorder
 }
 
