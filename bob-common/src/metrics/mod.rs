@@ -171,7 +171,7 @@ pub fn init_counters(
     node_config: &NodeConfig,
     local_address: &str,
 ) -> Arc<dyn ContainerBuilder + Send + Sync> {
-    //install_prometheus();
+    //install_prometheus(node_config);
     //install_graphite(node_config, local_address);
     install_global(node_config, local_address);
     let container = MetricsContainer::new(Duration::from_secs(1), CLIENTS_METRICS_DIR.to_owned());
@@ -213,7 +213,7 @@ fn install_global(node_config: &NodeConfig, local_address: &str) {
         recorders.push(Box::new(graphite_rec));
     }
     if node_config.metrics().prometheus_enabled() {
-        let prometheus_rec = build_prometheus();
+        let prometheus_rec = build_prometheus(node_config);
         recorders.push(Box::new(prometheus_rec));
     }
 
@@ -228,17 +228,19 @@ fn install_global_recorder(recorders: Vec<Box<dyn Recorder>>) {
 }
 
 #[allow(unused)]
-fn install_prometheus() {
-    let recorder = build_prometheus();
+fn install_prometheus(node_config: &NodeConfig) {
+    let recorder = build_prometheus(node_config);
     metrics::set_boxed_recorder(Box::new(recorder)).expect("Can't set Prometheus recorder");
 }
 
-fn build_prometheus() -> PrometheusRecorder {
+fn build_prometheus(node_config: &NodeConfig) -> PrometheusRecorder {
     metrics_exporter_prometheus::PrometheusBuilder::new()
         .listen_address(
-            "0.0.0.0:9000"
+            node_config
+                .metrics()
+                .prometheus_addr()
                 .parse::<SocketAddr>()
-                .expect("Bad metrics address"),
+                .expect("Bad prometheus address"),
         )
         .idle_timeout(MetricKindMask::ALL, Some(Duration::from_secs(2)))
         .build()

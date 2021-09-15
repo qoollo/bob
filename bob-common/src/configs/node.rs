@@ -128,6 +128,8 @@ impl BackendSettings {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MetricsConfig {
     name: Option<String>,
+    #[serde(default = "MetricsConfig::default_prometheus_addr")]
+    prometheus_addr: String,
     graphite_enabled: bool,
     graphite: Option<String>,
     prometheus_enabled: bool,
@@ -163,6 +165,14 @@ impl MetricsConfig {
         } else {
             Ok(())
         }
+    }
+
+    pub(crate) fn prometheus_addr(&self) -> &str {
+        &self.prometheus_addr
+    }
+
+    pub(crate) fn default_prometheus_addr() -> String {
+        "0.0.0.0:9000".to_owned()
     }
 
     fn check_optional_fields(&self) -> Result<(), String> {
