@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Add the ability to choose prometheus exporter address (#311)
 
 #### Changed
 
