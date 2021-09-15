@@ -8,6 +8,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use tokio::{pin, select};
 
 mod exporters;
 pub mod pearl;
@@ -167,13 +168,13 @@ impl ContainerBuilder for MetricsContainer {
 
 /// initializes bob counters with given config and address of the local node
 #[allow(unused_variables)]
-pub fn init_counters(
+pub async fn init_counters(
     node_config: &NodeConfig,
     local_address: &str,
 ) -> Arc<dyn ContainerBuilder + Send + Sync> {
     //install_prometheus(node_config);
     //install_graphite(node_config, local_address);
-    install_global(node_config, local_address);
+    install_global(node_config, local_address).await;
     let container = MetricsContainer::new(Duration::from_secs(1), CLIENTS_METRICS_DIR.to_owned());
     info!(
         "metrics container initialized with update interval: {}ms",
@@ -206,7 +207,7 @@ fn init_link_manager() {
     register_counter!(AVAILABLE_NODES_COUNT);
 }
 
-fn install_global(node_config: &NodeConfig, local_address: &str) {
+async fn install_global(node_config: &NodeConfig, local_address: &str) {
     let mut recorders: Vec<Box<dyn Recorder>> = vec![];
     if node_config.metrics().graphite_enabled() {
         let graphite_rec = build_graphite(node_config, local_address);
@@ -234,16 +235,27 @@ fn install_prometheus(node_config: &NodeConfig) {
 }
 
 fn build_prometheus(node_config: &NodeConfig) -> PrometheusRecorder {
-    metrics_exporter_prometheus::PrometheusBuilder::new()
-        .listen_address(
-            node_config
-                .metrics()
-                .prometheus_addr()
-                .parse::<SocketAddr>()
-                .expect("Bad prometheus address"),
-        )
+    let addr = node_config
+        .metrics()
+        .prometheus_addr()
+        .parse::<SocketAddr>()
+        .expect("Bad prometheus address");
+    let (recorder, exporter) = metrics_exporter_prometheus::PrometheusBuilder::new()
+        .listen_address(addr)
         .idle_timeout(MetricKindMask::ALL, Some(Duration::from_secs(2)))
-        .build()
+        .build_with_exporter()
+        .expect("Failed to set Prometheus exporter");
+
+    let future = async move {
+        pin!(exporter);
+        loop {
+            select! {
+                _ = &mut exporter => {}
+            }
+        }
+    };
+    tokio::spawn(future);
+    recorder
 }
 
 #[allow(unused)]

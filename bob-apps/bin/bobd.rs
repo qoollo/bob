@@ -79,7 +79,7 @@ async fn main() {
     }
     warn!("Start listening on: {:?}", addr);
 
-    let metrics = init_counters(&node, &addr.to_string());
+    let metrics = init_counters(&node, &addr.to_string()).await;
 
     let handle = Handle::current();
     let bob = BobServer::new(Grinder::new(mapper, &node).await, handle);
