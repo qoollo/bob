@@ -22,7 +22,7 @@ impl BuildInfo {
             name: env!("CARGO_PKG_NAME"),
             version: env!("CARGO_PKG_VERSION"),
             key_size: BOB_KEY_SIZE,
-            commit: option_env!("PEARL_COMMIT_HASH").unwrap_or("hash-undefined"),
+            commit: option_env!("BOB_COMMIT_HASH").unwrap_or("hash-undefined"),
             build_time: BUILD_TIME,
             pearl: PearlBuildInfo::new(),
         }
