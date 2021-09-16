@@ -32,6 +32,10 @@ cleanup_interval: 1h
 open_blobs_soft_limit: 2
 # hard limit for count of max blobs to remain in ram
 open_blobs_hard_limit: 10
+# http REST api port
+http_api_port: 8000
+# http REST api address
+http_api_address: 0.0.0.0
 
 # used only for 'backend_type: pearl'
 pearl:

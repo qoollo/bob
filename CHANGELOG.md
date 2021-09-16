@@ -5,6 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Add the ability to choose prometheus exporter address (#311)
+- Add rest api port to config ([#269](https://github.com/qoollo/bob/pull/269))
 
 #### Changed
 
