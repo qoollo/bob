@@ -67,9 +67,9 @@ impl Group {
             .await
             .with_context(|| "backend pearl group read vdisk directory failed")?;
         debug!("{}: count holders: {}", self, holders.len());
-        if holders
+        if !holders
             .iter()
-            .all(|holder| holder.is_actual(self.settings.get_actual_timestamp_start()))
+            .any(|holder| holder.is_actual(self.settings.get_actual_timestamp_start()))
         {
             self.create_current_pearl();
         }

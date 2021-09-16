@@ -76,7 +76,7 @@ async fn main() {
     }
     warn!("Start listening on: {:?}", addr);
 
-    let metrics = init_counters(&node, &addr.to_string());
+    let metrics = init_counters(&node, &addr.to_string()).await;
 
     let handle = Handle::current();
     let bob = BobServer::new(Grinder::new(mapper, &node).await, handle);
@@ -87,8 +87,12 @@ async fn main() {
     let http_api_port = matches
         .value_of("http_api_port")
         .and_then(|v| v.parse().ok())
-        .expect("expect http_api_port port");
-    bob.run_api_server(http_api_port);
+        .unwrap_or(node.http_api_port());
+    let http_api_address = matches
+        .value_of("http_api_address")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(node.http_api_address());
+    bob.run_api_server(http_api_address, http_api_port);
 
     create_signal_handlers(&bob).unwrap();
 
@@ -172,9 +176,15 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .default_value("4"),
         )
         .arg(
+            Arg::with_name("http_api_address")
+                .help("http api address")
+                .short("h")
+                .long("host")
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("http_api_port")
                 .help("http api port")
-                .default_value("8000")
                 .short("p")
                 .long("port")
                 .takes_value(true),

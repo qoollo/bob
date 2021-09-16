@@ -14,6 +14,7 @@ use rocket::{
     serde::{json::Json, uuid::Uuid},
     Config, Data, Request, Response, Rocket, State,
 };
+use std::net::IpAddr;
 use std::{
     io::{Cursor, Error as IoError, ErrorKind},
     path::{Path, PathBuf},
@@ -106,7 +107,7 @@ pub(crate) struct VersionInfo {
     pearl_version: Version,
 }
 
-pub(crate) fn spawn(bob: BobServer, port: u16) {
+pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
     let routes = routes![
         status,
         version,
@@ -132,6 +133,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
     ];
     info!("API server started");
     let mut config = Config::release_default();
+    config.address = address;
     config.port = port;
     let task = Rocket::custom(config)
         .manage(bob)
