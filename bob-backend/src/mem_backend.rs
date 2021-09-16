@@ -116,7 +116,7 @@ impl MemBackend {
             .local_disks()
             .iter()
             .map(DiskPath::name)
-            .map(|name| (name.to_string(), MemDisk::new(name.to_string(), &mapper)))
+            .map(|name| (name.to_string(), MemDisk::new(name.to_string(), mapper)))
             .collect();
         Self {
             disks,

@@ -1,6 +1,5 @@
 use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
 use clap::{App, Arg, ArgMatches};
-use futures::executor::block_on;
 use http::Uri;
 use lazy_static::lazy_static;
 use rand::distributions::Uniform;
@@ -79,7 +78,7 @@ impl Tester {
         match res {
             Ok(size) => {
                 if let Some(expected) = self.storage.get(&key) {
-                    if expected == size {
+                    if *expected == size {
                         true
                     } else {
                         log::warn!("Get size error: expected {} != actual {}", expected, size);
@@ -107,7 +106,7 @@ impl Tester {
         let res = self.client.put(key, size).await;
         match res {
             Ok(_) => {
-                self.storage.insert(key, (size, timestamp));
+                self.storage.insert(key, size);
                 true
             }
             Err(e) => {
@@ -232,7 +231,7 @@ impl Client {
         let put_req = Request::new(message);
 
         let sw = Stopwatch::new();
-        let res = self.client.put(put_req).await?;
+        let res = self.client.put(put_req).await.map_err(|e| e.to_string())?;
         log::debug!(
             "Put[{}] {} with size {} result: {:?}",
             timestamp,

@@ -109,7 +109,7 @@ async fn create_cluster(
     cluster: &ClusterConfig,
     _map: &[(&str, Call, Arc<CountCall>)],
 ) -> (Quorum, Arc<Backend>) {
-    let mapper = Arc::new(Virtual::new(&node, &cluster).await);
+    let mapper = Arc::new(Virtual::new(node, cluster).await);
     for _node in mapper.nodes().values() {
         // let mut client = BobClient::default();
         // let (_, func, call) = map
@@ -121,7 +121,7 @@ async fn create_cluster(
         todo!("mock");
     }
 
-    let backend = Arc::new(Backend::new(mapper.clone(), &node).await);
+    let backend = Arc::new(Backend::new(mapper.clone(), node).await);
     (Quorum::new(backend.clone(), mapper, node.quorum()), backend)
 }
 

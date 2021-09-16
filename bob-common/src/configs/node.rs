@@ -236,9 +236,15 @@ pub struct Pearl {
     enable_aio: bool,
     #[serde(default = "Pearl::default_disks_events_logfile")]
     disks_events_logfile: String,
+    #[serde(default)]
+    bloom_filter_max_buf_bits_count: Option<usize>,
 }
 
 impl Pearl {
+    pub fn max_buf_bits_count(&self) -> Option<usize> {
+        self.bloom_filter_max_buf_bits_count
+    }
+
     pub fn alien_disk(&self) -> Option<&str> {
         self.alien_disk.as_deref()
     }
@@ -450,9 +456,14 @@ pub struct Node {
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
     disk_access_par_degree: usize,
+    bind_to_ip_address: Option<SocketAddr>,
 }
 
 impl NodeConfig {
+    pub fn bind_to_ip_address(&self) -> Option<SocketAddr> {
+        self.bind_to_ip_address.clone()
+    }
+
     /// Get node name.
     pub fn name(&self) -> &str {
         &self.name
@@ -700,6 +711,7 @@ pub mod tests {
             init_par_degree: 1,
             disk_access_par_degree: 1,
             count_interval: "10000ms".to_string(),
+            bind_to_ip_address: None,
         }
     }
 }

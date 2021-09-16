@@ -139,7 +139,12 @@ impl Backend {
         let inner: Arc<dyn BackendStorage> = match config.backend_type() {
             BackendType::InMemory => Arc::new(MemBackend::new(&mapper)),
             BackendType::Stub => Arc::new(StubBackend {}),
-            BackendType::Pearl => Arc::new(Pearl::new(mapper.clone(), config).await),
+            BackendType::Pearl => {
+                let pearl = Pearl::new(mapper.clone(), config)
+                    .await
+                    .expect("pearl initialization failed");
+                Arc::new(pearl)
+            }
         };
         Self { inner, mapper }
     }
@@ -357,28 +362,24 @@ impl Backend {
 
     pub async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<u64, Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        let mut total_count = 0;
+        let mut ops = vec![];
         if let Some(path) = disk_path {
-            trace!("DELETE[{}] try delete normal", key);
-            total_count += self
-                .delete_single(key, Operation::new_local(vdisk_id, path.clone()))
-                .await
-                .map_err(|e| {
-                    debug!("DELETE[{}] delete alien error: {}", key, e);
-                })
-                .unwrap_or(0);
+            ops.push(Operation::new_local(vdisk_id, path.clone()));
         }
         if with_aliens {
-            trace!("DELETE[{}] try delete from alien", key);
-            let op = Operation::new_alien(vdisk_id);
-            total_count += self
-                .delete_single(key, op)
-                .await
-                .map_err(|e| {
-                    debug!("DELETE[{}] delete alien error: {}", key, e);
-                })
-                .unwrap_or(0);
+            ops.push(Operation::new_alien(vdisk_id));
         }
+        let total_count = futures::future::join_all(ops.into_iter().map(|op| {
+            trace!("DELETE[{}] try delete", key);
+            self.delete_single(key, op)
+                .map_err(|e| {
+                    debug!("DELETE[{}] delete error: {}", key, e);
+                })
+                .unwrap_or_else(|_| 0)
+        }))
+        .await
+        .iter()
+        .sum();
         Ok(total_count)
     }
 
