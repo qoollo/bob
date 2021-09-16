@@ -45,7 +45,7 @@ impl Operation {
 }
 
 struct Tester {
-    storage: BTreeMap<u64, (usize, u64)>,
+    storage: BTreeMap<u64, usize>,
     client: Client,
     settings: Settings,
     rng: rand::rngs::ThreadRng,
@@ -79,10 +79,10 @@ impl Tester {
         match res {
             Ok(size) => {
                 if let Some(expected) = self.storage.get(&key) {
-                    if expected.0 == size {
+                    if expected == size {
                         true
                     } else {
-                        log::warn!("Get size error: expected {} != actual {}", expected.0, size);
+                        log::warn!("Get size error: expected {} != actual {}", expected, size);
                         false
                     }
                 } else {
@@ -104,18 +104,9 @@ impl Tester {
     async fn put(&mut self) -> bool {
         let key = self.rand_id();
         let size = self.rand_size();
-        let block_timestamp = self.storage.get(&key).map(|x| x.1);
-        if block_timestamp.is_some() {
-            return true;
-        }
-        let res = self.client.put(key, size, block_timestamp).await;
+        let res = self.client.put(key, size).await;
         match res {
-            Ok(timestamp) => {
-                if let Some(block_timestamp) = block_timestamp {
-                    if timestamp == block_timestamp {
-                        return true;
-                    }
-                }
+            Ok(_) => {
                 self.storage.insert(key, (size, timestamp));
                 true
             }
@@ -133,12 +124,12 @@ impl Tester {
         match res {
             Ok(size) => {
                 if let Some(expected) = value {
-                    if expected.0 == size {
+                    if expected == size {
                         true
                     } else {
                         log::warn!(
                             "Deletion size error: expected {} != actual {}",
-                            expected.0,
+                            expected,
                             size
                         );
                         false
@@ -223,21 +214,11 @@ impl Client {
         log::info!("DELETE: count: {}, latency: {}", self.delete_count, latency);
     }
 
-    async fn put(
-        &mut self,
-        key: u64,
-        size: usize,
-        block_timestamp: Option<u64>,
-    ) -> Result<u64, String> {
+    async fn put(&mut self, key: u64, size: usize) -> Result<(), String> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("msg: &str")
             .as_secs();
-        if let Some(block_timestamp) = block_timestamp {
-            if timestamp == block_timestamp {
-                return Ok(timestamp);
-            }
-        }
         let meta = BlobMeta { timestamp };
         let blob = Blob {
             data: vec![1; size],
@@ -251,12 +232,7 @@ impl Client {
         let put_req = Request::new(message);
 
         let sw = Stopwatch::new();
-        let res = self
-            .client
-            .put(put_req)
-            .await
-            .map(|_| timestamp)
-            .map_err(|e| e.to_string());
+        let res = self.client.put(put_req).await?;
         log::debug!(
             "Put[{}] {} with size {} result: {:?}",
             timestamp,
@@ -266,7 +242,7 @@ impl Client {
         );
         self.put_time += sw.elapsed();
         self.put_count += 1;
-        res
+        Ok(())
     }
 
     async fn get(&mut self, key: u64) -> Result<usize, String> {
@@ -403,7 +379,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .long("max-size")
         .takes_value(true)
         .default_value("100000");
-    App::new("bobc")
+    App::new("bobt")
         .arg(count_arg)
         .arg(uri_arg)
         .arg(size_arg)
