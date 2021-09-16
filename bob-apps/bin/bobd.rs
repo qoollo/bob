@@ -1,11 +1,8 @@
 use bob::{
-    init_counters,
-    version_helpers::{
-        get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
-    },
-    BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper,
+    build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder,
+    VirtualMapper,
 };
-use clap::{App, Arg, ArgMatches};
+use clap::{crate_version, App, Arg, ArgMatches};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::runtime::Handle;
 use tonic::transport::Server;
@@ -146,17 +143,9 @@ fn spawn_signal_handler(
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
-    App::new(env!("CARGO_PKG_NAME"))
-        .version(
-            format!(
-                "{}, built on {}, (pearl {}, built on {})",
-                get_bob_version(),
-                get_bob_build_time(),
-                get_pearl_version(),
-                get_pearl_build_time(),
-            )
-            .as_str(),
-        )
+    let ver = format!("{}\n{}", crate_version!(), BuildInfo::new());
+    App::new("bobd")
+        .version(ver.as_str())
         .arg(
             Arg::with_name("cluster")
                 .help("cluster config file")

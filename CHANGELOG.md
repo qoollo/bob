@@ -17,6 +17,8 @@ Bob versions changelog
 
 #### Updated
 - Libs: tonic, tonic-build, tower, tokio.
+- Add Bob key size to help and version commands output
+- Updated --version output format
 
 
 ## [2.0.0-alpha.3] - 2021-08-31

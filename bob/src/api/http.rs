@@ -1,7 +1,4 @@
-use crate::server::Server as BobServer;
-use crate::version_helpers::{
-    get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
-};
+use crate::{build_info::BuildInfo, server::Server as BobServer};
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
@@ -229,16 +226,18 @@ async fn status(bob: &State<BobServer>) -> Json<Node> {
 
 #[get("/version")]
 fn version(_bob: &State<BobServer>) -> Json<VersionInfo> {
-    Json(VersionInfo {
+    let build_info = BuildInfo::new();
+    let version_info = VersionInfo {
         bob_version: Version {
-            version: get_bob_version(),
-            build_time: get_bob_build_time().to_string(),
+            version: build_info.version().to_string(),
+            build_time: build_info.build_time().to_string(),
         },
         pearl_version: Version {
-            version: get_pearl_version(),
-            build_time: get_pearl_build_time().to_string(),
+            version: build_info.pearl_version().to_string(),
+            build_time: build_info.pearl_build_time().to_string(),
         },
-    })
+    };
+    Json(version_info)
 }
 
 #[get("/nodes")]
