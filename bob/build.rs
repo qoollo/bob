@@ -1,5 +1,4 @@
 use chrono::Local;
-extern crate chrono;
 
 fn main() {
     let time = Local::now();
