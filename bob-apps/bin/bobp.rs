@@ -774,8 +774,9 @@ fn get_matches() -> ArgMatches<'static> {
         )
         .arg(
             Arg::with_name("mode")
-                .help("keys in get operation are shuffled")
-                .takes_value(false)
+                .help("random (keys in get operation are shuffled) or normal")
+                .takes_value(true)
+                .default_value("normal")
                 .long("mode"),
         )
         .arg(
