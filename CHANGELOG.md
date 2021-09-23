@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Add random mode in get in bobp ([#215](https://github.com/qoollo/bob/pull/225))
 
 #### Changed
 
