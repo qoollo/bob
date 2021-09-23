@@ -151,7 +151,7 @@ pub(crate) async fn put_object(
 pub(crate) struct CopyObjectHeaders {
     if_modified_since: Option<u64>,
     if_unmodified_since: Option<u64>,
-    source_key: DataKey,
+    _source_key: DataKey,
 }
 
 #[rocket::async_trait]
@@ -159,7 +159,7 @@ impl<'r> FromRequest<'r> for CopyObjectHeaders {
     type Error = StatusS3;
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let headers = request.headers();
-        let source_key = match headers
+        let _source_key = match headers
             .get_one("x-amz-copy-source")
             .and_then(|x| x.parse().ok())
         {
@@ -175,7 +175,7 @@ impl<'r> FromRequest<'r> for CopyObjectHeaders {
                 .get_one("If-Unmodified-Since")
                 .and_then(|x| chrono::DateTime::parse_from_rfc2822(x).ok())
                 .and_then(|x| x.timestamp().try_into().ok()),
-            source_key,
+            _source_key,
         })
     }
 }

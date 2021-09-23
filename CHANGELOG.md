@@ -10,11 +10,25 @@ Bob versions changelog
 
 
 #### Fixed
-- Minor build issues ([#327](https://github.com/qoollo/bob/pull/327))
 
 
 #### Updated
+
+
+## [2.0.0-alpha.4] - 2021-09-16
+#### Added
+- Add the ability to choose prometheus exporter address (#311)
+- Add rest api port to config (#269)
+
+#### Fixed
+- Prometheus exporter bug which occured after migration to global exporter scheme (#322)
+- Minor build issues (#327)
+- Fix actual holder creation condition(#283)
+
+#### Updated
 - Libs: tonic, tonic-build, tower, tokio.
+- Add Bob key size to help and version commands output
+- Updated --version output format
 
 
 ## [2.0.0-alpha.3] - 2021-08-31
@@ -37,7 +51,6 @@ Bob versions changelog
 - Run tests with GitHub Actions (#279)
 
 #### Fixed
-
 - Add brt to dockerfiles (#296)
 - Bug with panic on load operation in rate processor (#302)
 
