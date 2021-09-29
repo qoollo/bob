@@ -397,7 +397,7 @@ async fn vdisk_records_count(
     let group = find_group(bob, vdisk_id).await?;
     let holders = group.holders();
     let pearls = holders.read().await;
-    let pearls: &[_] = pearls.as_ref();
+    let pearls: &[_] = pearls.children().as_ref();
     let mut sum = 0;
     for pearl in pearls {
         sum += pearl.records_count().await;
@@ -415,7 +415,7 @@ async fn partitions(
     let holders = group.holders();
     let pearls = holders.read().await;
     debug!("get pearl holders: OK");
-    let pearls: &[_] = pearls.as_ref();
+    let pearls: &[_] = pearls.children().as_ref();
     let partitions = pearls.iter().map(Holder::get_id).collect();
     let ps = VDiskPartitions {
         node_name: group.node_name().to_owned(),

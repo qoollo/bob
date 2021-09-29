@@ -54,6 +54,10 @@ impl BobKey {
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = &u8> {
         self.0.iter()
     }
+
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0[..]
+    }
 }
 
 impl std::fmt::Display for BobKey {

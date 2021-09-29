@@ -107,7 +107,7 @@ impl Group {
     }
 
     // find in all pearls actual pearl and try create new
-    async fn get_actual_holder(&self, data: &BobData) -> Result<Holder, Error> {
+    async fn get_actual_holder(&self, data: &BobData) -> Result<(usize, Holder), Error> {
         self.find_actual_holder(data)
             .or_else(|e| {
                 debug!("cannot find pearl: {}", e);
@@ -117,12 +117,13 @@ impl Group {
     }
 
     // find in all pearls actual pearl
-    async fn find_actual_holder(&self, data: &BobData) -> BackendResult<Holder> {
+    async fn find_actual_holder(&self, data: &BobData) -> BackendResult<(usize, Holder)> {
         let holders = self.holders.read().await;
         holders
             .iter()
-            .find(|holder| holder.gets_into_interval(data.meta().timestamp()))
-            .cloned()
+            .enumerate()
+            .find(|holder| holder.1.gets_into_interval(data.meta().timestamp()))
+            .map(|(i, holder)| (i, holder.clone()))
             .ok_or_else(|| {
                 Error::failed(format!(
                     "cannot find actual pearl folder. meta: {}",
@@ -132,7 +133,7 @@ impl Group {
     }
 
     // create pearl for current write
-    async fn create_write_pearl(&self, ts: u64) -> Result<Holder, Error> {
+    async fn create_write_pearl(&self, ts: u64) -> Result<(usize, Holder), Error> {
         let mut indexes = self.created_holder_indexes.write().await;
         let created_holder_index = indexes.get(&ts).copied();
         let index = if let Some(exisiting_index) = created_holder_index {
@@ -152,7 +153,7 @@ impl Group {
             debug!("group create write pearl holder inserted");
             new_index
         };
-        Ok(self.holders.read().await[index].clone())
+        Ok((index, self.holders.read().await.children()[index].clone()))
     }
 
     async fn try_create_write_pearl(&self, timestamp: u64) -> Result<usize, Error> {
@@ -168,8 +169,15 @@ impl Group {
     }
 
     pub async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
-        let holder = self.get_actual_holder(&data).await?;
-        Self::put_common(holder, key, data).await
+        let (index, holder) = self.get_actual_holder(&data).await?;
+        let res = Self::put_common(holder, key, data).await;
+        if res.is_ok() {
+            self.holders()
+                .write()
+                .await
+                .add_to_intermediate_filters(index, key.as_slice());
+        }
+        res
     }
 
     async fn put_common(holder: Holder, key: BobKey, data: BobData) -> Result<(), Error> {
@@ -194,6 +202,9 @@ impl Group {
         let holders = self.holders.read().await;
         let mut has_error = false;
         let mut results = vec![];
+        if let Ok(Some(false)) = holders.check_filter(&key.into()).await {
+            return Err(Error::key_not_found(key));
+        }
         for holder in holders.iter().rev() {
             let get = Self::get_common(holder.clone(), key).await;
             match get {
@@ -242,6 +253,9 @@ impl Group {
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
+            if let Ok(Some(false)) = holders.check_filter(&key.into()).await {
+                continue;
+            }
             for holder in holders.iter() {
                 if !exist[ind] {
                     exist[ind] = holder.exist(key).await.unwrap_or(false);
@@ -251,7 +265,7 @@ impl Group {
         exist
     }
 
-    pub fn holders(&self) -> Arc<RwLock<Vec<Holder>>> {
+    pub fn holders(&self) -> Arc<RwLock<HierarchicalBloom<Holder>>> {
         self.holders.clone()
     }
 
@@ -283,10 +297,13 @@ impl Group {
         }
     }
 
-    pub async fn detach(&self, start_timestamp: u64) -> BackendResult<Vec<Holder>> {
+    pub async fn detach(&self, _start_timestamp: u64) -> BackendResult<Vec<Holder>> {
+        unimplemented!("Hierarchical filters does not support elements removing for now");
+        /*
         let mut holders = self.holders.write().await;
         debug!("write lock acquired");
         let holders = holders
+            .children_mut()
             .drain_filter(|holder| {
                 debug!("{}", holder.start_timestamp());
                 holder.start_timestamp() == start_timestamp
@@ -306,6 +323,7 @@ impl Group {
             }
         }
         Ok(holders)
+        */
     }
 
     pub fn create_pearl_holder(&self, start_timestamp: u64, hash: &str) -> Holder {
@@ -399,8 +417,7 @@ impl Group {
 
     pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
         let holders_lock = self.holders();
-        let mut holders_write = holders_lock.write().await;
-        let holders: &mut Vec<_> = holders_write.as_mut();
+        let mut holders = holders_lock.write().await;
 
         let mut total_open_blobs = 0;
         let mut close = vec![];

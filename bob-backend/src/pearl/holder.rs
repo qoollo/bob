@@ -387,16 +387,28 @@ impl Holder {
 impl BloomProvider for Holder {
     type Key = Key;
 
-    async fn contains(&self, item: &Self::Key) -> AnyResult<Option<bool>> {
+    async fn check_filter(&self, item: &Self::Key) -> AnyResult<Option<bool>> {
         let storage = self.storage().read().await;
-        if let Some(storage) = storage.storage {
-            return BloomProvider::contains(&storage, item).await;
+        if let Some(storage) = &storage.storage {
+            return BloomProvider::check_filter(storage, item).await;
         }
         Ok(None)
     }
 
     async fn offload_buffer(&mut self, needed_memory: usize) -> usize {
-        todo!()
+        let mut storage = self.storage().write().await;
+        match &mut storage.storage {
+            Some(storage) => storage.offload_buffer(needed_memory).await,
+            _ => 0,
+        }
+    }
+
+    async fn get_filter(&self) -> Option<pearl::Bloom> {
+        let storage = self.storage().read().await;
+        match &storage.storage {
+            Some(storage) => storage.get_filter().await,
+            _ => None,
+        }
     }
 }
 
