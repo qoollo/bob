@@ -9,7 +9,7 @@ use bob_common::metrics::pearl::{
     PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
     PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
 };
-use pearl::error::{AsPearlError, ValidationParam};
+use pearl::error::{AsPearlError, ValidationErrorKind};
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
@@ -266,14 +266,10 @@ impl Holder {
             .map_err(|e| {
                 let storage_error = Error::storage("Failed to init holder");
                 if let Some(err) = e.as_pearl_error() {
-                    if matches!(
-                        err.kind(),
-                        PearlErrorKind::Validation {
-                            param: ValidationParam::BlobVersion,
-                            cause: _
+                    if let PearlErrorKind::Validation { kind, cause: _ } = err.kind() {
+                        if matches!(kind, ValidationErrorKind::BlobVersion) {
+                            panic!("unsupported pearl blob file version: {:#}", err);
                         }
-                    ) {
-                        panic!("unsupported pearl blob file version: {:#}", err);
                     }
                 }
                 e.downcast_ref::<IOError>().map_or(
