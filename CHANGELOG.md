@@ -13,6 +13,7 @@ Bob versions changelog
 
 
 #### Updated
+- upgrade pearl to v0.7.0.
 
 
 ## [2.0.0-alpha.4] - 2021-09-16
