@@ -4,13 +4,21 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Add random mode in get in bobp ([#215](https://github.com/qoollo/bob/pull/225))
+
 
 #### Changed
 
 
 #### Fixed
 
+
+#### Updated
+
+
+
+## [2.0.0-alpha.4] - 2021-10-02
+#### Added
+- Add random mode in get in bobp (#215)
 
 #### Updated
 - upgrade pearl to v0.7.0.
