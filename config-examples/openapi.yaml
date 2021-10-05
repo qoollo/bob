@@ -262,6 +262,15 @@ paths:
                   type: string
         default:
           $ref: '#/components/responses/DefaultError'
+  /alien/sync:
+    post:
+      summary: Sync alien data to the storage
+      operationId: syncAlienData
+      responses:
+        '200':
+          description: Successfully synced alien data
+        default:
+          $ref: "#/components/responses/DefaultError"
   /alien/dir:
     get:
       summary: Return directory of alien
@@ -275,6 +284,7 @@ paths:
                 ref: '#/components/schemas/Dir'
         default:
           $ref: '#/components/responses/DefaultError'
+          
   /vdisks/<vdisk_id>/replicas/local/dirs:
     get:
       summary: Returns directories of local replicas of vdisk

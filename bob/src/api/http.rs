@@ -118,6 +118,7 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
         change_partition_state,
         delete_partition,
         alien,
+        sync_alien_data,
         get_alien_directory,
         remount_vdisks_group,
         start_all_disk_controllers,
@@ -551,6 +552,16 @@ async fn drop_directories(
 #[get("/alien")]
 async fn alien(_bob: &State<BobServer>) -> &'static str {
     "alien"
+}
+
+#[post("/alien/sync")]
+async fn sync_alien_data(bob: &State<BobServer>) -> Result<StatusExt, StatusExt> {
+    let backend = bob.grinder().backend().inner();
+    let (_, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    adc.detach_all().await?;
+    Ok(StatusExt::new(Status::Ok, true, String::default()))
 }
 
 #[get("/alien/dir")]

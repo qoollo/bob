@@ -4,7 +4,7 @@ pub(crate) mod logger;
 use crate::{core::Operation, prelude::*};
 use logger::DisksEventsLogger;
 
-use super::{core::BackendResult, settings::Settings, Group};
+use super::{core::BackendResult, settings::Settings, stuff::StartTimestampConfig, Group};
 
 use bob_common::metrics::DISKS_FOLDER;
 
@@ -238,7 +238,11 @@ impl DiskController {
     async fn collect_alien_groups(&self) -> BackendResult<Vec<Group>> {
         let settings = self.settings.clone();
         let groups = settings
-            .collect_alien_groups(self.disk.name().to_owned(), self.dump_sem.clone())
+            .collect_alien_groups(
+                self.disk.name().to_owned(),
+                self.dump_sem.clone(),
+                &self.node_name,
+            )
             .await?;
         trace!(
             "alien vdisk groups count (start or recovery): {}",
@@ -282,10 +286,23 @@ impl DiskController {
         let group = self
             .settings
             .clone()
-            .create_group(operation, &self.node_name, self.dump_sem.clone())
+            .create_alien_group(
+                operation.remote_node_name().expect("Node name not found"),
+                operation.vdisk_id(),
+                &self.node_name,
+                self.dump_sem.clone(),
+            )
             .await?;
         write_lock_groups.push(group.clone());
         Ok(group)
+    }
+
+    pub async fn detach_all(&self) -> BackendResult<()> {
+        let write_lock_groups = self.groups.write().await;
+        for group in write_lock_groups.iter() {
+            group.detach_all().await?;
+        }
+        Ok(())
     }
 
     async fn run_groups(groups: Arc<RwLock<Vec<Group>>>) -> AnyResult<()> {
@@ -330,7 +347,10 @@ impl DiskController {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = self.get_or_create_pearl(&op).await;
             match vdisk_group {
-                Ok(group) => match group.put(key, data.clone()).await {
+                Ok(group) => match group
+                    .put(key, data.clone(), StartTimestampConfig::new(false))
+                    .await
+                {
                     Err(e) => Err(self.process_error(e).await),
                     Ok(()) => Ok(()),
                 },
@@ -357,7 +377,7 @@ impl DiskController {
                     .cloned()
             };
             if let Some(group) = vdisk_group {
-                match group.put(key, data).await {
+                match group.put(key, data, StartTimestampConfig::default()).await {
                     Err(e) => {
                         debug!("PUT[{}], error: {:?}", key, e);
                         Err(self.process_error(e).await)

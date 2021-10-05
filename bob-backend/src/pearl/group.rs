@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use super::Holder;
+use super::{stuff::StartTimestampConfig, Holder};
 use crate::{
     core::Operation,
     pearl::{core::BackendResult, settings::Settings, stuff::Stuff},
@@ -106,11 +106,15 @@ impl Group {
     }
 
     // find in all pearls actual pearl and try create new
-    async fn get_actual_holder(&self, data: &BobData) -> Result<Holder, Error> {
+    async fn get_actual_holder(
+        &self,
+        data: &BobData,
+        timestamp_config: StartTimestampConfig,
+    ) -> Result<Holder, Error> {
         self.find_actual_holder(data)
             .or_else(|e| {
                 debug!("cannot find pearl: {}", e);
-                self.create_write_pearl(data.meta().timestamp())
+                self.create_write_pearl(data.meta().timestamp(), timestamp_config)
             })
             .await
     }
@@ -131,7 +135,11 @@ impl Group {
     }
 
     // create pearl for current write
-    async fn create_write_pearl(&self, ts: u64) -> Result<Holder, Error> {
+    async fn create_write_pearl(
+        &self,
+        ts: u64,
+        timestamp_config: StartTimestampConfig,
+    ) -> Result<Holder, Error> {
         let mut indexes = self.created_holder_indexes.write().await;
         let created_holder_index = indexes.get(&ts).copied();
         let index = if let Some(exisiting_index) = created_holder_index {
@@ -141,7 +149,7 @@ impl Group {
                 .settings
                 .config()
                 .try_multiple_times_async(
-                    || self.try_create_write_pearl(ts),
+                    || self.try_create_write_pearl(ts, &timestamp_config),
                     "pearl init failed",
                     self.settings.config().settings().create_pearl_wait_delay(),
                 )
@@ -154,9 +162,13 @@ impl Group {
         Ok(self.holders.read().await[index].clone())
     }
 
-    async fn try_create_write_pearl(&self, timestamp: u64) -> Result<usize, Error> {
+    async fn try_create_write_pearl(
+        &self,
+        timestamp: u64,
+        timestamp_config: &StartTimestampConfig,
+    ) -> Result<usize, Error> {
         info!("creating pearl for timestamp {}", timestamp);
-        let pearl = self.create_pearl_by_timestamp(timestamp);
+        let pearl = self.create_pearl_by_timestamp(timestamp, timestamp_config);
         self.save_pearl(pearl.clone()).await
     }
 
@@ -166,8 +178,13 @@ impl Group {
         Ok(self.add(holder).await)
     }
 
-    pub async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
-        let holder = self.get_actual_holder(&data).await?;
+    pub async fn put(
+        &self,
+        key: BobKey,
+        data: BobData,
+        timestamp_config: StartTimestampConfig,
+    ) -> Result<(), Error> {
+        let holder = self.get_actual_holder(&data, timestamp_config).await?;
         Self::put_common(holder, key, data).await
     }
 
@@ -276,7 +293,8 @@ impl Group {
             warn!("{}", msg);
             Err(Error::pearl_change_state(msg))
         } else {
-            let holder = self.create_pearl_by_timestamp(start_timestamp);
+            let holder =
+                self.create_pearl_by_timestamp(start_timestamp, &StartTimestampConfig::default());
             self.save_pearl(holder).await?;
             Ok(())
         }
@@ -296,21 +314,20 @@ impl Group {
             let msg = format!("pearl:{} not found", start_timestamp);
             return Err(Error::pearl_change_state(msg));
         }
-        for holder in &holders {
-            let lock_guard = holder.storage();
-            let pearl_sync = lock_guard.write().await;
-            let storage = pearl_sync.storage().clone();
-            if let Err(e) = storage.close().await {
-                warn!("pearl closed: {:?}", e);
-            }
-        }
+        close_holders(holders.iter()).await;
         Ok(holders)
+    }
+
+    pub async fn detach_all(&self) -> BackendResult<()> {
+        let mut holders = self.holders.write().await;
+        let holders: Vec<_> = holders.drain_filter(|_| true).collect();
+        close_holders(holders.iter()).await;
+        Ok(())
     }
 
     pub fn create_pearl_holder(&self, start_timestamp: u64, hash: &str) -> Holder {
         let end_timestamp = start_timestamp + self.settings.timestamp_period_as_secs();
         let mut path = self.directory_path.clone();
-        info!("creating pearl holder {}", path.as_path().display());
         let partition_name = PartitionName::new(start_timestamp, hash);
         path.push(partition_name.to_string());
         let mut config = self.settings.config().clone();
@@ -326,9 +343,16 @@ impl Group {
         )
     }
 
-    pub fn create_pearl_by_timestamp(&self, time: u64) -> Holder {
-        let start_timestamp =
-            Stuff::get_start_timestamp_by_timestamp(self.settings.timestamp_period(), time);
+    pub fn create_pearl_by_timestamp(
+        &self,
+        time: u64,
+        timestamp_config: &StartTimestampConfig,
+    ) -> Holder {
+        let start_timestamp = Stuff::get_start_timestamp_by_timestamp(
+            self.settings.timestamp_period(),
+            time,
+            timestamp_config,
+        );
         info!(
             "pearl for timestamp {} will be created with timestamp {}",
             time, start_timestamp
@@ -447,6 +471,20 @@ impl Group {
             (false, true) => Ordering::Less,
             _ => x.end_timestamp().cmp(&y.end_timestamp()),
         });
+    }
+}
+
+async fn close_holders(holders: impl Iterator<Item = &Holder>) {
+    for holder in holders {
+        let lock_guard = holder.storage();
+        let pearl_sync = lock_guard.write().await;
+        let storage = pearl_sync.storage().clone();
+        if let Err(e) = storage.fsyncdata().await {
+            warn!("pearl fsync error: {:?}", e);
+        }
+        if let Err(e) = storage.close().await {
+            warn!("pearl close error: {:?}", e);
+        }
     }
 }
 
