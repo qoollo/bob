@@ -35,6 +35,7 @@ jobs:
           images: qoollo/bob
           tags: |
             nightly,enable=${{ matrix.bob_key_size == 8 && contains(env.VERSION, 'alpha') }} 
+            latest,enable=${{ matrix.bob_key_size == 8 && ! contains(env.VERSION, 'alpha') }}
             test-key${{ matrix.bob_key_size }}-alpine3.12 
 #            ${{ env.VERSION }}-key${{ matrix.bob_key_size }}-alpine3.12
 #            ${{ env.VERSION }}-key${{ matrix.bob_key_size }}
