@@ -262,6 +262,19 @@ paths:
                   type: string
         default:
           $ref: '#/components/responses/DefaultError'
+  /configuration:
+    get:
+      summary: Returns configuration of the node
+      operationId: getConfiguration
+      responses:
+        '200':
+          description: Configuration object
+          content: 
+            application/json:
+              schema:
+                ref: '#/components/schemas/NodeConfiguration'
+        default:
+          $ref: '#/components/responses/DefaultError'
   /alien/sync:
     post:
       summary: Sync alien data to the storage
@@ -465,3 +478,8 @@ components:
         pearlversion:
           type:
             $ref: '#/components/schemas/Version'
+    NodeConfiguration:
+      type: object
+      properties:
+        root_dir:
+          type: string

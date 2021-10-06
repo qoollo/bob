@@ -16,6 +16,7 @@ pub struct Grinder {
     cluster: Arc<dyn Cluster + Send + Sync>,
     cleaner: Arc<Cleaner>,
     counter: Arc<BlobsCounter>,
+    node_config: NodeConfig,
 }
 
 impl Grinder {
@@ -39,6 +40,7 @@ impl Grinder {
             cluster: get_cluster(mapper, config, backend),
             cleaner,
             counter,
+            node_config: config.clone(),
         }
     }
 
@@ -48,6 +50,10 @@ impl Grinder {
 
     pub(crate) async fn run_backend(&self) -> Result<()> {
         self.backend.run_backend().await
+    }
+
+    pub(crate) fn node_config(&self) -> &NodeConfig {
+        &self.node_config
     }
 
     pub(crate) async fn put(

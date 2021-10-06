@@ -107,6 +107,11 @@ pub(crate) struct VersionInfo {
     pearl_version: Version,
 }
 
+#[derive(Debug, Serialize)]
+pub(crate) struct NodeConfiguration {
+    root_dir: String,
+}
+
 pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
     let routes = routes![
         status,
@@ -117,6 +122,7 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
         partition_by_id,
         change_partition_state,
         delete_partition,
+        get_node_configuration,
         alien,
         sync_alien_data,
         get_alien_directory,
@@ -296,6 +302,15 @@ async fn distribution_function(bob: &State<BobServer>) -> Json<DistrFunc> {
     let mapper = bob.grinder().backend().mapper();
     Json(DistrFunc {
         func: format!("{:?}", mapper.distribution_func()),
+    })
+}
+
+#[get("/configuration")]
+async fn get_node_configuration(bob: &State<BobServer>) -> Json<NodeConfiguration> {
+    let grinder = bob.grinder();
+    let config = grinder.node_config();
+    Json(NodeConfiguration {
+        root_dir: config.pearl().blob_file_name_prefix().to_owned(),
     })
 }
 

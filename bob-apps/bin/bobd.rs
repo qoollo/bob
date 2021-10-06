@@ -38,10 +38,12 @@ async fn main() {
 
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
 
+    let bind = node.bind();
+    let bind_read = bind.lock().expect("mutex");
     let mut addr = match (
         node.bind_to_ip_address(),
-        node.bind().parse(),
-        port_from_address(node.bind().as_str()),
+        bind_read.parse(),
+        port_from_address(bind_read.as_str()),
     ) {
         (Some(addr1), Ok(addr2), _) => {
             if addr1 == addr2 {
