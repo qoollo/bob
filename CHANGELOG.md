@@ -7,6 +7,7 @@ Bob versions changelog
 
 
 #### Changed
+- Only stable releases to latest tag on Docker Hub ([#339](https://github.com/qoollo/bob/pull/339))
 
 
 #### Fixed
