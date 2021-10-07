@@ -35,7 +35,7 @@ jobs:
             ${{ env.VERSION }}-key${{ matrix.bob_key_size }}-alpine3.12
             ${{ env.VERSION }}-key${{ matrix.bob_key_size }}
             ${{ env.VERSION }},enable=${{ matrix.bob_key_size == 8 }}          
-            nightly,enable=${{ matrix.bob_key_size == 8 && contains(env.VERSION, 'alpha') }} 
+            nightly,enable=${{ matrix.bob_key_size == 8 }} 
             latest,enable=${{ matrix.bob_key_size == 8 && ! contains(env.VERSION, 'alpha') }}
       - name: Build and push alpine image
         uses: docker/build-push-action@v2
