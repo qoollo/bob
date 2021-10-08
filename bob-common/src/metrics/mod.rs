@@ -11,6 +11,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use tokio::{pin, select};
 
 pub mod collector;
 mod exporters;
@@ -172,7 +173,7 @@ impl ContainerBuilder for MetricsContainer {
 
 /// initializes bob counters with given config and address of the local node
 #[allow(unused_variables)]
-pub fn init_counters(
+pub async fn init_counters(
     node_config: &NodeConfig,
     local_address: &str,
 ) -> (
@@ -181,7 +182,7 @@ pub fn init_counters(
 ) {
     //install_prometheus();
     //install_graphite(node_config, local_address);
-    let shared = install_global(node_config, local_address);
+    let shared = install_global(node_config, local_address).await;
     let container = MetricsContainer::new(Duration::from_secs(1), CLIENTS_METRICS_DIR.to_owned());
     info!(
         "metrics container initialized with update interval: {}ms",
@@ -214,13 +215,28 @@ fn init_link_manager() {
     register_counter!(AVAILABLE_NODES_COUNT);
 }
 
-fn install_global(node_config: &NodeConfig, local_address: &str) -> SharedMetricsSnapshot {
+// fn install_global(node_config: &NodeConfig, local_address: &str) -> SharedMetricsSnapshot {
+//     let (recorder, metrics) = establish_global_collector(Duration::from_secs(1));
+//     build_graphite(node_config, local_address, metrics.clone());
+//     let prometheus_rec = build_prometheus();
+//     let recorders: Vec<Box<dyn Recorder>> = vec![Box::new(recorder), Box::new(prometheus_rec)];
+//     install_global_recorder(recorders);
+//     metrics
+async fn install_global(node_config: &NodeConfig, local_address: &str) {
     let (recorder, metrics) = establish_global_collector(Duration::from_secs(1));
-    build_graphite(node_config, local_address, metrics.clone());
-    let prometheus_rec = build_prometheus();
-    let recorders: Vec<Box<dyn Recorder>> = vec![Box::new(recorder), Box::new(prometheus_rec)];
-    install_global_recorder(recorders);
-    metrics
+    let mut recorders: Vec<Box<dyn Recorder>> = vec![];
+    if node_config.metrics().graphite_enabled() {
+        let graphite_rec = build_graphite(node_config, local_address);
+        recorders.push(Box::new(graphite_rec));
+    }
+    if node_config.metrics().prometheus_enabled() {
+        let prometheus_rec = build_prometheus(node_config);
+        recorders.push(Box::new(prometheus_rec));
+    }
+
+    if !recorders.is_empty() {
+        install_global_recorder(recorders);
+    }
 }
 
 fn install_global_recorder(recorders: Vec<Box<dyn Recorder>>) {
@@ -229,20 +245,33 @@ fn install_global_recorder(recorders: Vec<Box<dyn Recorder>>) {
 }
 
 #[allow(unused)]
-fn install_prometheus() {
-    let recorder = build_prometheus();
+fn install_prometheus(node_config: &NodeConfig) {
+    let recorder = build_prometheus(node_config);
     metrics::set_boxed_recorder(Box::new(recorder)).expect("Can't set Prometheus recorder");
 }
 
-fn build_prometheus() -> PrometheusRecorder {
-    metrics_exporter_prometheus::PrometheusBuilder::new()
-        .listen_address(
-            "0.0.0.0:9000"
-                .parse::<SocketAddr>()
-                .expect("Bad metrics address"),
-        )
+fn build_prometheus(node_config: &NodeConfig) -> PrometheusRecorder {
+    let addr = node_config
+        .metrics()
+        .prometheus_addr()
+        .parse::<SocketAddr>()
+        .expect("Bad prometheus address");
+    let (recorder, exporter) = metrics_exporter_prometheus::PrometheusBuilder::new()
+        .listen_address(addr)
         .idle_timeout(MetricKindMask::ALL, Some(Duration::from_secs(2)))
-        .build()
+        .build_with_exporter()
+        .expect("Failed to set Prometheus exporter");
+
+    let future = async move {
+        pin!(exporter);
+        loop {
+            select! {
+                _ = &mut exporter => {}
+            }
+        }
+    };
+    tokio::spawn(future);
+    recorder
 }
 
 #[allow(unused)]
@@ -279,7 +308,13 @@ fn build_graphite(node_config: &NodeConfig, local_address: &str, metrics: Shared
         .map_or(format!("{}.{}", NODE_NAME, LOCAL_ADDRESS), str::to_owned);
     let prefix = resolve_prefix_pattern(prefix_pattern, node_config, local_address);
     exporters::graphite_exporter::GraphiteBuilder::new()
-        .set_address(node_config.metrics().graphite().to_string())
+        .set_address(
+            node_config
+                .metrics()
+                .graphite()
+                .expect("graphite is enabled but address is not set")
+                .to_string(),
+        )
         .set_interval(Duration::from_secs(1))
         .set_prefix(prefix)
         .build(metrics);

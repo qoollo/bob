@@ -1,7 +1,4 @@
-use crate::server::Server as BobServer;
-use crate::version_helpers::{
-    get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
-};
+use crate::{build_info::BuildInfo, server::Server as BobServer};
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
@@ -17,6 +14,7 @@ use rocket::{
     serde::{json::Json, uuid::Uuid},
     Config, Data, Request, Response, Rocket, State,
 };
+use std::net::IpAddr;
 use std::{
     io::{Cursor, Error as IoError, ErrorKind},
     path::{Path, PathBuf},
@@ -109,7 +107,7 @@ pub(crate) struct VersionInfo {
     pearl_version: Version,
 }
 
-pub(crate) fn spawn(bob: BobServer, port: u16) {
+pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
     let routes = routes![
         status,
         version,
@@ -136,6 +134,7 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
     ];
     info!("API server started");
     let mut config = Config::release_default();
+    config.address = address;
     config.port = port;
     let task = Rocket::custom(config)
         .manage(bob)
@@ -244,16 +243,18 @@ async fn metrics(bob: &State<BobServer>) -> Json<Vec<(String, String)>> {
 
 #[get("/version")]
 fn version(_bob: &State<BobServer>) -> Json<VersionInfo> {
-    Json(VersionInfo {
+    let build_info = BuildInfo::new();
+    let version_info = VersionInfo {
         bob_version: Version {
-            version: get_bob_version(),
-            build_time: get_bob_build_time().to_string(),
+            version: build_info.version().to_string(),
+            build_time: build_info.build_time().to_string(),
         },
         pearl_version: Version {
-            version: get_pearl_version(),
-            build_time: get_pearl_build_time().to_string(),
+            version: build_info.pearl_version().to_string(),
+            build_time: build_info.pearl_build_time().to_string(),
         },
-    })
+    };
+    Json(version_info)
 }
 
 #[get("/nodes")]
