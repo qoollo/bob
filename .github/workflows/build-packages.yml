@@ -5,6 +5,8 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
+    branches:
+      - 340-include-brt-into-release-builds
     
 jobs:
 
@@ -45,6 +47,7 @@ jobs:
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobp
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
+            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/brt
  
   build-rpm:
     runs-on: ubuntu-latest
@@ -68,7 +71,7 @@ jobs:
           sed -i "s/release_number/${{ github.run_id }}/" bob.spec
           cur_dir_name=${PWD##*/}
           mkdir -p ./rpmbuild/{SOURCES,BUILD,RPMS,SPECS,SRPMS}
-          tar czf ./rpmbuild/SOURCES/bob-${{ env.VERSION }}.tar.gz ../${cur_dir_name}/{bobd,bobp,ccg,bob_limits.conf,bob.service} ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml --transform s/${cur_dir_name}/bob-${{ env.VERSION }}/
+          tar czf ./rpmbuild/SOURCES/bob-${{ env.VERSION }}.tar.gz ../${cur_dir_name}/{bobd,bobp,brt,ccg,bob_limits.conf,bob.service} ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml --transform s/${cur_dir_name}/bob-${{ env.VERSION }}/
           rpmbuild -ba --define "_topdir ${PWD}/rpmbuild" bob.spec
       - name: Upload artifact
         uses: actions/upload-artifact@v2
@@ -125,8 +128,8 @@ jobs:
           mkdir -p bob_${{ env.VERSION }}_amd64/{DEBIAN,usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
           cp {control,postinst} bob_${{ env.VERSION }}_amd64/DEBIAN/
           chmod +x bob_${{ env.VERSION }}_amd64/DEBIAN/postinst
-          cp {bobd,bobp,ccg} bob_${{ env.VERSION }}_amd64/usr/bin/
-          chmod +x bob_${{ env.VERSION }}_amd64/usr/bin/{bobd,bobp,ccg}
+          cp {bobd,bobp,brt,ccg} bob_${{ env.VERSION }}_amd64/usr/bin/
+          chmod +x bob_${{ env.VERSION }}_amd64/usr/bin/{bobd,bobp,brt,ccg}
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}_amd64/etc/bob/
           cp bob.service bob_${{ env.VERSION }}_amd64/etc/systemd/system/
           cp bob.service bob_${{ env.VERSION }}_amd64/lib/systemd/system/
@@ -186,8 +189,8 @@ jobs:
         run: |
           echo Version:${{ env.VERSION }}
           mkdir -p bob_${{ env.VERSION }}/{usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
-          cp {bobd,bobp,ccg} bob_${{ env.VERSION }}/usr/bin/
-          chmod +x bob_${{ env.VERSION }}/usr/bin/{bobd,bobp,ccg}
+          cp {bobd,bobp,brt,ccg} bob_${{ env.VERSION }}/usr/bin/
+          chmod +x bob_${{ env.VERSION }}/usr/bin/{bobd,bobp,brt,ccg}
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}/etc/bob/
           cp bob.service bob_${{ env.VERSION }}/etc/systemd/system/
           cp bob.service bob_${{ env.VERSION }}/lib/systemd/system/

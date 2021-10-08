@@ -28,6 +28,7 @@ mkdir -p %{buildroot}/lib/systemd/system/
 mkdir -p %{buildroot}/etc/security/limits.d/
 cp %{_builddir}/%{name}-%{version}/bobd %{buildroot}/usr/bin/
 cp %{_builddir}/%{name}-%{version}/bobp %{buildroot}/usr/bin/
+cp %{_builddir}/%{name}-%{version}/brt %{buildroot}/usr/bin/
 cp %{_builddir}/%{name}-%{version}/ccg %{buildroot}/usr/bin/
 cp %{_builddir}/%{name}-%{version}/config-examples/cluster.yaml %{buildroot}/etc/bob/
 cp %{_builddir}/%{name}-%{version}/config-examples/node.yaml %{buildroot}/etc/bob/
@@ -49,6 +50,7 @@ fi
 %files
 %attr(0755, root, root) /usr/bin/bobd
 %attr(0755, root, root) /usr/bin/bobp
+%attr(0755, root, root) /usr/bin/brt
 %attr(0755, root, root) /usr/bin/ccg
 %config(noreplace) /etc/bob/cluster.yaml
 %config(noreplace) /etc/bob/node.yaml
