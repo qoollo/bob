@@ -3,6 +3,7 @@ use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
     error::Error as BobError,
+    metrics::collector::snapshot::MetricsSnapshot,
     node::Disk as NodeDisk,
 };
 use futures::{future::BoxFuture, FutureExt};
@@ -226,19 +227,9 @@ async fn status(bob: &State<BobServer>) -> Json<Node> {
 }
 
 #[get("/metrics")]
-async fn metrics(bob: &State<BobServer>) -> Json<Vec<(String, String)>> {
-    let mut res = vec![];
-    let metrics = bob.metrics().read().await;
-    for (k, v) in &metrics.counters_map {
-        res.push((format!("{:?}", k), format!("{:?}", v)));
-    }
-    for (k, v) in &metrics.gauges_map {
-        res.push((format!("{:?}", k), format!("{:?}", v)));
-    }
-    for (k, v) in &metrics.times_map {
-        res.push((format!("{:?}", k), format!("{:?}", v)));
-    }
-    Json(res)
+async fn metrics(bob: &State<BobServer>) -> Json<MetricsSnapshot> {
+    let snapshot = bob.metrics().read().await.clone();
+    Json(snapshot)
 }
 
 #[get("/version")]

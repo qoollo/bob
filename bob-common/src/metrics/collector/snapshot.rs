@@ -4,7 +4,7 @@ use tokio::sync::RwLock;
 
 pub type SharedMetricsSnapshot = Arc<RwLock<MetricsSnapshot>>;
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, Serialize)]
 pub struct MetricsSnapshot {
     pub counters_map: HashMap<MetricKey, CounterEntry>,
     pub gauges_map: HashMap<MetricKey, GaugeEntry>,
@@ -50,7 +50,7 @@ impl MetricsSnapshot {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct CounterEntry {
     pub sum: MetricValue,
     pub timestamp: TimeStamp,
@@ -62,7 +62,7 @@ impl CounterEntry {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct GaugeEntry {
     pub value: MetricValue,
     pub timestamp: TimeStamp,
@@ -74,7 +74,7 @@ impl GaugeEntry {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct TimeEntry {
     pub summary_time: MetricValue,
     pub measurements_amount: u64,
@@ -111,6 +111,7 @@ pub(super) struct MetricInner {
 
 impl MetricInner {
     pub(super) fn new(key: MetricKey, value: MetricValue, timestamp: TimeStamp) -> MetricInner {
+        println!("ts: {}", timestamp);
         MetricInner {
             key,
             value,

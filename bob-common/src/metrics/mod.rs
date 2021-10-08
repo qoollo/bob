@@ -215,19 +215,12 @@ fn init_link_manager() {
     register_counter!(AVAILABLE_NODES_COUNT);
 }
 
-// fn install_global(node_config: &NodeConfig, local_address: &str) -> SharedMetricsSnapshot {
-//     let (recorder, metrics) = establish_global_collector(Duration::from_secs(1));
-//     build_graphite(node_config, local_address, metrics.clone());
-//     let prometheus_rec = build_prometheus();
-//     let recorders: Vec<Box<dyn Recorder>> = vec![Box::new(recorder), Box::new(prometheus_rec)];
-//     install_global_recorder(recorders);
-//     metrics
-async fn install_global(node_config: &NodeConfig, local_address: &str) {
+async fn install_global(node_config: &NodeConfig, local_address: &str) -> SharedMetricsSnapshot {
     let (recorder, metrics) = establish_global_collector(Duration::from_secs(1));
-    let mut recorders: Vec<Box<dyn Recorder>> = vec![];
+    let mut recorders: Vec<Box<dyn Recorder>> = vec![Box::new(recorder)];
+
     if node_config.metrics().graphite_enabled() {
-        let graphite_rec = build_graphite(node_config, local_address);
-        recorders.push(Box::new(graphite_rec));
+        build_graphite(node_config, local_address, metrics.clone());
     }
     if node_config.metrics().prometheus_enabled() {
         let prometheus_rec = build_prometheus(node_config);
@@ -237,6 +230,7 @@ async fn install_global(node_config: &NodeConfig, local_address: &str) {
     if !recorders.is_empty() {
         install_global_recorder(recorders);
     }
+    metrics
 }
 
 fn install_global_recorder(recorders: Vec<Box<dyn Recorder>>) {
