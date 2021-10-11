@@ -37,11 +37,10 @@ impl MetricsSnapshot {
 
     pub(super) fn update_and_get_moment_snapshot(&mut self) -> Self {
         for (_, entry) in self.times_map.iter_mut() {
-            let mean_time = match entry.measurements_amount {
-                0 => entry.mean.expect("No mean time provided"),
-                val => entry.summary_time / val,
+            entry.mean = match entry.measurements_amount {
+                0 => None,
+                val => Some(entry.summary_time / val),
             };
-            entry.mean = Some(mean_time);
             entry.measurements_amount = 0;
             entry.summary_time = 0;
         }

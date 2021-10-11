@@ -101,7 +101,7 @@ async fn flush_times(
     ts: i64,
 ) {
     for (key, entry) in times_map.iter() {
-        let mean_time = entry.mean.expect("No mean time provided");
+        let mean_time = entry.mean.unwrap_or_default();
         let data = format!("{}.{} {} {}\n", prefix, key, mean_time, ts);
         trace!(
             "Time    data: {:<30} {:<20} {:<20}",
