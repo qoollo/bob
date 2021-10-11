@@ -8,55 +8,38 @@ type TimeStamp = i64; // We need i64 to return -1 in some cases
 
 #[derive(Serialize)]
 pub struct MetricsSnapshotModel {
-    pub counters: HashMap<String, CounterEntryModel>,
-    pub gauges: HashMap<String, GaugeEntryModel>,
-    pub times: HashMap<String, TimeEntryModel>,
+    pub metrics: HashMap<String, MetricsEntryModel>,
 }
 
 #[derive(Serialize)]
-pub struct CounterEntryModel {
-    pub sum: u64,
-    pub timestamp: TimeStamp,
-}
-
-#[derive(Serialize)]
-pub struct GaugeEntryModel {
+pub struct MetricsEntryModel {
     pub value: u64,
     pub timestamp: TimeStamp,
 }
 
-#[derive(Serialize)]
-pub struct TimeEntryModel {
-    pub summary_time: u64,
-    pub measurements_amount: u64,
-    pub timestamp: TimeStamp,
-    pub mean: Option<u64>,
-}
-
 impl From<MetricsSnapshot> for MetricsSnapshotModel {
     fn from(s: MetricsSnapshot) -> Self {
-        Self {
-            counters: convert_values(s.counters_map),
-            gauges: convert_values(s.gauges_map),
-            times: convert_values(s.times_map),
-        }
+        let metrics = s
+            .counters_map
+            .into_iter()
+            .map(|(k, v)| (k, v.into()))
+            .chain(s.gauges_map.into_iter().map(|(k, v)| (k, v.into())))
+            .chain(s.times_map.into_iter().map(|(k, v)| (k, v.into())))
+            .collect();
+        Self { metrics }
     }
 }
 
-fn convert_values<V>(src: HashMap<String, impl Into<V>>) -> HashMap<String, V> {
-    src.into_iter().map(|(k, v)| (k, v.into())).collect()
-}
-
-impl From<CounterEntry> for CounterEntryModel {
+impl From<CounterEntry> for MetricsEntryModel {
     fn from(e: CounterEntry) -> Self {
         Self {
-            sum: e.sum,
+            value: e.sum,
             timestamp: e.timestamp,
         }
     }
 }
 
-impl From<GaugeEntry> for GaugeEntryModel {
+impl From<GaugeEntry> for MetricsEntryModel {
     fn from(e: GaugeEntry) -> Self {
         Self {
             value: e.value,
@@ -65,13 +48,11 @@ impl From<GaugeEntry> for GaugeEntryModel {
     }
 }
 
-impl From<TimeEntry> for TimeEntryModel {
+impl From<TimeEntry> for MetricsEntryModel {
     fn from(e: TimeEntry) -> Self {
         Self {
-            summary_time: e.summary_time,
-            measurements_amount: e.measurements_amount,
+            value: e.mean.unwrap_or_default(),
             timestamp: e.timestamp,
-            mean: e.mean,
         }
     }
 }
