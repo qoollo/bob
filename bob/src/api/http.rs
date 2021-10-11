@@ -1,9 +1,11 @@
-use crate::{build_info::BuildInfo, server::Server as BobServer};
+use crate::{
+    api::http::metric_models::MetricsSnapshotModel, build_info::BuildInfo,
+    server::Server as BobServer,
+};
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
     error::Error as BobError,
-    metrics::collector::snapshot::MetricsSnapshot,
     node::Disk as NodeDisk,
 };
 use futures::{future::BoxFuture, FutureExt};
@@ -23,6 +25,7 @@ use std::{
 };
 use tokio::fs::{read_dir, ReadDir};
 
+mod metric_models;
 mod s3;
 
 #[derive(Debug, Clone)]
@@ -227,9 +230,9 @@ async fn status(bob: &State<BobServer>) -> Json<Node> {
 }
 
 #[get("/metrics")]
-async fn metrics(bob: &State<BobServer>) -> Json<MetricsSnapshot> {
+async fn metrics(bob: &State<BobServer>) -> Json<MetricsSnapshotModel> {
     let snapshot = bob.metrics().read().await.clone();
-    Json(snapshot)
+    Json(snapshot.into())
 }
 
 #[get("/version")]

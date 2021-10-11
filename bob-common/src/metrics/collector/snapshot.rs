@@ -111,7 +111,6 @@ pub(super) struct MetricInner {
 
 impl MetricInner {
     pub(super) fn new(key: MetricKey, value: MetricValue, timestamp: TimeStamp) -> MetricInner {
-        println!("ts: {}", timestamp);
         MetricInner {
             key,
             value,
