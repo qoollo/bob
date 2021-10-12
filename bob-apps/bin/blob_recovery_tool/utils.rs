@@ -71,28 +71,25 @@ pub(crate) fn validate_files_recursive<F>(
 where
     F: FnMut(&Path) -> AnyResult<()> + Clone,
 {
-    log::info!("Start validation");
+    info!("Start validation");
     let mut result = vec![];
     let mut count = 0;
     let mut last_log = Instant::now();
     for_each_file_recursive(path, |entry_path| {
         let entry_path = entry_path.as_os_str().to_str().unwrap().to_string();
         if entry_path.ends_with(&suffix) {
-            match function(entry_path.as_ref()) {
-                Ok(_) => {}
-                Err(err) => {
-                    log::error!("[{}] validation error: {}", entry_path, err);
-                    result.push(entry_path.to_string());
-                }
+            if let Err(err) = function(entry_path.as_ref()) {
+                error!("[{}] validation error: {}", entry_path, err);
+                result.push(entry_path.to_string());
             }
             count += 1;
             if last_log.elapsed() >= Duration::from_secs(1) {
-                log::info!("{} files validated", count);
+                info!("{} files validated", count);
                 last_log = Instant::now();
             }
         }
     })?;
-    log::info!("Validation completed! {} files validated", count);
+    info!("Validation completed! {} files validated", count);
     Ok(result)
 }
 
@@ -113,7 +110,7 @@ where
         .filter_map(|res| match res {
             Ok(entry) => Some(entry),
             Err(err) => {
-                log::error!("[{:?}] read dir error: {}", path, err);
+                error!("[{:?}] read dir error: {}", path, err);
                 None
             }
         })
@@ -126,7 +123,7 @@ where
                 function(&entry.path());
             }
             Err(err) => {
-                log::error!("[{:?}] file type error: {}", path, err);
+                error!("[{:?}] file type error: {}", path, err);
             }
             _ => {}
         }
@@ -167,7 +164,7 @@ where
 {
     std::fs::rename(&invalid_path, &backup_path).with_context(|| "move invalid blob")?;
 
-    log::info!("backup saved to {:?}", backup_path.as_ref());
+    info!("backup saved to {:?}", backup_path.as_ref());
     recovery_blob(&backup_path, &invalid_path, validate_every)?;
     Ok(())
 }
@@ -182,37 +179,42 @@ where
             "Recovering into same file is not supported"
         ));
     }
-    let should_validate_written = validate_every != 0;
+    let validate_written_records = validate_every != 0;
     let mut reader = BlobReader::from_path(&input)?;
-    log::info!("Blob reader created");
+    info!("Blob reader created");
     let header = reader.read_header()?;
     // Create writer after read blob header to prevent empty blob creation
-    let mut writer = BlobWriter::from_path(&output, should_validate_written)?;
-    log::info!("Blob writer created");
+    let mut writer = BlobWriter::from_path(&output, validate_written_records)?;
+    info!("Blob writer created");
     writer.write_header(&header)?;
-    log::info!("Input blob header version: {}", header.version);
+    info!("Input blob header version: {}", header.version);
     let mut count = 0;
+    let mut previous_read_failed = false;
     while !reader.is_eof() {
         match reader.read_record() {
             Ok(record) => {
                 writer.write_record(record)?;
                 count += 1;
+                previous_read_failed = false;
             }
             Err(error) => {
-                log::info!("Record read error: {}", error);
-                break;
+                warn!("Record read error: {}", error);
+                if previous_read_failed {
+                    break;
+                }
+                previous_read_failed = true;
             }
         }
-        if should_validate_written && count % validate_every == 0 {
+        if validate_written_records && count % validate_every == 0 {
             writer.validate_written_records()?;
             writer.clear_cache();
         }
     }
-    if should_validate_written {
+    if validate_written_records {
         writer.validate_written_records()?;
         writer.clear_cache();
     }
-    log::info!(
+    info!(
         "{} records written, totally {} bytes",
         count,
         writer.written()
@@ -222,10 +224,10 @@ where
 
 pub(crate) fn print_result(result: &[String], file_type: &str) {
     if result.is_empty() {
-        log::info!("All {} files is valid", file_type);
+        info!("All {} files is valid", file_type);
     } else {
         for value in result {
-            log::info!("Print corrupted {} files", file_type);
+            info!("Print corrupted {} files", file_type);
             println!("{}", value);
         }
     }

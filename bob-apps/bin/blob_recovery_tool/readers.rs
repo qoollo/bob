@@ -111,21 +111,14 @@ pub(crate) struct BlobWriter {
 }
 
 impl BlobWriter {
-    pub(crate) fn from_path<P: AsRef<Path>>(
-        path: P,
-        should_cache_written: bool,
-    ) -> AnyResult<Self> {
+    pub(crate) fn from_path<P: AsRef<Path>>(path: P, cache_written: bool) -> AnyResult<Self> {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(true)
             .open(path)?;
-        let cache = if should_cache_written {
-            Some(vec![])
-        } else {
-            None
-        };
+        let cache = if cache_written { Some(vec![]) } else { None };
         Ok(BlobWriter {
             file,
             written: 0,
@@ -152,7 +145,7 @@ impl BlobWriter {
         written += record.meta.len() as u64;
         self.file.write_all(&record.data)?;
         written += record.data.len() as u64;
-        log::debug!("Record written: {:?}", record);
+        debug!("Record written: {:?}", record);
         if let Some(cache) = &mut self.cache {
             cache.push(record);
             self.written_cached += written;
@@ -177,7 +170,7 @@ impl BlobWriter {
         if cache.is_empty() {
             return Ok(());
         }
-        log::debug!("Start validation of written records");
+        debug!("Start validation of written records");
         let current_position = self.written;
         let start_position = current_position
             .checked_sub(self.written_cached)
@@ -194,7 +187,7 @@ impl BlobWriter {
             }
         }
         self.file.seek(SeekFrom::Start(current_position))?;
-        log::debug!("{} written records validated", cache.len());
+        debug!("{} written records validated", cache.len());
         Ok(())
     }
 }
