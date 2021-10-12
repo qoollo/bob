@@ -8,8 +8,6 @@
 //! Library requires tokio runtime.
 
 #[macro_use]
-extern crate log;
-#[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate rocket;
@@ -19,6 +17,7 @@ extern crate async_trait;
 extern crate metrics;
 
 pub mod api;
+pub mod build_info;
 pub mod cleaner;
 pub mod cluster;
 pub mod counter;
@@ -33,6 +32,7 @@ pub use bob_common::{
         Cluster as ClusterConfig, Node as ClusterNodeConfig, Rack as ClusterRackConfig,
         Replica as ReplicaConfig, VDisk as VDiskConfig,
     },
+    data::BOB_KEY_SIZE,
     mapper::Virtual as VirtualMapper,
     metrics::init_counters,
 };

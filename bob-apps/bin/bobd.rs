@@ -1,6 +1,9 @@
-use bob::{init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper};
-use clap::{App, Arg, ArgMatches};
-use std::net::ToSocketAddrs;
+use bob::{
+    build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder,
+    VirtualMapper,
+};
+use clap::{crate_version, App, Arg, ArgMatches};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::runtime::Handle;
 use tonic::transport::Server;
 
@@ -34,20 +37,46 @@ async fn main() {
     log4rs::init_file(node.log_config(), Default::default()).expect("can't find log config");
 
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
-    let mut addr = node.bind().to_socket_addrs().unwrap().next().unwrap();
+
+    let mut addr = match (
+        node.bind_to_ip_address(),
+        node.bind().parse(),
+        port_from_address(node.bind().as_str()),
+    ) {
+        (Some(addr1), Ok(addr2), _) => {
+            if addr1 == addr2 {
+                Some(addr1)
+            } else {
+                log::error!("Addresses provided in node config and cluster config are not equal: {:?} != {:?}", addr1, addr2);
+                None
+            }
+        }
+        (Some(addr), _, _) => Some(addr),
+        (_, Ok(addr), _) => Some(addr),
+        (_, _, Some(port)) => Some(bind_all_interfaces(port)),
+        _ => None,
+    }
+    .expect("Can't determine ip address to bind");
 
     let node_name = matches.value_of("name");
     if let Some(name) = node_name {
-        let finded = cluster
+        let found = cluster
             .nodes()
             .iter()
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
         mapper = VirtualMapper::new(&node, &cluster).await;
-        addr = finded.address().to_socket_addrs().unwrap().next().unwrap();
+        addr = if let Ok(addr) = found.address().parse() {
+            addr
+        } else if let Some(port) = port_from_address(found.address()) {
+            bind_all_interfaces(port)
+        } else {
+            panic!("Can't determine ip address to bind");
+        };
     }
+    warn!("Start listening on: {:?}", addr);
 
-    let metrics = init_counters(&node, &addr.to_string());
+    let metrics = init_counters(&node, &addr.to_string()).await;
 
     let handle = Handle::current();
     let bob = BobServer::new(Grinder::new(mapper, &node).await, handle);
@@ -58,8 +87,12 @@ async fn main() {
     let http_api_port = matches
         .value_of("http_api_port")
         .and_then(|v| v.parse().ok())
-        .expect("expect http_api_port port");
-    bob.run_api_server(http_api_port);
+        .unwrap_or(node.http_api_port());
+    let http_api_address = matches
+        .value_of("http_api_address")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(node.http_api_address());
+    bob.run_api_server(http_api_address, http_api_port);
 
     create_signal_handlers(&bob).unwrap();
 
@@ -73,6 +106,15 @@ async fn main() {
         .serve(addr)
         .await
         .unwrap();
+}
+
+fn bind_all_interfaces(port: u16) -> SocketAddr {
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port)
+}
+
+fn port_from_address(addr: &str) -> Option<u16> {
+    addr.rsplit_once(':')
+        .and_then(|(_, port)| port.parse::<u16>().ok())
 }
 
 fn create_signal_handlers(server: &BobServer) -> Result<(), Box<dyn std::error::Error>> {
@@ -101,8 +143,9 @@ fn spawn_signal_handler(
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
-    App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
+    let ver = format!("{}\n{}", crate_version!(), BuildInfo::new());
+    App::new("bobd")
+        .version(ver.as_str())
         .arg(
             Arg::with_name("cluster")
                 .help("cluster config file")
@@ -133,9 +176,15 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .default_value("4"),
         )
         .arg(
+            Arg::with_name("http_api_address")
+                .help("http api address")
+                .short("h")
+                .long("host")
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("http_api_port")
                 .help("http api port")
-                .default_value("8000")
                 .short("p")
                 .long("port")
                 .takes_value(true),
