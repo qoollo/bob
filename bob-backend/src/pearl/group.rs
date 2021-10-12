@@ -69,7 +69,7 @@ impl Group {
         debug!("{}: count holders: {}", self, holders.len());
         if !holders
             .iter()
-            .any(|holder| holder.is_actual(self.settings.get_actual_timestamp_start()))
+            .any(|holder| holder.gets_into_interval(get_current_timestamp()))
         {
             self.create_current_pearl();
         }
@@ -122,16 +122,20 @@ impl Group {
     // find in all pearls actual pearl
     async fn find_actual_holder(&self, data: &BobData) -> BackendResult<Holder> {
         let holders = self.holders.read().await;
-        holders
+        let mut holders_for_time: Vec<_> = holders
             .iter()
-            .find(|holder| holder.gets_into_interval(data.meta().timestamp()))
-            .cloned()
-            .ok_or_else(|| {
-                Error::failed(format!(
-                    "cannot find actual pearl folder. meta: {}",
-                    data.meta().timestamp()
-                ))
-            })
+            .filter(|h| h.gets_into_interval(data.meta().timestamp()))
+            .collect();
+
+        if !holders_for_time.is_empty() {
+            holders_for_time.sort_by_key(|h| h.start_timestamp());
+            Ok(holders_for_time.pop().unwrap().clone())
+        } else {
+            Err(Error::failed(format!(
+                "cannot find actual pearl folder. meta: {}",
+                data.meta().timestamp()
+            )))
+        }
     }
 
     // create pearl for current write
@@ -303,11 +307,11 @@ impl Group {
     pub async fn detach(&self, start_timestamp: u64) -> BackendResult<Vec<Holder>> {
         let mut holders = self.holders.write().await;
         debug!("write lock acquired");
+        let ts = get_current_timestamp();
         let holders = holders
             .drain_filter(|holder| {
                 debug!("{}", holder.start_timestamp());
-                holder.start_timestamp() == start_timestamp
-                    && !holder.is_actual(self.settings.get_actual_timestamp_start())
+                holder.start_timestamp() == start_timestamp && !holder.gets_into_interval(ts)
             })
             .collect::<Vec<_>>();
         if holders.is_empty() {
@@ -474,17 +478,14 @@ impl Group {
     }
 }
 
+fn get_current_timestamp() -> u64 {
+    let now: DateTime<Utc> = DateTime::from(SystemTime::now());
+    now.timestamp().try_into().unwrap()
+}
+
 async fn close_holders(holders: impl Iterator<Item = &Holder>) {
     for holder in holders {
-        let lock_guard = holder.storage();
-        let pearl_sync = lock_guard.write().await;
-        let storage = pearl_sync.storage().clone();
-        if let Err(e) = storage.fsyncdata().await {
-            warn!("pearl fsync error: {:?}", e);
-        }
-        if let Err(e) = storage.close().await {
-            warn!("pearl close error: {:?}", e);
-        }
+        holder.close_storage().await;
     }
 }
 

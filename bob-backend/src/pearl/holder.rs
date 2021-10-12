@@ -78,10 +78,6 @@ impl Holder {
         storage.index_memory().await
     }
 
-    pub fn is_actual(&self, current_start: u64) -> bool {
-        self.start_timestamp == current_start
-    }
-
     pub async fn records_count(&self) -> usize {
         let storage = self.storage.read().await;
         storage.records_count().await
@@ -375,6 +371,18 @@ impl Holder {
         builder
             .build()
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
+    }
+
+    pub async fn close_storage(&self) {
+        let lck = self.storage();
+        let pearl_sync = lck.write().await;
+        let storage = pearl_sync.storage().clone();
+        if let Err(e) = storage.fsyncdata().await {
+            warn!("pearl fsync error: {:?}", e);
+        }
+        if let Err(e) = storage.close().await {
+            warn!("pearl close error: {:?}", e);
+        }
     }
 }
 
