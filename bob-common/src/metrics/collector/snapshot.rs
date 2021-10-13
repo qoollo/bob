@@ -102,6 +102,20 @@ pub(super) enum Metric {
     Time(MetricInner),
 }
 
+impl Metric {
+    pub(super) fn with_timestamp(self, timestamp: TimeStamp) -> Self {
+        self.map(|m| m.with_timestamp(timestamp))
+    }
+
+    fn map(self, f: impl Fn(MetricInner) -> MetricInner) -> Self {
+        match self {
+            Metric::Gauge(m) => Metric::Gauge(f(m)),
+            Metric::Counter(m) => Metric::Counter(f(m)),
+            Metric::Time(m) => Metric::Time(f(m)),
+        }
+    }
+}
+
 pub(super) struct MetricInner {
     key: MetricKey,
     value: MetricValue,
@@ -113,6 +127,14 @@ impl MetricInner {
         MetricInner {
             key,
             value,
+            timestamp,
+        }
+    }
+
+    fn with_timestamp(self, timestamp: TimeStamp) -> Self {
+        Self {
+            key: self.key,
+            value: self.value,
             timestamp,
         }
     }

@@ -1,6 +1,7 @@
 use super::snapshot::*;
+use std::convert::TryInto;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::Receiver;
 use tokio::time::{interval, timeout};
 
@@ -30,8 +31,9 @@ impl MetricsAccumulator {
 
         loop {
             interval.tick().await;
-            while let Ok(m) = timeout(METRICS_RECV_TIMEOUT, self.rx.recv()).await {
-                match m {
+            let timestamp = get_current_unix_timestamp();
+            while let Ok(om) = timeout(METRICS_RECV_TIMEOUT, self.rx.recv()).await {
+                match om.map(|m| m.with_timestamp(timestamp)) {
                     Some(Metric::Counter(counter)) => self.snapshot.process_counter(counter),
                     Some(Metric::Gauge(gauge)) => self.snapshot.process_gauge(gauge),
                     Some(Metric::Time(time)) => self.snapshot.process_time(time),
@@ -47,5 +49,12 @@ impl MetricsAccumulator {
 
     pub(crate) fn get_shared_snapshot(&self) -> SharedMetricsSnapshot {
         self.readable_snapshot.clone()
+    }
+}
+
+fn get_current_unix_timestamp() -> i64 {
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(n) => n.as_secs().try_into().expect("timestamp conversion"),
+        Err(_) => panic!("SystemTime before UNIX EPOCH!"),
     }
 }

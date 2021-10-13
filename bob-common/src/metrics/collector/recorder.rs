@@ -1,8 +1,3 @@
-use std::{
-    convert::TryInto,
-    time::{SystemTime, UNIX_EPOCH},
-};
-
 use metrics::{GaugeValue, Key, Recorder};
 use tokio::sync::mpsc::Sender;
 
@@ -60,7 +55,7 @@ impl Recorder for MetricsRecorder {
         self.push_metric(Metric::Counter(MetricInner::new(
             key.name().to_owned(),
             value,
-            get_current_unix_timestamp(),
+            -1,
         )));
     }
 
@@ -75,7 +70,7 @@ impl Recorder for MetricsRecorder {
         self.push_metric(Metric::Gauge(MetricInner::new(
             key.name().to_owned(),
             val as u64,
-            get_current_unix_timestamp(),
+            -1,
         )));
     }
 
@@ -83,14 +78,7 @@ impl Recorder for MetricsRecorder {
         self.push_metric(Metric::Time(MetricInner::new(
             key.name().to_owned(),
             value as u64,
-            get_current_unix_timestamp(),
+            -1,
         )));
-    }
-}
-
-fn get_current_unix_timestamp() -> i64 {
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(n) => n.as_secs().try_into().expect("timestamp conversion"),
-        Err(_) => panic!("SystemTime before UNIX EPOCH!"),
     }
 }
