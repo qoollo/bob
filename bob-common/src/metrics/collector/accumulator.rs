@@ -6,6 +6,7 @@ use tokio::sync::mpsc::Receiver;
 use tokio::time::{interval, timeout};
 
 const METRICS_RECV_TIMEOUT: Duration = Duration::from_millis(100);
+const MAX_METRICS_PER_PERIOD: u64 = 100_000;
 
 pub(crate) struct MetricsAccumulator {
     rx: Receiver<Metric>,
@@ -28,10 +29,11 @@ impl MetricsAccumulator {
     #[allow(clippy::needless_pass_by_value)]
     pub(crate) async fn run(mut self) {
         let mut interval = interval(self.interval);
-
         loop {
             interval.tick().await;
+            let mut metrics_received = 0;
             let timestamp = get_current_unix_timestamp();
+
             while let Ok(om) = timeout(METRICS_RECV_TIMEOUT, self.rx.recv()).await {
                 match om.map(|m| m.with_timestamp(timestamp)) {
                     Some(Metric::Counter(counter)) => self.snapshot.process_counter(counter),
@@ -39,6 +41,11 @@ impl MetricsAccumulator {
                     Some(Metric::Time(time)) => self.snapshot.process_time(time),
                     // if recv returns None, then sender is dropped, then no more metrics would come
                     None => return,
+                }
+
+                metrics_received += 1;
+                if metrics_received == MAX_METRICS_PER_PERIOD {
+                    break;
                 }
             }
 
