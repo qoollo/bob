@@ -19,16 +19,9 @@ pub(crate) fn get_hash(buf: &[u8]) -> Vec<u8> {
     digest.as_ref().to_vec()
 }
 
-pub(crate) fn validate_bytes(a: &[u8], checksum: u32) -> AnyResult<()> {
+pub(crate) fn validate_bytes(a: &[u8], checksum: u32) -> bool {
     let actual_checksum = crc32(a);
-    if actual_checksum != checksum {
-        return Err(Error::validation_error(format!(
-            "wrong data checksum: '{}' != '{}'",
-            actual_checksum, checksum
-        ))
-        .into());
-    }
-    Ok(())
+    actual_checksum == checksum
 }
 
 pub(crate) fn get_backup_path(path: &str, suffix: &str) -> AnyResult<PathBuf> {
@@ -137,7 +130,9 @@ pub(crate) fn validate_index(path: &Path) -> AnyResult<()> {
     reader.read_filter()?;
     for _ in 0..header.records_count {
         if reader.is_eof() {
-            return Err(Error::validation_error("invalid records count, can't read more").into());
+            return Err(
+                Error::index_validation_error("invalid records count, can't read more").into(),
+            );
         }
         reader.read_record_header()?;
     }
@@ -199,10 +194,12 @@ where
             }
             Err(error) => {
                 warn!("Record read error: {}", error);
-                if previous_read_failed {
-                    break;
+                if let Some(Error::RecordValidation(_)) = error.downcast_ref::<Error>() {
+                    if previous_read_failed {
+                        break;
+                    }
+                    previous_read_failed = true;
                 }
-                previous_read_failed = true;
             }
         }
         if validate_written_records && count % validate_every == 0 {

@@ -181,9 +181,10 @@ impl BlobWriter {
         for record in cache.iter() {
             let written_record = reader.read_record()?;
             if record != &written_record {
-                return Err(
-                    Error::validation_error("Written and cached records is not equal").into(),
-                );
+                return Err(Error::record_validation_error(
+                    "Written and cached records is not equal",
+                )
+                .into());
             }
         }
         self.file.seek(SeekFrom::Start(current_position))?;

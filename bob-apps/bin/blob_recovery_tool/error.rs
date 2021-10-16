@@ -1,22 +1,44 @@
 use super::prelude::*;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub(crate) enum Error {
-    Validation(String),
+    #[error("record header validation error: {0}")]
+    RecordHeaderValidation(String),
+    #[error("index header validation error: {0}")]
+    IndexHeaderValidation(String),
+    #[error("index validation error: {0}")]
+    IndexValidation(String),
+    #[error("blob header validation error: {0}")]
+    BlobHeaderValidation(String),
+    #[error("record validation error: {0}")]
+    RecordValidation(String),
+    #[error("should read header before another data")]
+    HeaderNotReaded,
 }
 
 impl Error {
-    pub(crate) fn validation_error(message: impl Into<String>) -> Self {
-        Self::Validation(message.into())
+    pub(crate) fn record_header_validation_error(message: impl Into<String>) -> Self {
+        Self::RecordHeaderValidation(message.into())
+    }
+
+    pub(crate) fn index_header_validation_error(message: impl Into<String>) -> Self {
+        Self::IndexHeaderValidation(message.into())
+    }
+
+    pub(crate) fn index_validation_error(message: impl Into<String>) -> Self {
+        Self::IndexValidation(message.into())
+    }
+
+    pub(crate) fn blob_header_validation_error(message: impl Into<String>) -> Self {
+        Self::BlobHeaderValidation(message.into())
+    }
+
+    pub(crate) fn record_validation_error(message: impl Into<String>) -> Self {
+        Self::RecordValidation(message.into())
+    }
+
+    pub(crate) fn header_not_readed() -> Self {
+        Self::HeaderNotReaded
     }
 }
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::Validation(message) => write!(f, "validation error: {}", message),
-        }
-    }
-}
-
-impl ErrorTrait for Error {}
