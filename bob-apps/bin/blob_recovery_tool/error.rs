@@ -13,8 +13,6 @@ pub(crate) enum Error {
     BlobHeaderValidation(String),
     #[error("record validation error: {0}")]
     RecordValidation(String),
-    #[error("should read header before another data")]
-    HeaderNotReaded,
 }
 
 impl Error {
@@ -36,9 +34,5 @@ impl Error {
 
     pub(crate) fn record_validation_error(message: impl Into<String>) -> Self {
         Self::RecordValidation(message.into())
-    }
-
-    pub(crate) fn header_not_readed() -> Self {
-        Self::HeaderNotReaded
     }
 }
