@@ -214,13 +214,13 @@ fn init_grinder() {
 }
 
 fn init_backend() {
-    register_counter!(BACKEND_STATE);
-    register_counter!(BLOBS_COUNT);
-    register_counter!(ALIEN_BLOBS_COUNT);
+    register_gauge!(BACKEND_STATE);
+    register_gauge!(BLOBS_COUNT);
+    register_gauge!(ALIEN_BLOBS_COUNT);
 }
 
 fn init_link_manager() {
-    register_counter!(AVAILABLE_NODES_COUNT);
+    register_gauge!(AVAILABLE_NODES_COUNT);
 }
 
 async fn install_global(node_config: &NodeConfig, local_address: &str) -> SharedMetricsSnapshot {
@@ -233,6 +233,9 @@ async fn install_global(node_config: &NodeConfig, local_address: &str) -> Shared
     if node_config.metrics().prometheus_enabled() {
         let prometheus_rec = build_prometheus(node_config);
         recorders.push(Box::new(prometheus_rec));
+        error!("prometheus exporter enabled");
+    } else {
+        error!("prometheus exporter disabled");
     }
 
     if !recorders.is_empty() {
@@ -264,9 +267,11 @@ fn build_prometheus(node_config: &NodeConfig) -> PrometheusRecorder {
         .build_with_exporter()
         .expect("Failed to set Prometheus exporter");
 
+    error!("prometheus built");
     let future = async move {
         pin!(exporter);
         loop {
+            error!("prometheus loop");
             select! {
                 _ = &mut exporter => {}
             }

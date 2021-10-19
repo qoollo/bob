@@ -45,10 +45,7 @@ async fn spawn_tcp_sender_task(address: String) -> Sender<String> {
 async fn tcp_sender_task(mut socket: RetrySocket, mut rx: Receiver<String>) {
     while let Some(data) = rx.recv().await {
         if let Err(e) = socket.write_all(data.as_bytes()).await {
-            warn!(
-                "Can't write data to socket (reason: {}, data: {:?})",
-                e, data
-            );
+            warn!("Can't write data to socket: {}", e);
             continue;
         }
         if let Err(e) = socket.flush().await {
