@@ -90,6 +90,7 @@ impl BlobReader {
             self.latest_wrong_header = Some(header.clone());
             err
         })?;
+        self.latest_wrong_header = None;
 
         let mut meta = vec![0; header.meta_size as usize];
         self.file
@@ -119,6 +120,9 @@ impl BlobReader {
             .checked_add(header.data_size)
             .and_then(|x| x.checked_add(header.meta_size))
             .ok_or_else(|| Error::skip_record_data_error("position overflow"))?;
+        if position >= self.len {
+            return Err(Error::skip_record_data_error("position is bigger than file size").into());
+        }
         self.file.seek(SeekFrom::Start(position))?;
         debug!("Skipped {} bytes", position - self.position);
         self.position = position;
