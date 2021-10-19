@@ -233,9 +233,9 @@ async fn install_global(node_config: &NodeConfig, local_address: &str) -> Shared
     if node_config.metrics().prometheus_enabled() {
         let prometheus_rec = build_prometheus(node_config);
         recorders.push(Box::new(prometheus_rec));
-        error!("prometheus exporter enabled");
+        info!("prometheus exporter enabled");
     } else {
-        error!("prometheus exporter disabled");
+        info!("prometheus exporter disabled");
     }
 
     if !recorders.is_empty() {
@@ -267,11 +267,10 @@ fn build_prometheus(node_config: &NodeConfig) -> PrometheusRecorder {
         .build_with_exporter()
         .expect("Failed to set Prometheus exporter");
 
-    error!("prometheus built");
+    debug!("prometheus built");
     let future = async move {
         pin!(exporter);
         loop {
-            error!("prometheus loop");
             select! {
                 _ = &mut exporter => {}
             }
