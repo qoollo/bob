@@ -17,6 +17,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Remove prometheus metrics expiration.
 
 
 #### Updated
