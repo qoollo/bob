@@ -76,10 +76,10 @@ async fn main() {
     }
     warn!("Start listening on: {:?}", addr);
 
-    let metrics = init_counters(&node, &addr.to_string()).await;
+    let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
 
     let handle = Handle::current();
-    let bob = BobServer::new(Grinder::new(mapper, &node).await, handle);
+    let bob = BobServer::new(Grinder::new(mapper, &node).await, handle, shared_metrics);
 
     info!("Start backend");
     bob.run_backend().await.unwrap();

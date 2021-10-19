@@ -1,4 +1,7 @@
-use crate::configs::node::{Node as NodeConfig, LOCAL_ADDRESS, METRICS_NAME, NODE_NAME};
+use crate::{
+    configs::node::{Node as NodeConfig, LOCAL_ADDRESS, METRICS_NAME, NODE_NAME},
+    metrics::collector::establish_global_collector,
+};
 use metrics::{register_counter, Recorder};
 use metrics_exporter_prometheus::PrometheusRecorder;
 use metrics_util::MetricKindMask;
@@ -10,11 +13,13 @@ use std::{
 };
 use tokio::{pin, select};
 
+pub mod collector;
 mod exporters;
 pub mod pearl;
 
 use exporters::global_exporter::GlobalRecorder;
-use exporters::graphite_exporter::GraphiteRecorder;
+
+pub use self::collector::SharedMetricsSnapshot;
 
 /// Counts number of PUT requests, processed by Grinder
 pub const GRINDER_PUT_COUNTER: &str = "cluster_grinder.put_count";
@@ -179,10 +184,13 @@ impl ContainerBuilder for MetricsContainer {
 pub async fn init_counters(
     node_config: &NodeConfig,
     local_address: &str,
-) -> Arc<dyn ContainerBuilder + Send + Sync> {
-    //install_prometheus(node_config);
+) -> (
+    Arc<dyn ContainerBuilder + Send + Sync>,
+    SharedMetricsSnapshot,
+) {
+    //install_prometheus();
     //install_graphite(node_config, local_address);
-    install_global(node_config, local_address).await;
+    let shared = install_global(node_config, local_address).await;
     let container = MetricsContainer::new(Duration::from_secs(1), CLIENTS_METRICS_DIR.to_owned());
     info!(
         "metrics container initialized with update interval: {}ms",
@@ -193,7 +201,7 @@ pub async fn init_counters(
     init_backend();
     init_link_manager();
     init_pearl();
-    metrics
+    (metrics, shared)
 }
 
 fn init_grinder() {
@@ -215,11 +223,12 @@ fn init_link_manager() {
     register_counter!(AVAILABLE_NODES_COUNT);
 }
 
-async fn install_global(node_config: &NodeConfig, local_address: &str) {
-    let mut recorders: Vec<Box<dyn Recorder>> = vec![];
+async fn install_global(node_config: &NodeConfig, local_address: &str) -> SharedMetricsSnapshot {
+    let (recorder, metrics) = establish_global_collector(Duration::from_secs(1));
+    let mut recorders: Vec<Box<dyn Recorder>> = vec![Box::new(recorder)];
+
     if node_config.metrics().graphite_enabled() {
-        let graphite_rec = build_graphite(node_config, local_address);
-        recorders.push(Box::new(graphite_rec));
+        build_graphite(node_config, local_address, metrics.clone());
     }
     if node_config.metrics().prometheus_enabled() {
         let prometheus_rec = build_prometheus(node_config);
@@ -229,6 +238,7 @@ async fn install_global(node_config: &NodeConfig, local_address: &str) {
     if !recorders.is_empty() {
         install_global_recorder(recorders);
     }
+    metrics
 }
 
 fn install_global_recorder(recorders: Vec<Box<dyn Recorder>>) {
@@ -288,11 +298,12 @@ fn resolve_prefix_pattern(
 
 #[allow(unused)]
 fn install_graphite(node_config: &NodeConfig, local_address: &str) {
-    let recorder = build_graphite(node_config, local_address);
+    let (recorder, metrics) = establish_global_collector(Duration::from_secs(1));
+    build_graphite(node_config, local_address, metrics);
     metrics::set_boxed_recorder(Box::new(recorder)).expect("Can't set graphite recorder");
 }
 
-fn build_graphite(node_config: &NodeConfig, local_address: &str) -> GraphiteRecorder {
+fn build_graphite(node_config: &NodeConfig, local_address: &str, metrics: SharedMetricsSnapshot) {
     let prefix_pattern = node_config
         .metrics()
         .prefix()
@@ -308,5 +319,5 @@ fn build_graphite(node_config: &NodeConfig, local_address: &str) -> GraphiteReco
         )
         .set_interval(Duration::from_secs(1))
         .set_prefix(prefix)
-        .build()
+        .build(metrics);
 }
