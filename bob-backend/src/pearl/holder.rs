@@ -178,13 +178,11 @@ impl Holder {
                 error!("error on write: {:?}", e);
                 // on pearl level before write in storage it performs `contain` check which
                 // may fail with OS error (that also means that disk is possibly disconnected)
-                e.as_pearl_error()
-                    .map_or(Error::possible_disk_disconnection(), |err| {
-                        match err.kind() {
-                            PearlErrorKind::WorkDirUnavailable { .. } => {
-                                Error::possible_disk_disconnection()
-                            }
-                            _ => Error::internal(),
+                let new_e = e.as_pearl_error().map_or(
+                    Error::possible_disk_disconnection(),
+                    |err| match err.kind() {
+                        PearlErrorKind::WorkDirUnavailable { .. } => {
+                            Error::possible_disk_disconnection()
                         }
                         _ => Error::internal(),
                     },

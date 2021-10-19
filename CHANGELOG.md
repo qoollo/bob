@@ -22,7 +22,7 @@ Bob versions changelog
 
 
 
-## [2.0.0-alpha.4] - 2021-10-02
+## [2.0.0-alpha.5] - 2021-10-02
 #### Added
 - Add random mode in get in bobp (#215)
 
