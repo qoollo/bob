@@ -13,10 +13,10 @@ jobs:
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
-      - name: Install latest nightly
+      - name: Install latest stable
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           default: true
       - name: Install packages
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
