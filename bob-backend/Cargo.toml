@@ -1,6 +1,6 @@
 [package]
 name = "bob-backend"
-version = "2.0.0-alpha.3"
+version = "2.0.0-alpha.5"
 authors = [
     "Kirill Bushminkin <kb@qoollo.com>",
     "Pavel Iakushin <pyakushin@qoollo.com>",
@@ -35,10 +35,7 @@ tower = "0.4"
 tower-service = "0.3"
 
 [dependencies.pearl]
-#FIXME: change on Pearl version, when it will be released
-git = "https://github.com/qoollo/pearl"
-branch = "117-optional-active-blob"
-#version = "=0.6.1"
+version = "=0.7.1"
 
 [dependencies.tokio]
 version = "1.11"

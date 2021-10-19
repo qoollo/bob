@@ -2,7 +2,7 @@
 FROM rust:1.47.0 as cargo-build
 
 # rust toolchain version
-ARG RUST_TC_VER=nightly-2021-06-23
+ARG RUST_TC_VER=stable
 ARG KEY_SIZE=8
 
 RUN rustup install $RUST_TC_VER \

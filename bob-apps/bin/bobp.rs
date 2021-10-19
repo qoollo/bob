@@ -1,3 +1,5 @@
+use rand::prelude::*;
+
 use bob::{
     Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetOptions, GetRequest, GetSource,
     PutOptions, PutRequest,
@@ -69,18 +71,38 @@ impl Debug for NetConfig {
     }
 }
 
+#[derive(Clone, PartialEq)]
+enum Mode {
+    Normal,
+    Random,
+}
+
 #[derive(Clone)]
 struct TaskConfig {
     low_idx: u64,
     count: u64,
     payload_size: u64,
     direct: bool,
+    mode: Mode,
     measure_time: bool,
     key_size: usize,
 }
 
+impl FromStr for Mode {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "normal" => Ok(Mode::Normal),
+            "random" => Ok(Mode::Random),
+            _ => Err("Failed to parse mode, only 'random' and 'normal' available"),
+        }
+    }
+}
+
 impl TaskConfig {
     fn from_matches(matches: &ArgMatches) -> Self {
+        let mode_string: String = matches.value_or_default("normal");
+        let mode = Mode::from_str(&mode_string).unwrap_or(Mode::Normal);
         let key_size = matches.value_or_default("keysize");
         let low_idx = matches.value_or_default("first");
         let count = matches.value_or_default("count");
@@ -100,6 +122,7 @@ impl TaskConfig {
             count,
             payload_size: matches.value_or_default("payload"),
             direct: matches.is_present("direct"),
+            mode,
             measure_time: false,
             key_size,
         }
@@ -130,6 +153,10 @@ impl TaskConfig {
 
     fn is_time_measurement_thread(&self) -> bool {
         self.measure_time
+    }
+
+    fn is_random(&self) -> bool {
+        self.mode == Mode::Random
     }
 
     fn get_proper_key(&self, key: u64) -> Vec<u8> {
@@ -471,10 +498,17 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let options = task_conf.find_get_options();
     let upper_idx = task_conf.low_idx + task_conf.count;
     let measure_time = task_conf.is_time_measurement_thread();
-    for i in task_conf.low_idx..upper_idx {
+    let iterator: Box<dyn Send + Iterator<Item = u64>> = if task_conf.is_random() {
+        Box::new(task_conf.low_idx..upper_idx)
+    } else {
+        let mut keys: Vec<_> = (task_conf.low_idx..upper_idx).collect();
+        keys.shuffle(&mut thread_rng());
+        Box::new(keys.into_iter())
+    };
+    for key in iterator {
         let request = Request::new(GetRequest {
             key: Some(BlobKey {
-                key: task_conf.get_proper_key(i),
+                key: task_conf.get_proper_key(key),
             }),
             options: options.clone(),
         });
@@ -619,6 +653,7 @@ fn spawn_workers(
                 count,
                 payload_size: task_conf.payload_size,
                 direct: task_conf.direct,
+                mode: task_conf.mode.clone(),
                 measure_time: i == 0,
                 key_size: task_conf.key_size,
             };
@@ -736,6 +771,13 @@ fn get_matches() -> ArgMatches<'static> {
                 .help("verify results of put requests")
                 .takes_value(false)
                 .long("verify"),
+        )
+        .arg(
+            Arg::with_name("mode")
+                .help("random (keys in get operation are shuffled) or normal")
+                .takes_value(true)
+                .default_value("normal")
+                .long("mode"),
         )
         .arg(
             Arg::with_name("keysize")

@@ -13,3 +13,4 @@ Cargo.lock
 /log
 /cluster_test
 /bob-grpc/src/bob_storage.rs
+/bob/src/build_info/build_time.rs

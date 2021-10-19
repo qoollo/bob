@@ -10,6 +10,7 @@ use bob_common::metrics::pearl::{
     PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
     PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
 };
+use pearl::error::{AsPearlError, ValidationErrorKind};
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
@@ -130,7 +131,6 @@ impl Holder {
     }
 
     pub async fn close_active_blob(&self) {
-        let storage = self.storage.read().await;
         // NOTE: during active blob dump (no matter sync or async close) Pearl (~Holder) storage is
         // partly blocked in the same way, the only difference is:
         // 1 [sync case]. Operations will be done one by one, so only one holder would be blocked
@@ -141,7 +141,8 @@ impl Holder {
         // 2 [async case]. Operations will be done concurrently, so more holders would be blocked
         //   at every moment, but the whole operation will be performed faster (but remember about
         //   disk_sem and other things, which may slow down this concurrent dump)
-        storage.storage().close_active_blob_async().await;
+        let storage = self.storage.write().await;
+        storage.storage().close_active_blob_in_background().await;
         warn!("Active blob of {} closed", self.get_id());
     }
 
@@ -182,7 +183,7 @@ impl Holder {
                 error!("error on write: {:?}", e);
                 // on pearl level before write in storage it performs `contain` check which
                 // may fail with OS error (that also means that disk is possibly disconnected)
-                e.downcast_ref::<PearlError>()
+                e.as_pearl_error()
                     .map_or(Error::possible_disk_disconnection(), |err| {
                         match err.kind() {
                             PearlErrorKind::WorkDirUnavailable { .. } => {
@@ -282,6 +283,13 @@ impl Holder {
             .await
             .map_err(|e| {
                 let storage_error = Error::storage("Failed to init holder");
+                if let Some(err) = e.as_pearl_error() {
+                    if let PearlErrorKind::Validation { kind, cause: _ } = err.kind() {
+                        if matches!(kind, ValidationErrorKind::BlobVersion) {
+                            panic!("unsupported pearl blob file version: {:#}", err);
+                        }
+                    }
+                }
                 e.downcast_ref::<IOError>().map_or(
                     e.downcast_ref::<Error>()
                         .cloned()

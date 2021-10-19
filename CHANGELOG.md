@@ -4,18 +4,45 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Include brt into release builds (rpm, deb and zip) ([#344](https://github.com/qoollo/bob/pull/344))
 
 
 #### Changed
 - Cleaner closes blobs instead of update ([#285](https://github.com/qoollo/bob/pull/300))
+- Only stable releases to latest tag on Docker Hub ([#339](https://github.com/qoollo/bob/pull/339))
+- Make Bob compile on stable toolchain.
 
 
 #### Fixed
-- Minor build issues ([#327](https://github.com/qoollo/bob/pull/327))
 
 
 #### Updated
+- Upgrade pearl to v0.7.1
+
+
+
+## [2.0.0-alpha.4] - 2021-10-02
+#### Added
+- Add random mode in get in bobp (#215)
+
+#### Updated
+- upgrade pearl to v0.7.0.
+
+
+## [2.0.0-alpha.4] - 2021-09-16
+#### Added
+- Add the ability to choose prometheus exporter address (#311)
+- Add rest api port to config (#269)
+
+#### Fixed
+- Prometheus exporter bug which occured after migration to global exporter scheme (#322)
+- Minor build issues (#327)
+- Fix actual holder creation condition(#283)
+
+#### Updated
 - Libs: tonic, tonic-build, tower, tokio.
+- Add Bob key size to help and version commands output
+- Updated --version output format
 
 
 ## [2.0.0-alpha.3] - 2021-08-31
@@ -38,7 +65,6 @@ Bob versions changelog
 - Run tests with GitHub Actions (#279)
 
 #### Fixed
-
 - Add brt to dockerfiles (#296)
 - Bug with panic on load operation in rate processor (#302)
 
