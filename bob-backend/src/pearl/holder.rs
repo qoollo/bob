@@ -131,7 +131,7 @@ impl Holder {
 
     pub async fn close_active_blob(&mut self) {
         let storage = self.storage.write().await;
-        storage.storage().close_active_blob().await;
+        storage.storage().close_active_blob_in_background().await;
         warn!("Active blob of {} closed", self.get_id());
     }
 

@@ -16,6 +16,7 @@ Bob versions changelog
 
 
 #### Updated
+- Upgrade pearl to v0.7.1
 
 
 
