@@ -4,6 +4,8 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Add hardware metrics ([#242](https://github.com/qoollo/bob/pull/267))
+- Add REST API metrics (#255)
 - Include brt into release builds (rpm, deb and zip) ([#344](https://github.com/qoollo/bob/pull/344))
 
 
@@ -21,7 +23,7 @@ Bob versions changelog
 
 
 
-## [2.0.0-alpha.4] - 2021-10-02
+## [2.0.0-alpha.5] - 2021-10-02
 #### Added
 - Add random mode in get in bobp (#215)
 

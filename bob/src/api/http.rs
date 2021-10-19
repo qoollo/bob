@@ -1,4 +1,7 @@
-use crate::{build_info::BuildInfo, server::Server as BobServer};
+use crate::{
+    api::http::metric_models::MetricsSnapshotModel, build_info::BuildInfo,
+    server::Server as BobServer,
+};
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
@@ -22,6 +25,7 @@ use std::{
 };
 use tokio::fs::{read_dir, ReadDir};
 
+mod metric_models;
 mod s3;
 
 #[derive(Debug, Clone)]
@@ -129,7 +133,8 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
         vdisk_records_count,
         distribution_function,
         get_data,
-        put_data
+        put_data,
+        metrics
     ];
     info!("API server started");
     let mut config = Config::release_default();
@@ -222,6 +227,12 @@ async fn status(bob: &State<BobServer>) -> Json<Node> {
         vdisks,
     };
     Json(node)
+}
+
+#[get("/metrics")]
+async fn metrics(bob: &State<BobServer>) -> Json<MetricsSnapshotModel> {
+    let snapshot = bob.metrics().read().await.clone();
+    Json(snapshot.into())
 }
 
 #[get("/version")]

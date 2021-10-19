@@ -21,6 +21,7 @@ pub mod cleaner;
 pub mod cluster;
 pub mod counter;
 pub mod grinder;
+pub mod hw_metrics_collector;
 pub mod link_manager;
 pub mod server;
 
