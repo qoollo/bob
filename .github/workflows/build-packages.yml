@@ -24,10 +24,10 @@ jobs:
           echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
           echo "BOB_KEY_SIZE=${{ matrix.bob_key_size }}" >> $GITHUB_ENV
           sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
-      - name: Install latest nightly
+      - name: Install latest stable
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           target: ${{ env.TARGET }}
           default: true
       - name: Build release

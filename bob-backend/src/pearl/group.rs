@@ -285,18 +285,20 @@ impl Group {
     pub async fn detach(&self, start_timestamp: u64) -> BackendResult<Vec<Holder>> {
         let mut holders = self.holders.write().await;
         debug!("write lock acquired");
-        let holders = holders
-            .drain_filter(|holder| {
-                debug!("{}", holder.start_timestamp());
-                holder.start_timestamp() == start_timestamp
-                    && !holder.is_actual(self.settings.get_actual_timestamp_start())
-            })
-            .collect::<Vec<_>>();
-        if holders.is_empty() {
+        let mut removed = Vec::new();
+        for index in 0..holders.len() {
+            debug!("{}", holders[index].start_timestamp());
+            if holders[index].start_timestamp() == start_timestamp
+                && !holders[index].is_actual(self.settings.get_actual_timestamp_start())
+            {
+                removed.push(holders.remove(index));
+            }
+        }
+        if removed.is_empty() {
             let msg = format!("pearl:{} not found", start_timestamp);
             return Err(Error::pearl_change_state(msg));
         }
-        for holder in &holders {
+        for holder in &removed {
             let lock_guard = holder.storage();
             let pearl_sync = lock_guard.write().await;
             let storage = pearl_sync.storage().clone();
@@ -304,7 +306,7 @@ impl Group {
                 warn!("pearl closed: {:?}", e);
             }
         }
-        Ok(holders)
+        Ok(removed)
     }
 
     pub fn create_pearl_holder(&self, start_timestamp: u64, hash: &str) -> Holder {
