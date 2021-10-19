@@ -6,8 +6,6 @@ use super::{
 use crate::data::DiskPath;
 use futures::Future;
 use humantime::Duration as HumanDuration;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
 use std::{
     cell::{Ref, RefCell},
     env::VarError,
@@ -16,6 +14,8 @@ use std::{
     sync::atomic::AtomicBool,
     time::Duration,
 };
+use std::{net::IpAddr, sync::atomic::Ordering};
+use std::{net::Ipv4Addr, sync::Arc};
 use tokio::time::sleep;
 
 const AIO_FLAG_ORDERING: Ordering = Ordering::Relaxed;
@@ -128,6 +128,8 @@ impl BackendSettings {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MetricsConfig {
     name: Option<String>,
+    #[serde(default = "MetricsConfig::default_prometheus_addr")]
+    prometheus_addr: String,
     graphite_enabled: bool,
     graphite: Option<String>,
     prometheus_enabled: bool,
@@ -163,6 +165,14 @@ impl MetricsConfig {
         } else {
             Ok(())
         }
+    }
+
+    pub(crate) fn prometheus_addr(&self) -> &str {
+        &self.prometheus_addr
+    }
+
+    pub(crate) fn default_prometheus_addr() -> String {
+        "0.0.0.0:9000".to_owned()
     }
 
     fn check_optional_fields(&self) -> Result<(), String> {
@@ -477,10 +487,22 @@ pub struct Node {
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
     disk_access_par_degree: usize,
+    #[serde(default = "Node::default_http_api_port")]
+    http_api_port: u16,
+    #[serde(default = "Node::default_http_api_address")]
+    http_api_address: IpAddr,
     bind_to_ip_address: Option<SocketAddr>,
 }
 
 impl NodeConfig {
+    pub fn http_api_port(&self) -> u16 {
+        self.http_api_port
+    }
+
+    pub fn http_api_address(&self) -> IpAddr {
+        self.http_api_address
+    }
+
     pub fn bind_to_ip_address(&self) -> Option<SocketAddr> {
         self.bind_to_ip_address
     }
@@ -658,6 +680,14 @@ impl NodeConfig {
     fn default_disk_access_par_degree() -> usize {
         1
     }
+
+    fn default_http_api_port() -> u16 {
+        8000
+    }
+
+    fn default_http_api_address() -> IpAddr {
+        IpAddr::V4(Ipv4Addr::UNSPECIFIED)
+    }
 }
 
 impl Validatable for NodeConfig {
@@ -732,6 +762,8 @@ pub mod tests {
             init_par_degree: 1,
             disk_access_par_degree: 1,
             count_interval: "10000ms".to_string(),
+            http_api_port: NodeConfig::default_http_api_port(),
+            http_api_address: NodeConfig::default_http_api_address(),
             bind_to_ip_address: None,
         }
     }
