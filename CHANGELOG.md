@@ -13,6 +13,7 @@ Bob versions changelog
 - Cleaner closes blobs instead of update ([#285](https://github.com/qoollo/bob/pull/300))
 - Only stable releases to latest tag on Docker Hub ([#339](https://github.com/qoollo/bob/pull/339))
 - Make Bob compile on stable toolchain.
+- Add blob and index verification to blob recovery tool ([#230](https://github.com/qoollo/bob/pull/230))
 
 
 #### Fixed
