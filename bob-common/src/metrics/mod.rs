@@ -4,7 +4,6 @@ use crate::{
 };
 use metrics::{register_counter, Recorder};
 use metrics_exporter_prometheus::PrometheusRecorder;
-use metrics_util::MetricKindMask;
 use pearl::init_pearl;
 use std::{
     net::SocketAddr,
@@ -263,7 +262,6 @@ fn build_prometheus(node_config: &NodeConfig) -> PrometheusRecorder {
         .expect("Bad prometheus address");
     let (recorder, exporter) = metrics_exporter_prometheus::PrometheusBuilder::new()
         .listen_address(addr)
-        .idle_timeout(MetricKindMask::ALL, Some(Duration::from_secs(2)))
         .build_with_exporter()
         .expect("Failed to set Prometheus exporter");
 
