@@ -357,12 +357,13 @@ impl Holder {
         settings: &Option<Arc<Settings>>,
     ) -> Result<(), Error> {
         let res = if settings
+            .as_ref()
             .map(|s| self.is_actual(s.get_actual_timestamp_start()))
             .unwrap_or(false)
         {
             storage.init().await
         } else {
-            storage.init_noactive().await
+            storage.init_lazy().await
         };
         match res {
             Ok(_) => {
