@@ -184,22 +184,15 @@ where
     writer.write_header(&header)?;
     info!("Input blob header version: {}", header.version);
     let mut count = 0;
-    let mut previous_read_failed = false;
     while !reader.is_eof() {
-        match reader.read_record() {
+        match reader.read_record_with_skip_wrong() {
             Ok(record) => {
                 writer.write_record(record)?;
                 count += 1;
-                previous_read_failed = false;
             }
             Err(error) => {
                 warn!("Record read error: {}", error);
-                if let Some(Error::RecordValidation(_)) = error.downcast_ref::<Error>() {
-                    if previous_read_failed {
-                        break;
-                    }
-                    previous_read_failed = true;
-                }
+                break;
             }
         }
         if validate_written_records && count % validate_every == 0 {

@@ -13,6 +13,8 @@ pub(crate) enum Error {
     BlobHeaderValidation(String),
     #[error("record validation error: {0}")]
     RecordValidation(String),
+    #[error("skip data error: {0}")]
+    SkipRecordData(String),
 }
 
 impl Error {
@@ -34,5 +36,9 @@ impl Error {
 
     pub(crate) fn record_validation_error(message: impl Into<String>) -> Self {
         Self::RecordValidation(message.into())
+    }
+
+    pub(crate) fn skip_record_data_error(message: impl Into<String>) -> Self {
+        Self::SkipRecordData(message.into())
     }
 }
