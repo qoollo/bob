@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Add REST API metrics (#255)
 - Include brt into release builds (rpm, deb and zip) ([#344](https://github.com/qoollo/bob/pull/344))
 
 
