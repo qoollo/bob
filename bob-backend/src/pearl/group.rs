@@ -88,7 +88,9 @@ impl Group {
         let holders = self.holders.write().await;
 
         for holder in holders.iter() {
-            holder.prepare_storage().await?;
+            holder
+                .prepare_storage_ext(Some(self.settings.clone()))
+                .await?;
             debug!("backend pearl group run pearls storage prepared");
         }
         Ok(())
@@ -400,12 +402,11 @@ impl Group {
 
     pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
         let holders_lock = self.holders();
-        let mut holders_write = holders_lock.write().await;
-        let holders: &mut Vec<_> = holders_write.as_mut();
+        let holders = holders_lock.read().await;
 
         let mut total_open_blobs = 0;
         let mut close = vec![];
-        for h in holders.iter_mut() {
+        for h in holders.iter() {
             if !h.active_blob_is_empty().await {
                 total_open_blobs += 1;
                 if h.is_outdated() && h.no_writes_recently().await {
@@ -442,7 +443,7 @@ impl Group {
         }
     }
 
-    fn sort_by_priority(close: &mut [(usize, &mut Holder)], is_small: &[bool]) {
+    fn sort_by_priority(close: &mut [(usize, &Holder)], is_small: &[bool]) {
         use std::cmp::Ordering;
         close.sort_by(|(i, x), (j, y)| match (is_small[*i], is_small[*j]) {
             (true, false) => Ordering::Greater,

@@ -1,3 +1,4 @@
+use super::settings::Settings;
 use crate::prelude::*;
 
 use super::{
@@ -129,7 +130,17 @@ impl Holder {
             .as_secs()
     }
 
-    pub async fn close_active_blob(&mut self) {
+    pub async fn close_active_blob(&self) {
+        // NOTE: during active blob dump (no matter sync or async close) Pearl (~Holder) storage is
+        // partly blocked in the same way, the only difference is:
+        // 1 [sync case]. Operations will be done one by one, so only one holder would be blocked
+        //   at every moment (cleaner will work longer + if there would be a query for not existing
+        //   records (so all holders should be checked) bob will be able to fetch records only
+        //   between one by one active blob dump queue, because at every moment one holder will be
+        //   blocked)
+        // 2 [async case]. Operations will be done concurrently, so more holders would be blocked
+        //   at every moment, but the whole operation will be performed faster (but remember about
+        //   disk_sem and other things, which may slow down this concurrent dump)
         let storage = self.storage.write().await;
         storage.storage().close_active_blob_in_background().await;
         warn!("Active blob of {} closed", self.get_id());
@@ -270,10 +281,17 @@ impl Holder {
     }
 
     pub async fn prepare_storage(&self) -> Result<(), Error> {
+        self.prepare_storage_ext(None).await
+    }
+
+    pub(super) async fn prepare_storage_ext(
+        &self,
+        settings: Option<Arc<Settings>>,
+    ) -> Result<(), Error> {
         debug!("backend pearl holder prepare storage");
         self.config
             .try_multiple_times_async(
-                || self.init_holder(),
+                || self.init_holder(&settings),
                 "can't initialize holder",
                 self.config.fail_retry_timeout(),
             )
@@ -301,7 +319,7 @@ impl Holder {
             })
     }
 
-    async fn init_holder(&self) -> AnyResult<()> {
+    async fn init_holder(&self, settings: &Option<Arc<Settings>>) -> AnyResult<()> {
         let f = || Stuff::check_or_create_directory(&self.disk_path);
         self.config
             .try_multiple_times_async(
@@ -328,13 +346,26 @@ impl Holder {
             )
             .await
             .with_context(|| "backend pearl holder init storage failed")?;
-        self.init_pearl(storage).await?;
+        self.init_pearl(storage, settings).await?;
         debug!("backend pearl holder init holder ready #{}", self.vdisk);
         Ok(())
     }
 
-    async fn init_pearl(&self, mut storage: Storage<Key>) -> Result<(), Error> {
-        match storage.init().await {
+    async fn init_pearl(
+        &self,
+        mut storage: Storage<Key>,
+        settings: &Option<Arc<Settings>>,
+    ) -> Result<(), Error> {
+        let res = if settings
+            .as_ref()
+            .map(|s| self.is_actual(s.get_actual_timestamp_start()))
+            .unwrap_or(false)
+        {
+            storage.init().await
+        } else {
+            storage.init_lazy().await
+        };
+        match res {
             Ok(_) => {
                 self.update(storage).await;
                 Ok(())
