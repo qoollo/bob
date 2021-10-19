@@ -4,16 +4,33 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Add hardware metrics ([#242](https://github.com/qoollo/bob/pull/267))
-- Add REST API metrics (#255)
-- Include brt into release builds (rpm, deb and zip) ([#344](https://github.com/qoollo/bob/pull/344))
+
 
 
 #### Changed
-- Cleaner closes blobs instead of update ([#285](https://github.com/qoollo/bob/pull/300))
-- Only stable releases to latest tag on Docker Hub ([#339](https://github.com/qoollo/bob/pull/339))
+
+
+
+#### Fixed
+
+
+
+#### Updated
+
+
+
+## [2.0.0-alpha.6] - 2021-10-19
+#### Added
+- Add hardware metrics (#242)
+- Add REST API metrics (#255)
+- Include brt into release builds (rpm, deb and zip) (#344)
+
+
+#### Changed
+- Cleaner closes blobs instead of update (#285)
+- Only stable releases to latest tag on Docker Hub (#339)
 - Make Bob compile on stable toolchain.
-- Add blob and index verification to blob recovery tool ([#230](https://github.com/qoollo/bob/pull/230))
+- Add blob and index verification to blob recovery tool (#230)
 
 
 #### Fixed
@@ -22,7 +39,6 @@ Bob versions changelog
 
 #### Updated
 - Upgrade pearl to v0.7.1
-
 
 
 ## [2.0.0-alpha.5] - 2021-10-02

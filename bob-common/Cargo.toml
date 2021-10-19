@@ -1,6 +1,6 @@
 [package]
 name = "bob-common"
-version = "2.0.0-alpha.5"
+version = "2.0.0-alpha.6"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
@@ -37,4 +37,3 @@ features = []
 
 [build-dependencies]
 tonic-build = "0.5"
-
