@@ -36,6 +36,7 @@ serde_yaml = "0.8"
 stopwatch = "0.0.7"
 termion = "1.5"
 thiserror = "1.0"
+sysinfo = "0.19"
 tonic = { version = "0.5", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"
