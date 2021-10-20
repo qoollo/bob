@@ -130,3 +130,8 @@ impl Stuff {
         start_time.timestamp().try_into().unwrap()
     }
 }
+
+pub fn get_current_timestamp() -> u64 {
+    let now: DateTime<Utc> = DateTime::from(SystemTime::now());
+    now.timestamp().try_into().unwrap()
+}

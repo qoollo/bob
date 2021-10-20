@@ -1,5 +1,4 @@
-use super::settings::Settings;
-use crate::prelude::*;
+use crate::{pearl::stuff::get_current_timestamp, prelude::*};
 
 use super::{
     core::{BackendResult, PearlStorage},
@@ -277,17 +276,10 @@ impl Holder {
     }
 
     pub async fn prepare_storage(&self) -> Result<(), Error> {
-        self.prepare_storage_ext(None).await
-    }
-
-    pub(super) async fn prepare_storage_ext(
-        &self,
-        settings: Option<Arc<Settings>>,
-    ) -> Result<(), Error> {
         debug!("backend pearl holder prepare storage");
         self.config
             .try_multiple_times_async(
-                || self.init_holder(&settings),
+                || self.init_holder(),
                 "can't initialize holder",
                 self.config.fail_retry_timeout(),
             )
@@ -315,7 +307,7 @@ impl Holder {
             })
     }
 
-    async fn init_holder(&self, settings: &Option<Arc<Settings>>) -> AnyResult<()> {
+    async fn init_holder(&self) -> AnyResult<()> {
         let f = || Stuff::check_or_create_directory(&self.disk_path);
         self.config
             .try_multiple_times_async(
@@ -342,21 +334,14 @@ impl Holder {
             )
             .await
             .with_context(|| "backend pearl holder init storage failed")?;
-        self.init_pearl(storage, settings).await?;
+        self.init_pearl(storage).await?;
         debug!("backend pearl holder init holder ready #{}", self.vdisk);
         Ok(())
     }
 
-    async fn init_pearl(
-        &self,
-        mut storage: Storage<Key>,
-        settings: &Option<Arc<Settings>>,
-    ) -> Result<(), Error> {
-        let res = if settings
-            .as_ref()
-            .map(|s| self.is_actual(s.get_actual_timestamp_start()))
-            .unwrap_or(false)
-        {
+    async fn init_pearl(&self, mut storage: Storage<Key>) -> Result<(), Error> {
+        let ts = get_current_timestamp();
+        let res = if self.gets_into_interval(ts) {
             storage.init().await
         } else {
             storage.init_lazy().await

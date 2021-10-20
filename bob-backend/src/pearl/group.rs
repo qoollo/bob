@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{pearl::stuff::get_current_timestamp, prelude::*};
 
 use super::{stuff::StartTimestampConfig, Holder};
 use crate::{
@@ -88,9 +88,7 @@ impl Group {
         let holders = self.holders.write().await;
 
         for holder in holders.iter() {
-            holder
-                .prepare_storage_ext(Some(self.settings.clone()))
-                .await?;
+            holder.prepare_storage().await?;
             debug!("backend pearl group run pearls storage prepared");
         }
         Ok(())
@@ -327,8 +325,9 @@ impl Group {
     }
 
     pub async fn detach_all(&self) -> BackendResult<()> {
-        let mut holders = self.holders.write().await;
-        let holders: Vec<_> = holders.drain_filter(|_| true).collect();
+        let mut holders_lock = self.holders.write().await;
+        let len = holders_lock.len();
+        let holders: Vec<_> = holders_lock.drain(0..len).collect();
         close_holders(holders.iter()).await;
         Ok(())
     }
@@ -479,11 +478,6 @@ impl Group {
             _ => x.end_timestamp().cmp(&y.end_timestamp()),
         });
     }
-}
-
-fn get_current_timestamp() -> u64 {
-    let now: DateTime<Utc> = DateTime::from(SystemTime::now());
-    now.timestamp().try_into().unwrap()
 }
 
 async fn close_holders(holders: impl Iterator<Item = &Holder>) {
