@@ -1,5 +1,4 @@
 #![type_length_limit = "3245934"]
-#![feature(proc_macro_hygiene, decl_macro, drain_filter)]
 #![allow(clippy::used_underscore_binding)]
 #![warn(missing_debug_implementations)]
 // #![warn(clippy::pedantic)]
@@ -22,6 +21,7 @@ pub mod cleaner;
 pub mod cluster;
 pub mod counter;
 pub mod grinder;
+pub mod hw_metrics_collector;
 pub mod link_manager;
 pub mod server;
 

@@ -1,6 +1,6 @@
 [package]
 name = "bob"
-version = "2.0.0-alpha.5"
+version = "2.0.0-alpha.6"
 authors = [
     "Kirill Bushminkin <kb@qoollo.com>",
     "Pavel Iakushin <pyakushin@qoollo.com>",
@@ -36,12 +36,13 @@ serde_yaml = "0.8"
 stopwatch = "0.0.7"
 termion = "1.5"
 thiserror = "1.0"
+sysinfo = "0.19"
 tonic = { version = "0.5", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"
 
 [dependencies.pearl]
-version = "=0.7.0"
+version = "=0.7.1"
 
 [dependencies.tokio]
 version = "1.11"

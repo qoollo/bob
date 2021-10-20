@@ -88,7 +88,9 @@ impl Group {
         let holders = self.holders.write().await;
 
         for holder in holders.iter() {
-            holder.prepare_storage().await?;
+            holder
+                .prepare_storage_ext(Some(self.settings.clone()))
+                .await?;
             debug!("backend pearl group run pearls storage prepared");
         }
         Ok(())
@@ -308,18 +310,20 @@ impl Group {
         let mut holders = self.holders.write().await;
         debug!("write lock acquired");
         let ts = get_current_timestamp();
-        let holders = holders
-            .drain_filter(|holder| {
-                debug!("{}", holder.start_timestamp());
-                holder.start_timestamp() == start_timestamp && !holder.gets_into_interval(ts)
-            })
-            .collect::<Vec<_>>();
-        if holders.is_empty() {
+        let mut removed = vec![];
+        for ind in 0..holders.len() {
+            if holders[ind].start_timestamp() == start_timestamp
+                && !holders[ind].gets_into_interval(ts)
+            {
+                removed.push(holders.remove(ind));
+            }
+        }
+        if removed.is_empty() {
             let msg = format!("pearl:{} not found", start_timestamp);
             return Err(Error::pearl_change_state(msg));
         }
-        close_holders(holders.iter()).await;
-        Ok(holders)
+        close_holders(removed.iter()).await;
+        Ok(removed)
     }
 
     pub async fn detach_all(&self) -> BackendResult<()> {
@@ -426,12 +430,11 @@ impl Group {
 
     pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
         let holders_lock = self.holders();
-        let mut holders_write = holders_lock.write().await;
-        let holders: &mut Vec<_> = holders_write.as_mut();
+        let holders = holders_lock.read().await;
 
         let mut total_open_blobs = 0;
         let mut close = vec![];
-        for h in holders.iter_mut() {
+        for h in holders.iter() {
             if !h.active_blob_is_empty().await {
                 total_open_blobs += 1;
                 if h.is_outdated() && h.no_writes_recently().await {
@@ -468,7 +471,7 @@ impl Group {
         }
     }
 
-    fn sort_by_priority(close: &mut [(usize, &mut Holder)], is_small: &[bool]) {
+    fn sort_by_priority(close: &mut [(usize, &Holder)], is_small: &[bool]) {
         use std::cmp::Ordering;
         close.sort_by(|(i, x), (j, y)| match (is_small[*i], is_small[*j]) {
             (true, false) => Ordering::Greater,

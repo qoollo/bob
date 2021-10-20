@@ -4,6 +4,7 @@ use crate::{
     cleaner::Cleaner,
     cluster::{get_cluster, Cluster},
     counter::Counter as BlobsCounter,
+    hw_metrics_collector::HWMetricsCollector,
     link_manager::LinkManager,
 };
 
@@ -17,6 +18,7 @@ pub struct Grinder {
     cleaner: Arc<Cleaner>,
     counter: Arc<BlobsCounter>,
     node_config: NodeConfig,
+    hw_counter: Arc<HWMetricsCollector>,
 }
 
 impl Grinder {
@@ -32,6 +34,10 @@ impl Grinder {
             config.hard_open_blobs(),
         );
         let cleaner = Arc::new(cleaner);
+        let hw_counter = Arc::new(HWMetricsCollector::new(
+            mapper.clone(),
+            Duration::from_secs(60),
+        ));
 
         let counter = Arc::new(BlobsCounter::new(config.count_interval()));
         Grinder {
@@ -41,6 +47,7 @@ impl Grinder {
             cleaner,
             counter,
             node_config: config.clone(),
+            hw_counter,
         }
     }
 
@@ -189,6 +196,7 @@ impl Grinder {
         self.link_manager.spawn_checker(client_factory);
         self.cleaner.spawn_task(self.backend.clone());
         self.counter.spawn_task(self.backend.clone());
+        self.hw_counter.spawn_task();
     }
 }
 
