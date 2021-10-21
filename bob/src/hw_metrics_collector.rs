@@ -47,16 +47,17 @@ impl HWMetricsCollector {
 
     async fn task(t: Duration, disks: HashMap<PathBuf, String>) {
         let mut interval = interval(t);
-        let mut sys = System::new_all();
+        let total_mem = {
+            let sys = System::new_all();
+            kb_to_mb(sys.total_memory())
+        };
         let mut dcounter = DescrCounter::new();
-        let total_mem = kb_to_mb(sys.total_memory());
         debug!("total mem in mb: {}", total_mem);
         let pid = std::process::id() as i32;
 
         loop {
             interval.tick().await;
-            sys.refresh_all();
-            sys.refresh_disks();
+            let sys = System::new_all();
             let proc = sys.process(pid).expect("Can't get process stat descriptor");
 
             let (total_space, free_space) = Self::space(&sys, &disks);
