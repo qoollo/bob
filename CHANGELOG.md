@@ -12,7 +12,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Close procfs file descriptors on each tick in hw metrics (#353) [https://github.com/qoollo/bob/pull/354]
 
 
 #### Updated
