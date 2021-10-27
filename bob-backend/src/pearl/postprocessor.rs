@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeSet,
+    ops::Deref,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
@@ -74,9 +75,9 @@ impl PostProcessor {
             ..Default::default()
         }
     }
-    pub(crate) async fn storage_prepared(&self, holder: impl Into<SimpleHolder>) {
+    pub(crate) async fn storage_prepared(&self, holder: Arc<Leaf<Holder>>) {
         let mut holders = self.holders.write().await;
-        let holder = holder.into();
+        let holder: SimpleHolder = holder.data().read().await.deref().into();
         let filter_memory = holder.filter_memory_allocated().await;
         holders.insert(holder);
         self.allocated_size

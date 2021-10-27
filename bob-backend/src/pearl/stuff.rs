@@ -2,6 +2,7 @@ use crate::{
     pearl::{postprocessor::SimpleHolder, DiskController},
     prelude::*,
 };
+use core::ops::Deref;
 
 use super::core::BackendResult;
 
@@ -145,7 +146,7 @@ impl Stuff {
         for dc in iter {
             for group in dc.groups().read().await.iter() {
                 for holder in group.holders().read().await.iter() {
-                    let holder: SimpleHolder = holder.into();
+                    let holder: SimpleHolder = holder.data().read().await.deref().into();
                     if holder.is_ready().await {
                         let size = holder.filter_memory_allocated().await;
                         res.push((holder, size));

@@ -387,12 +387,12 @@ impl Holder {
 impl BloomProvider for Holder {
     type Key = Key;
 
-    async fn check_filter(&self, item: &Self::Key) -> AnyResult<Option<bool>> {
+    async fn check_filter(&self, item: &Self::Key) -> Option<bool> {
         let storage = self.storage().read().await;
         if let Some(storage) = &storage.storage {
             return BloomProvider::check_filter(storage, item).await;
         }
-        Ok(None)
+        None
     }
 
     async fn offload_buffer(&mut self, needed_memory: usize) -> usize {
@@ -408,6 +408,14 @@ impl BloomProvider for Holder {
         match &storage.storage {
             Some(storage) => storage.get_filter().await,
             _ => None,
+        }
+    }
+
+    async fn filter_memory_allocated(&self) -> usize {
+        let storage = self.storage().read().await;
+        match &storage.storage {
+            Some(storage) => storage.filter_memory_allocated().await,
+            _ => 0,
         }
     }
 }

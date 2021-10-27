@@ -88,8 +88,8 @@ impl Group {
         let holders = self.holders.write().await;
 
         for holder in holders.iter() {
-            holder.prepare_storage().await?;
-            pp.storage_prepared(holder).await;
+            holder.data().read().await.prepare_storage().await?;
+            pp.storage_prepared(holder.clone()).await;
             debug!("backend pearl group run pearls storage prepared");
         }
         Ok(())
@@ -97,17 +97,17 @@ impl Group {
 
     pub async fn add(&self, holder: Holder) -> usize {
         let mut holders = self.holders.write().await;
-        holders.push(holder);
+        holders.push(holder).await;
         holders.len() - 1
     }
 
     pub async fn add_range(&self, new: Vec<Holder>) {
         let mut holders = self.holders.write().await;
-        holders.extend(new);
+        holders.extend(new).await;
     }
 
     // find in all pearls actual pearl and try create new
-    async fn get_actual_holder(&self, data: &BobData) -> Result<(usize, Holder), Error> {
+    async fn get_actual_holder(&self, data: &BobData) -> Result<Arc<Leaf<Holder>>, Error> {
         self.find_actual_holder(data)
             .or_else(|e| {
                 debug!("cannot find pearl: {}", e);
@@ -117,23 +117,26 @@ impl Group {
     }
 
     // find in all pearls actual pearl
-    async fn find_actual_holder(&self, data: &BobData) -> BackendResult<(usize, Holder)> {
+    async fn find_actual_holder(&self, data: &BobData) -> BackendResult<Arc<Leaf<Holder>>> {
         let holders = self.holders.read().await;
-        holders
-            .iter()
-            .enumerate()
-            .find(|holder| holder.1.gets_into_interval(data.meta().timestamp()))
-            .map(|(i, holder)| (i, holder.clone()))
-            .ok_or_else(|| {
-                Error::failed(format!(
-                    "cannot find actual pearl folder. meta: {}",
-                    data.meta().timestamp()
-                ))
-            })
+        for holder in holders.iter() {
+            if holder
+                .data()
+                .read()
+                .await
+                .gets_into_interval(data.meta().timestamp())
+            {
+                return Ok(holder.clone());
+            }
+        }
+        Err(Error::failed(format!(
+            "cannot find actual pearl folder. meta: {}",
+            data.meta().timestamp()
+        )))
     }
 
     // create pearl for current write
-    async fn create_write_pearl(&self, ts: u64) -> Result<(usize, Holder), Error> {
+    async fn create_write_pearl(&self, ts: u64) -> Result<Arc<Leaf<Holder>>, Error> {
         let mut indexes = self.created_holder_indexes.write().await;
         let created_holder_index = indexes.get(&ts).copied();
         let index = if let Some(exisiting_index) = created_holder_index {
@@ -153,7 +156,7 @@ impl Group {
             debug!("group create write pearl holder inserted");
             new_index
         };
-        Ok((index, self.holders.read().await.children()[index].clone()))
+        Ok(self.holders.read().await.children()[index].clone())
     }
 
     async fn try_create_write_pearl(&self, timestamp: u64) -> Result<usize, Error> {
@@ -169,18 +172,20 @@ impl Group {
     }
 
     pub async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
-        let (index, holder) = self.get_actual_holder(&data).await?;
-        let res = Self::put_common(holder, key, data).await;
+        let holder = self.get_actual_holder(&data).await?;
+        let res = Self::put_common(&holder, key, data).await;
         if res.is_ok() {
-            self.holders()
-                .write()
-                .await
-                .add_to_intermediate_filters(index, key.as_slice());
+            holder.add_to_parents(key.as_slice()).await;
         }
         res
     }
 
-    async fn put_common(holder: Holder, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put_common(
+        holder: &Arc<Leaf<Holder>>,
+        key: BobKey,
+        data: BobData,
+    ) -> Result<(), Error> {
+        let holder = holder.data().read().await;
         let result = holder.write(key, data).await;
         if let Err(e) = result {
             // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
@@ -202,11 +207,11 @@ impl Group {
         let holders = self.holders.read().await;
         let mut has_error = false;
         let mut results = vec![];
-        if let Ok(Some(false)) = holders.check_filter(&key.into()).await {
+        if let Some(false) = holders.check_filter_without_leafs(&key.into()).await {
             return Err(Error::key_not_found(key));
         }
         for holder in holders.iter().rev() {
-            let get = Self::get_common(holder.clone(), key).await;
+            let get = Self::get_common(holder, key).await;
             match get {
                 Ok(data) => {
                     trace!("get data: {:?} from: {:?}", data, holder);
@@ -237,7 +242,8 @@ impl Group {
         }
     }
 
-    async fn get_common(holder: Holder, key: BobKey) -> Result<BobData, Error> {
+    async fn get_common(holder: &Arc<Leaf<Holder>>, key: BobKey) -> Result<BobData, Error> {
+        let holder = holder.data().read().await;
         let result = holder.read(key).await;
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {
@@ -253,12 +259,12 @@ impl Group {
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
-            if let Ok(Some(false)) = holders.check_filter(&key.into()).await {
+            if let Some(false) = holders.check_filter(&key.into()).await {
                 continue;
             }
             for holder in holders.iter() {
                 if !exist[ind] {
-                    exist[ind] = holder.exist(key).await.unwrap_or(false);
+                    exist[ind] = holder.data().read().await.exist(key).await.unwrap_or(false);
                 }
             }
         }
@@ -285,7 +291,11 @@ impl Group {
         let holders = self.holders.read().await;
         if holders
             .iter()
-            .any(|holder| holder.start_timestamp() == start_timestamp)
+            .cloned()
+            .map(|x| async move { x.data().read().await.start_timestamp() })
+            .collect::<FuturesUnordered<_>>()
+            .any(|timestamp| async move { timestamp == start_timestamp })
+            .await
         {
             let msg = format!("pearl:{} already exists", start_timestamp);
             warn!("{}", msg);
@@ -417,15 +427,16 @@ impl Group {
 
     pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
         let holders_lock = self.holders();
-        let mut holders = holders_lock.write().await;
+        let holders = holders_lock.write().await;
 
         let mut total_open_blobs = 0;
         let mut close = vec![];
-        for h in holders.iter_mut() {
-            if !h.active_blob_is_empty().await {
+        for h in holders.iter() {
+            let h_read = h.data().read().await;
+            if !h_read.active_blob_is_empty().await {
                 total_open_blobs += 1;
-                if h.is_outdated() && h.no_writes_recently().await {
-                    close.push(h);
+                if h_read.is_outdated() && h_read.no_writes_recently().await {
+                    close.push((h.clone(), h_read.end_timestamp()));
                 }
             }
         }
@@ -439,7 +450,7 @@ impl Group {
 
         let mut is_small = vec![];
         for h in &close {
-            is_small.push(h.active_blob_is_small().await);
+            is_small.push(h.0.data().read().await.active_blob_is_small().await);
         }
 
         let mut close: Vec<_> = close.into_iter().enumerate().collect();
@@ -447,30 +458,32 @@ impl Group {
 
         while close.len() > hard {
             let (_, holder) = close.pop().expect("Vector is empty!");
+            let mut holder = holder.0.data().write().await;
             holder.close_active_blob().await;
             info!("active blob of {} closed by hard cap", holder.get_id());
         }
 
         while close.len() > soft && close.last().map_or(false, |(ind, _)| !is_small[*ind]) {
             let (_, holder) = close.pop().unwrap();
+            let mut holder = holder.0.data().write().await;
             holder.close_active_blob().await;
             info!("active blob of {} closed by soft cap", holder.get_id());
         }
     }
 
-    fn sort_by_priority(close: &mut [(usize, &mut Holder)], is_small: &[bool]) {
+    fn sort_by_priority(close: &mut [(usize, (Arc<Leaf<Holder>>, u64))], is_small: &[bool]) {
         use std::cmp::Ordering;
         close.sort_by(|(i, x), (j, y)| match (is_small[*i], is_small[*j]) {
             (true, false) => Ordering::Greater,
             (false, true) => Ordering::Less,
-            _ => x.end_timestamp().cmp(&y.end_timestamp()),
+            _ => x.1.cmp(&y.1),
         });
     }
 
     pub(crate) async fn filter_memory_allocated(&self) -> usize {
         let mut memory = 0;
         for holder in self.holders().read().await.iter() {
-            memory += holder.filter_memory_allocated().await;
+            memory += holder.data().read().await.filter_memory_allocated().await;
         }
         memory
     }

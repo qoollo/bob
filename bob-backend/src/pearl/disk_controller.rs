@@ -449,6 +449,7 @@ impl DiskController {
             let holders = group.holders();
             let holders = holders.read().await;
             for holder in holders.iter() {
+                let holder = holder.data().read().await;
                 let storage = holder.storage().read().await;
                 let storage = storage.storage().clone();
                 let id = holder.get_id();
@@ -472,6 +473,7 @@ impl DiskController {
                 let holders_guard = group.holders();
                 let holders = holders_guard.read().await;
                 for holder in holders.iter() {
+                    let holder = holder.data().read().await;
                     cnt += holder.blobs_count().await;
                 }
             }
@@ -488,6 +490,7 @@ impl DiskController {
                 let holders_guard = group.holders();
                 let holders = holders_guard.read().await;
                 for holder in holders.iter() {
+                    let holder = holder.data().read().await;
                     cnt += holder.index_memory().await;
                 }
             }
