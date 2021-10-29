@@ -36,7 +36,7 @@ open_blobs_hard_limit: 10
 # used only for 'backend_type: pearl'
 pearl:
   # optional, default = true, enables linux AIO
-  enable_aio: true
+  enable_aio: false
   # path to logfile with info about disks states switches, default = "/tmp/bob_events.csv"
   disks_events_logfile: "/bob/log/bob_events.csv"
   # size in bytes. required for 'pearl'
