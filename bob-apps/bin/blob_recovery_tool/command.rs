@@ -9,11 +9,12 @@ const BACKUP_SUFFIX_OPT: &str = "backup suffix";
 const FIX_OPT: &str = "fix";
 const NO_CONFIRM_OPT: &str = "no confirm";
 const DELETE_OPT: &str = "index delete";
+const TARGET_VERSION_OPT: &str = "target version";
 
 const VALIDATE_INDEX_COMMAND: &str = "validate-index";
 const VALIDATE_BLOB_COMMAND: &str = "validate-blob";
 const RECOVERY_COMMAND: &str = "recovery";
-const REVERSE_BYTE_ORDER_COMMAND: &str = "reverse-byte-order";
+const REVERSE_BYTE_ORDER_COMMAND: &str = "migrate";
 
 pub enum MainCommand {
     Recovery(RecoveryBlobCommand),
@@ -255,6 +256,7 @@ pub struct ReverseByteOrderCommand {
     output_path: PathBuf,
     blob_suffix: String,
     validate_every: usize,
+    target_version: u32,
 }
 
 impl ReverseByteOrderCommand {
@@ -266,12 +268,9 @@ impl ReverseByteOrderCommand {
                 let output_dir = self.output_path.join(relative_path);
                 std::fs::create_dir_all(&output_dir)?;
                 let output = output_dir.join(path.file_name().expect("Must be filename"));
-                recovery_blob_with(
-                    &path,
-                    &output,
-                    self.validate_every,
-                    Record::with_reversed_key_bytes,
-                )?;
+                recovery_blob_with(&path, &output, self.validate_every, |record, version| {
+                    record.migrate(version, self.target_version)
+                })?;
                 Ok(())
             },
             "Reverse key byte order",
@@ -314,6 +313,15 @@ impl ReverseByteOrderCommand {
                     .value_name("N")
                     .long("cache-size"),
             )
+            .arg(
+                Arg::with_name(TARGET_VERSION_OPT)
+                    .help("target blob version for migration")
+                    .takes_value(true)
+                    .default_value("2")
+                    .short("t")
+                    .value_name("version")
+                    .long("target-version"),
+            )
     }
 
     fn from_matches(matches: &ArgMatches) -> AnyResult<ReverseByteOrderCommand> {
@@ -323,6 +331,10 @@ impl ReverseByteOrderCommand {
             blob_suffix: matches.value_of(SUFFIX_OPT).expect("Required").to_string(),
             validate_every: matches
                 .value_of(VALIDATE_EVERY_OPT)
+                .expect("Has default")
+                .parse()?,
+            target_version: matches
+                .value_of(TARGET_VERSION_OPT)
                 .expect("Has default")
                 .parse()?,
         })

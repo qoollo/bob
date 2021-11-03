@@ -19,18 +19,6 @@ pub(crate) fn get_hash(buf: &[u8]) -> Vec<u8> {
     digest.as_ref().to_vec()
 }
 
-pub(crate) fn validate_bytes(a: &[u8], checksum: u32) -> AnyResult<()> {
-    let actual_checksum = calculate_checksum(a);
-    if actual_checksum != checksum {
-        return Err(Error::validation_error(format!(
-            "wrong data checksum: '{}' != '{}'",
-            actual_checksum, checksum
-        ))
-        .into());
-    }
-    Ok(())
-}
-
 pub(crate) fn calculate_checksum(a: &[u8]) -> u32 {
     crc32(a)
 }
@@ -72,6 +60,85 @@ pub(crate) fn ask_confirmation(prompt: &str) -> AnyResult<bool> {
     }
 }
 
+pub(crate) fn process_files_recursive<F>(
+    path: &Path,
+    extension: &str,
+    mut function: F,
+    prefix: &str,
+) -> AnyResult<Vec<String>>
+where
+    F: FnMut(&Path, &Path) -> AnyResult<()>,
+{
+    warn!("{}: start", prefix);
+    let mut result = vec![];
+    let mut count = 0;
+    let mut last_log = Instant::now();
+    for_each_file_recursive(path, |entry_path, relative_path| {
+        let path_string = entry_path.as_os_str().to_str().unwrap().to_string();
+        if path_string.ends_with(&extension) {
+            match function(entry_path, relative_path) {
+                Ok(_) => {}
+                Err(err) => {
+                    error!("{}: [{}] error: {}", prefix, path_string, err);
+                    result.push(path_string);
+                }
+            }
+            count += 1;
+            if last_log.elapsed() >= Duration::from_secs(1) {
+                warn!("{}: {} files processed", prefix, count);
+                last_log = Instant::now();
+            }
+        }
+    })?;
+    warn!("{} completed! {} files processed", prefix, count);
+    Ok(result)
+}
+
+pub(crate) fn for_each_file_recursive<F>(path: &Path, function: F) -> AnyResult<()>
+where
+    F: FnMut(&Path, &Path),
+{
+    let mut relative_path = PathBuf::new();
+    let _ = for_each_file_recursive_inner(path, function, &mut relative_path)?;
+    Ok(())
+}
+
+fn for_each_file_recursive_inner<F>(
+    path: &Path,
+    mut function: F,
+    relative_path: &mut PathBuf,
+) -> AnyResult<F>
+where
+    F: FnMut(&Path, &Path),
+{
+    for entry in std::fs::read_dir(path)?
+        .into_iter()
+        .filter_map(|res| match res {
+            Ok(entry) => Some(entry),
+            Err(err) => {
+                error!("[{:?}] read dir error: {}", path, err);
+                None
+            }
+        })
+    {
+        match entry.file_type() {
+            Ok(file_type) if file_type.is_dir() => {
+                relative_path.push(entry.file_name());
+                function = for_each_file_recursive_inner(&entry.path(), function, relative_path)?;
+                relative_path.pop();
+            }
+            Ok(file_type) if file_type.is_file() => {
+                function(&entry.path(), relative_path);
+            }
+            Err(err) => {
+                error!("[{:?}] file type error: {}", path, err);
+            }
+            _ => {}
+        }
+    }
+    Ok(function)
+}
+
 pub(crate) fn validate_files_recursive<F>(
     path: &Path,
     suffix: &str,
@@ -84,7 +151,7 @@ where
     let mut result = vec![];
     let mut count = 0;
     let mut last_log = Instant::now();
-    for_each_file_recursive(path, |entry_path| {
+    for_each_file_recursive(path, |entry_path, _relative_path| {
         let entry_path = entry_path.as_os_str().to_str().unwrap().to_string();
         if entry_path.ends_with(&suffix) {
             if let Err(err) = function(entry_path.as_ref()) {
@@ -100,44 +167,6 @@ where
     })?;
     info!("Validation completed! {} files validated", count);
     Ok(result)
-}
-
-pub(crate) fn for_each_file_recursive<F>(path: &Path, function: F) -> AnyResult<()>
-where
-    F: FnMut(&Path),
-{
-    let _ = for_each_file_recursive_inner(path, function)?;
-    Ok(())
-}
-
-fn for_each_file_recursive_inner<F>(path: &Path, mut function: F) -> AnyResult<F>
-where
-    F: FnMut(&Path),
-{
-    for entry in std::fs::read_dir(path)?
-        .into_iter()
-        .filter_map(|res| match res {
-            Ok(entry) => Some(entry),
-            Err(err) => {
-                error!("[{:?}] read dir error: {}", path, err);
-                None
-            }
-        })
-    {
-        match entry.file_type() {
-            Ok(file_type) if file_type.is_dir() => {
-                function = for_each_file_recursive_inner(&entry.path(), function)?;
-            }
-            Ok(file_type) if file_type.is_file() => {
-                function(&entry.path());
-            }
-            Err(err) => {
-                error!("[{:?}] file type error: {}", path, err);
-            }
-            _ => {}
-        }
-    }
-    Ok(function)
 }
 
 pub(crate) fn validate_index(path: &Path) -> AnyResult<()> {
@@ -185,7 +214,7 @@ where
     P: AsRef<Path>,
     Q: AsRef<Path>,
 {
-    recovery_blob_with(input, output, validate_every, Ok)
+    recovery_blob_with(input, output, validate_every, |record, _| Ok(record))
 }
 
 pub(crate) fn recovery_blob_with<P, Q, F>(
@@ -197,7 +226,7 @@ pub(crate) fn recovery_blob_with<P, Q, F>(
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
-    F: Fn(Record) -> AnyResult<Record>,
+    F: Fn(Record, u32) -> AnyResult<Record>,
 {
     if input.as_ref() == output.as_ref() {
         return Err(anyhow::anyhow!(
@@ -217,14 +246,14 @@ where
     while !reader.is_eof() {
         match reader
             .read_record_with_skip_wrong()
-            .and_then(|record| preprocess_record(record))
+            .and_then(|record| preprocess_record(record, header.version))
         {
             Ok(record) => {
                 writer.write_record(record)?;
                 count += 1;
             }
             Err(error) => {
-                warn!("Record read error: {}", error);
+                error!("Record read error from {:?}: {}", input.as_ref(), error);
                 break;
             }
         }

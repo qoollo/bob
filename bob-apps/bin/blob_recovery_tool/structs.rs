@@ -62,7 +62,7 @@ impl IndexHeader {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub(crate) struct BlobHeader {
     pub magic_byte: u64,
     pub version: u32,
@@ -135,7 +135,15 @@ pub(crate) struct Record {
 }
 
 impl Record {
-    pub(crate) fn with_reversed_key_bytes(mut self) -> AnyResult<Self> {
+    pub(crate) fn migrate(self, source: u32, target: u32) -> AnyResult<Self> {
+        match (source, target) {
+            (source, target) if source == target => Ok(self),
+            (1, 2) => self.mirgate_v1_to_v2(),
+            (source, target) => Err(Error::unsupported_migration(source, target).into()),
+        }
+    }
+
+    pub(crate) fn mirgate_v1_to_v2(mut self) -> AnyResult<Self> {
         self.header = self.header.with_reversed_key_bytes()?;
         Ok(self)
     }

@@ -60,7 +60,7 @@ impl BlobReader {
     }
 
     pub(crate) fn from_file(mut file: File) -> AnyResult<BlobReader> {
-        let position = file.seek(SeekFrom::Current(0))?;
+        let position = file.stream_position()?;
         let len = file.metadata()?.len();
         Ok(BlobReader {
             file,
@@ -74,11 +74,27 @@ impl BlobReader {
         self.position >= self.len
     }
 
+    fn read_data<T>(&mut self) -> AnyResult<T>
+    where
+        T: serde::de::DeserializeOwned + serde::Serialize,
+    {
+        let data = bincode::deserialize_from(&mut self.file)?;
+        self.position += bincode::serialized_size(&data)?;
+        Ok(data)
+    }
+
+    fn read_bytes(&mut self, count: usize) -> AnyResult<Vec<u8>> {
+        let mut data = vec![0; count as usize];
+        self.file
+            .read_exact(&mut data)
+            .with_context(|| "read record meta")?;
+        self.position += count as u64;
+        Ok(data)
+    }
+
     pub(crate) fn read_header(&mut self) -> AnyResult<BlobHeader> {
-        let header: BlobHeader =
-            bincode::deserialize_from(&mut self.file).with_context(|| "read blob header")?;
+        let header: BlobHeader = self.read_data().with_context(|| "read blob header")?;
         header.validate().with_context(|| "validate blob header")?;
-        self.position += bincode::serialized_size(&header)?;
         Ok(header)
     }
 
@@ -92,17 +108,13 @@ impl BlobReader {
         })?;
         self.latest_wrong_header = None;
 
-        let mut meta = vec![0; header.meta_size as usize];
-        self.file
-            .read_exact(&mut meta)
+        let meta = self
+            .read_bytes(header.meta_size as usize)
             .with_context(|| "read record meta")?;
-        self.position += header.meta_size;
 
-        let mut data = vec![0; header.data_size as usize];
-        self.file
-            .read_exact(&mut data)
+        let data = self
+            .read_bytes(header.data_size as usize)
             .with_context(|| "read record data")?;
-        self.position += header.data_size;
 
         let record = Record { header, meta, data };
         record.validate().with_context(|| "validate record")?;
@@ -176,6 +188,7 @@ impl BlobWriter {
     pub(crate) fn write_header(&mut self, header: &BlobHeader) -> AnyResult<()> {
         bincode::serialize_into(&mut self.file, header)?;
         self.written += bincode::serialized_size(&header).with_context(|| "write header")?;
+        self.validate_written_header(header)?;
         Ok(())
     }
 
@@ -201,6 +214,23 @@ impl BlobWriter {
             cache.clear();
             self.written_cached = 0;
         }
+    }
+
+    pub(crate) fn validate_written_header(&mut self, written_header: &BlobHeader) -> AnyResult<()> {
+        let current_position = self.written;
+        let mut file = self.file.try_clone()?;
+        file.seek(SeekFrom::Start(0))?;
+        let mut reader = BlobReader::from_file(file)?;
+        let header = reader.read_header()?;
+        if header != *written_header {
+            return Err(Error::blob_header_validation_error(
+                "validation of written blob header failed",
+            )
+            .into());
+        }
+        self.file.seek(SeekFrom::Start(current_position))?;
+        debug!("written header validated");
+        Ok(())
     }
 
     pub(crate) fn validate_written_records(&mut self) -> AnyResult<()> {

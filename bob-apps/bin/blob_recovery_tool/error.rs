@@ -15,6 +15,8 @@ pub(crate) enum Error {
     RecordValidation(String),
     #[error("skip data error: {0}")]
     SkipRecordData(String),
+    #[error("unsupported migration from {0} to {1}")]
+    UnsupportedMigration(u32, u32),
 }
 
 impl Error {
@@ -40,5 +42,9 @@ impl Error {
 
     pub(crate) fn skip_record_data_error(message: impl Into<String>) -> Self {
         Self::SkipRecordData(message.into())
+    }
+
+    pub(crate) fn unsupported_migration(from: u32, to: u32) -> Self {
+        Self::UnsupportedMigration(from, to)
     }
 }
