@@ -36,10 +36,15 @@ pub(crate) struct IndexHeader {
 impl Validatable for IndexHeader {
     fn validate(&self) -> AnyResult<()> {
         if self.written != 1 {
-            return Err(Error::validation_error("Header is corrupt".to_string()).into());
+            return Err(
+                Error::index_header_validation_error("Header is corrupt".to_string()).into(),
+            );
         }
         if self.version != 1 {
-            return Err(Error::validation_error("header version mismatch".to_string()).into());
+            return Err(Error::index_header_validation_error(
+                "header version mismatch".to_string(),
+            )
+            .into());
         }
         Ok(())
     }
@@ -67,9 +72,10 @@ pub(crate) struct BlobHeader {
 impl Validatable for BlobHeader {
     fn validate(&self) -> AnyResult<()> {
         if self.magic_byte != BLOB_MAGIC_BYTE {
-            return Err(
-                Error::validation_error("blob header magic byte is invalid".to_string()).into(),
-            );
+            return Err(Error::blob_header_validation_error(
+                "blob header magic byte is invalid".to_string(),
+            )
+            .into());
         }
         Ok(())
     }
@@ -106,14 +112,17 @@ impl Header {
 impl Validatable for Header {
     fn validate(&self) -> AnyResult<()> {
         if self.magic_byte != RECORD_MAGIC_BYTE {
-            return Err(
-                Error::validation_error("record header magic byte is invalid".to_string()).into(),
-            );
+            return Err(Error::record_header_validation_error(
+                "record header magic byte is invalid".to_string(),
+            )
+            .into());
         }
         let mut header = self.clone();
         header.header_checksum = 0;
         let serialized = bincode::serialize(&header)?;
-        validate_bytes(&serialized, self.header_checksum)?;
+        if !validate_bytes(&serialized, self.header_checksum) {
+            return Err(Error::index_header_validation_error("invalid header checksum").into());
+        };
         Ok(())
     }
 }
@@ -145,7 +154,9 @@ impl Debug for Record {
 impl Validatable for Record {
     fn validate(&self) -> AnyResult<()> {
         self.header.validate()?;
-        validate_bytes(&self.data, self.header.data_checksum)?;
+        if !validate_bytes(&self.data, self.header.data_checksum) {
+            return Err(Error::record_validation_error("invalid data checksum").into());
+        };
         Ok(())
     }
 }

@@ -14,8 +14,7 @@ pub(crate) mod prelude {
     pub(crate) use clap::{App, Arg, ArgMatches, SubCommand};
     pub(crate) use crc::crc32::checksum_castagnoli as crc32;
     pub(crate) use std::{
-        error::Error as ErrorTrait,
-        fmt::{Debug, Display, Formatter, Result as FmtResult},
+        fmt::{Debug, Formatter, Result as FmtResult},
         fs::{File, OpenOptions},
         io::{Read, Seek, SeekFrom, Write},
         path::{Path, PathBuf},

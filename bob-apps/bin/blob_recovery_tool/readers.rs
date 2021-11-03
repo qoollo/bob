@@ -45,6 +45,7 @@ pub(crate) struct BlobReader {
     file: File,
     position: u64,
     len: u64,
+    latest_wrong_header: Option<Header>,
 }
 
 impl BlobReader {
@@ -54,6 +55,7 @@ impl BlobReader {
             len: file.metadata()?.len(),
             file,
             position: 0,
+            latest_wrong_header: None,
         })
     }
 
@@ -64,6 +66,7 @@ impl BlobReader {
             file,
             position,
             len,
+            latest_wrong_header: None,
         })
     }
 
@@ -82,8 +85,12 @@ impl BlobReader {
     pub(crate) fn read_record(&mut self) -> AnyResult<Record> {
         let header: Header =
             bincode::deserialize_from(&mut self.file).with_context(|| "read record header")?;
-        header.validate()?;
         self.position += bincode::serialized_size(&header)?;
+        header.validate().map_err(|err| {
+            self.latest_wrong_header = Some(header.clone());
+            err
+        })?;
+        self.latest_wrong_header = None;
 
         let mut meta = vec![0; header.meta_size as usize];
         self.file
@@ -101,6 +108,41 @@ impl BlobReader {
         record.validate().with_context(|| "validate record")?;
         Ok(record)
     }
+
+    pub(crate) fn skip_wrong_record_data(&mut self) -> AnyResult<()> {
+        debug!("Trying to skip wrong record data");
+        let header = self
+            .latest_wrong_header
+            .as_ref()
+            .ok_or_else(|| Error::skip_record_data_error("wrong header not found"))?;
+        let position = self
+            .position
+            .checked_add(header.data_size)
+            .and_then(|x| x.checked_add(header.meta_size))
+            .ok_or_else(|| Error::skip_record_data_error("position overflow"))?;
+        if position >= self.len {
+            return Err(Error::skip_record_data_error("position is bigger than file size").into());
+        }
+        self.file.seek(SeekFrom::Start(position))?;
+        debug!("Skipped {} bytes", position - self.position);
+        self.position = position;
+        Ok(())
+    }
+
+    pub(crate) fn read_record_with_skip_wrong(&mut self) -> AnyResult<Record> {
+        match self.read_record() {
+            Ok(record) => Ok(record),
+            Err(error) => {
+                match error.downcast_ref::<Error>() {
+                    Some(Error::RecordValidation(_)) => {}
+                    Some(Error::RecordHeaderValidation(_)) => self.skip_wrong_record_data()?,
+                    _ => return Err(error),
+                }
+                warn!("Record read error, trying read next record: {}", error);
+                self.read_record()
+            }
+        }
+    }
 }
 
 pub(crate) struct BlobWriter {
@@ -111,21 +153,14 @@ pub(crate) struct BlobWriter {
 }
 
 impl BlobWriter {
-    pub(crate) fn from_path<P: AsRef<Path>>(
-        path: P,
-        should_cache_written: bool,
-    ) -> AnyResult<Self> {
+    pub(crate) fn from_path<P: AsRef<Path>>(path: P, cache_written: bool) -> AnyResult<Self> {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(true)
             .open(path)?;
-        let cache = if should_cache_written {
-            Some(vec![])
-        } else {
-            None
-        };
+        let cache = if cache_written { Some(vec![]) } else { None };
         Ok(BlobWriter {
             file,
             written: 0,
@@ -152,7 +187,7 @@ impl BlobWriter {
         written += record.meta.len() as u64;
         self.file.write_all(&record.data)?;
         written += record.data.len() as u64;
-        log::debug!("Record written: {:?}", record);
+        debug!("Record written: {:?}", record);
         if let Some(cache) = &mut self.cache {
             cache.push(record);
             self.written_cached += written;
@@ -177,7 +212,7 @@ impl BlobWriter {
         if cache.is_empty() {
             return Ok(());
         }
-        log::debug!("Start validation of written records");
+        debug!("Start validation of written records");
         let current_position = self.written;
         let start_position = current_position
             .checked_sub(self.written_cached)
@@ -188,13 +223,14 @@ impl BlobWriter {
         for record in cache.iter() {
             let written_record = reader.read_record()?;
             if record != &written_record {
-                return Err(
-                    Error::validation_error("Written and cached records is not equal").into(),
-                );
+                return Err(Error::record_validation_error(
+                    "Written and cached records is not equal",
+                )
+                .into());
             }
         }
         self.file.seek(SeekFrom::Start(current_position))?;
-        log::debug!("{} written records validated", cache.len());
+        debug!("{} written records validated", cache.len());
         Ok(())
     }
 }

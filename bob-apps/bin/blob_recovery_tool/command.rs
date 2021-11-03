@@ -80,21 +80,16 @@ pub struct ValidateBlobCommand {
     backup_suffix: String,
     validate_every: usize,
     fix: bool,
-    confirm: bool,
+    skip_confirmation: bool,
 }
 
 impl ValidateBlobCommand {
     fn run(&self) -> AnyResult<()> {
-        let result = process_files_recursive(
-            &self.path,
-            &self.blob_suffix,
-            |path, _| validate_blob(path),
-            "Blob validation",
-        )?;
+        let result = validate_files_recursive(&self.path, &self.blob_suffix, validate_blob)?;
         print_result(&result, "blob");
 
         if self.fix && !result.is_empty() {
-            if self.confirm && !ask_confirmation("Fix invalid blob files?")? {
+            if !self.skip_confirmation && !ask_confirmation("Fix invalid blob files?")? {
                 return Ok(());
             }
 
@@ -102,10 +97,10 @@ impl ValidateBlobCommand {
                 let backup_path = get_backup_path(path, &self.backup_suffix)?;
                 match move_and_recover_blob(&path, &backup_path, self.validate_every) {
                     Err(err) => {
-                        log::error!("Error: {}", err);
+                        error!("Error: {}", err);
                     }
                     _ => {
-                        log::warn!("[{}] recovered, backup saved to {:?}", path, backup_path);
+                        info!("[{}] recovered, backup saved to {:?}", path, backup_path);
                     }
                 }
             }
@@ -172,7 +167,7 @@ impl ValidateBlobCommand {
                 .expect("Required")
                 .to_string(),
             fix: matches.is_present(FIX_OPT),
-            confirm: !matches.is_present(NO_CONFIRM_OPT),
+            skip_confirmation: matches.is_present(NO_CONFIRM_OPT),
             validate_every: matches
                 .value_of(VALIDATE_EVERY_OPT)
                 .expect("Has default")
@@ -185,31 +180,26 @@ pub struct ValidateIndexCommand {
     path: PathBuf,
     index_suffix: String,
     delete: bool,
-    confirm: bool,
+    skip_confirmation: bool,
 }
 
 impl ValidateIndexCommand {
     fn run(&self) -> AnyResult<()> {
-        let result = process_files_recursive(
-            &self.path,
-            &self.index_suffix,
-            |path, _| validate_index(path),
-            "Index validation",
-        )?;
+        let result = validate_files_recursive(&self.path, &self.index_suffix, validate_index)?;
         print_result(&result, "index");
 
         if self.delete && !result.is_empty() {
-            if self.confirm && !ask_confirmation("Delete invalid index files?")? {
+            if !self.skip_confirmation && !ask_confirmation("Delete invalid index files?")? {
                 return Ok(());
             }
 
             for path in result {
                 match std::fs::remove_file(&path) {
                     Ok(_) => {
-                        log::warn!("[{}] index file removed", path);
+                        info!("[{}] index file removed", path);
                     }
                     Err(err) => {
-                        log::warn!("[{}] failed to remove index file: {}", path, err);
+                        info!("[{}] failed to remove index file: {}", path, err);
                     }
                 }
             }
@@ -255,7 +245,7 @@ impl ValidateIndexCommand {
             path: matches.value_of(DISK_PATH_OPT).expect("Required").into(),
             index_suffix: matches.value_of(SUFFIX_OPT).expect("Required").to_string(),
             delete: matches.is_present(DELETE_OPT),
-            confirm: !matches.is_present(NO_CONFIRM_OPT),
+            skip_confirmation: matches.is_present(NO_CONFIRM_OPT),
         })
     }
 }

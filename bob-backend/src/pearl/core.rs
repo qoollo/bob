@@ -14,11 +14,8 @@ pub type PearlStorage = Storage<Key>;
 
 #[derive(Clone, Debug)]
 pub struct Pearl {
-    settings: Arc<Settings>,
     disk_controllers: Arc<[Arc<DiskController>]>,
     alien_disk_controller: Arc<DiskController>,
-    node_name: String,
-    init_par_degree: usize,
 }
 
 impl Pearl {
@@ -44,11 +41,8 @@ impl Pearl {
             .await;
 
         let pearl = Self {
-            settings,
             disk_controllers,
             alien_disk_controller,
-            node_name: config.name().to_string(),
-            init_par_degree: config.init_par_degree(),
         };
         Ok(pearl)
     }

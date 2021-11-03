@@ -4,8 +4,11 @@ use crate::{
     cleaner::Cleaner,
     cluster::{get_cluster, Cluster},
     counter::Counter as BlobsCounter,
+    hw_metrics_collector::HWMetricsCollector,
     link_manager::LinkManager,
 };
+
+use metrics::histogram as timing;
 
 /// Struct for cooperation backend, link manager and cluster
 pub struct Grinder {
@@ -14,6 +17,7 @@ pub struct Grinder {
     cluster: Arc<dyn Cluster + Send + Sync>,
     cleaner: Arc<Cleaner>,
     counter: Arc<BlobsCounter>,
+    hw_counter: Arc<HWMetricsCollector>,
 }
 
 impl Grinder {
@@ -29,6 +33,10 @@ impl Grinder {
             config.hard_open_blobs(),
         );
         let cleaner = Arc::new(cleaner);
+        let hw_counter = Arc::new(HWMetricsCollector::new(
+            mapper.clone(),
+            Duration::from_secs(60),
+        ));
 
         let counter = Arc::new(BlobsCounter::new(config.count_interval()));
         Grinder {
@@ -37,6 +45,7 @@ impl Grinder {
             cluster: get_cluster(mapper, config, backend),
             cleaner,
             counter,
+            hw_counter,
         }
     }
 
@@ -73,7 +82,7 @@ impl Grinder {
                 counter!(CLIENT_PUT_ERROR_COUNT_COUNTER, 1);
             }
 
-            timing!(CLIENT_PUT_TIMER, time.elapsed().as_nanos() as u64);
+            timing!(CLIENT_PUT_TIMER, time.elapsed().as_nanos() as f64);
             trace!("<<<- - - - - GRINDER PUT FINISH - - - - -");
             result
         } else {
@@ -86,7 +95,7 @@ impl Grinder {
                 counter!(GRINDER_PUT_ERROR_COUNT_COUNTER, 1);
             }
 
-            timing!(GRINDER_PUT_TIMER, time.elapsed().as_nanos() as u64);
+            timing!(GRINDER_PUT_TIMER, time.elapsed().as_nanos() as f64);
             trace!(">>>- - - - - GRINDER PUT FINISH - - - - -");
             result
         }
@@ -116,7 +125,7 @@ impl Grinder {
                 counter!(CLIENT_GET_ERROR_COUNT_COUNTER, 1);
             }
 
-            timing!(CLIENT_GET_TIMER, time.elapsed().as_nanos() as u64);
+            timing!(CLIENT_GET_TIMER, time.elapsed().as_nanos() as f64);
             trace!(">>>- - - - - GRINDER GET FINISHED - - - - -");
             result
         } else {
@@ -135,7 +144,7 @@ impl Grinder {
             if result.is_err() {
                 counter!(GRINDER_GET_ERROR_COUNT_COUNTER, 1);
             }
-            timing!(GRINDER_GET_TIMER, time.elapsed().as_nanos() as u64);
+            timing!(GRINDER_GET_TIMER, time.elapsed().as_nanos() as f64);
             trace!(">>>- - - - - GRINDER GET FINISHED - - - - -");
             result
         }
@@ -158,7 +167,7 @@ impl Grinder {
             if result.is_err() {
                 counter!(CLIENT_EXIST_ERROR_COUNT_COUNTER, 1);
             }
-            timing!(CLIENT_EXIST_TIMER, time.elapsed().as_nanos() as u64);
+            timing!(CLIENT_EXIST_TIMER, time.elapsed().as_nanos() as f64);
             result
         } else {
             counter!(GRINDER_EXIST_COUNTER, 1);
@@ -171,7 +180,7 @@ impl Grinder {
             if result.is_err() {
                 counter!(GRINDER_EXIST_ERROR_COUNT_COUNTER, 1);
             }
-            timing!(GRINDER_EXIST_TIMER, time.elapsed().as_nanos() as u64);
+            timing!(GRINDER_EXIST_TIMER, time.elapsed().as_nanos() as f64);
             result
         }
     }
@@ -181,6 +190,7 @@ impl Grinder {
         self.link_manager.spawn_checker(client_factory);
         self.cleaner.spawn_task(self.backend.clone());
         self.counter.spawn_task(self.backend.clone());
+        self.hw_counter.spawn_task();
     }
 }
 

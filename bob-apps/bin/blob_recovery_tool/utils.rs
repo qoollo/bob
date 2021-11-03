@@ -3,7 +3,7 @@ use super::prelude::*;
 pub(crate) fn init_logger() -> AnyResult<()> {
     if std::env::var_os("RUST_LOG").is_none() {
         env_logger::builder()
-            .filter(None, log::LevelFilter::Warn)
+            .filter(None, log::LevelFilter::Info)
             .try_init()?;
     } else {
         env_logger::try_init()?;
@@ -33,6 +33,11 @@ pub(crate) fn validate_bytes(a: &[u8], checksum: u32) -> AnyResult<()> {
 
 pub(crate) fn calculate_checksum(a: &[u8]) -> u32 {
     crc32(a)
+}
+
+pub(crate) fn validate_bytes(a: &[u8], checksum: u32) -> bool {
+    let actual_checksum = crc32(a);
+    actual_checksum == checksum
 }
 
 pub(crate) fn get_backup_path(path: &str, suffix: &str) -> AnyResult<PathBuf> {
@@ -67,78 +72,67 @@ pub(crate) fn ask_confirmation(prompt: &str) -> AnyResult<bool> {
     }
 }
 
-pub(crate) fn process_files_recursive<F>(
+pub(crate) fn validate_files_recursive<F>(
     path: &Path,
     suffix: &str,
     mut function: F,
-    prefix: &str,
 ) -> AnyResult<Vec<String>>
 where
-    F: FnMut(&Path, &Path) -> AnyResult<()>,
+    F: FnMut(&Path) -> AnyResult<()> + Clone,
 {
-    log::warn!("{}: start", prefix);
+    info!("Start validation");
     let mut result = vec![];
     let mut count = 0;
     let mut last_log = Instant::now();
-    for_each_file_recursive(path, |entry_path, relative_path| {
-        let path_string = entry_path.as_os_str().to_str().unwrap().to_string();
-        if path_string.ends_with(&suffix) {
-            match function(entry_path, relative_path) {
-                Ok(_) => {}
-                Err(err) => {
-                    log::error!("{}: [{}] error: {}", prefix, path_string, err);
-                    result.push(path_string);
-                }
+    for_each_file_recursive(path, |entry_path| {
+        let entry_path = entry_path.as_os_str().to_str().unwrap().to_string();
+        if entry_path.ends_with(&suffix) {
+            if let Err(err) = function(entry_path.as_ref()) {
+                error!("[{}] validation error: {}", entry_path, err);
+                result.push(entry_path.to_string());
             }
             count += 1;
             if last_log.elapsed() >= Duration::from_secs(1) {
-                log::warn!("{}: {} files processed", prefix, count);
+                info!("{} files validated", count);
                 last_log = Instant::now();
             }
         }
     })?;
-    log::warn!("{} completed! {} files processed", prefix, count);
+    info!("Validation completed! {} files validated", count);
     Ok(result)
 }
 
 pub(crate) fn for_each_file_recursive<F>(path: &Path, function: F) -> AnyResult<()>
 where
-    F: FnMut(&Path, &Path),
+    F: FnMut(&Path),
 {
-    let mut relative_path = PathBuf::new();
-    let _ = for_each_file_recursive_inner(path, function, &mut relative_path)?;
+    let _ = for_each_file_recursive_inner(path, function)?;
     Ok(())
 }
 
-fn for_each_file_recursive_inner<F>(
-    path: &Path,
-    mut function: F,
-    relative_path: &mut PathBuf,
-) -> AnyResult<F>
+fn for_each_file_recursive_inner<F>(path: &Path, mut function: F) -> AnyResult<F>
 where
-    F: FnMut(&Path, &Path),
+    F: FnMut(&Path),
 {
     for entry in std::fs::read_dir(path)?
         .into_iter()
         .filter_map(|res| match res {
             Ok(entry) => Some(entry),
             Err(err) => {
-                log::error!("[{:?}] read dir error: {}", path, err);
+                error!("[{:?}] read dir error: {}", path, err);
                 None
             }
         })
     {
         match entry.file_type() {
             Ok(file_type) if file_type.is_dir() => {
-                relative_path.push(entry.file_name());
-                function = for_each_file_recursive_inner(&entry.path(), function, relative_path)?;
-                relative_path.pop();
+                function = for_each_file_recursive_inner(&entry.path(), function)?;
             }
             Ok(file_type) if file_type.is_file() => {
-                function(&entry.path(), relative_path);
+                function(&entry.path());
             }
             Err(err) => {
-                log::error!("[{:?}] file type error: {}", path, err);
+                error!("[{:?}] file type error: {}", path, err);
             }
             _ => {}
         }
@@ -152,7 +146,9 @@ pub(crate) fn validate_index(path: &Path) -> AnyResult<()> {
     reader.read_filter()?;
     for _ in 0..header.records_count {
         if reader.is_eof() {
-            return Err(Error::validation_error("invalid records count, can't read more").into());
+            return Err(
+                Error::index_validation_error("invalid records count, can't read more").into(),
+            );
         }
         reader.read_record_header()?;
     }
@@ -179,7 +175,7 @@ where
 {
     std::fs::rename(&invalid_path, &backup_path).with_context(|| "move invalid blob")?;
 
-    log::warn!("backup saved to {:?}", backup_path.as_ref());
+    info!("backup saved to {:?}", backup_path.as_ref());
     recovery_blob(&backup_path, &invalid_path, validate_every)?;
     Ok(())
 }
@@ -208,19 +204,19 @@ where
             "Recovering into same file is not supported"
         ));
     }
-    let should_validate_written = validate_every != 0;
+    let validate_written_records = validate_every != 0;
     let mut reader = BlobReader::from_path(&input)?;
-    log::debug!("Blob reader created");
+    info!("Blob reader created");
     let header = reader.read_header()?;
     // Create writer after read blob header to prevent empty blob creation
-    let mut writer = BlobWriter::from_path(&output, should_validate_written)?;
-    log::debug!("Blob writer created");
+    let mut writer = BlobWriter::from_path(&output, validate_written_records)?;
+    info!("Blob writer created");
     writer.write_header(&header)?;
-    log::debug!("Input blob header version: {}", header.version);
+    info!("Input blob header version: {}", header.version);
     let mut count = 0;
     while !reader.is_eof() {
         match reader
-            .read_record()
+            .read_record_with_skip_wrong()
             .and_then(|record| preprocess_record(record))
         {
             Ok(record) => {
@@ -228,25 +224,25 @@ where
                 count += 1;
             }
             Err(error) => {
-                log::warn!("Record read error: {}", error);
+                warn!("Record read error: {}", error);
                 break;
             }
         }
-        if should_validate_written && count % validate_every == 0 {
+        if validate_written_records && count % validate_every == 0 {
             writer.validate_written_records()?;
             writer.clear_cache();
         }
     }
-    if should_validate_written {
+    if validate_written_records {
         writer.validate_written_records()?;
         writer.clear_cache();
     }
-    log::info!(
+    info!(
         "Blob from '{:?}' recovered to '{:?}'",
         input.as_ref(),
         output.as_ref()
     );
-    log::info!(
+    info!(
         "{} records written, totally {} bytes",
         count,
         writer.written()
@@ -256,14 +252,10 @@ where
 
 pub(crate) fn print_result(result: &[String], file_type: &str) {
     if result.is_empty() {
-        log::warn!("All {} files is valid", file_type);
+        info!("All {} files is valid", file_type);
     } else {
         for value in result {
-            log::warn!(
-                "Print corrupted {} files: {} totally",
-                file_type,
-                result.len()
-            );
+            info!("Print corrupted {} files", file_type);
             println!("{}", value);
         }
     }
