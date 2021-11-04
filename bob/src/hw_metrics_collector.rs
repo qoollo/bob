@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use bob_common::metrics::{
-    AMOUNT_DESCRIPTORS, CPU_LOAD, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE,
+    AMOUNT_DESCRIPTORS, CPU_LOAD, FREE_RAM, FREE_SPACE, TOTAL_SPACE, USED_RAM,
 };
 use std::path::{Path, PathBuf};
 use sysinfo::{DiskExt, ProcessExt, System, SystemExt};
@@ -64,7 +64,7 @@ impl HWMetricsCollector {
             gauge!(FREE_SPACE, free_space as f64);
             let used_mem = kb_to_mb(sys.used_memory());
             debug!("used mem in mb: {}", used_mem);
-            gauge!(TOTAL_RAM, used_mem as f64);
+            gauge!(USED_RAM, used_mem as f64);
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
             gauge!(AMOUNT_DESCRIPTORS, dcounter.descr_amount() as f64);
             gauge!(CPU_LOAD, proc.cpu_usage() as f64);
