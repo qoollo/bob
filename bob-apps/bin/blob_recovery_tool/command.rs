@@ -14,13 +14,13 @@ const TARGET_VERSION_OPT: &str = "target version";
 const VALIDATE_INDEX_COMMAND: &str = "validate-index";
 const VALIDATE_BLOB_COMMAND: &str = "validate-blob";
 const RECOVERY_COMMAND: &str = "recovery";
-const REVERSE_BYTE_ORDER_COMMAND: &str = "migrate";
+const MIGRATE_COMMAND: &str = "migrate";
 
 pub enum MainCommand {
     Recovery(RecoveryBlobCommand),
     Validate(ValidateBlobCommand),
     ValidateIndex(ValidateIndexCommand),
-    ReverseByteOrder(ReverseByteOrderCommand),
+    Migrate(MigrateCommand),
 }
 
 pub struct RecoveryBlobCommand {
@@ -251,7 +251,7 @@ impl ValidateIndexCommand {
     }
 }
 
-pub struct ReverseByteOrderCommand {
+pub struct MigrateCommand {
     input_path: PathBuf,
     output_path: PathBuf,
     blob_suffix: String,
@@ -259,7 +259,7 @@ pub struct ReverseByteOrderCommand {
     target_version: u32,
 }
 
-impl ReverseByteOrderCommand {
+impl MigrateCommand {
     fn run(&self) -> AnyResult<()> {
         process_files_recursive(
             &self.input_path,
@@ -273,16 +273,17 @@ impl ReverseByteOrderCommand {
                 })?;
                 Ok(())
             },
-            "Reverse key byte order",
+            "Migration",
         )?;
         Ok(())
     }
 
     fn subcommand<'a, 'b>() -> App<'a, 'b> {
-        SubCommand::with_name(REVERSE_BYTE_ORDER_COMMAND)
+        SubCommand::with_name(MIGRATE_COMMAND)
             .arg(
                 Arg::with_name(INPUT_OPT)
                     .help("input disk path")
+                    .value_name("path")
                     .short("i")
                     .long("input")
                     .takes_value(true)
@@ -291,6 +292,7 @@ impl ReverseByteOrderCommand {
             .arg(
                 Arg::with_name(OUTPUT_OPT)
                     .help("output disk path")
+                    .value_name("path")
                     .short("o")
                     .long("output")
                     .takes_value(true)
@@ -324,8 +326,8 @@ impl ReverseByteOrderCommand {
             )
     }
 
-    fn from_matches(matches: &ArgMatches) -> AnyResult<ReverseByteOrderCommand> {
-        Ok(ReverseByteOrderCommand {
+    fn from_matches(matches: &ArgMatches) -> AnyResult<MigrateCommand> {
+        Ok(MigrateCommand {
             input_path: matches.value_of(INPUT_OPT).expect("Required").into(),
             output_path: matches.value_of(OUTPUT_OPT).expect("Required").into(),
             blob_suffix: matches.value_of(SUFFIX_OPT).expect("Required").to_string(),
@@ -348,7 +350,7 @@ impl MainCommand {
             MainCommand::Recovery(settings) => settings.run(),
             MainCommand::Validate(settings) => settings.run(),
             MainCommand::ValidateIndex(settings) => settings.run(),
-            MainCommand::ReverseByteOrder(settings) => settings.run(),
+            MainCommand::Migrate(settings) => settings.run(),
         }
     }
 
@@ -358,7 +360,7 @@ impl MainCommand {
             .subcommand(RecoveryBlobCommand::subcommand())
             .subcommand(ValidateBlobCommand::subcommand())
             .subcommand(ValidateIndexCommand::subcommand())
-            .subcommand(ReverseByteOrderCommand::subcommand())
+            .subcommand(MigrateCommand::subcommand())
             .get_matches()
     }
 
@@ -374,9 +376,9 @@ impl MainCommand {
             (VALIDATE_INDEX_COMMAND, Some(matches)) => Ok(MainCommand::ValidateIndex(
                 ValidateIndexCommand::from_matches(matches)?,
             )),
-            (REVERSE_BYTE_ORDER_COMMAND, Some(matches)) => Ok(MainCommand::ReverseByteOrder(
-                ReverseByteOrderCommand::from_matches(matches)?,
-            )),
+            (MIGRATE_COMMAND, Some(matches)) => {
+                Ok(MainCommand::Migrate(MigrateCommand::from_matches(matches)?))
+            }
             _ => Err(anyhow::anyhow!("Unknown command")),
         }
     }
