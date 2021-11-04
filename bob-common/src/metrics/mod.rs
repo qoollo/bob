@@ -82,8 +82,10 @@ pub const AMOUNT_DESCRIPTORS: &str = "descr_amount";
 
 pub const CPU_LOAD: &str = "cpu_load";
 pub const FREE_RAM: &str = "free_ram";
-pub const FREE_SPACE: &str = "free_space";
 pub const USED_RAM: &str = "used_ram";
+pub const TOTAL_RAM: &str = "total_ram";
+pub const FREE_SPACE: &str = "free_space";
+pub const USED_SPACE: &str = "used_space";
 pub const TOTAL_SPACE: &str = "total_space";
 
 const CLIENTS_METRICS_DIR: &str = "clients";
