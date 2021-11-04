@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use bob_common::metrics::{
-    AMOUNT_DESCRIPTORS, CPU_LOAD, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE, USED_RAM,
+    CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE, USED_RAM,
     USED_SPACE,
 };
 use std::path::{Path, PathBuf};
@@ -69,7 +69,7 @@ impl HWMetricsCollector {
             debug!("used mem in mb: {}", used_mem);
             gauge!(USED_RAM, used_mem as f64);
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
-            gauge!(AMOUNT_DESCRIPTORS, dcounter.descr_amount() as f64);
+            gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
             gauge!(CPU_LOAD, proc.cpu_usage() as f64);
         }
     }
@@ -124,14 +124,14 @@ impl DescrCounter {
     fn descr_amount(&mut self) -> u64 {
         if self.cached_times == 0 {
             self.cached_times = CACHED_TIMES;
-            Self::descr_count()
+            self.value = Self::count_descriptors();
         } else {
             self.cached_times -= 1;
-            self.value
         }
+        self.value
     }
 
-    fn descr_count() -> u64 {
+    fn count_descriptors() -> u64 {
         // FIXME: didn't find better way, but iterator's `count` method has O(n) complexity
         // isolated tests (notice that in this case directory may be cached, so it works more
         // quickly):
@@ -149,10 +149,14 @@ impl DescrCounter {
         //  with payload
         //  |  10.000   |      0.018     |
         let d = std::fs::read_dir(DESCRS_DIR);
-        if let Ok(d) = d {
-            d.count() as u64 - 4 // exclude stdin, stdout, stderr and `read_dir` instance
-        } else {
-            0 // proc is unsupported
+        match d {
+            Ok(d) => {
+                d.count() as u64 - 4 // exclude stdin, stdout, stderr and `read_dir` instance
+            }
+            Err(e) => {
+                warn!("failed to count descriptors: {}", e);
+                0 // proc is unsupported
+            }
         }
     }
 }
