@@ -335,6 +335,7 @@ impl Group {
     pub fn create_pearl_holder(&self, start_timestamp: u64, hash: &str) -> Holder {
         let end_timestamp = start_timestamp + self.settings.timestamp_period_as_secs();
         let mut path = self.directory_path.clone();
+        info!("creating pearl holder {}", path.as_path().display());
         let partition_name = PartitionName::new(start_timestamp, hash);
         path.push(partition_name.to_string());
         let mut config = self.settings.config().clone();
