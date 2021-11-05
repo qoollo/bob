@@ -39,7 +39,7 @@ http_api_address: 0.0.0.0
 
 # used only for 'backend_type: pearl'
 pearl:
-  # optional, default = true, enables linux AIO
+  # optional, default = false, enables linux AIO
   enable_aio: false
   # path to logfile with info about disks states switches, default = "/tmp/bob_events.csv"
   disks_events_logfile: "/tmp/bob_events.csv"
