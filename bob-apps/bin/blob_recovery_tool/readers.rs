@@ -98,7 +98,7 @@ impl BlobReader {
         Ok(header)
     }
 
-    pub(crate) fn read_record(&mut self) -> AnyResult<Record> {
+    pub(crate) fn read_single_record(&mut self) -> AnyResult<Record> {
         let header: Header =
             bincode::deserialize_from(&mut self.file).with_context(|| "read record header")?;
         self.position += bincode::serialized_size(&header)?;
@@ -141,8 +141,11 @@ impl BlobReader {
         Ok(())
     }
 
-    pub(crate) fn read_record_with_skip_wrong(&mut self) -> AnyResult<Record> {
-        match self.read_record() {
+    pub(crate) fn read_record(&mut self, skip_wrong: bool) -> AnyResult<Record> {
+        if skip_wrong {
+            return self.read_single_record();
+        }
+        match self.read_single_record() {
             Ok(record) => Ok(record),
             Err(error) => {
                 match error.downcast_ref::<Error>() {
@@ -151,7 +154,7 @@ impl BlobReader {
                     _ => return Err(error),
                 }
                 warn!("Record read error, trying read next record: {}", error);
-                self.read_record()
+                self.read_single_record()
             }
         }
     }
@@ -251,7 +254,7 @@ impl BlobWriter {
         file.seek(SeekFrom::Start(start_position))?;
         let mut reader = BlobReader::from_file(file)?;
         for record in cache.iter() {
-            let written_record = reader.read_record()?;
+            let written_record = reader.read_single_record()?;
             if record != &written_record {
                 return Err(Error::record_validation_error(
                     "Written and cached records is not equal",

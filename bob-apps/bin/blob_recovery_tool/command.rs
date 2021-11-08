@@ -10,6 +10,7 @@ const FIX_OPT: &str = "fix";
 const NO_CONFIRM_OPT: &str = "no confirm";
 const DELETE_OPT: &str = "index delete";
 const TARGET_VERSION_OPT: &str = "target version";
+const SKIP_WRONG_OPT: &str = "skip wrong";
 
 const VALIDATE_INDEX_COMMAND: &str = "validate-index";
 const VALIDATE_BLOB_COMMAND: &str = "validate-blob";
@@ -27,11 +28,17 @@ pub struct RecoveryBlobCommand {
     input: String,
     output: String,
     validate_every: usize,
+    skip_wrong_record: bool,
 }
 
 impl RecoveryBlobCommand {
     fn run(&self) -> AnyResult<()> {
-        recovery_blob(&self.input, &self.output, self.validate_every)
+        recovery_blob(
+            &self.input,
+            &self.output,
+            self.validate_every,
+            self.skip_wrong_record,
+        )
     }
 
     fn subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -61,12 +68,19 @@ impl RecoveryBlobCommand {
                     .value_name("N")
                     .long("cache-size"),
             )
+            .arg(
+                Arg::with_name(SKIP_WRONG_OPT)
+                    .takes_value(false)
+                    .help("try to skip wrong records")
+                    .long("skip-wrong-record"),
+            )
     }
 
     fn from_matches(matches: &ArgMatches) -> AnyResult<RecoveryBlobCommand> {
         Ok(RecoveryBlobCommand {
             input: matches.value_of(INPUT_OPT).expect("Required").to_string(),
             output: matches.value_of(OUTPUT_OPT).expect("Required").to_string(),
+            skip_wrong_record: matches.is_present(SKIP_WRONG_OPT),
             validate_every: matches
                 .value_of(VALIDATE_EVERY_OPT)
                 .expect("Has default")
@@ -86,6 +100,11 @@ pub struct ValidateBlobCommand {
 
 impl ValidateBlobCommand {
     fn run(&self) -> AnyResult<()> {
+        if self.path.is_file() {
+            validate_blob(&self.path)?;
+            info!("Blob {:?} is valid", self.path);
+            return Ok(());
+        }
         let result = validate_files_recursive(&self.path, &self.blob_suffix, validate_blob)?;
         print_result(&result, "blob");
 
@@ -186,6 +205,11 @@ pub struct ValidateIndexCommand {
 
 impl ValidateIndexCommand {
     fn run(&self) -> AnyResult<()> {
+        if self.path.is_file() {
+            validate_index(&self.path)?;
+            info!("Index {:?} is valid", self.path);
+            return Ok(());
+        }
         let result = validate_files_recursive(&self.path, &self.index_suffix, validate_index)?;
         print_result(&result, "index");
 
@@ -261,19 +285,31 @@ pub struct MigrateCommand {
 
 impl MigrateCommand {
     fn run(&self) -> AnyResult<()> {
-        process_files_recursive(
-            &self.input_path,
-            &self.blob_suffix,
-            |path, relative_path| {
-                let output_dir = self.output_path.join(relative_path);
-                std::fs::create_dir_all(&output_dir)?;
-                let output = output_dir.join(path.file_name().expect("Must be filename"));
-                recovery_blob_with(&path, &output, self.validate_every, |record, version| {
-                    record.migrate(version, self.target_version)
-                })?;
-                Ok(())
-            },
-            "Migration",
+        if self.input_path.is_file() {
+            self.migrate_file(&self.input_path, &self.output_path)?;
+        } else {
+            process_files_recursive(
+                &self.input_path,
+                &self.blob_suffix,
+                |path, relative_path| {
+                    let output_dir = self.output_path.join(relative_path);
+                    std::fs::create_dir_all(&output_dir)?;
+                    let output = output_dir.join(path.file_name().expect("Must be filename"));
+                    self.migrate_file(path, &output)
+                },
+                "Migration",
+            )?;
+        }
+        Ok(())
+    }
+
+    fn migrate_file(&self, input: &Path, output: &Path) -> AnyResult<()> {
+        recovery_blob_with(
+            &input,
+            &output,
+            self.validate_every,
+            |record, version| record.migrate(version, self.target_version),
+            false,
         )?;
         Ok(())
     }

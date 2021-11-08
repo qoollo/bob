@@ -137,13 +137,13 @@ pub(crate) struct Record {
 impl Record {
     pub(crate) fn migrate(self, source: u32, target: u32) -> AnyResult<Self> {
         match (source, target) {
-            (source, target) if source == target => Ok(self),
-            (1, 2) => self.mirgate_v1_to_v2(),
+            (source, target) if source >= target => Ok(self),
+            (0, 1) => self.mirgate_v0_to_v1(),
             (source, target) => Err(Error::unsupported_migration(source, target).into()),
         }
     }
 
-    pub(crate) fn mirgate_v1_to_v2(mut self) -> AnyResult<Self> {
+    pub(crate) fn mirgate_v0_to_v1(mut self) -> AnyResult<Self> {
         self.header = self.header.with_reversed_key_bytes()?;
         Ok(self)
     }

@@ -188,7 +188,7 @@ pub(crate) fn validate_blob(path: &Path) -> AnyResult<()> {
     let mut reader = BlobReader::from_path(&path)?;
     reader.read_header()?;
     while !reader.is_eof() {
-        reader.read_record()?;
+        reader.read_record(false)?;
     }
     Ok(())
 }
@@ -205,16 +205,27 @@ where
     std::fs::rename(&invalid_path, &backup_path).with_context(|| "move invalid blob")?;
 
     info!("backup saved to {:?}", backup_path.as_ref());
-    recovery_blob(&backup_path, &invalid_path, validate_every)?;
+    recovery_blob(&backup_path, &invalid_path, validate_every, true)?;
     Ok(())
 }
 
-pub(crate) fn recovery_blob<P, Q>(input: &P, output: &Q, validate_every: usize) -> AnyResult<()>
+pub(crate) fn recovery_blob<P, Q>(
+    input: &P,
+    output: &Q,
+    validate_every: usize,
+    skip_wrong_record: bool,
+) -> AnyResult<()>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
 {
-    recovery_blob_with(input, output, validate_every, |record, _| Ok(record))
+    recovery_blob_with(
+        input,
+        output,
+        validate_every,
+        |record, _| Ok(record),
+        skip_wrong_record,
+    )
 }
 
 pub(crate) fn recovery_blob_with<P, Q, F>(
@@ -222,6 +233,7 @@ pub(crate) fn recovery_blob_with<P, Q, F>(
     output: &Q,
     validate_every: usize,
     preprocess_record: F,
+    skip_wrong_record: bool,
 ) -> AnyResult<()>
 where
     P: AsRef<Path>,
@@ -245,7 +257,7 @@ where
     let mut count = 0;
     while !reader.is_eof() {
         match reader
-            .read_record_with_skip_wrong()
+            .read_record(skip_wrong_record)
             .and_then(|record| preprocess_record(record, header.version))
         {
             Ok(record) => {
