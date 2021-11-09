@@ -154,7 +154,7 @@ impl DescrCounter {
                 d.count() as u64 - 4 // exclude stdin, stdout, stderr and `read_dir` instance
             }
             Err(e) => {
-                warn!("failed to count descriptors: {}", e);
+                debug!("failed to count descriptors: {}", e);
                 0 // proc is unsupported
             }
         }
