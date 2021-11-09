@@ -275,13 +275,13 @@ paths:
                 ref: '#/components/schemas/NodeConfiguration'
         default:
           $ref: '#/components/responses/DefaultError'
-  /alien/sync:
+  /alien/detach:
     post:
-      summary: Sync alien data to the storage
-      operationId: syncAlienData
+      summary: Detach alien partitions
+      operationId: detachAlienPartitions
       responses:
         '200':
-          description: Successfully synced alien data
+          description: Successfully deatched alien partitions
         default:
           $ref: "#/components/responses/DefaultError"
   /alien/dir:
@@ -481,5 +481,5 @@ components:
     NodeConfiguration:
       type: object
       properties:
-        root_dir:
+        blob_file_name_prefix:
           type: string

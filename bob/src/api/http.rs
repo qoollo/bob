@@ -113,7 +113,7 @@ pub(crate) struct VersionInfo {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct NodeConfiguration {
-    root_dir: String,
+    blob_file_name_prefix: String,
 }
 
 pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
@@ -128,7 +128,7 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
         delete_partition,
         get_node_configuration,
         alien,
-        sync_alien_data,
+        detach_alien_partitions,
         get_alien_directory,
         remount_vdisks_group,
         start_all_disk_controllers,
@@ -325,7 +325,7 @@ async fn get_node_configuration(bob: &State<BobServer>) -> Json<NodeConfiguratio
     let grinder = bob.grinder();
     let config = grinder.node_config();
     Json(NodeConfiguration {
-        root_dir: config.pearl().blob_file_name_prefix().to_owned(),
+        blob_file_name_prefix: config.pearl().blob_file_name_prefix().to_owned(),
     })
 }
 
@@ -584,8 +584,8 @@ async fn alien(_bob: &State<BobServer>) -> &'static str {
     "alien"
 }
 
-#[post("/alien/sync")]
-async fn sync_alien_data(bob: &State<BobServer>) -> Result<StatusExt, StatusExt> {
+#[post("/alien/detach")]
+async fn detach_alien_partitions(bob: &State<BobServer>) -> Result<StatusExt, StatusExt> {
     let backend = bob.grinder().backend().inner();
     let (_, alien_disk_controller) = backend
         .disk_controllers()
