@@ -8,7 +8,7 @@ Bob versions changelog
 
 
 #### Changed
-
+- Disable AIO by default (#335)
 
 
 #### Fixed
