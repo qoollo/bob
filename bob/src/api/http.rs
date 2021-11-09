@@ -295,12 +295,12 @@ async fn nodes(bob: &State<BobServer>) -> Json<Vec<Node>> {
 #[get("/disks/list")]
 async fn disks_list(bob: &State<BobServer>) -> Result<Json<Vec<DiskState>>, StatusExt> {
     let backend = bob.grinder().backend().inner();
-    let (dcs, adc) = backend
+    let (dcs, alien_disk_controller) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
 
     let mut disks = Vec::new();
-    for dc in dcs.iter().chain(std::iter::once(&adc)) {
+    for dc in dcs.iter().chain(std::iter::once(&alien_disk_controller)) {
         let disk_path = dc.disk();
         disks.push(DiskState {
             name: disk_path.name().to_owned(),
@@ -336,11 +336,11 @@ async fn stop_all_disk_controllers(
 ) -> Result<StatusExt, StatusExt> {
     use futures::stream::{FuturesUnordered, StreamExt};
     let backend = bob.grinder().backend().inner();
-    let (dcs, adc) = backend
+    let (dcs, alien_disk_controller) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
     dcs.iter()
-        .chain(std::iter::once(&adc))
+        .chain(std::iter::once(&alien_disk_controller))
         .filter(|dc| dc.disk().name() == disk_name)
         .map(|dc| dc.stop())
         .collect::<FuturesUnordered<_>>()
@@ -360,12 +360,12 @@ async fn start_all_disk_controllers(
 ) -> Result<StatusExt, StatusExt> {
     use futures::stream::{FuturesUnordered, StreamExt};
     let backend = bob.grinder().backend().inner();
-    let (dcs, adc) = backend
+    let (dcs, alien_disk_controller) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
     let target_dcs = dcs
         .iter()
-        .chain(std::iter::once(&adc))
+        .chain(std::iter::once(&alien_disk_controller))
         .filter(|dc| dc.disk().name() == disk_name)
         .map(|dc| dc.run())
         .collect::<FuturesUnordered<_>>();
@@ -587,20 +587,20 @@ async fn alien(_bob: &State<BobServer>) -> &'static str {
 #[post("/alien/sync")]
 async fn sync_alien_data(bob: &State<BobServer>) -> Result<StatusExt, StatusExt> {
     let backend = bob.grinder().backend().inner();
-    let (_, adc) = backend
+    let (_, alien_disk_controller) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
-    adc.detach_all().await?;
+    alien_disk_controller.detach_all().await?;
     Ok(StatusExt::new(Status::Ok, true, String::default()))
 }
 
 #[get("/alien/dir")]
 async fn get_alien_directory(bob: &State<BobServer>) -> Result<Json<Dir>, StatusExt> {
     let backend = bob.grinder().backend().inner();
-    let (_, adc) = backend
+    let (_, alien_disk_controller) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
-    let path = PathBuf::from(adc.disk().path());
+    let path = PathBuf::from(alien_disk_controller.disk().path());
     let dir = create_directory(&path).await?;
     Ok(Json(dir))
 }
