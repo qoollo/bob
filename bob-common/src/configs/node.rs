@@ -344,7 +344,7 @@ impl Pearl {
     }
 
     fn default_enable_aio() -> Arc<AtomicBool> {
-        Arc::new(AtomicBool::new(true))
+        Arc::new(AtomicBool::new(false))
     }
 
     pub fn disks_events_logfile(&self) -> &str {
