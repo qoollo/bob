@@ -12,7 +12,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Hardware metrics names for RAM and disk space (#358)
 
 
 #### Updated
