@@ -7,11 +7,10 @@ use crate::data::DiskPath;
 use futures::Future;
 use humantime::Duration as HumanDuration;
 use std::{
-    cell::{Ref, RefCell},
     env::VarError,
     fmt::Debug,
     net::SocketAddr,
-    sync::atomic::AtomicBool,
+    sync::{atomic::AtomicBool, Mutex},
     time::Duration,
 };
 use std::{net::IpAddr, sync::atomic::Ordering};
@@ -476,9 +475,9 @@ pub struct Node {
     metrics: Option<MetricsConfig>,
 
     #[serde(skip)]
-    bind_ref: RefCell<String>,
+    bind_ref: Arc<Mutex<String>>,
     #[serde(skip)]
-    disks_ref: RefCell<Vec<DiskPath>>,
+    disks_ref: Arc<Mutex<Vec<DiskPath>>>,
 
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
@@ -534,8 +533,8 @@ impl NodeConfig {
     }
 
     /// Get reference to bind address.
-    pub fn bind(&self) -> Ref<String> {
-        self.bind_ref.borrow()
+    pub fn bind(&self) -> Arc<Mutex<String>> {
+        self.bind_ref.clone()
     }
 
     /// Get grpc request operation timeout, parsed from humantime format.
@@ -565,8 +564,8 @@ impl NodeConfig {
     }
 
     /// Get reference to collection of disks [`DiskPath`]
-    pub fn disks(&self) -> Ref<Vec<DiskPath>> {
-        self.disks_ref.borrow()
+    pub fn disks(&self) -> Arc<Mutex<Vec<DiskPath>>> {
+        self.disks_ref.clone()
     }
 
     pub fn backend_type(&self) -> BackendType {
@@ -583,15 +582,20 @@ impl NodeConfig {
     }
 
     pub fn prepare(&self, node: &ClusterNodeConfig) -> Result<(), String> {
-        self.bind_ref.replace(node.address().to_owned());
-
+        {
+            let mut lck = self.bind_ref.lock().expect("mutex");
+            *lck = node.address().to_owned();
+        }
         let t = node
             .disks()
             .iter()
             .map(|disk| DiskPath::new(disk.name().to_owned(), disk.path().to_owned()))
             .collect::<Vec<_>>();
-        self.disks_ref.replace(t);
 
+        {
+            let mut lck = self.disks_ref.lock().expect("mutex");
+            *lck = t;
+        }
         self.backend_result()?;
 
         if self.backend_type() == BackendType::Pearl {
@@ -741,7 +745,7 @@ impl Validatable for NodeConfig {
 pub mod tests {
     use crate::configs::node::Node as NodeConfig;
 
-    use std::cell::RefCell;
+    use std::sync::Arc;
 
     pub fn node_config(name: &str, quorum: usize) -> NodeConfig {
         NodeConfig {
@@ -754,8 +758,8 @@ pub mod tests {
             backend_type: "in_memory".to_string(),
             pearl: None,
             metrics: None,
-            bind_ref: RefCell::default(),
-            disks_ref: RefCell::default(),
+            bind_ref: Arc::default(),
+            disks_ref: Arc::default(),
             cleanup_interval: "1d".to_string(),
             open_blobs_soft_limit: None,
             open_blobs_hard_limit: None,
