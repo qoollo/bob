@@ -4,8 +4,22 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Add brt mode to reverse byte order ([#286](https://github.com/qoollo/bob/pull/286))
-- Add alien blobs sync API ([#334](https://github.com/qoollo/bob/pull/346))
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.0.0-alpha.7] - 2021-11-09
+#### Added
+- Add brt mode to reverse byte order (#286)
+- Add alien blobs sync API (#334)
 
 
 #### Changed
