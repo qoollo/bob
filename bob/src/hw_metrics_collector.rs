@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use bob_common::metrics::{
-    AMOUNT_DESCRIPTORS, CPU_LOAD, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE,
+    CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE, USED_RAM,
+    USED_SPACE,
 };
 use std::path::{Path, PathBuf};
 use sysinfo::{DiskExt, ProcessExt, System, SystemExt};
@@ -50,6 +51,7 @@ impl HWMetricsCollector {
         let mut sys = System::new_all();
         let mut dcounter = DescrCounter::new();
         let total_mem = kb_to_mb(sys.total_memory());
+        gauge!(TOTAL_RAM, total_mem as f64);
         debug!("total mem in mb: {}", total_mem);
         let pid = std::process::id() as i32;
 
@@ -60,13 +62,14 @@ impl HWMetricsCollector {
             let proc = sys.process(pid).expect("Can't get process stat descriptor");
 
             let (total_space, free_space) = Self::space(&sys, &disks);
-            gauge!(TOTAL_SPACE, (total_space - free_space) as f64); // i.e. used space
+            gauge!(TOTAL_SPACE, total_space as f64);
+            gauge!(USED_SPACE, (total_space - free_space) as f64);
             gauge!(FREE_SPACE, free_space as f64);
             let used_mem = kb_to_mb(sys.used_memory());
             debug!("used mem in mb: {}", used_mem);
-            gauge!(TOTAL_RAM, used_mem as f64);
+            gauge!(USED_RAM, used_mem as f64);
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
-            gauge!(AMOUNT_DESCRIPTORS, dcounter.descr_amount() as f64);
+            gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
             gauge!(CPU_LOAD, proc.cpu_usage() as f64);
         }
     }
@@ -121,14 +124,14 @@ impl DescrCounter {
     fn descr_amount(&mut self) -> u64 {
         if self.cached_times == 0 {
             self.cached_times = CACHED_TIMES;
-            Self::descr_count()
+            self.value = Self::count_descriptors();
         } else {
             self.cached_times -= 1;
-            self.value
         }
+        self.value
     }
 
-    fn descr_count() -> u64 {
+    fn count_descriptors() -> u64 {
         // FIXME: didn't find better way, but iterator's `count` method has O(n) complexity
         // isolated tests (notice that in this case directory may be cached, so it works more
         // quickly):
@@ -146,10 +149,14 @@ impl DescrCounter {
         //  with payload
         //  |  10.000   |      0.018     |
         let d = std::fs::read_dir(DESCRS_DIR);
-        if let Ok(d) = d {
-            d.count() as u64 - 4 // exclude stdin, stdout, stderr and `read_dir` instance
-        } else {
-            0 // proc is unsupported
+        match d {
+            Ok(d) => {
+                d.count() as u64 - 4 // exclude stdin, stdout, stderr and `read_dir` instance
+            }
+            Err(e) => {
+                debug!("failed to count descriptors: {}", e);
+                0 // proc is unsupported
+            }
         }
     }
 }

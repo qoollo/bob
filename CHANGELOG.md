@@ -8,11 +8,11 @@ Bob versions changelog
 
 
 #### Changed
-
+- Disable AIO by default (#335)
 
 
 #### Fixed
-
+- Hardware metrics names for RAM and disk space (#358)
 
 
 #### Updated
