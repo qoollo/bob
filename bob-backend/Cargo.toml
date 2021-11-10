@@ -41,6 +41,3 @@ version = "=0.8.0"
 version = "1.11"
 default-features = false
 features = []
-
-[build-dependencies]
-tonic-build = "0.5"
