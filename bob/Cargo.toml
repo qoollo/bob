@@ -50,3 +50,6 @@ features = []
 
 [build-dependencies]
 chrono = "0.4"
+
+[dev-dependencies]
+env_logger = "0.9"
