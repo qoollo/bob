@@ -17,7 +17,6 @@ bob-grpc = { path = "../bob-grpc" }
 bytes = "1.1"
 cfg-if = "1.0"
 chrono = "0.4"
-env_logger = "0.9"
 futures = { version = "0.3", features = ["thread-pool"] }
 http = "0.2"
 humantime = "2.1.0"
@@ -42,7 +41,7 @@ tower = "0.4"
 tower-service = "0.3"
 
 [dependencies.pearl]
-version = "=0.7.1"
+version = "=0.8.0"
 
 [dependencies.tokio]
 version = "1.11"
@@ -51,4 +50,6 @@ features = []
 
 [build-dependencies]
 chrono = "0.4"
-tonic-build = "0.5"
+
+[dev-dependencies]
+env_logger = "0.9"

@@ -34,6 +34,3 @@ tower-service = "0.3"
 version = "1.11"
 default-features = false
 features = []
-
-[build-dependencies]
-tonic-build = "0.5"
