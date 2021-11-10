@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Add alien blobs sync API ([#334](https://github.com/qoollo/bob/pull/346))
 
 
 #### Changed

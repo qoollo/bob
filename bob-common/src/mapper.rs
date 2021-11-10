@@ -38,10 +38,12 @@ impl Virtual {
             .expect("found node with name")
             .address()
             .to_string();
+        let disks = config.disks();
+        let disks_read = disks.lock().expect("mutex");
         Self {
             local_node_name,
             local_node_address,
-            disks: config.disks().clone(),
+            disks: disks_read.clone(),
             vdisks,
             nodes,
             distribution_func: cluster.distribution_func(),
