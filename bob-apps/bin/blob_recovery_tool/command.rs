@@ -9,26 +9,36 @@ const BACKUP_SUFFIX_OPT: &str = "backup suffix";
 const FIX_OPT: &str = "fix";
 const NO_CONFIRM_OPT: &str = "no confirm";
 const DELETE_OPT: &str = "index delete";
+const TARGET_VERSION_OPT: &str = "target version";
+const SKIP_WRONG_OPT: &str = "skip wrong";
 
 const VALIDATE_INDEX_COMMAND: &str = "validate-index";
 const VALIDATE_BLOB_COMMAND: &str = "validate-blob";
 const RECOVERY_COMMAND: &str = "recovery";
+const MIGRATE_COMMAND: &str = "migrate";
 
 pub enum MainCommand {
     Recovery(RecoveryBlobCommand),
     Validate(ValidateBlobCommand),
     ValidateIndex(ValidateIndexCommand),
+    Migrate(MigrateCommand),
 }
 
 pub struct RecoveryBlobCommand {
     input: String,
     output: String,
     validate_every: usize,
+    skip_wrong_record: bool,
 }
 
 impl RecoveryBlobCommand {
     fn run(&self) -> AnyResult<()> {
-        recovery_blob(&self.input, &self.output, self.validate_every)
+        recovery_blob(
+            &self.input,
+            &self.output,
+            self.validate_every,
+            self.skip_wrong_record,
+        )
     }
 
     fn subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -58,12 +68,19 @@ impl RecoveryBlobCommand {
                     .value_name("N")
                     .long("cache-size"),
             )
+            .arg(
+                Arg::with_name(SKIP_WRONG_OPT)
+                    .takes_value(false)
+                    .help("try to skip wrong records")
+                    .long("skip-wrong-record"),
+            )
     }
 
     fn from_matches(matches: &ArgMatches) -> AnyResult<RecoveryBlobCommand> {
         Ok(RecoveryBlobCommand {
             input: matches.value_of(INPUT_OPT).expect("Required").to_string(),
             output: matches.value_of(OUTPUT_OPT).expect("Required").to_string(),
+            skip_wrong_record: matches.is_present(SKIP_WRONG_OPT),
             validate_every: matches
                 .value_of(VALIDATE_EVERY_OPT)
                 .expect("Has default")
@@ -83,6 +100,11 @@ pub struct ValidateBlobCommand {
 
 impl ValidateBlobCommand {
     fn run(&self) -> AnyResult<()> {
+        if self.path.is_file() {
+            validate_blob(&self.path)?;
+            info!("Blob {:?} is valid", self.path);
+            return Ok(());
+        }
         let result = validate_files_recursive(&self.path, &self.blob_suffix, validate_blob)?;
         print_result(&result, "blob");
 
@@ -183,6 +205,11 @@ pub struct ValidateIndexCommand {
 
 impl ValidateIndexCommand {
     fn run(&self) -> AnyResult<()> {
+        if self.path.is_file() {
+            validate_index(&self.path)?;
+            info!("Index {:?} is valid", self.path);
+            return Ok(());
+        }
         let result = validate_files_recursive(&self.path, &self.index_suffix, validate_index)?;
         print_result(&result, "index");
 
@@ -248,6 +275,110 @@ impl ValidateIndexCommand {
     }
 }
 
+pub struct MigrateCommand {
+    input_path: PathBuf,
+    output_path: PathBuf,
+    blob_suffix: String,
+    validate_every: usize,
+    target_version: u32,
+}
+
+impl MigrateCommand {
+    fn run(&self) -> AnyResult<()> {
+        if self.input_path.is_file() {
+            self.migrate_file(&self.input_path, &self.output_path)?;
+        } else {
+            process_files_recursive(
+                &self.input_path,
+                &self.blob_suffix,
+                |path, relative_path| {
+                    let output_dir = self.output_path.join(relative_path);
+                    std::fs::create_dir_all(&output_dir)?;
+                    let output = output_dir.join(path.file_name().expect("Must be filename"));
+                    self.migrate_file(path, &output)
+                },
+                "Migration",
+            )?;
+        }
+        Ok(())
+    }
+
+    fn migrate_file(&self, input: &Path, output: &Path) -> AnyResult<()> {
+        recovery_blob_with(
+            &input,
+            &output,
+            self.validate_every,
+            |record, version| record.migrate(version, self.target_version),
+            false,
+        )?;
+        Ok(())
+    }
+
+    fn subcommand<'a, 'b>() -> App<'a, 'b> {
+        SubCommand::with_name(MIGRATE_COMMAND)
+            .arg(
+                Arg::with_name(INPUT_OPT)
+                    .help("input disk path")
+                    .value_name("path")
+                    .short("i")
+                    .long("input")
+                    .takes_value(true)
+                    .required(true),
+            )
+            .arg(
+                Arg::with_name(OUTPUT_OPT)
+                    .help("output disk path")
+                    .value_name("path")
+                    .short("o")
+                    .long("output")
+                    .takes_value(true)
+                    .required(true),
+            )
+            .arg(
+                Arg::with_name(SUFFIX_OPT)
+                    .help("blob suffix")
+                    .short("s")
+                    .long("suffix")
+                    .default_value("blob")
+                    .takes_value(true),
+            )
+            .arg(
+                Arg::with_name(VALIDATE_EVERY_OPT)
+                    .help("validate every N records")
+                    .takes_value(true)
+                    .default_value("100")
+                    .short("c")
+                    .value_name("N")
+                    .long("cache-size"),
+            )
+            .arg(
+                Arg::with_name(TARGET_VERSION_OPT)
+                    .help("target blob version for migration")
+                    .takes_value(true)
+                    .default_value("2")
+                    .short("t")
+                    .value_name("version")
+                    .long("target-version"),
+            )
+    }
+
+    fn from_matches(matches: &ArgMatches) -> AnyResult<MigrateCommand> {
+        Ok(MigrateCommand {
+            input_path: matches.value_of(INPUT_OPT).expect("Required").into(),
+            output_path: matches.value_of(OUTPUT_OPT).expect("Required").into(),
+            blob_suffix: matches.value_of(SUFFIX_OPT).expect("Required").to_string(),
+            validate_every: matches
+                .value_of(VALIDATE_EVERY_OPT)
+                .expect("Has default")
+                .parse()?,
+            target_version: matches
+                .value_of(TARGET_VERSION_OPT)
+                .expect("Has default")
+                .parse()?,
+        })
+    }
+}
+
 impl MainCommand {
     pub fn run() -> AnyResult<()> {
         let settings = MainCommand::from_matches()?;
@@ -255,6 +386,7 @@ impl MainCommand {
             MainCommand::Recovery(settings) => settings.run(),
             MainCommand::Validate(settings) => settings.run(),
             MainCommand::ValidateIndex(settings) => settings.run(),
+            MainCommand::Migrate(settings) => settings.run(),
         }
     }
 
@@ -264,6 +396,7 @@ impl MainCommand {
             .subcommand(RecoveryBlobCommand::subcommand())
             .subcommand(ValidateBlobCommand::subcommand())
             .subcommand(ValidateIndexCommand::subcommand())
+            .subcommand(MigrateCommand::subcommand())
             .get_matches()
     }
 
@@ -279,6 +412,9 @@ impl MainCommand {
             (VALIDATE_INDEX_COMMAND, Some(matches)) => Ok(MainCommand::ValidateIndex(
                 ValidateIndexCommand::from_matches(matches)?,
             )),
+            (MIGRATE_COMMAND, Some(matches)) => {
+                Ok(MainCommand::Migrate(MigrateCommand::from_matches(matches)?))
+            }
             _ => Err(anyhow::anyhow!("Unknown command")),
         }
     }
