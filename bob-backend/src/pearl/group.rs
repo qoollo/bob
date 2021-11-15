@@ -482,11 +482,14 @@ impl Group {
     }
 
     pub(crate) async fn filter_memory_allocated(&self) -> usize {
-        let mut memory = 0;
-        for holder in self.holders().read().await.iter() {
-            memory += holder.filter_memory_allocated().await;
-        }
-        memory
+        self.holders
+            .read()
+            .await
+            .iter()
+            .map(|h| h.filter_memory_allocated())
+            .collect::<FuturesUnordered<_>>()
+            .fold(0, |acc, x| async move { acc + x })
+            .await
     }
 }
 

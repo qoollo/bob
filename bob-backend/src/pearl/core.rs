@@ -19,7 +19,7 @@ pub type PearlStorage = Storage<Key>;
 pub struct Pearl {
     disk_controllers: Arc<[Arc<DiskController>]>,
     alien_disk_controller: Arc<DiskController>,
-    filter_memory_limit: Option<usize>,
+    bloom_filter_memory_limit: Option<usize>,
 }
 
 impl Pearl {
@@ -47,7 +47,7 @@ impl Pearl {
         let pearl = Self {
             disk_controllers,
             alien_disk_controller,
-            filter_memory_limit: config.filter_memory_limit(),
+            bloom_filter_memory_limit: config.bloom_filter_memory_limit(),
         };
         Ok(pearl)
     }
@@ -95,7 +95,7 @@ impl BackendStorage for Pearl {
         let start = Instant::now();
         let futs = FuturesUnordered::new();
         let alien_iter = once(&self.alien_disk_controller);
-        let postprocessor = PostProcessor::new(self.filter_memory_limit);
+        let postprocessor = PostProcessor::new(self.bloom_filter_memory_limit);
         for dc in self.disk_controllers.iter().chain(alien_iter).cloned() {
             let pp = postprocessor.clone();
             futs.push(async move { dc.run(pp).await });

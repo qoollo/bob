@@ -539,11 +539,14 @@ impl DiskController {
     }
 
     pub(crate) async fn filter_memory_allocated(&self) -> usize {
-        let mut memory = 0;
-        for holder in self.groups.read().await.iter() {
-            memory += holder.filter_memory_allocated().await;
-        }
-        memory
+        self.groups
+            .read()
+            .await
+            .iter()
+            .map(|g| g.filter_memory_allocated())
+            .collect::<FuturesUnordered<_>>()
+            .fold(0, |acc, x| async move { acc + x })
+            .await
     }
 
     pub(crate) fn groups(&self) -> Arc<RwLock<Vec<Group>>> {

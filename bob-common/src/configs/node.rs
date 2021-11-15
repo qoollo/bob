@@ -482,7 +482,7 @@ pub struct Node {
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
-    filter_memory_limit: Option<usize>,
+    bloom_filter_memory_limit: Option<usize>,
     #[serde(default = "Node::default_init_par_degree")]
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
@@ -640,8 +640,8 @@ impl NodeConfig {
             .unwrap_or(10)
     }
 
-    pub fn filter_memory_limit(&self) -> Option<usize> {
-        self.filter_memory_limit
+    pub fn bloom_filter_memory_limit(&self) -> Option<usize> {
+        self.bloom_filter_memory_limit
     }
 
     #[inline]
@@ -774,7 +774,7 @@ pub mod tests {
             http_api_port: NodeConfig::default_http_api_port(),
             http_api_address: NodeConfig::default_http_api_address(),
             bind_to_ip_address: None,
-            filter_memory_limit: None,
+            bloom_filter_memory_limit: None,
         }
     }
 }

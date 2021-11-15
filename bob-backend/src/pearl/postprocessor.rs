@@ -64,13 +64,13 @@ impl Eq for SimpleHolder {}
 pub struct PostProcessor {
     holders: Arc<RwLock<BTreeSet<SimpleHolder>>>,
     allocated_size: Arc<AtomicUsize>,
-    filter_memory_limit: Option<usize>,
+    bloom_filter_memory_limit: Option<usize>,
 }
 
 impl PostProcessor {
-    pub(crate) fn new(filter_memory_limit: Option<usize>) -> Self {
+    pub(crate) fn new(bloom_filter_memory_limit: Option<usize>) -> Self {
         Self {
-            filter_memory_limit,
+            bloom_filter_memory_limit,
             ..Default::default()
         }
     }
@@ -85,7 +85,7 @@ impl PostProcessor {
             "Holder added, allocated size: {}",
             self.allocated_size.load(Ordering::Relaxed)
         );
-        if let Some(limit) = self.filter_memory_limit {
+        if let Some(limit) = self.bloom_filter_memory_limit {
             while self.allocated_size.load(Ordering::Relaxed) > limit {
                 if let Some(holder) = holders.iter().next().cloned() {
                     let size_before = holder.filter_memory_allocated().await;

@@ -172,19 +172,45 @@ impl Stuff {
     async fn collect_holders(
         iter: impl IntoIterator<Item = &Arc<DiskController>>,
     ) -> Vec<(SimpleHolder, usize)> {
-        let mut res = vec![];
-        for dc in iter {
-            for group in dc.groups().read().await.iter() {
-                for holder in group.holders().read().await.iter() {
-                    let holder: SimpleHolder = holder.into();
-                    if holder.is_ready().await {
-                        let size = holder.filter_memory_allocated().await;
-                        res.push((holder, size));
-                    }
-                }
-            }
-        }
-        res
+        iter.into_iter()
+            .map(|dc| async move {
+                dc.groups()
+                    .read()
+                    .await
+                    .iter()
+                    .map(|g| async move {
+                        g.holders()
+                            .read()
+                            .await
+                            .iter()
+                            .map(|h| async move {
+                                let h = SimpleHolder::from(h);
+                                let is_ready = h.is_ready().await;
+                                (is_ready, h)
+                            })
+                            .collect::<FuturesUnordered<_>>()
+                            .fold(vec![], |mut acc, (is_ready, h)| async move {
+                                if is_ready {
+                                    let size = h.filter_memory_allocated().await;
+                                    acc.push((h, size));
+                                }
+                                acc
+                            })
+                            .await
+                    })
+                    .collect::<FuturesUnordered<_>>()
+                    .fold(vec![], |mut acc, holders| async move {
+                        acc.extend(holders);
+                        acc
+                    })
+                    .await
+            })
+            .collect::<FuturesUnordered<_>>()
+            .fold(vec![], |mut acc, holders| async move {
+                acc.extend(holders);
+                acc
+            })
+            .await
     }
 }
 
