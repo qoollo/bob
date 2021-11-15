@@ -11,47 +11,77 @@ jobs:
   build-alpine-image:
     runs-on: ubuntu-latest
     environment: prod
+    strategy:
+      matrix:
+        bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Set env
         run: |
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
-          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
       - name: Login to Docker Hub
         uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: qoollo/bob
+          tags: |
+            ${{ env.VERSION }}-key${{ matrix.bob_key_size }}-alpine3.12
+            ${{ env.VERSION }}-key${{ matrix.bob_key_size }}
+            ${{ env.VERSION }},enable=${{ matrix.bob_key_size == 8 }}          
+            nightly,enable=${{ matrix.bob_key_size == 8 }} 
+            latest,enable=${{ matrix.bob_key_size == 8 && ! contains(env.VERSION, 'alpha') }}
       - name: Build and push alpine image
         uses: docker/build-push-action@v2
         with:
           context: .
           file: dockerfiles/alpine/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/bob:${{ env.VERSION }}-alpine3.12,${{ secrets.DOCKERHUB_USERNAME }}/bob:latest
-          build-args: BOB_COMMIT_HASH=${BOB_COMMIT_HASH}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BOB_COMMIT_HASH=${BOB_COMMIT_HASH}
+            BOB_KEY_SIZE=${{ matrix.bob_key_size }}
 
   build-ubuntu-image:
     runs-on: ubuntu-latest
     environment: prod
+    strategy:
+      matrix:
+        bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Set env
         run: |
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
-          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
       - name: Login to Docker Hub
         uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: qoollo/bob
+          tags: |
+            ${{ env.VERSION }}-key${{ matrix.bob_key_size }}-ubuntu20.20
       - name: Build and push ubuntu image
         uses: docker/build-push-action@v2
         with:
           context: .
           file: dockerfiles/ubuntu/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/bob:${{ env.VERSION }}-ubuntu20.10
-          build-args: BOB_COMMIT_HASH=${BOB_COMMIT_HASH}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BOB_COMMIT_HASH=${BOB_COMMIT_HASH}
+            BOB_KEY_SIZE=${{ matrix.bob_key_size }}

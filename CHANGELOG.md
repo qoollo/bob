@@ -6,11 +6,92 @@ Bob versions changelog
 #### Added
 - Bloom filter offloading ([#301](https://github.com/qoollo/bob/pull/301))
 
+
 #### Changed
+
 
 #### Fixed
 
+
 #### Updated
+
+
+
+## [2.0.0-alpha.7] - 2021-11-09
+#### Added
+- Add brt mode to reverse byte order (#286)
+- Add alien blobs sync API (#334)
+
+
+#### Changed
+- Disable AIO by default (#335)
+
+
+#### Fixed
+- Hardware metrics names for RAM and disk space (#358)
+
+
+#### Updated
+- Upgrade pearl to v0.8.0
+
+
+
+## [2.0.0-alpha.6] - 2021-10-19
+#### Added
+- Add hardware metrics (#242)
+- Add REST API metrics (#255)
+- Include brt into release builds (rpm, deb and zip) (#344)
+
+
+#### Changed
+- Cleaner closes blobs instead of update (#285)
+- Only stable releases to latest tag on Docker Hub (#339)
+- Make Bob compile on stable toolchain.
+- Add blob and index verification to blob recovery tool (#230)
+
+
+#### Fixed
+- Remove prometheus metrics expiration.
+
+
+#### Updated
+- Upgrade pearl to v0.7.1
+
+
+## [2.0.0-alpha.5] - 2021-10-02
+#### Added
+- Add random mode in get in bobp (#215)
+
+#### Updated
+- upgrade pearl to v0.7.0.
+
+
+## [2.0.0-alpha.4] - 2021-09-16
+#### Added
+- Add the ability to choose prometheus exporter address (#311)
+- Add rest api port to config (#269)
+
+#### Fixed
+- Prometheus exporter bug which occured after migration to global exporter scheme (#322)
+- Minor build issues (#327)
+- Fix actual holder creation condition(#283)
+
+#### Updated
+- Libs: tonic, tonic-build, tower, tokio.
+- Add Bob key size to help and version commands output
+- Updated --version output format
+
+
+## [2.0.0-alpha.3] - 2021-08-31
+#### Added
+- Add the ability to disable metrics (#241)
+- Use default config in dockerfiles (#290)
+- Add log file rotation to logger.yaml in examples (#297)
+- Build docker images with build workflow (#308)
+- Build Bob versions with 8-byte and 16-byte keys (#307)
+
+#### Changed
+- once aio is failed, it's disabled in config (#257)
 
 
 ## [2.0.0-alpha.2] - 2021-08-23
@@ -21,7 +102,6 @@ Bob versions changelog
 - Run tests with GitHub Actions (#279)
 
 #### Fixed
-
 - Add brt to dockerfiles (#296)
 - Bug with panic on load operation in rate processor (#302)
 

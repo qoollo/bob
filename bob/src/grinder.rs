@@ -4,6 +4,7 @@ use crate::{
     cleaner::Cleaner,
     cluster::{get_cluster, Cluster},
     counter::Counter as BlobsCounter,
+    hw_metrics_collector::HWMetricsCollector,
     link_manager::LinkManager,
 };
 
@@ -16,6 +17,8 @@ pub struct Grinder {
     cluster: Arc<dyn Cluster + Send + Sync>,
     cleaner: Arc<Cleaner>,
     counter: Arc<BlobsCounter>,
+    node_config: NodeConfig,
+    hw_counter: Arc<HWMetricsCollector>,
 }
 
 impl Grinder {
@@ -32,6 +35,10 @@ impl Grinder {
             config.filter_memory_limit(),
         );
         let cleaner = Arc::new(cleaner);
+        let hw_counter = Arc::new(HWMetricsCollector::new(
+            mapper.clone(),
+            Duration::from_secs(60),
+        ));
 
         let counter = Arc::new(BlobsCounter::new(config.count_interval()));
         Grinder {
@@ -40,6 +47,8 @@ impl Grinder {
             cluster: get_cluster(mapper, config, backend),
             cleaner,
             counter,
+            node_config: config.clone(),
+            hw_counter,
         }
     }
 
@@ -49,6 +58,10 @@ impl Grinder {
 
     pub(crate) async fn run_backend(&self) -> Result<()> {
         self.backend.run_backend().await
+    }
+
+    pub(crate) fn node_config(&self) -> &NodeConfig {
+        &self.node_config
     }
 
     pub(crate) async fn put(
@@ -184,6 +197,7 @@ impl Grinder {
         self.link_manager.spawn_checker(client_factory);
         self.cleaner.spawn_task(self.backend.clone());
         self.counter.spawn_task(self.backend.clone());
+        self.hw_counter.spawn_task();
     }
 }
 
