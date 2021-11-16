@@ -60,23 +60,40 @@ impl Ord for SimpleHolder {
 
 impl Eq for SimpleHolder {}
 
+#[async_trait::async_trait]
+pub trait Hooks: Clone {
+    async fn storage_prepared(&self, holder: &Holder);
+}
+
+#[derive(Clone)]
+pub struct NoopHooks;
+
+#[async_trait::async_trait]
+impl Hooks for NoopHooks {
+    async fn storage_prepared(&self, _holder: &Holder) {}
+}
+
 #[derive(Clone, Default)]
-pub struct PostProcessor {
+pub struct BloomFilterMemoryLimitHooks {
     holders: Arc<RwLock<BTreeSet<SimpleHolder>>>,
     allocated_size: Arc<AtomicUsize>,
     bloom_filter_memory_limit: Option<usize>,
 }
 
-impl PostProcessor {
+impl BloomFilterMemoryLimitHooks {
     pub(crate) fn new(bloom_filter_memory_limit: Option<usize>) -> Self {
         Self {
             bloom_filter_memory_limit,
             ..Default::default()
         }
     }
-    pub(crate) async fn storage_prepared(&self, holder: impl Into<SimpleHolder>) {
+}
+
+#[async_trait::async_trait]
+impl Hooks for BloomFilterMemoryLimitHooks {
+    async fn storage_prepared(&self, holder: &Holder) {
         let mut holders = self.holders.write().await;
-        let holder = holder.into();
+        let holder: SimpleHolder = holder.into();
         let filter_memory = holder.filter_memory_allocated().await;
         holders.insert(holder);
         self.allocated_size
@@ -97,8 +114,7 @@ impl PostProcessor {
                         size_after,
                         size_before.saturating_sub(size_after)
                     );
-                    self.allocated_size
-                        .fetch_sub(size_before.saturating_sub(size_after), Ordering::Relaxed);
+                    self.allocated_size.store(size_after, Ordering::Relaxed);
                     holders.remove(&holder);
                 } else {
                     break;

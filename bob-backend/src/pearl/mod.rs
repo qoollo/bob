@@ -3,7 +3,7 @@ mod data;
 mod disk_controller;
 mod group;
 mod holder;
-mod postprocessor;
+mod hooks;
 mod settings;
 mod stuff;
 
@@ -11,6 +11,9 @@ mod stuff;
 mod tests;
 
 pub use self::{
-    core::Pearl, disk_controller::DiskController, group::Group, holder::Holder,
-    postprocessor::PostProcessor,
+    core::Pearl,
+    disk_controller::DiskController,
+    group::Group,
+    holder::Holder,
+    hooks::{BloomFilterMemoryLimitHooks, Hooks, NoopHooks},
 };

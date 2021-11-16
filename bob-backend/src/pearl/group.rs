@@ -1,6 +1,6 @@
 use crate::{pearl::stuff::get_current_timestamp, prelude::*};
 
-use super::{stuff::StartTimestampConfig, Holder, PostProcessor};
+use super::{hooks::NoopHooks, stuff::StartTimestampConfig, Holder, Hooks};
 use crate::{
     core::Operation,
     pearl::{core::BackendResult, settings::Settings, stuff::Stuff},
@@ -55,7 +55,7 @@ impl Group {
         }
     }
 
-    pub async fn run(&self, pp: PostProcessor) -> AnyResult<()> {
+    pub async fn run(&self, pp: impl Hooks) -> AnyResult<()> {
         debug!("{}: read holders from disk", self);
         let config = self.settings.config();
         let holders = config
@@ -81,10 +81,10 @@ impl Group {
 
     pub async fn remount(&self) -> AnyResult<()> {
         self.holders.write().await.clear();
-        self.run(Default::default()).await
+        self.run(NoopHooks).await
     }
 
-    async fn run_pearls(&self, pp: PostProcessor) -> AnyResult<()> {
+    async fn run_pearls(&self, pp: impl Hooks) -> AnyResult<()> {
         let holders = self.holders.write().await;
 
         for holder in holders.iter() {

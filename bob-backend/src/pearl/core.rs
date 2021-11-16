@@ -2,7 +2,7 @@ use futures::future::ready;
 use std::iter::once;
 
 use crate::{
-    pearl::{postprocessor::PostProcessor, stuff::Stuff},
+    pearl::{hooks::BloomFilterMemoryLimitHooks, stuff::Stuff},
     prelude::*,
 };
 
@@ -95,7 +95,7 @@ impl BackendStorage for Pearl {
         let start = Instant::now();
         let futs = FuturesUnordered::new();
         let alien_iter = once(&self.alien_disk_controller);
-        let postprocessor = PostProcessor::new(self.bloom_filter_memory_limit);
+        let postprocessor = BloomFilterMemoryLimitHooks::new(self.bloom_filter_memory_limit);
         for dc in self.disk_controllers.iter().chain(alien_iter).cloned() {
             let pp = postprocessor.clone();
             futs.push(async move { dc.run(pp).await });

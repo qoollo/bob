@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 use tokio::time::{interval, Interval};
 
 pub(crate) mod logger;
-use crate::{core::Operation, pearl::postprocessor::PostProcessor, prelude::*};
+use crate::{core::Operation, pearl::hooks::Hooks, prelude::*};
 use logger::DisksEventsLogger;
 
 use super::{core::BackendResult, settings::Settings, stuff::StartTimestampConfig, Group};
@@ -89,7 +89,7 @@ impl DiskController {
         *self.state.read().await == GroupsState::Ready
     }
 
-    pub async fn run(&self, pp: PostProcessor) -> AnyResult<()> {
+    pub async fn run(&self, pp: impl Hooks) -> AnyResult<()> {
         let _permit = self.monitor_sem.acquire().await.expect("Sem is closed");
         self.init().await?;
         self.groups_run(pp).await
@@ -317,14 +317,14 @@ impl DiskController {
         Ok(())
     }
 
-    async fn run_groups(groups: Arc<RwLock<Vec<Group>>>, pp: PostProcessor) -> AnyResult<()> {
+    async fn run_groups(groups: Arc<RwLock<Vec<Group>>>, pp: impl Hooks) -> AnyResult<()> {
         for group in groups.read().await.iter() {
             group.run(pp.clone()).await?;
         }
         Ok(())
     }
 
-    async fn groups_run(&self, pp: PostProcessor) -> AnyResult<()> {
+    async fn groups_run(&self, pp: impl Hooks) -> AnyResult<()> {
         let state = self.state.read().await.clone();
         match state {
             GroupsState::Initialized => self.groups_run_initialized(pp).await,
@@ -333,7 +333,7 @@ impl DiskController {
         }
     }
 
-    async fn groups_run_initialized(&self, pp: PostProcessor) -> AnyResult<()> {
+    async fn groups_run_initialized(&self, pp: impl Hooks) -> AnyResult<()> {
         let res = {
             let _permit = self.run_sem.acquire().await.expect("Semaphore is closed");
             Self::run_groups(self.groups.clone(), pp).await
