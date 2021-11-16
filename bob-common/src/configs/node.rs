@@ -6,16 +6,15 @@ use super::{
 use crate::data::DiskPath;
 use futures::Future;
 use humantime::Duration as HumanDuration;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
 use std::{
-    cell::{Ref, RefCell},
     env::VarError,
     fmt::Debug,
     net::SocketAddr,
-    sync::atomic::AtomicBool,
+    sync::{atomic::AtomicBool, Mutex},
     time::Duration,
 };
+use std::{net::IpAddr, sync::atomic::Ordering};
+use std::{net::Ipv4Addr, sync::Arc};
 use tokio::time::sleep;
 
 const AIO_FLAG_ORDERING: Ordering = Ordering::Relaxed;
@@ -128,6 +127,8 @@ impl BackendSettings {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MetricsConfig {
     name: Option<String>,
+    #[serde(default = "MetricsConfig::default_prometheus_addr")]
+    prometheus_addr: String,
     graphite_enabled: bool,
     graphite: Option<String>,
     prometheus_enabled: bool,
@@ -163,6 +164,14 @@ impl MetricsConfig {
         } else {
             Ok(())
         }
+    }
+
+    pub(crate) fn prometheus_addr(&self) -> &str {
+        &self.prometheus_addr
+    }
+
+    pub(crate) fn default_prometheus_addr() -> String {
+        "0.0.0.0:9000".to_owned()
     }
 
     fn check_optional_fields(&self) -> Result<(), String> {
@@ -334,7 +343,7 @@ impl Pearl {
     }
 
     fn default_enable_aio() -> Arc<AtomicBool> {
-        Arc::new(AtomicBool::new(true))
+        Arc::new(AtomicBool::new(false))
     }
 
     pub fn disks_events_logfile(&self) -> &str {
@@ -467,9 +476,9 @@ pub struct Node {
     metrics: Option<MetricsConfig>,
 
     #[serde(skip)]
-    bind_ref: RefCell<String>,
+    bind_ref: Arc<Mutex<String>>,
     #[serde(skip)]
-    disks_ref: RefCell<Vec<DiskPath>>,
+    disks_ref: Arc<Mutex<Vec<DiskPath>>>,
 
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
@@ -478,10 +487,22 @@ pub struct Node {
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
     disk_access_par_degree: usize,
+    #[serde(default = "Node::default_http_api_port")]
+    http_api_port: u16,
+    #[serde(default = "Node::default_http_api_address")]
+    http_api_address: IpAddr,
     bind_to_ip_address: Option<SocketAddr>,
 }
 
 impl NodeConfig {
+    pub fn http_api_port(&self) -> u16 {
+        self.http_api_port
+    }
+
+    pub fn http_api_address(&self) -> IpAddr {
+        self.http_api_address
+    }
+
     pub fn bind_to_ip_address(&self) -> Option<SocketAddr> {
         self.bind_to_ip_address
     }
@@ -518,8 +539,8 @@ impl NodeConfig {
     }
 
     /// Get reference to bind address.
-    pub fn bind(&self) -> Ref<String> {
-        self.bind_ref.borrow()
+    pub fn bind(&self) -> Arc<Mutex<String>> {
+        self.bind_ref.clone()
     }
 
     /// Get grpc request operation timeout, parsed from humantime format.
@@ -549,8 +570,8 @@ impl NodeConfig {
     }
 
     /// Get reference to collection of disks [`DiskPath`]
-    pub fn disks(&self) -> Ref<Vec<DiskPath>> {
-        self.disks_ref.borrow()
+    pub fn disks(&self) -> Arc<Mutex<Vec<DiskPath>>> {
+        self.disks_ref.clone()
     }
 
     pub fn backend_type(&self) -> BackendType {
@@ -567,15 +588,20 @@ impl NodeConfig {
     }
 
     pub fn prepare(&self, node: &ClusterNodeConfig) -> Result<(), String> {
-        self.bind_ref.replace(node.address().to_owned());
-
+        {
+            let mut lck = self.bind_ref.lock().expect("mutex");
+            *lck = node.address().to_owned();
+        }
         let t = node
             .disks()
             .iter()
             .map(|disk| DiskPath::new(disk.name().to_owned(), disk.path().to_owned()))
             .collect::<Vec<_>>();
-        self.disks_ref.replace(t);
 
+        {
+            let mut lck = self.disks_ref.lock().expect("mutex");
+            *lck = t;
+        }
         self.backend_result()?;
 
         if self.backend_type() == BackendType::Pearl {
@@ -665,6 +691,14 @@ impl NodeConfig {
     fn default_disk_access_par_degree() -> usize {
         1
     }
+
+    fn default_http_api_port() -> u16 {
+        8000
+    }
+
+    fn default_http_api_address() -> IpAddr {
+        IpAddr::V4(Ipv4Addr::UNSPECIFIED)
+    }
 }
 
 impl Validatable for NodeConfig {
@@ -722,7 +756,7 @@ impl Validatable for NodeConfig {
 pub mod tests {
     use crate::configs::node::Node as NodeConfig;
 
-    use std::cell::RefCell;
+    use std::sync::Arc;
 
     pub fn node_config(name: &str, quorum: usize) -> NodeConfig {
         NodeConfig {
@@ -736,14 +770,16 @@ pub mod tests {
             backend_type: "in_memory".to_string(),
             pearl: None,
             metrics: None,
-            bind_ref: RefCell::default(),
-            disks_ref: RefCell::default(),
+            bind_ref: Arc::default(),
+            disks_ref: Arc::default(),
             cleanup_interval: "1d".to_string(),
             open_blobs_soft_limit: None,
             open_blobs_hard_limit: None,
             init_par_degree: 1,
             disk_access_par_degree: 1,
             count_interval: "10000ms".to_string(),
+            http_api_port: NodeConfig::default_http_api_port(),
+            http_api_address: NodeConfig::default_http_api_address(),
             bind_to_ip_address: None,
         }
     }

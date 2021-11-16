@@ -1,6 +1,6 @@
 [package]
 name = "bob"
-version = "2.0.0-alpha.3"
+version = "2.0.0-alpha.7"
 authors = [
     "Kirill Bushminkin <kb@qoollo.com>",
     "Pavel Iakushin <pyakushin@qoollo.com>",
@@ -17,7 +17,6 @@ bob-grpc = { path = "../bob-grpc" }
 bytes = "1.1"
 cfg-if = "1.0"
 chrono = "0.4"
-env_logger = "0.9"
 futures = { version = "0.3", features = ["thread-pool"] }
 http = "0.2"
 humantime = "2.1.0"
@@ -36,12 +35,13 @@ serde_yaml = "0.8"
 stopwatch = "0.0.7"
 termion = "1.5"
 thiserror = "1.0"
+sysinfo = "0.19"
 tonic = { version = "0.5", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"
 
 [dependencies.pearl]
-version = "=0.6.1"
+version = "=0.8.0"
 
 [dependencies.tokio]
 version = "1.11"
@@ -50,4 +50,6 @@ features = []
 
 [build-dependencies]
 chrono = "0.4"
-tonic-build = "0.5"
+
+[dev-dependencies]
+env_logger = "0.9"

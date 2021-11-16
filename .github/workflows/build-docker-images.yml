@@ -20,7 +20,7 @@ jobs:
       - name: Set env
         run: |
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
-          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
       - name: Login to Docker Hub
         uses: docker/login-action@v1
         with:
@@ -34,8 +34,9 @@ jobs:
           tags: |
             ${{ env.VERSION }}-key${{ matrix.bob_key_size }}-alpine3.12
             ${{ env.VERSION }}-key${{ matrix.bob_key_size }}
-            ${{ env.VERSION }},enable=${{ matrix.bob_key_size == 8 }}
-            latest,enable=${{ matrix.bob_key_size == 8 }}
+            ${{ env.VERSION }},enable=${{ matrix.bob_key_size == 8 }}          
+            nightly,enable=${{ matrix.bob_key_size == 8 }} 
+            latest,enable=${{ matrix.bob_key_size == 8 && ! contains(env.VERSION, 'alpha') }}
       - name: Build and push alpine image
         uses: docker/build-push-action@v2
         with:
@@ -60,7 +61,7 @@ jobs:
       - name: Set env
         run: |
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
-          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
       - name: Login to Docker Hub
         uses: docker/login-action@v1
         with:

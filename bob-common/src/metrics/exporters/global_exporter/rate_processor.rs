@@ -78,7 +78,7 @@ async fn rate_processor_task(mut rx: Receiver<RateMessage>) {
 
     while let Some(val) = rx.recv().await {
         let (k, v, ts) = val.unpack();
-        if ts.duration_since(base_ts) > RATE_INTERVAL {
+        if ts > base_ts && ts.duration_since(base_ts) > RATE_INTERVAL {
             base_ts = ts;
             commit_rates(&mut counters_map);
         }

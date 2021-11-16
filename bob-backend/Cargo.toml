@@ -1,6 +1,6 @@
 [package]
 name = "bob-backend"
-version = "2.0.0-alpha.3"
+version = "2.0.0-alpha.7"
 authors = [
     "Kirill Bushminkin <kb@qoollo.com>",
     "Pavel Iakushin <pyakushin@qoollo.com>",
@@ -35,12 +35,9 @@ tower = "0.4"
 tower-service = "0.3"
 
 [dependencies.pearl]
-version = "=0.6.1"
+version = "=0.8.0"
 
 [dependencies.tokio]
 version = "1.11"
 default-features = false
 features = []
-
-[build-dependencies]
-tonic-build = "0.5"

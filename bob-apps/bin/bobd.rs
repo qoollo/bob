@@ -1,12 +1,12 @@
 use bob::{
-    get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version, init_counters,
-    BobApiServer, BobServer, ClusterConfig, Factory, Grinder, VirtualMapper,
+    build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder,
+    VirtualMapper,
 };
 use bob_access::{
     AccessControlLayer, BasicAuthenticator, BasicExtractor, Credentials, StubAuthenticator,
     StubExtractor, UsersMap,
 };
-use clap::{App, Arg, ArgMatches};
+use clap::{crate_version, App, Arg, ArgMatches};
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -46,10 +46,12 @@ async fn main() {
 
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
 
+    let bind = node.bind();
+    let bind_read = bind.lock().expect("mutex");
     let mut addr = match (
         node.bind_to_ip_address(),
-        node.bind().parse(),
-        port_from_address(node.bind().as_str()),
+        bind_read.parse(),
+        port_from_address(bind_read.as_str()),
     ) {
         (Some(addr1), Ok(addr2), _) => {
             if addr1 == addr2 {
@@ -84,10 +86,10 @@ async fn main() {
     }
     warn!("Start listening on: {:?}", addr);
 
-    let metrics = init_counters(&node, &addr.to_string());
+    let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
 
     let handle = Handle::current();
-    let bob = BobServer::new(Grinder::new(mapper, &node).await, handle);
+    let bob = BobServer::new(Grinder::new(mapper, &node).await, handle, shared_metrics);
 
     info!("Start backend");
     bob.run_backend().await.unwrap();
@@ -95,8 +97,12 @@ async fn main() {
     let http_api_port = matches
         .value_of("http_api_port")
         .and_then(|v| v.parse().ok())
-        .expect("expect http_api_port port");
-    bob.run_api_server(http_api_port);
+        .unwrap_or(node.http_api_port());
+    let http_api_address = matches
+        .value_of("http_api_address")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(node.http_api_address());
+    bob.run_api_server(http_api_address, http_api_port);
 
     create_signal_handlers(&bob).unwrap();
 
@@ -211,17 +217,9 @@ fn spawn_signal_handler(
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
-    App::new(env!("CARGO_PKG_NAME"))
-        .version(
-            format!(
-                "{}, built on {}, (pearl {}, built on {})",
-                get_bob_version(),
-                get_bob_build_time(),
-                get_pearl_version(),
-                get_pearl_build_time(),
-            )
-            .as_str(),
-        )
+    let ver = format!("{}\n{}", crate_version!(), BuildInfo::new());
+    App::new("bobd")
+        .version(ver.as_str())
         .arg(
             Arg::with_name("cluster")
                 .help("cluster config file")
@@ -252,9 +250,15 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .default_value("4"),
         )
         .arg(
+            Arg::with_name("http_api_address")
+                .help("http api address")
+                .short("h")
+                .long("host")
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("http_api_port")
                 .help("http api port")
-                .default_value("8000")
                 .short("p")
                 .long("port")
                 .takes_value(true),

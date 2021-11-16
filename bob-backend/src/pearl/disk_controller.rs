@@ -1,10 +1,13 @@
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+
 use tokio::time::{interval, Interval};
 
 pub(crate) mod logger;
 use crate::{core::Operation, prelude::*};
 use logger::DisksEventsLogger;
 
-use super::{core::BackendResult, settings::Settings, Group};
+use super::{core::BackendResult, settings::Settings, stuff::StartTimestampConfig, Group};
 
 use bob_common::metrics::DISKS_FOLDER;
 
@@ -38,6 +41,7 @@ pub struct DiskController {
     is_alien: bool,
     disk_state_metric: String,
     logger: DisksEventsLogger,
+    blobs_count_cached: Arc<AtomicU64>,
 }
 
 impl DiskController {
@@ -65,6 +69,7 @@ impl DiskController {
             is_alien,
             disk_state_metric,
             logger,
+            blobs_count_cached: Arc::new(AtomicU64::new(0)),
         };
         new_dc
             .init()
@@ -124,7 +129,14 @@ impl DiskController {
                 error!("Disk is unavailable: {:?}", self.disk);
                 self.change_state(GroupsState::NotReady).await;
             }
+            self.update_metrics().await;
         }
+    }
+
+    async fn update_metrics(&self) {
+        let gauge_name = format!("{}_blobs_count", self.disk_state_metric);
+        let blobs_count = self.blobs_count_cached.load(Ordering::Acquire);
+        gauge!(gauge_name, blobs_count as f64);
     }
 
     async fn change_state(&self, new_state: GroupsState) {
@@ -238,7 +250,11 @@ impl DiskController {
     async fn collect_alien_groups(&self) -> BackendResult<Vec<Group>> {
         let settings = self.settings.clone();
         let groups = settings
-            .collect_alien_groups(self.disk.name().to_owned(), self.dump_sem.clone())
+            .collect_alien_groups(
+                self.disk.name().to_owned(),
+                self.dump_sem.clone(),
+                &self.node_name,
+            )
             .await?;
         trace!(
             "alien vdisk groups count (start or recovery): {}",
@@ -282,10 +298,23 @@ impl DiskController {
         let group = self
             .settings
             .clone()
-            .create_group(operation, &self.node_name, self.dump_sem.clone())
+            .create_alien_group(
+                operation.remote_node_name().expect("Node name not found"),
+                operation.vdisk_id(),
+                &self.node_name,
+                self.dump_sem.clone(),
+            )
             .await?;
         write_lock_groups.push(group.clone());
         Ok(group)
+    }
+
+    pub async fn detach_all(&self) -> BackendResult<()> {
+        let write_lock_groups = self.groups.write().await;
+        for group in write_lock_groups.iter() {
+            group.detach_all().await?;
+        }
+        Ok(())
     }
 
     async fn run_groups(groups: Arc<RwLock<Vec<Group>>>) -> AnyResult<()> {
@@ -330,7 +359,10 @@ impl DiskController {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = self.get_or_create_pearl(&op).await;
             match vdisk_group {
-                Ok(group) => match group.put(key, data.clone()).await {
+                Ok(group) => match group
+                    .put(key, data.clone(), StartTimestampConfig::new(false))
+                    .await
+                {
                     Err(e) => Err(self.process_error(e).await),
                     Ok(()) => Ok(()),
                 },
@@ -357,7 +389,7 @@ impl DiskController {
                     .cloned()
             };
             if let Some(group) = vdisk_group {
-                match group.put(key, data).await {
+                match group.put(key, data, StartTimestampConfig::default()).await {
                     Err(e) => {
                         debug!("PUT[{}], error: {:?}", key, e);
                         Err(self.process_error(e).await)
@@ -466,7 +498,7 @@ impl DiskController {
     }
 
     pub(crate) async fn blobs_count(&self) -> usize {
-        if *self.state.read().await == GroupsState::Ready {
+        let cnt = if *self.state.read().await == GroupsState::Ready {
             let mut cnt = 0;
             for group in self.groups.read().await.iter() {
                 let holders_guard = group.holders();
@@ -478,7 +510,9 @@ impl DiskController {
             cnt
         } else {
             0
-        }
+        };
+        self.blobs_count_cached.store(cnt as u64, Ordering::Release);
+        cnt
     }
 
     pub(crate) async fn index_memory(&self) -> usize {
