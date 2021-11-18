@@ -5,7 +5,7 @@ use super::{
     disk_controller::logger::DisksEventsLogger,
     disk_controller::DiskController,
     group::Group,
-    stuff::{StartTimestampConfig, Stuff},
+    utils::{StartTimestampConfig, Utils},
 };
 const DEFAULT_ALIEN_DISK_NAME: &str = "alien_disk";
 
@@ -146,7 +146,7 @@ impl Settings {
     ) -> BackendResult<Group> {
         let path = self.alien_path(vdisk_id, remote_node_name);
 
-        Stuff::check_or_create_directory(&path).await?;
+        Utils::check_or_create_directory(&path).await?;
 
         let disk_name = self
             .config
@@ -165,7 +165,7 @@ impl Settings {
     }
 
     pub async fn get_all_subdirectories(path: &Path) -> BackendResult<Vec<DirEntry>> {
-        Stuff::check_or_create_directory(path).await?;
+        Utils::check_or_create_directory(path).await?;
 
         let mut dir = read_dir(path).await.map_err(|e| {
             let msg = format!("couldn't process path: {:?}, error: {:?} ", path, e);
@@ -267,7 +267,7 @@ impl Settings {
 
     #[inline]
     pub fn get_actual_timestamp_start(&self) -> u64 {
-        Stuff::get_start_timestamp_by_std_time(
+        Utils::get_start_timestamp_by_std_time(
             self.timestamp_period,
             SystemTime::now(),
             &StartTimestampConfig::default(),

@@ -2,7 +2,7 @@ use crate::{
     api::http::metric_models::MetricsSnapshotModel, build_info::BuildInfo,
     server::Server as BobServer,
 };
-use bob_backend::pearl::{Group as PearlGroup, Holder};
+use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
     error::Error as BobError,
@@ -367,7 +367,7 @@ async fn start_all_disk_controllers(
         .iter()
         .chain(std::iter::once(&alien_disk_controller))
         .filter(|dc| dc.disk().name() == disk_name)
-        .map(|dc| dc.run())
+        .map(|dc| dc.run(NoopHooks))
         .collect::<FuturesUnordered<_>>();
     if target_dcs.is_empty() {
         let err = format!("Disk Controller with name '{}' not found", disk_name);
