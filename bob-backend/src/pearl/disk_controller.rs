@@ -449,10 +449,9 @@ impl DiskController {
             let holders = group.holders();
             let holders = holders.read().await;
             for holder in holders.iter() {
-                let holder = holder.data().read().await;
-                let storage = holder.storage().read().await;
+                let storage = holder.1.data.storage().read().await;
                 let storage = storage.storage().clone();
-                let id = holder.get_id();
+                let id = holder.1.data.get_id();
                 futures.push(async move {
                     match storage.close().await {
                         Ok(_) => debug!("holder {} closed", id),
@@ -473,8 +472,7 @@ impl DiskController {
                 let holders_guard = group.holders();
                 let holders = holders_guard.read().await;
                 for holder in holders.iter() {
-                    let holder = holder.data().read().await;
-                    cnt += holder.blobs_count().await;
+                    cnt += holder.1.data.blobs_count().await;
                 }
             }
             cnt
@@ -490,8 +488,7 @@ impl DiskController {
                 let holders_guard = group.holders();
                 let holders = holders_guard.read().await;
                 for holder in holders.iter() {
-                    let holder = holder.data().read().await;
-                    cnt += holder.index_memory().await;
+                    cnt += holder.1.data.index_memory().await;
                 }
             }
             cnt

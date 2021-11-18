@@ -397,10 +397,9 @@ async fn vdisk_records_count(
     let group = find_group(bob, vdisk_id).await?;
     let holders = group.holders();
     let pearls = holders.read().await;
-    let pearls: &[_] = pearls.children().as_ref();
     let mut sum = 0;
-    for pearl in pearls {
-        sum += pearl.data().read().await.records_count().await;
+    for pearl in pearls.children() {
+        sum += pearl.1.data.records_count().await;
     }
     Ok(Json(sum as u64))
 }
@@ -415,10 +414,9 @@ async fn partitions(
     let holders = group.holders();
     let pearls = holders.read().await;
     debug!("get pearl holders: OK");
-    let pearls: &[_] = pearls.children().as_ref();
     let mut partitions = vec![];
-    for pearl in pearls {
-        partitions.push(pearl.data().read().await.get_id());
+    for pearl in pearls.children() {
+        partitions.push(pearl.1.data.get_id());
     }
     let ps = VDiskPartitions {
         node_name: group.node_name().to_owned(),
@@ -443,14 +441,14 @@ async fn partition_by_id(
     let pearls = holders.read().await;
     let mut partitions = vec![];
     for pearl in pearls.iter() {
-        partitions.push(pearl.data().read().await.get_id());
+        partitions.push(pearl.1.data.get_id());
     }
     let pearl = pearls
         .iter()
         .zip(partitions)
         .find(|pearl| pearl.1 == partition_id);
     let partition = if let Some(p) = pearl {
-        let p = p.0.data().read().await;
+        let p = &p.0 .1.data;
         Some(Partition {
             node_name: group.node_name().to_owned(),
             disk_name: group.disk_name().to_owned(),

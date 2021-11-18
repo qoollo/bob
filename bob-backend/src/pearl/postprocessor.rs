@@ -75,9 +75,9 @@ impl PostProcessor {
             ..Default::default()
         }
     }
-    pub(crate) async fn storage_prepared(&self, holder: Arc<Leaf<Holder>>) {
+    pub(crate) async fn storage_prepared(&self, holder: &Holder) {
         let mut holders = self.holders.write().await;
-        let holder: SimpleHolder = holder.data().read().await.deref().into();
+        let holder: SimpleHolder = holder.into();
         let filter_memory = holder.filter_memory_allocated().await;
         holders.insert(holder);
         self.allocated_size

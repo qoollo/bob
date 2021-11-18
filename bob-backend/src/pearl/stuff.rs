@@ -146,7 +146,7 @@ impl Stuff {
         for dc in iter {
             for group in dc.groups().read().await.iter() {
                 for holder in group.holders().read().await.iter() {
-                    let holder: SimpleHolder = holder.data().read().await.deref().into();
+                    let holder = SimpleHolder::from(&holder.1.data);
                     if holder.is_ready().await {
                         let size = holder.filter_memory_allocated().await;
                         res.push((holder, size));
