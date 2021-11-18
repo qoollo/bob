@@ -1,11 +1,8 @@
-use crate::{
-    pearl::{hooks::SimpleHolder, DiskController},
-    prelude::*,
-};
+use crate::{pearl::hooks::SimpleHolder, prelude::*};
 
 use super::core::BackendResult;
 
-pub struct Stuff;
+pub struct Utils;
 
 pub struct StartTimestampConfig {
     round: bool,
@@ -23,7 +20,7 @@ impl StartTimestampConfig {
     }
 }
 
-impl Stuff {
+impl Utils {
     pub async fn check_or_create_directory(path: &Path) -> BackendResult<()> {
         if path.exists() {
             trace!("directory: {:?} exists", path);
@@ -133,13 +130,18 @@ impl Stuff {
         start_time.timestamp().try_into().unwrap()
     }
 
-    pub(crate) async fn offload_old_filters(
-        iter: impl IntoIterator<Item = &Arc<DiskController>>,
-        limit: usize,
-    ) {
+    pub(crate) async fn offload_old_filters(holders: Vec<SimpleHolder>, limit: usize) {
         let now = Instant::now();
-        let mut holders = Self::collect_holders(iter).await;
-        let mut current_size = holders.iter().map(|x| x.1).sum::<usize>();
+        let (mut current_size, mut holders) = holders
+            .into_iter()
+            .map(|x| async move { (x.filter_memory_allocated().await, x) })
+            .collect::<FuturesUnordered<_>>()
+            .fold((0, vec![]), |mut acc, (size, h)| async move {
+                acc.0 += size;
+                acc.1.push((h, size));
+                acc
+            })
+            .await;
         let initial_size = current_size;
         if current_size < limit {
             return;
@@ -167,50 +169,6 @@ impl Stuff {
                 freed
             );
         }
-    }
-
-    async fn collect_holders(
-        iter: impl IntoIterator<Item = &Arc<DiskController>>,
-    ) -> Vec<(SimpleHolder, usize)> {
-        iter.into_iter()
-            .map(|dc| async move {
-                dc.groups()
-                    .read()
-                    .await
-                    .iter()
-                    .map(|g| async move {
-                        g.holders()
-                            .read()
-                            .await
-                            .iter()
-                            .map(|h| async move {
-                                let h = SimpleHolder::from(h);
-                                let is_ready = h.is_ready().await;
-                                (is_ready, h)
-                            })
-                            .collect::<FuturesUnordered<_>>()
-                            .fold(vec![], |mut acc, (is_ready, h)| async move {
-                                if is_ready {
-                                    let size = h.filter_memory_allocated().await;
-                                    acc.push((h, size));
-                                }
-                                acc
-                            })
-                            .await
-                    })
-                    .collect::<FuturesUnordered<_>>()
-                    .fold(vec![], |mut acc, holders| async move {
-                        acc.extend(holders);
-                        acc
-                    })
-                    .await
-            })
-            .collect::<FuturesUnordered<_>>()
-            .fold(vec![], |mut acc, holders| async move {
-                acc.extend(holders);
-                acc
-            })
-            .await
     }
 }
 

@@ -1,14 +1,14 @@
-use futures::future::ready;
+use futures::{future::ready, Future};
 use std::iter::once;
 
 use crate::{
-    pearl::{hooks::BloomFilterMemoryLimitHooks, stuff::Stuff},
+    pearl::{hooks::BloomFilterMemoryLimitHooks, utils::Utils},
     prelude::*,
 };
 
 use super::{
     data::Key, disk_controller::logger::DisksEventsLogger, disk_controller::DiskController,
-    settings::Settings,
+    hooks::SimpleHolder, settings::Settings, Holder,
 };
 use crate::core::{BackendStorage, MetricsProducer, Operation};
 
@@ -50,6 +50,34 @@ impl Pearl {
             bloom_filter_memory_limit: config.bloom_filter_memory_limit(),
         };
         Ok(pearl)
+    }
+
+    async fn for_each_holder<F, Fut>(&self, f: F)
+    where
+        F: Fn(&Holder) -> Fut + Clone,
+        Fut: Future<Output = ()>,
+    {
+        self.disk_controllers
+            .iter()
+            .chain(once(&self.alien_disk_controller))
+            .map(|dc| dc.for_each_holder(f.clone()))
+            .collect::<FuturesUnordered<_>>()
+            .collect::<Vec<()>>()
+            .await;
+    }
+
+    async fn collect_simple_holders(&self) -> Vec<SimpleHolder> {
+        let res = RwLock::new(vec![]);
+        self.for_each_holder(|h| {
+            let h = SimpleHolder::from(h);
+            async {
+                if h.is_ready().await {
+                    res.write().await.push(h);
+                }
+            }
+        })
+        .await;
+        res.into_inner()
     }
 }
 
@@ -199,14 +227,7 @@ impl BackendStorage for Pearl {
     }
 
     async fn offload_old_filters(&self, limit: usize) {
-        Stuff::offload_old_filters(
-            self.disk_controllers
-                .iter()
-                .chain(once(&self.alien_disk_controller))
-                .collect::<Vec<_>>(),
-            limit,
-        )
-        .await;
+        Utils::offload_old_filters(self.collect_simple_holders().await, limit).await;
     }
 
     async fn filter_memory_allocated(&self) -> usize {

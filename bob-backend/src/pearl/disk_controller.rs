@@ -1,13 +1,15 @@
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
+use futures::Future;
 use tokio::time::{interval, Interval};
 
 pub(crate) mod logger;
 use crate::{core::Operation, pearl::hooks::Hooks, prelude::*};
 use logger::DisksEventsLogger;
 
-use super::{core::BackendResult, settings::Settings, stuff::StartTimestampConfig, Group};
+use super::Holder;
+use super::{core::BackendResult, settings::Settings, utils::StartTimestampConfig, Group};
 
 use bob_common::metrics::DISKS_FOLDER;
 
@@ -194,6 +196,21 @@ impl DiskController {
                 warn!("Disk is ready: {:?}", self.disk);
             }
         }
+    }
+
+    pub(crate) async fn for_each_holder<F, Fut>(&self, f: F)
+    where
+        F: Fn(&Holder) -> Fut + Clone,
+        Fut: Future<Output = ()>,
+    {
+        self.groups()
+            .read()
+            .await
+            .iter()
+            .map(|g| g.for_each_holder(f.clone()))
+            .collect::<FuturesUnordered<_>>()
+            .collect::<Vec<()>>()
+            .await;
     }
 
     async fn init(&self) -> BackendResult<()> {

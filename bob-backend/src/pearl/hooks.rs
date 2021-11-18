@@ -114,7 +114,11 @@ impl Hooks for BloomFilterMemoryLimitHooks {
                         size_after,
                         size_before.saturating_sub(size_after)
                     );
-                    self.allocated_size.store(size_after, Ordering::Relaxed);
+                    let _ = self.allocated_size.fetch_update(
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
+                        |value| Some(value.saturating_sub(size_after.saturating_sub(size_before))),
+                    );
                     holders.remove(&holder);
                 } else {
                     break;

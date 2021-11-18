@@ -1,10 +1,11 @@
-use crate::{pearl::stuff::get_current_timestamp, prelude::*};
+use crate::{pearl::utils::get_current_timestamp, prelude::*};
 
-use super::{hooks::NoopHooks, stuff::StartTimestampConfig, Holder, Hooks};
+use super::{hooks::NoopHooks, utils::StartTimestampConfig, Holder, Hooks};
 use crate::{
     core::Operation,
-    pearl::{core::BackendResult, settings::Settings, stuff::Stuff},
+    pearl::{core::BackendResult, settings::Settings, utils::Utils},
 };
+use futures::Future;
 use ring::digest::{digest, SHA256};
 
 #[derive(Clone, Debug)]
@@ -104,6 +105,21 @@ impl Group {
     pub async fn add_range(&self, new: Vec<Holder>) {
         let mut holders = self.holders.write().await;
         holders.extend(new);
+    }
+
+    pub(crate) async fn for_each_holder<F, Fut>(&self, f: F)
+    where
+        F: Fn(&Holder) -> Fut + Clone,
+        Fut: Future<Output = ()>,
+    {
+        self.holders()
+            .read()
+            .await
+            .iter()
+            .map(|h| f(h))
+            .collect::<FuturesUnordered<_>>()
+            .collect::<Vec<()>>()
+            .await;
     }
 
     // find in all pearls actual pearl and try create new
@@ -357,7 +373,7 @@ impl Group {
         time: u64,
         timestamp_config: &StartTimestampConfig,
     ) -> Holder {
-        let start_timestamp = Stuff::get_start_timestamp_by_timestamp(
+        let start_timestamp = Utils::get_start_timestamp_by_timestamp(
             self.settings.timestamp_period(),
             time,
             timestamp_config,
@@ -377,7 +393,7 @@ impl Group {
     }
 
     pub async fn read_vdisk_directory(&self) -> BackendResult<Vec<Holder>> {
-        Stuff::check_or_create_directory(&self.directory_path).await?;
+        Utils::check_or_create_directory(&self.directory_path).await?;
 
         let mut holders = vec![];
         let pearl_directories = Settings::get_all_subdirectories(&self.directory_path).await?;

@@ -1,9 +1,9 @@
-use crate::{pearl::stuff::get_current_timestamp, prelude::*};
+use crate::{pearl::utils::get_current_timestamp, prelude::*};
 
 use super::{
     core::{BackendResult, PearlStorage},
     data::{Data, Key},
-    stuff::Stuff,
+    utils::Utils,
 };
 use bob_common::metrics::pearl::{
     PEARL_GET_BYTES_COUNTER, PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER,
@@ -321,7 +321,7 @@ impl Holder {
     }
 
     async fn init_holder(&self) -> AnyResult<()> {
-        let f = || Stuff::check_or_create_directory(&self.disk_path);
+        let f = || Utils::check_or_create_directory(&self.disk_path);
         self.config
             .try_multiple_times_async(
                 f,
@@ -332,7 +332,7 @@ impl Holder {
 
         self.config
             .try_multiple_times_async(
-                || Stuff::drop_pearl_lock_file(&self.disk_path),
+                || Utils::drop_pearl_lock_file(&self.disk_path),
                 &format!("cannot delete lock file: {:?}", self.disk_path),
                 self.config.fail_retry_timeout(),
             )
@@ -369,7 +369,7 @@ impl Holder {
     }
 
     pub async fn drop_directory(&self) -> BackendResult<()> {
-        Stuff::drop_directory(&self.disk_path).await
+        Utils::drop_directory(&self.disk_path).await
     }
 
     fn init_pearl_by_path(&self) -> AnyResult<PearlStorage> {

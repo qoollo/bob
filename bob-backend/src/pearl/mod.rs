@@ -5,7 +5,7 @@ mod group;
 mod holder;
 mod hooks;
 mod settings;
-mod stuff;
+mod utils;
 
 #[cfg(test)]
 mod tests;
