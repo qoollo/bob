@@ -22,6 +22,8 @@ use tonic::{Code, Request, Status};
 #[macro_use]
 extern crate log;
 
+const PAYLOAD_PATTERN: &[u8] = &[1, 1, 0, 1, 1, 1, 0, 0];
+
 #[derive(Clone)]
 struct NetConfig {
     port: u16,
@@ -280,6 +282,11 @@ impl<'a, T: Copy + Sub<Output = T>> DiffContainer<'a, T> {
 async fn main() {
     let matches = get_matches();
 
+    if matches.is_present("payload_pattern") {
+        println!("Payload pattern: {:?}", PAYLOAD_PATTERN);
+        return;
+    }
+
     let net_conf = NetConfig::from_matches(&matches);
     let task_conf = TaskConfig::from_matches(&matches);
     let benchmark_conf = BenchmarkConfig::from_matches(&matches);
@@ -481,8 +488,9 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let options: Option<PutOptions> = task_conf.find_put_options();
     let measure_time = task_conf.is_time_measurement_thread();
     let upper_idx = task_conf.low_idx + task_conf.count;
+    let data = create_data(task_conf.payload_size as usize);
     for i in task_conf.low_idx..upper_idx {
-        let blob = create_blob(&task_conf);
+        let blob = create_blob(data.clone());
         let key = BlobKey { key: i };
         let req = Request::new(PutRequest {
             key: Some(key),
@@ -530,8 +538,9 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
     let put_options = task_conf.find_put_options();
     let measure_time = task_conf.is_time_measurement_thread();
     let upper_idx = task_conf.low_idx + task_conf.count;
+    let data = create_data(task_conf.payload_size as usize);
     for i in task_conf.low_idx..upper_idx {
-        let blob = create_blob(&task_conf);
+        let blob = create_blob(data.clone());
         let key = BlobKey { key: i };
         let put_request = Request::new(PutRequest {
             key: Some(key.clone()),
@@ -612,17 +621,19 @@ fn spawn_statistics_thread(
     tokio::spawn(stat_worker(stop_token, 1000, stat, bytes_amount))
 }
 
-fn create_blob(task_conf: &TaskConfig) -> Blob {
-    let meta = BlobMeta {
-        timestamp: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("msg: &str")
-            .as_secs(),
-    };
-    Blob {
-        data: vec![0_u8; task_conf.payload_size as usize],
-        meta: Some(meta),
-    }
+fn create_blob(data: Vec<u8>) -> Blob {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time error")
+        .as_secs();
+    let meta = Some(BlobMeta { timestamp });
+    Blob { data, meta }
+}
+
+fn create_data(size: usize) -> Vec<u8> {
+    let mut data = Vec::with_capacity(size);
+    data.extend(PAYLOAD_PATTERN.iter().cycle().take(size));
+    data
 }
 
 fn get_matches() -> ArgMatches<'static> {
@@ -706,6 +717,12 @@ fn get_matches() -> ArgMatches<'static> {
                 .help("verify results of put requests")
                 .takes_value(false)
                 .long("verify"),
+        )
+        .arg(
+            Arg::with_name("payload_pattern")
+                .help("print payload pattern")
+                .takes_value(false)
+                .long("payload-pattern"),
         )
         .get_matches()
 }
