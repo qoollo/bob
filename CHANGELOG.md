@@ -4,7 +4,6 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Bloom filter offloading ([#301](https://github.com/qoollo/bob/pull/301))
 
 
 #### Changed
@@ -15,6 +14,10 @@ Bob versions changelog
 
 #### Updated
 
+
+## [2.0.0-alpha.8] - 2021-11-18
+#### Added
+- Bloom filter offloading (#301)
 
 
 ## [2.0.0-alpha.7] - 2021-11-09
