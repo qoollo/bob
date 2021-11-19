@@ -10,11 +10,15 @@ Bob versions changelog
 
 
 #### Fixed
-- Fix allocated size computation in BloomFilterMemoryLimitHooks (#372)
-
 
 
 #### Updated
+
+
+
+## [2.0.0-alpha.9] - 2021-11-19
+#### Fixed
+- Fix allocated size computation in BloomFilterMemoryLimitHooks (#372)
 
 
 ## [2.0.0-alpha.8] - 2021-11-18
