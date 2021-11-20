@@ -25,7 +25,7 @@ infer = "0.5"
 lazy_static = "1.4.0"
 log = "0.4"
 metrics = { version = "0.17", features = ["std"] }
-mockall = "0.10"
+mockall = "0.10.2"
 prost = "0.8"
 ring = "0.16"
 rocket = { version = "0.5.0-rc.1", features = ["json", "uuid"] }
@@ -53,3 +53,4 @@ chrono = "0.4"
 
 [dev-dependencies]
 env_logger = "0.9"
+bob-common = { path = "../bob-common", features = ["testing"]  }

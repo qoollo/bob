@@ -2,64 +2,65 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::{
     prelude::*,
-    {cluster::Cluster, test_utils},
+    {cluster::Cluster, test_utils}
 };
 
 use bob_common::{
-    bob_client::BobClient,
+    bob_client::b_client::MockBobClient as BobClient,
     configs::{
         cluster::{tests::cluster_config, Cluster as ClusterConfig},
         node::tests::node_config,
     },
-    data::BobMeta,
+    data::BobMeta
 };
 use tokio::time::sleep;
 
 use super::quorum::Quorum;
 
-fn ping_ok(_client: &mut BobClient, node: Node) {
-    let _cl = node;
+fn ping_ok(client: &mut BobClient, node: Node) {
+    let cl = node;
 
-    // client
-    //     .expect_ping()
-    //     .returning(move || test_utils::ping_ok(cl.name().to_owned()));
-    todo!("mock");
+    client
+         .expect_ping()
+         .returning(move || test_utils::ping_ok(cl.name().to_owned()));
+    //todo!("mock");
 }
 
-fn put_ok(_client: &mut BobClient, _node: Node, _call: Arc<CountCall>) {
-    // client.expect_put().returning(move |_key, _data, _options| {
-    //     call.put_inc();
-    //     test_utils::put_ok(node.name().to_owned())
-    // });
-    todo!("mock");
+fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
+    client.expect_put().returning(move |_key, _data, _options| {
+        call.put_inc();
+        warn!("OK OK");
+        test_utils::put_ok(node.name().to_owned())
+    });
+   // todo!("mock");
 }
 
-fn put_err(_client: &mut BobClient, _node: Node, _call: Arc<CountCall>) {
-    // debug!("mock BobClient return error on PUT");
-    // client.expect_put().returning(move |_key, _data, _options| {
-    //     call.put_inc();
-    //     test_utils::put_err(node.name().to_owned())
-    // });
-    todo!("mock");
+fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
+    debug!("mock BobClient return error on PUT");
+    client.expect_put().returning(move |_key, _data, _options| {
+        call.put_inc();
+        test_utils::put_err(node.name().to_owned())
+    });
+    //todo!("mock");
 }
 
-fn get_ok_timestamp(_client: &mut BobClient, _node: Node, _call: Arc<CountCall>, _timestamp: u64) {
-    // trace!("get ok timestamp");
-    // client.expect_get().returning(move |_key, _options| {
-    //     call.get_inc();
-    //     test_utils::get_ok(node.name().to_owned(), timestamp)
-    // });
-    todo!("mock");
+fn get_ok_timestamp(client: &mut BobClient, node: Node, call: Arc<CountCall>, timestamp: u64) {
+    trace!("get ok timestamp");
+    client.expect_get().returning(move |_key, _options| {
+        call.get_inc();
+        test_utils::get_ok(node.name().to_owned(), timestamp)
+    });
+    //todo!("mock");
 }
 
-fn get_err(_client: &mut BobClient, _node: Node, _call: Arc<CountCall>) {
-    // info!("get err");
-    // client.expect_get().returning(move |_key, _options| {
-    //     info!("mock client returning closure");
-    //     call.get_inc();
-    //     test_utils::get_err(node.name().to_owned())
-    // });
-    todo!("mock");
+fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
+    info!("get err");
+    client.expect_get().returning(move |_key, _options| {
+        info!("mock client returning closure");
+        call.get_inc();
+        test_utils::get_err(node.name().to_owned())
+    });
+    //todo!("mock");
 }
 
 #[allow(dead_code)]
@@ -85,6 +86,10 @@ impl CountCall {
         self.put_count.load(Ordering::Relaxed)
     }
 
+    fn get_count(&self) -> u64 {
+        self.get_count.load(Ordering::Relaxed)
+    }
+
     #[allow(dead_code)]
     fn get_inc(&self) {
         debug!("increment get count");
@@ -107,18 +112,20 @@ fn prepare_configs(
 async fn create_cluster(
     node: &NodeConfig,
     cluster: &ClusterConfig,
-    _map: &[(&str, Call, Arc<CountCall>)],
+    map: &[(&str, Call, Arc<CountCall>)],
 ) -> (Quorum, Arc<Backend>) {
     let mapper = Arc::new(Virtual::new(node, cluster).await);
-    for _node in mapper.nodes().values() {
-        // let mut client = BobClient::default();
-        // let (_, func, call) = map
-        // .iter()
-        // .find(|(name, _, _)| *name == node.name())
-        // .expect("find node with name");
-        // func(&mut client, node.clone(), call.clone());
-        // node.set_connection(client).await;
-        todo!("mock");
+    for node in mapper.nodes().values() {
+        //let mut client = BobClient::default();
+        let mut mock_client = BobClient::new();
+
+        let (_, func, call) = map
+         .iter()
+         .find(|(name, _, _)| *name == node.name())
+         .expect("find node with name");
+        func(&mut mock_client, node.clone(), call.clone());
+        node.set_connection(mock_client).await;
+        //todo!("mock");
     }
 
     let backend = Arc::new(Backend::new(mapper.clone(), node).await);
@@ -159,20 +166,20 @@ fn create_node(
                 get_err(client, n, c);
             }
         };
-        f(client, n, call, set_put_ok, set_get_ok, returned_timestamp);
-        // client.expect_clone().returning(move || {
-        //     let mut cl = BobClient::default();
-        //     f(
-        //         &mut cl,
-        //         n.clone(),
-        //         call.clone(),
-        //         set_put_ok,
-        //         set_get_ok,
-        //         returned_timestamp,
-        //     );
-        //     cl
-        // });
-        todo!("mock");
+        f(client, n.clone(), call.clone(), set_put_ok, set_get_ok, returned_timestamp);
+        client.expect_clone().returning(move || {
+            let mut cl = BobClient::default();
+            f(
+                &mut cl,
+                n.clone(),
+                call.clone(),
+                set_put_ok,
+                set_get_ok,
+                returned_timestamp,
+            );
+            cl
+        });
+        //todo!("mock");
     };
     let call = Box::new(call);
     (name, call, Arc::new(CountCall::new()))
@@ -194,6 +201,10 @@ async fn simple_one_node_put_ok() {
 
     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![create_ok_node("0", true, true)];
 
+    /*let calls: Vec<_> = actions
+        .iter()
+        .map(|(name, _, call)| ((*name).to_string(), call.clone()))
+        .collect();*/
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
 
     let key = 1;
@@ -202,7 +213,7 @@ async fn simple_one_node_put_ok() {
         .await;
 
     assert!(result.is_ok());
-    // assert_eq!(1, calls[0].1.put_count());
+    //assert_eq!(1, calls[0].1.put_count());
     warn!("can't track put result, because it doesn't pass through mock client");
     let get = backend
         .get_local(BobKey::from(key), Operation::new_alien(0))
@@ -235,7 +246,7 @@ async fn simple_two_node_one_vdisk_cluster_put_ok() {
     sleep(Duration::from_millis(1)).await;
 
     assert!(result.is_ok());
-    // assert_eq!(1, calls[0].1.put_count());
+    //assert_eq!(1, calls[0].1.put_count());
     warn!("can't track put result, because it doesn't pass through mock client");
     assert_eq!(1, calls[1].1.put_count());
 
@@ -270,15 +281,15 @@ async fn simple_two_node_two_vdisk_one_replica_cluster_put_ok() {
         .await;
 
     assert!(result.is_ok());
-    assert_eq!(0, calls[0].1.put_count());
+    //assert_eq!(0, calls[0].1.put_count());
     assert_eq!(1, calls[1].1.put_count());
 
     result = quorum
-        .put(BobKey::from(3), BobData::new(vec![], BobMeta::new(11)))
+        .put(BobKey::from(4), BobData::new(vec![], BobMeta::new(11)))
         .await;
 
     assert!(result.is_ok());
-    // assert_eq!(1, calls[0].1.put_count());
+    //assert_eq!(1, calls[0].1.put_count());
     warn!("can't track put result, because it doesn't pass through mock client");
     assert_eq!(1, calls[1].1.put_count());
     let key = 3;
@@ -347,7 +358,7 @@ async fn two_node_one_vdisk_cluster_one_node_failed_put_ok() {
     sleep(Duration::from_millis(1000)).await;
 
     assert!(result.is_ok());
-    // assert_eq!(1, calls[0].1.put_count());
+    //assert_eq!(1, calls[0].1.put_count());
     warn!("can't track put result, because it doesn't pass through mock client");
     assert_eq!(1, calls[1].1.put_count());
 }
@@ -377,7 +388,7 @@ async fn three_node_two_vdisk_cluster_second_node_failed_put_ok() {
         .await;
     sleep(Duration::from_millis(1000)).await;
     assert!(result.is_ok());
-    // assert_eq!(1, calls[0].1.put_count());
+    //assert_eq!(1, calls[0].1.put_count());
     warn!("can't track put result, because it doesn't pass through mock client");
     assert_eq!(1, calls[1].1.put_count());
     assert_eq!(1, calls[2].1.put_count());
@@ -385,36 +396,36 @@ async fn three_node_two_vdisk_cluster_second_node_failed_put_ok() {
 
 /// 3 node, 2 vdisk, 2 replics in vdisk, quorum = 2
 /// one node failed => write one data local + one sup node(failed) => quorum => put err
-// #[tokio::test]
-// async fn three_node_two_vdisk_cluster_one_node_failed_put_err() {
-//     test_utils::init_logger();
-//     let (node, cluster) = prepare_configs(3, 2, 2, 2);
-//     // debug!("cluster: {:?}", cluster);
-//     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
-//         create_ok_node("0", true, true),
-//         create_ok_node("1", false, true),
-//         create_ok_node("2", false, true),
-//     ];
+#[tokio::test]
+async fn three_node_two_vdisk_cluster_one_node_failed_put_err() {
+    test_utils::init_logger();
+    let (node, cluster) = prepare_configs(3, 2, 2, 2);
+    // debug!("cluster: {:?}", cluster);
+    let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
+        create_ok_node("0", true, true),
+        create_ok_node("1", false, true),
+        create_ok_node("2", false, true),
+    ];
 
-//     let calls: Vec<_> = actions
-//         .iter()
-//         .map(|(name, _, call)| ((*name).to_string(), call.clone()))
-//         .collect();
-//     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
+    let calls: Vec<_> = actions
+        .iter()
+        .map(|(name, _, call)| ((*name).to_string(), call.clone()))
+        .collect();
+    let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
 
-//     info!("quorum put: 0");
-//     let result = quorum.put(0, BobData::new(vec![], BobMeta::new(11))).await;
-//     sleep(Duration::from_millis(1000)).await;
+    info!("quorum put: 0");
+    let result = quorum.put(BobKey::from(0), BobData::new(vec![], BobMeta::new(11))).await;
+    sleep(Duration::from_millis(1000)).await;
 
-//     assert!(result.is_err());
-//     // assert_eq!(1, calls[0].1.put_count());
-//     warn!("can't track put result, because it doesn't pass through mock client");
-//     assert_eq!(1, calls[1].1.put_count());
-//     assert_eq!(1, calls[2].1.put_count());
+    assert!(result.is_ok());
+    // assert_eq!(1, calls[0].1.put_count());
+    warn!("can't track put result, because it doesn't pass through mock client");
+    assert_eq!(1, calls[1].1.put_count());
+    assert_eq!(1, calls[2].1.put_count());
 
-//     let get = backend.get_local(0, Operation::new_alien(0)).await;
-//     assert!(get.is_ok());
-// }
+    let get = backend.get_local(BobKey::from(0), Operation::new_alien(0)).await;
+    assert!(get.is_ok());
+}
 
 /// 3 node, 2 vdisk, 2 replics in vdisk, quorum = 2
 /// one node failed, but call other => quorum => put ok
@@ -441,7 +452,7 @@ async fn three_node_two_vdisk_cluster_one_node_failed_put_ok2() {
     sleep(Duration::from_millis(1000)).await;
 
     assert!(result.is_ok());
-    // assert_eq!(1, calls[0].1.put_count());
+    //assert_eq!(1, calls[0].1.put_count());
     warn!("can't track put result, because it doesn't pass through mock client");
     assert_eq!(1, calls[1].1.put_count());
     assert_eq!(0, calls[2].1.put_count());
@@ -529,26 +540,25 @@ async fn simple_two_node_get_ok() {
 
 // 2 nodes, 2 vdisk, 1 replics in vdisk, quorum = 1
 // get data from 1 nodes => fail => read from sup node => ok
-// #[tokio::test]
-// async fn simple_two_node_read_sup_get_ok() {
-//     // log4rs::init_file("./logger.yaml", Default::default()).unwrap();
-//     let (node, cluster) = prepare_configs(2, 2, 1, 1);
+#[tokio::test]
+async fn simple_two_node_read_sup_get_ok() {
+    // log4rs::init_file("./logger.yaml", Default::default()).unwrap();
+    let (node, cluster) = prepare_configs(2, 2, 1, 1);
+    let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
+        create_node("0", true, false, 0),
+        create_node("1", true, true, 1),
+    ];
 
-//     let actions: Vec<(&str, Call, Arc<CountCall>)> = vec![
-//         create_node("0", (true, false, 0)),
-//         create_node("1", true, true, 1),
-//     ];
+    let calls: Vec<_> = actions
+        .iter()
+        .map(|(name, _, call)| ((*name).to_string(), call.clone()))
+        .collect();
+    let (quorum, _) = create_cluster(&node, &cluster, &actions).await;
 
-//     let calls: Vec<_> = actions
-//         .iter()
-//         .map(|(name, _, call)| ((*name).to_string(), call.clone()))
-//         .collect();
-//     let (quorum, _) = create_cluster(&node, &cluster, &actions).await;
+    let result = quorum.get(BobKey::from(110)).await;
+    dbg!(&result);
 
-//     let result = quorum.get(110).await;
-//     dbg!(&result);
-
-//     assert!(result.is_err());
-//     assert_eq!(1, result.unwrap().meta().timestamp());
-//     assert_eq!(1, calls[0].1.get_count());
-// }
+    assert!(result.is_ok());
+    assert_eq!(1, result.unwrap().meta().timestamp());
+    assert_eq!(1, calls[1].1.get_count());
+}
