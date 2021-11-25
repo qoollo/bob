@@ -4,7 +4,7 @@ pub(crate) struct Cleaner {
     old_blobs_check_timeout: Duration,
     soft_open_blobs: usize,
     hard_open_blobs: usize,
-    filter_memory_limit: Option<usize>,
+    bloom_filter_memory_limit: Option<usize>,
 }
 
 impl Cleaner {
@@ -12,13 +12,13 @@ impl Cleaner {
         old_blobs_check_timeout: Duration,
         soft_open_blobs: usize,
         hard_open_blobs: usize,
-        filter_memory_limit: Option<usize>,
+        bloom_filter_memory_limit: Option<usize>,
     ) -> Self {
         Self {
             old_blobs_check_timeout,
             soft_open_blobs,
             hard_open_blobs,
-            filter_memory_limit,
+            bloom_filter_memory_limit,
         }
     }
 
@@ -28,7 +28,7 @@ impl Cleaner {
             self.old_blobs_check_timeout,
             self.soft_open_blobs,
             self.hard_open_blobs,
-            self.filter_memory_limit,
+            self.bloom_filter_memory_limit,
         ));
     }
 
@@ -37,16 +37,21 @@ impl Cleaner {
         t: Duration,
         soft: usize,
         hard: usize,
-        filter_memory_limit: Option<usize>,
+        bloom_filter_memory_limit: Option<usize>,
     ) {
         let mut interval = interval(t);
         loop {
             interval.tick().await;
             backend.close_unneeded_active_blobs(soft, hard).await;
-            if let Some(limit) = filter_memory_limit {
-                log::warn!("Memory before: {}", backend.filter_memory_allocated().await);
+            if let Some(limit) = bloom_filter_memory_limit {
+                let before_offloading = backend.filter_memory_allocated().await;
                 backend.offload_old_filters(limit).await;
-                log::warn!("Memory after: {}", backend.filter_memory_allocated().await);
+                let after_offloading = backend.filter_memory_allocated().await;
+                log::info!(
+                    "Filter memory offloaded {} -> {} bytes",
+                    before_offloading,
+                    after_offloading
+                );
             }
         }
     }

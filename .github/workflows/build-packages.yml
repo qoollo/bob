@@ -10,20 +10,24 @@ jobs:
 
   build-release:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        bob_key_size: [8, 16]
     env:
       TARGET: "x86_64-unknown-linux-musl"
       BUILD_MODE: "release"
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
-      - name: Set env variable and install packages
+      - name: Set env variables and install packages
         run: |
-          export BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
+          echo "BOB_KEY_SIZE=${{ matrix.bob_key_size }}" >> $GITHUB_ENV
           sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
-      - name: Install latest nightly
+      - name: Install latest stable
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           target: ${{ env.TARGET }}
           default: true
       - name: Build release
@@ -31,25 +35,31 @@ jobs:
         with:
           command: build
           args: --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}
+      - name: Check bobd version
+        run: target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd --version
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
-          name: bob-binaries
+          name: bob-binaries-${{ matrix.bob_key_size }}
           path: |
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobp
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
+            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/brt
  
   build-rpm:
     runs-on: ubuntu-latest
     needs: build-release
+    strategy:
+      matrix:
+        bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
-          name: bob-binaries
+          name: bob-binaries-${{ matrix.bob_key_size }}
       - name: Set env
         run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
       - name: build rpm
@@ -59,46 +69,55 @@ jobs:
           sed -i "s/release_number/${{ github.run_id }}/" bob.spec
           cur_dir_name=${PWD##*/}
           mkdir -p ./rpmbuild/{SOURCES,BUILD,RPMS,SPECS,SRPMS}
-          tar czf ./rpmbuild/SOURCES/bob-${{ env.VERSION }}.tar.gz ../${cur_dir_name}/{bobd,bobp,ccg,bob_limits.conf,bob.service} ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml --transform s/${cur_dir_name}/bob-${{ env.VERSION }}/
+          tar czf ./rpmbuild/SOURCES/bob-${{ env.VERSION }}.tar.gz ../${cur_dir_name}/{bobd,bobp,brt,ccg,bob_limits.conf,bob.service} ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml --transform s/${cur_dir_name}/bob-${{ env.VERSION }}/
           rpmbuild -ba --define "_topdir ${PWD}/rpmbuild" bob.spec
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
-          name: bob-rpm
+          name: bob-rpm-${{ matrix.bob_key_size }}
           path: rpmbuild/RPMS/x86_64/bob-${{ env.VERSION }}-${{ github.run_id }}.x86_64.rpm
 
   upload-rpm:
     runs-on: ubuntu-latest
     needs: build-rpm
     environment: prod
+    strategy:
+      matrix:
+        bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
-          name: bob-rpm
+          name: bob-rpm-${{ matrix.bob_key_size }}
       - name: Set env
         run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+      - name: Set asset_name_postfix
+        if: ${{ matrix.bob_key_size != 8 }}
+        run: echo "asset_name_postfix=-key${{ matrix.bob_key_size }}" >> $GITHUB_ENV
       - name: Upload rpm to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: bob-${{ env.VERSION }}-${{ github.run_id }}.x86_64.rpm
-          asset_name: bob-${{ env.VERSION }}.x86_64.rpm
+          asset_name: bob-${{ env.VERSION }}${{ env.asset_name_postfix }}.x86_64.rpm
           tag: ${{ github.ref }}
           overwrite: true
 
   build-deb:
     runs-on: ubuntu-latest
     needs: build-release
+    strategy:
+      matrix:
+        bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
-          name: bob-binaries
+          name: bob-binaries-${{ matrix.bob_key_size }}
       - name: Set env
         run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
       - name: build deb
@@ -107,7 +126,8 @@ jobs:
           mkdir -p bob_${{ env.VERSION }}_amd64/{DEBIAN,usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
           cp {control,postinst} bob_${{ env.VERSION }}_amd64/DEBIAN/
           chmod +x bob_${{ env.VERSION }}_amd64/DEBIAN/postinst
-          cp {bobd,bobp,ccg} bob_${{ env.VERSION }}_amd64/usr/bin/
+          cp {bobd,bobp,brt,ccg} bob_${{ env.VERSION }}_amd64/usr/bin/
+          chmod +x bob_${{ env.VERSION }}_amd64/usr/bin/{bobd,bobp,brt,ccg}
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}_amd64/etc/bob/
           cp bob.service bob_${{ env.VERSION }}_amd64/etc/systemd/system/
           cp bob.service bob_${{ env.VERSION }}_amd64/lib/systemd/system/
@@ -117,49 +137,58 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
-          name: bob-deb
+          name: bob-deb-${{ matrix.bob_key_size }}
           path: bob_${{ env.VERSION }}_amd64.deb
-
 
   upload-deb:
     runs-on: ubuntu-latest
     needs: build-deb
     environment: prod
+    strategy:
+      matrix:
+        bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
-          name: bob-deb
+          name: bob-deb-${{ matrix.bob_key_size }}
       - name: Set env
         run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+      - name: Set asset_name_postfix
+        if: ${{ matrix.bob_key_size != 8 }}
+        run: echo "asset_name_postfix=_key${{ matrix.bob_key_size }}" >> $GITHUB_ENV
       - name: Upload deb to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: bob_${{ env.VERSION }}_amd64.deb
-          asset_name: bob_${{ env.VERSION }}_amd64.deb
+          asset_name: bob_${{ env.VERSION }}${{ env.asset_name_postfix }}_amd64.deb
           tag: ${{ github.ref }}
           overwrite: true
 
   zip-file:
     runs-on: ubuntu-latest
     needs: build-release
+    strategy:
+      matrix:
+        bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
-          name: bob-binaries
+          name: bob-binaries-${{ matrix.bob_key_size }}
       - name: Set env
         run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
       - name: add zip file
         run: |
           echo Version:${{ env.VERSION }}
           mkdir -p bob_${{ env.VERSION }}/{usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
-          cp {bobd,bobp,ccg} bob_${{ env.VERSION }}/usr/bin/
+          cp {bobd,bobp,brt,ccg} bob_${{ env.VERSION }}/usr/bin/
+          chmod +x bob_${{ env.VERSION }}/usr/bin/{bobd,bobp,brt,ccg}
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}/etc/bob/
           cp bob.service bob_${{ env.VERSION }}/etc/systemd/system/
           cp bob.service bob_${{ env.VERSION }}/lib/systemd/system/
@@ -168,27 +197,33 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
-          name: bob-zip
+          name: bob-zip-${{ matrix.bob_key_size }}
           path: bob_${{ env.VERSION }}.zip
 
   upload-zip:
     runs-on: ubuntu-latest
     needs: zip-file
     environment: prod
+    strategy:
+      matrix:
+        bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
-          name: bob-zip
+          name: bob-zip-${{ matrix.bob_key_size }}
       - name: Set env
         run: echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+      - name: Set asset_name_postfix
+        if: ${{ matrix.bob_key_size != 8 }}
+        run: echo "asset_name_postfix=_key${{ matrix.bob_key_size }}" >> $GITHUB_ENV
       - name: Upload zip file to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: bob_${{ env.VERSION }}.zip
-          asset_name: bob_${{ env.VERSION }}.zip
+          asset_name: bob_${{ env.VERSION }}${{ env.asset_name_postfix }}.zip
           tag: ${{ github.ref }}
           overwrite: true

@@ -1,8 +1,8 @@
-use crate::server::Server as BobServer;
-use crate::version_helpers::{
-    get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
+use crate::{
+    api::http::metric_models::MetricsSnapshotModel, build_info::BuildInfo,
+    server::Server as BobServer,
 };
-use bob_backend::pearl::{Group as PearlGroup, Holder, PostProcessor};
+use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
     error::Error as BobError,
@@ -17,6 +17,7 @@ use rocket::{
     serde::{json::Json, uuid::Uuid},
     Config, Data, Request, Response, Rocket, State,
 };
+use std::net::IpAddr;
 use std::{
     io::{Cursor, Error as IoError, ErrorKind},
     path::{Path, PathBuf},
@@ -24,6 +25,7 @@ use std::{
 };
 use tokio::fs::{read_dir, ReadDir};
 
+mod metric_models;
 mod s3;
 
 #[derive(Debug, Clone)]
@@ -109,7 +111,12 @@ pub(crate) struct VersionInfo {
     pearl_version: Version,
 }
 
-pub(crate) fn spawn(bob: BobServer, port: u16) {
+#[derive(Debug, Serialize)]
+pub(crate) struct NodeConfiguration {
+    blob_file_name_prefix: String,
+}
+
+pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
     let routes = routes![
         status,
         version,
@@ -119,7 +126,9 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         partition_by_id,
         change_partition_state,
         delete_partition,
+        get_node_configuration,
         alien,
+        detach_alien_partitions,
         get_alien_directory,
         remount_vdisks_group,
         start_all_disk_controllers,
@@ -131,10 +140,12 @@ pub(crate) fn spawn(bob: BobServer, port: u16) {
         vdisk_records_count,
         distribution_function,
         get_data,
-        put_data
+        put_data,
+        metrics
     ];
     info!("API server started");
     let mut config = Config::release_default();
+    config.address = address;
     config.port = port;
     let task = Rocket::custom(config)
         .manage(bob)
@@ -225,18 +236,26 @@ async fn status(bob: &State<BobServer>) -> Json<Node> {
     Json(node)
 }
 
+#[get("/metrics")]
+async fn metrics(bob: &State<BobServer>) -> Json<MetricsSnapshotModel> {
+    let snapshot = bob.metrics().read().await.clone();
+    Json(snapshot.into())
+}
+
 #[get("/version")]
 fn version(_bob: &State<BobServer>) -> Json<VersionInfo> {
-    Json(VersionInfo {
+    let build_info = BuildInfo::new();
+    let version_info = VersionInfo {
         bob_version: Version {
-            version: get_bob_version(),
-            build_time: get_bob_build_time().to_string(),
+            version: build_info.version().to_string(),
+            build_time: build_info.build_time().to_string(),
         },
         pearl_version: Version {
-            version: get_pearl_version(),
-            build_time: get_pearl_build_time().to_string(),
+            version: build_info.pearl_version().to_string(),
+            build_time: build_info.pearl_build_time().to_string(),
         },
-    })
+    };
+    Json(version_info)
 }
 
 #[get("/nodes")]
@@ -250,7 +269,11 @@ async fn nodes(bob: &State<BobServer>) -> Json<Vec<Node>> {
             .filter_map(|vd| {
                 if vd.replicas.iter().any(|r| r.node == node.name()) {
                     let mut vd = vd.clone();
-                    vd.replicas.drain_filter(|r| r.node != node.name());
+                    for i in 0..vd.replicas.len() {
+                        if vd.replicas[i].node != node.name() {
+                            vd.replicas.remove(i);
+                        }
+                    }
                     Some(vd)
                 } else {
                     None
@@ -272,12 +295,12 @@ async fn nodes(bob: &State<BobServer>) -> Json<Vec<Node>> {
 #[get("/disks/list")]
 async fn disks_list(bob: &State<BobServer>) -> Result<Json<Vec<DiskState>>, StatusExt> {
     let backend = bob.grinder().backend().inner();
-    let (dcs, adc) = backend
+    let (dcs, alien_disk_controller) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
 
     let mut disks = Vec::new();
-    for dc in dcs.iter().chain(std::iter::once(&adc)) {
+    for dc in dcs.iter().chain(std::iter::once(&alien_disk_controller)) {
         let disk_path = dc.disk();
         disks.push(DiskState {
             name: disk_path.name().to_owned(),
@@ -297,6 +320,15 @@ async fn distribution_function(bob: &State<BobServer>) -> Json<DistrFunc> {
     })
 }
 
+#[get("/configuration")]
+async fn get_node_configuration(bob: &State<BobServer>) -> Json<NodeConfiguration> {
+    let grinder = bob.grinder();
+    let config = grinder.node_config();
+    Json(NodeConfiguration {
+        blob_file_name_prefix: config.pearl().blob_file_name_prefix().to_owned(),
+    })
+}
+
 #[post("/disks/<disk_name>/stop")]
 async fn stop_all_disk_controllers(
     bob: &State<BobServer>,
@@ -304,11 +336,11 @@ async fn stop_all_disk_controllers(
 ) -> Result<StatusExt, StatusExt> {
     use futures::stream::{FuturesUnordered, StreamExt};
     let backend = bob.grinder().backend().inner();
-    let (dcs, adc) = backend
+    let (dcs, alien_disk_controller) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
     dcs.iter()
-        .chain(std::iter::once(&adc))
+        .chain(std::iter::once(&alien_disk_controller))
         .filter(|dc| dc.disk().name() == disk_name)
         .map(|dc| dc.stop())
         .collect::<FuturesUnordered<_>>()
@@ -328,15 +360,14 @@ async fn start_all_disk_controllers(
 ) -> Result<StatusExt, StatusExt> {
     use futures::stream::{FuturesUnordered, StreamExt};
     let backend = bob.grinder().backend().inner();
-    let (dcs, adc) = backend
+    let (dcs, alien_disk_controller) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
-    let postprocessor = PostProcessor::default();
     let target_dcs = dcs
         .iter()
-        .chain(std::iter::once(&adc))
+        .chain(std::iter::once(&alien_disk_controller))
         .filter(|dc| dc.disk().name() == disk_name)
-        .map(|dc| dc.run(postprocessor.clone()))
+        .map(|dc| dc.run(NoopHooks))
         .collect::<FuturesUnordered<_>>();
     if target_dcs.is_empty() {
         let err = format!("Disk Controller with name '{}' not found", disk_name);
@@ -562,13 +593,23 @@ async fn alien(_bob: &State<BobServer>) -> &'static str {
     "alien"
 }
 
+#[post("/alien/detach")]
+async fn detach_alien_partitions(bob: &State<BobServer>) -> Result<StatusExt, StatusExt> {
+    let backend = bob.grinder().backend().inner();
+    let (_, alien_disk_controller) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    alien_disk_controller.detach_all().await?;
+    Ok(StatusExt::new(Status::Ok, true, String::default()))
+}
+
 #[get("/alien/dir")]
 async fn get_alien_directory(bob: &State<BobServer>) -> Result<Json<Dir>, StatusExt> {
     let backend = bob.grinder().backend().inner();
-    let (_, adc) = backend
+    let (_, alien_disk_controller) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
-    let path = PathBuf::from(adc.disk().path());
+    let path = PathBuf::from(alien_disk_controller.disk().path());
     let dir = create_directory(&path).await?;
     Ok(Json(dir))
 }
