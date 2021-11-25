@@ -395,6 +395,10 @@ impl BloomProvider for Holder {
         None
     }
 
+    fn check_filter_fast(&self, item: &Self::Key) -> Option<bool> {
+        None
+    }
+
     async fn offload_buffer(&mut self, needed_memory: usize) -> usize {
         let mut storage = self.storage().write().await;
         match &mut storage.storage {
@@ -409,6 +413,10 @@ impl BloomProvider for Holder {
             Some(storage) => storage.get_filter().await,
             _ => None,
         }
+    }
+
+    fn get_filter_fast(&self) -> Option<&pearl::Bloom> {
+        None
     }
 
     async fn filter_memory_allocated(&self) -> usize {
@@ -504,7 +512,7 @@ impl PearlSync {
 
     pub async fn offload_filters(&self) -> usize {
         if let Some(storage) = &self.storage {
-            storage.offload_bloom().await
+            storage.offload_bloom_all().await
         } else {
             0
         }
