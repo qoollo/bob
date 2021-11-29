@@ -2,17 +2,25 @@ use crate::prelude::*;
 
 include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Key(Vec<u8>);
 
 impl<T: Into<Vec<u8>>> From<T> for Key {
     fn from(t: T) -> Self {
-        Self(t.into())
+        let mut v = t.into();
+        v.resize(Self::LEN as usize, 0);
+        Self(v)
     }
 }
 
 impl KeyTrait for Key {
     const LEN: u16 = BOB_KEY_SIZE;
+}
+
+impl Default for Key {
+    fn default() -> Self {
+        Self(vec![0_u8; BOB_KEY_SIZE as usize])
+    }
 }
 
 impl AsRef<[u8]> for Key {
