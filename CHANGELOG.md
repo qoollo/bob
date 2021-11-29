@@ -4,11 +4,10 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-Add bloom_filter_memory_limit to example config (#378)
-
+- Add bloom_filter_memory_limit to example config (#378)
+- Add traits to support pearl #123
 
 #### Changed
-
 
 #### Fixed
 
