@@ -2,7 +2,11 @@ use crate::{
     api::http::metric_models::MetricsSnapshotModel, build_info::BuildInfo,
     server::Server as BobServer,
 };
-use axum::{extract::Extension, routing::get, AddExtensionLayer, Json, Router, Server};
+use axum::{
+    extract::{Extension, Path as AxumPath},
+    routing::{get, post},
+    AddExtensionLayer, Json, Router, Server,
+};
 use bob_backend::pearl::{Group as PearlGroup, Holder};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
@@ -119,34 +123,27 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
         .route("/disks/list", get(disks_list))
         .route("/metadata/distrfunc", get(distribution_function))
         .route("/configuration", get(get_node_configuration))
+        .route("/disks/:disk_name/stop", post(stop_all_disk_controllers))
         .layer(AddExtensionLayer::new(bob));
 
     let task = Server::bind(&SocketAddr::new(address, port)).serve(router.into_make_service());
     // let routes = routes![
-    //     status,
-    //     version,
     //     vdisks,
     //     vdisk_by_id,
     //     partitions,
     //     partition_by_id,
     //     change_partition_state,
     //     delete_partition,
-    //     get_node_configuration,
     //     alien,
     //     detach_alien_partitions,
     //     get_alien_directory,
     //     remount_vdisks_group,
     //     start_all_disk_controllers,
-    //     stop_all_disk_controllers,
     //     get_local_replica_directories,
-    //     nodes,
-    //     disks_list,
     //     finalize_outdated_blobs,
     //     vdisk_records_count,
-    //     distribution_function,
     //     get_data,
     //     put_data,
-    //     metrics
     // ];
     info!("API server started");
     // let mut config = Config::release_default();
@@ -335,7 +332,7 @@ async fn get_node_configuration(Extension(bob): Extension<BobServer>) -> Json<No
 // #[post("/disks/<disk_name>/stop")]
 async fn stop_all_disk_controllers(
     Extension(bob): Extension<BobServer>,
-    disk_name: String,
+    AxumPath(disk_name): Path<String>,
 ) -> Result<StatusExt, StatusExt> {
     use futures::stream::{FuturesUnordered, StreamExt};
     let backend = bob.grinder().backend().inner();
