@@ -1,8 +1,8 @@
-use crate::prelude::*;
+use crate::{pearl::hooks::SimpleHolder, prelude::*};
 
 use super::core::BackendResult;
 
-pub struct Stuff;
+pub struct Utils;
 
 pub struct StartTimestampConfig {
     round: bool,
@@ -20,7 +20,7 @@ impl StartTimestampConfig {
     }
 }
 
-impl Stuff {
+impl Utils {
     pub async fn check_or_create_directory(path: &Path) -> BackendResult<()> {
         if path.exists() {
             trace!("directory: {:?} exists", path);
@@ -128,6 +128,47 @@ impl Stuff {
             start_time = start_time + period;
         }
         start_time.timestamp().try_into().unwrap()
+    }
+
+    pub(crate) async fn offload_old_filters(holders: Vec<SimpleHolder>, limit: usize) {
+        let now = Instant::now();
+        let (mut current_size, mut holders) = holders
+            .into_iter()
+            .map(|x| async move { (x.filter_memory_allocated().await, x) })
+            .collect::<FuturesUnordered<_>>()
+            .fold((0, vec![]), |mut acc, (size, h)| async move {
+                acc.0 += size;
+                acc.1.push((h, size));
+                acc
+            })
+            .await;
+        let initial_size = current_size;
+        if current_size < limit {
+            return;
+        }
+        holders.sort_by_key(|h| h.0.timestamp());
+        let holders_count = holders.len();
+        let mut freed = 0;
+        for (holder, size) in holders {
+            if current_size < limit {
+                break;
+            }
+            holder.offload_filter().await;
+            let new_size = holder.filter_memory_allocated().await;
+            freed += size.saturating_sub(new_size);
+            current_size = current_size.saturating_sub(size.saturating_sub(new_size));
+        }
+        let elapsed = now.elapsed();
+        if freed != 0 {
+            log::error!(
+                "Filters offloaded in {}s for {} holders: {} -> {}, {} freed",
+                elapsed.as_secs_f64(),
+                holders_count,
+                initial_size,
+                current_size,
+                freed
+            );
+        }
     }
 }
 
