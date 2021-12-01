@@ -36,9 +36,8 @@ tower-service = "0.3"
 
 [dependencies.pearl]
 #version = "=0.6.1"
-path = "../../pearl"
-#git = "https://github.com/qoollo/pearl"
-#branch = "115-offloadable-bloom-filter"
+git = "https://github.com/qoollo/pearl"
+branch = "hierarchical-filters"
 #metrics = "0.12.1"
 
 [dependencies.tokio]
