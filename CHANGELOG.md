@@ -11,7 +11,7 @@ Add bloom_filter_memory_limit to example config (#378)
 
 
 #### Fixed
-
+- Cluster tests now use mock of BobClient, some cluster and cluster config tests were updated, all tests now pass (#280)
 
 #### Updated
 
