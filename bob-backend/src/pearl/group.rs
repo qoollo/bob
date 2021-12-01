@@ -32,7 +32,7 @@ impl Group {
         dump_sem: Arc<Semaphore>,
     ) -> Self {
         Self {
-            holders: Default::default(),
+            holders: Arc::new(RwLock::new(HierarchicalBloom::new(8, 2))),
             settings,
             vdisk_id,
             node_name,
@@ -86,13 +86,14 @@ impl Group {
     }
 
     async fn run_pearls(&self, pp: impl Hooks) -> AnyResult<()> {
-        let holders = self.holders.write().await;
+        let mut holders = self.holders.write().await;
 
-        for holder in holders.iter_data() {
+        for holder in holders.iter() {
             holder.prepare_storage().await?;
             pp.storage_prepared(holder).await;
             debug!("backend pearl group run pearls storage prepared");
         }
+        holders.reload().await;
         Ok(())
     }
 
@@ -114,7 +115,7 @@ impl Group {
         self.holders()
             .read()
             .await
-            .iter_data()
+            .iter()
             .map(|h| f(h))
             .collect::<FuturesUnordered<_>>()
             .collect::<Vec<()>>()
@@ -140,7 +141,7 @@ impl Group {
         let holders = self.holders.read().await;
         let mut holders_for_time: Vec<_> = holders
             .iter()
-            .map(|(id, leaf)| (*id, &leaf.data))
+            .enumerate()
             .filter(|h| h.1.gets_into_interval(data.meta().timestamp()))
             .collect();
 
@@ -248,11 +249,11 @@ impl Group {
         let holders = self.holders.read().await;
         let mut has_error = false;
         let mut results = vec![];
-        if let Some(false) = holders.check_filter_without_leafs(&key.into()).await {
-            return Err(Error::key_not_found(key));
-        }
-        for holder in holders.iter().rev() {
-            let get = Self::get_common(&holder.1.data, key).await;
+        for holder in holders
+            .iter_possible_childs_rev(key.as_slice())
+            .map(|(_, x)| &x.data)
+        {
+            let get = Self::get_common(&holder, key).await;
             match get {
                 Ok(data) => {
                     trace!("get data: {:?} from: {:?}", data, holder);
@@ -299,10 +300,7 @@ impl Group {
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
-            if let Some(false) = holders.check_filter(&key.into()).await {
-                continue;
-            }
-            for holder in holders.iter() {
+            for holder in holders.iter_possible_childs_rev(key.as_slice()) {
                 if !exist[ind] {
                     exist[ind] = holder.1.data.exist(key).await.unwrap_or(false);
                 }
@@ -331,7 +329,7 @@ impl Group {
         let holders = self.holders.read().await;
         if holders
             .iter()
-            .map(|x| x.1.data.start_timestamp())
+            .map(|x| x.start_timestamp())
             .any(|timestamp| timestamp == start_timestamp)
         {
             let msg = format!("pearl:{} already exists", start_timestamp);
@@ -350,12 +348,13 @@ impl Group {
         debug!("write lock acquired");
         let ts = get_current_timestamp();
         let mut removed = vec![];
-        for ind in holders.children_keys().copied().collect::<Vec<_>>() {
-            if {
-                let holder = &holders.get_child(ind).expect("should be presented").data;
-                holder.start_timestamp() == start_timestamp && !holder.gets_into_interval(ts)
-            } {
-                removed.push(holders.remove(ind).expect("should be presented"));
+        for ind in 0..holders.len() {
+            if let Some(holder) = holders.get_child(ind) {
+                if holder.data.start_timestamp() == start_timestamp
+                    && !holder.data.gets_into_interval(ts)
+                {
+                    removed.push(holders.remove(ind).expect("should be presented"));
+                }
             }
         }
         if removed.is_empty() {
@@ -475,7 +474,7 @@ impl Group {
 
         let mut total_open_blobs = 0;
         let mut close = vec![];
-        for h in holders.iter_data() {
+        for h in holders.iter() {
             if !h.active_blob_is_empty().await {
                 total_open_blobs += 1;
                 if h.is_outdated() && h.no_writes_recently().await {

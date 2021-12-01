@@ -28,7 +28,7 @@ impl SimpleHolder {
     }
 
     pub(crate) async fn offload_filter(&self) -> usize {
-        self.storage.read().await.offload_filters().await
+        self.storage.write().await.offload_filters().await
     }
 
     pub(crate) fn timestamp(&self) -> u64 {

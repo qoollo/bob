@@ -11,6 +11,7 @@ use bob_common::metrics::pearl::{
 };
 use pearl::error::{AsPearlError, ValidationErrorKind};
 use pearl::BloomProvider;
+use pearl::FilterResult;
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
@@ -144,11 +145,6 @@ impl Holder {
         let storage = self.storage.write().await;
         storage.storage().close_active_blob_in_background().await;
         warn!("Active blob of {} closed", self.get_id());
-    }
-
-    pub async fn offload_filters(&self) {
-        self.storage.write().await.offload_filters().await;
-        debug!("Offload bloom filter of {}", self.get_id());
     }
 
     pub async fn filter_memory_allocated(&self) -> usize {
@@ -435,22 +431,22 @@ impl Holder {
 impl BloomProvider for Holder {
     type Key = Key;
 
-    async fn check_filter(&self, item: &Self::Key) -> Option<bool> {
+    async fn check_filter(&self, item: &Self::Key) -> FilterResult {
         let storage = self.storage().read().await;
         if let Some(storage) = &storage.storage {
             return BloomProvider::check_filter(storage, item).await;
         }
-        None
+        FilterResult::NeedAdditionalCheck
     }
 
-    fn check_filter_fast(&self, _item: &Self::Key) -> Option<bool> {
-        None
+    fn check_filter_fast(&self, _item: &Self::Key) -> FilterResult {
+        FilterResult::NeedAdditionalCheck
     }
 
-    async fn offload_buffer(&mut self, needed_memory: usize) -> usize {
+    async fn offload_buffer(&mut self, needed_memory: usize, level: usize) -> usize {
         let mut storage = self.storage().write().await;
         match &mut storage.storage {
-            Some(storage) => storage.offload_buffer(needed_memory).await,
+            Some(storage) => storage.offload_buffer(needed_memory, level).await,
             _ => 0,
         }
     }
@@ -558,9 +554,9 @@ impl PearlSync {
         }
     }
 
-    pub async fn offload_filters(&self) -> usize {
-        if let Some(storage) = &self.storage {
-            storage.offload_bloom_all().await
+    pub async fn offload_filters(&mut self) -> usize {
+        if let Some(storage) = &mut self.storage {
+            storage.offload_buffer(usize::MAX, 0).await
         } else {
             0
         }
