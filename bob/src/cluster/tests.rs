@@ -23,7 +23,6 @@ fn ping_ok(client: &mut BobClient, node: Node) {
     client
          .expect_ping()
          .returning(move || test_utils::ping_ok(cl.name().to_owned()));
-    //todo!("mock");
 }
 
 fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
@@ -32,7 +31,6 @@ fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
         warn!("OK OK");
         test_utils::put_ok(node.name().to_owned())
     });
-   // todo!("mock");
 }
 
 fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
@@ -41,7 +39,6 @@ fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
         call.put_inc();
         test_utils::put_err(node.name().to_owned())
     });
-    //todo!("mock");
 }
 
 fn get_ok_timestamp(client: &mut BobClient, node: Node, call: Arc<CountCall>, timestamp: u64) {
@@ -50,7 +47,6 @@ fn get_ok_timestamp(client: &mut BobClient, node: Node, call: Arc<CountCall>, ti
         call.get_inc();
         test_utils::get_ok(node.name().to_owned(), timestamp)
     });
-    //todo!("mock");
 }
 
 fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
@@ -60,7 +56,6 @@ fn get_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
         call.get_inc();
         test_utils::get_err(node.name().to_owned())
     });
-    //todo!("mock");
 }
 
 #[allow(dead_code)]
@@ -116,7 +111,6 @@ async fn create_cluster(
 ) -> (Quorum, Arc<Backend>) {
     let mapper = Arc::new(Virtual::new(node, cluster).await);
     for node in mapper.nodes().values() {
-        //let mut client = BobClient::default();
         let mut mock_client = BobClient::new();
 
         let (_, func, call) = map
@@ -125,7 +119,6 @@ async fn create_cluster(
          .expect("find node with name");
         func(&mut mock_client, node.clone(), call.clone());
         node.set_connection(mock_client).await;
-        //todo!("mock");
     }
 
     let backend = Arc::new(Backend::new(mapper.clone(), node).await);
@@ -179,7 +172,6 @@ fn create_node(
             );
             cl
         });
-        //todo!("mock");
     };
     let call = Box::new(call);
     (name, call, Arc::new(CountCall::new()))
@@ -278,6 +270,7 @@ async fn simple_two_node_two_vdisk_one_replica_cluster_put_ok() {
 
     assert!(result.is_ok());
     //assert_eq!(0, calls[0].1.put_count());
+    warn!("can't track put result, because it doesn't pass through mock client");
     assert_eq!(1, calls[1].1.put_count());
 
     result = quorum
