@@ -38,8 +38,8 @@ impl AsRef<Key> for Key {
 impl PartialOrd for Key {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         use std::cmp::Ordering;
-        for (l, r) in self.0.iter().zip(other.0.iter()).rev() {
-            let ord = l.cmp(r);
+        for i in (0..(Key::LEN as usize)).rev() {
+            let ord = self.0[i].cmp(&other.0[i]);
             if ord != Ordering::Equal {
                 return Some(ord);
             }
