@@ -1,5 +1,5 @@
 use crate::{
-    bob_client::{b_client::BobClient, Factory},
+    bob_client::{Factory},
     data::BobData,
 };
 use http::Uri;
@@ -9,6 +9,14 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::RwLock;
+
+cfg_if::cfg_if! {
+    if #[cfg(any(feature = "testing", test))] {
+        use crate::bob_client::b_client::MockBobClient as BobClient;
+    } else {
+        use crate::bob_client::b_client::BobClient;
+    }
+}
 
 pub type Id = u16;
 
