@@ -9,11 +9,12 @@ Bob versions changelog
 
 #### Changed
 
+
 #### Fixed
 - Cluster tests now use mock of BobClient, some cluster and cluster config tests were updated, all tests now pass (#280)
 
 #### Updated
-
+- Upgrade pearl to v0.8.1
 
 
 ## [2.0.0-alpha.9] - 2021-11-19
