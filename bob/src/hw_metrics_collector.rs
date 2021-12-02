@@ -4,6 +4,7 @@ use bob_common::metrics::{
     USED_SPACE,
 };
 use std::path::{Path, PathBuf};
+use std::process;
 use sysinfo::{DiskExt, ProcessExt, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
@@ -148,6 +149,32 @@ impl DescrCounter {
         //  |  10.000   |      0.006     |
         //  with payload
         //  |  10.000   |      0.018     |
+        let lsof_str = format!("lsof -a -p {} -d ^mem -d ^cwd -d ^rtd -d ^txt -d ^DEL", process::id());
+        match pipers::Pipe::new(&lsof_str)
+                          .then("wc -l")
+                          .finally() {
+            Ok(proc) => {
+                match proc.wait_with_output() {
+                    Ok(output) => {
+                        if output.status.success() {
+                            let count = String::from_utf8(output.stdout).unwrap();
+                            let count = count[..count.len() - 1].parse::<u64>().unwrap();
+                            return count - 5;
+                        } else {
+                            debug!("something went wrong (fs /proc will be used): {}",
+                                String::from_utf8(output.stderr).unwrap());
+                        }
+                    },
+                    Err(e) => {
+                        debug!("lsof output wait error (fs /proc will be used): {}", e);
+                    }
+                }
+            },
+            Err(e) => {
+                debug!("can't use lsof (fs /proc will be used): {}", e);
+            }
+        }
+
         let d = std::fs::read_dir(DESCRS_DIR);
         match d {
             Ok(d) => {

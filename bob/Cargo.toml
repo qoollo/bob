@@ -26,6 +26,7 @@ lazy_static = "1.4.0"
 log = "0.4"
 metrics = { version = "0.17", features = ["std"] }
 mockall = "0.10"
+pipers = "1.0.0"
 prost = "0.8"
 ring = "0.16"
 rocket = { version = "0.5.0-rc.1", features = ["json", "uuid"] }
