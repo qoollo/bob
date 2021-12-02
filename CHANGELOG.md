@@ -8,7 +8,7 @@ Add bloom_filter_memory_limit to example config (#378)
 
 
 #### Changed
-
+File descriptors metric now tries to use lsof | wc first (#359)
 
 #### Fixed
 
