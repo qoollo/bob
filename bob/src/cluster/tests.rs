@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::{
     prelude::*,
-    {cluster::Cluster, test_utils}
+    {cluster::Cluster, test_utils},
 };
 
 use bob_common::{
@@ -11,7 +11,7 @@ use bob_common::{
         cluster::{tests::cluster_config, Cluster as ClusterConfig},
         node::tests::node_config,
     },
-    data::BobMeta
+    data::BobMeta,
 };
 use tokio::time::sleep;
 
@@ -21,8 +21,8 @@ fn ping_ok(client: &mut BobClient, node: Node) {
     let cl = node;
 
     client
-         .expect_ping()
-         .returning(move || test_utils::ping_ok(cl.name().to_owned()));
+        .expect_ping()
+        .returning(move || test_utils::ping_ok(cl.name().to_owned()));
 }
 
 fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
@@ -114,11 +114,12 @@ async fn create_cluster(
         let mut mock_client = BobClient::new();
 
         let (_, func, call) = map
-         .iter()
-         .find(|(name, _, _)| *name == node.name())
-         .expect("find node with name");
+            .iter()
+            .find(|(name, _, _)| *name == node.name())
+            .expect("find node with name");
         func(&mut mock_client, node.clone(), call.clone());
-        node.set_connection(mock_client).await;
+        // node.set_connection(mock_client).await;
+        todo!()
     }
 
     let backend = Arc::new(Backend::new(mapper.clone(), node).await);
@@ -159,7 +160,14 @@ fn create_node(
                 get_err(client, n, c);
             }
         };
-        f(client, n.clone(), call.clone(), set_put_ok, set_get_ok, returned_timestamp);
+        f(
+            client,
+            n.clone(),
+            call.clone(),
+            set_put_ok,
+            set_get_ok,
+            returned_timestamp,
+        );
         client.expect_clone().returning(move || {
             let mut cl = BobClient::default();
             f(
@@ -311,7 +319,9 @@ async fn two_node_one_vdisk_cluster_one_node_failed_put_err() {
         .collect();
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
 
-    let result = quorum.put(BobKey::from(5), BobData::new(vec![], BobMeta::new(11))).await;
+    let result = quorum
+        .put(BobKey::from(5), BobData::new(vec![], BobMeta::new(11)))
+        .await;
     sleep(Duration::from_millis(1)).await;
 
     assert!(result.is_ok());
@@ -319,7 +329,9 @@ async fn two_node_one_vdisk_cluster_one_node_failed_put_err() {
     warn!("can't track put result, because it doesn't pass through mock client");
     assert_eq!(1, calls[1].1.put_count());
 
-    let get = backend.get_local(BobKey::from(5), Operation::new_alien(0)).await;
+    let get = backend
+        .get_local(BobKey::from(5), Operation::new_alien(0))
+        .await;
     assert!(get.is_ok());
 }
 
@@ -403,7 +415,9 @@ async fn three_node_two_vdisk_cluster_one_node_failed_put_err() {
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
 
     info!("quorum put: 0");
-    let result = quorum.put(BobKey::from(0), BobData::new(vec![], BobMeta::new(11))).await;
+    let result = quorum
+        .put(BobKey::from(0), BobData::new(vec![], BobMeta::new(11)))
+        .await;
     sleep(Duration::from_millis(1000)).await;
 
     assert!(result.is_ok());
@@ -412,7 +426,9 @@ async fn three_node_two_vdisk_cluster_one_node_failed_put_err() {
     assert_eq!(1, calls[1].1.put_count());
     assert_eq!(1, calls[2].1.put_count());
 
-    let get = backend.get_local(BobKey::from(0), Operation::new_alien(0)).await;
+    let get = backend
+        .get_local(BobKey::from(0), Operation::new_alien(0))
+        .await;
     assert!(get.is_ok());
 }
 
