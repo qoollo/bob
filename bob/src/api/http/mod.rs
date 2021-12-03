@@ -3,7 +3,9 @@ use crate::{
     server::Server as BobServer,
 };
 use axum::{
+    body::BoxBody,
     extract::{Extension, Path as AxumPath},
+    response::IntoResponse,
     routing::{delete, get, post},
     AddExtensionLayer, Json, Router, Server,
 };
@@ -14,7 +16,7 @@ use bob_common::{
     node::Disk as NodeDisk,
 };
 use futures::{future::BoxFuture, FutureExt};
-use http::StatusCode;
+use http::{Response, StatusCode};
 use std::net::{IpAddr, SocketAddr};
 use std::{
     io::{Cursor, Error as IoError, ErrorKind},
@@ -118,9 +120,9 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
     let router = Router::new()
         .route("/status", get(status))
         .route("/metrics", get(metrics))
-        // .route("/version", get(version))
+        .route("/version", get(version))
         .route("/nodes", get(nodes))
-        // .route("/disks/list", get(disks_list))
+        .route("/disks/list", get(disks_list))
         .route("/metadata/distrfunc", get(distribution_function))
         .route("/configuration", get(get_node_configuration))
         // .route("/disks/:disk_name/stop", post(stop_all_disk_controllers))
@@ -246,7 +248,7 @@ async fn metrics(Extension(bob): Extension<BobServer>) -> Json<MetricsSnapshotMo
     Json(snapshot.into())
 }
 
-fn version() -> Json<VersionInfo> {
+async fn version() -> Json<VersionInfo> {
     let build_info = BuildInfo::new();
     let version_info = VersionInfo {
         bob_version: Version {
@@ -783,6 +785,16 @@ impl FromStr for DataKey {
 //         }
 //     }
 // }
+
+impl IntoResponse for StatusExt {
+    fn into_response(self) -> Response<BoxBody> {
+        let msg = format!("{{ \"ok\": {}, \"msg\": \"{}\" }}", self.ok, self.msg);
+        Response::builder()
+            .status(self.status)
+            .body(BoxBody::new(&msg))
+            .expect("failed to set body for response")
+    }
+}
 
 // impl Responder<'_, 'static> for StatusExt {
 //     fn respond_to(self, _: &Request) -> RocketResult<'static> {
