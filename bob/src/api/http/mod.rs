@@ -26,6 +26,7 @@ use std::{
     str::FromStr,
 };
 use tokio::fs::{read_dir, ReadDir};
+use uuid::Uuid;
 
 mod metric_models;
 mod s3;
@@ -725,10 +726,9 @@ impl DataKey {
     }
 
     fn from_guid(guid: &str) -> Result<Self, StatusExt> {
-        // let guid = Uuid::from_str(guid)
-        // .map_err(|e| bad_request(format!("GUID parse error: {}", e.to_string())))?;
-        // Self::from_bytes(guid.as_bytes().to_vec())
-        todo!()
+        let guid = Uuid::from_str(guid)
+            .map_err(|e| bad_request(format!("GUID parse error: {}", e.to_string())))?;
+        Self::from_bytes(guid.as_bytes().to_vec())
     }
 
     fn from_hex(hex: &str) -> Result<Self, StatusExt> {
