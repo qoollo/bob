@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+No more use of MockBobClient in production
 
 #### Updated
 
