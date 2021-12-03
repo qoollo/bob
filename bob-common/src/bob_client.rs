@@ -208,10 +208,10 @@ use std::{
 };
 
 cfg_if::cfg_if! {
-    if #[cfg(any(feature = "testing", test))] {
-         pub use self::b_client::MockBobClient as BobClient;
-    } else {
+    if #[cfg(feature = "production")] {
         pub use self::b_client::BobClient;
+    } else if #[cfg(feature = "testing")]{
+        pub use self::b_client::MockBobClient as BobClient;
     }
 }
 

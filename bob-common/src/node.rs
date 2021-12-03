@@ -10,13 +10,7 @@ use std::{
 };
 use tokio::sync::RwLock;
 
-cfg_if::cfg_if! {
-    if #[cfg(any(feature = "testing", test))] {
-        use crate::bob_client::b_client::MockBobClient as BobClient;
-    } else {
-        use crate::bob_client::b_client::BobClient;
-    }
-}
+use crate::bob_client::BobClient;
 
 pub type Id = u16;
 
