@@ -3,7 +3,7 @@ use crate::{
     server::Server as BobServer,
 };
 use axum::{
-    body::BoxBody,
+    body::{self, BoxBody},
     extract::{Extension, Path as AxumPath},
     response::IntoResponse,
     routing::{delete, get, post},
@@ -28,7 +28,8 @@ use tokio::fs::{read_dir, ReadDir};
 mod metric_models;
 mod s3;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub(crate) enum Action {
     Attach,
     Detach,
@@ -125,26 +126,26 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
         .route("/disks/list", get(disks_list))
         .route("/metadata/distrfunc", get(distribution_function))
         .route("/configuration", get(get_node_configuration))
-        // .route("/disks/:disk_name/stop", post(stop_all_disk_controllers))
-        // .route("/disks/:disk_name/start", post(start_all_disk_controllers))
+        .route("/disks/:disk_name/stop", post(stop_all_disk_controllers))
+        .route("/disks/:disk_name/start", post(start_all_disk_controllers))
         .route("/vdisks", get(vdisks))
-        // .route("/blobs/outdated", delete(finalize_outdated_blobs))
-        // .route("/vdisks/:vdisk_id", get(vdisk_by_id))
-        // .route("/vdisks/:vdisk_id/records/count", get(vdisk_records_count))
-        // .route("/vdisks/:vdisk_id/partitions", get(partitions))
-        // .route(
-        //     "/vdisks/:vdisk_id/partitions/:partition_id",
-        //     get(partition_by_id),
-        // )
-        // .route(
-        //     "/vdisks/:vdisk_id/partitions/by_timestamp/:timestamp/:action",
-        //     post(change_partition_state),
-        // )
-        // .route("/vdisks/:vdisk_id/remount", post(remount_vdisks_group))
-        // .route(
-        //     "/vdisks/:vdisk_id/partitions/by_timestamp/:timestamp",
-        //     delete(delete_partition),
-        // )
+        .route("/blobs/outdated", delete(finalize_outdated_blobs))
+        .route("/vdisks/:vdisk_id", get(vdisk_by_id))
+        .route("/vdisks/:vdisk_id/records/count", get(vdisk_records_count))
+        .route("/vdisks/:vdisk_id/partitions", get(partitions))
+        .route(
+            "/vdisks/:vdisk_id/partitions/:partition_id",
+            get(partition_by_id),
+        )
+        .route(
+            "/vdisks/:vdisk_id/partitions/by_timestamp/:timestamp/:action",
+            post(change_partition_state),
+        )
+        .route("/vdisks/:vdisk_id/remount", post(remount_vdisks_group))
+        .route(
+            "/vdisks/:vdisk_id/partitions/by_timestamp/:timestamp",
+            delete(delete_partition),
+        )
         .route("/alien", get(alien))
         // .route("/alien/detach", post(detach_alien_partitions))
         // .route("/alien/dir", get_alien_directory)
@@ -415,13 +416,22 @@ async fn finalize_outdated_blobs(Extension(bob): Extension<BobServer>) -> Status
     )
 }
 
-async fn vdisk_by_id(Extension(bob): Extension<&BobServer>, vdisk_id: u32) -> Option<Json<VDisk>> {
-    get_vdisk_by_id(bob, vdisk_id).map(Json)
+async fn vdisk_by_id(
+    Extension(bob): Extension<&BobServer>,
+    AxumPath(vdisk_id): AxumPath<u32>,
+) -> Result<Json<VDisk>, StatusExt> {
+    get_vdisk_by_id(bob, vdisk_id)
+        .map(Json)
+        .ok_or(StatusExt::new(
+            StatusCode::NOT_FOUND,
+            false,
+            "vdisk not found".to_string(),
+        ))
 }
 
 async fn vdisk_records_count(
     Extension(bob): Extension<BobServer>,
-    vdisk_id: u32,
+    AxumPath(vdisk_id): AxumPath<u32>,
 ) -> Result<Json<u64>, StatusExt> {
     let group = find_group(&bob, vdisk_id).await?;
     let holders = group.holders();
@@ -436,7 +446,7 @@ async fn vdisk_records_count(
 
 async fn partitions(
     Extension(bob): Extension<&BobServer>,
-    vdisk_id: u32,
+    AxumPath(vdisk_id): AxumPath<u32>,
 ) -> Result<Json<VDiskPartitions>, StatusExt> {
     let group = find_group(bob, vdisk_id).await?;
     debug!("group with provided vdisk_id found");
@@ -457,8 +467,8 @@ async fn partitions(
 
 async fn partition_by_id(
     Extension(bob): Extension<&BobServer>,
-    vdisk_id: u32,
-    partition_id: String,
+    AxumPath(vdisk_id): AxumPath<u32>,
+    AxumPath(partition_id): AxumPath<String>,
 ) -> Result<Json<Partition>, StatusExt> {
     let group = find_group(bob, vdisk_id).await?;
     debug!("group with provided vdisk_id found");
@@ -489,9 +499,9 @@ async fn partition_by_id(
 
 async fn change_partition_state(
     Extension(bob): Extension<&BobServer>,
-    vdisk_id: u32,
-    timestamp: u64,
-    action: Action,
+    AxumPath(vdisk_id): AxumPath<u32>,
+    AxumPath(timestamp): AxumPath<u64>,
+    AxumPath(action): AxumPath<Action>,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(bob, vdisk_id).await?;
     let res = format!(
@@ -513,7 +523,7 @@ async fn change_partition_state(
 
 async fn remount_vdisks_group(
     Extension(bob): Extension<&BobServer>,
-    vdisk_id: u32,
+    AxumPath(vdisk_id): AxumPath<u32>,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(bob, vdisk_id).await?;
     match group.remount().await {
@@ -531,8 +541,8 @@ async fn remount_vdisks_group(
 
 async fn delete_partition(
     Extension(bob): Extension<&BobServer>,
-    vdisk_id: u32,
-    timestamp: u64,
+    AxumPath(vdisk_id): AxumPath<u32>,
+    AxumPath(timestamp): AxumPath<u64>,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(bob, vdisk_id).await?;
     let pearls = group.detach(timestamp).await;
@@ -791,20 +801,10 @@ impl IntoResponse for StatusExt {
         let msg = format!("{{ \"ok\": {}, \"msg\": \"{}\" }}", self.ok, self.msg);
         Response::builder()
             .status(self.status)
-            .body(BoxBody::new(&msg))
+            .body(BoxBody::new(body::boxed(body::Full::from(msg))))
             .expect("failed to set body for response")
     }
 }
-
-// impl Responder<'_, 'static> for StatusExt {
-//     fn respond_to(self, _: &Request) -> RocketResult<'static> {
-//         let msg = format!("{{ \"ok\": {}, \"msg\": \"{}\" }}", self.ok, self.msg);
-//         Response::build()
-//             .status(self.status)
-//             .streamed_body(Cursor::new(msg))
-//             .ok()
-//     }
-// }
 
 impl StatusExt {
     fn new(status: StatusCode, ok: bool, msg: String) -> Self {
