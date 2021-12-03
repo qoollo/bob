@@ -4,7 +4,7 @@ use crate::{
 };
 use axum::{
     body::{self, BoxBody},
-    extract::{Extension, Path as AxumPath},
+    extract::{BodyStream, Extension, Path as AxumPath},
     response::IntoResponse,
     routing::{delete, get, post},
     AddExtensionLayer, Json, Router, Server,
@@ -15,8 +15,10 @@ use bob_common::{
     error::Error as BobError,
     node::Disk as NodeDisk,
 };
+use bytes::Bytes;
 use futures::{future::BoxFuture, FutureExt};
-use http::{Response, StatusCode};
+use http::{header::CONTENT_TYPE, HeaderMap, Response, StatusCode};
+use hyper::Body;
 use std::net::{IpAddr, SocketAddr};
 use std::{
     io::{Cursor, Error as IoError, ErrorKind},
@@ -97,7 +99,7 @@ pub(crate) struct DiskState {
     is_active: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct DataKey(BobKey);
 
 #[derive(Debug, Serialize)]
@@ -147,14 +149,14 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
             delete(delete_partition),
         )
         .route("/alien", get(alien))
-        // .route("/alien/detach", post(detach_alien_partitions))
-        // .route("/alien/dir", get_alien_directory)
-        // .route(
-        //     "/vdisks/:vdisk_id/replicas/local/dirs",
-        //     get(get_local_replica_directories),
-        // )
-        // .route("/data/:key", get(get_data))
-        // .route("/data/:key, data=\"data\"", post(put_data))
+        .route("/alien/detach", post(detach_alien_partitions))
+        .route("/alien/dir", get(get_alien_directory))
+        .route(
+            "/vdisks/:vdisk_id/replicas/local/dirs",
+            get(get_local_replica_directories),
+        )
+        .route("/data/:key", get(get_data))
+        .route("/data/:key", post(put_data))
         // .route("/s3", s3::routes())
         .layer(AddExtensionLayer::new(bob));
 
@@ -613,7 +615,7 @@ async fn get_alien_directory(Extension(bob): Extension<BobServer>) -> Result<Jso
 
 async fn get_local_replica_directories(
     Extension(bob): Extension<&BobServer>,
-    vdisk_id: u32,
+    AxumPath(vdisk_id): AxumPath<u32>,
 ) -> Result<Json<Vec<Dir>>, StatusExt> {
     let vdisk: VDisk = get_vdisk_by_id(bob, vdisk_id).ok_or_else(|| {
         StatusExt::new(
@@ -671,42 +673,39 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
 
 async fn get_data(
     Extension(bob): Extension<BobServer>,
-    key: Result<DataKey, StatusExt>,
-) -> Result<Vec<u8>, StatusExt> {
-    // ) -> Result<Content<Vec<u8>>, StatusExt> {
-    let key = key?.0;
+    AxumPath(key): AxumPath<String>,
+) -> Result<impl IntoResponse, StatusExt> {
+    let key = DataKey::from_str(&key)?.0;
     let opts = BobOptions::new_get(None);
     let result = bob.grinder().get(key, &opts).await?;
-    // Ok(Content(infer_data_type(&result), result.inner().to_owned()))
-    todo!()
+
+    let content_type = infer_data_type(&result);
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        CONTENT_TYPE,
+        content_type
+            .parse()
+            .expect("failed to parse content type value"),
+    );
+    Ok((headers, result.inner().to_owned()))
 }
 
-// #[post("/data/<key>", data = "<data>")]
 async fn put_data(
     Extension(bob): Extension<BobServer>,
-    key: Result<DataKey, StatusExt>,
-    // data: Data<'_>,
+    AxumPath(key): AxumPath<String>,
+    body: Bytes,
 ) -> Result<StatusExt, StatusExt> {
-    let key = key?.0;
-    // let data_buf = data.open(ByteUnit::max_value()).into_bytes().await?.value;
-    // let data = BobData::new(
-    //     data_buf,
-    //     BobMeta::new(chrono::Local::now().timestamp() as u64),
-    // );
+    let key = DataKey::from_str(&key)?.0;
+    let data_buf = body.to_vec();
+    let data = BobData::new(
+        data_buf,
+        BobMeta::new(chrono::Local::now().timestamp() as u64),
+    );
 
     let opts = BobOptions::new_put(None);
-    // bob.grinder().put(key, data, opts).await?;
-    // Ok(StatusCode::Created.into())
-    todo!()
+    bob.grinder().put(key, data, opts).await?;
+    Ok(StatusCode::CREATED.into())
 }
-
-// impl FromParam<'_> for DataKey {
-//     type Error = StatusExt;
-
-//     fn from_param(param: &str) -> Result<Self, Self::Error> {
-//         DataKey::from_str(param)
-//     }
-// }
 
 fn internal(message: String) -> StatusExt {
     StatusExt::new(StatusCode::INTERNAL_SERVER_ERROR, false, message)
@@ -783,19 +782,6 @@ impl FromStr for DataKey {
     }
 }
 
-// impl<'r> FromParam<'r> for Action {
-//     type Error = &'r str;
-
-//     fn from_param(param: &'r str) -> Result<Self, Self::Error> {
-//         error!("{}", param);
-//         match param {
-//             "attach" => Ok(Self::Attach),
-//             "detach" => Ok(Self::Detach),
-//             _ => Err(param),
-//         }
-//     }
-// }
-
 impl IntoResponse for StatusExt {
     fn into_response(self) -> Response<BoxBody> {
         let msg = format!("{{ \"ok\": {}, \"msg\": \"{}\" }}", self.ok, self.msg);
@@ -854,11 +840,9 @@ impl From<BobError> for StatusExt {
     }
 }
 
-// pub(crate) fn infer_data_type(data: &BobData) -> ContentType {
-pub(crate) fn infer_data_type(data: &BobData) {
-    // match infer::get(data.inner()) {
-    //     None => ContentType::Any,
-    //     Some(t) => ContentType::from_str(t.mime_type()).unwrap_or_default(),
-    // }
-    todo!()
+pub(crate) fn infer_data_type(data: &BobData) -> &'static str {
+    match infer::get(data.inner()) {
+        None => "*/*",
+        Some(t) => t.mime_type(),
+    }
 }
