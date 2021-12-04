@@ -17,6 +17,8 @@ use std::{net::IpAddr, sync::atomic::Ordering};
 use std::{net::Ipv4Addr, sync::Arc};
 use tokio::time::sleep;
 
+use ubyte::ByteUnit;
+
 const AIO_FLAG_ORDERING: Ordering = Ordering::Relaxed;
 
 const PLACEHOLDER: &str = "~";
@@ -482,7 +484,7 @@ pub struct Node {
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
-    bloom_filter_memory_limit: Option<usize>,
+    bloom_filter_memory_limit: Option<ByteUnit>,
     #[serde(default = "Node::default_init_par_degree")]
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
@@ -641,7 +643,7 @@ impl NodeConfig {
     }
 
     pub fn bloom_filter_memory_limit(&self) -> Option<usize> {
-        self.bloom_filter_memory_limit
+        self.bloom_filter_memory_limit.map(|bu| bu.as_u64() as usize)
     }
 
     #[inline]
