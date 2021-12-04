@@ -245,7 +245,7 @@ impl Validatable for MetricsConfig {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Pearl {
     #[serde(default = "Pearl::default_max_blob_size")]
-    max_blob_size: u64,
+    max_blob_size: ByteUnit,
     #[serde(default = "Pearl::default_max_data_in_blob")]
     max_data_in_blob: u64,
     #[serde(default = "Pearl::default_blob_file_name_prefix")]
@@ -332,12 +332,12 @@ impl Pearl {
         self.max_data_in_blob
     }
 
-    fn default_max_blob_size() -> u64 {
-        1_000_000
+    fn default_max_blob_size() -> ByteUnit {
+        ByteUnit::Byte(1_000_000)
     }
 
     pub fn max_blob_size(&self) -> u64 {
-        self.max_blob_size
+        self.max_blob_size.as_u64()
     }
 
     fn default_hash_chars_count() -> u32 {
