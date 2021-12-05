@@ -143,7 +143,10 @@ pub mod b_client {
             let mut client = self.client.clone();
             self.metrics.exist_count();
             let timer = BobClientMetrics::start_timer();
-            let keys = keys.into_iter().map(|key| BlobKey { key: key.into() }).collect();
+            let keys = keys
+                .into_iter()
+                .map(|key| BlobKey { key: key.into() })
+                .collect();
             let message = ExistRequest {
                 keys,
                 options: Some(options),

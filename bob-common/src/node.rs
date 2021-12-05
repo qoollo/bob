@@ -1,5 +1,5 @@
 use crate::{
-    bob_client::{Factory},
+    bob_client::{BobClient, Factory},
     data::BobData,
 };
 use http::Uri;
@@ -9,8 +9,6 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::RwLock;
-
-use crate::bob_client::BobClient;
 
 pub type Id = u16;
 
