@@ -333,7 +333,7 @@ impl Pearl {
     }
 
     fn default_max_blob_size() -> ByteUnit {
-        ByteUnit::Byte(1_000_000)
+        ByteUnit::MB
     }
 
     pub fn max_blob_size(&self) -> u64 {
