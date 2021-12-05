@@ -16,10 +16,12 @@ pub struct Settings {
     timestamp_period: Duration,
     config: PearlConfig,
     mapper: Arc<Virtual>,
+    filter_group_size: usize,
 }
 
 impl Settings {
     pub fn new(config: &NodeConfig, mapper: Arc<Virtual>) -> Self {
+        let filter_group_size = config.filter_group_size();
         let config = config.pearl().clone();
         let alien_folder = if let Some(alien_disk) = config.alien_disk() {
             let disk_path = mapper
@@ -37,11 +39,16 @@ impl Settings {
             timestamp_period: config.settings().timestamp_period(),
             mapper,
             config,
+            filter_group_size,
         }
     }
 
     pub fn config(&self) -> &PearlConfig {
         &self.config
+    }
+
+    pub fn filter_group_size(&self) -> usize {
+        self.filter_group_size
     }
 
     pub(crate) async fn read_group_from_disk(

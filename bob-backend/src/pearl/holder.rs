@@ -429,6 +429,7 @@ impl Holder {
 
 #[async_trait::async_trait]
 impl BloomProvider<Key> for Holder {
+    type Filter = <Storage<Key> as BloomProvider<Key>>::Filter;
     async fn check_filter(&self, item: &Key) -> FilterResult {
         let storage = self.storage().read().await;
         if let Some(storage) = &storage.storage {

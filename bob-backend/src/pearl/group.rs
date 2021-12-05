@@ -30,11 +30,16 @@ impl Group {
         disk_name: String,
         directory_path: PathBuf,
         owner_node_name: String,
-        filter_group_size: usize,
         dump_sem: Arc<Semaphore>,
     ) -> Self {
         Self {
-            holders: Arc::new(RwLock::new(HierarchicalFilters::new(filter_group_size, 2))),
+            holders: Arc::new(RwLock::new(HierarchicalFilters::<
+                Key,
+                <Holder as BloomProvider<Key>>::Filter,
+                Holder,
+            >::new(
+                settings.filter_group_size(), 2
+            ))),
             settings,
             vdisk_id,
             node_name,
@@ -141,7 +146,7 @@ impl Group {
     // find in all pearls actual pearl
     async fn find_actual_holder(&self, data: &BobData) -> BackendResult<(ChildId, Holder)> {
         let holders = self.holders.read().await;
-        let mut holders_for_time: Vec<_> = holders
+        let mut holders_for_time: Vec<(usize, &Holder)> = holders
             .iter()
             .enumerate()
             .filter(|h| h.1.gets_into_interval(data.meta().timestamp()))
@@ -224,7 +229,7 @@ impl Group {
             self.holders
                 .write()
                 .await
-                .add_to_parents(holder.0, key.as_slice());
+                .add_to_parents(holder.0, &Key::from(key));
         }
         res
     }
@@ -252,7 +257,7 @@ impl Group {
         let mut has_error = false;
         let mut results = vec![];
         for holder in holders
-            .iter_possible_childs_rev(key.as_slice())
+            .iter_possible_childs_rev(&Key::from(key))
             .map(|(_, x)| &x.data)
         {
             let get = Self::get_common(&holder, key).await;
@@ -302,7 +307,7 @@ impl Group {
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
-            for holder in holders.iter_possible_childs_rev(key.as_slice()) {
+            for holder in holders.iter_possible_childs_rev(&Key::from(key)) {
                 if !exist[ind] {
                     exist[ind] = holder.1.data.exist(key).await.unwrap_or(false);
                 }
