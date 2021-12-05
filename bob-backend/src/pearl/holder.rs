@@ -428,10 +428,8 @@ impl Holder {
 }
 
 #[async_trait::async_trait]
-impl BloomProvider for Holder {
-    type Key = Key;
-
-    async fn check_filter(&self, item: &Self::Key) -> FilterResult {
+impl BloomProvider<Key> for Holder {
+    async fn check_filter(&self, item: &Key) -> FilterResult {
         let storage = self.storage().read().await;
         if let Some(storage) = &storage.storage {
             return BloomProvider::check_filter(storage, item).await;
@@ -439,7 +437,7 @@ impl BloomProvider for Holder {
         FilterResult::NeedAdditionalCheck
     }
 
-    fn check_filter_fast(&self, _item: &Self::Key) -> FilterResult {
+    fn check_filter_fast(&self, _item: &Key) -> FilterResult {
         FilterResult::NeedAdditionalCheck
     }
 

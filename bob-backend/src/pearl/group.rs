@@ -1,16 +1,17 @@
 use crate::{pearl::utils::get_current_timestamp, prelude::*};
 
-use super::{hooks::NoopHooks, utils::StartTimestampConfig, Holder, Hooks};
+use super::{data::Key, hooks::NoopHooks, utils::StartTimestampConfig, Holder, Hooks};
 use crate::{
     core::Operation,
     pearl::{core::BackendResult, settings::Settings, utils::Utils},
 };
 use futures::Future;
+use pearl::BloomProvider;
 use ring::digest::{digest, SHA256};
 
 #[derive(Clone, Debug)]
 pub struct Group {
-    holders: Arc<RwLock<HierarchicalBloom<Holder>>>,
+    holders: Arc<RwLock<HierarchicalFilters<Key, <Holder as BloomProvider<Key>>::Filter, Holder>>>,
     settings: Arc<Settings>,
     directory_path: PathBuf,
     vdisk_id: VDiskId,
@@ -29,10 +30,11 @@ impl Group {
         disk_name: String,
         directory_path: PathBuf,
         owner_node_name: String,
+        filter_group_size: usize,
         dump_sem: Arc<Semaphore>,
     ) -> Self {
         Self {
-            holders: Arc::new(RwLock::new(HierarchicalBloom::new(8, 2))),
+            holders: Arc::new(RwLock::new(HierarchicalFilters::new(filter_group_size, 2))),
             settings,
             vdisk_id,
             node_name,
@@ -309,7 +311,9 @@ impl Group {
         exist
     }
 
-    pub fn holders(&self) -> Arc<RwLock<HierarchicalBloom<Holder>>> {
+    pub fn holders(
+        &self,
+    ) -> Arc<RwLock<HierarchicalFilters<Key, <Holder as BloomProvider<Key>>::Filter, Holder>>> {
         self.holders.clone()
     }
 
