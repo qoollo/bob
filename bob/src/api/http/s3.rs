@@ -6,9 +6,10 @@ use axum::{
     body::{boxed, BoxBody, Empty, Full},
     extract::{Extension, FromRequest, Path, RequestParts},
     response::{IntoResponse, Response},
-    routing::{get, MethodRouter},
+    routing::{get, put, MethodRouter},
 };
 use bob_common::data::{BobData, BobMeta, BobOptions};
+use bytes::Bytes;
 use chrono::DateTime;
 use http::StatusCode;
 
@@ -57,6 +58,7 @@ impl IntoResponse for StatusS3 {
 pub(crate) fn routes() -> Vec<(&'static str, MethodRouter)> {
     vec![
         ("/s3/default/:key", get(get_object)),
+        ("/s3/default/:key", put(put_object))
         // put_object,
         // copy_object,
     ]
@@ -110,20 +112,6 @@ impl IntoResponse for GetObjectOutput {
     }
 }
 
-// impl Responder<'_, 'static> for GetObjectOutput {
-//     fn respond_to(self, _: &Request) -> response::Result<'static> {
-//         Response::build()
-//             .status(Status::Ok)
-//             .header(self.content_type)
-//             .header(Header::new(
-//                 "Last-Modified",
-//                 self.data.meta().timestamp().to_string(),
-//             ))
-//             .streamed_body(Cursor::new(self.data.into_inner()))
-//             .ok()
-//     }
-// }
-
 async fn get_object(
     Extension(bob): Extension<&BobServer>,
     Path(key): Path<String>,
@@ -150,23 +138,23 @@ async fn get_object(
 }
 
 // #[put("/default/<key>", data = "<data>", rank = 2)]
-// pub(crate) async fn put_object(
-//     bob: &State<BobServer>,
-//     key: Result<DataKey, StatusExt>,
-//     data: Data<'_>,
-// ) -> Result<StatusS3, StatusS3> {
-//     let key = key?.0;
-//     let data_buf = data.open(ByteUnit::max_value()).into_bytes().await?.value;
-//     let data = BobData::new(
-//         data_buf,
-//         BobMeta::new(chrono::Local::now().timestamp() as u64),
-//     );
+async fn put_object(
+    Extension(bob): Extension<&BobServer>,
+    Path(key): Path<String>,
+    body: Bytes,
+) -> Result<StatusS3, StatusS3> {
+    let key = DataKey::from_str(&key)?.0;
+    let data_buf = body.to_vec();
+    let data = BobData::new(
+        data_buf,
+        BobMeta::new(chrono::Local::now().timestamp() as u64),
+    );
 
-//     let opts = BobOptions::new_put(None);
-//     bob.grinder().put(key, data, opts).await?;
+    let opts = BobOptions::new_put(None);
+    bob.grinder().put(key, data, opts).await?;
 
-//     Ok(StatusS3::from(StatusExt::from(Status::Created)))
-// }
+    Ok(StatusS3::from(StatusExt::from(StatusCode::CREATED)))
+}
 
 // #[derive(Debug)]
 // pub(crate) struct CopyObjectHeaders {
