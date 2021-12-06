@@ -8,7 +8,10 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, put, MethodRouter},
 };
-use bob_common::data::{BobData, BobMeta, BobOptions};
+use bob_common::{
+    data::{BobData, BobMeta, BobOptions},
+    error::Error,
+};
 use bytes::Bytes;
 use chrono::DateTime;
 use http::StatusCode;
@@ -31,27 +34,22 @@ impl From<StatusExt> for StatusS3 {
 //     }
 // }
 
-impl From<bob_common::error::Error> for StatusS3 {
-    fn from(err: bob_common::error::Error) -> Self {
+impl From<Error> for StatusS3 {
+    fn from(err: Error) -> Self {
         StatusExt::from(err).into()
     }
 }
 
 impl IntoResponse for StatusS3 {
     fn into_response(self) -> Response<BoxBody> {
-        match self {
-            Self::StatusExt(status_ext) => {
-                let resp = status_ext.into_response();
-                Response::builder()
-                    .status(resp.status())
-                    .body(boxed(Empty::new()))
-                    .expect("failed to set empty body for response")
-            }
-            Self::Status(status) => Response::builder()
-                .status(status)
-                .body(boxed(Empty::new()))
-                .expect("failed to set empty body for response"),
-        }
+        let status = match self {
+            Self::StatusExt(status_ext) => status_ext.status,
+            Self::Status(status) => status,
+        };
+        Response::builder()
+            .status(status)
+            .body(boxed(Empty::new()))
+            .expect("failed to set empty body for response")
     }
 }
 
@@ -80,29 +78,30 @@ where
         let headers = request
             .headers()
             .expect("headers removed by another extractor");
-        Ok(GetObjectHeaders {
-            content_type: headers
-                .get("response-content-type")
-                .and_then(|x| x.to_str().map(|s| s.to_string()).ok()),
-            if_modified_since: headers
-                .get("If-Modified-Since")
-                .and_then(|x| {
-                    DateTime::parse_from_rfc2822(
-                        x.to_str().expect("failed to convert header to str"),
-                    )
-                    .ok()
-                })
-                .and_then(|x| x.timestamp().try_into().ok()),
-            if_unmodified_since: headers
-                .get("If-Unmodified-Since")
-                .and_then(|x| {
-                    DateTime::parse_from_rfc2822(
-                        x.to_str().expect("failed to convert header to str"),
-                    )
-                    .ok()
-                })
-                .and_then(|x| x.timestamp().try_into().ok()),
-        })
+
+        let content_type = headers
+            .get("response-content-type")
+            .and_then(|x| x.to_str().map(|s| s.to_string()).ok());
+        let if_modified_since = headers
+            .get("If-Modified-Since")
+            .and_then(|x| {
+                let s = x.to_str().expect("failed to convert header to str");
+                DateTime::parse_from_rfc2822(s).ok()
+            })
+            .and_then(|x| x.timestamp().try_into().ok());
+        let if_unmodified_since = headers
+            .get("If-Unmodified-Since")
+            .and_then(|x| {
+                let s = x.to_str().expect("failed to convert header to str");
+                DateTime::parse_from_rfc2822(s).ok()
+            })
+            .and_then(|x| x.timestamp().try_into().ok());
+        let headers = GetObjectHeaders {
+            content_type,
+            if_modified_since,
+            if_unmodified_since,
+        };
+        Ok(headers)
     }
 }
 
