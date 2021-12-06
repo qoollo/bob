@@ -1,4 +1,4 @@
-use std::{convert::TryInto, io::Cursor, str::FromStr};
+use std::{convert::TryInto, str::FromStr};
 
 use super::{infer_data_type, DataKey, StatusExt};
 use crate::server::Server as BobServer;
@@ -58,8 +58,7 @@ impl IntoResponse for StatusS3 {
 pub(crate) fn routes() -> Vec<(&'static str, MethodRouter)> {
     vec![
         ("/s3/default/:key", get(get_object)),
-        ("/s3/default/:key", put(put_object))
-        // put_object,
+        ("/s3/default/:key", put(put_object)),
         // copy_object,
     ]
 }
@@ -78,18 +77,30 @@ where
 {
     type Rejection = StatusS3;
     async fn from_request(request: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        let headers = request.headers().unwrap();
+        let headers = request
+            .headers()
+            .expect("headers removed by another extractor");
         Ok(GetObjectHeaders {
             content_type: headers
                 .get("response-content-type")
                 .and_then(|x| x.to_str().map(|s| s.to_string()).ok()),
             if_modified_since: headers
                 .get("If-Modified-Since")
-                .and_then(|x| DateTime::parse_from_rfc2822(x.to_str().unwrap()).ok())
+                .and_then(|x| {
+                    DateTime::parse_from_rfc2822(
+                        x.to_str().expect("failed to convert header to str"),
+                    )
+                    .ok()
+                })
                 .and_then(|x| x.timestamp().try_into().ok()),
             if_unmodified_since: headers
                 .get("If-Unmodified-Since")
-                .and_then(|x| DateTime::parse_from_rfc2822(x.to_str().unwrap()).ok())
+                .and_then(|x| {
+                    DateTime::parse_from_rfc2822(
+                        x.to_str().expect("failed to convert header to str"),
+                    )
+                    .ok()
+                })
                 .and_then(|x| x.timestamp().try_into().ok()),
         })
     }
@@ -108,7 +119,7 @@ impl IntoResponse for GetObjectOutput {
             .header("Content-Type", self.content_type)
             .header("Last-Modified", self.data.meta().timestamp().to_string())
             .body(boxed(Full::new(self.data.into_inner().into())))
-            .unwrap()
+            .expect("failed to set body")
     }
 }
 

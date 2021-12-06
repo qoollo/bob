@@ -4,7 +4,7 @@ use crate::{
 };
 use axum::{
     body::{self, BoxBody},
-    extract::{BodyStream, Extension, Path as AxumPath},
+    extract::{Extension, Path as AxumPath},
     response::IntoResponse,
     routing::{delete, get, post},
     AddExtensionLayer, Json, Router, Server,
@@ -18,10 +18,9 @@ use bob_common::{
 use bytes::Bytes;
 use futures::{future::BoxFuture, FutureExt};
 use http::{header::CONTENT_TYPE, HeaderMap, Response, StatusCode};
-use hyper::Body;
-use std::net::{IpAddr, SocketAddr};
 use std::{
-    io::{Cursor, Error as IoError, ErrorKind},
+    io::{Error as IoError, ErrorKind},
+    net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
     str::FromStr,
 };
