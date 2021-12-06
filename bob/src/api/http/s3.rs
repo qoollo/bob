@@ -2,19 +2,27 @@ use std::{convert::TryInto, io::Cursor, str::FromStr};
 
 use super::{infer_data_type, DataKey, StatusExt};
 use crate::server::Server as BobServer;
+use axum::{
+    body::{boxed, BoxBody, Empty, Full},
+    extract::{Extension, FromRequest, Path, RequestParts},
+    response::{IntoResponse, Response},
+    routing::{get, MethodRouter},
+};
 use bob_common::data::{BobData, BobMeta, BobOptions};
+use chrono::DateTime;
+use http::StatusCode;
 
-// #[derive(Debug)]
-// pub(crate) enum StatusS3 {
-//     StatusExt(StatusExt),
-//     Status(Status),
-// }
+#[derive(Debug)]
+enum StatusS3 {
+    StatusExt(StatusExt),
+    Status(StatusCode),
+}
 
-// impl From<StatusExt> for StatusS3 {
-//     fn from(inner: StatusExt) -> Self {
-//         Self::StatusExt(inner)
-//     }
-// }
+impl From<StatusExt> for StatusS3 {
+    fn from(inner: StatusExt) -> Self {
+        Self::StatusExt(inner)
+    }
+}
 
 // impl From<std::io::Error> for StatusS3 {
 //     fn from(err: std::io::Error) -> Self {
@@ -22,61 +30,85 @@ use bob_common::data::{BobData, BobMeta, BobOptions};
 //     }
 // }
 
-// impl From<bob_common::error::Error> for StatusS3 {
-//     fn from(err: bob_common::error::Error) -> Self {
-//         StatusExt::from(err).into()
-//     }
-// }
+impl From<bob_common::error::Error> for StatusS3 {
+    fn from(err: bob_common::error::Error) -> Self {
+        StatusExt::from(err).into()
+    }
+}
 
-// impl Responder<'_, 'static> for StatusS3 {
-//     fn respond_to(self, request: &Request) -> response::Result<'static> {
-//         match self {
-//             Self::StatusExt(status_ext) => {
-//                 let resp = status_ext.respond_to(request)?;
-//                 Response::build().status(resp.status()).ok()
-//             }
-//             Self::Status(status) => Response::build().status(status).ok(),
-//         }
-//     }
-// }
+impl IntoResponse for StatusS3 {
+    fn into_response(self) -> Response<BoxBody> {
+        match self {
+            Self::StatusExt(status_ext) => {
+                let resp = status_ext.into_response();
+                Response::builder()
+                    .status(resp.status())
+                    .body(boxed(Empty::new()))
+                    .expect("failed to set empty body for response")
+            }
+            Self::Status(status) => Response::builder()
+                .status(status)
+                .body(boxed(Empty::new()))
+                .expect("failed to set empty body for response"),
+        }
+    }
+}
 
-// pub(crate) fn routes() -> impl Into<Vec<Route>> {
-//     routes![get_object, put_object, copy_object]
-// }
+pub(crate) fn routes() -> Vec<(&'static str, MethodRouter)> {
+    vec![
+        ("/s3/default/:key", get(get_object)),
+        // put_object,
+        // copy_object,
+    ]
+}
 
-// #[derive(Debug, Default)]
-// pub(crate) struct GetObjectHeaders {
-//     content_type: Option<ContentType>,
-//     if_modified_since: Option<u64>,
-//     if_unmodified_since: Option<u64>,
-// }
+#[derive(Debug, Default)]
+struct GetObjectHeaders {
+    content_type: Option<String>,
+    if_modified_since: Option<u64>,
+    if_unmodified_since: Option<u64>,
+}
 
-// #[rocket::async_trait]
-// impl<'r> FromRequest<'r> for GetObjectHeaders {
-//     type Error = StatusS3;
-//     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-//         let headers = request.headers();
-//         Outcome::Success(GetObjectHeaders {
-//             content_type: headers
-//                 .get_one("response-content-type")
-//                 .and_then(|x| ContentType::from_str(x).ok()),
-//             if_modified_since: headers
-//                 .get_one("If-Modified-Since")
-//                 .and_then(|x| chrono::DateTime::parse_from_rfc2822(x).ok())
-//                 .and_then(|x| x.timestamp().try_into().ok()),
-//             if_unmodified_since: headers
-//                 .get_one("If-Unmodified-Since")
-//                 .and_then(|x| chrono::DateTime::parse_from_rfc2822(x).ok())
-//                 .and_then(|x| x.timestamp().try_into().ok()),
-//         })
-//     }
-// }
+#[async_trait]
+impl<B> FromRequest<B> for GetObjectHeaders
+where
+    B: Send,
+{
+    type Rejection = StatusS3;
+    async fn from_request(request: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+        let headers = request.headers().unwrap();
+        Ok(GetObjectHeaders {
+            content_type: headers
+                .get("response-content-type")
+                .and_then(|x| x.to_str().map(|s| s.to_string()).ok()),
+            if_modified_since: headers
+                .get("If-Modified-Since")
+                .and_then(|x| DateTime::parse_from_rfc2822(x.to_str().unwrap()).ok())
+                .and_then(|x| x.timestamp().try_into().ok()),
+            if_unmodified_since: headers
+                .get("If-Unmodified-Since")
+                .and_then(|x| DateTime::parse_from_rfc2822(x.to_str().unwrap()).ok())
+                .and_then(|x| x.timestamp().try_into().ok()),
+        })
+    }
+}
 
-// #[derive(Debug)]
-// pub(crate) struct GetObjectOutput {
-//     data: BobData,
-//     content_type: ContentType,
-// }
+#[derive(Debug)]
+struct GetObjectOutput {
+    data: BobData,
+    content_type: String,
+}
+
+impl IntoResponse for GetObjectOutput {
+    fn into_response(self) -> Response {
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", self.content_type)
+            .header("Last-Modified", self.data.meta().timestamp().to_string())
+            .body(boxed(Full::new(self.data.into_inner().into())))
+            .unwrap()
+    }
+}
 
 // impl Responder<'_, 'static> for GetObjectOutput {
 //     fn respond_to(self, _: &Request) -> response::Result<'static> {
@@ -92,31 +124,30 @@ use bob_common::data::{BobData, BobMeta, BobOptions};
 //     }
 // }
 
-// #[get("/default/<key>")]
-// pub(crate) async fn get_object(
-//     bob: &State<BobServer>,
-//     key: Result<DataKey, StatusExt>,
-//     headers: GetObjectHeaders,
-// ) -> Result<GetObjectOutput, StatusS3> {
-//     let key = key?.0;
-//     let opts = BobOptions::new_get(None);
-//     let data = bob.grinder().get(key, &opts).await?;
-//     let content_type = headers
-//         .content_type
-//         .unwrap_or_else(|| infer_data_type(&data));
-//     let last_modified = data.meta().timestamp();
-//     if let Some(time) = headers.if_modified_since {
-//         if time > last_modified {
-//             return Err(StatusS3::Status(Status::NotModified));
-//         }
-//     }
-//     if let Some(time) = headers.if_unmodified_since {
-//         if time < last_modified {
-//             return Err(StatusS3::Status(Status::PreconditionFailed));
-//         }
-//     }
-//     Ok(GetObjectOutput { data, content_type })
-// }
+async fn get_object(
+    Extension(bob): Extension<&BobServer>,
+    Path(key): Path<String>,
+    headers: GetObjectHeaders,
+) -> Result<GetObjectOutput, StatusS3> {
+    let key = DataKey::from_str(&key)?.0;
+    let opts = BobOptions::new_get(None);
+    let data = bob.grinder().get(key, &opts).await?;
+    let content_type = headers
+        .content_type
+        .unwrap_or_else(|| infer_data_type(&data).to_string());
+    let last_modified = data.meta().timestamp();
+    if let Some(time) = headers.if_modified_since {
+        if time > last_modified {
+            return Err(StatusS3::Status(StatusCode::NOT_MODIFIED));
+        }
+    }
+    if let Some(time) = headers.if_unmodified_since {
+        if time < last_modified {
+            return Err(StatusS3::Status(StatusCode::PRECONDITION_FAILED));
+        }
+    }
+    Ok(GetObjectOutput { data, content_type })
+}
 
 // #[put("/default/<key>", data = "<data>", rank = 2)]
 // pub(crate) async fn put_object(
@@ -182,12 +213,12 @@ use bob_common::data::{BobData, BobMeta, BobOptions};
 //     let last_modified = data.meta().timestamp();
 //     if let Some(time) = headers.if_modified_since {
 //         if time > last_modified {
-//             return Err(StatusS3::Status(Status::NotModified));
+//             return Err(StatusS3::Status(StatusCode::NOT_MODIFIED));
 //         }
 //     }
 //     if let Some(time) = headers.if_unmodified_since {
 //         if time < last_modified {
-//             return Err(StatusS3::Status(Status::PreconditionFailed));
+//             return Err(StatusS3::Status(StatusCode::PRECONDITION_FAILED));
 //         }
 //     }
 //     let data = BobData::new(

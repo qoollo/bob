@@ -121,7 +121,7 @@ pub(crate) struct NodeConfiguration {
 }
 
 pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
-    let router = Router::new()
+    let mut router = Router::new()
         .route("/status", get(status))
         .route("/metrics", get(metrics))
         .route("/version", get(version))
@@ -157,9 +157,11 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
             get(get_local_replica_directories),
         )
         .route("/data/:key", get(get_data))
-        .route("/data/:key", post(put_data))
-        // .route("/s3", s3::routes())
-        .layer(AddExtensionLayer::new(bob));
+        .route("/data/:key", post(put_data));
+    for (path, service) in s3::routes() {
+        router = router.route(path, service);
+    }
+    router = router.layer(AddExtensionLayer::new(bob));
 
     let task = Server::bind(&SocketAddr::new(address, port)).serve(router.into_make_service());
 
@@ -234,7 +236,7 @@ async fn find_group(bob: &BobServer, vdisk_id: u32) -> Result<PearlGroup, Status
     })
 }
 
-async fn status(Extension(bob): Extension<BobServer>) -> Json<Node> {
+async fn status(Extension(bob): Extension<&BobServer>) -> Json<Node> {
     let mapper = bob.grinder().backend().mapper();
     let name = mapper.local_node_name().to_owned();
     let address = mapper.local_node_address().to_owned();
@@ -247,7 +249,7 @@ async fn status(Extension(bob): Extension<BobServer>) -> Json<Node> {
     Json(node)
 }
 
-async fn metrics(Extension(bob): Extension<BobServer>) -> Json<MetricsSnapshotModel> {
+async fn metrics(Extension(bob): Extension<&BobServer>) -> Json<MetricsSnapshotModel> {
     let snapshot = bob.metrics().read().await.clone();
     Json(snapshot.into())
 }
@@ -301,7 +303,7 @@ async fn nodes(Extension(bob): Extension<&BobServer>) -> Json<Vec<Node>> {
 }
 
 async fn disks_list(
-    Extension(bob): Extension<BobServer>,
+    Extension(bob): Extension<&BobServer>,
 ) -> Result<Json<Vec<DiskState>>, StatusExt> {
     let backend = bob.grinder().backend().inner();
     let (dcs, alien_disk_controller) = backend
@@ -321,14 +323,14 @@ async fn disks_list(
     Ok(Json(disks))
 }
 
-async fn distribution_function(Extension(bob): Extension<BobServer>) -> Json<DistrFunc> {
+async fn distribution_function(Extension(bob): Extension<&BobServer>) -> Json<DistrFunc> {
     let mapper = bob.grinder().backend().mapper();
     Json(DistrFunc {
         func: format!("{:?}", mapper.distribution_func()),
     })
 }
 
-async fn get_node_configuration(Extension(bob): Extension<BobServer>) -> Json<NodeConfiguration> {
+async fn get_node_configuration(Extension(bob): Extension<&BobServer>) -> Json<NodeConfiguration> {
     let grinder = bob.grinder();
     let config = grinder.node_config();
     Json(NodeConfiguration {
@@ -336,9 +338,8 @@ async fn get_node_configuration(Extension(bob): Extension<BobServer>) -> Json<No
     })
 }
 
-// #[post("/disks/<disk_name>/stop")]
 async fn stop_all_disk_controllers(
-    Extension(bob): Extension<BobServer>,
+    Extension(bob): Extension<&BobServer>,
     AxumPath(disk_name): AxumPath<String>,
 ) -> Result<StatusExt, StatusExt> {
     use futures::stream::{FuturesUnordered, StreamExt};
@@ -361,7 +362,7 @@ async fn stop_all_disk_controllers(
 }
 
 async fn start_all_disk_controllers(
-    Extension(bob): Extension<BobServer>,
+    Extension(bob): Extension<&BobServer>,
     disk_name: String,
 ) -> Result<StatusExt, StatusExt> {
     use futures::stream::{FuturesUnordered, StreamExt};
@@ -409,7 +410,7 @@ async fn vdisks(Extension(bob): Extension<&BobServer>) -> Json<Vec<VDisk>> {
     Json(vdisks)
 }
 
-async fn finalize_outdated_blobs(Extension(bob): Extension<BobServer>) -> StatusExt {
+async fn finalize_outdated_blobs(Extension(bob): Extension<&BobServer>) -> StatusExt {
     let backend = bob.grinder().backend();
     backend.close_unneeded_active_blobs(1, 1).await;
     StatusExt::new(
@@ -433,7 +434,7 @@ async fn vdisk_by_id(
 }
 
 async fn vdisk_records_count(
-    Extension(bob): Extension<BobServer>,
+    Extension(bob): Extension<&BobServer>,
     AxumPath(vdisk_id): AxumPath<u32>,
 ) -> Result<Json<u64>, StatusExt> {
     let group = find_group(&bob, vdisk_id).await?;
@@ -594,7 +595,7 @@ async fn alien() -> &'static str {
 }
 
 async fn detach_alien_partitions(
-    Extension(bob): Extension<BobServer>,
+    Extension(bob): Extension<&BobServer>,
 ) -> Result<StatusExt, StatusExt> {
     let backend = bob.grinder().backend().inner();
     let (_, alien_disk_controller) = backend
@@ -604,7 +605,9 @@ async fn detach_alien_partitions(
     Ok(StatusExt::new(StatusCode::OK, true, String::default()))
 }
 
-async fn get_alien_directory(Extension(bob): Extension<BobServer>) -> Result<Json<Dir>, StatusExt> {
+async fn get_alien_directory(
+    Extension(bob): Extension<&BobServer>,
+) -> Result<Json<Dir>, StatusExt> {
     let backend = bob.grinder().backend().inner();
     let (_, alien_disk_controller) = backend
         .disk_controllers()
@@ -673,7 +676,7 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
 }
 
 async fn get_data(
-    Extension(bob): Extension<BobServer>,
+    Extension(bob): Extension<&BobServer>,
     AxumPath(key): AxumPath<String>,
 ) -> Result<impl IntoResponse, StatusExt> {
     let key = DataKey::from_str(&key)?.0;
@@ -692,7 +695,7 @@ async fn get_data(
 }
 
 async fn put_data(
-    Extension(bob): Extension<BobServer>,
+    Extension(bob): Extension<&BobServer>,
     AxumPath(key): AxumPath<String>,
     body: Bytes,
 ) -> Result<StatusExt, StatusExt> {
@@ -800,12 +803,11 @@ impl StatusExt {
 
 impl From<StatusCode> for StatusExt {
     fn from(status: StatusCode) -> Self {
-        // Self {
-        //     status,
-        //     ok: true,
-        //     msg: status.reason().unwrap_or("Unknown").to_owned(),
-        // }
-        todo!()
+        Self {
+            status,
+            ok: true,
+            msg: status.canonical_reason().unwrap_or("Unknown").to_owned(),
+        }
     }
 }
 
