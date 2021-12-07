@@ -16,6 +16,25 @@ Bob versions changelog
 #### Updated
 
 
+## [2.0.0-alpha.10] - 2021-12-02
+#### Added
+- Add bloom_filter_memory_limit to example config (#378)
+- Add traits to support pearl #123
+
+
+#### Updated
+- Upgrade pearl to v0.8.1
+
+
+## [2.0.0-alpha.9] - 2021-11-19
+#### Fixed
+- Fix allocated size computation in BloomFilterMemoryLimitHooks (#372)
+
+
+## [2.0.0-alpha.8] - 2021-11-18
+#### Added
+- Bloom filter offloading (#301)
+
 
 ## [2.0.0-alpha.7] - 2021-11-09
 #### Added

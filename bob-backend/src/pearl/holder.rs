@@ -1,9 +1,9 @@
-use crate::{pearl::stuff::get_current_timestamp, prelude::*};
+use crate::{pearl::utils::get_current_timestamp, prelude::*};
 
 use super::{
     core::{BackendResult, PearlStorage},
     data::{Data, Key},
-    stuff::Stuff,
+    utils::Utils,
 };
 use bob_common::metrics::pearl::{
     PEARL_GET_BYTES_COUNTER, PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER,
@@ -66,6 +66,10 @@ impl Holder {
 
     pub fn storage(&self) -> &RwLock<PearlSync> {
         &self.storage
+    }
+
+    pub fn cloned_storage(&self) -> Arc<RwLock<PearlSync>> {
+        self.storage.clone()
     }
 
     pub async fn blobs_count(&self) -> usize {
@@ -139,6 +143,15 @@ impl Holder {
         let storage = self.storage.write().await;
         storage.storage().close_active_blob_in_background().await;
         warn!("Active blob of {} closed", self.get_id());
+    }
+
+    pub async fn offload_filters(&self) {
+        self.storage.write().await.offload_filters().await;
+        debug!("Offload bloom filter of {}", self.get_id());
+    }
+
+    pub async fn filter_memory_allocated(&self) -> usize {
+        self.storage.read().await.filter_memory_allocated().await
     }
 
     pub async fn update(&self, storage: Storage<Key>) {
@@ -308,7 +321,7 @@ impl Holder {
     }
 
     async fn init_holder(&self) -> AnyResult<()> {
-        let f = || Stuff::check_or_create_directory(&self.disk_path);
+        let f = || Utils::check_or_create_directory(&self.disk_path);
         self.config
             .try_multiple_times_async(
                 f,
@@ -319,7 +332,7 @@ impl Holder {
 
         self.config
             .try_multiple_times_async(
-                || Stuff::drop_pearl_lock_file(&self.disk_path),
+                || Utils::drop_pearl_lock_file(&self.disk_path),
                 &format!("cannot delete lock file: {:?}", self.disk_path),
                 self.config.fail_retry_timeout(),
             )
@@ -356,7 +369,7 @@ impl Holder {
     }
 
     pub async fn drop_directory(&self) -> BackendResult<()> {
-        Stuff::drop_directory(&self.disk_path).await
+        Utils::drop_directory(&self.disk_path).await
     }
 
     fn init_pearl_by_path(&self) -> AnyResult<PearlStorage> {
@@ -489,6 +502,20 @@ impl PearlSync {
     #[inline]
     pub fn get(&self) -> PearlStorage {
         self.storage.clone().expect("cloned storage")
+    }
+
+    pub async fn filter_memory_allocated(&self) -> usize {
+        if let Some(storage) = &self.storage {
+            storage.filter_memory_allocated().await
+        } else {
+            0
+        }
+    }
+
+    pub async fn offload_filters(&self) {
+        if let Some(storage) = &self.storage {
+            storage.offload_bloom().await
+        }
     }
 }
 

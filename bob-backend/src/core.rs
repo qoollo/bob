@@ -108,6 +108,12 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
     }
 
     async fn close_unneeded_active_blobs(&self, _soft: usize, _hard: usize) {}
+
+    async fn offload_old_filters(&self, _limit: usize) {}
+
+    async fn filter_memory_allocated(&self) -> usize {
+        0
+    }
 }
 
 #[async_trait]
@@ -355,5 +361,13 @@ impl Backend {
 
     pub async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
         self.inner.close_unneeded_active_blobs(soft, hard).await
+    }
+
+    pub async fn offload_old_filters(&self, limit: usize) {
+        self.inner.offload_old_filters(limit).await
+    }
+
+    pub async fn filter_memory_allocated(&self) -> usize {
+        self.inner.filter_memory_allocated().await
     }
 }

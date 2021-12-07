@@ -773,6 +773,9 @@ cleanup_interval: 1d
 metrics:                      # optional, send metrics
   name: machine               # optional, add base name for metrics
   graphite: 127.0.0.1:2003    # optional, send metrics to graphite
+  graphite_enabled: true
+  prometheus: 127.0.0.1:2004
+  prometheus_enabled: true
 ";
         let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
@@ -791,7 +794,9 @@ cleanup_interval: 1d
 
 metrics:                      # optional, send metrics
   name: machine               # optional, add base name for metrics
-  graphite: 127.0.0.0.1:2003    # optional, send metrics to graphite
+  graphite_enabled: true    # optional, send metrics to graphite
+  prometheus: 127.0.0.1:2004
+  prometheus_enabled: true
 ";
         let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_err());
