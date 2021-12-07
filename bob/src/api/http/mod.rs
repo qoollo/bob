@@ -2,33 +2,37 @@ use crate::{
     api::http::metric_models::MetricsSnapshotModel, build_info::BuildInfo,
     server::Server as BobServer,
 };
+use axum::{
+    body::{self, BoxBody},
+    extract::{Extension, Path as AxumPath},
+    response::IntoResponse,
+    routing::{delete, get, post, MethodRouter},
+    AddExtensionLayer, Json, Router, Server,
+};
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
     error::Error as BobError,
     node::Disk as NodeDisk,
 };
+use bytes::Bytes;
 use futures::{future::BoxFuture, FutureExt};
-use rocket::{
-    data::ByteUnit,
-    http::{ContentType, Status},
-    request::FromParam,
-    response::{content::Custom as Content, Responder, Result as RocketResult},
-    serde::{json::Json, uuid::Uuid},
-    Config, Data, Request, Response, Rocket, State,
-};
-use std::net::IpAddr;
+use http::{header::CONTENT_TYPE, HeaderMap, Response, StatusCode};
 use std::{
-    io::{Cursor, Error as IoError, ErrorKind},
+    future::ready,
+    io::{Error as IoError, ErrorKind},
+    net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
     str::FromStr,
 };
 use tokio::fs::{read_dir, ReadDir};
+use uuid::Uuid;
 
 mod metric_models;
 mod s3;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub(crate) enum Action {
     Attach,
     Detach,
@@ -53,6 +57,7 @@ pub(crate) struct Replica {
     disk: String,
     path: String,
 }
+
 #[derive(Debug, Serialize, Clone)]
 pub(crate) struct VDiskPartitions {
     vdisk_id: u32,
@@ -72,7 +77,7 @@ pub(crate) struct Partition {
 
 #[derive(Debug)]
 pub(crate) struct StatusExt {
-    status: Status,
+    status: StatusCode,
     ok: bool,
     msg: String,
 }
@@ -96,7 +101,7 @@ pub(crate) struct DiskState {
     is_active: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct DataKey(BobKey);
 
 #[derive(Debug, Serialize)]
@@ -117,43 +122,61 @@ pub(crate) struct NodeConfiguration {
 }
 
 pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
-    let routes = routes![
-        status,
-        version,
-        vdisks,
-        vdisk_by_id,
-        partitions,
-        partition_by_id,
-        change_partition_state,
-        delete_partition,
-        get_node_configuration,
-        alien,
-        detach_alien_partitions,
-        get_alien_directory,
-        remount_vdisks_group,
-        start_all_disk_controllers,
-        stop_all_disk_controllers,
-        get_local_replica_directories,
-        nodes,
-        disks_list,
-        finalize_outdated_blobs,
-        vdisk_records_count,
-        distribution_function,
-        get_data,
-        put_data,
-        metrics
-    ];
-    info!("API server started");
-    let mut config = Config::release_default();
-    config.address = address;
-    config.port = port;
-    let task = Rocket::custom(config)
-        .manage(bob)
-        .mount("/s3", s3::routes())
-        .mount("/", routes)
-        .launch();
+    let mut router = Router::new();
+    for (path, service) in routes().into_iter().chain(s3::routes().into_iter()) {
+        router = router.route(path, service);
+    }
+
+    router = router.layer(AddExtensionLayer::new(bob));
+
+    let socket_addr = SocketAddr::new(address, port);
+    let new_service = router.into_make_service();
+    let task = Server::bind(&socket_addr).serve(new_service);
 
     tokio::spawn(task);
+
+    info!("API server started");
+}
+
+fn routes() -> Vec<(&'static str, MethodRouter)> {
+    vec![
+        ("/status", get(status)),
+        ("/metrics", get(metrics)),
+        ("/version", get(version)),
+        ("/nodes", get(nodes)),
+        ("/disks/list", get(disks_list)),
+        ("/metadata/distrfunc", get(distribution_function)),
+        ("/configuration", get(get_node_configuration)),
+        ("/disks/:disk_name/stop", post(stop_all_disk_controllers)),
+        ("/disks/:disk_name/start", post(start_all_disk_controllers)),
+        ("/vdisks", get(vdisks)),
+        ("/blobs/outdated", delete(finalize_outdated_blobs)),
+        ("/vdisks/:vdisk_id", get(vdisk_by_id)),
+        ("/vdisks/:vdisk_id/records/count", get(vdisk_records_count)),
+        ("/vdisks/:vdisk_id/partitions", get(partitions)),
+        (
+            "/vdisks/:vdisk_id/partitions/:partition_id",
+            get(partition_by_id),
+        ),
+        (
+            "/vdisks/:vdisk_id/partitions/by_timestamp/:timestamp/:action",
+            post(change_partition_state),
+        ),
+        ("/vdisks/:vdisk_id/remount", post(remount_vdisks_group)),
+        (
+            "/vdisks/:vdisk_id/partitions/by_timestamp/:timestamp",
+            delete(delete_partition),
+        ),
+        ("/alien", get(alien)),
+        ("/alien/detach", post(detach_alien_partitions)),
+        ("/alien/dir", get(get_alien_directory)),
+        (
+            "/vdisks/:vdisk_id/replicas/local/dirs",
+            get(get_local_replica_directories),
+        ),
+        ("/data/:key", get(get_data)),
+        ("/data/:key", post(put_data)),
+    ]
 }
 
 fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
@@ -191,7 +214,7 @@ fn collect_replicas_info(replicas: &[NodeDisk]) -> Vec<Replica> {
 
 fn not_acceptable_backend() -> StatusExt {
     let status = StatusExt::new(
-        Status::NotAcceptable,
+        StatusCode::NOT_ACCEPTABLE,
         false,
         "only pearl backend supports partitions".into(),
     );
@@ -200,7 +223,7 @@ fn not_acceptable_backend() -> StatusExt {
 }
 
 // !notice: only finds normal group
-async fn find_group(bob: &State<BobServer>, vdisk_id: u32) -> Result<PearlGroup, StatusExt> {
+async fn find_group(bob: &BobServer, vdisk_id: u32) -> Result<PearlGroup, StatusExt> {
     let backend = bob.grinder().backend().inner();
     debug!("get backend: OK");
     let (dcs, _) = backend
@@ -213,21 +236,20 @@ async fn find_group(bob: &State<BobServer>, vdisk_id: u32) -> Result<PearlGroup,
         .ok_or_else(|| {
             let err = format!("Disk Controller with vdisk #{} not found", vdisk_id);
             warn!("{}", err);
-            StatusExt::new(Status::NotFound, false, err)
+            StatusExt::new(StatusCode::NOT_FOUND, false, err)
         })?;
     needed_dc.vdisk_group(vdisk_id).await.map_err(|_| {
         let err = format!("Disk Controller with vdisk #{} not found", vdisk_id);
         warn!("{}", err);
-        StatusExt::new(Status::NotFound, false, err)
+        StatusExt::new(StatusCode::NOT_FOUND, false, err)
     })
 }
 
-#[get("/status")]
-async fn status(bob: &State<BobServer>) -> Json<Node> {
+async fn status(Extension(bob): Extension<&BobServer>) -> Json<Node> {
     let mapper = bob.grinder().backend().mapper();
     let name = mapper.local_node_name().to_owned();
     let address = mapper.local_node_address().to_owned();
-    let vdisks = collect_disks_info(bob);
+    let vdisks = collect_disks_info(&bob);
     let node = Node {
         name,
         address,
@@ -236,35 +258,41 @@ async fn status(bob: &State<BobServer>) -> Json<Node> {
     Json(node)
 }
 
-#[get("/metrics")]
-async fn metrics(bob: &State<BobServer>) -> Json<MetricsSnapshotModel> {
+async fn metrics(Extension(bob): Extension<&BobServer>) -> Json<MetricsSnapshotModel> {
     let snapshot = bob.metrics().read().await.clone();
     Json(snapshot.into())
 }
 
-#[get("/version")]
-fn version(_bob: &State<BobServer>) -> Json<VersionInfo> {
+async fn version() -> Json<VersionInfo> {
     let build_info = BuildInfo::new();
+
+    let version = build_info.version().to_string();
+    let build_time = build_info.build_time().to_string();
+    let bob_version = Version {
+        version,
+        build_time,
+    };
+
+    let version = build_info.pearl_version().to_string();
+    let build_time = build_info.pearl_build_time().to_string();
+    let pearl_version = Version {
+        version,
+        build_time,
+    };
+
     let version_info = VersionInfo {
-        bob_version: Version {
-            version: build_info.version().to_string(),
-            build_time: build_info.build_time().to_string(),
-        },
-        pearl_version: Version {
-            version: build_info.pearl_version().to_string(),
-            build_time: build_info.pearl_build_time().to_string(),
-        },
+        bob_version,
+        pearl_version,
     };
     Json(version_info)
 }
 
-#[get("/nodes")]
-async fn nodes(bob: &State<BobServer>) -> Json<Vec<Node>> {
+async fn nodes(Extension(bob): Extension<&BobServer>) -> Json<Vec<Node>> {
     let mapper = bob.grinder().backend().mapper();
     let mut nodes = vec![];
     let vdisks = collect_disks_info(bob);
     for node in mapper.nodes().values() {
-        let vdisks: Vec<VDisk> = vdisks
+        let vdisks: Vec<_> = vdisks
             .iter()
             .filter_map(|vd| {
                 if vd.replicas.iter().any(|r| r.node == node.name()) {
@@ -281,9 +309,11 @@ async fn nodes(bob: &State<BobServer>) -> Json<Vec<Node>> {
             })
             .collect();
 
+        let name = node.name().to_string();
+        let address = node.address().to_string();
         let node = Node {
-            name: node.name().to_string(),
-            address: node.address().to_string(),
+            name,
+            address,
             vdisks,
         };
 
@@ -292,8 +322,9 @@ async fn nodes(bob: &State<BobServer>) -> Json<Vec<Node>> {
     Json(nodes)
 }
 
-#[get("/disks/list")]
-async fn disks_list(bob: &State<BobServer>) -> Result<Json<Vec<DiskState>>, StatusExt> {
+async fn disks_list(
+    Extension(bob): Extension<&BobServer>,
+) -> Result<Json<Vec<DiskState>>, StatusExt> {
     let backend = bob.grinder().backend().inner();
     let (dcs, alien_disk_controller) = backend
         .disk_controllers()
@@ -302,37 +333,43 @@ async fn disks_list(bob: &State<BobServer>) -> Result<Json<Vec<DiskState>>, Stat
     let mut disks = Vec::new();
     for dc in dcs.iter().chain(std::iter::once(&alien_disk_controller)) {
         let disk_path = dc.disk();
-        disks.push(DiskState {
-            name: disk_path.name().to_owned(),
-            path: disk_path.path().to_owned(),
-            is_active: dc.is_ready().await,
-        });
+
+        let name = disk_path.name().to_owned();
+        let path = disk_path.path().to_owned();
+        let is_active = dc.is_ready().await;
+        let value = DiskState {
+            name,
+            path,
+            is_active,
+        };
+        disks.push(value);
     }
 
     Ok(Json(disks))
 }
 
-#[get("/metadata/distrfunc")]
-async fn distribution_function(bob: &State<BobServer>) -> Json<DistrFunc> {
-    let mapper = bob.grinder().backend().mapper();
-    Json(DistrFunc {
-        func: format!("{:?}", mapper.distribution_func()),
-    })
+async fn distribution_function(Extension(bob): Extension<&BobServer>) -> Json<DistrFunc> {
+    let mapper = bob.grinder().backend().mapper().distribution_func();
+    let func = format!("{:?}", mapper);
+    Json(DistrFunc { func })
 }
 
-#[get("/configuration")]
-async fn get_node_configuration(bob: &State<BobServer>) -> Json<NodeConfiguration> {
-    let grinder = bob.grinder();
-    let config = grinder.node_config();
-    Json(NodeConfiguration {
-        blob_file_name_prefix: config.pearl().blob_file_name_prefix().to_owned(),
-    })
+async fn get_node_configuration(Extension(bob): Extension<&BobServer>) -> Json<NodeConfiguration> {
+    let blob_file_name_prefix = bob
+        .grinder()
+        .node_config()
+        .pearl()
+        .blob_file_name_prefix()
+        .to_owned();
+    let node_configuration = NodeConfiguration {
+        blob_file_name_prefix,
+    };
+    Json(node_configuration)
 }
 
-#[post("/disks/<disk_name>/stop")]
 async fn stop_all_disk_controllers(
-    bob: &State<BobServer>,
-    disk_name: String,
+    Extension(bob): Extension<&BobServer>,
+    AxumPath(disk_name): AxumPath<String>,
 ) -> Result<StatusExt, StatusExt> {
     use futures::stream::{FuturesUnordered, StreamExt};
     let backend = bob.grinder().backend().inner();
@@ -346,16 +383,13 @@ async fn stop_all_disk_controllers(
         .collect::<FuturesUnordered<_>>()
         .collect::<Vec<()>>()
         .await;
-    Ok(StatusExt::new(
-        Status::Ok,
-        true,
-        "Disk controllers are stopped".to_owned(),
-    ))
+    let msg = "Disk controllers are stopped".to_owned();
+    let status_ext = StatusExt::new(StatusCode::OK, true, msg);
+    Ok(status_ext)
 }
 
-#[post("/disks/<disk_name>/start")]
 async fn start_all_disk_controllers(
-    bob: &State<BobServer>,
+    Extension(bob): Extension<&BobServer>,
     disk_name: String,
 ) -> Result<StatusExt, StatusExt> {
     use futures::stream::{FuturesUnordered, StreamExt};
@@ -369,63 +403,64 @@ async fn start_all_disk_controllers(
         .filter(|dc| dc.disk().name() == disk_name)
         .map(|dc| dc.run(NoopHooks))
         .collect::<FuturesUnordered<_>>();
+
     if target_dcs.is_empty() {
         let err = format!("Disk Controller with name '{}' not found", disk_name);
         warn!("{}", err);
-        return Err(StatusExt::new(Status::NotFound, false, err));
+        return Err(StatusExt::new(StatusCode::NOT_FOUND, false, err));
     }
-    let err_string = target_dcs
+
+    let err_msg = target_dcs
         .fold(String::new(), |mut err_string, res| {
             if let Err(e) = res {
                 err_string.push_str(&(e.to_string() + "\n"));
             }
-            async move { err_string }
+            ready(err_string)
         })
         .await;
-    if err_string.is_empty() {
+    if err_msg.is_empty() {
         let msg = format!(
             "all disk controllers for disk '{}' successfully started",
             disk_name
         );
         info!("{}", msg);
-        Ok(StatusExt::new(Status::Ok, true, msg))
+        Ok(StatusExt::new(StatusCode::OK, true, msg))
     } else {
-        Err(StatusExt::new(
-            Status::InternalServerError,
-            false,
-            err_string,
-        ))
+        let status_ext = StatusExt::new(StatusCode::INTERNAL_SERVER_ERROR, false, err_msg);
+        Err(status_ext)
     }
 }
 
-#[get("/vdisks")]
-async fn vdisks(bob: &State<BobServer>) -> Json<Vec<VDisk>> {
+async fn vdisks(Extension(bob): Extension<&BobServer>) -> Json<Vec<VDisk>> {
     let vdisks = collect_disks_info(bob);
     Json(vdisks)
 }
 
-#[delete("/blobs/outdated")]
-async fn finalize_outdated_blobs(bob: &State<BobServer>) -> StatusExt {
+async fn finalize_outdated_blobs(Extension(bob): Extension<&BobServer>) -> StatusExt {
     let backend = bob.grinder().backend();
     backend.close_unneeded_active_blobs(1, 1).await;
-    StatusExt::new(
-        Status::Ok,
-        true,
-        "Successfully removed outdated blobs".to_string(),
-    )
+    let msg = "Successfully removed outdated blobs".to_string();
+    StatusExt::new(StatusCode::OK, true, msg)
 }
 
-#[get("/vdisks/<vdisk_id>")]
-async fn vdisk_by_id(bob: &State<BobServer>, vdisk_id: u32) -> Option<Json<VDisk>> {
-    get_vdisk_by_id(bob, vdisk_id).map(Json)
+async fn vdisk_by_id(
+    Extension(bob): Extension<&BobServer>,
+    AxumPath(vdisk_id): AxumPath<u32>,
+) -> Result<Json<VDisk>, StatusExt> {
+    get_vdisk_by_id(bob, vdisk_id)
+        .map(Json)
+        .ok_or(StatusExt::new(
+            StatusCode::NOT_FOUND,
+            false,
+            "vdisk not found".to_string(),
+        ))
 }
 
-#[get("/vdisks/<vdisk_id>/records/count")]
 async fn vdisk_records_count(
-    bob: &State<BobServer>,
-    vdisk_id: u32,
+    Extension(bob): Extension<&BobServer>,
+    AxumPath(vdisk_id): AxumPath<u32>,
 ) -> Result<Json<u64>, StatusExt> {
-    let group = find_group(bob, vdisk_id).await?;
+    let group = find_group(&bob, vdisk_id).await?;
     let holders = group.holders();
     let pearls = holders.read().await;
     let pearls: &[_] = pearls.as_ref();
@@ -436,10 +471,9 @@ async fn vdisk_records_count(
     Ok(Json(sum as u64))
 }
 
-#[get("/vdisks/<vdisk_id>/partitions")]
 async fn partitions(
-    bob: &State<BobServer>,
-    vdisk_id: u32,
+    Extension(bob): Extension<&BobServer>,
+    AxumPath(vdisk_id): AxumPath<u32>,
 ) -> Result<Json<VDiskPartitions>, StatusExt> {
     let group = find_group(bob, vdisk_id).await?;
     debug!("group with provided vdisk_id found");
@@ -448,21 +482,24 @@ async fn partitions(
     debug!("get pearl holders: OK");
     let pearls: &[_] = pearls.as_ref();
     let partitions = pearls.iter().map(Holder::get_id).collect();
+
+    let node_name = group.node_name().to_owned();
+    let disk_name = group.disk_name().to_owned();
+    let vdisk_id = group.vdisk_id();
     let ps = VDiskPartitions {
-        node_name: group.node_name().to_owned(),
-        disk_name: group.disk_name().to_owned(),
-        vdisk_id: group.vdisk_id(),
+        node_name,
+        disk_name,
+        vdisk_id,
         partitions,
     };
     trace!("partitions: {:?}", ps);
     Ok(Json(ps))
 }
 
-#[get("/vdisks/<vdisk_id>/partitions/<partition_id>")]
 async fn partition_by_id(
-    bob: &State<BobServer>,
-    vdisk_id: u32,
-    partition_id: String,
+    Extension(bob): Extension<&BobServer>,
+    AxumPath(vdisk_id): AxumPath<u32>,
+    AxumPath(partition_id): AxumPath<String>,
 ) -> Result<Json<Partition>, StatusExt> {
     let group = find_group(bob, vdisk_id).await?;
     debug!("group with provided vdisk_id found");
@@ -471,13 +508,14 @@ async fn partition_by_id(
     let pearls = holders.read().await;
     let pearl = pearls.iter().find(|pearl| pearl.get_id() == partition_id);
     let partition = if let Some(p) = pearl {
-        Some(Partition {
+        let partition = Partition {
             node_name: group.node_name().to_owned(),
             disk_name: group.disk_name().to_owned(),
             vdisk_id: group.vdisk_id(),
             timestamp: p.start_timestamp(),
             records_count: p.records_count().await,
-        })
+        };
+        Some(partition)
     } else {
         None
     };
@@ -487,70 +525,62 @@ async fn partition_by_id(
             partition_id, vdisk_id
         );
         warn!("{}", err);
-        StatusExt::new(Status::NotFound, false, err)
+        StatusExt::new(StatusCode::NOT_FOUND, false, err)
     })
 }
 
-#[post("/vdisks/<vdisk_id>/partitions/by_timestamp/<timestamp>/<action>")]
 async fn change_partition_state(
-    bob: &State<BobServer>,
-    vdisk_id: u32,
-    timestamp: u64,
-    action: Action,
+    Extension(bob): Extension<&BobServer>,
+    AxumPath(vdisk_id): AxumPath<u32>,
+    AxumPath(timestamp): AxumPath<u64>,
+    AxumPath(action): AxumPath<Action>,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(bob, vdisk_id).await?;
-    let res = format!(
-        "partitions with timestamp {} on vdisk {} is successfully {:?}ed",
-        timestamp, vdisk_id, action
-    );
-    let result = match action {
-        Action::Attach => group.attach(timestamp).await,
-        Action::Detach => group.detach(timestamp).await.map(|_| ()),
+    let error = match action {
+        Action::Attach => group.attach(timestamp).await.err(),
+        Action::Detach => group.detach(timestamp).await.err(),
     };
-    match result {
-        Ok(_) => {
-            info!("{}", res);
-            Ok(StatusExt::new(Status::Ok, true, res))
-        }
-        Err(e) => Err(StatusExt::new(Status::Ok, false, e.to_string())),
+    if let Some(err) = error {
+        Err(StatusExt::new(StatusCode::OK, false, err.to_string()))
+    } else {
+        let msg = format!(
+            "partitions with timestamp {} on vdisk {} is successfully {:?}ed",
+            timestamp, vdisk_id, action
+        );
+        info!("{}", msg);
+        Ok(StatusExt::new(StatusCode::OK, true, msg))
     }
 }
 
-#[post("/vdisks/<vdisk_id>/remount")]
 async fn remount_vdisks_group(
-    bob: &State<BobServer>,
-    vdisk_id: u32,
+    Extension(bob): Extension<&BobServer>,
+    AxumPath(vdisk_id): AxumPath<u32>,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(bob, vdisk_id).await?;
-    match group.remount().await {
-        Ok(_) => {
-            info!("vdisks group {} successfully restarted", vdisk_id);
-            Ok(StatusExt::new(
-                Status::Ok,
-                true,
-                format!("vdisks group {} successfully restarted", vdisk_id),
-            ))
-        }
-        Err(e) => Err(StatusExt::new(Status::Ok, false, e.to_string())),
+    if let Some(err) = group.remount().await.err() {
+        Err(StatusExt::new(StatusCode::OK, false, err.to_string()))
+    } else {
+        info!("vdisks group {} successfully restarted", vdisk_id);
+        let msg = format!("vdisks group {} successfully restarted", vdisk_id);
+        Ok(StatusExt::new(StatusCode::OK, true, msg))
     }
 }
 
-#[delete("/vdisks/<vdisk_id>/partitions/by_timestamp/<timestamp>")]
 async fn delete_partition(
-    bob: &State<BobServer>,
-    vdisk_id: u32,
-    timestamp: u64,
+    Extension(bob): Extension<&BobServer>,
+    AxumPath(vdisk_id): AxumPath<u32>,
+    AxumPath(timestamp): AxumPath<u64>,
 ) -> Result<StatusExt, StatusExt> {
     let group = find_group(bob, vdisk_id).await?;
-    let pearls = group.detach(timestamp).await;
-    if let Ok(holders) = pearls {
+    let pearls = group.detach(timestamp).await.ok();
+    if let Some(holders) = pearls {
         drop_directories(holders, timestamp, vdisk_id).await
     } else {
         let msg = format!(
             "partitions with timestamp {} not found on vdisk {} or it is active",
             timestamp, vdisk_id
         );
-        Err(StatusExt::new(Status::BadRequest, true, msg))
+        Err(StatusExt::new(StatusCode::BAD_REQUEST, true, msg))
     }
 }
 
@@ -559,43 +589,45 @@ async fn drop_directories(
     timestamp: u64,
     vdisk_id: u32,
 ) -> Result<StatusExt, StatusExt> {
-    let mut result = String::new();
+    let mut result_msg = String::new();
     for holder in holders {
-        let msg = if let Err(e) = holder.drop_directory().await {
+        let msg = if let Some(err) = holder.drop_directory().await.err() {
             format!(
                 "partitions with timestamp {} delete failed on vdisk {}, error: {}",
-                timestamp, vdisk_id, e
+                timestamp, vdisk_id, err
             )
         } else {
             format!("partitions deleted with timestamp {}", timestamp)
         };
-        result.push_str(&msg);
-        result.push('\n');
+        result_msg.push_str(&msg);
+        result_msg.push('\n');
     }
-    if result.is_empty() {
-        Ok(StatusExt::new(Status::Ok, true, result))
+    if result_msg.is_empty() {
+        Ok(StatusExt::new(StatusCode::OK, true, result_msg))
     } else {
-        Err(StatusExt::new(Status::InternalServerError, true, result))
+        let status_ext = StatusExt::new(StatusCode::INTERNAL_SERVER_ERROR, true, result_msg);
+        Err(status_ext)
     }
 }
 
-#[get("/alien")]
-async fn alien(_bob: &State<BobServer>) -> &'static str {
+async fn alien() -> &'static str {
     "alien"
 }
 
-#[post("/alien/detach")]
-async fn detach_alien_partitions(bob: &State<BobServer>) -> Result<StatusExt, StatusExt> {
+async fn detach_alien_partitions(
+    Extension(bob): Extension<&BobServer>,
+) -> Result<StatusExt, StatusExt> {
     let backend = bob.grinder().backend().inner();
     let (_, alien_disk_controller) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
     alien_disk_controller.detach_all().await?;
-    Ok(StatusExt::new(Status::Ok, true, String::default()))
+    Ok(StatusExt::new(StatusCode::OK, true, String::default()))
 }
 
-#[get("/alien/dir")]
-async fn get_alien_directory(bob: &State<BobServer>) -> Result<Json<Dir>, StatusExt> {
+async fn get_alien_directory(
+    Extension(bob): Extension<&BobServer>,
+) -> Result<Json<Dir>, StatusExt> {
     let backend = bob.grinder().backend().inner();
     let (_, alien_disk_controller) = backend
         .disk_controllers()
@@ -605,17 +637,13 @@ async fn get_alien_directory(bob: &State<BobServer>) -> Result<Json<Dir>, Status
     Ok(Json(dir))
 }
 
-#[get("/vdisks/<vdisk_id>/replicas/local/dirs")]
 async fn get_local_replica_directories(
-    bob: &State<BobServer>,
-    vdisk_id: u32,
+    Extension(bob): Extension<&BobServer>,
+    AxumPath(vdisk_id): AxumPath<u32>,
 ) -> Result<Json<Vec<Dir>>, StatusExt> {
     let vdisk: VDisk = get_vdisk_by_id(bob, vdisk_id).ok_or_else(|| {
-        StatusExt::new(
-            Status::NotFound,
-            false,
-            format!("VDisk {} not found", vdisk_id),
-        )
+        let msg = format!("VDisk {} not found", vdisk_id);
+        StatusExt::new(StatusCode::NOT_FOUND, false, msg)
     })?;
     let local_node_name = bob.grinder().backend().mapper().local_node_name();
     let mut result = vec![];
@@ -664,49 +692,44 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
     }
 }
 
-#[get("/data/<key>")]
 async fn get_data(
-    bob: &State<BobServer>,
-    key: Result<DataKey, StatusExt>,
-) -> Result<Content<Vec<u8>>, StatusExt> {
-    let key = key?.0;
+    Extension(bob): Extension<&BobServer>,
+    AxumPath(key): AxumPath<String>,
+) -> Result<impl IntoResponse, StatusExt> {
+    let key = DataKey::from_str(&key)?.0;
     let opts = BobOptions::new_get(None);
     let result = bob.grinder().get(key, &opts).await?;
-    Ok(Content(infer_data_type(&result), result.inner().to_owned()))
+
+    let content_type = infer_data_type(&result);
+    let mut headers = HeaderMap::new();
+    let val = content_type
+        .parse()
+        .expect("failed to parse content type value");
+    headers.insert(CONTENT_TYPE, val);
+    Ok((headers, result.inner().to_owned()))
 }
 
-#[post("/data/<key>", data = "<data>")]
 async fn put_data(
-    bob: &State<BobServer>,
-    key: Result<DataKey, StatusExt>,
-    data: Data<'_>,
+    Extension(bob): Extension<&BobServer>,
+    AxumPath(key): AxumPath<String>,
+    body: Bytes,
 ) -> Result<StatusExt, StatusExt> {
-    let key = key?.0;
-    let data_buf = data.open(ByteUnit::max_value()).into_bytes().await?.value;
-    let data = BobData::new(
-        data_buf,
-        BobMeta::new(chrono::Local::now().timestamp() as u64),
-    );
+    let key = DataKey::from_str(&key)?.0;
+    let data_buf = body.to_vec();
+    let meta = BobMeta::new(chrono::Local::now().timestamp() as u64);
+    let data = BobData::new(data_buf, meta);
 
     let opts = BobOptions::new_put(None);
     bob.grinder().put(key, data, opts).await?;
-    Ok(Status::Created.into())
-}
-
-impl FromParam<'_> for DataKey {
-    type Error = StatusExt;
-
-    fn from_param(param: &str) -> Result<Self, Self::Error> {
-        DataKey::from_str(param)
-    }
+    Ok(StatusCode::CREATED.into())
 }
 
 fn internal(message: String) -> StatusExt {
-    StatusExt::new(Status::InternalServerError, false, message)
+    StatusExt::new(StatusCode::INTERNAL_SERVER_ERROR, false, message)
 }
 
 fn bad_request(message: impl Into<String>) -> StatusExt {
-    StatusExt::new(Status::BadRequest, false, message.into())
+    StatusExt::new(StatusCode::BAD_REQUEST, false, message.into())
 }
 
 impl DataKey {
@@ -766,50 +789,34 @@ impl FromStr for DataKey {
         } else if param.chars().all(|c| c.is_ascii_digit()) {
             Self::from_decimal(param)
         } else {
-            Err(StatusExt::new(
-                Status::BadRequest,
-                false,
-                "Invalid key format".into(),
-            ))
+            let msg = "Invalid key format".into();
+            Err(StatusExt::new(StatusCode::BAD_REQUEST, false, msg))
         }
     }
 }
 
-impl<'r> FromParam<'r> for Action {
-    type Error = &'r str;
-
-    fn from_param(param: &'r str) -> Result<Self, Self::Error> {
-        error!("{}", param);
-        match param {
-            "attach" => Ok(Self::Attach),
-            "detach" => Ok(Self::Detach),
-            _ => Err(param),
-        }
-    }
-}
-
-impl Responder<'_, 'static> for StatusExt {
-    fn respond_to(self, _: &Request) -> RocketResult<'static> {
+impl IntoResponse for StatusExt {
+    fn into_response(self) -> Response<BoxBody> {
         let msg = format!("{{ \"ok\": {}, \"msg\": \"{}\" }}", self.ok, self.msg);
-        Response::build()
+        Response::builder()
             .status(self.status)
-            .streamed_body(Cursor::new(msg))
-            .ok()
+            .body(BoxBody::new(body::boxed(body::Full::from(msg))))
+            .expect("failed to set body for response")
     }
 }
 
 impl StatusExt {
-    fn new(status: Status, ok: bool, msg: String) -> Self {
+    fn new(status: StatusCode, ok: bool, msg: String) -> Self {
         Self { status, ok, msg }
     }
 }
 
-impl From<Status> for StatusExt {
-    fn from(status: Status) -> Self {
+impl From<StatusCode> for StatusExt {
+    fn from(status: StatusCode) -> Self {
         Self {
             status,
             ok: true,
-            msg: status.reason().unwrap_or("Unknown").to_owned(),
+            msg: status.canonical_reason().unwrap_or("Unknown").to_owned(),
         }
     }
 }
@@ -818,8 +825,8 @@ impl From<IoError> for StatusExt {
     fn from(err: IoError) -> Self {
         Self {
             status: match err.kind() {
-                ErrorKind::NotFound => Status::NotFound,
-                _ => Status::BadRequest,
+                ErrorKind::NotFound => StatusCode::NOT_FOUND,
+                _ => StatusCode::BAD_REQUEST,
             }, // TODO: Complete match
             ok: false,
             msg: err.to_string(),
@@ -831,11 +838,11 @@ impl From<BobError> for StatusExt {
     fn from(err: BobError) -> Self {
         use bob_common::error::Kind;
         let status = match err.kind() {
-            Kind::DuplicateKey => Status::Conflict,
-            Kind::Internal => Status::InternalServerError,
-            Kind::VDiskIsNotReady => Status::InternalServerError,
-            Kind::KeyNotFound(_) => Status::NotFound,
-            _ => Status::BadRequest,
+            Kind::DuplicateKey => StatusCode::CONFLICT,
+            Kind::Internal => StatusCode::INTERNAL_SERVER_ERROR,
+            Kind::VDiskIsNotReady => StatusCode::INTERNAL_SERVER_ERROR,
+            Kind::KeyNotFound(_) => StatusCode::NOT_FOUND,
+            _ => StatusCode::BAD_REQUEST,
         };
         Self {
             status,
@@ -845,9 +852,9 @@ impl From<BobError> for StatusExt {
     }
 }
 
-pub(crate) fn infer_data_type(data: &BobData) -> ContentType {
+pub(crate) fn infer_data_type(data: &BobData) -> &'static str {
     match infer::get(data.inner()) {
-        None => ContentType::Any,
-        Some(t) => ContentType::from_str(t.mime_type()).unwrap_or_default(),
+        None => "*/*",
+        Some(t) => t.mime_type(),
     }
 }

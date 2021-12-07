@@ -26,3 +26,5 @@ metrics:
   # this prefix resolves to `bob.X_X_X_X.node1`, where X_X_X_X is local ip address
   prefix: '{metrics_name}.{local_address}.{node_name}'
   graphite: 127.0.0.1:2003
+  graphite_enabled: false
+  prometheus_enabled: false

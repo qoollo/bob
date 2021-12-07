@@ -8,7 +8,7 @@ Bob versions changelog
   - Nodes authentication (#318)
 
 #### Changed
-
+- Rocket replaced with axum.
 
 #### Fixed
 
