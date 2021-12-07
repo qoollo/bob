@@ -14,7 +14,7 @@ use std::{
 };
 use tokio::{runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::Server;
-use tower::Layer;
+use tower::{util::BoxService, Layer};
 
 #[macro_use]
 extern crate log;
@@ -103,8 +103,6 @@ async fn main() {
         .value_of("http_api_address")
         .and_then(|v| v.parse().ok())
         .unwrap_or(node.http_api_address());
-    let api_service = bob.build_api_service(http_api_address, http_api_port);
-    // bob.run_api_server(http_api_address, http_api_port);
 
     create_signal_handlers(&bob).unwrap();
 
@@ -120,7 +118,13 @@ async fn main() {
             let authenticator = StubAuthenticator::new(users_storage);
             let auth_service = AccessControlLayer::new().with_authenticator(authenticator);
             let extractor = StubExtractor::new();
-            let new_service = auth_service.with_extractor(extractor).layer(bob_service);
+            let new_service: AccessControlLayer<StubAuthenticator<UsersMap>, StubExtractor> =
+                auth_service.with_extractor(extractor);
+
+            let auth_service = BoxService::new(new_service.clone());
+            bob.run_api_server(http_api_address, http_api_port, auth_service);
+
+            let new_service = new_service.layer(bob_service);
 
             Server::builder()
                 .tcp_nodelay(true)
@@ -141,7 +145,11 @@ async fn main() {
                 .expect("failed to gen nodes credentials from cluster config");
             let auth_service = AccessControlLayer::new().with_authenticator(authenticator);
             let extractor = BasicExtractor::default();
-            let new_service = auth_service.with_extractor(extractor).layer(bob_service);
+            let new_service = auth_service.with_extractor(extractor);
+
+            bob.run_api_server(http_api_address, http_api_port, new_service.clone());
+
+            let new_service = new_service.layer(bob_service);
 
             Server::builder()
                 .tcp_nodelay(true)

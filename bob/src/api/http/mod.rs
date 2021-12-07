@@ -6,7 +6,7 @@ use axum::{
     body::{self, BoxBody},
     extract::{Extension, Path as AxumPath},
     response::IntoResponse,
-    routing::{delete, get, post, MethodRouter},
+    routing::{delete, get, post, IntoMakeService, MethodRouter},
     AddExtensionLayer, Json, Router, Server,
 };
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
@@ -26,7 +26,10 @@ use std::{
     str::FromStr,
 };
 use tokio::fs::{read_dir, ReadDir};
-use tower::Service;
+use tower::{
+    util::{BoxLayer, BoxService},
+    Layer, Service,
+};
 use uuid::Uuid;
 
 mod metric_models;
@@ -122,11 +125,12 @@ pub(crate) struct NodeConfiguration {
     blob_file_name_prefix: String,
 }
 
-pub(crate) fn build_api_service<T>(bob: BobServer, address: IpAddr, port: u16) -> impl Service<T> {
-    todo!()
-}
-
-pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
+pub fn build_api_service<In, T, U, E>(
+    bob: BobServer,
+    address: IpAddr,
+    port: u16,
+    auth_service: BoxLayer<In, T, U, E>,
+) -> BoxService<T, U, E> {
     let mut router = Router::new();
     for (path, service) in routes().into_iter().chain(s3::routes().into_iter()) {
         router = router.route(path, service);
@@ -134,8 +138,17 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
 
     router = router.layer(AddExtensionLayer::new(bob));
 
+    auth_service.layer(router.into_make_service())
+}
+
+pub(crate) fn spawn<T, U, E>(
+    bob: BobServer,
+    address: IpAddr,
+    port: u16,
+    auth_service: BoxService<T, U, E>,
+) {
+    let new_service = build_api_service(bob, address, port, auth_service);
     let socket_addr = SocketAddr::new(address, port);
-    let new_service = router.into_make_service();
     let task = Server::bind(&socket_addr).serve(new_service);
 
     tokio::spawn(task);
