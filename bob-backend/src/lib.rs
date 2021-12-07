@@ -1,5 +1,3 @@
-#![feature(drain_filter)]
-
 pub mod core;
 pub mod mem_backend;
 pub mod pearl;

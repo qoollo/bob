@@ -1,11 +1,12 @@
 use crate::prelude::*;
 
 use super::{
-    core::BackendResult, disk_controller::logger::DisksEventsLogger,
-    disk_controller::DiskController, group::Group, stuff::Stuff,
+    core::BackendResult,
+    disk_controller::logger::DisksEventsLogger,
+    disk_controller::DiskController,
+    group::Group,
+    utils::{StartTimestampConfig, Utils},
 };
-use crate::core::Operation;
-
 const DEFAULT_ALIEN_DISK_NAME: &str = "alien_disk";
 
 #[derive(Debug)]
@@ -102,6 +103,7 @@ impl Settings {
         self: Arc<Self>,
         disk_name: String,
         dump_sem: Arc<Semaphore>,
+        owner_node_name: &str,
     ) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
         let node_names = Self::get_all_subdirectories(&self.alien_folder).await?;
@@ -119,7 +121,7 @@ impl Settings {
                             node_name.clone(),
                             disk_name.clone(),
                             entry.path(),
-                            node_name.clone(),
+                            format!("a{}", owner_node_name),
                             dump_sem.clone(),
                         );
                         result.push(group);
@@ -135,18 +137,16 @@ impl Settings {
         Ok(result)
     }
 
-    pub async fn create_group(
+    pub async fn create_alien_group(
         self: Arc<Self>,
-        operation: &Operation,
+        remote_node_name: &str,
+        vdisk_id: u32,
         node_name: &str,
         dump_sem: Arc<Semaphore>,
     ) -> BackendResult<Group> {
-        let remote_node_name = operation
-            .remote_node_name()
-            .expect("no remote node name in operation");
-        let path = self.alien_path(operation.vdisk_id(), remote_node_name);
+        let path = self.alien_path(vdisk_id, remote_node_name);
 
-        Stuff::check_or_create_directory(&path).await?;
+        Utils::check_or_create_directory(&path).await?;
 
         let disk_name = self
             .config
@@ -154,7 +154,7 @@ impl Settings {
             .map_or_else(String::new, str::to_owned);
         let group = Group::new(
             self,
-            operation.vdisk_id(),
+            vdisk_id,
             remote_node_name.to_owned(),
             disk_name,
             path,
@@ -165,7 +165,7 @@ impl Settings {
     }
 
     pub async fn get_all_subdirectories(path: &Path) -> BackendResult<Vec<DirEntry>> {
-        Stuff::check_or_create_directory(path).await?;
+        Utils::check_or_create_directory(path).await?;
 
         let mut dir = read_dir(path).await.map_err(|e| {
             let msg = format!("couldn't process path: {:?}, error: {:?} ", path, e);
@@ -267,7 +267,11 @@ impl Settings {
 
     #[inline]
     pub fn get_actual_timestamp_start(&self) -> u64 {
-        Stuff::get_start_timestamp_by_std_time(self.timestamp_period, SystemTime::now())
+        Utils::get_start_timestamp_by_std_time(
+            self.timestamp_period,
+            SystemTime::now(),
+            &StartTimestampConfig::default(),
+        )
     }
 
     #[inline]

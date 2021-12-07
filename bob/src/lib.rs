@@ -1,5 +1,4 @@
 #![type_length_limit = "3245934"]
-#![feature(proc_macro_hygiene, decl_macro, drain_filter)]
 #![allow(clippy::used_underscore_binding)]
 #![warn(missing_debug_implementations)]
 // #![warn(clippy::pedantic)]
@@ -17,18 +16,15 @@ extern crate async_trait;
 extern crate metrics;
 
 pub mod api;
-pub mod build_time;
+pub mod build_info;
 pub mod cleaner;
 pub mod cluster;
 pub mod counter;
 pub mod grinder;
+pub mod hw_metrics_collector;
 pub mod link_manager;
 pub mod server;
-pub mod version_helpers;
 
-pub use crate::version_helpers::{
-    get_bob_build_time, get_bob_version, get_pearl_build_time, get_pearl_version,
-};
 pub use crate::{grinder::Grinder, server::Server as BobServer};
 pub use bob_common::{
     bob_client::Factory,
@@ -36,6 +32,7 @@ pub use bob_common::{
         Cluster as ClusterConfig, Node as ClusterNodeConfig, Rack as ClusterRackConfig,
         Replica as ReplicaConfig, VDisk as VDiskConfig,
     },
+    data::BOB_KEY_SIZE,
     mapper::Virtual as VirtualMapper,
     metrics::init_counters,
 };

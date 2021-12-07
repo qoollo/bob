@@ -17,6 +17,7 @@ impl Counter {
     async fn task(backend: Arc<Backend>, t: Duration) {
         let mut interval = interval(t);
         loop {
+            debug!("update blobs count metrics");
             interval.tick().await;
             let (normal_blobs, alien_blobs) = backend.blobs_count().await;
             gauge!(BLOBS_COUNT, normal_blobs as f64);

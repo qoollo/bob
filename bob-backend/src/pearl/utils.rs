@@ -1,10 +1,26 @@
-use crate::prelude::*;
+use crate::{pearl::hooks::SimpleHolder, prelude::*};
 
 use super::core::BackendResult;
 
-pub struct Stuff;
+pub struct Utils;
 
-impl Stuff {
+pub struct StartTimestampConfig {
+    round: bool,
+}
+
+impl Default for StartTimestampConfig {
+    fn default() -> Self {
+        Self { round: true }
+    }
+}
+
+impl StartTimestampConfig {
+    pub fn new(round: bool) -> Self {
+        Self { round }
+    }
+}
+
+impl Utils {
     pub async fn check_or_create_directory(path: &Path) -> BackendResult<()> {
         if path.exists() {
             trace!("directory: {:?} exists", path);
@@ -56,9 +72,13 @@ impl Stuff {
         }
     }
 
-    pub fn get_start_timestamp_by_std_time(period: Duration, time: SystemTime) -> u64 {
+    pub fn get_start_timestamp_by_std_time(
+        period: Duration,
+        time: SystemTime,
+        config: &StartTimestampConfig,
+    ) -> u64 {
         ChronoDuration::from_std(period)
-            .map(|period| Self::get_start_timestamp(period, DateTime::from(time)))
+            .map(|period| Self::get_start_timestamp(period, DateTime::from(time), config))
             .map_err(|e| {
                 trace!("smth wrong with time: {:?}, error: {}", period, e);
             })
@@ -66,7 +86,11 @@ impl Stuff {
     }
 
     // @TODO remove cast as u64
-    pub fn get_start_timestamp_by_timestamp(period: Duration, time: u64) -> u64 {
+    pub fn get_start_timestamp_by_timestamp(
+        period: Duration,
+        time: u64,
+        config: &StartTimestampConfig,
+    ) -> u64 {
         ChronoDuration::from_std(period)
             .map_err(|e| {
                 trace!("smth wrong with time: {:?}, error: {}", period, e);
@@ -77,13 +101,20 @@ impl Stuff {
                     NaiveDateTime::from_timestamp(time.try_into().unwrap(), 0),
                     Utc,
                 );
-                Self::get_start_timestamp(period, time)
+                Self::get_start_timestamp(period, time, config)
             })
             .expect("convert std time to chrono") as u64
     }
 
     // @TODO remove cast as u64
-    fn get_start_timestamp(period: ChronoDuration, time: DateTime<Utc>) -> u64 {
+    fn get_start_timestamp(
+        period: ChronoDuration,
+        time: DateTime<Utc>,
+        config: &StartTimestampConfig,
+    ) -> u64 {
+        if !config.round {
+            return time.timestamp().try_into().unwrap();
+        }
         let mut start_time = match period {
             period if period <= ChronoDuration::days(1) => time.date().and_hms(0, 0, 0),
             period if period <= ChronoDuration::weeks(1) => {
@@ -98,4 +129,50 @@ impl Stuff {
         }
         start_time.timestamp().try_into().unwrap()
     }
+
+    pub(crate) async fn offload_old_filters(holders: Vec<SimpleHolder>, limit: usize) {
+        let now = Instant::now();
+        let (mut current_size, mut holders) = holders
+            .into_iter()
+            .map(|x| async move { (x.filter_memory_allocated().await, x) })
+            .collect::<FuturesUnordered<_>>()
+            .fold((0, vec![]), |mut acc, (size, h)| async move {
+                acc.0 += size;
+                acc.1.push((h, size));
+                acc
+            })
+            .await;
+        let initial_size = current_size;
+        if current_size < limit {
+            return;
+        }
+        holders.sort_by_key(|h| h.0.timestamp());
+        let holders_count = holders.len();
+        let mut freed = 0;
+        for (holder, size) in holders {
+            if current_size < limit {
+                break;
+            }
+            holder.offload_filter().await;
+            let new_size = holder.filter_memory_allocated().await;
+            freed += size.saturating_sub(new_size);
+            current_size = current_size.saturating_sub(size.saturating_sub(new_size));
+        }
+        let elapsed = now.elapsed();
+        if freed != 0 {
+            log::error!(
+                "Filters offloaded in {}s for {} holders: {} -> {}, {} freed",
+                elapsed.as_secs_f64(),
+                holders_count,
+                initial_size,
+                current_size,
+                freed
+            );
+        }
+    }
+}
+
+pub fn get_current_timestamp() -> u64 {
+    let now: DateTime<Utc> = DateTime::from(SystemTime::now());
+    now.timestamp().try_into().unwrap()
 }
