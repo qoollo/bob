@@ -1,6 +1,6 @@
 [package]
 name = "bob-common"
-version = "2.0.0-alpha.7"
+version = "2.0.0-alpha.10"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
@@ -35,3 +35,6 @@ tower-service = "0.3"
 version = "1.11"
 default-features = false
 features = []
+
+[features]
+testing = []

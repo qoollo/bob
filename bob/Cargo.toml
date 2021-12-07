@@ -1,6 +1,6 @@
 [package]
 name = "bob"
-version = "2.0.0-alpha.7"
+version = "2.0.0-alpha.10"
 authors = [
     "Kirill Bushminkin <kb@qoollo.com>",
     "Pavel Iakushin <pyakushin@qoollo.com>",
@@ -25,7 +25,7 @@ infer = "0.5"
 lazy_static = "1.4.0"
 log = "0.4"
 metrics = { version = "0.17", features = ["std"] }
-mockall = "0.10"
+mockall = "0.10.2"
 prost = "0.8"
 ring = "0.16"
 rocket = { version = "0.5.0-rc.1", features = ["json", "uuid"] }
@@ -41,7 +41,7 @@ tower = "0.4"
 tower-service = "0.3"
 
 [dependencies.pearl]
-version = "=0.8.0"
+version = "=0.8.1"
 
 [dependencies.tokio]
 version = "1.11"
@@ -53,3 +53,4 @@ chrono = "0.4"
 
 [dev-dependencies]
 env_logger = "0.9"
+bob-common = { path = "../bob-common", features = ["testing"]  }
