@@ -1,5 +1,6 @@
 use std::net::IpAddr;
 
+use axum::{routing::IntoMakeService, Router};
 use tokio::{runtime::Handle, task::block_in_place};
 use tower::Service;
 
@@ -40,13 +41,8 @@ impl Server {
     }
 
     /// Call to run HTTP API server, not required for normal functioning
-    pub fn run_api_server(&self, address: IpAddr, port: u16) {
-        crate::api::http::spawn(self.clone(), address, port);
-    }
-
-    /// Creates HTTP API service for tonic router.
-    pub fn build_api_service<T>(&self, address: IpAddr, port: u16) -> impl Service<T> {
-        crate::api::http::build_api_service(self.clone(), address, port)
+    pub fn run_api_server<T>(&self, address: IpAddr, port: u16, auth_service: impl Service<T>) {
+        crate::api::http::spawn(self.clone(), address, port, auth_service);
     }
 
     /// Start backend component, required before starting bob service
