@@ -5,10 +5,13 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Access management
-  - Nodes authentication (#318)
+  - Nodes authentication. (#318)
+  - Http API authentication.
+
 
 #### Changed
 - Rocket replaced with axum.
+
 
 #### Fixed
 
