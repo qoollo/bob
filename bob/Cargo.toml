@@ -27,7 +27,7 @@ lazy_static = "1.4.0"
 log = "0.4"
 metrics = { version = "0.17", features = ["std"] }
 mockall = "0.10.2"
-prost = "0.8"
+prost = "0.9"
 ring = "0.16"
 serde = "1.0"
 serde_derive = "1.0"
@@ -36,7 +36,7 @@ stopwatch = "0.0.7"
 termion = "1.5"
 thiserror = "1.0"
 sysinfo = "0.19"
-tonic = { version = "0.5", features = ["prost"] }
+tonic = { version = "0.6", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"
 uuid = "0.8.2"
@@ -45,7 +45,7 @@ uuid = "0.8.2"
 version = "=0.8.1"
 
 [dependencies.tokio]
-version = "1.11"
+version = "1.14"
 default-features = false
 features = []
 

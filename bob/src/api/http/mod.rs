@@ -26,6 +26,7 @@ use std::{
     str::FromStr,
 };
 use tokio::fs::{read_dir, ReadDir};
+use tower::Service;
 use uuid::Uuid;
 
 mod metric_models;
@@ -119,6 +120,10 @@ pub(crate) struct VersionInfo {
 #[derive(Debug, Serialize)]
 pub(crate) struct NodeConfiguration {
     blob_file_name_prefix: String,
+}
+
+pub(crate) fn build_api_service<T>(bob: BobServer, address: IpAddr, port: u16) -> impl Service<T> {
+    todo!()
 }
 
 pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
