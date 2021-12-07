@@ -9,9 +9,10 @@ use bob_access::{
 use clap::{crate_version, App, Arg, ArgMatches};
 use std::{
     collections::HashMap,
+    error::Error as ErrorTrait,
     net::{IpAddr, Ipv4Addr, SocketAddr},
 };
-use tokio::runtime::Handle;
+use tokio::{runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::Server;
 use tower::Layer;
 
@@ -57,7 +58,7 @@ async fn main() {
             if addr1 == addr2 {
                 Some(addr1)
             } else {
-                log::error!("Addresses provided in node config and cluster config are not equal: {:?} != {:?}", addr1, addr2);
+                error!("Addresses provided in node config and cluster config are not equal: {:?} != {:?}", addr1, addr2);
                 None
             }
         }
@@ -102,7 +103,8 @@ async fn main() {
         .value_of("http_api_address")
         .and_then(|v| v.parse().ok())
         .unwrap_or(node.http_api_address());
-    bob.run_api_server(http_api_address, http_api_port);
+    let api_service = bob.build_api_service(http_api_address, http_api_port);
+    // bob.run_api_server(http_api_address, http_api_port);
 
     create_signal_handlers(&bob).unwrap();
 
@@ -191,8 +193,7 @@ fn port_from_address(addr: &str) -> Option<u16> {
         .and_then(|(_, port)| port.parse::<u16>().ok())
 }
 
-fn create_signal_handlers(server: &BobServer) -> Result<(), Box<dyn std::error::Error>> {
-    use tokio::signal::unix::SignalKind;
+fn create_signal_handlers(server: &BobServer) -> Result<(), Box<dyn ErrorTrait>> {
     let signals = [SignalKind::terminate(), SignalKind::interrupt()];
     for s in signals.iter() {
         spawn_signal_handler(server, *s)?;
