@@ -160,7 +160,7 @@ impl Utils {
         }
         let elapsed = now.elapsed();
         if freed != 0 {
-            log::error!(
+            error!(
                 "Filters offloaded in {}s for {} holders: {} -> {}, {} freed",
                 elapsed.as_secs_f64(),
                 holders_count,

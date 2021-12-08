@@ -470,16 +470,8 @@ async fn partition_by_id(
     let holders = group.holders();
     debug!("get pearl holders: OK");
     let pearls = holders.read().await;
-    let mut partitions = vec![];
-    for pearl in pearls.iter() {
-        partitions.push(pearl.get_id());
-    }
-    let pearl = pearls
-        .iter()
-        .zip(partitions)
-        .find(|pearl| pearl.1 == partition_id);
+    let pearl = pearls.iter().find(|pearl| pearl.get_id() == partition_id);
     let partition = if let Some(p) = pearl {
-        let p = &p.0;
         Some(Partition {
             node_name: group.node_name().to_owned(),
             disk_name: group.disk_name().to_owned(),

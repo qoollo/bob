@@ -492,8 +492,8 @@ pub struct Node {
     #[serde(default = "Node::default_http_api_address")]
     http_api_address: IpAddr,
     bind_to_ip_address: Option<SocketAddr>,
-    #[serde(default = "NodeConfig::default_filter_group_size")]
-    filter_group_size: usize,
+    #[serde(default = "NodeConfig::default_holder_group_size")]
+    holder_group_size: usize,
 }
 
 impl NodeConfig {
@@ -657,8 +657,8 @@ impl NodeConfig {
     }
 
     #[inline]
-    pub fn filter_group_size(&self) -> usize {
-        self.filter_group_size
+    pub fn holder_group_size(&self) -> usize {
+        self.holder_group_size
     }
 
     fn check_unset(&self) -> Result<(), String> {
@@ -705,7 +705,7 @@ impl NodeConfig {
         IpAddr::V4(Ipv4Addr::UNSPECIFIED)
     }
 
-    pub fn default_filter_group_size() -> usize {
+    pub fn default_holder_group_size() -> usize {
         8
     }
 }
@@ -786,7 +786,7 @@ pub mod tests {
             http_api_address: NodeConfig::default_http_api_address(),
             bind_to_ip_address: None,
             bloom_filter_memory_limit: None,
-            filter_group_size: 8,
+            holder_group_size: 8,
         }
     }
 }

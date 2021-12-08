@@ -444,17 +444,19 @@ impl BloomProvider<Key> for Holder {
 
     async fn offload_buffer(&mut self, needed_memory: usize, level: usize) -> usize {
         let mut storage = self.storage().write().await;
-        match &mut storage.storage {
-            Some(storage) => storage.offload_buffer(needed_memory, level).await,
-            _ => 0,
+        if let Some(storage) = &mut storage.storage {
+            storage.offload_buffer(needed_memory, level).await
+        } else {
+            0
         }
     }
 
     async fn get_filter(&self) -> Option<pearl::Bloom> {
         let storage = self.storage().read().await;
-        match &storage.storage {
-            Some(storage) => storage.get_filter().await,
-            _ => None,
+        if let Some(storage) = &storage.storage {
+            storage.get_filter().await
+        } else {
+            None
         }
     }
 
@@ -464,9 +466,10 @@ impl BloomProvider<Key> for Holder {
 
     async fn filter_memory_allocated(&self) -> usize {
         let storage = self.storage().read().await;
-        match &storage.storage {
-            Some(storage) => storage.filter_memory_allocated().await,
-            _ => 0,
+        if let Some(storage) = &storage.storage {
+            storage.filter_memory_allocated().await
+        } else {
+            0
         }
     }
 }

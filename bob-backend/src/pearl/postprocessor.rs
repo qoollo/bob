@@ -82,7 +82,7 @@ impl PostProcessor {
         holders.insert(holder);
         self.allocated_size
             .fetch_add(filter_memory, Ordering::Relaxed);
-        log::debug!(
+        debug!(
             "Holder added, allocated size: {}",
             self.allocated_size.load(Ordering::Relaxed)
         );
@@ -92,7 +92,7 @@ impl PostProcessor {
                     let size_before = holder.filter_memory_allocated().await;
                     holder.offload_filter().await;
                     let size_after = holder.filter_memory_allocated().await;
-                    log::debug!(
+                    debug!(
                         "{} -> {}: {} freed",
                         size_before,
                         size_after,

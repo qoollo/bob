@@ -47,10 +47,9 @@ impl Cleaner {
                 let before_offloading = backend.filter_memory_allocated().await;
                 backend.offload_old_filters(limit).await;
                 let after_offloading = backend.filter_memory_allocated().await;
-                log::info!(
+                info!(
                     "Filter memory offloaded {} -> {} bytes",
-                    before_offloading,
-                    after_offloading
+                    before_offloading, after_offloading
                 );
             }
         }

@@ -9,9 +9,12 @@ use futures::Future;
 use pearl::BloomProvider;
 use ring::digest::{digest, SHA256};
 
+pub type HoldersContainer =
+    HierarchicalFilters<Key, <Holder as BloomProvider<Key>>::Filter, Holder>;
+
 #[derive(Clone, Debug)]
 pub struct Group {
-    holders: Arc<RwLock<HierarchicalFilters<Key, <Holder as BloomProvider<Key>>::Filter, Holder>>>,
+    holders: Arc<RwLock<HoldersContainer>>,
     settings: Arc<Settings>,
     directory_path: PathBuf,
     vdisk_id: VDiskId,
@@ -33,12 +36,9 @@ impl Group {
         dump_sem: Arc<Semaphore>,
     ) -> Self {
         Self {
-            holders: Arc::new(RwLock::new(HierarchicalFilters::<
-                Key,
-                <Holder as BloomProvider<Key>>::Filter,
-                Holder,
-            >::new(
-                settings.filter_group_size(), 2
+            holders: Arc::new(RwLock::new(HoldersContainer::new(
+                settings.holder_group_size(),
+                2,
             ))),
             settings,
             vdisk_id,
@@ -154,7 +154,7 @@ impl Group {
 
         if !holders_for_time.is_empty() {
             holders_for_time.sort_by_key(|h| h.1.start_timestamp());
-            let (id, holder) = holders_for_time.pop().unwrap();
+            let (id, holder) = holders_for_time.pop().expect("not empty");
             Ok((id, holder.clone()))
         } else {
             Err(Error::failed(format!(
@@ -224,14 +224,12 @@ impl Group {
         timestamp_config: StartTimestampConfig,
     ) -> Result<(), Error> {
         let holder = self.get_actual_holder(&data, timestamp_config).await?;
-        let res = Self::put_common(&holder.1, key, data).await;
-        if res.is_ok() {
-            self.holders
-                .write()
-                .await
-                .add_to_parents(holder.0, &Key::from(key));
-        }
-        res
+        let res = Self::put_common(&holder.1, key, data).await?;
+        self.holders
+            .write()
+            .await
+            .add_to_parents(holder.0, &Key::from(key));
+        Ok(res)
     }
 
     async fn put_common(holder: &Holder, key: BobKey, data: BobData) -> Result<(), Error> {
@@ -307,18 +305,17 @@ impl Group {
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
-            for holder in holders.iter_possible_childs_rev(&Key::from(key)) {
+            for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
+            {
                 if !exist[ind] {
-                    exist[ind] = holder.1.data.exist(key).await.unwrap_or(false);
+                    exist[ind] = holder.exist(key).await.unwrap_or(false);
                 }
             }
         }
         exist
     }
 
-    pub fn holders(
-        &self,
-    ) -> Arc<RwLock<HierarchicalFilters<Key, <Holder as BloomProvider<Key>>::Filter, Holder>>> {
+    pub fn holders(&self) -> Arc<RwLock<HoldersContainer>> {
         self.holders.clone()
     }
 
