@@ -26,7 +26,6 @@ lazy_static = "1.4.0"
 log = "0.4"
 metrics = { version = "0.17", features = ["std"] }
 mockall = "0.10.2"
-page_size = "0.4"
 prost = "0.8"
 ring = "0.16"
 rocket = { version = "0.5.0-rc.1", features = ["json", "uuid"] }
@@ -36,7 +35,7 @@ serde_yaml = "0.8"
 stopwatch = "0.0.7"
 termion = "1.5"
 thiserror = "1.0"
-sysinfo = "0.19"
+sysinfo = "0.21.2"
 tonic = { version = "0.5", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"

@@ -5,7 +5,6 @@ use bob_common::metrics::{
 };
 use std::path::{Path, PathBuf};
 use sysinfo::{DiskExt, ProcessExt, System, SystemExt};
-extern crate page_size;
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 
@@ -70,7 +69,7 @@ impl HWMetricsCollector {
             debug!("used mem in mb: {}", used_mem);
             gauge!(USED_RAM, used_mem as f64);
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
-            let bob_ram = bytes_to_mb(Self::bob_ram());
+            let bob_ram = kb_to_mb(Self::bob_ram(&sys));
             gauge!(BOB_RAM, bob_ram as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
             gauge!(CPU_LOAD, proc.cpu_usage() as f64);
@@ -105,16 +104,11 @@ impl HWMetricsCollector {
             })
     }
 
-    fn bob_ram() -> u64 {
-        match std::fs::read_to_string("/proc/self/statm") {
-            Ok(statm) => {
-                let sp_ind = statm.find(' ').unwrap();
-                statm[..sp_ind].parse::<u64>().unwrap() * (page_size::get() as u64)
-            }
-            Err(e) => {
-                debug!("failed to calculate bob ram: {}", e);
-                0 // proc is unsupported
-            }
+    fn bob_ram(sys: &System) -> u64 {
+        if let Some(p) = sys.process(std::process::id() as i32) {
+            p.memory()
+        } else {
+            0
         }
     }
 }
