@@ -4,7 +4,7 @@ use bob_common::metrics::{
     USED_SPACE,
 };
 use std::path::{Path, PathBuf};
-use sysinfo::{DiskExt, ProcessExt, System, SystemExt};
+use sysinfo::{DiskExt, ProcessExt, System, SystemExt, RefreshKind};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 
@@ -57,8 +57,9 @@ impl HWMetricsCollector {
 
         loop {
             interval.tick().await;
-            sys.refresh_all();
-            sys.refresh_disks();
+            sys.refresh_specifics(RefreshKind::new().with_processes()
+                                                    .with_disks()
+                                                    .with_memory());
             let proc = sys.process(pid).expect("Can't get process stat descriptor");
 
             let (total_space, free_space) = Self::space(&sys, &disks);
@@ -69,7 +70,7 @@ impl HWMetricsCollector {
             debug!("used mem in mb: {}", used_mem);
             gauge!(USED_RAM, used_mem as f64);
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
-            let bob_ram = kb_to_mb(Self::bob_ram(&sys));
+            let bob_ram = kb_to_mb(proc.memory());
             gauge!(BOB_RAM, bob_ram as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
             gauge!(CPU_LOAD, proc.cpu_usage() as f64);
@@ -102,14 +103,6 @@ impl HWMetricsCollector {
                 );
                 (total + disk_total, free + disk_free)
             })
-    }
-
-    fn bob_ram(sys: &System) -> u64 {
-        if let Some(p) = sys.process(std::process::id() as i32) {
-            p.memory()
-        } else {
-            0
-        }
     }
 }
 
