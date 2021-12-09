@@ -105,19 +105,16 @@ impl Hooks for BloomFilterMemoryLimitHooks {
         if let Some(limit) = self.bloom_filter_memory_limit {
             while self.allocated_size.load(Ordering::Relaxed) > limit {
                 if let Some(holder) = holders.iter().next().cloned() {
-                    let size_before = holder.filter_memory_allocated().await;
-                    holder.offload_filter().await;
-                    let size_after = holder.filter_memory_allocated().await;
-                    debug!(
-                        "{} -> {}: {} freed",
-                        size_before,
-                        size_after,
-                        size_before.saturating_sub(size_after)
+                    let freed = holder.offload_filter().await;
+                    let res = self.allocated_size.fetch_update(
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
+                        |value| Some(value.saturating_sub(freed)),
                     );
-                    let _ = self.allocated_size.fetch_update(
-                        Ordering::Relaxed,
-                        Ordering::Relaxed,
-                        |value| Some(value.saturating_sub(size_before.saturating_sub(size_after))),
+                    debug!(
+                        "{} freed, allocated size {}",
+                        freed,
+                        res.unwrap_or_default()
                     );
                     holders.remove(&holder);
                 } else {
