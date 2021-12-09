@@ -44,13 +44,7 @@ impl Cleaner {
             interval.tick().await;
             backend.close_unneeded_active_blobs(soft, hard).await;
             if let Some(limit) = bloom_filter_memory_limit {
-                let before_offloading = backend.filter_memory_allocated().await;
                 backend.offload_old_filters(limit).await;
-                let after_offloading = backend.filter_memory_allocated().await;
-                info!(
-                    "Filter memory offloaded {} -> {} bytes",
-                    before_offloading, after_offloading
-                );
             }
         }
     }

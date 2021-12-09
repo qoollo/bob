@@ -556,9 +556,9 @@ impl PearlSync {
         }
     }
 
-    pub async fn offload_filters(&mut self) -> usize {
+    pub async fn offload_buffer(&mut self, needed_memory: usize, level: usize) -> usize {
         if let Some(storage) = &mut self.storage {
-            storage.offload_buffer(usize::MAX, 0).await
+            storage.offload_buffer(needed_memory, level).await
         } else {
             0
         }

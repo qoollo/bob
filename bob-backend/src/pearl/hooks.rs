@@ -27,8 +27,12 @@ impl SimpleHolder {
         self.storage.read().await.filter_memory_allocated().await
     }
 
-    pub(crate) async fn offload_filter(&self) -> usize {
-        self.storage.write().await.offload_filters().await
+    pub(crate) async fn offload_filter(&self, needed_memory: usize, level: usize) -> usize {
+        self.storage
+            .write()
+            .await
+            .offload_buffer(needed_memory, level)
+            .await
     }
 
     pub(crate) fn timestamp(&self) -> u64 {
@@ -105,7 +109,8 @@ impl Hooks for BloomFilterMemoryLimitHooks {
         if let Some(limit) = self.bloom_filter_memory_limit {
             while self.allocated_size.load(Ordering::Relaxed) > limit {
                 if let Some(holder) = holders.iter().next().cloned() {
-                    let freed = holder.offload_filter().await;
+                    // TODO: Better offloading policy at startup
+                    let freed = holder.offload_filter(usize::MAX, 0).await;
                     let res = self.allocated_size.fetch_update(
                         Ordering::Relaxed,
                         Ordering::Relaxed,
