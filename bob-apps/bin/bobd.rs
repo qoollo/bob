@@ -49,7 +49,7 @@ async fn main() {
             if addr1 == addr2 {
                 Some(addr1)
             } else {
-                log::error!("Addresses provided in node config and cluster config are not equal: {:?} != {:?}", addr1, addr2);
+                error!("Addresses provided in node config and cluster config are not equal: {:?} != {:?}", addr1, addr2);
                 None
             }
         }

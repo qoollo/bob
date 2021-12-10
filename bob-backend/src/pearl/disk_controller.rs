@@ -516,7 +516,7 @@ impl DiskController {
 
     pub(crate) async fn blobs_count(&self) -> usize {
         let cnt = if *self.state.read().await == GroupsState::Ready {
-            let mut cnt = 0;
+            let mut cnt: usize = 0;
             for group in self.groups.read().await.iter() {
                 let holders_guard = group.holders();
                 let holders = holders_guard.read().await;

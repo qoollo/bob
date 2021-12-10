@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Hierarchical filters (#333)
 
 
 #### Changed
