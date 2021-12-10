@@ -4,16 +4,28 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Hierarchical filters (#333)
 
 
 #### Changed
 
 
 #### Fixed
-- Disk space metrics calculation fix (#376)
+
 
 #### Updated
+
+
+## [2.0.0-alpha.11] - 2021-12-10
+#### Added
+- Hierarchical filters (#333)
+
+
+#### Fixed
+- Disk space metrics calculation fix (#376)
+
+
+#### Updated
+- Upgrade pearl to v0.9.0
 
 
 ## [2.0.0-alpha.10] - 2021-12-02
