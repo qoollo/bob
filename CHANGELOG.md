@@ -15,6 +15,19 @@ Bob versions changelog
 #### Updated
 
 
+## [2.0.0] - ####-##-##
+#### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
 ## [2.0.0-alpha.11] - 2021-12-10
 #### Added
 - Hierarchical filters (#333)
