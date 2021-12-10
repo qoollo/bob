@@ -1,5 +1,5 @@
 use crate::{
-    bob_client::{b_client::BobClient, Factory},
+    bob_client::{BobClient, Factory},
     data::BobData,
 };
 use http::Uri;

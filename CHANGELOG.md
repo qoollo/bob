@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Hierarchical filters (#333)
 
 
 #### Changed
@@ -14,6 +15,15 @@ Bob versions changelog
 
 #### Updated
 
+
+## [2.0.0-alpha.10] - 2021-12-02
+#### Added
+- Add bloom_filter_memory_limit to example config (#378)
+- Add traits to support pearl #123
+
+
+#### Updated
+- Upgrade pearl to v0.8.1
 
 
 ## [2.0.0-alpha.9] - 2021-11-19
