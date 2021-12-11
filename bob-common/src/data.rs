@@ -258,7 +258,38 @@ impl DiskPath {
     /// Creates new `DiskPath` with disk's name and path.
     #[must_use = "memory allocation"]
     pub fn new(name: String, path: String) -> DiskPath {
-        DiskPath { name, path }
+        DiskPath {
+            name,
+            path,
+        }
+    }
+
+    pub fn dev_name(&self) -> String {
+        let lsb = std::process::Command::new("lsblk").arg("-ln").output();
+        match lsb {
+            Ok(output) => {
+                if output.status.success() {
+                    let out = String::from_utf8(output.stdout).unwrap();
+                    let lines: Vec<&str> = out.lines().collect();
+                    let mut dev_name = "";
+                    for i in lines {
+                        let lsp: Vec<&str> = i.split_whitespace().collect();
+                        if lsp.len() > 6 {
+                            if self.path == lsp[6] {
+                                dev_name = lsp[0];
+                            }
+                        }
+                    }
+                    if let Some(ind) = dev_name.rfind(|c| "0123456789".find(c) == None) {
+                        return dev_name[..=ind].to_string();
+                    }
+                }
+            },
+            Err(_) => {
+                return "".to_string();
+            }
+        };
+        "".to_string()
     }
 
     /// Returns disk name.

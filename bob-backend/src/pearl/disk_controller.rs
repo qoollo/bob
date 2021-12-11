@@ -32,6 +32,7 @@ enum GroupsState {
 #[derive(Clone, Debug)]
 pub struct DiskController {
     disk: DiskPath,
+    disk_dev_name: String,
     vdisks: Vec<VDiskId>,
     dump_sem: Arc<Semaphore>,
     run_sem: Arc<Semaphore>,
@@ -58,8 +59,10 @@ impl DiskController {
     ) -> Arc<Self> {
         let disk_state_metric = format!("{}.{}", DISKS_FOLDER, disk.name());
         let dump_sem = Arc::new(Semaphore::new(config.disk_access_par_degree()));
+        let disk_dev_name = disk.dev_name();
         let new_dc = Self {
             disk,
+            disk_dev_name,
             vdisks,
             dump_sem,
             run_sem,
@@ -135,10 +138,45 @@ impl DiskController {
         }
     }
 
+    fn collect_iostat(&self) -> (f64, f64) {
+        let mut iops = 0.;
+        let mut iowait = 0.;
+        let lsb = std::process::Command::new("iostat").arg("-dx").output();
+        match lsb {
+            Ok(output) => {
+                if output.status.success() {
+                    let out = String::from_utf8(output.stdout).unwrap();
+                    let lines: Vec<&str> = out.lines().collect();
+                    for i in lines {
+                        let lsp: Vec<&str> = i.split_whitespace().collect();
+                        if lsp.len() > 0 && self.disk_dev_name == lsp[0] {
+                            let rs: f64 = lsp[1].replace(',', ".").parse().unwrap();
+                            let ws: f64 = lsp[7].replace(',', ".").parse().unwrap();
+                            iops = rs + ws;
+
+                            let rwait: f64 = lsp[5].replace(',', ".").parse().unwrap();
+                            let wwait: f64 = lsp[11].replace(',', ".").parse().unwrap();
+                            iowait = rwait + wwait;
+                        }
+                    }
+                }
+            },
+            Err(_) => {}
+        };
+        (iops, iowait)
+    }
+
     async fn update_metrics(&self) {
         let gauge_name = format!("{}_blobs_count", self.disk_state_metric);
         let blobs_count = self.blobs_count_cached.load(Ordering::Acquire);
         gauge!(gauge_name, blobs_count as f64);
+
+        let (iops, iowait) = self.collect_iostat();
+        let gauge_name = format!("{}_iowait", self.disk_state_metric);
+        gauge!(gauge_name, iowait);
+
+        let gauge_name = format!("{}_iops", self.disk_state_metric);
+        gauge!(gauge_name, iops);
     }
 
     async fn change_state(&self, new_state: GroupsState) {
