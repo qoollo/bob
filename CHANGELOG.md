@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Add iops & iowait disk metrics (collected via iostat) (#342)
 
 #### Changed
 
