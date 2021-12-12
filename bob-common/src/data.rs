@@ -7,6 +7,7 @@ use std::{
     convert::TryInto,
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::Hash,
+    os::unix::fs::MetadataExt,
 };
 
 include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
@@ -271,12 +272,16 @@ impl DiskPath {
                 if output.status.success() {
                     let out = String::from_utf8(output.stdout).unwrap();
                     let lines: Vec<&str> = out.lines().collect();
+                    
                     let mut dev_name = "";
+                    let disk_md = std::path::Path::new(&self.path).metadata().unwrap();
                     for i in lines {
                         let lsp: Vec<&str> = i.split_whitespace().collect();
                         if lsp.len() > 6 {
-                            if self.path == lsp[6] {
+                            let mountpoint_md = std::path::Path::new(lsp[6]).metadata().unwrap();
+                            if disk_md.dev() == mountpoint_md.dev() {
                                 dev_name = lsp[0];
+                                break;
                             }
                         }
                     }
