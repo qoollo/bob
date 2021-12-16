@@ -266,27 +266,23 @@ impl DiskPath {
     }
 
     pub fn dev_name(&self) -> String {
-        let lsb = std::process::Command::new("lsblk").arg("-ln").output();
-        match lsb {
+        let df = std::process::Command::new("df").arg(&self.path).output();
+        match df {
             Ok(output) => {
                 if output.status.success() {
                     let out = String::from_utf8(output.stdout).unwrap();
-                    let lines: Vec<&str> = out.lines().collect();
-                    
-                    let mut dev_name = "";
-                    let disk_md = std::path::Path::new(&self.path).metadata().unwrap();
-                    for i in lines {
-                        let lsp: Vec<&str> = i.split_whitespace().collect();
-                        if lsp.len() > 6 {
-                            let mountpoint_md = std::path::Path::new(lsp[6]).metadata().unwrap();
-                            if disk_md.dev() == mountpoint_md.dev() {
-                                dev_name = lsp[0];
-                                break;
-                            }
-                        }
-                    }
-                    if let Some(ind) = dev_name.rfind(|c| "0123456789".find(c) == None) {
-                        return dev_name[..=ind].to_string();
+                    let mut lines = out.lines();
+                    lines.next();  // skip headers
+                    if let Some(line) = lines.next() {
+                    	let raw_dev_name = line.split_whitespace().next().unwrap();
+                    	
+                     	if let (Some(slash_ind), Some(non_digit_ind)) = 
+							// find where /dev/ ends
+                     		(raw_dev_name.rfind('/'),
+                     		// find where partition digits start
+                     		raw_dev_name.rfind(|c| "0123456789".find(c) == None)) {
+                     		return raw_dev_name[slash_ind + 1..=non_digit_ind].to_string();
+                     	}
                     }
                 }
             },
