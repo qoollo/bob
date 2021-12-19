@@ -141,27 +141,31 @@ impl DiskController {
     fn collect_iostat(&self) -> (f64, f64) {
         let mut iops = 0.;
         let mut iowait = 0.;
-        let lsb = std::process::Command::new("iostat").arg("-dx").output();
-        match lsb {
+        let ios = std::process::Command::new("iostat").arg("-dx").output();
+        match ios {
             Ok(output) => {
-                if output.status.success() {
-                    let out = String::from_utf8(output.stdout).unwrap();
-                    let lines: Vec<&str> = out.lines().collect();
-                    for i in lines {
+                if let (true, Ok(out)) = 
+                    (output.status.success(), String::from_utf8(output.stdout)) {
+                    for i in out.lines() {
                         let lsp: Vec<&str> = i.split_whitespace().collect();
                         if lsp.len() > 0 && self.disk_dev_name == lsp[0] {
-                            let rs: f64 = lsp[1].replace(',', ".").parse().unwrap();
-                            let ws: f64 = lsp[7].replace(',', ".").parse().unwrap();
-                            iops = rs + ws;
-
-                            let rwait: f64 = lsp[5].replace(',', ".").parse().unwrap();
-                            let wwait: f64 = lsp[11].replace(',', ".").parse().unwrap();
-                            iowait = rwait + wwait;
+                            if let (Ok(rs), Ok(ws)) = 
+                                (lsp[1].replace(',', ".").parse::<f64>(), 
+                                lsp[7].replace(',', ".").parse::<f64>()) {
+                                iops = rs + ws;
+                            }
+                            if let (Ok(rwait), Ok(wwait)) = 
+                                (lsp[5].replace(',', ".").parse::<f64>(), 
+                                lsp[11].replace(',', ".").parse::<f64>()) {
+                                iowait = rwait + wwait;
+                            }
                         }
                     }
                 }
             },
-            Err(_) => {}
+            Err(e) => {
+                debug!("Failed to execute iostat: {}", e);
+            }
         };
         (iops, iowait)
     }

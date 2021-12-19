@@ -7,7 +7,6 @@ use std::{
     convert::TryInto,
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::Hash,
-    os::unix::fs::MetadataExt,
 };
 
 include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
