@@ -81,6 +81,7 @@ pub const DISKS_FOLDER: &str = "backend.disks";
 pub const DESCRIPTORS_AMOUNT: &str = "descr_amount";
 
 pub const CPU_LOAD: &str = "cpu_load";
+pub const CPU_IOWAIT: &str = "cpu_iowait";
 pub const FREE_RAM: &str = "free_ram";
 pub const USED_RAM: &str = "used_ram";
 pub const TOTAL_RAM: &str = "total_ram";

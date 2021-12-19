@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use bob_common::metrics::{
-    CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE, USED_RAM,
+    CPU_LOAD, CPU_IOWAIT, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE, USED_RAM,
     USED_SPACE,
 };
 use std::path::{Path, PathBuf};
@@ -50,6 +50,7 @@ impl HWMetricsCollector {
         let mut interval = interval(t);
         let mut sys = System::new_all();
         let mut dcounter = DescrCounter::new();
+        let mut cpu_s_c = CPUStatCollector::new();
         let total_mem = kb_to_mb(sys.total_memory());
         gauge!(TOTAL_RAM, total_mem as f64);
         debug!("total mem in mb: {}", total_mem);
@@ -59,8 +60,15 @@ impl HWMetricsCollector {
             interval.tick().await;
             sys.refresh_all();
             sys.refresh_disks();
-            let proc = sys.process(pid).expect("Can't get process stat descriptor");
-
+            
+            gauge!(CPU_IOWAIT, cpu_s_c.iowait());
+            
+            if let Some(proc) = sys.process(pid) {
+            	gauge!(CPU_LOAD, proc.cpu_usage() as f64);
+            } else {
+            	debug!("Can't get process stat descriptor");
+            }
+            
             let (total_space, free_space) = Self::space(&sys, &disks);
             gauge!(TOTAL_SPACE, total_space as f64);
             gauge!(USED_SPACE, (total_space - free_space) as f64);
@@ -70,9 +78,10 @@ impl HWMetricsCollector {
             gauge!(USED_RAM, used_mem as f64);
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
-            gauge!(CPU_LOAD, proc.cpu_usage() as f64);
         }
     }
+    
+    
 
     // FIXME: maybe it's better to cache needed disks, but I am not sure, that they would be
     // refreshed, if I clone them
@@ -100,6 +109,59 @@ impl HWMetricsCollector {
                 );
                 (total + disk_total, free + disk_free)
             })
+    }
+}
+
+struct CPUStatCollector {
+    iostat_avl: bool
+}
+
+impl CPUStatCollector {
+    fn new() -> CPUStatCollector {
+        CPUStatCollector {
+            iostat_avl: true
+        }
+    }
+    
+    fn iowait(&mut self) -> f64 {
+        if !self.iostat_avl {
+            return -1.;
+        }
+        
+        let ios = std::process::Command::new("iostat").arg("-c").output();
+        match ios {
+            Ok(output) => {
+                if let (true, Ok(out)) = 
+                    (output.status.success(), String::from_utf8(output.stdout)) {
+                    let mut lines = out.lines();
+                    // find avg-cpu headers line
+                    let mut flag = true;
+                    while flag {
+                        if let Some(line) = lines.next() {
+                            if let Some(_) = line.find("avg-cpu:") {
+                                flag = false;
+                            }
+                        } else {
+                            flag = false;
+                        }
+                    }
+                    // find iowait column on the next line
+                    if let Some(line) = lines.next() {
+                        let mut values = line.split_whitespace();
+                        if let Some(iowait_str) = values.nth(3) {
+                            if let Ok(iowait) = iowait_str.replace(',', ".").parse() {
+                                return iowait;
+                            }
+                        }
+                    }
+                }
+            },
+            Err(e) => {
+                debug!("Failed to execute iostat: {}", e);
+                self.iostat_avl = false;
+            }
+        };
+        -1.
     }
 }
 
