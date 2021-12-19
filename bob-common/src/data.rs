@@ -268,24 +268,25 @@ impl DiskPath {
         let df = std::process::Command::new("df").arg(&self.path).output();
         match df {
             Ok(output) => {
-                if output.status.success() {
-                    let out = String::from_utf8(output.stdout).unwrap();
+                if let (true, Ok(out)) = 
+                	(output.status.success(), String::from_utf8(output.stdout)) {
                     let mut lines = out.lines();
                     lines.next();  // skip headers
                     if let Some(line) = lines.next() {
-                    	let raw_dev_name = line.split_whitespace().next().unwrap();
-                    	
-                     	if let (Some(slash_ind), Some(non_digit_ind)) = 
-							// find where /dev/ ends
-                     		(raw_dev_name.rfind('/'),
-                     		// find where partition digits start
-                     		raw_dev_name.rfind(|c| "0123456789".find(c) == None)) {
-                     		return raw_dev_name[slash_ind + 1..=non_digit_ind].to_string();
+                    	if let Some(raw_dev_name) = line.split_whitespace().next() {
+		                 	if let (Some(slash_ind), Some(non_digit_ind)) = 
+								// find where /dev/ ends
+		                 		(raw_dev_name.rfind('/'),
+		                 		// find where partition digits start
+		                 		raw_dev_name.rfind(|c| "0123456789".find(c) == None)) {
+		                 		return raw_dev_name[slash_ind + 1..=non_digit_ind].to_string();
+		                 	}
                      	}
                     }
                 }
             },
-            Err(_) => {
+            Err(e) => {
+            	debug!("Failed to execute df: {}", e);
                 return "".to_string();
             }
         };
