@@ -573,11 +573,7 @@ async fn drop_directories(
         result.push_str(&msg);
         result.push('\n');
     }
-    if result.is_empty() {
-        Ok(StatusExt::new(Status::Ok, true, result))
-    } else {
-        Err(StatusExt::new(Status::InternalServerError, true, result))
-    }
+    Ok(StatusExt::new(Status::Ok, true, result))
 }
 
 #[get("/alien")]
