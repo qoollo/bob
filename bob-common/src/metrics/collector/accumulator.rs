@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::Receiver;
-use tokio::time::{interval, timeout};
+use tokio::time::timeout;
 
 const MAX_METRICS_PER_PERIOD: u64 = 100_000;
 
