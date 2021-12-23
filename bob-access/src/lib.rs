@@ -14,7 +14,7 @@ pub use authenticator::{
     basic::Basic as BasicAuthenticator, stub::Stub as StubAuthenticator, UsersMap,
 };
 pub use credentials::Credentials;
-pub use extractor::{BasicExtractor, StubExtractor};
+pub use extractor::{BasicExtractor, Extractor, StubExtractor};
 
 use futures::{Future, TryFutureExt};
 use std::{
@@ -25,7 +25,6 @@ use std::{
 
 use authenticator::Authenticator;
 use error::Error;
-use extractor::Extractor;
 use tonic::transport::NamedService;
 use tower::{Layer, Service};
 
@@ -63,20 +62,12 @@ impl<A, E> AccessControlLayer<A, E> {
     }
 }
 
-impl<S> Layer<S> for AccessControlLayer<StubAuthenticator<UsersMap>, StubExtractor> {
-    type Service = AccessControlService<StubAuthenticator<UsersMap>, StubExtractor, S>;
-
-    fn layer(&self, service: S) -> Self::Service {
-        AccessControlService {
-            authenticator: self.authenticator.clone().unwrap(),
-            extractor: self.extractor.clone().unwrap(),
-            service,
-        }
-    }
-}
-
-impl<S> Layer<S> for AccessControlLayer<BasicAuthenticator<UsersMap>, BasicExtractor> {
-    type Service = AccessControlService<BasicAuthenticator<UsersMap>, BasicExtractor, S>;
+impl<S, A, E> Layer<S> for AccessControlLayer<A, E>
+where
+    A: Clone,
+    E: Clone,
+{
+    type Service = AccessControlService<A, E, S>;
 
     fn layer(&self, service: S) -> Self::Service {
         AccessControlService {

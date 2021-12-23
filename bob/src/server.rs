@@ -1,6 +1,7 @@
 use std::net::IpAddr;
 
 use axum::{routing::IntoMakeService, Router};
+use bob_access::AccessControlLayer;
 use tokio::{runtime::Handle, task::block_in_place};
 use tower::Service;
 
@@ -41,8 +42,13 @@ impl Server {
     }
 
     /// Call to run HTTP API server, not required for normal functioning
-    pub fn run_api_server<T>(&self, address: IpAddr, port: u16, auth_service: impl Service<T>) {
-        crate::api::http::spawn(self.clone(), address, port, auth_service);
+    pub fn run_api_server<A, E>(
+        &self,
+        address: IpAddr,
+        port: u16,
+        auth_layer: AccessControlLayer<A, E>,
+    ) {
+        crate::api::http::spawn(self.clone(), address, port, auth_layer);
     }
 
     /// Start backend component, required before starting bob service
