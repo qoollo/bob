@@ -121,8 +121,8 @@ async fn main() {
             let new_service: AccessControlLayer<StubAuthenticator<UsersMap>, StubExtractor> =
                 auth_service.with_extractor(extractor);
 
-            let auth_service = BoxService::new(new_service.clone());
-            bob.run_api_server(http_api_address, http_api_port, auth_service);
+            let auth_layer = new_service.clone();
+            bob.run_api_server(http_api_address, http_api_port, auth_layer);
 
             let new_service = new_service.layer(bob_service);
 
