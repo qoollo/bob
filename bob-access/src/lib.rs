@@ -11,7 +11,7 @@ mod settings;
 mod token;
 
 pub use authenticator::{
-    basic::Basic as BasicAuthenticator, stub::Stub as StubAuthenticator, UsersMap,
+    basic::Basic as BasicAuthenticator, stub::Stub as StubAuthenticator, Authenticator, UsersMap,
 };
 pub use credentials::Credentials;
 pub use extractor::{BasicExtractor, Extractor, StubExtractor};
@@ -23,14 +23,13 @@ use std::{
     task::{Context, Poll},
 };
 
-use authenticator::Authenticator;
 use error::Error;
 use tonic::transport::NamedService;
 use tower::{Layer, Service};
 
 pub const USERS_MAP_FILE: &str = "users.yaml";
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct AccessControlLayer<A, E> {
     authenticator: Option<A>,
     extractor: Option<E>,

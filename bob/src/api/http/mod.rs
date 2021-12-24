@@ -9,7 +9,7 @@ use axum::{
     routing::{delete, get, post, IntoMakeService, MethodRouter},
     AddExtensionLayer, Json, Router, Server,
 };
-use bob_access::{AccessControlLayer, Extractor};
+use bob_access::{AccessControlLayer, Authenticator, Extractor};
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
@@ -126,29 +126,37 @@ pub(crate) struct NodeConfiguration {
     blob_file_name_prefix: String,
 }
 
-pub(crate) fn spawn<A, E, T>(
-    bob: BobServer,
-    address: IpAddr,
-    port: u16,
-    auth_layer: AccessControlLayer<A, E>,
-) where
-    A: Clone,
-    E: Extractor<T> + Clone,
-{
-    let socket_addr = SocketAddr::new(address, port);
+// pub(crate) fn spawn<A, E, T>(
+//     bob: BobServer,
+//     address: IpAddr,
+//     port: u16,
+//     auth_layer: AccessControlLayer<A, E>,
+// ) where
+//     A: Authenticator,
+//     E: Extractor<T>,
+// {
+//     let socket_addr = SocketAddr::new(address, port);
 
+//     let mut router = Router::new();
+//     for (path, service) in routes().into_iter().chain(s3::routes().into_iter()) {
+//         router = router.route(path, service);
+//     }
+
+//     router = router.layer(AddExtensionLayer::new(bob));
+//     let new_service = auth_layer.layer(router.into_make_service());
+//     let task = Server::bind(&socket_addr).serve(new_service);
+
+//     tokio::spawn(task);
+
+//     info!("API server started");
+// }
+
+pub fn router() -> Router {
     let mut router = Router::new();
     for (path, service) in routes().into_iter().chain(s3::routes().into_iter()) {
         router = router.route(path, service);
     }
-
-    router = router.layer(AddExtensionLayer::new(bob));
-    let new_service = auth_layer.layer(router.into_make_service());
-    let task = Server::bind(&socket_addr).serve(new_service);
-
-    tokio::spawn(task);
-
-    info!("API server started");
+    router
 }
 
 fn routes() -> Vec<(&'static str, MethodRouter)> {

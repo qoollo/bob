@@ -42,14 +42,14 @@ impl Server {
     }
 
     /// Call to run HTTP API server, not required for normal functioning
-    pub fn run_api_server<A, E>(
-        &self,
-        address: IpAddr,
-        port: u16,
-        auth_layer: AccessControlLayer<A, E>,
-    ) {
-        crate::api::http::spawn(self.clone(), address, port, auth_layer);
-    }
+    // pub fn run_api_server<A, E>(
+    //     &self,
+    //     address: IpAddr,
+    //     port: u16,
+    //     auth_layer: AccessControlLayer<A, E>,
+    // ) {
+    //     crate::api::http::spawn(self.clone(), address, port, auth_layer);
+    // }
 
     /// Start backend component, required before starting bob service
     /// # Errors
