@@ -1,6 +1,6 @@
 use bob::{
-    api::http::router, build_info::BuildInfo, init_counters, BobApiServer, BobServer,
-    ClusterConfig, Factory, Grinder, VirtualMapper,
+    build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder,
+    VirtualMapper,
 };
 use bob_access::{
     AccessControlLayer, BasicAuthenticator, BasicExtractor, Credentials, StubAuthenticator,
@@ -14,7 +14,7 @@ use std::{
 };
 use tokio::{runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::Server;
-use tower::{util::BoxService, Layer};
+use tower::Layer;
 
 #[macro_use]
 extern crate log;
@@ -111,7 +111,7 @@ async fn main() {
     let authentication_type = matches.value_of("authentication_type").unwrap();
     match authentication_type {
         "stub" => {
-            let bob_service = BobApiServer::new(bob);
+            let bob_service = BobApiServer::new(bob.clone());
 
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
@@ -122,11 +122,7 @@ async fn main() {
                 auth_service.with_extractor(extractor);
 
             let auth_layer = new_service.clone();
-            let router = router();
-            tokio::spawn(
-                axum::Server::bind(&SocketAddr::from((http_api_address, http_api_port)))
-                    .serve(auth_layer.layer(router.into_make_service())),
-            );
+            bob.run_api_server(http_api_address, http_api_port, auth_layer);
 
             let new_service = new_service.layer(bob_service);
 
@@ -138,7 +134,7 @@ async fn main() {
                 .unwrap();
         }
         "basic" => {
-            let bob_service = BobApiServer::new(bob);
+            let bob_service = BobApiServer::new(bob.clone());
 
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
@@ -151,11 +147,8 @@ async fn main() {
             let extractor = BasicExtractor::default();
             let new_service = auth_layer.with_extractor(extractor);
 
-            let router = router();
-            tokio::spawn(
-                axum::Server::bind(&SocketAddr::from((http_api_address, http_api_port)))
-                    .serve(auth_layer.layer(router.into_make_service())),
-            );
+            let auth_layer = new_service.clone();
+            bob.run_api_server(http_api_address, http_api_port, auth_layer);
 
             let new_service = new_service.layer(bob_service);
 

@@ -6,7 +6,7 @@ use axum::{
     body::{self, BoxBody},
     extract::{Extension, Path as AxumPath},
     response::IntoResponse,
-    routing::{delete, get, post, IntoMakeService, MethodRouter},
+    routing::{delete, get, post, MethodRouter},
     AddExtensionLayer, Json, Router, Server,
 };
 use bob_access::{AccessControlLayer, Authenticator, Extractor};
@@ -18,7 +18,8 @@ use bob_common::{
 };
 use bytes::Bytes;
 use futures::{future::BoxFuture, FutureExt};
-use http::{header::CONTENT_TYPE, HeaderMap, Response, StatusCode};
+use http::{header::CONTENT_TYPE, HeaderMap, Request, Response, StatusCode};
+use hyper::Body;
 use std::{
     future::ready,
     io::{Error as IoError, ErrorKind},
@@ -27,10 +28,6 @@ use std::{
     str::FromStr,
 };
 use tokio::fs::{read_dir, ReadDir};
-use tower::{
-    util::{BoxLayer, BoxService},
-    Layer, Service,
-};
 use uuid::Uuid;
 
 mod metric_models;
@@ -126,32 +123,28 @@ pub(crate) struct NodeConfiguration {
     blob_file_name_prefix: String,
 }
 
-// pub(crate) fn spawn<A, E, T>(
-//     bob: BobServer,
-//     address: IpAddr,
-//     port: u16,
-//     auth_layer: AccessControlLayer<A, E>,
-// ) where
-//     A: Authenticator,
-//     E: Extractor<T>,
-// {
-//     let socket_addr = SocketAddr::new(address, port);
+pub(crate) fn spawn<A, E>(
+    bob: BobServer,
+    address: IpAddr,
+    port: u16,
+    auth_layer: AccessControlLayer<A, E>,
+) where
+    A: Authenticator + Send + 'static,
+    E: Extractor<Request<Body>> + Send + 'static,
+{
+    let socket_addr = SocketAddr::new(address, port);
 
-//     let mut router = Router::new();
-//     for (path, service) in routes().into_iter().chain(s3::routes().into_iter()) {
-//         router = router.route(path, service);
-//     }
+    let router = router()
+        .layer(AddExtensionLayer::new(bob))
+        .layer(auth_layer);
+    let task = Server::bind(&socket_addr).serve(router.into_make_service());
 
-//     router = router.layer(AddExtensionLayer::new(bob));
-//     let new_service = auth_layer.layer(router.into_make_service());
-//     let task = Server::bind(&socket_addr).serve(new_service);
+    tokio::spawn(task);
 
-//     tokio::spawn(task);
+    info!("API server started");
+}
 
-//     info!("API server started");
-// }
-
-pub fn router() -> Router {
+fn router() -> Router {
     let mut router = Router::new();
     for (path, service) in routes().into_iter().chain(s3::routes().into_iter()) {
         router = router.route(path, service);
