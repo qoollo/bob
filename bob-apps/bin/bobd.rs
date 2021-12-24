@@ -1,6 +1,6 @@
 use bob::{
-    build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder,
-    VirtualMapper,
+    api::http::router, build_info::BuildInfo, init_counters, BobApiServer, BobServer,
+    ClusterConfig, Factory, Grinder, VirtualMapper,
 };
 use bob_access::{
     AccessControlLayer, BasicAuthenticator, BasicExtractor, Credentials, StubAuthenticator,
@@ -122,7 +122,11 @@ async fn main() {
                 auth_service.with_extractor(extractor);
 
             let auth_layer = new_service.clone();
-            bob.run_api_server(http_api_address, http_api_port, auth_layer);
+            let router = router();
+            tokio::spawn(
+                axum::Server::bind(&SocketAddr::from((http_api_address, http_api_port)))
+                    .serve(auth_layer.layer(router.into_make_service())),
+            );
 
             let new_service = new_service.layer(bob_service);
 
@@ -143,11 +147,15 @@ async fn main() {
             authenticator
                 .set_nodes_credentials(nodes_credentials)
                 .expect("failed to gen nodes credentials from cluster config");
-            let auth_service = AccessControlLayer::new().with_authenticator(authenticator);
+            let auth_layer = AccessControlLayer::new().with_authenticator(authenticator);
             let extractor = BasicExtractor::default();
-            let new_service = auth_service.with_extractor(extractor);
+            let new_service = auth_layer.with_extractor(extractor);
 
-            bob.run_api_server(http_api_address, http_api_port, new_service.clone());
+            let router = router();
+            tokio::spawn(
+                axum::Server::bind(&SocketAddr::from((http_api_address, http_api_port)))
+                    .serve(auth_layer.layer(router.into_make_service())),
+            );
 
             let new_service = new_service.layer(bob_service);
 
