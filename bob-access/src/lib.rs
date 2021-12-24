@@ -16,7 +16,7 @@ pub use authenticator::{
 pub use credentials::Credentials;
 pub use extractor::{BasicExtractor, Extractor, StubExtractor};
 
-use futures::Future;
+use futures::{Future, FutureExt};
 use std::{
     convert::Infallible,
     error::Error as StdError,
@@ -109,8 +109,7 @@ where
             // Box::pin(futures::future::ready(Err(error))) as Self::Future
             todo!()
         } else {
-            // Box::pin(self.service.call(req).map_err(Into::into))
-            todo!()
+            Box::pin(self.service.call(req).map(|r| Ok(r.unwrap())))
         }
     }
 }
