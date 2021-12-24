@@ -30,15 +30,15 @@ impl Perms {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct User {
-    username: String,
+    _username: String,
     password: String,
     perms: Perms,
 }
 
 impl User {
-    pub fn new(username: String, password: String, perms: Perms) -> Self {
+    pub fn new(_username: String, password: String, perms: Perms) -> Self {
         Self {
-            username,
+            _username,
             password,
             perms,
         }

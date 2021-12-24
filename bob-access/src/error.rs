@@ -3,7 +3,7 @@ use tonic::codegen::http::header::ToStrError;
 
 #[derive(Debug)]
 pub struct Error {
-    kind: Kind,
+    _kind: Kind,
 }
 
 #[derive(Debug)]
@@ -22,49 +22,49 @@ enum Kind {
 impl Error {
     pub fn os(message: impl Into<String>) -> Self {
         Self {
-            kind: Kind::Os(message.into()),
+            _kind: Kind::Os(message.into()),
         }
     }
 
     pub fn validation(message: impl Into<String>) -> Self {
         Self {
-            kind: Kind::Validation(message.into()),
+            _kind: Kind::Validation(message.into()),
         }
     }
 
     pub fn not_found() -> Self {
         Self {
-            kind: Kind::NotFound,
+            _kind: Kind::NotFound,
         }
     }
 
     pub fn invalid_token(message: impl Into<String>) -> Self {
         Self {
-            kind: Kind::InvalidToken(message.into()),
+            _kind: Kind::InvalidToken(message.into()),
         }
     }
 
     pub fn credentials_not_provided(message: impl Into<String>) -> Self {
         Self {
-            kind: Kind::CredentialsNotProvided(message.into()),
+            _kind: Kind::CredentialsNotProvided(message.into()),
         }
     }
 
     pub fn conversion_error(error: ToStrError) -> Self {
         Self {
-            kind: Kind::ConversionError(error),
+            _kind: Kind::ConversionError(error),
         }
     }
 
     pub fn multiple_credentials_types() -> Self {
         Self {
-            kind: Kind::MultipleCredentialsTypes,
+            _kind: Kind::MultipleCredentialsTypes,
         }
     }
 
     pub fn unauthorized_request() -> Self {
         Self {
-            kind: Kind::UnauthorizedRequest,
+            _kind: Kind::UnauthorizedRequest,
         }
     }
 }

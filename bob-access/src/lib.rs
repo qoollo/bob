@@ -16,14 +16,15 @@ pub use authenticator::{
 pub use credentials::Credentials;
 pub use extractor::{BasicExtractor, Extractor, StubExtractor};
 
-use futures::{Future, TryFutureExt};
+use futures::Future;
 use std::{
+    convert::Infallible,
     error::Error as StdError,
+    fmt::Debug,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use error::Error;
 use tonic::transport::NamedService;
 use tower::{Layer, Service};
 
@@ -84,18 +85,18 @@ where
     A: Authenticator,
     E: Extractor<Request>,
     S: Service<Request>,
-    S::Error: Into<Box<dyn StdError + Send + Sync>> + 'static,
+    S::Error: Into<Box<dyn StdError + Send + Sync>> + 'static + Debug,
     S::Response: Send + 'static,
     S::Future: Send + 'static,
 {
     type Response = S::Response;
 
-    type Error = Box<dyn StdError + Send + Sync>;
+    type Error = Infallible;
 
     type Future = ServiceFuture<Self::Response, Self::Error>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx).map_err(Into::into)
+        self.service.poll_ready(cx).map(|r| Ok(r.unwrap()))
     }
 
     fn call(&mut self, req: Request) -> Self::Future {
@@ -104,10 +105,12 @@ where
         debug!("credentials: {:#?}", credentials);
         if let Err(e) = self.authenticator.check_credentials(credentials) {
             warn!("Unauthorized request: {:?}", e);
-            let error = Box::new(Error::unauthorized_request()) as Self::Error;
-            Box::pin(futures::future::ready(Err(error))) as Self::Future
+            // let error = Box::new(Error::unauthorized_request()) as Self::Error;
+            // Box::pin(futures::future::ready(Err(error))) as Self::Future
+            todo!()
         } else {
-            Box::pin(self.service.call(req).map_err(Into::into))
+            // Box::pin(self.service.call(req).map_err(Into::into))
+            todo!()
         }
     }
 }

@@ -5,8 +5,8 @@ use crate::error::Error;
 
 #[derive(Debug)]
 pub struct TokenDecoder {
-    key: DecodingKey<'static>,
-    validation: Validation,
+    _key: DecodingKey<'static>,
+    _validation: Validation,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -18,8 +18,8 @@ pub struct Claims {
 impl TokenDecoder {
     pub fn _new(secret: impl AsRef<[u8]>) -> Self {
         Self {
-            key: DecodingKey::from_secret(secret.as_ref()).into_static(),
-            validation: Validation {
+            _key: DecodingKey::from_secret(secret.as_ref()).into_static(),
+            _validation: Validation {
                 validate_exp: false,
                 ..Default::default()
             },
@@ -27,7 +27,7 @@ impl TokenDecoder {
     }
 
     pub fn _decode_token(&self, token: impl AsRef<str>) -> Result<Claims, Error> {
-        jsonwebtoken::decode(token.as_ref(), &self.key, &self.validation)
+        jsonwebtoken::decode(token.as_ref(), &self._key, &self._validation)
             .map(|data| data.claims)
             .map_err(|e| Error::invalid_token(e.to_string()))
     }
