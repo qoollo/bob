@@ -130,45 +130,45 @@ impl Utils {
         start_time.timestamp().try_into().unwrap()
     }
 
-    pub(crate) async fn offload_old_filters(holders: Vec<SimpleHolder>, limit: usize) {
+    pub(crate) async fn offload_old_filters(mut holders: Vec<SimpleHolder>, limit: usize) {
         let now = Instant::now();
-        let (mut current_size, mut holders) = holders
-            .into_iter()
-            .map(|x| async move { (x.filter_memory_allocated().await, x) })
+        let mut current_size = holders
+            .iter()
+            .map(|x| x.filter_memory_allocated())
             .collect::<FuturesUnordered<_>>()
-            .fold((0, vec![]), |mut acc, (size, h)| async move {
-                acc.0 += size;
-                acc.1.push((h, size));
-                acc
-            })
+            .fold(0, |acc, curr| async move { acc + curr })
             .await;
         let initial_size = current_size;
         if current_size < limit {
+            info!(
+                "Skip filter offloading, currently allocated: {}",
+                current_size
+            );
             return;
         }
-        holders.sort_by_key(|h| h.0.timestamp());
-        let holders_count = holders.len();
-        let mut freed = 0;
-        for (holder, size) in holders {
-            if current_size < limit {
-                break;
+        holders.sort_by_key(|h| h.timestamp());
+        let mut freed_total = 0;
+        for level in [0, 1] {
+            for holder in holders.iter() {
+                if current_size < limit {
+                    break;
+                }
+                let freed = holder
+                    .offload_filter(current_size.saturating_sub(limit), level)
+                    .await;
+                freed_total += freed;
+                current_size = current_size.saturating_sub(freed);
             }
-            holder.offload_filter().await;
-            let new_size = holder.filter_memory_allocated().await;
-            freed += size.saturating_sub(new_size);
-            current_size = current_size.saturating_sub(size.saturating_sub(new_size));
         }
         let elapsed = now.elapsed();
-        if freed != 0 {
-            log::error!(
-                "Filters offloaded in {}s for {} holders: {} -> {}, {} freed",
-                elapsed.as_secs_f64(),
-                holders_count,
-                initial_size,
-                current_size,
-                freed
-            );
-        }
+        info!(
+            "Filters offloaded in {}s for {} holders: {} -> {}, {} freed",
+            elapsed.as_secs_f64(),
+            holders.len(),
+            initial_size,
+            current_size,
+            freed_total
+        );
     }
 }
 

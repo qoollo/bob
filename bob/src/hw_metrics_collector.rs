@@ -5,6 +5,7 @@ use bob_common::metrics::{
 };
 use std::path::{Path, PathBuf};
 use std::process;
+use std::os::unix::fs::MetadataExt;
 use sysinfo::{DiskExt, ProcessExt, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
@@ -32,8 +33,12 @@ impl HWMetricsCollector {
                 disks
                     .iter()
                     .find(move |dp| {
-                        let dpath = Path::new(dp.path());
-                        dpath.starts_with(&path)
+                        let dp_md = Path::new(dp.path())
+                    				.metadata()
+                    				.expect("Can't get metadata from OS");
+                        let p_md = path.metadata()
+                                       .expect("Can't get metadata from OS");
+                        p_md.dev() == dp_md.dev()               
                     })
                     .map(|config_disk| {
                         let diskpath = path.to_str().expect("Not UTF-8").to_owned();
