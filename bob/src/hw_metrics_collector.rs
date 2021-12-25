@@ -112,7 +112,7 @@ const CACHED_TIMES: usize = 10;
 struct DescrCounter {
     value: u64,
     cached_times: usize,
-    lsof_flag: bool
+    lsof_enabled: bool
 }
 
 impl DescrCounter {
@@ -120,7 +120,7 @@ impl DescrCounter {
         DescrCounter {
             value: 0,
             cached_times: 0,
-            lsof_flag: true
+            lsof_enabled: true
         }
     }
 
@@ -134,6 +134,45 @@ impl DescrCounter {
         self.value
     }
 
+    fn count_descriptors_by_lsof(&mut self) -> Option<u64> {
+        if !self.lsof_enabled {
+            return None;
+        }
+        let lsof_str = format!("lsof -a -p {} -d ^mem -d ^cwd -d ^rtd -d ^txt -d ^DEL", process::id());
+        match pipers::Pipe::new(&lsof_str)
+                        .then("wc -l")
+                        .finally() {
+            Ok(proc) => {
+                match proc.wait_with_output() {
+                    Ok(output) => {
+                        if output.status.success() {
+                            let count = String::from_utf8(output.stdout).unwrap();
+                            match count[..count.len() - 1].parse::<u64>() {
+                                Ok(count) => {
+                                    return Some(count - 5); // exclude stdin, stdout, stderr, lsof pipe and wc pipe
+                                },
+                                Err(e) => {
+                                    debug!("failed to parse lsof result: {}", e);
+                                }
+                            }
+                        } else {
+                            debug!("something went wrong (fs /proc will be used): {}",
+                                String::from_utf8(output.stderr).unwrap());
+                        }
+                    },
+                    Err(e) => {
+                        debug!("lsof output wait error (fs /proc will be used): {}", e);
+                    }
+                }
+            },
+            Err(e) => {
+                debug!("can't use lsof (fs /proc will be used): {}", e);
+            }
+        }
+        self.lsof_enabled = false;
+        return None;
+    }
+    
     fn count_descriptors(&mut self) -> u64 {
         // FIXME: didn't find better way, but iterator's `count` method has O(n) complexity
         // isolated tests (notice that in this case directory may be cached, so it works more
@@ -151,34 +190,8 @@ impl DescrCounter {
         //  |  10.000   |      0.006     |
         //  with payload
         //  |  10.000   |      0.018     |
-        if self.lsof_flag {
-            let lsof_str = format!("lsof -a -p {} -d ^mem -d ^cwd -d ^rtd -d ^txt -d ^DEL", process::id());
-            match pipers::Pipe::new(&lsof_str)
-                            .then("wc -l")
-                            .finally() {
-                Ok(proc) => {
-                    match proc.wait_with_output() {
-                        Ok(output) => {
-                            if output.status.success() {
-                                let count = String::from_utf8(output.stdout).unwrap();
-                                if let Ok(count) = count[..count.len() - 1].parse::<u64>() {
-                                    return count - 5; // exclude stdin, stdout, stderr, lsof pipe and wc pipe
-                                }
-                            } else {
-                                debug!("something went wrong (fs /proc will be used): {}",
-                                    String::from_utf8(output.stderr).unwrap());
-                            }
-                        },
-                        Err(e) => {
-                            debug!("lsof output wait error (fs /proc will be used): {}", e);
-                        }
-                    }
-                },
-                Err(e) => {
-                    self.lsof_flag = false;
-                    debug!("can't use lsof (fs /proc will be used): {}", e);
-                }
-            }
+        if let Some(descr) = self.count_descriptors_by_lsof() {
+            return descr;
         }
 
         let d = std::fs::read_dir(DESCRS_DIR);
