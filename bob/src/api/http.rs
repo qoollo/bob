@@ -6,6 +6,7 @@ use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
     error::Error as BobError,
+    metrics::{FREE_SPACE, TOTAL_SPACE, USED_SPACE},
     node::Disk as NodeDisk,
 };
 use futures::{future::BoxFuture, FutureExt};
@@ -116,6 +117,13 @@ pub(crate) struct NodeConfiguration {
     blob_file_name_prefix: String,
 }
 
+#[derive(Debug, Serialize)]
+pub(crate) struct SpaceInfo {
+    total_disk_space_bytes: u64,
+    free_disk_space_bytes: u64,
+    used_disk_space_bytes: u64,
+}
+
 pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
     let routes = routes![
         status,
@@ -141,7 +149,8 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
         distribution_function,
         get_data,
         put_data,
-        metrics
+        metrics,
+        get_space_info
     ];
     info!("API server started");
     let mut config = Config::release_default();
@@ -234,6 +243,29 @@ async fn status(bob: &State<BobServer>) -> Json<Node> {
         vdisks,
     };
     Json(node)
+}
+
+#[get("/status/space")]
+async fn get_space_info(bob: &State<BobServer>) -> Result<Json<SpaceInfo>, StatusExt> {
+    let snapshot = bob.metrics().read().await;
+    let total_space = snapshot.gauges_map.get(TOTAL_SPACE).map(|g| g.value);
+    let used_space = snapshot.gauges_map.get(USED_SPACE).map(|g| g.value);
+    let free_space = snapshot.gauges_map.get(FREE_SPACE).map(|g| g.value);
+    total_space
+        .zip(used_space)
+        .zip(free_space)
+        .map(|((t, u), f)| {
+            Json(SpaceInfo {
+                total_disk_space_bytes: t * 1024 * 1024,
+                free_disk_space_bytes: f * 1024 * 1024,
+                used_disk_space_bytes: u * 1024 * 1024,
+            })
+        })
+        .ok_or(StatusExt::new(
+            Status::NotFound,
+            false,
+            "Failed to get space info".to_string(),
+        ))
 }
 
 #[get("/metrics")]
