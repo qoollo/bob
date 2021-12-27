@@ -262,7 +262,7 @@ async fn get_space_info(bob: &State<BobServer>) -> Result<Json<SpaceInfo>, Statu
             })
         })
         .ok_or(StatusExt::new(
-            Status::NotFound,
+            Status::from_code(503).expect("codes changed"),
             false,
             "Failed to get space info".to_string(),
         ))
