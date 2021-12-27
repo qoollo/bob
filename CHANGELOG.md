@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Fix partitions removal response code (#405)
 
 #### Updated
 
