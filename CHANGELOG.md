@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- API method for occupied space info (#404)
 
 #### Changed
 
