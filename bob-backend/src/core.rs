@@ -218,8 +218,6 @@ impl Backend {
         };
         trace!("<<<<<<- - - - - BACKEND PUT FINISH - - - - -");
         
-        self.update_metrics().await;
-        
         res
     }
 
@@ -230,9 +228,7 @@ impl Backend {
         data: BobData,
         operation: Operation,
     ) -> Result<(), Error> {
-        let res = self.put_single(key, data, operation).await;
-        self.update_metrics().await;
-        res
+        self.put_single(key, data, operation).await
     }
 
     async fn update_metrics(&self) {
