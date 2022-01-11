@@ -32,11 +32,17 @@ cleanup_interval: 1h
 open_blobs_soft_limit: 2
 # hard limit for count of max blobs to remain in ram
 open_blobs_hard_limit: 10
+# http REST api port
+http_api_port: 8000
+# http REST api address
+http_api_address: 0.0.0.0
+# memory limit for all bloom filters. Unlimited if not specified
+bloom_filter_memory_limit: 8589934592
 
 # used only for 'backend_type: pearl'
 pearl:
-  # optional, default = true, enables linux AIO
-  enable_aio: true
+  # optional, default = false, enables linux AIO
+  enable_aio: false
   # path to logfile with info about disks states switches, default = "/tmp/bob_events.csv"
   disks_events_logfile: "/tmp/bob_events.csv"
   # size in bytes. required for 'pearl'
@@ -64,9 +70,15 @@ pearl:
     # each thread will wait this period if another thread creating pearl. required for 'pearl'
     create_pearl_wait_delay: 100ms
 
-# optional, send metrics
+# send metrics
 metrics:
-  # optional, add base name for metrics
+  # add base name for metrics
   name: bob
-  # optional, send metrics to graphite
+  # enable graphite sink
+  graphite_enabled: true
+  # send metrics to graphite
   graphite: 127.0.0.1:2003
+  # exporter listen addr ("0.0.0.0:9000" will be set by default if value isn't provided)
+  prometheus_addr: "0.0.0.0:9000"
+  # enable prometheus sink
+  prometheus_enabled: false

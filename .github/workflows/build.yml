@@ -10,18 +10,60 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    container: rust:1.53.0
+    strategy:
+      matrix:
+        bob_key_size: [8, 16]
     env:
       TARGET: "x86_64-unknown-linux-musl"
       BUILD_MODE: "release"
-      RUST_TC_VER: nightly-2021-06-23
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
-      - name: Building release
+      - name: Set env variables and install packages
         run: |
-          apt-get update && apt-get install -y --no-install-recommends musl-tools
-          rustup install ${{ env.RUST_TC_VER }}
-          rustup default ${{ env.RUST_TC_VER }}
-          rustup target add ${{ env.TARGET }}
-          cargo build --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}  
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
+          echo "BOB_KEY_SIZE=${{ matrix.bob_key_size }}" >> $GITHUB_ENV
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
+      - name: Install latest stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ env.TARGET }}
+          default: true
+      - name: Build release
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}
+      - name: Check bobd version
+        run: target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd --version
+
+  build-alpine-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Set env
+        run: |
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
+      - name: Build alpine image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: dockerfiles/alpine/Dockerfile
+          build-args: BOB_COMMIT_HASH=${BOB_COMMIT_HASH}
+
+  build-ubuntu-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Set env
+        run: |
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
+      - name: Build ubuntu image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: dockerfiles/ubuntu/Dockerfile
+          build-args: BOB_COMMIT_HASH=${BOB_COMMIT_HASH}

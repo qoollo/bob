@@ -1,11 +1,14 @@
-use futures::future::ready;
+use futures::{future::ready, Future};
 use std::iter::once;
 
-use crate::prelude::*;
+use crate::{
+    pearl::{hooks::BloomFilterMemoryLimitHooks, utils::Utils},
+    prelude::*,
+};
 
 use super::{
     data::Key, disk_controller::logger::DisksEventsLogger, disk_controller::DiskController,
-    settings::Settings,
+    hooks::SimpleHolder, settings::Settings, Holder,
 };
 use crate::core::{BackendStorage, MetricsProducer, Operation};
 
@@ -14,11 +17,9 @@ pub type PearlStorage = Storage<Key>;
 
 #[derive(Clone, Debug)]
 pub struct Pearl {
-    settings: Arc<Settings>,
     disk_controllers: Arc<[Arc<DiskController>]>,
     alien_disk_controller: Arc<DiskController>,
-    node_name: String,
-    init_par_degree: usize,
+    bloom_filter_memory_limit: Option<usize>,
 }
 
 impl Pearl {
@@ -44,13 +45,39 @@ impl Pearl {
             .await;
 
         let pearl = Self {
-            settings,
             disk_controllers,
             alien_disk_controller,
-            node_name: config.name().to_string(),
-            init_par_degree: config.init_par_degree(),
+            bloom_filter_memory_limit: config.bloom_filter_memory_limit(),
         };
         Ok(pearl)
+    }
+
+    async fn for_each_holder<F, Fut>(&self, f: F)
+    where
+        F: Fn(&Holder) -> Fut + Clone,
+        Fut: Future<Output = ()>,
+    {
+        self.disk_controllers
+            .iter()
+            .chain(once(&self.alien_disk_controller))
+            .map(|dc| dc.for_each_holder(f.clone()))
+            .collect::<FuturesUnordered<_>>()
+            .collect::<Vec<()>>()
+            .await;
+    }
+
+    async fn collect_simple_holders(&self) -> Vec<SimpleHolder> {
+        let res = RwLock::new(vec![]);
+        self.for_each_holder(|h| {
+            let h = SimpleHolder::from(h);
+            async {
+                if h.is_ready().await {
+                    res.write().await.push(h);
+                }
+            }
+        })
+        .await;
+        res.into_inner()
     }
 }
 
@@ -96,8 +123,10 @@ impl BackendStorage for Pearl {
         let start = Instant::now();
         let futs = FuturesUnordered::new();
         let alien_iter = once(&self.alien_disk_controller);
+        let postprocessor = BloomFilterMemoryLimitHooks::new(self.bloom_filter_memory_limit);
         for dc in self.disk_controllers.iter().chain(alien_iter).cloned() {
-            futs.push(async move { dc.run().await })
+            let pp = postprocessor.clone();
+            futs.push(async move { dc.run(pp).await });
         }
         futs.fold(Ok(()), |s, n| async move { s.and(n) }).await?;
         let dur = Instant::now() - start;
@@ -218,5 +247,21 @@ impl BackendStorage for Pearl {
         } else {
             Err(Error::dc_is_not_available())
         }
+    }
+
+    async fn offload_old_filters(&self, limit: usize) {
+        Utils::offload_old_filters(self.collect_simple_holders().await, limit).await;
+    }
+
+    async fn filter_memory_allocated(&self) -> usize {
+        let mut memory = 0;
+        for dc in self
+            .disk_controllers
+            .iter()
+            .chain(Some(&self.alien_disk_controller))
+        {
+            memory += dc.filter_memory_allocated().await;
+        }
+        memory
     }
 }

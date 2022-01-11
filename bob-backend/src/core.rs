@@ -6,8 +6,8 @@ use crate::{
     stub_backend::StubBackend,
 };
 
-pub const BACKEND_STARTING: i64 = 0;
-pub const BACKEND_STARTED: i64 = 1;
+pub const BACKEND_STARTING: f64 = 0f64;
+pub const BACKEND_STARTED: f64 = 1f64;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Operation {
@@ -111,6 +111,12 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
     }
 
     async fn close_unneeded_active_blobs(&self, _soft: usize, _hard: usize) {}
+
+    async fn offload_old_filters(&self, _limit: usize) {}
+
+    async fn filter_memory_allocated(&self) -> usize {
+        0
+    }
 }
 
 #[async_trait]
@@ -395,5 +401,13 @@ impl Backend {
             );
             self.inner.delete(operation, key).await
         }
+    }
+
+    pub async fn offload_old_filters(&self, limit: usize) {
+        self.inner.offload_old_filters(limit).await
+    }
+
+    pub async fn filter_memory_allocated(&self) -> usize {
+        self.inner.filter_memory_allocated().await
     }
 }
