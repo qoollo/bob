@@ -714,7 +714,11 @@ fn bad_request(message: impl Into<String>) -> StatusExt {
 }
 
 #[delete("/data/<key>")]
-fn delete_records_by_key(bob: State<BobServer>, key: BobKey) -> Result<StatusExt, StatusExt> {
+fn delete_records_by_key(
+    bob: &State<BobServer>,
+    key: Result<DataKey, StatusExt>,
+) -> Result<StatusExt, StatusExt> {
+    let key = key?.0;
     bob.block_on(bob.grinder().delete(key, true))
         .map_err(|e| internal(e.to_string()))
         .map(|res| StatusExt::new(Status::Ok, true, format!("{}", res)))
