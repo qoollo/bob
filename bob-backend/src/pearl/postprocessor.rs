@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeSet,
+    ops::Deref,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
@@ -27,12 +28,8 @@ impl SimpleHolder {
         self.storage.read().await.filter_memory_allocated().await
     }
 
-    pub(crate) async fn offload_filter(&self, needed_memory: usize, level: usize) -> usize {
-        self.storage
-            .write()
-            .await
-            .offload_buffer(needed_memory, level)
-            .await
+    pub(crate) async fn offload_filter(&self) -> usize {
+        self.storage.read().await.offload_filters().await
     }
 
     pub(crate) fn timestamp(&self) -> u64 {
@@ -64,38 +61,21 @@ impl Ord for SimpleHolder {
 
 impl Eq for SimpleHolder {}
 
-#[async_trait::async_trait]
-pub trait Hooks: Clone {
-    async fn storage_prepared(&self, holder: &Holder);
-}
-
-#[derive(Clone)]
-pub struct NoopHooks;
-
-#[async_trait::async_trait]
-impl Hooks for NoopHooks {
-    async fn storage_prepared(&self, _holder: &Holder) {}
-}
-
 #[derive(Clone, Default)]
-pub struct BloomFilterMemoryLimitHooks {
+pub struct PostProcessor {
     holders: Arc<RwLock<BTreeSet<SimpleHolder>>>,
     allocated_size: Arc<AtomicUsize>,
-    bloom_filter_memory_limit: Option<usize>,
+    filter_memory_limit: Option<usize>,
 }
 
-impl BloomFilterMemoryLimitHooks {
-    pub(crate) fn new(bloom_filter_memory_limit: Option<usize>) -> Self {
+impl PostProcessor {
+    pub(crate) fn new(filter_memory_limit: Option<usize>) -> Self {
         Self {
-            bloom_filter_memory_limit,
+            filter_memory_limit,
             ..Default::default()
         }
     }
-}
-
-#[async_trait::async_trait]
-impl Hooks for BloomFilterMemoryLimitHooks {
-    async fn storage_prepared(&self, holder: &Holder) {
+    pub(crate) async fn storage_prepared(&self, holder: &Holder) {
         let mut holders = self.holders.write().await;
         let holder: SimpleHolder = holder.into();
         let filter_memory = holder.filter_memory_allocated().await;
@@ -106,21 +86,20 @@ impl Hooks for BloomFilterMemoryLimitHooks {
             "Holder added, allocated size: {}",
             self.allocated_size.load(Ordering::Relaxed)
         );
-        if let Some(limit) = self.bloom_filter_memory_limit {
+        if let Some(limit) = self.filter_memory_limit {
             while self.allocated_size.load(Ordering::Relaxed) > limit {
                 if let Some(holder) = holders.iter().next().cloned() {
-                    // TODO: Better offloading policy at startup
-                    let freed = holder.offload_filter(usize::MAX, 0).await;
-                    let res = self.allocated_size.fetch_update(
-                        Ordering::Relaxed,
-                        Ordering::Relaxed,
-                        |value| Some(value.saturating_sub(freed)),
-                    );
+                    let size_before = holder.filter_memory_allocated().await;
+                    holder.offload_filter().await;
+                    let size_after = holder.filter_memory_allocated().await;
                     debug!(
-                        "{} freed, allocated size {}",
-                        freed,
-                        res.unwrap_or_default()
+                        "{} -> {}: {} freed",
+                        size_before,
+                        size_after,
+                        size_before.saturating_sub(size_after)
                     );
+                    self.allocated_size
+                        .fetch_sub(size_before.saturating_sub(size_after), Ordering::Relaxed);
                     holders.remove(&holder);
                 } else {
                     break;

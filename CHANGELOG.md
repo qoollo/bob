@@ -15,6 +15,19 @@ No more use of MockBobClient in production (#389)
 #### Updated
 
 
+## [2.0.0-alpha.11] - 2021-12-10
+#### Added
+- Hierarchical filters (#333)
+
+
+#### Fixed
+- Disk space metrics calculation fix (#376)
+
+
+#### Updated
+- Upgrade pearl to v0.9.0
+
+
 ## [2.0.0-alpha.10] - 2021-12-02
 #### Added
 - Add bloom_filter_memory_limit to example config (#378)
