@@ -11,6 +11,19 @@
 #  weeks, week, w
 #  months, month, M -- defined as 30.44 days
 #  years, year, y -- defined as 365.25 days
+#  b, case insensitive -- bytes
+#  kb, case insensitive -- kilobytes
+#  kib, case insensitive -- kibibytes
+#  mb, case insensitive -- megabytes
+#  mib, case insensitive -- mebibytes
+#  gb, case insensitive -- gigabytes
+#  gib, case insensitive -- gibibytes
+#  tb, case insensitive -- terabytes
+#  tib, case insensitive -- tebibytes
+#  pb, case insensitive -- petabytes
+#  pib, case insensitive -- pebibytes
+#  eb, case insensitive -- exabytes
+#  eib, case insensitive -- exbibytes
 
 # [file] logger config file
 log_config: config-examples/logger.yaml
