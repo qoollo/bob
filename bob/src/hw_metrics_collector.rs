@@ -72,9 +72,9 @@ impl HWMetricsCollector {
             gauge!(USED_SPACE, used_space as f64);
             gauge!(FREE_SPACE, free_space as f64);*/
             if let Some((total_space, free_space, used_space)) = Self::count_space_by_df(&disks) {
-                gauge!(TOTAL_SPACE, total_space as f64);
-                gauge!(USED_SPACE, used_space as f64);
-                gauge!(FREE_SPACE, free_space as f64);
+                gauge!(TOTAL_SPACE, bytes_to_mb(total_space) as f64);
+                gauge!(USED_SPACE, bytes_to_mb(used_space) as f64);
+                gauge!(FREE_SPACE, bytes_to_mb(free_space) as f64);
             }
             let used_mem = kb_to_mb(sys.used_memory());
             debug!("used mem in mb: {}", used_mem);
