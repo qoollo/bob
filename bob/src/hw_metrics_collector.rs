@@ -6,6 +6,7 @@ use bob_common::metrics::{
 use std::path::{Path, PathBuf};
 use std::os::unix::fs::MetadataExt;
 use sysinfo::{DiskExt, ProcessExt, System, SystemExt};
+use std::process::Command;
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 
@@ -66,10 +67,15 @@ impl HWMetricsCollector {
             sys.refresh_disks();
             let proc = sys.process(pid).expect("Can't get process stat descriptor");
 
-            let (total_space, free_space) = Self::space(&sys, &disks);
+            /*let (total_space, free_space, used_space) = Self::space(&sys, &disks);
             gauge!(TOTAL_SPACE, total_space as f64);
-            gauge!(USED_SPACE, (total_space - free_space) as f64);
-            gauge!(FREE_SPACE, free_space as f64);
+            gauge!(USED_SPACE, used_space as f64);
+            gauge!(FREE_SPACE, free_space as f64);*/
+            if let Some((total_space, free_space, used_space)) = Self::count_space_by_df(&disks) {
+                gauge!(TOTAL_SPACE, total_space as f64);
+                gauge!(USED_SPACE, used_space as f64);
+                gauge!(FREE_SPACE, free_space as f64);
+            }
             let used_mem = kb_to_mb(sys.used_memory());
             debug!("used mem in mb: {}", used_mem);
             gauge!(USED_RAM, used_mem as f64);
@@ -77,6 +83,49 @@ impl HWMetricsCollector {
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
             gauge!(CPU_LOAD, proc.cpu_usage() as f64);
         }
+    }
+
+    fn count_space_by_df(disks: &HashMap<PathBuf, String>) -> Option<(u64, u64, u64)> {
+        /*if !self.lsof_enabled {
+            return None;
+        }*/
+        match Command::new("df")
+                    .output() {
+            Ok(output) => {
+                if output.status.success() {
+                    let info = String::from_utf8(output.stdout).unwrap();
+                    let mut lines = info.lines();
+                    lines.next(); // skip headers
+            
+                    let mut total = 0;
+                    let mut used = 0;
+                    let mut free = 0;
+                    for l in lines {
+                        let columns: Vec<&str> = l.split_whitespace().collect();
+                        let dev_total = columns[1].parse::<u64>().unwrap();
+                        let dev_used = columns[2].parse::<u64>().unwrap();
+                        let dev_free = columns[3].parse::<u64>().unwrap();
+                        let mount = PathBuf::from(columns[5]);
+                        //println!("{} {} {} {}", total, used, free, mount);
+                        if let Some(_) = disks.get(&mount) {
+                            total += dev_total;
+                            used += dev_used;
+                            free += dev_free;
+                        } 
+                    }
+
+                    return Some((total << 10, free << 10, used << 10)); // convert from kb to b
+                } else {
+                    debug!("something went wrong (fs /proc will be used): {}",
+                      String::from_utf8(output.stderr).unwrap());
+                }
+            },
+            Err(e) => {
+                debug!("df output wait error (fs /proc will be used): {}", e);
+            }
+        }
+        //self.lsof_enabled = false;
+        return None;
     }
 
     // FIXME: maybe it's better to cache needed disks, but I am not sure, that they would be
