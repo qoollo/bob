@@ -13,6 +13,7 @@ const DESCRS_DIR: &str = "/proc/self/fd/";
 pub(crate) struct HWMetricsCollector {
     disks: HashMap<PathBuf, String>,
     interval_time: Duration,
+    df_enabled: bool,
 }
 
 impl HWMetricsCollector {
@@ -21,6 +22,7 @@ impl HWMetricsCollector {
         Self {
             disks,
             interval_time,
+            df_enabled: true,
         }
     }
 
@@ -60,6 +62,7 @@ impl HWMetricsCollector {
         gauge!(TOTAL_RAM, total_mem as f64);
         debug!("total mem in mb: {}", total_mem);
         let pid = std::process::id() as i32;
+        let mut df_enabled = true;
 
         loop {
             interval.tick().await;
@@ -71,7 +74,7 @@ impl HWMetricsCollector {
             gauge!(TOTAL_SPACE, total_space as f64);
             gauge!(USED_SPACE, used_space as f64);
             gauge!(FREE_SPACE, free_space as f64);*/
-            if let Some((total_space, free_space, used_space)) = Self::count_space_by_df(&disks) {
+            if let Some((total_space, free_space, used_space)) = Self::count_space_by_df(&mut df_enabled, &disks) {
                 gauge!(TOTAL_SPACE, bytes_to_mb(total_space) as f64);
                 gauge!(USED_SPACE, bytes_to_mb(used_space) as f64);
                 gauge!(FREE_SPACE, bytes_to_mb(free_space) as f64);
@@ -85,15 +88,15 @@ impl HWMetricsCollector {
         }
     }
 
-    fn count_space_by_df(disks: &HashMap<PathBuf, String>) -> Option<(u64, u64, u64)> {
-        /*if !self.lsof_enabled {
+    fn count_space_by_df(df_enabled: &mut bool, disks: &HashMap<PathBuf, String>) -> Option<(u64, u64, u64)> {
+        if !*df_enabled {
             return None;
-        }*/
+        }
         match Command::new("df")
                     .output() {
             Ok(output) => {
-                if output.status.success() {
-                    let info = String::from_utf8(output.stdout).unwrap();
+                if let (true, Ok(info)) = (output.status.success(), 
+                                           String::from_utf8(output.stdout)) {
                     let mut lines = info.lines();
                     lines.next(); // skip headers
             
@@ -102,29 +105,32 @@ impl HWMetricsCollector {
                     let mut free = 0;
                     for l in lines {
                         let columns: Vec<&str> = l.split_whitespace().collect();
-                        let dev_total = columns[1].parse::<u64>().unwrap();
-                        let dev_used = columns[2].parse::<u64>().unwrap();
-                        let dev_free = columns[3].parse::<u64>().unwrap();
-                        let mount = PathBuf::from(columns[5]);
-                        //println!("{} {} {} {}", total, used, free, mount);
-                        if let Some(_) = disks.get(&mount) {
-                            total += dev_total;
-                            used += dev_used;
-                            free += dev_free;
-                        } 
+
+                        if let (Ok(dev_total), Ok(dev_used), Ok(dev_free)) = 
+                                (columns[1].parse::<u64>(),
+                                columns[2].parse::<u64>(),
+                                columns[3].parse::<u64>()) {
+                            let mount = PathBuf::from(columns[5]);
+
+                            if let Some(_) = disks.get(&mount) {
+                                total += dev_total;
+                                used += dev_used;
+                                free += dev_free;
+                            }
+                        }
                     }
 
                     return Some((total << 10, free << 10, used << 10)); // convert from kb to b
                 } else {
-                    debug!("something went wrong (fs /proc will be used): {}",
+                    debug!("something went wrong: {}",
                       String::from_utf8(output.stderr).unwrap());
                 }
             },
             Err(e) => {
-                debug!("df output wait error (fs /proc will be used): {}", e);
+                debug!("df output error: {}", e);
             }
         }
-        //self.lsof_enabled = false;
+        *df_enabled = false;
         return None;
     }
 
