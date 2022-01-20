@@ -49,7 +49,7 @@ ENV BOB_KEY_SIZE=${KEY_SIZE}
 RUN cargo build --release --target=x86_64-unknown-linux-gnu
 
 # bobd image
-FROM ubuntu:20.10
+FROM ubuntu:20.04
 
 # SSH
 ENV NOTVISIBLE "in users profile"
