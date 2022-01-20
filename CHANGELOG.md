@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Used disk space metric calculation fix (#376)
 
 #### Updated
 
