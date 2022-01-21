@@ -1,7 +1,5 @@
 [workspace]
-members = [
-    "bob",
-    "bob-apps",
-    "bob-backend",
-    "bob-common",
-]
+members = ["bob", "bob-apps", "bob-backend", "bob-common"]
+
+[patch.crates-io]
+pearl = { git = "https://github.com/qoollo/pearl", branch = "move-brt-utils-to-pearl" }
