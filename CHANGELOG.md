@@ -10,6 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Ubuntu docker image build error (#412)
 
 
 #### Updated
