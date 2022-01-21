@@ -10,6 +10,7 @@ Bob versions changelog
 File descriptors metric now tries to use lsof | wc first (#359)
 
 #### Fixed
+- Ubuntu docker image build error (#412)
 
 
 #### Updated
