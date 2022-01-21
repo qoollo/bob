@@ -63,7 +63,7 @@ pearl:
   # path to logfile with info about disks states switches, default = "/tmp/bob_events.csv"
   disks_events_logfile: "/tmp/bob_events.csv"
   # [size] required for 'pearl'
-  max_blob_size: 1 mb
+  max_blob_size: 100 mb
   # optional, required for 'pearl', disables search for existing keys before write
   allow_duplicates: true
   # optional
