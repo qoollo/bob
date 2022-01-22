@@ -231,7 +231,7 @@ impl Backend {
         self.put_single(key, data, operation).await
     }
 
-    async fn update_metrics(&self) {
+    async fn update_bloom_filter_metrics(&self) {
         let bfr = self.filter_memory_allocated().await;
         gauge!(BLOOM_FILTERS_RAM, bfr as f64);
     }
@@ -374,7 +374,7 @@ impl Backend {
     pub async fn offload_old_filters(&self, limit: usize) {
         self.inner.offload_old_filters(limit).await;
         
-        self.update_metrics().await;
+        self.update_bloom_filter_metrics().await;
     }
 
     pub async fn filter_memory_allocated(&self) -> usize {
