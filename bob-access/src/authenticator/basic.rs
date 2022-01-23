@@ -34,7 +34,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
         }
     }
 
-    fn is_node(&self, other: &Credentials) -> Option<bool> {
+    fn is_node_request(&self, other: &Credentials) -> Option<bool> {
         if self.nodes.is_empty() {
             warn!("nodes credentials not set");
         }
@@ -46,7 +46,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
 
 impl<Storage: UsersStorage> Authenticator for Basic<Storage> {
     fn check_credentials(&self, credentials: Credentials) -> Result<(), Error> {
-        if self.is_node(&credentials) == Some(true) {
+        if self.is_node_request(&credentials) == Some(true) {
             debug!("received request from node: {:?}", credentials.username());
             return Ok(());
         }

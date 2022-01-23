@@ -51,11 +51,13 @@ impl<A, E> AccessControlLayer<A, E> {
         }
     }
 
+    #[must_use]
     pub fn with_authenticator(mut self, authenticator: A) -> Self {
         self.authenticator = Some(authenticator);
         self
     }
 
+    #[must_use]
     pub fn with_extractor(mut self, extractor: E) -> Self {
         self.extractor = Some(extractor);
         self
@@ -96,7 +98,10 @@ where
     type Future = ServiceFuture<Self::Response, Self::Error>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx).map(|r| Ok(r.unwrap()))
+        self.service.poll_ready(cx).map(|r| {
+            r.expect("should be infallible");
+            Ok(())
+        })
     }
 
     fn call(&mut self, req: Request) -> Self::Future {

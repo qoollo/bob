@@ -14,18 +14,10 @@ pub struct UsersMap {
 
 impl UsersMap {
     pub fn from_file(filename: &str) -> Result<Self, Error> {
-        let f = File::open(filename).map_err(|e| {
-            Error::os(format!(
-                "Can't open file {} (reason: {})",
-                filename,
-                e.to_string()
-            ))
-        })?;
+        let f = File::open(filename)
+            .map_err(|e| Error::os(format!("Can't open file {} (reason: {})", filename, e)))?;
         let users_config: ConfigUsers = serde_yaml::from_reader(f).map_err(|e| {
-            Error::validation(format!(
-                "Can't parse users config file (reason: {})",
-                e.to_string()
-            ))
+            Error::validation(format!("Can't parse users config file (reason: {})", e))
         })?;
         let inner = parse_users(users_config.users, users_config.roles)?;
         Ok(Self { inner })
