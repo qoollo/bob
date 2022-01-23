@@ -36,11 +36,7 @@ impl Utils {
                     IOErrorKind::PermissionDenied | IOErrorKind::Other => {
                         Error::possible_disk_disconnection()
                     }
-                    _ => Error::storage(format!(
-                        "cannot create directory: {}, error: {}",
-                        dir,
-                        e.to_string()
-                    )),
+                    _ => Error::storage(format!("cannot create directory: {}, error: {}", dir, e)),
                 })?;
             info!("dir created: {}", path.display());
         }

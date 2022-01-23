@@ -67,7 +67,7 @@ impl Node {
     }
 
     pub fn counter_display(&self) -> String {
-        self.address.to_string().replace(".", "_")
+        self.address.to_string().replace('.', "_")
     }
 
     pub async fn set_connection(&self, client: BobClient) {

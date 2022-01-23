@@ -98,11 +98,11 @@ async fn main() {
     let http_api_port = matches
         .value_of("http_api_port")
         .and_then(|v| v.parse().ok())
-        .unwrap_or(node.http_api_port());
+        .unwrap_or_else(|| node.http_api_port());
     let http_api_address = matches
         .value_of("http_api_address")
         .and_then(|v| v.parse().ok())
-        .unwrap_or(node.http_api_address());
+        .unwrap_or_else(|| node.http_api_address());
 
     create_signal_handlers(&bob).unwrap();
 
@@ -227,7 +227,7 @@ fn spawn_signal_handler(
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
-    let ver = format!("{}\n{}", crate_version!(), BuildInfo::new());
+    let ver = format!("{}\n{}", crate_version!(), BuildInfo::default());
     App::new("bobd")
         .version(ver.as_str())
         .arg(

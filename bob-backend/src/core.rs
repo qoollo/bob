@@ -55,6 +55,7 @@ impl Operation {
     }
 
     // local operation doesn't contain remote node, so node name is passed through argument
+    #[must_use]
     pub fn clone_local_alien(&self, local_node_name: &str) -> Self {
         Self {
             vdisk_id: self.vdisk_id,

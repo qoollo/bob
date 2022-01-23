@@ -42,6 +42,10 @@ impl Credentials {
     pub fn ip(&self) -> Option<IpAddr> {
         Some(self.address?.ip())
     }
+
+    pub fn is_complete(&self) -> bool {
+        self.address.is_some() && self.ip().is_some()
+    }
 }
 
 #[derive(Debug, Default)]

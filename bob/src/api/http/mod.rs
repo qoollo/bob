@@ -278,7 +278,7 @@ async fn metrics(Extension(bob): Extension<&BobServer>) -> Json<MetricsSnapshotM
 }
 
 async fn version() -> Json<VersionInfo> {
-    let build_info = BuildInfo::new();
+    let build_info = BuildInfo::default();
 
     let version = build_info.version().to_string();
     let build_time = build_info.build_time().to_string();

@@ -116,7 +116,7 @@ impl Group {
             .read()
             .await
             .iter()
-            .map(|h| f(h))
+            .map(f)
             .collect::<FuturesUnordered<_>>()
             .collect::<Vec<()>>()
             .await;
