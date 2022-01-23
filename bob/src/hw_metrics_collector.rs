@@ -62,7 +62,6 @@ impl HWMetricsCollector {
         gauge!(TOTAL_RAM, total_mem as f64);
         debug!("total mem in mb: {}", total_mem);
         let pid = std::process::id() as i32;
-        //let mut df_enabled = true;
 
         loop {
             interval.tick().await;
@@ -74,11 +73,6 @@ impl HWMetricsCollector {
             gauge!(TOTAL_SPACE, bytes_to_mb(total_space) as f64);
             gauge!(USED_SPACE, bytes_to_mb(used_space) as f64);
             gauge!(FREE_SPACE, bytes_to_mb(free_space) as f64);
-            /*if let Some((total_space, free_space, used_space)) = Self::count_space_by_df(&mut df_enabled, &disks) {
-                gauge!(TOTAL_SPACE, bytes_to_mb(total_space) as f64);
-                gauge!(USED_SPACE, bytes_to_mb(used_space) as f64);
-                gauge!(FREE_SPACE, bytes_to_mb(free_space) as f64);
-            }*/
             let used_mem = kb_to_mb(sys.used_memory());
             debug!("used mem in mb: {}", used_mem);
             gauge!(USED_RAM, used_mem as f64);
@@ -87,52 +81,6 @@ impl HWMetricsCollector {
             gauge!(CPU_LOAD, proc.cpu_usage() as f64);
         }
     }
-
-    /*fn count_space_by_df(df_enabled: &mut bool, disks: &HashMap<PathBuf, String>) -> Option<(u64, u64, u64)> {
-        if !*df_enabled {
-            return None;
-        }
-        match Command::new("df")
-                    .output() {
-            Ok(output) => {
-                if let (true, Ok(info)) = (output.status.success(), 
-                                           String::from_utf8(output.stdout)) {
-                    let mut lines = info.lines();
-                    lines.next(); // skip headers
-            
-                    let mut total = 0;
-                    let mut used = 0;
-                    let mut free = 0;
-                    for l in lines {
-                        let columns: Vec<&str> = l.split_whitespace().collect();
-
-                        if let (Ok(dev_total), Ok(dev_used), Ok(dev_free)) = 
-                                (columns[1].parse::<u64>(),
-                                columns[2].parse::<u64>(),
-                                columns[3].parse::<u64>()) {
-                            let mount = PathBuf::from(columns[5]);
-
-                            if let Some(_) = disks.get(&mount) {
-                                total += dev_total;
-                                used += dev_used;
-                                free += dev_free;
-                            }
-                        }
-                    }
-
-                    return Some((total << 10, free << 10, used << 10)); // convert from kb to b
-                } else {
-                    debug!("something went wrong: {}",
-                      String::from_utf8(output.stderr).unwrap());
-                }
-            },
-            Err(e) => {
-                debug!("df output error: {}", e);
-            }
-        }
-        *df_enabled = false;
-        return None;
-    }*/
 
     fn to_cpath(path: &Path) -> Vec<u8> {
         use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
