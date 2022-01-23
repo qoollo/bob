@@ -263,7 +263,7 @@ async fn status(Extension(bob): Extension<&BobServer>) -> Json<Node> {
     let mapper = bob.grinder().backend().mapper();
     let name = mapper.local_node_name().to_owned();
     let address = mapper.local_node_address().to_owned();
-    let vdisks = collect_disks_info(&bob);
+    let vdisks = collect_disks_info(bob);
     let node = Node {
         name,
         address,
@@ -463,18 +463,14 @@ async fn vdisk_by_id(
 ) -> Result<Json<VDisk>, StatusExt> {
     get_vdisk_by_id(bob, vdisk_id)
         .map(Json)
-        .ok_or(StatusExt::new(
-            StatusCode::NOT_FOUND,
-            false,
-            "vdisk not found".to_string(),
-        ))
+        .ok_or_else(|| StatusExt::new(StatusCode::NOT_FOUND, false, "vdisk not found".to_string()))
 }
 
 async fn vdisk_records_count(
     Extension(bob): Extension<&BobServer>,
     AxumPath(vdisk_id): AxumPath<u32>,
 ) -> Result<Json<u64>, StatusExt> {
-    let group = find_group(&bob, vdisk_id).await?;
+    let group = find_group(bob, vdisk_id).await?;
     let holders = group.holders();
     let pearls = holders.read().await;
     let pearls: &[_] = pearls.as_ref();
@@ -718,6 +714,14 @@ async fn get_data(
     let mut headers = HeaderMap::new();
     let val = content_type
         .parse()
+        .map_err(|e| {
+            error!("content type parsing error: {}", e);
+            StatusExt {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                ok: false,
+                msg: "content type parsing failed".to_string(),
+            }
+        })
         .expect("failed to parse content type value");
     headers.insert(CONTENT_TYPE, val);
     Ok((headers, result.inner().to_owned()))
@@ -756,8 +760,8 @@ impl DataKey {
     }
 
     fn from_guid(guid: &str) -> Result<Self, StatusExt> {
-        let guid = Uuid::from_str(guid)
-            .map_err(|e| bad_request(format!("GUID parse error: {}", e.to_string())))?;
+        let guid =
+            Uuid::from_str(guid).map_err(|e| bad_request(format!("GUID parse error: {}", e)))?;
         Self::from_bytes(guid.as_bytes().to_vec())
     }
 
@@ -785,7 +789,7 @@ impl DataKey {
     fn from_decimal(decimal: &str) -> Result<Self, StatusExt> {
         let number = decimal
             .parse::<u128>()
-            .map_err(|e| bad_request(format!("Decimal parse error: {}", e.to_string())))?;
+            .map_err(|e| bad_request(format!("Decimal parse error: {}", e)))?;
         Self::from_bytes(number.to_le_bytes().into())
     }
 }
