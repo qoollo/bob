@@ -9,7 +9,7 @@ use axum::{
     routing::{get, put, MethodRouter},
 };
 use bob_common::{
-    data::{BobData, BobMeta, BobOptions},
+    data::{BobData, BobKey, BobMeta, BobOptions},
     error::Error,
 };
 use bytes::Bytes;
@@ -17,7 +17,7 @@ use chrono::DateTime;
 use http::StatusCode;
 
 #[derive(Debug)]
-enum StatusS3 {
+pub enum StatusS3 {
     StatusExt(StatusExt),
     Status(StatusCode),
 }
@@ -27,12 +27,6 @@ impl From<StatusExt> for StatusS3 {
         Self::StatusExt(inner)
     }
 }
-
-// impl From<std::io::Error> for StatusS3 {
-//     fn from(err: std::io::Error) -> Self {
-//         StatusExt::from(err).into()
-//     }
-// }
 
 impl From<Error> for StatusS3 {
     fn from(err: Error) -> Self {
@@ -57,7 +51,6 @@ pub(crate) fn routes() -> Vec<(&'static str, MethodRouter)> {
     vec![
         ("/s3/default/:key", get(get_object)),
         ("/s3/default/:key", put(put_object)),
-        // copy_object,
     ]
 }
 
@@ -147,13 +140,16 @@ async fn get_object(
     Ok(GetObjectOutput { data, content_type })
 }
 
-// #[put("/default/<key>", data = "<data>", rank = 2)]
 async fn put_object(
     Extension(bob): Extension<&BobServer>,
     Path(key): Path<String>,
     body: Bytes,
+    headers: CopyObjectHeaders,
 ) -> Result<StatusS3, StatusS3> {
     let key = DataKey::from_str(&key)?.0;
+    if headers.is_source_key_set() {
+        return copy_object(bob, key, headers).await;
+    }
     let data_buf = body.to_vec();
     let data = BobData::new(
         data_buf,
@@ -166,66 +162,78 @@ async fn put_object(
     Ok(StatusS3::from(StatusExt::from(StatusCode::CREATED)))
 }
 
-// #[derive(Debug)]
-// pub(crate) struct CopyObjectHeaders {
-//     if_modified_since: Option<u64>,
-//     if_unmodified_since: Option<u64>,
-//     _source_key: DataKey,
-// }
+#[derive(Debug)]
+pub(crate) struct CopyObjectHeaders {
+    if_modified_since: Option<u64>,
+    if_unmodified_since: Option<u64>,
+    source_key: Option<DataKey>,
+}
 
-// #[rocket::async_trait]
-// impl<'r> FromRequest<'r> for CopyObjectHeaders {
-//     type Error = StatusS3;
-//     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-//         let headers = request.headers();
-//         let _source_key = match headers
-//             .get_one("x-amz-copy-source")
-//             .and_then(|x| x.parse().ok())
-//         {
-//             Some(key) => key,
-//             None => return Outcome::Forward(()),
-//         };
-//         Outcome::Success(CopyObjectHeaders {
-//             if_modified_since: headers
-//                 .get_one("If-Modified-Since")
-//                 .and_then(|x| chrono::DateTime::parse_from_rfc2822(x).ok())
-//                 .and_then(|x| x.timestamp().try_into().ok()),
-//             if_unmodified_since: headers
-//                 .get_one("If-Unmodified-Since")
-//                 .and_then(|x| chrono::DateTime::parse_from_rfc2822(x).ok())
-//                 .and_then(|x| x.timestamp().try_into().ok()),
-//             _source_key,
-//         })
-//     }
-// }
+impl CopyObjectHeaders {
+    fn is_source_key_set(&self) -> bool {
+        self.source_key.is_some()
+    }
+}
 
-// #[put("/default/<key>")]
-// pub(crate) async fn copy_object(
-//     bob: &State<BobServer>,
-//     key: Result<DataKey, StatusExt>,
-//     headers: CopyObjectHeaders,
-// ) -> Result<StatusS3, StatusS3> {
-//     let key = key?.0;
-//     let opts = BobOptions::new_get(None);
-//     let data = bob.grinder().get(key, &opts).await?;
-//     let last_modified = data.meta().timestamp();
-//     if let Some(time) = headers.if_modified_since {
-//         if time > last_modified {
-//             return Err(StatusS3::Status(StatusCode::NOT_MODIFIED));
-//         }
-//     }
-//     if let Some(time) = headers.if_unmodified_since {
-//         if time < last_modified {
-//             return Err(StatusS3::Status(StatusCode::PRECONDITION_FAILED));
-//         }
-//     }
-//     let data = BobData::new(
-//         data.into_inner(),
-//         BobMeta::new(chrono::Local::now().timestamp() as u64),
-//     );
+#[async_trait]
+impl<B> FromRequest<B> for CopyObjectHeaders
+where
+    B: Send,
+{
+    type Rejection = StatusS3;
+    async fn from_request(request: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+        let headers = request
+            .headers()
+            .expect("headers removed by another extractor");
+        let source_key = headers.get("x-amz-copy-source").and_then(|x| {
+            let key = x.to_str().map(|s| s.to_string()).ok()?;
+            DataKey::from_str(&key).ok()
+        });
+        Ok(CopyObjectHeaders {
+            if_modified_since: headers
+                .get("If-Modified-Since")
+                .and_then(|x| {
+                    let s = x.to_str().expect("failed to convert header to str");
+                    chrono::DateTime::parse_from_rfc2822(s).ok()
+                })
+                .and_then(|x| x.timestamp().try_into().ok()),
+            if_unmodified_since: headers
+                .get("If-Unmodified-Since")
+                .and_then(|x| {
+                    let s = x.to_str().expect("failed to convert header to str");
+                    chrono::DateTime::parse_from_rfc2822(s).ok()
+                })
+                .and_then(|x| x.timestamp().try_into().ok()),
+            source_key,
+        })
+    }
+}
 
-//     let opts = BobOptions::new_put(None);
-//     bob.grinder().put(key, data, opts).await?;
+async fn copy_object(
+    bob: &BobServer,
+    key: BobKey,
+    headers: CopyObjectHeaders,
+) -> Result<StatusS3, StatusS3> {
+    let opts = BobOptions::new_get(None);
+    let data = bob.grinder().get(key, &opts).await?;
+    let last_modified = data.meta().timestamp();
+    if let Some(time) = headers.if_modified_since {
+        if time > last_modified {
+            return Err(StatusS3::Status(StatusCode::NOT_MODIFIED));
+        }
+    }
+    if let Some(time) = headers.if_unmodified_since {
+        if time < last_modified {
+            return Err(StatusS3::Status(StatusCode::PRECONDITION_FAILED));
+        }
+    }
+    let data = BobData::new(
+        data.into_inner(),
+        BobMeta::new(chrono::Local::now().timestamp() as u64),
+    );
 
-//     Ok(StatusS3::from(StatusExt::from(Status::Ok)))
-// }
+    let opts = BobOptions::new_put(None);
+    bob.grinder().put(key, data, opts).await?;
+
+    Ok(StatusS3::from(StatusExt::from(StatusCode::OK)))
+}

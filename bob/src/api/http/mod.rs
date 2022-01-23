@@ -78,7 +78,7 @@ pub(crate) struct Partition {
 }
 
 #[derive(Debug)]
-pub(crate) struct StatusExt {
+pub struct StatusExt {
     status: StatusCode,
     ok: bool,
     msg: String,
