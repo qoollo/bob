@@ -63,6 +63,10 @@ impl User {
     pub fn can_write_rest(&self) -> bool {
         self.perms.write_rest
     }
+
+    pub fn perms(&self) -> Perms {
+        self.perms
+    }
 }
 
 pub trait UsersStorage: Default + Clone {

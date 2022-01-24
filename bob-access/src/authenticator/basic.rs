@@ -1,6 +1,6 @@
 use std::{collections::HashMap, net::IpAddr};
 
-use crate::{credentials::Credentials, error::Error};
+use crate::{credentials::Credentials, error::Error, permissions::Permissions};
 
 use super::{users_storage::UsersStorage, Authenticator};
 
@@ -45,10 +45,10 @@ impl<Storage: UsersStorage> Basic<Storage> {
 }
 
 impl<Storage: UsersStorage> Authenticator for Basic<Storage> {
-    fn check_credentials(&self, credentials: Credentials) -> Result<(), Error> {
+    fn check_credentials(&self, credentials: Credentials) -> Result<Permissions, Error> {
         if self.is_node_request(&credentials) == Some(true) {
             debug!("received request from node: {:?}", credentials.username());
-            return Ok(());
+            return Ok(Permissions::all());
         }
         debug!(
             "external request ip: {:?}, name: {:?}",
@@ -64,7 +64,7 @@ impl<Storage: UsersStorage> Authenticator for Basic<Storage> {
 
         let user = self.users_storage.get_user(username)?;
         if user.password() == password {
-            Ok(())
+            Ok(user.into())
         } else {
             Err(Error::unauthorized_request())
         }

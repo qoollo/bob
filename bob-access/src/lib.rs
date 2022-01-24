@@ -7,6 +7,7 @@ mod authenticator;
 mod credentials;
 mod error;
 mod extractor;
+mod permissions;
 mod settings;
 mod token;
 
@@ -27,6 +28,8 @@ use std::{
 
 use tonic::transport::NamedService;
 use tower::{Layer, Service};
+
+use crate::permissions::GetPermissions;
 
 pub const USERS_MAP_FILE: &str = "users.yaml";
 
@@ -90,6 +93,7 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>> + 'static + Debug,
     S::Response: Send + 'static,
     S::Future: Send + 'static,
+    Request: GetPermissions,
 {
     type Response = S::Response;
 
@@ -108,13 +112,21 @@ where
         debug!("request received");
         let credentials = self.extractor.extract(&req).unwrap();
         debug!("credentials: {:#?}", credentials);
-        if let Err(e) = self.authenticator.check_credentials(credentials) {
-            warn!("Unauthorized request: {:?}", e);
-            // let error = Box::new(Error::unauthorized_request()) as Self::Error;
-            // Box::pin(futures::future::ready(Err(error))) as Self::Future
-            todo!()
-        } else {
-            Box::pin(self.service.call(req).map(|r| Ok(r.unwrap())))
+        match self.authenticator.check_credentials(credentials) {
+            Ok(permissions) => {
+                let required_permissions = req.get_permissions();
+                if permissions.contains(required_permissions) {
+                    Box::pin(self.service.call(req).map(|r| Ok(r.unwrap())))
+                } else {
+                    todo!("not enough permissions")
+                }
+            }
+            Err(e) => {
+                warn!("Unauthorized request: {:?}", e);
+                // let error = Box::new(Error::unauthorized_request()) as Self::Error;
+                // Box::pin(futures::future::ready(Err(error))) as Self::Future
+                todo!()
+            }
         }
     }
 }
