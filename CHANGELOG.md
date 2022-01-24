@@ -11,6 +11,7 @@ Bob versions changelog
 
 #### Fixed
 - Ubuntu docker image build error (#412)
+- No more use of MockBobClient in production (#389)
 
 
 #### Updated
