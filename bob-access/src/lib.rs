@@ -18,6 +18,7 @@ pub use credentials::Credentials;
 pub use extractor::{BasicExtractor, Extractor, StubExtractor};
 
 use futures::{Future, FutureExt};
+use http::StatusCode;
 use std::{
     convert::Infallible,
     error::Error as StdError,
@@ -29,7 +30,7 @@ use std::{
 use tonic::transport::NamedService;
 use tower::{Layer, Service};
 
-use crate::permissions::GetPermissions;
+use crate::{error::Error, permissions::GetPermissions};
 
 pub const USERS_MAP_FILE: &str = "users.yaml";
 
@@ -97,15 +98,12 @@ where
 {
     type Response = S::Response;
 
-    type Error = Infallible;
+    type Error = Box<dyn StdError + Send + Sync>;
 
     type Future = ServiceFuture<Self::Response, Self::Error>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx).map(|r| {
-            r.expect("should be infallible");
-            Ok(())
-        })
+        self.service.poll_ready(cx).map_err(|e| e.into())
     }
 
     fn call(&mut self, req: Request) -> Self::Future {
@@ -123,9 +121,8 @@ where
             }
             Err(e) => {
                 warn!("Unauthorized request: {:?}", e);
-                // let error = Box::new(Error::unauthorized_request()) as Self::Error;
-                // Box::pin(futures::future::ready(Err(error))) as Self::Future
-                todo!()
+                let error = Box::new(Error::unauthorized_request()) as Self::Error;
+                Box::pin(futures::future::ready(Err(error))) as Self::Future
             }
         }
     }
@@ -136,4 +133,8 @@ where
     S: NamedService,
 {
     const NAME: &'static str = S::NAME;
+}
+
+pub async fn handle_auth_error<E>(err: E) -> (StatusCode, String) {
+    todo!()
 }

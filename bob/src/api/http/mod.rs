@@ -4,12 +4,13 @@ use crate::{
 };
 use axum::{
     body::{self, BoxBody},
+    error_handling::HandleError,
     extract::{Extension, Path as AxumPath},
     response::IntoResponse,
     routing::{delete, get, post, MethodRouter},
     AddExtensionLayer, Json, Router, Server,
 };
-use bob_access::{AccessControlLayer, Authenticator, Extractor};
+use bob_access::{handle_auth_error, AccessControlLayer, Authenticator, Extractor};
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
@@ -136,7 +137,7 @@ pub(crate) fn spawn<A, E>(
 
     let router = router()
         .layer(AddExtensionLayer::new(bob))
-        .layer(auth_layer);
+        .layer(HandleError::new(auth_layer, handle_auth_error));
     let task = Server::bind(&socket_addr).serve(router.into_make_service());
 
     tokio::spawn(task);
