@@ -4,10 +4,11 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Added -init_foledrs flag that creates bob and alien folders (#180)
 
 #### Changed
 - File descriptors metric now tries to use lsof | wc first (#359)
+- If bob and alien folders doesn't exist bobd will panic (#398)
 
 
 #### Fixed
