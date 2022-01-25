@@ -8,6 +8,7 @@ Bob versions changelog
 
 #### Changed
 - File descriptors metric now tries to use lsof | wc first (#359)
+- Deleted dcr utility (#370)
 
 
 #### Fixed
