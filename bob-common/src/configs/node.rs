@@ -17,6 +17,8 @@ use std::{net::IpAddr, sync::atomic::Ordering};
 use std::{net::Ipv4Addr, sync::Arc};
 use tokio::time::sleep;
 
+use ubyte::ByteUnit;
+
 const AIO_FLAG_ORDERING: Ordering = Ordering::Relaxed;
 
 const PLACEHOLDER: &str = "~";
@@ -243,7 +245,7 @@ impl Validatable for MetricsConfig {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Pearl {
     #[serde(default = "Pearl::default_max_blob_size")]
-    max_blob_size: u64,
+    max_blob_size: ByteUnit,
     #[serde(default = "Pearl::default_max_data_in_blob")]
     max_data_in_blob: u64,
     #[serde(default = "Pearl::default_blob_file_name_prefix")]
@@ -330,12 +332,12 @@ impl Pearl {
         self.max_data_in_blob
     }
 
-    fn default_max_blob_size() -> u64 {
-        1_000_000
+    fn default_max_blob_size() -> ByteUnit {
+        ByteUnit::MB
     }
 
     pub fn max_blob_size(&self) -> u64 {
-        self.max_blob_size
+        self.max_blob_size.as_u64()
     }
 
     fn default_hash_chars_count() -> u32 {
@@ -482,7 +484,7 @@ pub struct Node {
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
-    bloom_filter_memory_limit: Option<usize>,
+    bloom_filter_memory_limit: Option<ByteUnit>,
     #[serde(default = "Node::default_init_par_degree")]
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
@@ -643,7 +645,7 @@ impl NodeConfig {
     }
 
     pub fn bloom_filter_memory_limit(&self) -> Option<usize> {
-        self.bloom_filter_memory_limit
+        self.bloom_filter_memory_limit.map(|bu| bu.as_u64() as usize)
     }
 
     #[inline]

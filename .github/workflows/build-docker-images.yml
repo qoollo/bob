@@ -73,7 +73,7 @@ jobs:
         with:
           images: qoollo/bob
           tags: |
-            ${{ env.VERSION }}-key${{ matrix.bob_key_size }}-ubuntu20.20
+            ${{ env.VERSION }}-key${{ matrix.bob_key_size }}-ubuntu20.04
       - name: Build and push ubuntu image
         uses: docker/build-push-action@v2
         with:
