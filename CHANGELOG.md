@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Added grpc exist testing feature to bobp
 
 
 #### Changed
@@ -13,6 +14,7 @@ Bob versions changelog
 #### Fixed
 - No more use of MockBobClient in production (#389)
 - Ubuntu docker image build error (#412)
+- Get & Put speed calculation in bobp
 
 
 #### Updated
