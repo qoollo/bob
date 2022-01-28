@@ -432,14 +432,20 @@ fn print_averages(
     exist_speed_values: &[f64],
     elapsed: Duration,
 ) {
+    let avg_total = ((stat.put_total.load(Ordering::Relaxed) + 
+                    stat.get_total.load(Ordering::Relaxed) +
+                    stat.exist_total.load(Ordering::Relaxed)) * 1000)
+                    .checked_div(elapsed.as_millis() as u64)
+                    .unwrap_or_default();
+    let total_err = stat.put_error_count.load(Ordering::Relaxed) + 
+                    stat.get_error_count.load(Ordering::Relaxed) +
+                    stat.exist_error_count.load(Ordering::Relaxed);
     println!(
         "avg total: {} rps | total err: {}\r\n\
         put: {:>6.2} kb/s | get: {:>6.2} kb/s | exist: {:>6.2} kb/s\r\n\
         put resp time, ms: {:>6.2} | get resp time, ms: {:>6.2} | exist resp time, ms: {:>6.2}",
-        ((stat.put_total.load(Ordering::Relaxed) + stat.get_total.load(Ordering::Relaxed)) * 1000)
-            .checked_div(elapsed.as_millis() as u64)
-            .unwrap_or_default(),
-        stat.put_error_count.load(Ordering::Relaxed) + stat.get_error_count.load(Ordering::Relaxed),
+        avg_total,
+        total_err,
         average(put_speed_values),
         average(get_speed_values),
         average(exist_speed_values),
@@ -494,7 +500,7 @@ fn print_periodic_stat(
     let mut put_speed_values = vec![];
     let mut get_speed_values = vec![];
     let mut exist_speed_values = vec![];
-    //let k = request_bytes as f64 / period_ms as f64 * 1000.0 / 1024.0;
+    let sec = period_ms as f64 / 1000.;
     let k = request_bytes as f64 / 1024.0;
     let start = Instant::now();
     while !stop_token.load(Ordering::Relaxed) {
@@ -513,8 +519,8 @@ fn print_periodic_stat(
         let get_error = stat.get_error_count.load(Ordering::Relaxed);
         let exist_error = stat.get_error_count.load(Ordering::Relaxed);
         let put_spd = put_count_spd as f64 * k;
-        let get_spd = get_size.get_diff() as f64 / 1024.0;
-        let exist_spd = exist_size.get_diff() as f64 / 1024.0;
+        let get_spd = get_size.get_diff() as f64 / 1024. / sec;
+        let exist_spd = exist_size.get_diff() as f64 / 1024.0 / sec;
         if put_spd > 0.0 {
             put_speed_values.push(put_spd);
         }
