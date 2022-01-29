@@ -1,4 +1,7 @@
 use crate::prelude::*;
+use std::collections::HashMap;
+use std::sync::Mutex;
+use tokio::time::interval;
 
 use crate::{
     mem_backend::MemBackend,
@@ -131,10 +134,74 @@ pub trait MetricsProducer: Send + Sync {
     }
 }
 
+#[derive(Hash, PartialEq, Eq, Debug)]
+enum BackendErrorAction {
+    PUT(String, String),
+}
+
+#[derive(Debug)]
+struct BackendErrorLogger {
+    errors: HashMap<BackendErrorAction, u64>,
+    interval: Duration
+}
+
+impl BackendErrorLogger {
+    fn new(interval: Duration) -> BackendErrorLogger {
+        BackendErrorLogger {
+            errors: HashMap::new(),
+            interval,
+        }
+    }
+
+    fn report_error(&mut self, action: BackendErrorAction) {
+        if let Some(count) = self.errors.get_mut(&action) {
+            *count += 1;
+        } else {
+            self.errors.insert(action, 1);
+        }
+    }
+
+    fn report_put_error(logger: Arc<Mutex<BackendErrorLogger>>, disk: String, error: bob_common::error::Error) {
+        let error_str = format!("{:?}", error);
+        let action = BackendErrorAction::PUT(disk, error_str);
+
+        let mut logger = logger.lock().expect("mutex lock");
+        logger.report_error(action);
+    }
+
+    fn spawn_task(logger: Arc<Mutex<BackendErrorLogger>>) {
+        let interval = logger.lock().unwrap().interval;
+        tokio::spawn(Self::task(
+            logger,
+            interval
+        ));
+    }
+
+    async fn task(logger: Arc<Mutex<BackendErrorLogger>>, t: Duration) {
+        let mut interval = interval(t);
+        loop {
+            interval.tick().await;
+            
+            let mut logger = logger.lock().expect("mutex lock");
+            for (action, count) in logger.errors.iter_mut() {
+                if *count > 0 {
+                    match action {
+                        BackendErrorAction::PUT(disk, error) => {
+                            error!("local PUT on disk {} failed {} times: {:?}", disk, count, error);
+                        },
+                    }
+                    *count = 0;
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Backend {
     inner: Arc<dyn BackendStorage>,
     mapper: Arc<Virtual>,
+    error_logger: Arc<Mutex<BackendErrorLogger>>,
 }
 
 impl Backend {
@@ -149,7 +216,12 @@ impl Backend {
                 Arc::new(pearl)
             }
         };
-        Self { inner, mapper }
+
+        let error_logger = 
+            Arc::new(Mutex::new(BackendErrorLogger::new(config.error_log_interval())));
+        BackendErrorLogger::spawn_task(error_logger.clone());
+
+        Self { inner, mapper, error_logger }
     }
 
     pub async fn blobs_count(&self) -> (usize, usize) {
@@ -242,12 +314,16 @@ impl Backend {
             let result = self.inner.put(operation.clone(), key, data.clone()).await;
             match result {
                 Err(local_err) if !local_err.is_duplicate() => {
-                    error!(
+                    debug!(
                         "PUT[{}][{}] local failed: {:?}",
                         key,
                         operation.disk_name_local(),
                         local_err
                     );
+                    BackendErrorLogger::report_put_error(self.error_logger.clone(), 
+                                                        operation.disk_name_local(),
+                                                        local_err.clone());
+
                     // write to alien/<local name>
                     let mut op = operation.clone_local_alien(self.mapper().local_node_name());
                     op.set_remote_folder(self.mapper.local_node_name().to_owned());
