@@ -20,7 +20,6 @@ pub use extractor::{BasicExtractor, Extractor, StubExtractor};
 use futures::{Future, FutureExt};
 use http::StatusCode;
 use std::{
-    convert::Infallible,
     error::Error as StdError,
     fmt::Debug,
     pin::Pin,
@@ -28,7 +27,7 @@ use std::{
 };
 
 use tonic::transport::NamedService;
-use tower::{Layer, Service};
+use tower::{BoxError, Layer, Service};
 
 use crate::{error::Error, permissions::GetPermissions};
 
@@ -135,6 +134,7 @@ where
     const NAME: &'static str = S::NAME;
 }
 
-pub async fn handle_auth_error<E>(err: E) -> (StatusCode, String) {
+pub async fn handle_auth_error(err: BoxError) -> (StatusCode, String) {
+    error!("{}", err);
     todo!()
 }

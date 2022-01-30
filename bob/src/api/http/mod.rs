@@ -4,7 +4,7 @@ use crate::{
 };
 use axum::{
     body::{self, BoxBody},
-    error_handling::HandleError,
+    error_handling::HandleErrorLayer,
     extract::{Extension, Path as AxumPath},
     response::IntoResponse,
     routing::{delete, get, post, MethodRouter},
@@ -29,6 +29,7 @@ use std::{
     str::FromStr,
 };
 use tokio::fs::{read_dir, ReadDir};
+use tower::ServiceBuilder;
 use uuid::Uuid;
 
 mod metric_models;
@@ -135,9 +136,11 @@ pub(crate) fn spawn<A, E>(
 {
     let socket_addr = SocketAddr::new(address, port);
 
-    let router = router()
-        .layer(AddExtensionLayer::new(bob))
-        .layer(HandleError::new(auth_layer, handle_auth_error));
+    let router = router().layer(AddExtensionLayer::new(bob)).layer(
+        ServiceBuilder::new()
+            .layer(HandleErrorLayer::new(handle_auth_error))
+            .layer(auth_layer),
+    );
     let task = Server::bind(&socket_addr).serve(router.into_make_service());
 
     tokio::spawn(task);
