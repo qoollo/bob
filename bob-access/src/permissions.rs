@@ -1,5 +1,7 @@
+use std::fmt::Display;
+
 use bitflags::bitflags;
-use http::{Method, Request};
+use http::{HeaderValue, Method, Request};
 
 use crate::authenticator::User;
 
@@ -32,16 +34,43 @@ impl From<&User> for Permissions {
     }
 }
 
-pub trait GetPermissions {
+impl Display for Permissions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "GRPC: [read: {}, write: {}], REST: [read: {}, write: {}]",
+            self.contains(Self::READ),
+            self.contains(Self::WRITE),
+            self.contains(Self::READ_REST),
+            self.contains(Self::WRITE_REST)
+        )
+    }
+}
+
+pub trait GetRequiredPermissions {
     fn get_permissions(&self) -> Permissions;
 }
 
-impl<T> GetPermissions for Request<T> {
+impl<T> GetRequiredPermissions for Request<T>
+where
+    T: std::fmt::Debug,
+{
     fn get_permissions(&self) -> Permissions {
-        warn!("@TODO differentiate GRPC and REST requests");
+        trace!("request: {:#?}", self);
+        if let Some(content_type) = self.headers().get(http::header::CONTENT_TYPE) {
+            let grpc_content_type = HeaderValue::from_static("application/grpc");
+            if content_type == grpc_content_type {
+                let perms = match *self.method() {
+                    Method::GET => Permissions::READ,
+                    Method::PUT | Method::DELETE | Method::POST => Permissions::WRITE,
+                    _ => Permissions::FORBIDDEN,
+                };
+                return perms;
+            }
+        }
         match *self.method() {
-            Method::GET => Permissions::READ & Permissions::READ_REST,
-            Method::PUT => Permissions::WRITE & Permissions::WRITE_REST,
+            Method::GET => Permissions::READ_REST,
+            Method::PUT | Method::DELETE | Method::POST => Permissions::WRITE_REST,
             _ => Permissions::FORBIDDEN,
         }
     }

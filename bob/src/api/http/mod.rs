@@ -136,16 +136,17 @@ pub(crate) fn spawn<A, E>(
 {
     let socket_addr = SocketAddr::new(address, port);
 
-    let router = router().layer(AddExtensionLayer::new(bob)).layer(
-        ServiceBuilder::new()
-            .layer(HandleErrorLayer::new(handle_auth_error))
-            .layer(auth_layer),
-    );
+    let infallible_auth_layer = ServiceBuilder::new()
+        .layer(HandleErrorLayer::new(handle_auth_error))
+        .layer(auth_layer);
+    let router = router()
+        .layer(AddExtensionLayer::new(bob))
+        .layer(infallible_auth_layer);
     let task = Server::bind(&socket_addr).serve(router.into_make_service());
 
     tokio::spawn(task);
 
-    info!("API server started");
+    info!("API server started, listening: {}", socket_addr);
 }
 
 fn router() -> Router {

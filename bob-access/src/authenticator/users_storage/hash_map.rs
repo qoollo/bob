@@ -26,6 +26,6 @@ impl UsersMap {
 
 impl UsersStorage for UsersMap {
     fn get_user<'a>(&'a self, username: &str) -> Result<&'a User, Error> {
-        self.inner.get(username).ok_or_else(Error::not_found)
+        self.inner.get(username).ok_or_else(Error::user_not_found)
     }
 }

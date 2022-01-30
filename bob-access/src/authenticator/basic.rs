@@ -46,8 +46,9 @@ impl<Storage: UsersStorage> Basic<Storage> {
 
 impl<Storage: UsersStorage> Authenticator for Basic<Storage> {
     fn check_credentials(&self, credentials: Credentials) -> Result<Permissions, Error> {
+        debug!("check {:?}", credentials);
         if self.is_node_request(&credentials) == Some(true) {
-            debug!("received request from node: {:?}", credentials.username());
+            debug!("request from node: {:?}", credentials.username());
             return Ok(Permissions::all());
         }
         debug!(

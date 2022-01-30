@@ -25,13 +25,13 @@ async fn main() {
 
     if matches.value_of("cluster").is_none() {
         eprintln!("Expect cluster config");
-        eprintln!("use -h for help");
+        eprintln!("use --help");
         return;
     }
 
     if matches.value_of("node").is_none() {
         eprintln!("Expect node config");
-        eprintln!("use -h for help");
+        eprintln!("use --help");
         return;
     }
 

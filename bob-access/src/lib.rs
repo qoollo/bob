@@ -29,7 +29,7 @@ use std::{
 use tonic::transport::NamedService;
 use tower::{BoxError, Layer, Service};
 
-use crate::{error::Error, permissions::GetPermissions};
+use crate::{error::Error, permissions::GetRequiredPermissions};
 
 pub const USERS_MAP_FILE: &str = "users.yaml";
 
@@ -93,7 +93,7 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>> + 'static + Debug,
     S::Response: Send + 'static,
     S::Future: Send + 'static,
-    Request: GetPermissions,
+    Request: GetRequiredPermissions,
 {
     type Response = S::Response;
 
@@ -107,20 +107,31 @@ where
 
     fn call(&mut self, req: Request) -> Self::Future {
         debug!("request received");
-        let credentials = self.extractor.extract(&req).unwrap();
-        debug!("credentials: {:#?}", credentials);
-        match self.authenticator.check_credentials(credentials) {
-            Ok(permissions) => {
-                let required_permissions = req.get_permissions();
-                if permissions.contains(required_permissions) {
-                    Box::pin(self.service.call(req).map(|r| Ok(r.unwrap())))
-                } else {
-                    todo!("not enough permissions")
+        match self.extractor.extract(&req) {
+            Ok(credentials) => {
+                debug!("credentials: {:#?}", credentials);
+                match self.authenticator.check_credentials(credentials) {
+                    Ok(permissions) => {
+                        let required_permissions = req.get_permissions();
+                        debug!("request requires: {}", required_permissions);
+                        if permissions.contains(required_permissions) {
+                            debug!("permissions granted");
+                            Box::pin(self.service.call(req).map(|r| Ok(r.unwrap())))
+                        } else {
+                            debug!("permissions denied");
+                            let error = Box::new(Error::permission_denied()) as Self::Error;
+                            Box::pin(futures::future::ready(Err(error))) as Self::Future
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Unauthorized request: {:?}", e);
+                        let error = Box::new(Error::unauthorized_request()) as Self::Error;
+                        Box::pin(futures::future::ready(Err(error))) as Self::Future
+                    }
                 }
             }
             Err(e) => {
-                warn!("Unauthorized request: {:?}", e);
-                let error = Box::new(Error::unauthorized_request()) as Self::Error;
+                let error = Box::new(e) as Self::Error;
                 Box::pin(futures::future::ready(Err(error))) as Self::Future
             }
         }
@@ -136,5 +147,31 @@ where
 
 pub async fn handle_auth_error(err: BoxError) -> (StatusCode, String) {
     error!("{}", err);
-    todo!()
+    if let Ok(err) = err.downcast::<Error>() {
+        match err.kind() {
+            error::Kind::InvalidToken(_) => (StatusCode::FORBIDDEN, "Invalid token.".into()),
+            error::Kind::UserNotFound => (StatusCode::FORBIDDEN, "user not found".into()),
+            error::Kind::ConversionError(_) => (
+                StatusCode::FORBIDDEN,
+                "failed to extract credentials from request".into(),
+            ),
+            error::Kind::CredentialsNotProvided(_) => {
+                (StatusCode::FORBIDDEN, "credentials not provided".into())
+            }
+            error::Kind::MultipleCredentialsTypes => {
+                (StatusCode::FORBIDDEN, "multiple credentials types".into())
+            }
+            error::Kind::UnauthorizedRequest => (
+                StatusCode::FORBIDDEN,
+                "unknown credentials/unauthorized request".into(),
+            ),
+            error::Kind::PermissionDenied => (StatusCode::FORBIDDEN, "permission denied".into()),
+            _ => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "something went wrong during authorization process".into(),
+            ),
+        }
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, "unknown error".into())
+    }
 }

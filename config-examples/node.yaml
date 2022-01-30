@@ -14,6 +14,8 @@
 
 # [file] logger config file
 log_config: config-examples/logger.yaml
+# [file] config with users permissions.
+users_config: config-examples/users.yaml
 # [str] node name, required to match with cluster config
 name: local_node
 # [uint] min count of successful operations on replicas to consider operation successful
