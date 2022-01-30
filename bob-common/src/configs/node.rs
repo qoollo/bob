@@ -481,8 +481,6 @@ pub struct Node {
     #[serde(skip)]
     disks_ref: Arc<Mutex<Vec<DiskPath>>>,
 
-    #[serde(default = "Node::default_error_log_interval")]
-    error_log_interval: String,
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
@@ -557,17 +555,6 @@ impl NodeConfig {
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
-    }
-
-    pub fn error_log_interval(&self) -> Duration {
-        self.error_log_interval
-            .parse::<HumanDuration>()
-            .expect("parse humantime duration")
-            .into()
-    }
-
-    fn default_error_log_interval() -> String {
-        "5sec".to_string()
     }
 
     fn default_count_interval() -> String {
@@ -790,7 +777,6 @@ pub mod tests {
             quorum,
             operation_timeout: "3sec".to_string(),
             check_interval: "3sec".to_string(),
-            error_log_interval: "5sec".to_string(),
             cluster_policy: "quorum".to_string(),
             backend_type: "in_memory".to_string(),
             pearl: None,
