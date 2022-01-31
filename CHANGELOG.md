@@ -11,6 +11,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Fix partitions removal response code (#405)
 - No more use of MockBobClient in production (#389)
 - Ubuntu docker image build error (#412)
 
