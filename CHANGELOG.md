@@ -8,7 +8,7 @@ Bob versions changelog
 
 #### Changed
 - File descriptors metric now tries to use lsof | wc first (#359)
-- Put error logs now agregate in one line every error_log_interval (in case of disk disconnection) (#420)
+- Put error logs now agregate in one line every 5 sec (in case of disk disconnection) (#420)
 
 
 #### Fixed
