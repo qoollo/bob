@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use tokio::time::interval;
+use coarsetime::{Duration as CDuration,Instant};
 
 use crate::{
     mem_backend::MemBackend,
@@ -134,6 +134,8 @@ pub trait MetricsProducer: Send + Sync {
     }
 }
 
+const ERROR_LOG_INTERVAL: u64 = 5000;
+
 #[derive(Hash, PartialEq, Eq, Debug)]
 enum BackendErrorAction {
     PUT(String, String),
@@ -142,22 +144,44 @@ enum BackendErrorAction {
 #[derive(Debug)]
 struct BackendErrorLogger {
     errors: HashMap<BackendErrorAction, u64>,
-    interval: Duration
+    interval: CDuration,
+    last_timestamp: Instant,
 }
 
 impl BackendErrorLogger {
-    fn new(interval: Duration) -> BackendErrorLogger {
+    fn new() -> BackendErrorLogger {
         BackendErrorLogger {
             errors: HashMap::new(),
-            interval,
+            interval: CDuration::from_millis(ERROR_LOG_INTERVAL),
+            last_timestamp: Instant::now(),
         }
     }
 
-    fn report_error(&mut self, action: BackendErrorAction) {
-        if let Some(count) = self.errors.get_mut(&action) {
+    fn log(&mut self) {
+        for (action, count) in self.errors.iter_mut() {
+            if *count > 0 {
+                match action {
+                    BackendErrorAction::PUT(disk, error) => {
+                        error!("local PUT on disk {} failed {} times: {:?}", disk, count, error);
+                    },
+                }
+                *count = 0;
+            }
+        }
+    }
+
+    fn report_error(logger: Arc<Mutex<BackendErrorLogger>>, action: BackendErrorAction) {
+        let mut logger = logger.lock().expect("mutex lock");
+
+        if let Some(count) = logger.errors.get_mut(&action) {
             *count += 1;
         } else {
-            self.errors.insert(action, 1);
+            logger.errors.insert(action, 1);
+        }
+
+        if logger.last_timestamp.elapsed() > logger.interval {
+            logger.log();
+            logger.last_timestamp = Instant::now();
         }
     }
 
@@ -165,35 +189,7 @@ impl BackendErrorLogger {
         let error_str = format!("{:?}", error);
         let action = BackendErrorAction::PUT(disk, error_str);
 
-        let mut logger = logger.lock().expect("mutex lock");
-        logger.report_error(action);
-    }
-
-    fn spawn_task(logger: Arc<Mutex<BackendErrorLogger>>) {
-        let interval = logger.lock().unwrap().interval;
-        tokio::spawn(Self::task(
-            logger,
-            interval
-        ));
-    }
-
-    async fn task(logger: Arc<Mutex<BackendErrorLogger>>, t: Duration) {
-        let mut interval = interval(t);
-        loop {
-            interval.tick().await;
-            
-            let mut logger = logger.lock().expect("mutex lock");
-            for (action, count) in logger.errors.iter_mut() {
-                if *count > 0 {
-                    match action {
-                        BackendErrorAction::PUT(disk, error) => {
-                            error!("local PUT on disk {} failed {} times: {:?}", disk, count, error);
-                        },
-                    }
-                    *count = 0;
-                }
-            }
-        }
+        BackendErrorLogger::report_error(logger, action);
     }
 }
 
@@ -216,10 +212,7 @@ impl Backend {
                 Arc::new(pearl)
             }
         };
-
-        let error_logger = 
-            Arc::new(Mutex::new(BackendErrorLogger::new(config.error_log_interval())));
-        BackendErrorLogger::spawn_task(error_logger.clone());
+        let error_logger = Arc::new(Mutex::new(BackendErrorLogger::new()));
 
         Self { inner, mapper, error_logger }
     }
@@ -320,7 +313,7 @@ impl Backend {
                         operation.disk_name_local(),
                         local_err
                     );
-                    BackendErrorLogger::report_put_error(self.error_logger.clone(), 
+                    BackendErrorLogger::report_put_error(self.error_logger.clone(),
                                                         operation.disk_name_local(),
                                                         local_err.clone());
 

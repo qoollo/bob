@@ -736,11 +736,6 @@ impl Validatable for NodeConfig {
             error!("{}, {}", msg, e);
             msg
         })?;
-        self.error_log_interval.parse::<HumanDuration>().map_err(|e| {
-            let msg = "field \'error_log_interval\' for \'config\' is not valid".to_string();
-            error!("{}, {}", msg, e);
-            msg
-        })?;
         if self.name.is_empty() {
             let msg = "field \'name\' for \'config\' is empty".to_string();
             error!("{}", msg);
