@@ -157,19 +157,6 @@ impl BackendErrorLogger {
         }
     }
 
-    fn log(&mut self) {
-        for (action, count) in self.errors.iter_mut() {
-            if *count > 0 {
-                match action {
-                    BackendErrorAction::PUT(disk, error) => {
-                        error!("local PUT on disk {} failed {} times: {:?}", disk, count, error);
-                    },
-                }
-                *count = 0;
-            }
-        }
-    }
-
     fn report_error(logger: Arc<Mutex<BackendErrorLogger>>, action: BackendErrorAction) {
         let mut logger = logger.lock().expect("mutex lock");
 
@@ -180,7 +167,16 @@ impl BackendErrorLogger {
         }
 
         if logger.last_timestamp.elapsed() > logger.interval {
-            logger.log();
+            for (action, count) in logger.errors.iter_mut() {
+                if *count > 0 {
+                    match action {
+                        BackendErrorAction::PUT(disk, error) => {
+                            error!("local PUT on disk {} failed {} times: {:?}", disk, count, error);
+                        },
+                    }
+                    *count = 0;
+                }
+            }
             logger.last_timestamp = Instant::now();
         }
     }
