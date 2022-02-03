@@ -7,11 +7,15 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::os::unix::fs::MetadataExt;
 use sysinfo::{DiskExt, ProcessExt, System, SystemExt};
-//use std::process::Command;
 use libc::statvfs;
-use std::num::Wrapping;
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
+
+struct DisksMetrics {
+    total_space: u64,
+    used_space: u64,
+    free_space: u64,
+}
 
 pub(crate) struct HWMetricsCollector {
     disks: HashMap<PathBuf, String>,
@@ -70,10 +74,10 @@ impl HWMetricsCollector {
             sys.refresh_disks();
             let proc = sys.process(pid).expect("Can't get process stat descriptor");
 
-            let (total_space, free_space, used_space) = Self::space(&disks);
-            gauge!(TOTAL_SPACE, bytes_to_mb(total_space) as f64);
-            gauge!(USED_SPACE, bytes_to_mb(used_space) as f64);
-            gauge!(FREE_SPACE, bytes_to_mb(free_space) as f64);
+            let disks_metrics = Self::space(&disks);
+            gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
+            gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
+            gauge!(FREE_SPACE, bytes_to_mb(disks_metrics.free_space) as f64);
             let used_mem = kb_to_mb(sys.used_memory());
             debug!("used mem in mb: {}", used_mem);
             gauge!(USED_RAM, used_mem as f64);
@@ -92,32 +96,45 @@ impl HWMetricsCollector {
         cpath
     }
 
+    fn statvfs_wrap(mount_point: &Vec<u8>) -> Option<statvfs> {
+        unsafe {
+            let mut stat: statvfs = std::mem::zeroed();
+            if statvfs(mount_point.as_ptr() as *const _, &mut stat) == 0 {
+                Some(stat)
+            } else {
+                None
+            }
+        }
+    }
+
     // FIXME: maybe it's better to cache needed disks, but I am not sure, that they would be
     // refreshed, if I clone them
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
-    fn space(disks: &HashMap<PathBuf, String>) -> (u64, u64, u64) {
+    fn space(disks: &HashMap<PathBuf, String>) -> DisksMetrics {
         let mut total = 0;
         let mut used = 0;
         let mut free = 0;
         
         for mount_point in disks.keys() {
             let cm_p = Self::to_cpath(mount_point.as_path());
-            unsafe {
-                let mut stat: statvfs = std::mem::zeroed();
-                if statvfs(cm_p.as_ptr() as *const _, &mut stat) == 0 {
-                    let bsize = Wrapping(stat.f_bsize as u64);
-                    let blocks = Wrapping(stat.f_blocks as u64);
-                    let bavail = Wrapping(stat.f_bavail as u64);
-                    let bfree = Wrapping(stat.f_bfree as u64);
-                    total += (bsize * blocks).0;
-                    free += (bsize * bavail).0;
-                    used += ((blocks - bfree) * bsize).0;
-                }
+            let stat = Self::statvfs_wrap(&cm_p);
+            if let Some(stat) = stat {
+                let bsize = stat.f_bsize as u64;
+                let blocks = stat.f_blocks as u64;
+                let bavail = stat.f_bavail as u64;
+                let bfree = stat.f_bfree as u64;
+                total += bsize * blocks;
+                free += bsize * bavail;
+                used += (blocks - bfree) * bsize;
             }
         }
 
-        (total, free, used)
+        DisksMetrics {
+            total_space: total,
+            used_space: used,
+            free_space: free
+        }
     }
 }
 
