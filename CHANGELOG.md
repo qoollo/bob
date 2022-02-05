@@ -5,6 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Bloom filters memory metric (#400)
+- Add bob ram usage metric (#393)
 
 #### Changed
 - File descriptors metric now tries to use lsof | wc first (#359)
