@@ -69,6 +69,8 @@ pub const AVAILABLE_NODES_COUNT: &str = "link_manager.nodes_number";
 pub const BACKEND_STATE: &str = "backend.backend_state";
 /// Count blobs (without aliens)
 pub const BLOBS_COUNT: &str = "backend.blob_count";
+/// Memory occupied bybloom filters
+pub const BLOOM_FILTERS_RAM: &str = "backend.bloom_filters_ram";
 /// Count alien blobs
 pub const ALIEN_BLOBS_COUNT: &str = "backend.alien_count";
 /// Count memory occupied by indices

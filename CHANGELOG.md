@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Bloom filters memory metric (#400)
 - Add bob ram usage metric (#393)
 
 #### Changed
