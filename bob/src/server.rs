@@ -1,8 +1,6 @@
 use std::net::IpAddr;
 
-use bob_access::{AccessControlLayer, Authenticator, Extractor};
-use http::Request as HttpRequest;
-use hyper::Body;
+use bob_access::Authenticator;
 use tokio::{runtime::Handle, task::block_in_place};
 
 use crate::prelude::*;

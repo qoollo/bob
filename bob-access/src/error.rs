@@ -19,6 +19,26 @@ pub enum Error {
     MultipleCredentialsTypes,
     UnauthorizedRequest,
     PermissionDenied,
+    NotGrpcRequest,
+}
+
+impl Error {
+    pub fn description(&self) -> (StatusCode, &'static str) {
+        use Error::*;
+        match self {
+            _Unknown => (StatusCode::INTERNAL_SERVER_ERROR, "Unknown error"),
+            InvalidToken(_) => (StatusCode::BAD_REQUEST, "Invalid token"),
+            Validation(_) => (StatusCode::BAD_REQUEST, "Validation error"),
+            Os(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Os error"),
+            UserNotFound => (StatusCode::BAD_REQUEST, "User not found"),
+            ConversionError(_) => (StatusCode::BAD_REQUEST, "Conversion error"),
+            CredentialsNotProvided(_) => (StatusCode::BAD_REQUEST, "Credentials not provided"),
+            MultipleCredentialsTypes => (StatusCode::BAD_REQUEST, "Multiple credentials type"),
+            UnauthorizedRequest => (StatusCode::UNAUTHORIZED, "Unauthorized request"),
+            PermissionDenied => (StatusCode::UNAUTHORIZED, "Permission denied"),
+            NotGrpcRequest => (StatusCode::BAD_REQUEST, "Not GRPC request"),
+        }
+    }
 }
 
 impl StdError for Error {}
@@ -31,19 +51,7 @@ impl Display for Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        use Error::*;
-        let (status, error_message) = match self {
-            _Unknown => (StatusCode::INTERNAL_SERVER_ERROR, "Unknown error"),
-            InvalidToken(_) => (StatusCode::BAD_REQUEST, "Invalid token"),
-            Validation(_) => (StatusCode::BAD_REQUEST, "Validation error"),
-            Os(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Os error"),
-            UserNotFound => (StatusCode::BAD_REQUEST, "User not found"),
-            ConversionError(_) => (StatusCode::BAD_REQUEST, "Conversion error"),
-            CredentialsNotProvided(_) => (StatusCode::BAD_REQUEST, "Credentials not provided"),
-            MultipleCredentialsTypes => (StatusCode::BAD_REQUEST, "Multiple credentials type"),
-            UnauthorizedRequest => (StatusCode::UNAUTHORIZED, "Unauthorized request"),
-            PermissionDenied => (StatusCode::UNAUTHORIZED, "Permission denied"),
-        };
+        let (status, error_message) = self.description();
         let value = json!({
             "error": error_message,
         });

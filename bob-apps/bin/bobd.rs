@@ -2,7 +2,9 @@ use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder,
     VirtualMapper,
 };
-use bob_access::{BasicAuthenticator, Credentials, StubAuthenticator, UsersMap};
+use bob_access::{
+    AccessControlLayer, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap,
+};
 use clap::{crate_version, App, Arg, ArgMatches};
 use std::{
     collections::HashMap,
@@ -11,6 +13,7 @@ use std::{
 };
 use tokio::{runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::Server;
+use tower::Layer;
 
 #[macro_use]
 extern crate log;
@@ -110,7 +113,17 @@ async fn main() {
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let authenticator = StubAuthenticator::new(users_storage);
-            bob.run_api_server(http_api_address, http_api_port, authenticator);
+            bob.run_api_server(http_api_address, http_api_port, authenticator.clone());
+
+            let bob_service = BobApiServer::new(bob);
+            let access = AccessControlLayer::new().with_authenticator(authenticator);
+            let new_service = access.layer(bob_service);
+            Server::builder()
+                .tcp_nodelay(true)
+                .add_service(new_service)
+                .serve(addr)
+                .await
+                .unwrap();
         }
         "basic" => {
             let users_storage =
@@ -120,19 +133,22 @@ async fn main() {
             authenticator
                 .set_nodes_credentials(nodes_credentials)
                 .expect("failed to gen nodes credentials from cluster config");
-            bob.run_api_server(http_api_address, http_api_port, authenticator);
+            bob.run_api_server(http_api_address, http_api_port, authenticator.clone());
+
+            let bob_service = BobApiServer::new(bob);
+            let access = AccessControlLayer::new().with_authenticator(authenticator);
+            let new_service = access.layer(bob_service);
+            Server::builder()
+                .tcp_nodelay(true)
+                .add_service(new_service)
+                .serve(addr)
+                .await
+                .unwrap();
         }
         _ => {
             warn!("valid authentication type not provided");
         }
-    };
-    let bob_service = BobApiServer::new(bob);
-    Server::builder()
-        .tcp_nodelay(true)
-        .add_service(bob_service)
-        .serve(addr)
-        .await
-        .unwrap();
+    }
 }
 
 fn nodes_credentials_from_cluster_config(

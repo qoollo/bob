@@ -1,13 +1,8 @@
-use std::fmt::Display;
-
-use axum::{
-    async_trait,
-    extract::{FromRequest, RequestParts},
-};
 use bitflags::bitflags;
 use http::{HeaderValue, Method, Request};
+use std::fmt::Display;
 
-use crate::{authenticator::User, error::Error};
+use crate::authenticator::User;
 
 bitflags! {
     pub struct Permissions: u8 {
@@ -20,8 +15,12 @@ bitflags! {
 }
 
 impl Permissions {
-    pub fn has_read(&self) -> bool {
-        self.contains(Self::READ)
+    pub fn has_rest_read(&self) -> bool {
+        self.contains(Self::READ_REST)
+    }
+
+    pub fn has_rest_write(&self) -> bool {
+        self.contains(Self::WRITE_REST)
     }
 }
 
@@ -57,15 +56,15 @@ impl Display for Permissions {
     }
 }
 
-pub trait GetRequiredPermissions {
-    fn get_permissions(&self) -> Permissions;
+pub trait GetGrpcPermissions {
+    fn get_grpc_permissions(&self) -> Option<Permissions>;
 }
 
-impl<T> GetRequiredPermissions for Request<T>
+impl<T> GetGrpcPermissions for Request<T>
 where
     T: std::fmt::Debug,
 {
-    fn get_permissions(&self) -> Permissions {
+    fn get_grpc_permissions(&self) -> Option<Permissions> {
         trace!("request: {:#?}", self);
         if let Some(content_type) = self.headers().get(http::header::CONTENT_TYPE) {
             let grpc_content_type = HeaderValue::from_static("application/grpc");
@@ -75,13 +74,9 @@ where
                     Method::PUT | Method::DELETE | Method::POST => Permissions::WRITE,
                     _ => Permissions::FORBIDDEN,
                 };
-                return perms;
+                return Some(perms);
             }
         }
-        match *self.method() {
-            Method::GET => Permissions::READ_REST,
-            Method::PUT | Method::DELETE | Method::POST => Permissions::WRITE_REST,
-            _ => Permissions::FORBIDDEN,
-        }
+        None
     }
 }

@@ -2,24 +2,13 @@ use std::net::SocketAddr;
 
 use crate::{credentials::Credentials, error::Error};
 use axum::extract::RequestParts;
-use http::HeaderMap;
+use http::{Extensions, HeaderMap, Request};
 use tonic::transport::server::TcpConnectInfo;
 
 pub trait Extractor {
-    fn extract(&self) -> Result<Credentials, Error>;
-    fn extract_basic(
-        &self,
-        header_map: &HeaderMap,
-        addr: Option<SocketAddr>,
-    ) -> Result<Option<Credentials>, Error>;
-    fn extract_token(
-        &self,
-        header_map: &HeaderMap,
-        addr: Option<SocketAddr>,
-    ) -> Result<Option<Credentials>, Error>;
-}
+    fn headers(&self) -> Option<&HeaderMap>;
+    fn extensions(&self) -> Option<&Extensions>;
 
-impl<B> Extractor for RequestParts<B> {
     fn extract(&self) -> Result<Credentials, Error> {
         let header_map = if let Some(header_map) = self.headers() {
             header_map
@@ -78,5 +67,25 @@ impl<B> Extractor for RequestParts<B> {
             .with_address(addr)
             .build();
         Ok(Some(creds))
+    }
+}
+
+impl<B> Extractor for RequestParts<B> {
+    fn headers(&self) -> Option<&HeaderMap> {
+        self.headers()
+    }
+
+    fn extensions(&self) -> Option<&Extensions> {
+        self.extensions()
+    }
+}
+
+impl<T> Extractor for Request<T> {
+    fn headers(&self) -> Option<&HeaderMap> {
+        Some(self.headers())
+    }
+
+    fn extensions(&self) -> Option<&Extensions> {
+        Some(self.extensions())
     }
 }

@@ -17,9 +17,10 @@ pub use authenticator::{
 pub use credentials::Credentials;
 pub use error::Error;
 pub use extractor::Extractor;
+use permissions::GetGrpcPermissions;
 pub use permissions::Permissions;
 
-use futures::{Future, FutureExt};
+use futures::{Future, FutureExt, TryFutureExt};
 use http::StatusCode;
 use std::{
     error::Error as StdError,
@@ -31,28 +32,23 @@ use std::{
 use tonic::transport::NamedService;
 use tower::{BoxError, Layer, Service};
 
-use crate::permissions::GetRequiredPermissions;
-
 pub const USERS_MAP_FILE: &str = "users.yaml";
 
 #[derive(Debug, Default, Clone)]
-pub struct AccessControlLayer<A, E> {
+pub struct AccessControlLayer<A> {
     authenticator: Option<A>,
-    extractor: Option<E>,
 }
 
 #[derive(Debug, Clone)]
-pub struct AccessControlService<A, E, S> {
+pub struct AccessControlService<A, S> {
     authenticator: A,
-    extractor: E,
     service: S,
 }
 
-impl<A, E> AccessControlLayer<A, E> {
+impl<A> AccessControlLayer<A> {
     pub fn new() -> Self {
         Self {
             authenticator: None,
-            extractor: None,
         }
     }
 
@@ -61,25 +57,17 @@ impl<A, E> AccessControlLayer<A, E> {
         self.authenticator = Some(authenticator);
         self
     }
-
-    #[must_use]
-    pub fn with_extractor(mut self, extractor: E) -> Self {
-        self.extractor = Some(extractor);
-        self
-    }
 }
 
-impl<S, A, E> Layer<S> for AccessControlLayer<A, E>
+impl<S, A> Layer<S> for AccessControlLayer<A>
 where
     A: Clone,
-    E: Clone,
 {
-    type Service = AccessControlService<A, E, S>;
+    type Service = AccessControlService<A, S>;
 
     fn layer(&self, service: S) -> Self::Service {
         AccessControlService {
             authenticator: self.authenticator.clone().unwrap(),
-            extractor: self.extractor.clone().unwrap(),
             service,
         }
     }
@@ -87,15 +75,14 @@ where
 
 type ServiceFuture<R, E> = Pin<Box<dyn Future<Output = Result<R, E>> + Send>>;
 
-impl<A, E, S, Request> Service<Request> for AccessControlService<A, E, S>
+impl<A, S, Request> Service<Request> for AccessControlService<A, S>
 where
     A: Authenticator,
-    E: Extractor,
     S: Service<Request>,
     S::Error: Into<Box<dyn StdError + Send + Sync>> + 'static + Debug,
     S::Response: Send + 'static,
     S::Future: Send + 'static,
-    Request: GetRequiredPermissions,
+    Request: Extractor + GetGrpcPermissions,
 {
     type Response = S::Response;
 
@@ -109,38 +96,37 @@ where
 
     fn call(&mut self, req: Request) -> Self::Future {
         debug!("request received");
-        // match self.extractor.extract(&req) {
-        //     Ok(credentials) => {
-        //         debug!("credentials: {:#?}", credentials);
-        //         match self.authenticator.check_credentials(credentials) {
-        //             Ok(permissions) => {
-        //                 let required_permissions = req.get_permissions();
-        //                 debug!("request requires: {}", required_permissions);
-        //                 if permissions.contains(required_permissions) {
-        //                     debug!("permissions granted");
-        Box::pin(self.service.call(req).map(|r| Ok(r.unwrap())))
-        //                 } else {
-        //                     debug!("permissions denied");
-        //                     let error = Box::new(Error::PermissionDenied) as Self::Error;
-        //                     Box::pin(futures::future::ready(Err(error))) as Self::Future
-        //                 }
-        //             }
-        //             Err(e) => {
-        //                 warn!("Unauthorized request: {:?}", e);
-        //                 let error = Box::new(Error::UnauthorizedRequest) as Self::Error;
-        //                 Box::pin(futures::future::ready(Err(error))) as Self::Future
-        //             }
-        //         }
-        //     }
-        //     Err(e) => {
-        //         let error = Box::new(e) as Self::Error;
-        //         Box::pin(futures::future::ready(Err(error))) as Self::Future
-        //     }
-        // }
+        let error = match req.extract() {
+            Ok(credentials) => {
+                debug!("credentials: {:#?}", credentials);
+                match self.authenticator.check_credentials(credentials) {
+                    Ok(permissions) => {
+                        if let Some(required_permissions) = req.get_grpc_permissions() {
+                            debug!("request requires: {}", required_permissions);
+                            if permissions.contains(required_permissions) {
+                                debug!("permissions granted");
+                                return Box::pin(self.service.call(req).map_err(|e| e.into()));
+                            } else {
+                                debug!("permissions denied");
+                                Error::PermissionDenied
+                            }
+                        } else {
+                            Error::NotGrpcRequest
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Wrong credentials: {:?}", e);
+                        e
+                    }
+                }
+            }
+            Err(e) => e,
+        };
+        futures::future::err(Box::new(error) as Self::Error).boxed()
     }
 }
 
-impl<A, E, S> NamedService for AccessControlService<A, E, S>
+impl<A, S> NamedService for AccessControlService<A, S>
 where
     S: NamedService,
 {
