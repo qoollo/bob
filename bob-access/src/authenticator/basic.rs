@@ -30,7 +30,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
             Ok(())
         } else {
             let message = "nodes credentials missing ip or username";
-            Err(Error::credentials_not_provided(message))
+            Err(Error::CredentialsNotProvided(message.to_string()))
         }
     }
 
@@ -58,16 +58,16 @@ impl<Storage: UsersStorage> Authenticator for Basic<Storage> {
         );
         let username = credentials
             .username()
-            .ok_or_else(|| Error::credentials_not_provided("missing username"))?;
+            .ok_or_else(|| Error::CredentialsNotProvided("missing username".to_string()))?;
         let password = credentials
             .password()
-            .ok_or_else(|| Error::credentials_not_provided("missing password"))?;
+            .ok_or_else(|| Error::CredentialsNotProvided("missing password".to_string()))?;
 
         let user = self.users_storage.get_user(username)?;
         if user.password() == password {
             Ok(user.into())
         } else {
-            Err(Error::unauthorized_request())
+            Err(Error::UnauthorizedRequest)
         }
     }
 }

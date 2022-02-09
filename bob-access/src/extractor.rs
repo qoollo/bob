@@ -29,14 +29,14 @@ impl<T> Extractor<Request<T>> for BasicExtractor {
         let meta = req.headers();
         let username = meta
             .get("username")
-            .ok_or_else(|| Error::credentials_not_provided("username"))?
+            .ok_or_else(|| Error::CredentialsNotProvided("username".to_string()))?
             .to_str()
-            .map_err(Error::conversion_error)?;
+            .map_err(Error::ConversionError)?;
         let password = meta
             .get("password")
-            .ok_or_else(|| Error::credentials_not_provided("password"))?
+            .ok_or_else(|| Error::CredentialsNotProvided("password".to_string()))?
             .to_str()
-            .map_err(Error::conversion_error)?;
+            .map_err(Error::ConversionError)?;
         let addr = req
             .extensions()
             .get::<TcpConnectInfo>()
@@ -57,9 +57,9 @@ impl<T> Extractor<Request<T>> for TokenExtractor {
         let meta = req.headers();
         let token = meta
             .get("token")
-            .ok_or_else(|| Error::credentials_not_provided("token"))?
+            .ok_or_else(|| Error::CredentialsNotProvided("token".to_string()))?
             .to_str()
-            .map_err(Error::conversion_error)?;
+            .map_err(Error::ConversionError)?;
         let addr = req
             .extensions()
             .get::<TcpConnectInfo>()
@@ -83,7 +83,7 @@ impl<T> Extractor<Request<T>> for MultiExtractor {
         let basic_credentials = self.basic_extractor.extract(req);
         let token_credentials = self.token_extractor.extract(req);
         match (basic_credentials.is_ok(), token_credentials.is_ok()) {
-            (true, true) => Err(Error::multiple_credentials_types()),
+            (true, true) => Err(Error::MultipleCredentialsTypes),
             (true, false) => basic_credentials,
             (false, true) => token_credentials,
             _ => Ok(Credentials::builder()

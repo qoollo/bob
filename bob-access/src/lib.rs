@@ -119,13 +119,13 @@ where
                             Box::pin(self.service.call(req).map(|r| Ok(r.unwrap())))
                         } else {
                             debug!("permissions denied");
-                            let error = Box::new(Error::permission_denied()) as Self::Error;
+                            let error = Box::new(Error::PermissionDenied) as Self::Error;
                             Box::pin(futures::future::ready(Err(error))) as Self::Future
                         }
                     }
                     Err(e) => {
                         warn!("Unauthorized request: {:?}", e);
-                        let error = Box::new(Error::unauthorized_request()) as Self::Error;
+                        let error = Box::new(Error::UnauthorizedRequest) as Self::Error;
                         Box::pin(futures::future::ready(Err(error))) as Self::Future
                     }
                 }
@@ -148,24 +148,24 @@ where
 pub async fn handle_auth_error(err: BoxError) -> (StatusCode, String) {
     error!("{}", err);
     if let Ok(err) = err.downcast::<Error>() {
-        match err.kind() {
-            error::Kind::InvalidToken(_) => (StatusCode::FORBIDDEN, "Invalid token.".into()),
-            error::Kind::UserNotFound => (StatusCode::FORBIDDEN, "user not found".into()),
-            error::Kind::ConversionError(_) => (
+        match err.as_ref() {
+            Error::InvalidToken(_) => (StatusCode::FORBIDDEN, "Invalid token.".into()),
+            Error::UserNotFound => (StatusCode::FORBIDDEN, "user not found".into()),
+            Error::ConversionError(_) => (
                 StatusCode::FORBIDDEN,
                 "failed to extract credentials from request".into(),
             ),
-            error::Kind::CredentialsNotProvided(_) => {
+            Error::CredentialsNotProvided(_) => {
                 (StatusCode::FORBIDDEN, "credentials not provided".into())
             }
-            error::Kind::MultipleCredentialsTypes => {
+            Error::MultipleCredentialsTypes => {
                 (StatusCode::FORBIDDEN, "multiple credentials types".into())
             }
-            error::Kind::UnauthorizedRequest => (
+            Error::UnauthorizedRequest => (
                 StatusCode::FORBIDDEN,
                 "unknown credentials/unauthorized request".into(),
             ),
-            error::Kind::PermissionDenied => (StatusCode::FORBIDDEN, "permission denied".into()),
+            Error::PermissionDenied => (StatusCode::FORBIDDEN, "permission denied".into()),
             _ => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "something went wrong during authorization process".into(),

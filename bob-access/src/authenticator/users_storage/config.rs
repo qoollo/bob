@@ -25,10 +25,10 @@ pub(super) fn parse_users(
     yaml_users.into_iter().try_for_each(|u| {
         let &perms = roles
             .get(&u.role)
-            .ok_or_else(|| Error::validation(format!("Can't find role {}", u.role)))?;
+            .ok_or_else(|| Error::Validation(format!("Can't find role {}", u.role)))?;
         let user = User::new(u.username.clone(), u.password, perms);
         users.insert(u.username, user).map_or(Ok(()), |user| {
-            Err(Error::validation(format!(
+            Err(Error::Validation(format!(
                 "Users with the same username (first: {:?})",
                 user
             )))

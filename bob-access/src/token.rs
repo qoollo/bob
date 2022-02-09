@@ -29,6 +29,6 @@ impl TokenDecoder {
     pub fn _decode_token(&self, token: impl AsRef<str>) -> Result<Claims, Error> {
         jsonwebtoken::decode(token.as_ref(), &self._key, &self._validation)
             .map(|data| data.claims)
-            .map_err(|e| Error::invalid_token(e.to_string()))
+            .map_err(|e| Error::InvalidToken(e.to_string()))
     }
 }
