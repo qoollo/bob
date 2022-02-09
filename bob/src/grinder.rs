@@ -8,6 +8,9 @@ use crate::{
     link_manager::LinkManager,
 };
 
+use bob_common::metrics::{
+    CLIENT_DELETE_COUNTER, CLIENT_DELETE_ERROR_COUNT_COUNTER, CLIENT_DELETE_TIMER,
+};
 use metrics::histogram as timing;
 
 /// Struct for cooperation backend, link manager and cluster
@@ -202,20 +205,21 @@ impl Grinder {
 
     pub(crate) async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<u64, Error> {
         trace!(">>>- - - - - GRINDER DELETE START - - - - -");
+        counter!(CLIENT_DELETE_COUNTER, 1);
         let sw = Stopwatch::start_new();
         trace!(
             "pass request to backend, /{:.3}ms/",
             sw.elapsed().as_secs_f64() * 1000.0
-        );
-        debug!(
-            "DELETE[{}] flag FORCE_NODE is on - will handle it by local node.",
-            key
         );
         let result = self.backend.delete(key, with_aliens).await;
         trace!(
             "backend processed delete, /{:.3}ms/",
             sw.elapsed().as_secs_f64() * 1000.0
         );
+        if result.is_err() {
+            counter!(CLIENT_DELETE_ERROR_COUNT_COUNTER, 1);
+        }
+        timing!(CLIENT_DELETE_TIMER, sw.elapsed().as_nanos() as f64);
         trace!(">>>- - - - - GRINDER DELETE FINISHED - - - - -");
         result
     }

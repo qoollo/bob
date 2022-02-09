@@ -554,7 +554,7 @@ impl Group {
             if !e.is_key_not_found() && !e.is_not_ready() {
                 holder.try_reinit().await?;
                 holder.prepare_storage().await?;
-                debug!("backend pearl group get common storage prepared");
+                debug!("backend pearl group delete common storage prepared");
             }
         }
         result
