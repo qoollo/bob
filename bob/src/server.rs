@@ -51,7 +51,7 @@ impl Server {
         A: Authenticator + Send + 'static,
         E: Extractor<HttpRequest<Body>> + Send + 'static,
     {
-        crate::api::http::spawn(self.clone(), address, port, auth_layer);
+        crate::api::spawn(self.clone(), address, port, auth_layer);
     }
 
     /// Start backend component, required before starting bob service
