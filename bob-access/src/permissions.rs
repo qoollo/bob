@@ -1,9 +1,13 @@
 use std::fmt::Display;
 
+use axum::{
+    async_trait,
+    extract::{FromRequest, RequestParts},
+};
 use bitflags::bitflags;
 use http::{HeaderValue, Method, Request};
 
-use crate::authenticator::User;
+use crate::{authenticator::User, error::Error};
 
 bitflags! {
     pub struct Permissions: u8 {
@@ -12,6 +16,12 @@ bitflags! {
         const READ_REST = 0b00000100;
         const WRITE_REST = 0b00001000;
         const FORBIDDEN = 0b10000000;
+    }
+}
+
+impl Permissions {
+    pub fn has_read(&self) -> bool {
+        self.contains(Self::READ)
     }
 }
 

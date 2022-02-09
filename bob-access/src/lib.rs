@@ -15,7 +15,9 @@ pub use authenticator::{
     basic::Basic as BasicAuthenticator, stub::Stub as StubAuthenticator, Authenticator, UsersMap,
 };
 pub use credentials::Credentials;
-pub use extractor::{BasicExtractor, Extractor, StubExtractor};
+pub use error::Error;
+pub use extractor::Extractor;
+pub use permissions::Permissions;
 
 use futures::{Future, FutureExt};
 use http::StatusCode;
@@ -29,7 +31,7 @@ use std::{
 use tonic::transport::NamedService;
 use tower::{BoxError, Layer, Service};
 
-use crate::{error::Error, permissions::GetRequiredPermissions};
+use crate::permissions::GetRequiredPermissions;
 
 pub const USERS_MAP_FILE: &str = "users.yaml";
 
@@ -88,7 +90,7 @@ type ServiceFuture<R, E> = Pin<Box<dyn Future<Output = Result<R, E>> + Send>>;
 impl<A, E, S, Request> Service<Request> for AccessControlService<A, E, S>
 where
     A: Authenticator,
-    E: Extractor<Request>,
+    E: Extractor,
     S: Service<Request>,
     S::Error: Into<Box<dyn StdError + Send + Sync>> + 'static + Debug,
     S::Response: Send + 'static,
@@ -107,34 +109,34 @@ where
 
     fn call(&mut self, req: Request) -> Self::Future {
         debug!("request received");
-        match self.extractor.extract(&req) {
-            Ok(credentials) => {
-                debug!("credentials: {:#?}", credentials);
-                match self.authenticator.check_credentials(credentials) {
-                    Ok(permissions) => {
-                        let required_permissions = req.get_permissions();
-                        debug!("request requires: {}", required_permissions);
-                        if permissions.contains(required_permissions) {
-                            debug!("permissions granted");
-                            Box::pin(self.service.call(req).map(|r| Ok(r.unwrap())))
-                        } else {
-                            debug!("permissions denied");
-                            let error = Box::new(Error::PermissionDenied) as Self::Error;
-                            Box::pin(futures::future::ready(Err(error))) as Self::Future
-                        }
-                    }
-                    Err(e) => {
-                        warn!("Unauthorized request: {:?}", e);
-                        let error = Box::new(Error::UnauthorizedRequest) as Self::Error;
-                        Box::pin(futures::future::ready(Err(error))) as Self::Future
-                    }
-                }
-            }
-            Err(e) => {
-                let error = Box::new(e) as Self::Error;
-                Box::pin(futures::future::ready(Err(error))) as Self::Future
-            }
-        }
+        // match self.extractor.extract(&req) {
+        //     Ok(credentials) => {
+        //         debug!("credentials: {:#?}", credentials);
+        //         match self.authenticator.check_credentials(credentials) {
+        //             Ok(permissions) => {
+        //                 let required_permissions = req.get_permissions();
+        //                 debug!("request requires: {}", required_permissions);
+        //                 if permissions.contains(required_permissions) {
+        //                     debug!("permissions granted");
+        Box::pin(self.service.call(req).map(|r| Ok(r.unwrap())))
+        //                 } else {
+        //                     debug!("permissions denied");
+        //                     let error = Box::new(Error::PermissionDenied) as Self::Error;
+        //                     Box::pin(futures::future::ready(Err(error))) as Self::Future
+        //                 }
+        //             }
+        //             Err(e) => {
+        //                 warn!("Unauthorized request: {:?}", e);
+        //                 let error = Box::new(Error::UnauthorizedRequest) as Self::Error;
+        //                 Box::pin(futures::future::ready(Err(error))) as Self::Future
+        //             }
+        //         }
+        //     }
+        //     Err(e) => {
+        //         let error = Box::new(e) as Self::Error;
+        //         Box::pin(futures::future::ready(Err(error))) as Self::Future
+        //     }
+        // }
     }
 }
 

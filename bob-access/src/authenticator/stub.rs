@@ -14,7 +14,7 @@ impl<Storage: UsersStorage> Stub<Storage> {
 }
 
 impl<Storage: UsersStorage> Authenticator for Stub<Storage> {
-    fn check_credentials(&self, _credentials: Credentials) -> Result<Permissions, Error> {
+    fn check_credentials(&self, _: Credentials) -> Result<Permissions, Error> {
         Ok(Permissions::all())
     }
 }

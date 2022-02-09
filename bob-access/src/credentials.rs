@@ -1,5 +1,12 @@
 use std::net::{IpAddr, SocketAddr};
 
+use axum::{
+    async_trait,
+    extract::{FromRequest, RequestParts},
+};
+
+use crate::{error::Error, Extractor};
+
 #[derive(Debug, Default, Clone)]
 pub struct Credentials {
     address: Option<SocketAddr>,
@@ -82,5 +89,17 @@ impl CredentialsBuilder {
             address: self.address,
             kind: self.kind.clone(),
         }
+    }
+}
+
+#[async_trait]
+impl<B> FromRequest<B> for Credentials
+where
+    B: Send,
+{
+    type Rejection = Error;
+
+    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+        req.extract()
     }
 }

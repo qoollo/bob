@@ -2,10 +2,7 @@ use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder,
     VirtualMapper,
 };
-use bob_access::{
-    AccessControlLayer, BasicAuthenticator, BasicExtractor, Credentials, StubAuthenticator,
-    StubExtractor, UsersMap,
-};
+use bob_access::{BasicAuthenticator, Credentials, StubAuthenticator, UsersMap};
 use clap::{crate_version, App, Arg, ArgMatches};
 use std::{
     collections::HashMap,
@@ -14,7 +11,6 @@ use std::{
 };
 use tokio::{runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::Server;
-use tower::Layer;
 
 #[macro_use]
 extern crate log;
@@ -111,31 +107,12 @@ async fn main() {
     let authentication_type = matches.value_of("authentication_type").unwrap();
     match authentication_type {
         "stub" => {
-            let bob_service = BobApiServer::new(bob.clone());
-
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let authenticator = StubAuthenticator::new(users_storage);
-            let auth_service = AccessControlLayer::new().with_authenticator(authenticator);
-            let extractor = StubExtractor::new();
-            let new_service: AccessControlLayer<StubAuthenticator<UsersMap>, StubExtractor> =
-                auth_service.with_extractor(extractor);
-
-            let auth_layer = new_service.clone();
-            bob.run_api_server(http_api_address, http_api_port, auth_layer);
-
-            let new_service = new_service.layer(bob_service);
-
-            Server::builder()
-                .tcp_nodelay(true)
-                .add_service(new_service)
-                .serve(addr)
-                .await
-                .unwrap();
+            bob.run_api_server(http_api_address, http_api_port, authenticator);
         }
         "basic" => {
-            let bob_service = BobApiServer::new(bob.clone());
-
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let mut authenticator = BasicAuthenticator::new(users_storage);
@@ -143,34 +120,19 @@ async fn main() {
             authenticator
                 .set_nodes_credentials(nodes_credentials)
                 .expect("failed to gen nodes credentials from cluster config");
-            let auth_layer = AccessControlLayer::new().with_authenticator(authenticator);
-            let extractor = BasicExtractor::default();
-            let new_service = auth_layer.with_extractor(extractor);
-
-            let auth_layer = new_service.clone();
-            bob.run_api_server(http_api_address, http_api_port, auth_layer);
-
-            let new_service = new_service.layer(bob_service);
-
-            Server::builder()
-                .tcp_nodelay(true)
-                .add_service(new_service)
-                .serve(addr)
-                .await
-                .unwrap();
+            bob.run_api_server(http_api_address, http_api_port, authenticator);
         }
         _ => {
             warn!("valid authentication type not provided");
-            let bob_service = BobApiServer::new(bob);
-
-            Server::builder()
-                .tcp_nodelay(true)
-                .add_service(bob_service)
-                .serve(addr)
-                .await
-                .unwrap();
         }
-    }
+    };
+    let bob_service = BobApiServer::new(bob);
+    Server::builder()
+        .tcp_nodelay(true)
+        .add_service(bob_service)
+        .serve(addr)
+        .await
+        .unwrap();
 }
 
 fn nodes_credentials_from_cluster_config(
