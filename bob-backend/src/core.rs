@@ -6,8 +6,10 @@ use crate::{
     stub_backend::StubBackend,
 };
 
-pub const BACKEND_STARTING: i64 = 0;
-pub const BACKEND_STARTED: i64 = 1;
+use bob_common::metrics::BLOOM_FILTERS_RAM;
+
+pub const BACKEND_STARTING: f64 = 0f64;
+pub const BACKEND_STARTED: f64 = 1f64;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Operation {
@@ -108,6 +110,12 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
     }
 
     async fn close_unneeded_active_blobs(&self, _soft: usize, _hard: usize) {}
+
+    async fn offload_old_filters(&self, _limit: usize) {}
+
+    async fn filter_memory_allocated(&self) -> usize {
+        0
+    }
 }
 
 #[async_trait]
@@ -209,6 +217,7 @@ impl Backend {
             Err(Error::internal())
         };
         trace!("<<<<<<- - - - - BACKEND PUT FINISH - - - - -");
+        
         res
     }
 
@@ -220,6 +229,11 @@ impl Backend {
         operation: Operation,
     ) -> Result<(), Error> {
         self.put_single(key, data, operation).await
+    }
+
+    async fn update_bloom_filter_metrics(&self) {
+        let bfr = self.filter_memory_allocated().await;
+        gauge!(BLOOM_FILTERS_RAM, bfr as f64);
     }
 
     async fn put_single(
@@ -355,5 +369,15 @@ impl Backend {
 
     pub async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
         self.inner.close_unneeded_active_blobs(soft, hard).await
+    }
+
+    pub async fn offload_old_filters(&self, limit: usize) {
+        self.inner.offload_old_filters(limit).await;
+        
+        self.update_bloom_filter_metrics().await;
+    }
+
+    pub async fn filter_memory_allocated(&self) -> usize {
+        self.inner.filter_memory_allocated().await
     }
 }

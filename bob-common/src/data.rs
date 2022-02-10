@@ -4,11 +4,89 @@ use crate::{
 };
 use bob_grpc::{GetOptions, GetSource, PutOptions};
 use std::{
+    convert::TryInto,
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::Hash,
 };
 
-pub type BobKey = u64;
+include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
+
+#[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
+pub struct BobKey([u8; BOB_KEY_SIZE]);
+
+impl From<u64> for BobKey {
+    fn from(n: u64) -> Self {
+        let mut key = [0; BOB_KEY_SIZE];
+        key.iter_mut().zip(n.to_le_bytes()).for_each(|(a, b)| {
+            *a = b;
+        });
+        Self(key)
+    }
+}
+
+impl<'a> From<&'a [u8]> for BobKey {
+    fn from(a: &[u8]) -> Self {
+        let data = a.try_into().expect("key size mismatch");
+        Self(data)
+    }
+}
+
+impl From<Vec<u8>> for BobKey {
+    fn from(v: Vec<u8>) -> Self {
+        let data = v.try_into().expect("key size mismatch");
+        Self(data)
+    }
+}
+
+impl Into<Vec<u8>> for BobKey {
+    fn into(self) -> Vec<u8> {
+        self.iter().cloned().collect()
+    }
+}
+
+impl Into<[u8; BOB_KEY_SIZE]> for BobKey {
+    fn into(self) -> [u8; BOB_KEY_SIZE] {
+        self.0
+    }
+}
+
+impl BobKey {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &u8> {
+        self.0.iter()
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for BobKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        for key in self.iter() {
+            write!(f, "{:02X}", key)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::str::FromStr for BobKey {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, ()> {
+        let mut data = [0; BOB_KEY_SIZE];
+        for i in (0..s.len()).step_by(2) {
+            if let Ok(n) = u8::from_str_radix(&s[i..i + 2], 16) {
+                data[i / 2] = n
+            }
+        }
+        Ok(Self(data))
+    }
+}
+
+impl Default for BobKey {
+    fn default() -> Self {
+        BobKey([0; BOB_KEY_SIZE])
+    }
+}
 
 pub type VDiskId = u32;
 

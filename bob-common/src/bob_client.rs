@@ -71,7 +71,7 @@ pub mod b_client {
                 data: d.into_inner(),
             };
             let message = PutRequest {
-                key: Some(BlobKey { key }),
+                key: Some(BlobKey { key: key.into() }),
                 data: Some(blob),
                 options: Some(options),
             };
@@ -99,7 +99,7 @@ pub mod b_client {
             let timer = BobClientMetrics::start_timer();
 
             let message = GetRequest {
-                key: Some(BlobKey { key }),
+                key: Some(BlobKey { key: key.into() }),
                 options: Some(options),
             };
             let request = Request::new(message);
@@ -143,7 +143,10 @@ pub mod b_client {
             let mut client = self.client.clone();
             self.metrics.exist_count();
             let timer = BobClientMetrics::start_timer();
-            let keys = keys.into_iter().map(|key| BlobKey { key }).collect();
+            let keys = keys
+                .into_iter()
+                .map(|key| BlobKey { key: key.into() })
+                .collect();
             let message = ExistRequest {
                 keys,
                 options: Some(options),
@@ -207,13 +210,13 @@ use std::{
     time::Duration,
 };
 
-// cfg_if! {
-//     if #[cfg(test)] {
-//         pub use self::b_client::MockBobClient as BobClient;
-// } else {
-pub use self::b_client::BobClient;
-//     }
-// }
+cfg_if::cfg_if! {
+    if #[cfg(feature = "testing")] {
+        pub use self::b_client::MockBobClient as BobClient;
+    } else {
+        pub use self::b_client::BobClient;
+    }
+}
 
 pub type PutResult = Result<NodeOutput<()>, NodeOutput<Error>>;
 

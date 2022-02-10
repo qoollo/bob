@@ -1,15 +1,14 @@
 use crate::{
-    bob_client::{b_client::BobClient, Factory},
+    bob_client::{BobClient, Factory},
     data::BobData,
 };
 use http::Uri;
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::{Hash, Hasher},
-    net::SocketAddr,
     sync::Arc,
 };
-use tokio::{net::lookup_host, sync::RwLock};
+use tokio::sync::RwLock;
 
 pub type Id = u16;
 
@@ -18,7 +17,7 @@ pub type Name = String;
 #[derive(Clone)]
 pub struct Node {
     name: Name,
-    address: SocketAddr,
+    address: String,
     index: Id,
     conn: Arc<RwLock<Option<BobClient>>>,
 }
@@ -38,12 +37,9 @@ pub struct Disk {
 
 impl Node {
     pub async fn new(name: String, address: &str, index: u16) -> Self {
-        error!("address: [{}]", address);
-        let mut address = lookup_host(address).await.expect("DNS resolution failed");
-        let address = address.next().expect("address is empty");
         Self {
             name,
-            address,
+            address: address.to_string(),
             index,
             conn: Arc::default(),
         }
@@ -57,7 +53,7 @@ impl Node {
         self.index
     }
 
-    pub fn address(&self) -> &SocketAddr {
+    pub fn address(&self) -> &str {
         &self.address
     }
 

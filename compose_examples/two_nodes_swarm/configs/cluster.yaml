@@ -1,0 +1,35 @@
+---
+nodes:
+  - name: node0
+    address: "bob_node0:20000"
+    disks:
+      - name: disk_0
+        path: /bobData/node0/disk_0
+  - name: node1
+    address: "bob_node1:20000"
+    disks:
+      - name: disk_0
+        path: /bobData/node1/disk_0
+  - name: node2
+    address: "bob_node2:20000"
+    disks:
+      - name: disk_0
+        path: /bobData/node2/disk_0
+  - name: node3
+    address: "bob_node3:20000"
+    disks:
+      - name: disk_0
+        path: /bobData/node3/disk_0
+vdisks:
+  - id: 0
+    replicas:
+      - node: node0
+        disk: disk_0
+      - node: node1
+        disk: disk_0
+  - id: 1
+    replicas:
+      - node: node2
+        disk: disk_0
+      - node: node3
+        disk: disk_0
