@@ -11,6 +11,7 @@ const NO_CONFIRM_OPT: &str = "no confirm";
 const DELETE_OPT: &str = "index delete";
 const TARGET_VERSION_OPT: &str = "target version";
 const SKIP_WRONG_OPT: &str = "skip wrong";
+const KEY_SIZE_OPT: &str = "key size";
 
 const VALIDATE_INDEX_COMMAND: &str = "validate-index";
 const VALIDATE_BLOB_COMMAND: &str = "validate-blob";
@@ -201,16 +202,27 @@ pub struct ValidateIndexCommand {
     index_suffix: String,
     delete: bool,
     skip_confirmation: bool,
+    key_size: Option<usize>,
 }
 
 impl ValidateIndexCommand {
     fn run(&self) -> AnyResult<()> {
+        let validate_index_fn = match self.key_size {
+            Some(1) => validate_index::<Key1>,
+            Some(2) => validate_index::<Key2>,
+            Some(4) => validate_index::<Key4>,
+            Some(8) => validate_index::<Key8>,
+            Some(16) => validate_index::<Key16>,
+            Some(32) => validate_index::<Key32>,
+            None => validate_index::<PearlKey>,
+            _ => return Err(anyhow::anyhow!("Key size is not supported")),
+        };
         if self.path.is_file() {
-            validate_index(&self.path)?;
+            validate_index_fn(&self.path)?;
             info!("Index {:?} is valid", self.path);
             return Ok(());
         }
-        let result = validate_files_recursive(&self.path, &self.index_suffix, validate_index)?;
+        let result = validate_files_recursive(&self.path, &self.index_suffix, validate_index_fn)?;
         print_result(&result, "index");
 
         if self.delete && !result.is_empty() {
@@ -233,6 +245,9 @@ impl ValidateIndexCommand {
     }
 
     fn subcommand<'a, 'b>() -> App<'a, 'b> {
+        lazy_static::lazy_static! {
+                    static ref KEY_SIZE_HELP: String = format!("key size, supported 1, 2, 4, 8, 16, 32. {} used by default", PearlKey::LEN);
+        };
         SubCommand::with_name(VALIDATE_INDEX_COMMAND)
             .arg(
                 Arg::with_name(DISK_PATH_OPT)
@@ -263,6 +278,13 @@ impl ValidateIndexCommand {
                     .help("turn off fix confirmation")
                     .long("no-confirm"),
             )
+            .arg(
+                Arg::with_name(KEY_SIZE_OPT)
+                    .takes_value(true)
+                    .required(false)
+                    .help(&KEY_SIZE_HELP)
+                    .long("no-confirm"),
+            )
     }
 
     fn from_matches(matches: &ArgMatches) -> AnyResult<Self> {
@@ -271,6 +293,10 @@ impl ValidateIndexCommand {
             index_suffix: matches.value_of(SUFFIX_OPT).expect("Required").to_string(),
             delete: matches.is_present(DELETE_OPT),
             skip_confirmation: matches.is_present(NO_CONFIRM_OPT),
+            key_size: matches
+                .value_of(KEY_SIZE_OPT)
+                .map(|x| x.parse())
+                .transpose()?,
         })
     }
 }
@@ -286,7 +312,12 @@ pub struct MigrateCommand {
 impl MigrateCommand {
     fn run(&self) -> AnyResult<()> {
         if self.input_path.is_file() {
-            self.migrate_file(&self.input_path, &self.output_path)?;
+            migrate_blob(
+                &self.input_path,
+                &self.output_path,
+                self.validate_every,
+                self.target_version,
+            )?;
         } else {
             process_files_recursive(
                 &self.input_path,
@@ -295,22 +326,11 @@ impl MigrateCommand {
                     let output_dir = self.output_path.join(relative_path);
                     std::fs::create_dir_all(&output_dir)?;
                     let output = output_dir.join(path.file_name().expect("Must be filename"));
-                    self.migrate_file(path, &output)
+                    migrate_blob(path, &output, self.validate_every, self.target_version)
                 },
                 "Migration",
             )?;
         }
-        Ok(())
-    }
-
-    fn migrate_file(&self, input: &Path, output: &Path) -> AnyResult<()> {
-        recovery_blob_with(
-            &input,
-            &output,
-            self.validate_every,
-            |record, version| record.migrate(version, self.target_version),
-            false,
-        )?;
         Ok(())
     }
 

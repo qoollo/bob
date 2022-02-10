@@ -26,6 +26,7 @@ pub mod link_manager;
 pub mod server;
 
 pub use crate::{grinder::Grinder, server::Server as BobServer};
+pub use bob_backend::pearl::Key as PearlKey;
 pub use bob_common::{
     bob_client::Factory,
     configs::cluster::{
