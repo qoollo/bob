@@ -10,25 +10,21 @@ Bob versions changelog
 
 
 #### Fixed
+
+
+#### Updated
+
+
+
+## [2.0.0-alpha.12] - 2021-12-10
+#### Fixed
 - Ubuntu docker image build error (#412)
 - No more use of MockBobClient in production (#389)
 - Fix partitions removal response code (#405)
 
 
 #### Updated
-
-
-## [2.0.0] - ####-##-##
-#### Added
-
-
-#### Changed
-
-
-#### Fixed
-
-
-#### Updated
+- Upgrade pearl to v0.9.1
 
 
 ## [2.0.0-alpha.11] - 2021-12-10
