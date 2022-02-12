@@ -20,6 +20,7 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request, Status};
+use tonic::metadata::{MetadataValue, Ascii};
 
 #[macro_use]
 extern crate log;
@@ -86,6 +87,8 @@ struct TaskConfig {
     mode: Mode,
     measure_time: bool,
     key_size: usize,
+    basic_username: Option<String>,
+    basic_password: Option<String>,
 }
 
 impl FromStr for Mode {
@@ -117,6 +120,9 @@ impl TaskConfig {
                 );
             }
         }
+        let basic_username = matches.value_of("username").map(|s| s.to_string());
+        let basic_password = matches.value_of("password").map(|s| s.to_string());
+
         Self {
             low_idx,
             count,
@@ -125,6 +131,8 @@ impl TaskConfig {
             mode,
             measure_time: false,
             key_size,
+            basic_username,
+            basic_password
         }
     }
 
@@ -505,13 +513,32 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         keys.shuffle(&mut thread_rng());
         Box::new(keys.into_iter())
     };
+
+    let do_basic_auth = task_conf.basic_username.is_some() && task_conf.basic_password.is_some();
+    let (basic_username, basic_password) = if do_basic_auth {
+        (task_conf.basic_username.clone().unwrap(), 
+         task_conf.basic_password.clone().unwrap())
+    } else {
+        ("".to_string(), "".to_string())
+    };
+    let basic_username = basic_username.parse::<MetadataValue<Ascii>>()
+                         .expect("can not parse username into header");
+    let basic_password = basic_password.parse::<MetadataValue<Ascii>>()
+                         .expect("can not parse password into header");
+
     for key in iterator {
-        let request = Request::new(GetRequest {
+        let mut request = Request::new(GetRequest {
             key: Some(BlobKey {
                 key: task_conf.get_proper_key(key),
             }),
             options: options.clone(),
         });
+        if do_basic_auth {
+            let req_md = request.metadata_mut();
+            req_md.insert("username", basic_username.clone());
+            req_md.insert("password", basic_password.clone());
+        }
+
         let res = if measure_time {
             let start = Instant::now();
             let res = client.get(request).await;
@@ -656,6 +683,8 @@ fn spawn_workers(
                 mode: task_conf.mode.clone(),
                 measure_time: i == 0,
                 key_size: task_conf.key_size,
+                basic_username: task_conf.basic_username.clone(),
+                basic_password: task_conf.basic_password.clone(),
             };
             match benchmark_conf.behavior {
                 Behavior::Put => tokio::spawn(put_worker(nc, tc, stat_inner)),
@@ -786,6 +815,20 @@ fn get_matches() -> ArgMatches<'static> {
                 .long("keysize")
                 .short("k")
                 .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8")),
+        )
+        .arg(
+            Arg::with_name("username")
+                .help("username for auth")
+                .takes_value(true)
+                .long("user")
+                .short("u")
+        )
+        .arg(
+            Arg::with_name("password")
+                .help("password for auth")
+                .takes_value(true)
+                .long("password")
+                .short("w")
         )
         .get_matches()
 }
