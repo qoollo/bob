@@ -16,6 +16,7 @@ Bob versions changelog
 - Fix partitions removal response code (#405)
 - No more use of MockBobClient in production (#389)
 - Ubuntu docker image build error (#412)
+- Fix panic on nodes request (#429)
 
 #### Updated
 - Configs now support human readable formats (in max_blob_size & bloom_filter_memory_limit) (#388)
