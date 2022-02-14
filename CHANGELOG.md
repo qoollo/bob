@@ -10,6 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Fix panic on nodes request (#429)
 
 
 #### Updated
