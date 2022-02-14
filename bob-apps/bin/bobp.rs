@@ -562,6 +562,18 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
 async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = net_conf.build_client().await;
 
+    let do_basic_auth = task_conf.basic_username.is_some() && task_conf.basic_password.is_some();
+    let (basic_username, basic_password) = if do_basic_auth {
+        (task_conf.basic_username.clone().unwrap(), 
+         task_conf.basic_password.clone().unwrap())
+    } else {
+        ("".to_string(), "".to_string())
+    };
+    let basic_username = basic_username.parse::<MetadataValue<Ascii>>()
+                         .expect("can not parse username into header");
+    let basic_password = basic_password.parse::<MetadataValue<Ascii>>()
+                         .expect("can not parse password into header");
+                         
     let options: Option<PutOptions> = task_conf.find_put_options();
     let measure_time = task_conf.is_time_measurement_thread();
     let upper_idx = task_conf.low_idx + task_conf.count;
@@ -570,18 +582,24 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         let key = BlobKey {
             key: task_conf.get_proper_key(i),
         };
-        let req = Request::new(PutRequest {
+        let mut request = Request::new(PutRequest {
             key: Some(key),
             data: Some(blob),
             options: options.clone(),
         });
+        if do_basic_auth {
+            let req_md = request.metadata_mut();
+            req_md.insert("username", basic_username.clone());
+            req_md.insert("password", basic_password.clone());
+        }
+        
         let res = if measure_time {
             let start = Instant::now();
-            let res = client.put(req).await;
+            let res = client.put(request).await;
             stat.save_single_thread_put_time(&start.elapsed());
             res
         } else {
-            client.put(req).await
+            client.put(request).await
         };
         if let Err(status) = res {
             stat.save_put_error(status).await;
