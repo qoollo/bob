@@ -301,11 +301,7 @@ async fn nodes(bob: &State<BobServer>) -> Json<Vec<Node>> {
             .filter_map(|vd| {
                 if vd.replicas.iter().any(|r| r.node == node.name()) {
                     let mut vd = vd.clone();
-                    for i in 0..vd.replicas.len() {
-                        if vd.replicas[i].node != node.name() {
-                            vd.replicas.remove(i);
-                        }
-                    }
+                    vd.replicas.retain(|r| r.node == node.name());
                     Some(vd)
                 } else {
                     None
@@ -593,8 +589,10 @@ async fn drop_directories(
     vdisk_id: u32,
 ) -> Result<StatusExt, StatusExt> {
     let mut result = String::new();
+    let mut error = false;
     for holder in holders {
         let msg = if let Err(e) = holder.drop_directory().await {
+            error = true;
             format!(
                 "partitions with timestamp {} delete failed on vdisk {}, error: {}",
                 timestamp, vdisk_id, e
@@ -605,7 +603,7 @@ async fn drop_directories(
         result.push_str(&msg);
         result.push('\n');
     }
-    if result.is_empty() {
+    if !error {
         Ok(StatusExt::new(Status::Ok, true, result))
     } else {
         Err(StatusExt::new(Status::InternalServerError, true, result))

@@ -4,15 +4,26 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+<<<<<<< HEAD
 - API method for occupied space info (#404)
+=======
+- Bloom filters memory metric (#400)
+- Add bob ram usage metric (#393)
+>>>>>>> 2506952c903bdc69b934afae5ed366dd03e085d6
 
 #### Changed
+- File descriptors metric now tries to use lsof | wc first (#359)
 
 
 #### Fixed
-
+- Used disk space metric calculation fix (#376)
+- Fix partitions removal response code (#405)
+- No more use of MockBobClient in production (#389)
+- Ubuntu docker image build error (#412)
+- Fix panic on nodes request (#429)
 
 #### Updated
+- Configs now support human readable formats (in max_blob_size & bloom_filter_memory_limit) (#388)
 
 
 ## [2.0.0-alpha.11] - 2021-12-10

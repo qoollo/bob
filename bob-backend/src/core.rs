@@ -6,6 +6,8 @@ use crate::{
     stub_backend::StubBackend,
 };
 
+use bob_common::metrics::BLOOM_FILTERS_RAM;
+
 pub const BACKEND_STARTING: f64 = 0f64;
 pub const BACKEND_STARTED: f64 = 1f64;
 
@@ -215,6 +217,7 @@ impl Backend {
             Err(Error::internal())
         };
         trace!("<<<<<<- - - - - BACKEND PUT FINISH - - - - -");
+        
         res
     }
 
@@ -226,6 +229,11 @@ impl Backend {
         operation: Operation,
     ) -> Result<(), Error> {
         self.put_single(key, data, operation).await
+    }
+
+    async fn update_bloom_filter_metrics(&self) {
+        let bfr = self.filter_memory_allocated().await;
+        gauge!(BLOOM_FILTERS_RAM, bfr as f64);
     }
 
     async fn put_single(
@@ -364,7 +372,9 @@ impl Backend {
     }
 
     pub async fn offload_old_filters(&self, limit: usize) {
-        self.inner.offload_old_filters(limit).await
+        self.inner.offload_old_filters(limit).await;
+        
+        self.update_bloom_filter_metrics().await;
     }
 
     pub async fn filter_memory_allocated(&self) -> usize {

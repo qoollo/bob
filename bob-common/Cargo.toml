@@ -29,6 +29,7 @@ thiserror = "1.0"
 tonic = { version = "0.6", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"
+ubyte = { version = "0.10", features = ["serde"] }
 
 [dependencies.tokio]
 version = "1.14"
@@ -36,4 +37,6 @@ default-features = false
 features = []
 
 [features]
+default = []
 testing = []
+production = []
