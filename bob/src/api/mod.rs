@@ -6,7 +6,8 @@ use axum::{
     routing::{delete, get, post, MethodRouter},
     AddExtensionLayer, Json, Router, Server,
 };
-use bob_access::{Authenticator, Credentials, Error as AuthError};
+pub(crate) use bob_access::Error as AuthError;
+use bob_access::{Authenticator, Credentials};
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
@@ -84,7 +85,7 @@ pub struct StatusExt {
 
 impl From<AuthError> for StatusExt {
     fn from(error: AuthError) -> Self {
-        let (status, msg) = error.description();
+        let (status, msg) = error.status();
         Self {
             status,
             ok: false,
@@ -153,7 +154,10 @@ where
     A: Authenticator + Send + Sync + 'static,
 {
     let mut router = Router::new();
-    for (path, service) in routes::<A>().into_iter().chain(s3::routes().into_iter()) {
+    for (path, service) in routes::<A>()
+        .into_iter()
+        .chain(s3::routes::<A>().into_iter())
+    {
         router = router.route(path, service);
     }
     router
@@ -165,7 +169,7 @@ where
 {
     vec![
         ("/status", get(status)),
-        ("/metrics", get(metrics::<A>)),
+        ("/metrics", get(metrics)),
         ("/version", get(version)),
         ("/nodes", get(nodes::<A>)),
         ("/disks/list", get(disks_list::<A>)),
@@ -291,19 +295,9 @@ async fn status(Extension(bob): Extension<&BobServer>) -> Json<Node> {
     Json(node)
 }
 
-async fn metrics<A>(
-    Extension(bob): Extension<&BobServer>,
-    Extension(auth): Extension<A>,
-    creds: Credentials,
-) -> Result<Json<MetricsSnapshotModel>, AuthError>
-where
-    A: Authenticator,
-{
-    if !auth.check_credentials(creds)?.has_rest_read() {
-        return Err(AuthError::PermissionDenied);
-    }
+async fn metrics(Extension(bob): Extension<&BobServer>) -> Json<MetricsSnapshotModel> {
     let snapshot = bob.metrics().read().await.clone();
-    Ok(Json(snapshot.into()))
+    Json(snapshot.into())
 }
 
 async fn version() -> Json<VersionInfo> {

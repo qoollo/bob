@@ -1,6 +1,6 @@
 use std::{convert::TryInto, str::FromStr};
 
-use super::{infer_data_type, DataKey, StatusExt};
+use super::{infer_data_type, AuthError, DataKey, StatusExt};
 use crate::server::Server as BobServer;
 use axum::{
     body::{boxed, BoxBody, Empty, Full},
@@ -8,6 +8,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, put, MethodRouter},
 };
+use bob_access::{Authenticator, Credentials};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions},
     error::Error,
@@ -47,10 +48,19 @@ impl IntoResponse for StatusS3 {
     }
 }
 
-pub(crate) fn routes() -> Vec<(&'static str, MethodRouter)> {
+impl From<AuthError> for StatusS3 {
+    fn from(err: AuthError) -> Self {
+        Self::StatusExt(err.into())
+    }
+}
+
+pub(crate) fn routes<A>() -> Vec<(&'static str, MethodRouter)>
+where
+    A: Authenticator + Send + Sync + 'static,
+{
     vec![
-        ("/s3/default/:key", get(get_object)),
-        ("/s3/default/:key", put(put_object)),
+        ("/s3/default/:key", get(get_object::<A>)),
+        ("/s3/default/:key", put(put_object::<A>)),
     ]
 }
 
@@ -115,11 +125,19 @@ impl IntoResponse for GetObjectOutput {
     }
 }
 
-async fn get_object(
+async fn get_object<A>(
     Extension(bob): Extension<&BobServer>,
+    Extension(auth): Extension<A>,
     Path(key): Path<String>,
     headers: GetObjectHeaders,
-) -> Result<GetObjectOutput, StatusS3> {
+    creds: Credentials,
+) -> Result<GetObjectOutput, StatusS3>
+where
+    A: Authenticator,
+{
+    if !auth.check_credentials(creds)?.has_rest_read() {
+        return Err(AuthError::PermissionDenied.into());
+    }
     let key = DataKey::from_str(&key)?.0;
     let opts = BobOptions::new_get(None);
     let data = bob.grinder().get(key, &opts).await?;
@@ -140,12 +158,20 @@ async fn get_object(
     Ok(GetObjectOutput { data, content_type })
 }
 
-async fn put_object(
+async fn put_object<A>(
     Extension(bob): Extension<&BobServer>,
+    Extension(auth): Extension<A>,
     Path(key): Path<String>,
     body: Bytes,
     headers: CopyObjectHeaders,
-) -> Result<StatusS3, StatusS3> {
+    creds: Credentials,
+) -> Result<StatusS3, StatusS3>
+where
+    A: Authenticator,
+{
+    if !auth.check_credentials(creds)?.has_rest_write() {
+        return Err(AuthError::PermissionDenied.into());
+    }
     let key = DataKey::from_str(&key)?.0;
     if headers.is_source_key_set() {
         return copy_object(bob, key, headers).await;

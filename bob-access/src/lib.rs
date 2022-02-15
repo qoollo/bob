@@ -133,33 +133,11 @@ where
     const NAME: &'static str = S::NAME;
 }
 
-pub async fn handle_auth_error(err: BoxError) -> (StatusCode, String) {
+pub async fn handle_auth_error(err: BoxError) -> (StatusCode, &'static str) {
     error!("{}", err);
     if let Ok(err) = err.downcast::<Error>() {
-        match err.as_ref() {
-            Error::InvalidToken(_) => (StatusCode::FORBIDDEN, "Invalid token.".into()),
-            Error::UserNotFound => (StatusCode::FORBIDDEN, "user not found".into()),
-            Error::ConversionError(_) => (
-                StatusCode::FORBIDDEN,
-                "failed to extract credentials from request".into(),
-            ),
-            Error::CredentialsNotProvided(_) => {
-                (StatusCode::FORBIDDEN, "credentials not provided".into())
-            }
-            Error::MultipleCredentialsTypes => {
-                (StatusCode::FORBIDDEN, "multiple credentials types".into())
-            }
-            Error::UnauthorizedRequest => (
-                StatusCode::FORBIDDEN,
-                "unknown credentials/unauthorized request".into(),
-            ),
-            Error::PermissionDenied => (StatusCode::FORBIDDEN, "permission denied".into()),
-            _ => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "something went wrong during authorization process".into(),
-            ),
-        }
+        err.status()
     } else {
-        (StatusCode::INTERNAL_SERVER_ERROR, "unknown error".into())
+        (StatusCode::INTERNAL_SERVER_ERROR, "unknown error")
     }
 }
