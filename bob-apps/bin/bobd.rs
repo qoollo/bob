@@ -11,7 +11,7 @@ use std::{
     error::Error as ErrorTrait,
     net::{IpAddr, Ipv4Addr, SocketAddr},
 };
-use tokio::{runtime::Handle, signal::unix::SignalKind};
+use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::Server;
 use tower::Layer;
 
@@ -129,7 +129,7 @@ async fn main() {
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let mut authenticator = BasicAuthenticator::new(users_storage);
-            let nodes_credentials = nodes_credentials_from_cluster_config(&cluster);
+            let nodes_credentials = nodes_credentials_from_cluster_config(&cluster).await;
             authenticator
                 .set_nodes_credentials(nodes_credentials)
                 .expect("failed to gen nodes credentials from cluster config");
@@ -151,24 +151,33 @@ async fn main() {
     }
 }
 
-fn nodes_credentials_from_cluster_config(
+async fn nodes_credentials_from_cluster_config(
     cluster_config: &ClusterConfig,
 ) -> HashMap<IpAddr, Credentials> {
-    cluster_config
-        .nodes()
-        .iter()
-        .map(|node| {
-            let address = node
-                .address()
-                .parse()
-                .expect("failed to parse node address");
-            let creds = Credentials::builder()
-                .with_username_password(node.name(), "")
-                .with_address(Some(address))
-                .build();
-            (creds.ip().expect("node missing ip"), creds)
-        })
-        .collect()
+    let mut nodes_creds = HashMap::new();
+    for node in cluster_config.nodes() {
+        let address = &node.address();
+        let address = if let Ok(address) = address.parse() {
+            address
+        } else {
+            match lookup_host(address).await {
+                Ok(mut address) => address
+                    .next()
+                    .expect("failed to resolve hostname: dns returned empty ip list"),
+                Err(e) => {
+                    error!("expected SocketAddr/hostname, found: {}", address);
+                    error!("{}", e);
+                    panic!("failed to resolve hostname")
+                }
+            }
+        };
+        let creds = Credentials::builder()
+            .with_username_password(node.name(), "")
+            .with_address(Some(address))
+            .build();
+        nodes_creds.insert(creds.ip().expect("node missing ip"), creds);
+    }
+    nodes_creds
 }
 
 fn bind_all_interfaces(port: u16) -> SocketAddr {
