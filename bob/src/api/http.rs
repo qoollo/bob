@@ -270,11 +270,7 @@ async fn nodes(bob: &State<BobServer>) -> Json<Vec<Node>> {
             .filter_map(|vd| {
                 if vd.replicas.iter().any(|r| r.node == node.name()) {
                     let mut vd = vd.clone();
-                    for i in 0..vd.replicas.len() {
-                        if vd.replicas[i].node != node.name() {
-                            vd.replicas.remove(i);
-                        }
-                    }
+                    vd.replicas.retain(|r| r.node == node.name());
                     Some(vd)
                 } else {
                     None
