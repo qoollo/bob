@@ -10,11 +10,15 @@ Bob versions changelog
 
 
 #### Fixed
-- Fix panic on nodes request (#429)
 
 
 #### Updated
 
+
+
+## [2.0.13] - 2022-02-17
+#### Fixed
+- Fix panic on nodes request (#429)
 
 
 ## [2.0.0-alpha.12] - 2021-12-10

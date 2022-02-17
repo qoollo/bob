@@ -1,6 +1,6 @@
 [package]
 name = "bob-apps"
-version = "2.0.0-alpha.12"
+version = "2.0.13"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
