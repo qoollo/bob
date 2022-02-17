@@ -22,6 +22,7 @@ Bob versions changelog
 
 #### Updated
 - Configs now support human readable formats (in max_blob_size & bloom_filter_memory_limit) (#388)
+- Upgrade pearl to v0.9.2
 
 
 ## [2.0.0-alpha.11] - 2021-12-10
