@@ -62,6 +62,13 @@ pub const CLIENT_EXIST_ERROR_COUNT_COUNTER: &str = "client.exist_error_count";
 /// Measures processing time of the EXIST request
 pub const CLIENT_EXIST_TIMER: &str = "client.exist_timer";
 
+/// Counts number of DELETE requests, processed by Client
+pub const CLIENT_DELETE_COUNTER: &str = "client.delete_count";
+/// Counts number of DELETE requests return error, processed by Client
+pub const CLIENT_DELETE_ERROR_COUNT_COUNTER: &str = "client.delete_error_count";
+/// Measures processing time of the DELETE request
+pub const CLIENT_DELETE_TIMER: &str = "client.delete_timer";
+
 /// Observes number of connected nodes
 pub const AVAILABLE_NODES_COUNT: &str = "link_manager.nodes_number";
 
