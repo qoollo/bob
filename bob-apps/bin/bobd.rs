@@ -38,7 +38,7 @@ async fn main() {
 
     log4rs::init_file(node.log_config(), Default::default()).expect("can't find log config");
 
-    check_folders(&node, matches.is_present("init folders"));
+    check_folders(&node, matches.is_present("init_folders"));
 
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
 
@@ -160,11 +160,11 @@ fn check_folders(node: &NodeConfig, init_flag: bool) {
                 create_dir(bob_path).expect("Failed to create bob folder");
             } else {
                 if let Some(path_str) = bob_path.to_str() {
-                    error!("{} folder doesn't exist, try to use -i flag", path_str);
-                    panic!("{} folder doesn't exist, try to use -i flag", path_str);
+                    error!("{} folder doesn't exist, try to use --init_folders flag", path_str);
+                    panic!("{} folder doesn't exist, try to use --init_folders flag", path_str);
                 } else {
-                    error!("bob folder doesn't exist, try to use -i flag");
-                    panic!("bob folder doesn't exist, try to use -i flag");
+                    error!("bob folder doesn't exist, try to use --init_folders flag");
+                    panic!("bob folder doesn't exist, try to use --init_folders flag");
                 }
             }
         }
@@ -177,11 +177,11 @@ fn check_folders(node: &NodeConfig, init_flag: bool) {
                 create_dir(alien_path).expect("Failed to create alien folder");
             } else {
                 if let Some(path_str) = alien_path.to_str() {
-                    error!("{} folder doesn't exist, try to use -i flag", path_str);
-                    panic!("{} folder doesn't exist, try to use -i flag", path_str);
+                    error!("{} folder doesn't exist, try to use --init_folders flag", path_str);
+                    panic!("{} folder doesn't exist, try to use --init_folders flag", path_str);
                 } else {
-                    error!("alien folder doesn't exist, try to use -i flag");
-                    panic!("alien folder doesn't exist, try to use -i flag");
+                    error!("alien folder doesn't exist, try to use --init_folders flag");
+                    panic!("alien folder doesn't exist, try to use --init_folders flag");
                 }
             }
         }
@@ -236,9 +236,8 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("init folders")
+            Arg::with_name("init_folders")
                 .help("Initializes bob and alien folders")
-                .short("i")
                 .long("init_folders")
                 .takes_value(false),
         )
