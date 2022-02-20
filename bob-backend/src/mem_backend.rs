@@ -29,6 +29,16 @@ impl VDisk {
         let result = keys.iter().map(|k| repo.get(k).is_some()).collect();
         Ok(result)
     }
+
+    async fn delete(&self, key: BobKey) -> Result<u64, Error> {
+        if self.inner.write().await.remove(&key).is_some() {
+            debug!("DELETE[{}] from vdisk", key);
+            Ok(1)
+        } else {
+            debug!("DELETE[{}] from vdisk failed. Cannot find key", key);
+            Err(Error::key_not_found(key))
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -79,6 +89,16 @@ impl MemDisk {
             vdisk.exist(keys).await
         } else {
             trace!("EXIST Cannot find vdisk for disk: {}", self.name);
+            Err(Error::internal())
+        }
+    }
+
+    pub async fn delete(&self, vdisk_id: VDiskId, key: BobKey) -> Result<u64, Error> {
+        if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
+            debug!("DELETE[{}] from: {} for disk: {}", key, vdisk_id, self.name);
+            vdisk.delete(key).await
+        } else {
+            debug!("DELETE[{}] Cannot find vdisk for disk: {}", key, self.name);
             Err(Error::internal())
         }
     }
@@ -162,6 +182,22 @@ impl BackendStorage for MemBackend {
     async fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
         debug!("EXIST to backend, foreign data");
         self.foreign_data.exist(operation.vdisk_id(), keys).await
+    }
+
+    async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+        debug!("DELETE[{}][{}] from backend", key, op.disk_name_local());
+        if let Some(mem_disk) = self.disks.get(&op.disk_name_local()) {
+            mem_disk.delete(op.vdisk_id(), key).await
+        } else {
+            error!("DELETE[{}] Can't find disk {}", key, op.disk_name_local());
+            Err(Error::internal())
+        }
+    }
+
+    async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+        debug!("DELETE[{}] from backend, foreign data", key);
+        debug!("{:?}", self.foreign_data);
+        self.foreign_data.delete(op.vdisk_id(), key).await
     }
 
     async fn shutdown(&self) {}

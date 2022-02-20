@@ -4,7 +4,11 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Added -init_foledrs flag that creates bob and alien folders (#180)
+- Added -init_folders flag that creates bob and alien folders (#180)
+- Bloom filters memory metric (#400)
+- Add bob ram usage metric (#393)
+- Add REST API method for data deletion ([#221](https://github.com/qoollo/bob/pull/221))
+
 
 #### Changed
 - File descriptors metric now tries to use lsof | wc first (#359)
@@ -12,12 +16,15 @@ Bob versions changelog
 
 
 #### Fixed
+- Used disk space metric calculation fix (#376)
+- Fix partitions removal response code (#405)
 - No more use of MockBobClient in production (#389)
 - Ubuntu docker image build error (#412)
-
+- Fix panic on nodes request (#429)
 
 #### Updated
 - Configs now support human readable formats (in max_blob_size & bloom_filter_memory_limit) (#388)
+- Upgrade pearl to v0.9.2
 
 
 ## [2.0.0-alpha.11] - 2021-12-10

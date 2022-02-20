@@ -9,22 +9,22 @@ paths:
       summary: Returns information about self
       operationId: getStatus
       responses:
-        '200':
+        "200":
           description: "A JSON with node info"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Node'
+                $ref: "#/components/schemas/Node"
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /version:
     get:
       summary: Returns server version
       operationId: getVersion
       responses:
-        '200':
+        "200":
           description: "Version string"
-          content: 
+          content:
             text/plain:
               schema:
                 type: string
@@ -34,131 +34,131 @@ paths:
       summary: Returns a list of known nodes
       operationId: getNodes
       responses:
-        '200':
+        "200":
           description: "A JSON array of nodes info and vdisks on them"
           content:
             application/json:
               schema:
                 type: array
-                items: 
-                  $ref: '#/components/schemas/Node'
+                items:
+                  $ref: "#/components/schemas/Node"
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /metadata/distrfunc:
     get:
       summary: Return information about key distribution function
       operationId: distributionFunction
       responses:
-        '200':
+        "200":
           description: "Distribution function information"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DistrFunc'
+                $ref: "#/components/schemas/DistrFunc"
   /vdisks:
     get:
       summary: Returns a list of vdisks
       operationId: getVDisks
       responses:
-        '200':
+        "200":
           description: "A JSON array of vdisks info"
           content:
             application/json:
               schema:
                 type: array
-                items: 
-                  $ref: '#/components/schemas/VDisk'
+                items:
+                  $ref: "#/components/schemas/VDisk"
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /vdisks/{VDiskId}:
     get:
       summary: Returns a vdisk info by ID
       operationId: getVDisk
       parameters:
-        - $ref: '#/components/parameters/VDiskIdParam'
+        - $ref: "#/components/parameters/VDiskIdParam"
       responses:
-        '200':
+        "200":
           description: "A JSON with vdisk info"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VDisk'
+                $ref: "#/components/schemas/VDisk"
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /vdisks/{VDiskId}/records/count:
     get:
       summary: Returns count of records of this on node
       operationId: getRecords
       parameters:
-        - $ref: '#/components/parameters/VDiskIdParam'
+        - $ref: "#/components/parameters/VDiskIdParam"
       responses:
-        '200':
+        "200":
           description: "Records count"
           content:
             application/json:
               schema:
                 type: integer
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /vdisks/{VDiskId}/partitions:
     get:
       summary: Returns a list of partitions
       operationId: getPartitions
       parameters:
-        - $ref: '#/components/parameters/VDiskIdParam'
+        - $ref: "#/components/parameters/VDiskIdParam"
       responses:
-        '200':
+        "200":
           description: "Node info and JSON array with partitions info"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VDiskPartitions'
+                $ref: "#/components/schemas/VDiskPartitions"
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /vdisks/{VDiskId}/partitions/{partitionId}:
     get:
       summary: Returns a partition info by ID
       operationId: getPartition
-      parameters: 
-        - $ref: '#/components/parameters/VDiskIdParam'
+      parameters:
+        - $ref: "#/components/parameters/VDiskIdParam"
         - name: partitionId
           in: path
           required: true
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: "A JSON with partition info"
           content:
             application/json:
               schema:
                 type: string
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /vdisks/{VDiskId}/partitions/by_timestamp/{timestamp}:
     delete:
       summary: Delete partitions by timestamp
       parameters:
-        - $ref: '#/components/parameters/VDiskIdParam'
+        - $ref: "#/components/parameters/VDiskIdParam"
         - name: timestamp
           in: path
           required: true
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Success
           content:
             application/json:
               schema:
                 type: string
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /vdisks/{VDiskId}/partitions/by_timestamp/{timestamp}/{action}:
     put:
       summary: Attach/Detach a partition by timestamp
-      parameters: 
-        - $ref: '#/components/parameters/VDiskIdParam'
+      parameters:
+        - $ref: "#/components/parameters/VDiskIdParam"
         - name: timestamp
           in: path
           required: true
@@ -168,91 +168,91 @@ paths:
           name: action
           schema:
             type: string
-            enum: 
+            enum:
               - attach
               - detach
           required: true
       responses:
-        '200':
+        "200":
           description: Success
           content:
             application/json:
               schema:
                 type: string
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /disks/list:
     get:
       summary: Returns the list of disks with their states
       operationID: getDisks
       responses:
-        '200':
+        "200":
           description: "A JSON array with disks and their states"
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/DiskState'
+                  $ref: "#/components/schemas/DiskState"
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /disks/<disk_name>/stop:
     post:
       summary: Stops all disks controller for disk
       parameters:
-        - $ref: '#/components/parameters/DiskNameParam'
+        - $ref: "#/components/parameters/DiskNameParam"
       responses:
-        '200':
+        "200":
           description: Success
           content:
             application/json:
               schema:
                 type: string
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /disks/<disk_name>/start:
     post:
       summary: Trying to start all disk controllers for disk
       parameters:
-        - $ref: '#/components/parameters/DiskNameParam'
+        - $ref: "#/components/parameters/DiskNameParam"
       responses:
-        '200':
+        "200":
           description: Success
           content:
             application/json:
               schema:
                 type: string
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /vdisks/<vdisk_id>/remount:
     post:
       summary: Remount partitions on vdisk
       parameters:
-        - $ref: '#/components/parameters/VDiskIdParam'
+        - $ref: "#/components/parameters/VDiskIdParam"
       responses:
-        '200':
+        "200":
           description: Success
           content:
             application/json:
               schema:
                 type: string
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /blobs/outdated:
     delete:
       summary: Close active blobs of holders not used recently
       operationId: finalizeOldBlobs
-      responses: 
-        '200':
+      responses:
+        "200":
           description: "Successfully finalized blobs"
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /alien:
     get:
       summary: Returns an alien dir info
       operationId: getAlien
       responses:
-        '200':
+        "200":
           description: "A JSON array with alien Node names info"
           content:
             application/json:
@@ -261,26 +261,26 @@ paths:
                 items:
                   type: string
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /configuration:
     get:
       summary: Returns configuration of the node
       operationId: getConfiguration
       responses:
-        '200':
+        "200":
           description: Configuration object
-          content: 
+          content:
             application/json:
               schema:
-                ref: '#/components/schemas/NodeConfiguration'
+                ref: "#/components/schemas/NodeConfiguration"
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /alien/detach:
     post:
       summary: Detach alien partitions
       operationId: detachAlienPartitions
       responses:
-        '200':
+        "200":
           description: Successfully deatched alien partitions
         default:
           $ref: "#/components/responses/DefaultError"
@@ -289,35 +289,35 @@ paths:
       summary: Return directory of alien
       operationId: getAlienDir
       responses:
-        '200': 
+        "200":
           description: "Directory"
           content:
             application/json:
               schema:
-                ref: '#/components/schemas/Dir'
+                ref: "#/components/schemas/Dir"
         default:
-          $ref: '#/components/responses/DefaultError'
-          
+          $ref: "#/components/responses/DefaultError"
+
   /vdisks/<vdisk_id>/replicas/local/dirs:
     get:
       summary: Returns directories of local replicas of vdisk
       operationId: getReplicasLocalDirs
       responses:
-        '200':
+        "200":
           description: "A JSON array with dirs"
           content:
             application/json:
               type: array
               items:
-                ref: '#/components/schemas/Dir'
+                ref: "#/components/schemas/Dir"
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /data/<key>:
     get:
       summary: Returns data by key
       operationId: getDataByKey
       parameters:
-        - $ref: '#/components/parameters/DataKeyParam'
+        - $ref: "#/components/parameters/DataKeyParam"
       responses:
         "200":
           description: "Binary data with inferred content type"
@@ -327,13 +327,23 @@ paths:
       summary: Add data to storage by key
       operationId: postDataByKey
       parameters:
-        - $ref: '#/components/parameters/DataKeyParam'
+        - $ref: "#/components/parameters/DataKeyParam"
       requestBody:
         description: Binary data
         required: true
       responses:
         "200":
           description: "Data successfully added"
+        default:
+          $ref: "#/components/responses/DefaultError"
+    delete:
+      summary: Delete data from storage by key
+      operationId: deleteDataByKey
+      parameters:
+        - $ref: "#/components/parameters/DataKeyParam"
+      responses:
+        "200":
+          description: "Successfully deleted"
         default:
           $ref: "#/components/responses/DefaultError"
 
@@ -344,7 +354,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
   parameters:
     DiskNameParam:
       name: DiskName
@@ -374,7 +384,7 @@ components:
         vdisks:
           type: string
           items:
-            $ref: '#/components/schemas/VDisk'
+            $ref: "#/components/schemas/VDisk"
       required:
         - name
         - address
@@ -397,7 +407,7 @@ components:
         replicas:
           type: array
           items:
-            $ref: '#/components/schemas/Replica'
+            $ref: "#/components/schemas/Replica"
       required:
         - id
     Replica:
@@ -454,7 +464,7 @@ components:
         children:
           type: array
           items:
-            $ref: '#/components/schemas/Dir'
+            $ref: "#/components/schemas/Dir"
     DistrFunc:
       type: object
       properties:
@@ -474,10 +484,10 @@ components:
       properties:
         bobversion:
           type:
-            $ref: '#/components/schemas/Version'
+            $ref: "#/components/schemas/Version"
         pearlversion:
           type:
-            $ref: '#/components/schemas/Version'
+            $ref: "#/components/schemas/Version"
     NodeConfiguration:
       type: object
       properties:
