@@ -4,9 +4,22 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+## [2.1.0-alpha.0] - 2021-02-21
+#### Added
 - Bloom filters memory metric (#400)
 - Add bob ram usage metric (#393)
-- Add REST API method for data deletion ([#221](https://github.com/qoollo/bob/pull/221))
+- Add REST API method for data deletion (#221)
 
 
 #### Changed
