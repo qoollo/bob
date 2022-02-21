@@ -11,18 +11,21 @@ const NO_CONFIRM_OPT: &str = "no confirm";
 const DELETE_OPT: &str = "index delete";
 const TARGET_VERSION_OPT: &str = "target version";
 const SKIP_WRONG_OPT: &str = "skip wrong";
-const KEY_SIZE_OPT: &str = "key size";
 
 const VALIDATE_INDEX_COMMAND: &str = "validate-index";
 const VALIDATE_BLOB_COMMAND: &str = "validate-blob";
 const RECOVERY_COMMAND: &str = "recovery";
 const MIGRATE_COMMAND: &str = "migrate";
+const GET_INDEX_INFO_COMMAND: &str = "index-info";
+const GET_BLOB_INFO_COMMAND: &str = "blob-info";
 
 pub enum MainCommand {
     Recovery(RecoveryBlobCommand),
     Validate(ValidateBlobCommand),
     ValidateIndex(ValidateIndexCommand),
     Migrate(MigrateCommand),
+    GetBlobInfo(GetBlobInfoCommand),
+    GetIndexInfo(GetIndexInfoCommand),
 }
 
 pub struct RecoveryBlobCommand {
@@ -202,27 +205,16 @@ pub struct ValidateIndexCommand {
     index_suffix: String,
     delete: bool,
     skip_confirmation: bool,
-    key_size: Option<usize>,
 }
 
 impl ValidateIndexCommand {
     fn run(&self) -> AnyResult<()> {
-        let validate_index_fn = match self.key_size {
-            Some(1) => validate_index::<Key1>,
-            Some(2) => validate_index::<Key2>,
-            Some(4) => validate_index::<Key4>,
-            Some(8) => validate_index::<Key8>,
-            Some(16) => validate_index::<Key16>,
-            Some(32) => validate_index::<Key32>,
-            None => validate_index::<PearlKey>,
-            _ => return Err(anyhow::anyhow!("Key size is not supported")),
-        };
         if self.path.is_file() {
-            validate_index_fn(&self.path)?;
+            validate_index(&self.path)?;
             info!("Index {:?} is valid", self.path);
             return Ok(());
         }
-        let result = validate_files_recursive(&self.path, &self.index_suffix, validate_index_fn)?;
+        let result = validate_files_recursive(&self.path, &self.index_suffix, validate_index)?;
         print_result(&result, "index");
 
         if self.delete && !result.is_empty() {
@@ -278,13 +270,6 @@ impl ValidateIndexCommand {
                     .help("turn off fix confirmation")
                     .long("no-confirm"),
             )
-            .arg(
-                Arg::with_name(KEY_SIZE_OPT)
-                    .takes_value(true)
-                    .required(false)
-                    .help(&KEY_SIZE_HELP)
-                    .long("no-confirm"),
-            )
     }
 
     fn from_matches(matches: &ArgMatches) -> AnyResult<Self> {
@@ -293,10 +278,6 @@ impl ValidateIndexCommand {
             index_suffix: matches.value_of(SUFFIX_OPT).expect("Required").to_string(),
             delete: matches.is_present(DELETE_OPT),
             skip_confirmation: matches.is_present(NO_CONFIRM_OPT),
-            key_size: matches
-                .value_of(KEY_SIZE_OPT)
-                .map(|x| x.parse())
-                .transpose()?,
         })
     }
 }
@@ -399,6 +380,91 @@ impl MigrateCommand {
     }
 }
 
+pub struct GetBlobInfoCommand {
+    path: PathBuf,
+}
+
+impl GetBlobInfoCommand {
+    fn run(&self) -> AnyResult<()> {
+        let collector = pearl::tools::BlobSummaryCollector::from_path(&self.path)?;
+        println!("Blob summary");
+        println!("Path: {:?}", self.path);
+        println!("Records count: {}", collector.records());
+        println!("Unique keys: {}", collector.unique_keys_count());
+        println!("Header");
+        println!("Version: {}", collector.header_version());
+        println!(
+            "Magic byte: {}",
+            hex::encode(bincode::serialize(&collector.header_magic_byte())?)
+        );
+        println!(
+            "Flags: {}",
+            hex::encode(bincode::serialize(&collector.header_flags())?)
+        );
+        Ok(())
+    }
+
+    fn subcommand<'a, 'b>() -> App<'a, 'b> {
+        SubCommand::with_name(GET_BLOB_INFO_COMMAND).arg(
+            Arg::with_name(INPUT_OPT)
+                .help("input blob")
+                .takes_value(true)
+                .required(true)
+                .short("i")
+                .long("input"),
+        )
+    }
+
+    fn from_matches(matches: &ArgMatches) -> AnyResult<Self> {
+        Ok(Self {
+            path: matches.value_of(INPUT_OPT).expect("Required").into(),
+        })
+    }
+}
+
+pub struct GetIndexInfoCommand {
+    path: PathBuf,
+}
+
+impl GetIndexInfoCommand {
+    fn run(&self) -> AnyResult<()> {
+        let collector = pearl::tools::IndexSummaryCollector::from_path(&self.path)?;
+        println!("Index summary");
+        println!("Path: {:?}", self.path);
+        println!("Records count: {}", collector.records_readed());
+        println!("Unique keys: {}", collector.unique_keys_count());
+        println!("Header");
+        println!("Records count: {}", collector.header_records_count());
+        println!(
+            "Record header size: {}",
+            collector.header_record_header_size()
+        );
+        println!("Meta size: {}", collector.header_meta_size());
+        println!("Hash: {}", hex::encode(collector.header_hash()));
+        println!("Is written: {}", collector.header_is_written());
+        println!("Version: {}", collector.header_version());
+        println!("Key size: {}", collector.header_key_size());
+        Ok(())
+    }
+
+    fn subcommand<'a, 'b>() -> App<'a, 'b> {
+        SubCommand::with_name(GET_INDEX_INFO_COMMAND).arg(
+            Arg::with_name(INPUT_OPT)
+                .help("input index")
+                .takes_value(true)
+                .required(true)
+                .short("i")
+                .long("input"),
+        )
+    }
+
+    fn from_matches(matches: &ArgMatches) -> AnyResult<Self> {
+        Ok(Self {
+            path: matches.value_of(INPUT_OPT).expect("Required").into(),
+        })
+    }
+}
+
 impl MainCommand {
     pub fn run() -> AnyResult<()> {
         let settings = MainCommand::from_matches()?;
@@ -407,6 +473,8 @@ impl MainCommand {
             MainCommand::Validate(settings) => settings.run(),
             MainCommand::ValidateIndex(settings) => settings.run(),
             MainCommand::Migrate(settings) => settings.run(),
+            MainCommand::GetBlobInfo(settings) => settings.run(),
+            MainCommand::GetIndexInfo(settings) => settings.run(),
         }
     }
 
@@ -417,6 +485,8 @@ impl MainCommand {
             .subcommand(ValidateBlobCommand::subcommand())
             .subcommand(ValidateIndexCommand::subcommand())
             .subcommand(MigrateCommand::subcommand())
+            .subcommand(GetBlobInfoCommand::subcommand())
+            .subcommand(GetIndexInfoCommand::subcommand())
             .get_matches()
     }
 
@@ -435,6 +505,12 @@ impl MainCommand {
             (MIGRATE_COMMAND, Some(matches)) => {
                 Ok(MainCommand::Migrate(MigrateCommand::from_matches(matches)?))
             }
+            (GET_BLOB_INFO_COMMAND, Some(matches)) => Ok(MainCommand::GetBlobInfo(
+                GetBlobInfoCommand::from_matches(matches)?,
+            )),
+            (GET_INDEX_INFO_COMMAND, Some(matches)) => Ok(MainCommand::GetIndexInfo(
+                GetIndexInfoCommand::from_matches(matches)?,
+            )),
             _ => Err(anyhow::anyhow!("Unknown command")),
         }
     }

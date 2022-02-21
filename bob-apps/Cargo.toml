@@ -41,6 +41,7 @@ tonic = { version = "0.6", features = ["prost"] }
 tower = "0.4"
 rand = "0.8"
 tower-service = "0.3"
+hex = "0.4.3"
 
 [dependencies.tokio]
 version = "1.14"

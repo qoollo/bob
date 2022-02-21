@@ -1,9 +1,7 @@
 pub(crate) mod command;
-pub(crate) mod key;
 pub(crate) mod utils;
 
 pub(crate) mod prelude {
-    pub(crate) use super::key::*;
     pub(crate) use super::utils::*;
     pub(crate) use anyhow::Result as AnyResult;
     pub(crate) use bob::PearlKey;
