@@ -4,8 +4,9 @@ use axum::{
     async_trait,
     extract::{FromRequest, RequestParts},
 };
+use tonic::Request;
 
-use crate::{error::Error, Extractor};
+use crate::{error::Error, extractor::ExtractorExt};
 
 #[derive(Debug, Default, Clone)]
 pub struct Credentials {
@@ -101,5 +102,11 @@ where
 
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
         req.extract()
+    }
+}
+
+impl<T> From<&Request<T>> for Credentials {
+    fn from(_: &Request<T>) -> Self {
+        todo!()
     }
 }

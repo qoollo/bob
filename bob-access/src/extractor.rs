@@ -3,12 +3,32 @@ use std::net::SocketAddr;
 use crate::{credentials::Credentials, error::Error};
 use axum::extract::RequestParts;
 use http::{Extensions, HeaderMap, Request};
-use tonic::transport::server::TcpConnectInfo;
+use tonic::{transport::server::TcpConnectInfo, Request as TonicRequest};
 
 pub trait Extractor {
     fn headers(&self) -> Option<&HeaderMap>;
     fn extensions(&self) -> Option<&Extensions>;
+}
 
+pub trait ExtractorExt {
+    fn extract(&self) -> Result<Credentials, Error>;
+    fn extract_basic(
+        &self,
+        _header_map: &HeaderMap,
+        _addr: Option<SocketAddr>,
+    ) -> Result<Option<Credentials>, Error> {
+        Ok(None)
+    }
+    fn extract_token(
+        &self,
+        _header_map: &HeaderMap,
+        _addr: Option<SocketAddr>,
+    ) -> Result<Option<Credentials>, Error> {
+        Ok(None)
+    }
+}
+
+impl<T: Extractor> ExtractorExt for T {
     fn extract(&self) -> Result<Credentials, Error> {
         let header_map = if let Some(header_map) = self.headers() {
             header_map
@@ -67,6 +87,12 @@ pub trait Extractor {
             .with_address(addr)
             .build();
         Ok(Some(creds))
+    }
+}
+
+impl<T> ExtractorExt for TonicRequest<T> {
+    fn extract(&self) -> Result<Credentials, Error> {
+        todo!()
     }
 }
 

@@ -126,8 +126,7 @@ impl IntoResponse for GetObjectOutput {
 }
 
 async fn get_object<A>(
-    Extension(bob): Extension<&BobServer>,
-    Extension(auth): Extension<A>,
+    Extension(bob): Extension<&BobServer<A>>,
     Path(key): Path<String>,
     headers: GetObjectHeaders,
     creds: Credentials,
@@ -135,7 +134,7 @@ async fn get_object<A>(
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
@@ -159,8 +158,7 @@ where
 }
 
 async fn put_object<A>(
-    Extension(bob): Extension<&BobServer>,
-    Extension(auth): Extension<A>,
+    Extension(bob): Extension<&BobServer<A>>,
     Path(key): Path<String>,
     body: Bytes,
     headers: CopyObjectHeaders,
@@ -169,7 +167,7 @@ async fn put_object<A>(
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_write() {
+    if !bob.auth().check_credentials(creds)?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
@@ -235,8 +233,8 @@ where
     }
 }
 
-async fn copy_object(
-    bob: &BobServer,
+async fn copy_object<A: Authenticator>(
+    bob: &BobServer<A>,
     key: BobKey,
     headers: CopyObjectHeaders,
 ) -> Result<StatusS3, StatusS3> {

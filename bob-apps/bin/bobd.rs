@@ -2,9 +2,7 @@ use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder,
     VirtualMapper,
 };
-use bob_access::{
-    AccessControlLayer, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap,
-};
+use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap};
 use clap::{crate_version, App, Arg, ArgMatches};
 use std::{
     collections::HashMap,
@@ -13,7 +11,6 @@ use std::{
 };
 use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::Server;
-use tower::Layer;
 
 #[macro_use]
 extern crate log;
@@ -89,10 +86,7 @@ async fn main() {
     let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
 
     let handle = Handle::current();
-    let bob = BobServer::new(Grinder::new(mapper, &node).await, handle, shared_metrics);
 
-    info!("Start backend");
-    bob.run_backend().await.unwrap();
     info!("Start API server");
     let http_api_port = matches
         .value_of("http_api_port")
@@ -103,24 +97,25 @@ async fn main() {
         .and_then(|v| v.parse().ok())
         .unwrap_or_else(|| node.http_api_address());
 
-    create_signal_handlers(&bob).unwrap();
-
     let factory = Factory::new(node.operation_timeout(), metrics);
-    bob.run_periodic_tasks(factory);
+    let grinder = Grinder::new(mapper.clone(), &node).await;
     let authentication_type = matches.value_of("authentication_type").unwrap();
     match authentication_type {
         "stub" => {
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let authenticator = StubAuthenticator::new(users_storage);
-            bob.run_api_server(http_api_address, http_api_port, authenticator.clone());
+            let bob = BobServer::new(grinder, handle, shared_metrics, authenticator);
+            info!("Start backend");
+            bob.run_backend().await.unwrap();
+            create_signal_handlers(&bob).unwrap();
+            bob.run_periodic_tasks(factory);
+            bob.run_api_server(http_api_address, http_api_port);
 
             let bob_service = BobApiServer::new(bob);
-            let access = AccessControlLayer::new().with_authenticator(authenticator);
-            let new_service = access.layer(bob_service);
             Server::builder()
                 .tcp_nodelay(true)
-                .add_service(new_service)
+                .add_service(bob_service)
                 .serve(addr)
                 .await
                 .unwrap();
@@ -133,14 +128,22 @@ async fn main() {
             authenticator
                 .set_nodes_credentials(nodes_credentials)
                 .expect("failed to gen nodes credentials from cluster config");
-            bob.run_api_server(http_api_address, http_api_port, authenticator.clone());
+            let bob = BobServer::new(
+                Grinder::new(mapper, &node).await,
+                handle,
+                shared_metrics,
+                authenticator,
+            );
+            info!("Start backend");
+            bob.run_backend().await.unwrap();
+            create_signal_handlers(&bob).unwrap();
+            bob.run_periodic_tasks(factory);
+            bob.run_api_server(http_api_address, http_api_port);
 
             let bob_service = BobApiServer::new(bob);
-            let access = AccessControlLayer::new().with_authenticator(authenticator);
-            let new_service = access.layer(bob_service);
             Server::builder()
                 .tcp_nodelay(true)
-                .add_service(new_service)
+                .add_service(bob_service)
                 .serve(addr)
                 .await
                 .unwrap();
@@ -189,7 +192,9 @@ fn port_from_address(addr: &str) -> Option<u16> {
         .and_then(|(_, port)| port.parse::<u16>().ok())
 }
 
-fn create_signal_handlers(server: &BobServer) -> Result<(), Box<dyn ErrorTrait>> {
+fn create_signal_handlers<A: Authenticator>(
+    server: &BobServer<A>,
+) -> Result<(), Box<dyn ErrorTrait>> {
     let signals = [SignalKind::terminate(), SignalKind::interrupt()];
     for s in signals.iter() {
         spawn_signal_handler(server, *s)?;
@@ -197,8 +202,8 @@ fn create_signal_handlers(server: &BobServer) -> Result<(), Box<dyn ErrorTrait>>
     Ok(())
 }
 
-fn spawn_signal_handler(
-    server: &BobServer,
+fn spawn_signal_handler<A: Authenticator>(
+    server: &BobServer<A>,
     s: tokio::signal::unix::SignalKind,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use tokio::signal::unix::signal;

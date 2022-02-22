@@ -85,11 +85,10 @@ pub struct StatusExt {
 
 impl From<AuthError> for StatusExt {
     fn from(error: AuthError) -> Self {
-        let (status, msg) = error.status();
         Self {
-            status,
+            status: error.status_code(),
             ok: false,
-            msg: msg.to_string(),
+            msg: error.msg().into(),
         }
     }
 }
@@ -133,15 +132,13 @@ pub(crate) struct NodeConfiguration {
     blob_file_name_prefix: String,
 }
 
-pub(crate) fn spawn<A>(bob: BobServer, address: IpAddr, port: u16, auth: A)
+pub(crate) fn spawn<A>(bob: BobServer<A>, address: IpAddr, port: u16)
 where
-    A: Authenticator + Send + Sync + 'static,
+    A: Authenticator,
 {
     let socket_addr = SocketAddr::new(address, port);
 
-    let router = router::<A>()
-        .layer(AddExtensionLayer::new(bob))
-        .layer(AddExtensionLayer::new(auth));
+    let router = router::<A>().layer(AddExtensionLayer::new(bob));
     let task = Server::bind(&socket_addr).serve(router.into_make_service());
 
     tokio::spawn(task);
@@ -151,7 +148,7 @@ where
 
 fn router<A>() -> Router
 where
-    A: Authenticator + Send + Sync + 'static,
+    A: Authenticator,
 {
     let mut router = Router::new();
     for (path, service) in routes::<A>()
@@ -168,8 +165,8 @@ where
     A: Authenticator + Send + Sync + 'static,
 {
     vec![
-        ("/status", get(status)),
-        ("/metrics", get(metrics)),
+        ("/status", get(status::<A>)),
+        ("/metrics", get(metrics::<A>)),
         ("/version", get(version)),
         ("/nodes", get(nodes::<A>)),
         ("/disks/list", get(disks_list::<A>)),
@@ -223,17 +220,17 @@ fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
     }
 }
 
-fn collect_disks_info(bob: &BobServer) -> Vec<VDisk> {
+fn collect_disks_info<A: Authenticator>(bob: &BobServer<A>) -> Vec<VDisk> {
     let mapper = bob.grinder().backend().mapper();
     mapper.vdisks().values().map(data_vdisk_to_scheme).collect()
 }
 
 #[inline]
-fn get_vdisk_by_id(bob: &BobServer, id: u32) -> Option<VDisk> {
+fn get_vdisk_by_id<A: Authenticator>(bob: &BobServer<A>, id: u32) -> Option<VDisk> {
     find_vdisk(bob, id).map(data_vdisk_to_scheme)
 }
 
-fn find_vdisk(bob: &BobServer, id: u32) -> Option<&DataVDisk> {
+fn find_vdisk<A: Authenticator>(bob: &BobServer<A>, id: u32) -> Option<&DataVDisk> {
     let mapper = bob.grinder().backend().mapper();
     mapper.get_vdisk(id)
 }
@@ -260,7 +257,10 @@ fn not_acceptable_backend() -> StatusExt {
 }
 
 // !notice: only finds normal group
-async fn find_group(bob: &BobServer, vdisk_id: u32) -> Result<PearlGroup, StatusExt> {
+async fn find_group<A: Authenticator>(
+    bob: &BobServer<A>,
+    vdisk_id: u32,
+) -> Result<PearlGroup, StatusExt> {
     let backend = bob.grinder().backend().inner();
     debug!("get backend: OK");
     let (dcs, _) = backend
@@ -282,7 +282,7 @@ async fn find_group(bob: &BobServer, vdisk_id: u32) -> Result<PearlGroup, Status
     })
 }
 
-async fn status(Extension(bob): Extension<&BobServer>) -> Json<Node> {
+async fn status<A: Authenticator>(Extension(bob): Extension<&BobServer<A>>) -> Json<Node> {
     let mapper = bob.grinder().backend().mapper();
     let name = mapper.local_node_name().to_owned();
     let address = mapper.local_node_address().to_owned();
@@ -295,7 +295,9 @@ async fn status(Extension(bob): Extension<&BobServer>) -> Json<Node> {
     Json(node)
 }
 
-async fn metrics(Extension(bob): Extension<&BobServer>) -> Json<MetricsSnapshotModel> {
+async fn metrics<A: Authenticator>(
+    Extension(bob): Extension<&BobServer<A>>,
+) -> Json<MetricsSnapshotModel> {
     let snapshot = bob.metrics().read().await.clone();
     Json(snapshot.into())
 }
@@ -325,14 +327,13 @@ async fn version() -> Json<VersionInfo> {
 }
 
 async fn nodes<A>(
-    Extension(bob): Extension<&BobServer>,
-    Extension(auth): Extension<A>,
+    Extension(bob): Extension<&BobServer<A>>,
     creds: Credentials,
 ) -> Result<Json<Vec<Node>>, AuthError>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied);
     }
     let mapper = bob.grinder().backend().mapper();
@@ -370,14 +371,13 @@ where
 }
 
 async fn disks_list<A>(
-    Extension(bob): Extension<&BobServer>,
-    Extension(auth): Extension<A>,
+    Extension(bob): Extension<&BobServer<A>>,
     creds: Credentials,
 ) -> Result<Json<Vec<DiskState>>, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -404,14 +404,13 @@ where
 }
 
 async fn distribution_function<A>(
-    Extension(bob): Extension<&BobServer>,
-    Extension(auth): Extension<A>,
+    Extension(bob): Extension<&BobServer<A>>,
     creds: Credentials,
 ) -> Result<Json<DistrFunc>, AuthError>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied);
     }
     let mapper = bob.grinder().backend().mapper().distribution_func();
@@ -420,14 +419,13 @@ where
 }
 
 async fn get_node_configuration<A>(
-    Extension(bob): Extension<&BobServer>,
-    Extension(auth): Extension<A>,
+    Extension(bob): Extension<&BobServer<A>>,
     creds: Credentials,
 ) -> Result<Json<NodeConfiguration>, AuthError>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied);
     }
     let blob_file_name_prefix = bob
@@ -443,15 +441,14 @@ where
 }
 
 async fn stop_all_disk_controllers<A>(
-    Extension(bob): Extension<&BobServer>,
+    Extension(bob): Extension<&BobServer<A>>,
     AxumPath(disk_name): AxumPath<String>,
-    Extension(auth): Extension<A>,
     creds: Credentials,
 ) -> Result<StatusExt, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_write() {
+    if !bob.auth().check_credentials(creds)?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -471,15 +468,14 @@ where
 }
 
 async fn start_all_disk_controllers<A>(
-    Extension(bob): Extension<&BobServer>,
+    Extension(bob): Extension<&BobServer<A>>,
     disk_name: String,
-    Extension(auth): Extension<A>,
     creds: Credentials,
 ) -> Result<StatusExt, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_write() {
+    if !bob.auth().check_credentials(creds)?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -521,14 +517,13 @@ where
 }
 
 async fn vdisks<A>(
-    Extension(bob): Extension<&BobServer>,
-    Extension(auth): Extension<A>,
+    Extension(bob): Extension<&BobServer<A>>,
     creds: Credentials,
 ) -> Result<Json<Vec<VDisk>>, AuthError>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied);
     }
     let vdisks = collect_disks_info(bob);
@@ -536,14 +531,13 @@ where
 }
 
 async fn finalize_outdated_blobs<A>(
-    Extension(bob): Extension<&BobServer>,
-    Extension(auth): Extension<A>,
+    Extension(bob): Extension<&BobServer<A>>,
     creds: Credentials,
 ) -> Result<StatusExt, AuthError>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_write() {
+    if !bob.auth().check_credentials(creds)?.has_rest_write() {
         return Err(AuthError::PermissionDenied);
     }
     let backend = bob.grinder().backend();
@@ -553,15 +547,14 @@ where
 }
 
 async fn vdisk_by_id<A>(
-    Extension(bob): Extension<&BobServer>,
+    Extension(bob): Extension<&BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
-    Extension(auth): Extension<A>,
     creds: Credentials,
 ) -> Result<Json<VDisk>, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     get_vdisk_by_id(bob, vdisk_id)
@@ -570,15 +563,14 @@ where
 }
 
 async fn vdisk_records_count<A>(
-    Extension(bob): Extension<&BobServer>,
+    Extension(bob): Extension<&BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
-    Extension(auth): Extension<A>,
     creds: Credentials,
 ) -> Result<Json<u64>, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(bob, vdisk_id).await?;
@@ -593,15 +585,14 @@ where
 }
 
 async fn partitions<A>(
-    Extension(bob): Extension<&BobServer>,
+    Extension(bob): Extension<&BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
-    Extension(auth): Extension<A>,
     creds: Credentials,
 ) -> Result<Json<VDiskPartitions>, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(bob, vdisk_id).await?;
@@ -626,16 +617,15 @@ where
 }
 
 async fn partition_by_id<A>(
-    Extension(bob): Extension<&BobServer>,
+    Extension(bob): Extension<&BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
     AxumPath(partition_id): AxumPath<String>,
-    Extension(auth): Extension<A>,
     creds: Credentials,
 ) -> Result<Json<Partition>, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(bob, vdisk_id).await?;
@@ -667,17 +657,16 @@ where
 }
 
 async fn change_partition_state<A>(
-    Extension(bob): Extension<&BobServer>,
+    Extension(bob): Extension<&BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
     AxumPath(timestamp): AxumPath<u64>,
     AxumPath(action): AxumPath<Action>,
-    Extension(auth): Extension<A>,
     creds: Credentials,
 ) -> Result<StatusExt, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_write() {
+    if !bob.auth().check_credentials(creds)?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(bob, vdisk_id).await?;
@@ -698,15 +687,14 @@ where
 }
 
 async fn remount_vdisks_group<A>(
-    Extension(bob): Extension<&BobServer>,
+    Extension(bob): Extension<&BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
-    Extension(auth): Extension<A>,
     creds: Credentials,
 ) -> Result<StatusExt, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_write() {
+    if !bob.auth().check_credentials(creds)?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(bob, vdisk_id).await?;
@@ -720,16 +708,15 @@ where
 }
 
 async fn delete_partition<A>(
-    Extension(bob): Extension<&BobServer>,
+    Extension(bob): Extension<&BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
     AxumPath(timestamp): AxumPath<u64>,
-    Extension(auth): Extension<A>,
     creds: Credentials,
 ) -> Result<StatusExt, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_write() {
+    if !bob.auth().check_credentials(creds)?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(bob, vdisk_id).await?;
@@ -776,14 +763,13 @@ async fn alien() -> &'static str {
 }
 
 async fn detach_alien_partitions<A>(
-    Extension(bob): Extension<&BobServer>,
-    Extension(auth): Extension<A>,
+    Extension(bob): Extension<&BobServer<A>>,
     creds: Credentials,
 ) -> Result<StatusExt, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_write() {
+    if !bob.auth().check_credentials(creds)?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -795,14 +781,13 @@ where
 }
 
 async fn get_alien_directory<A>(
-    Extension(bob): Extension<&BobServer>,
-    Extension(auth): Extension<A>,
+    Extension(bob): Extension<&BobServer<A>>,
     creds: Credentials,
 ) -> Result<Json<Dir>, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -815,15 +800,14 @@ where
 }
 
 async fn get_local_replica_directories<A>(
-    Extension(bob): Extension<&BobServer>,
+    Extension(bob): Extension<&BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
-    Extension(auth): Extension<A>,
     creds: Credentials,
 ) -> Result<Json<Vec<Dir>>, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let vdisk: VDisk = get_vdisk_by_id(bob, vdisk_id).ok_or_else(|| {
@@ -878,15 +862,14 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
 }
 
 async fn get_data<A>(
-    Extension(bob): Extension<&BobServer>,
+    Extension(bob): Extension<&BobServer<A>>,
     AxumPath(key): AxumPath<String>,
-    Extension(auth): Extension<A>,
     creds: Credentials,
 ) -> Result<impl IntoResponse, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
@@ -911,16 +894,15 @@ where
 }
 
 async fn put_data<A>(
-    Extension(bob): Extension<&BobServer>,
+    Extension(bob): Extension<&BobServer<A>>,
     AxumPath(key): AxumPath<String>,
     body: Bytes,
-    Extension(auth): Extension<A>,
     creds: Credentials,
 ) -> Result<StatusExt, StatusExt>
 where
     A: Authenticator,
 {
-    if !auth.check_credentials(creds)?.has_rest_write() {
+    if !bob.auth().check_credentials(creds)?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
