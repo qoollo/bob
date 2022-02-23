@@ -4,11 +4,37 @@ use crate::error::Error;
 
 use super::{Perms, User};
 
+#[derive(Debug, PartialEq, Copy, Clone, Deserialize, Default)]
+pub struct ClaimPerms {
+    read: Option<bool>,
+    write: Option<bool>,
+    read_rest: Option<bool>,
+    write_rest: Option<bool>,
+}
+
+impl ClaimPerms {
+    fn update_perms(&self, p: &mut Perms) {
+        if let Some(read) = self.read {
+            p.read = read;
+        }
+        if let Some(write) = self.write {
+            p.write = write;
+        }
+        if let Some(read_rest) = self.read_rest {
+            p.read_rest = read_rest;
+        }
+        if let Some(write_rest) = self.write_rest {
+            p.write_rest = write_rest;
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct ConfigUser {
     pub(super) username: String,
     pub(super) password: String,
     pub(super) role: String,
+    pub(super) claims: Option<ClaimPerms>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -23,9 +49,12 @@ pub(super) fn parse_users(
 ) -> Result<HashMap<String, User>, Error> {
     let mut users = HashMap::new();
     yaml_users.into_iter().try_for_each(|u| {
-        let &perms = roles
+        let &(mut perms) = roles
             .get(&u.role)
             .ok_or_else(|| Error::Validation(format!("Can't find role {}", u.role)))?;
+        if let Some(claims) = u.claims {
+            claims.update_perms(&mut perms);
+        }
         let user = User::new(u.username.clone(), u.password, perms);
         users.insert(u.username, user).map_or(Ok(()), |user| {
             Err(Error::Validation(format!(
