@@ -7,6 +7,7 @@ Bob versions changelog
 - Access management
   - Nodes authentication. (#318)
   - Http API authentication.
+  - User's permissions can be set via role and/or claims (#408)
 
 
 #### Changed
