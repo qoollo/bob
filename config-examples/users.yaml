@@ -22,3 +22,13 @@ users:
   - username: writer_user
     password: writer_pass
     role: writer
+  - username: custom_user
+    password: custom_pass
+    role: reader
+    claims:
+      write: true
+  - username: special_user
+    password: special_pass
+    claims:
+      write_rest: true
+      read_rest: true
