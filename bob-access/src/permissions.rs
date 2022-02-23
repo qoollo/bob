@@ -22,6 +22,14 @@ impl Permissions {
     pub fn has_rest_write(&self) -> bool {
         self.contains(Self::WRITE_REST)
     }
+
+    pub fn has_write(&self) -> bool {
+        self.contains(Self::WRITE)
+    }
+
+    pub fn has_read(&self) -> bool {
+        self.contains(Self::READ)
+    }
 }
 
 impl From<&User> for Permissions {

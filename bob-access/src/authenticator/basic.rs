@@ -44,7 +44,10 @@ impl<Storage: UsersStorage> Basic<Storage> {
     }
 }
 
-impl<Storage: UsersStorage> Authenticator for Basic<Storage> {
+impl<Storage> Authenticator for Basic<Storage>
+where
+    Storage: UsersStorage,
+{
     fn check_credentials(&self, credentials: Credentials) -> Result<Permissions, Error> {
         debug!("check {:?}", credentials);
         if self.is_node_request(&credentials) == Some(true) {

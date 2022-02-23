@@ -69,6 +69,6 @@ impl User {
     }
 }
 
-pub trait UsersStorage: Default + Clone {
+pub trait UsersStorage: Default + Clone + Send + Sync + 'static {
     fn get_user<'a>(&'a self, username: &str) -> Result<&'a User, Error>;
 }
