@@ -146,6 +146,7 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
         finalize_outdated_blobs,
         vdisk_records_count,
         distribution_function,
+        delete_records_by_key,
         get_data,
         put_data,
         metrics,
@@ -731,6 +732,17 @@ fn internal(message: String) -> StatusExt {
 
 fn bad_request(message: impl Into<String>) -> StatusExt {
     StatusExt::new(Status::BadRequest, false, message.into())
+}
+
+#[delete("/data/<key>")]
+fn delete_records_by_key(
+    bob: &State<BobServer>,
+    key: Result<DataKey, StatusExt>,
+) -> Result<StatusExt, StatusExt> {
+    let key = key?.0;
+    bob.block_on(bob.grinder().delete(key, true))
+        .map_err(|e| internal(e.to_string()))
+        .map(|res| StatusExt::new(Status::Ok, true, format!("{}", res)))
 }
 
 impl DataKey {
