@@ -16,7 +16,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Node"
         default:
-          $ref: '#/components/responses/DefaultError'
+          $ref: "#/components/responses/DefaultError"
   /status/space:
     get:
       summary: Get space info
