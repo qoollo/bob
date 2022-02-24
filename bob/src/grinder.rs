@@ -64,6 +64,10 @@ impl Grinder {
         &self.node_config
     }
 
+    pub(crate) fn hw_counter(&self) -> &HWMetricsCollector {
+        &self.hw_counter
+    }
+
     pub(crate) async fn put(
         &self,
         key: BobKey,

@@ -1,12 +1,11 @@
 use crate::{
     api::http::metric_models::MetricsSnapshotModel, build_info::BuildInfo,
-    server::Server as BobServer,
+    hw_metrics_collector::SpaceMetrics, server::Server as BobServer,
 };
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
     error::Error as BobError,
-    metrics::{FREE_SPACE, TOTAL_SPACE, USED_SPACE},
     node::Disk as NodeDisk,
 };
 use futures::{future::BoxFuture, FutureExt};
@@ -247,25 +246,17 @@ async fn status(bob: &State<BobServer>) -> Json<Node> {
 
 #[get("/status/space")]
 async fn get_space_info(bob: &State<BobServer>) -> Result<Json<SpaceInfo>, StatusExt> {
-    let snapshot = bob.metrics().read().await;
-    let total_space = snapshot.gauges_map.get(TOTAL_SPACE).map(|g| g.value);
-    let used_space = snapshot.gauges_map.get(USED_SPACE).map(|g| g.value);
-    let free_space = snapshot.gauges_map.get(FREE_SPACE).map(|g| g.value);
-    total_space
-        .zip(used_space)
-        .zip(free_space)
-        .map(|((t, u), f)| {
-            Json(SpaceInfo {
-                total_disk_space_bytes: t * 1024 * 1024,
-                free_disk_space_bytes: f * 1024 * 1024,
-                used_disk_space_bytes: u * 1024 * 1024,
-            })
-        })
-        .ok_or(StatusExt::new(
-            Status::from_code(503).expect("codes changed"),
-            false,
-            "Failed to get space info".to_string(),
-        ))
+    let SpaceMetrics {
+        total_space,
+        used_space,
+        free_space,
+    } = bob.grinder().hw_counter().update_space_metrics();
+
+    Ok(Json(SpaceInfo {
+        total_disk_space_bytes: total_space,
+        used_disk_space_bytes: used_space,
+        free_disk_space_bytes: free_space,
+    }))
 }
 
 #[get("/metrics")]
