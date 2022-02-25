@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use bob_common::metrics::{
-    CPU_LOAD, CPU_IOWAIT, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE, USED_RAM,
-    USED_SPACE,
+    CPU_IOWAIT, CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE,
+    USED_RAM, USED_SPACE,
 };
 use std::path::{Path, PathBuf};
 use sysinfo::{DiskExt, ProcessExt, System, SystemExt};
@@ -60,15 +60,15 @@ impl HWMetricsCollector {
             interval.tick().await;
             sys.refresh_all();
             sys.refresh_disks();
-            
+
             gauge!(CPU_IOWAIT, cpu_s_c.iowait());
-            
+
             if let Some(proc) = sys.process(pid) {
-            	gauge!(CPU_LOAD, proc.cpu_usage() as f64);
+                gauge!(CPU_LOAD, proc.cpu_usage() as f64);
             } else {
-            	debug!("Can't get process stat descriptor");
+                debug!("Can't get process stat descriptor");
             }
-            
+
             let (total_space, free_space) = Self::space(&sys, &disks);
             gauge!(TOTAL_SPACE, total_space as f64);
             gauge!(USED_SPACE, (total_space - free_space) as f64);
@@ -80,8 +80,6 @@ impl HWMetricsCollector {
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
         }
     }
-    
-    
 
     // FIXME: maybe it's better to cache needed disks, but I am not sure, that they would be
     // refreshed, if I clone them
@@ -113,49 +111,44 @@ impl HWMetricsCollector {
 }
 
 struct CPUStatCollector {
-    iostat_avl: bool
+    iostat_avl: bool,
 }
 
 impl CPUStatCollector {
     fn new() -> CPUStatCollector {
-        CPUStatCollector {
-            iostat_avl: true
-        }
+        CPUStatCollector { iostat_avl: true }
     }
-    
+
+    fn parse_iowait_result(iowait_str: &str) -> Result<f64, std::num::ParseFloatError> {
+        iowait_str.replace(',', ".").parse()
+    }
+
     fn iowait(&mut self) -> f64 {
         if !self.iostat_avl {
             return -1.;
         }
-        
+
         let ios = std::process::Command::new("iostat").arg("-c").output();
         match ios {
             Ok(output) => {
-                if let (true, Ok(out)) = 
-                    (output.status.success(), String::from_utf8(output.stdout)) {
-                    let mut lines = out.lines();
+                if let (true, Ok(out)) = (output.status.success(), String::from_utf8(output.stdout))
+                {
                     // find avg-cpu headers line
-                    let mut flag = true;
-                    while flag {
-                        if let Some(line) = lines.next() {
-                            if let Some(_) = line.find("avg-cpu:") {
-                                flag = false;
-                            }
-                        } else {
-                            flag = false;
-                        }
-                    }
+                    let mut lines = out
+                        .lines()
+                        .skip_while(|line| line.find("avg-cpu:").is_none());
                     // find iowait column on the next line
                     if let Some(line) = lines.next() {
                         let mut values = line.split_whitespace();
+                        // iowait is in 3th column
                         if let Some(iowait_str) = values.nth(3) {
-                            if let Ok(iowait) = iowait_str.replace(',', ".").parse() {
+                            if let Ok(iowait) = Self::parse_iowait_result(iowait_str) {
                                 return iowait;
                             }
                         }
                     }
                 }
-            },
+            }
             Err(e) => {
                 debug!("Failed to execute iostat: {}", e);
                 self.iostat_avl = false;

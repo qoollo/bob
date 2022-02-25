@@ -138,31 +138,52 @@ impl DiskController {
         }
     }
 
+    fn parse_iostat_result(iostat_str: &str) -> Result<f64, std::num::ParseFloatError> {
+        iostat_str.replace(',', ".").parse()
+    }
+
     fn collect_iostat(&self) -> (f64, f64) {
         let mut iops = 0.;
         let mut iowait = 0.;
         let ios = std::process::Command::new("iostat").arg("-dx").output();
         match ios {
             Ok(output) => {
-                if let (true, Ok(out)) = 
-                    (output.status.success(), String::from_utf8(output.stdout)) {
-                    for i in out.lines() {
-                        let lsp: Vec<&str> = i.split_whitespace().collect();
-                        if lsp.len() > 0 && self.disk_dev_name == lsp[0] {
-                            if let (Ok(rs), Ok(ws)) = 
-                                (lsp[1].replace(',', ".").parse::<f64>(), 
-                                lsp[7].replace(',', ".").parse::<f64>()) {
-                                iops = rs + ws;
-                            }
-                            if let (Ok(rwait), Ok(wwait)) = 
-                                (lsp[5].replace(',', ".").parse::<f64>(), 
-                                lsp[11].replace(',', ".").parse::<f64>()) {
-                                iowait = rwait + wwait;
+                match (output.status.success(), String::from_utf8(output.stdout)) {
+                    (true, Ok(out)) => {
+                        for i in out.lines() {
+                            let lsp: Vec<&str> = i.split_whitespace().collect();
+                            if lsp.len() > 10 && self.disk_dev_name == lsp[0] {
+                                if let (Ok(rs), Ok(ws)) = (
+                                    // readops per s count is in 1st column
+                                    Self::parse_iostat_result(lsp[1]),
+                                    // writeops per s count is in 7th column
+                                    Self::parse_iostat_result(lsp[7]),
+                                ) {
+                                    iops = rs + ws;
+                                }
+                                if let (Ok(rwait), Ok(wwait)) = (
+                                    // readops wait time is in 5th column
+                                    Self::parse_iostat_result(lsp[5]),
+                                    // writeops wait time is in 11th column
+                                    Self::parse_iostat_result(lsp[11]),
+                                ) {
+                                    iowait = rwait + wwait;
+                                }
                             }
                         }
                     }
+                    (false, _) => {
+                        if let Ok(err) = String::from_utf8(output.stderr) {
+                            debug!("iostat failed: {}", err);
+                        } else {
+                            debug!("iostat failed");
+                        }
+                    }
+                    (_, Err(e)) => {
+                        debug!("Can not convert iostat result into string: {}", e);
+                    }
                 }
-            },
+            }
             Err(e) => {
                 debug!("Failed to execute iostat: {}", e);
             }

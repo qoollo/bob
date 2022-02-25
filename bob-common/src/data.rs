@@ -258,35 +258,35 @@ impl DiskPath {
     /// Creates new `DiskPath` with disk's name and path.
     #[must_use = "memory allocation"]
     pub fn new(name: String, path: String) -> DiskPath {
-        DiskPath {
-            name,
-            path,
-        }
+        DiskPath { name, path }
     }
 
     pub fn dev_name(&self) -> String {
         let df = std::process::Command::new("df").arg(&self.path).output();
         match df {
             Ok(output) => {
-                if let (true, Ok(out)) = 
-                	(output.status.success(), String::from_utf8(output.stdout)) {
+                if let (true, Ok(out)) = (output.status.success(), String::from_utf8(output.stdout))
+                {
                     let mut lines = out.lines();
-                    lines.next();  // skip headers
+                    lines.next(); // skip headers
                     if let Some(line) = lines.next() {
-                    	if let Some(raw_dev_name) = line.split_whitespace().next() {
-		                 	if let (Some(slash_ind), Some(non_digit_ind)) = 
-								// find where /dev/ ends
-		                 		(raw_dev_name.rfind('/'),
-		                 		// find where partition digits start
-		                 		raw_dev_name.rfind(|c| "0123456789".find(c) == None)) {
-		                 		return raw_dev_name[slash_ind + 1..=non_digit_ind].to_string();
-		                 	}
-                     	}
+                        if let Some(raw_dev_name) = line.split_whitespace().next() {
+                            if let (Some(slash_ind), Some(non_digit_ind)) =
+                                (
+                                    // find where /dev/ ends
+                                    raw_dev_name.rfind('/'),
+                                    // find where partition digits start
+                                    raw_dev_name.rfind(|c: char| !c.is_digit(10)),
+                                )
+                            {
+                                return raw_dev_name[slash_ind + 1..=non_digit_ind].to_string();
+                            }
+                        }
                     }
                 }
-            },
+            }
             Err(e) => {
-            	debug!("Failed to execute df: {}", e);
+                debug!("Failed to execute df: {}", e);
                 return "".to_string();
             }
         };
