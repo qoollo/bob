@@ -8,6 +8,8 @@ use std::{
     collections::HashMap,
     error::Error as ErrorTrait,
     net::{IpAddr, Ipv4Addr, SocketAddr},
+    io::{Read, BufReader},
+    fs::File,
 };
 use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::{Server, ServerTlsConfig, Certificate};
@@ -144,8 +146,7 @@ async fn main() {
             if let Some(node_tls_config) = node.tls() {
                 if node_tls_config.grpc {
                     if let Some(path) = &node_tls_config.grpc_path {
-                        // read cert
-                        let cert = Certificate::from_pem(&[0; 3]);
+                        let cert = load_tls_certificate(path);
                         tls_config = tls_config.client_ca_root(cert);
                     }
                 }
@@ -164,6 +165,14 @@ async fn main() {
             warn!("valid authentication type not provided");
         }
     }
+}
+
+fn load_tls_certificate(path: &str) -> Certificate {
+    let f = File::open(path).expect("can not open tls certificate file");
+    let mut reader = BufReader::new(f);
+    let mut buffer = Vec::new();
+    reader.read_to_end(&mut buffer).expect("can not read tls certificate from file");
+    Certificate::from_pem(&buffer)
 }
 
 async fn nodes_credentials_from_cluster_config(
