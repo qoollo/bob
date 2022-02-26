@@ -139,6 +139,7 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
         finalize_outdated_blobs,
         vdisk_records_count,
         distribution_function,
+        delete_records_by_key,
         get_data,
         put_data,
         metrics
@@ -269,11 +270,7 @@ async fn nodes(bob: &State<BobServer>) -> Json<Vec<Node>> {
             .filter_map(|vd| {
                 if vd.replicas.iter().any(|r| r.node == node.name()) {
                     let mut vd = vd.clone();
-                    for i in 0..vd.replicas.len() {
-                        if vd.replicas[i].node != node.name() {
-                            vd.replicas.remove(i);
-                        }
-                    }
+                    vd.replicas.retain(|r| r.node == node.name());
                     Some(vd)
                 } else {
                     None
@@ -428,9 +425,8 @@ async fn vdisk_records_count(
     let group = find_group(bob, vdisk_id).await?;
     let holders = group.holders();
     let pearls = holders.read().await;
-    let pearls: &[_] = pearls.as_ref();
     let mut sum = 0;
-    for pearl in pearls {
+    for pearl in pearls.iter() {
         sum += pearl.records_count().await;
     }
     Ok(Json(sum as u64))
@@ -446,8 +442,10 @@ async fn partitions(
     let holders = group.holders();
     let pearls = holders.read().await;
     debug!("get pearl holders: OK");
-    let pearls: &[_] = pearls.as_ref();
-    let partitions = pearls.iter().map(Holder::get_id).collect();
+    let mut partitions = vec![];
+    for pearl in pearls.iter() {
+        partitions.push(pearl.get_id());
+    }
     let ps = VDiskPartitions {
         node_name: group.node_name().to_owned(),
         disk_name: group.disk_name().to_owned(),
@@ -560,8 +558,10 @@ async fn drop_directories(
     vdisk_id: u32,
 ) -> Result<StatusExt, StatusExt> {
     let mut result = String::new();
+    let mut error = false;
     for holder in holders {
         let msg = if let Err(e) = holder.drop_directory().await {
+            error = true;
             format!(
                 "partitions with timestamp {} delete failed on vdisk {}, error: {}",
                 timestamp, vdisk_id, e
@@ -572,7 +572,7 @@ async fn drop_directories(
         result.push_str(&msg);
         result.push('\n');
     }
-    if result.is_empty() {
+    if !error {
         Ok(StatusExt::new(Status::Ok, true, result))
     } else {
         Err(StatusExt::new(Status::InternalServerError, true, result))
@@ -709,6 +709,17 @@ fn internal(message: String) -> StatusExt {
 
 fn bad_request(message: impl Into<String>) -> StatusExt {
     StatusExt::new(Status::BadRequest, false, message.into())
+}
+
+#[delete("/data/<key>")]
+fn delete_records_by_key(
+    bob: &State<BobServer>,
+    key: Result<DataKey, StatusExt>,
+) -> Result<StatusExt, StatusExt> {
+    let key = key?.0;
+    bob.block_on(bob.grinder().delete(key, true))
+        .map_err(|e| internal(e.to_string()))
+        .map(|res| StatusExt::new(Status::Ok, true, format!("{}", res)))
 }
 
 impl DataKey {

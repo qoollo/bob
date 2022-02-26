@@ -579,7 +579,7 @@ impl DiskController {
 
     pub(crate) async fn blobs_count(&self) -> usize {
         let cnt = if *self.state.read().await == GroupsState::Ready {
-            let mut cnt = 0;
+            let mut cnt: usize = 0;
             for group in self.groups.read().await.iter() {
                 let holders_guard = group.holders();
                 let holders = holders_guard.read().await;
@@ -615,6 +615,45 @@ impl DiskController {
         let groups = self.groups.read().await;
         for group in groups.iter() {
             group.close_unneeded_active_blobs(soft, hard).await;
+        }
+    }
+
+    pub(crate) async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+        if *self.state.read().await == GroupsState::Ready {
+            debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
+            let vdisk_group = self
+                .groups
+                .read()
+                .await
+                .iter()
+                .find(|g| g.can_process_operation(&op))
+                .cloned();
+            if let Some(group) = vdisk_group {
+                group.delete(key).await
+            } else {
+                error!("DELETE[{}] Cannot find storage, operation: {:?}", key, op);
+                Err(Error::vdisk_not_found(op.vdisk_id()))
+            }
+        } else {
+            Err(Error::dc_is_not_available())
+        }
+    }
+
+    pub(crate) async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+        if *self.state.read().await == GroupsState::Ready {
+            let vdisk_group = self.find_group(&op).await;
+            if let Ok(group) = vdisk_group {
+                group.delete(key).await
+            } else {
+                warn!(
+                    "DELETE[alien][{}] No alien group has been created for vdisk #{}",
+                    key,
+                    op.vdisk_id()
+                );
+                Err(Error::key_not_found(key))
+            }
+        } else {
+            Err(Error::dc_is_not_available())
         }
     }
 

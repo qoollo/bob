@@ -1,6 +1,6 @@
 [package]
 name = "bob-grpc"
-version = "2.0.0-alpha.10"
+version = "2.1.0-alpha.0"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
@@ -10,17 +10,17 @@ bytes = "1.1"
 cfg-if = "1.0"
 http = "0.2"
 hyper = { version = "0.14", default-features = false }
-lazy_static = "1.4.0"
+lazy_static = "1.4"
 log = "0.4"
-prost = "0.8"
-tonic = { version = "0.5", features = ["prost"] }
+prost = "0.9"
+tonic = { version = "0.6", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"
 
 [dependencies.tokio]
-version = "1.11"
+version = "1.14"
 default-features = false
 features = []
 
 [build-dependencies]
-tonic-build = "0.5"
+tonic-build = "0.6"
