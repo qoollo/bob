@@ -451,6 +451,14 @@ impl Validatable for Pearl {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TLSConfig {
+    pub rest: bool,
+    pub rest_path: Option<String>,
+    pub grpc: bool,
+    pub grpc_path: Option<String>,
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum BackendType {
     InMemory = 0,
@@ -474,6 +482,7 @@ pub struct Node {
     backend_type: String,
     pearl: Option<Pearl>,
     metrics: Option<MetricsConfig>,
+    tls: Option<TLSConfig>,
 
     #[serde(skip)]
     bind_ref: Arc<Mutex<String>>,
@@ -523,6 +532,10 @@ impl NodeConfig {
 
     pub fn metrics(&self) -> &MetricsConfig {
         self.metrics.as_ref().expect("metrics config")
+    }
+
+    pub fn tls(&self) -> &Option<TLSConfig> {
+        &self.tls
     }
 
     /// Get log config file path.
@@ -718,6 +731,22 @@ impl Validatable for NodeConfig {
                 return Err(msg);
             }
         }
+        if let Some(tls) = &self.tls {
+            if tls.rest {
+                if tls.rest_path.is_none() {
+                    let msg = "rest tls enabled, but certificate not specified, add \"rest_path\" to tls config".to_string();
+                    error!("{}", msg);
+                    return Err(msg);
+                }
+            }
+            if tls.grpc {
+                if tls.grpc_path.is_none() {
+                    let msg = "grpc tls enabled, but certificate not specified, add \"grpc_path\" to tls config".to_string();
+                    error!("{}", msg);
+                    return Err(msg);
+                }
+            }
+        }
         self.operation_timeout
             .parse::<HumanDuration>()
             .map_err(|e| {
@@ -775,6 +804,7 @@ pub mod tests {
             backend_type: "in_memory".to_string(),
             pearl: None,
             metrics: None,
+            tls: None,
             bind_ref: Arc::default(),
             disks_ref: Arc::default(),
             cleanup_interval: "1d".to_string(),

@@ -10,7 +10,7 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
 };
 use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
-use tonic::transport::Server;
+use tonic::transport::{Server, ServerTlsConfig, Certificate};
 
 #[macro_use]
 extern crate log;
@@ -140,9 +140,21 @@ async fn main() {
             bob.run_periodic_tasks(factory);
             bob.run_api_server(http_api_address, http_api_port);
 
+            let mut tls_config = ServerTlsConfig::new();
+            if let Some(node_tls_config) = node.tls() {
+                if node_tls_config.grpc {
+                    if let Some(path) = &node_tls_config.grpc_path {
+                        // read cert
+                        let cert = Certificate::from_pem(&[0; 3]);
+                        tls_config = tls_config.client_ca_root(cert);
+                    }
+                }
+            };
+
             let bob_service = BobApiServer::new(bob);
             Server::builder()
                 .tcp_nodelay(true)
+                .tls_config(tls_config).expect("grpc tls config")
                 .add_service(bob_service)
                 .serve(addr)
                 .await
