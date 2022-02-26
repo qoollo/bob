@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use bob_common::metrics::{
     CPU_IOWAIT, CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE,
-    USED_RAM, USED_SPACE,
+    USED_RAM, USED_SPACE, BOB_RAM,
 };
 use std::path::{Path, PathBuf};
 use std::process;
