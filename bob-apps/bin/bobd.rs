@@ -102,6 +102,17 @@ async fn main() {
     let factory = Factory::new(node.operation_timeout(), metrics);
     let grinder = Grinder::new(mapper.clone(), &node).await;
     let authentication_type = matches.value_of("authentication_type").unwrap();
+
+    let mut tls_config = ServerTlsConfig::new();
+    if let Some(node_tls_config) = node.tls() {
+        if node_tls_config.grpc {
+            if let Some(path) = &node_tls_config.grpc_path {
+                let cert = load_tls_certificate(path);
+                tls_config = tls_config.client_ca_root(cert);
+            }
+        }
+    };
+
     match authentication_type {
         "stub" => {
             let users_storage =
@@ -117,6 +128,7 @@ async fn main() {
             let bob_service = BobApiServer::new(bob);
             Server::builder()
                 .tcp_nodelay(true)
+                .tls_config(tls_config).expect("grpc tls config")
                 .add_service(bob_service)
                 .serve(addr)
                 .await
@@ -142,15 +154,7 @@ async fn main() {
             bob.run_periodic_tasks(factory);
             bob.run_api_server(http_api_address, http_api_port);
 
-            let mut tls_config = ServerTlsConfig::new();
-            if let Some(node_tls_config) = node.tls() {
-                if node_tls_config.grpc {
-                    if let Some(path) = &node_tls_config.grpc_path {
-                        let cert = load_tls_certificate(path);
-                        tls_config = tls_config.client_ca_root(cert);
-                    }
-                }
-            };
+            
 
             let bob_service = BobApiServer::new(bob);
             Server::builder()
