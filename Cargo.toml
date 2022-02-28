@@ -2,4 +2,4 @@
 members = ["bob", "bob-apps", "bob-backend", "bob-common"]
 
 [patch.crates-io]
-pearl = { path = "../pearl" }
+pearl = { git = "https://github.com/qoollo/pearl", branch = "summary-collector" }
