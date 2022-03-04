@@ -13,12 +13,14 @@ pub mod b_client {
     use mockall::mock;
     use std::{
         fmt::{Debug, Formatter, Result as FmtResult},
+        fs::File,
+        io::{BufReader, Read},
         time::Duration,
     };
     use tokio::time::timeout;
     use tonic::{
         metadata::MetadataValue,
-        transport::{Channel, Endpoint},
+        transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
         Request, Response, Status,
     };
 
@@ -31,6 +33,16 @@ pub mod b_client {
         metrics: BobClientMetrics,
     }
 
+    fn load_tls_certificate(path: &str) -> Vec<u8> {
+        let f = File::open(path).expect("can not open tls certificate file");
+        let mut reader = BufReader::new(f);
+        let mut buffer = Vec::new();
+        reader
+            .read_to_end(&mut buffer)
+            .expect("can not read tls certificate from file");
+        buffer
+    }
+
     impl BobClient {
         /// Creates [`BobClient`] instance
         /// # Errors
@@ -41,10 +53,20 @@ pub mod b_client {
             operation_timeout: Duration,
             metrics: BobClientMetrics,
         ) -> Result<Self, String> {
-            let endpoint = Endpoint::from(node.get_uri()).tcp_nodelay(true);
-            let client = BobApiClient::connect(endpoint)
+            let cert = Certificate::from_pem(load_tls_certificate("./cert.csr"));
+            let tls_config = ClientTlsConfig::new().ca_certificate(cert).domain_name("bob");
+            let endpoint = Endpoint::from(node.get_uri())
+                .tls_config(tls_config)
+                .expect("client tls")
+                .tcp_nodelay(true);
+            let mut client = BobApiClient::connect(endpoint)
                 .await
                 .map_err(|e| e.to_string())?;
+            
+                let mut request = Request::new(Null {});
+            //set_credentials(&mut request);
+            println!("we are here");
+            client.ping(request).await.expect("woah");
             Ok(Self {
                 node,
                 operation_timeout,

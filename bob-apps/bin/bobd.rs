@@ -12,7 +12,7 @@ use std::{
     fs::File,
 };
 use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
-use tonic::transport::{Server, ServerTlsConfig, Certificate};
+use tonic::transport::{Server, ServerTlsConfig, Certificate, Identity};
 
 #[macro_use]
 extern crate log;
@@ -103,12 +103,20 @@ async fn main() {
     let grinder = Grinder::new(mapper.clone(), &node).await;
     let authentication_type = matches.value_of("authentication_type").unwrap();
 
-    let mut tls_config = ServerTlsConfig::new();
+    let mut server_builder = Server::builder();
+
     if let Some(node_tls_config) = node.tls() {
         if node_tls_config.grpc {
             if let Some(path) = &node_tls_config.grpc_path {
-                let cert = load_tls_certificate(path);
-                tls_config = tls_config.client_ca_root(cert);
+                let cert_bin = load_tls_certificate(path);
+                let key_bin = load_tls_pkey("./cert.key");
+
+                let identity = Identity::from_pem(cert_bin.clone(), key_bin);
+                let certificate = Certificate::from_pem(cert_bin);
+                let tls_config = ServerTlsConfig::new()
+                    .client_ca_root(certificate)
+                    .identity(identity);
+                server_builder = server_builder.tls_config(tls_config).expect("grpc tls config");
             }
         }
     };
@@ -126,9 +134,8 @@ async fn main() {
             bob.run_api_server(http_api_address, http_api_port);
 
             let bob_service = BobApiServer::new(bob);
-            Server::builder()
+            server_builder
                 .tcp_nodelay(true)
-                .tls_config(tls_config).expect("grpc tls config")
                 .add_service(bob_service)
                 .serve(addr)
                 .await
@@ -157,9 +164,8 @@ async fn main() {
             
 
             let bob_service = BobApiServer::new(bob);
-            Server::builder()
+            server_builder
                 .tcp_nodelay(true)
-                .tls_config(tls_config).expect("grpc tls config")
                 .add_service(bob_service)
                 .serve(addr)
                 .await
@@ -171,12 +177,20 @@ async fn main() {
     }
 }
 
-fn load_tls_certificate(path: &str) -> Certificate {
+fn load_tls_certificate(path: &str) -> Vec<u8> {
     let f = File::open(path).expect("can not open tls certificate file");
     let mut reader = BufReader::new(f);
     let mut buffer = Vec::new();
     reader.read_to_end(&mut buffer).expect("can not read tls certificate from file");
-    Certificate::from_pem(&buffer)
+    buffer
+}
+
+fn load_tls_pkey(path: &str) -> Vec<u8> {
+    let f = File::open(path).expect("can not open tls private key file");
+    let mut reader = BufReader::new(f);
+    let mut buffer = Vec::new();
+    reader.read_to_end(&mut buffer).expect("can not read tls private key from file");
+    buffer
 }
 
 async fn nodes_credentials_from_cluster_config(
