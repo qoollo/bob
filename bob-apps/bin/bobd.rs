@@ -105,21 +105,22 @@ async fn main() {
 
     let mut server_builder = Server::builder();
 
-    if let Some(node_tls_config) = node.tls() {
-        if node_tls_config.grpc {
-            if let Some(path) = &node_tls_config.grpc_path {
-                let cert_bin = load_tls_certificate(path);
-                let key_bin = load_tls_pkey("./cert.key");
-
-                let identity = Identity::from_pem(cert_bin.clone(), key_bin);
-                let certificate = Certificate::from_pem(cert_bin);
-                let tls_config = ServerTlsConfig::new()
-                    .client_ca_root(certificate)
-                    .identity(identity);
-                server_builder = server_builder.tls_config(tls_config).expect("grpc tls config");
-            }
+    if node.tls() {
+        if let Some(node_tls_config) = node.tls_config() {
+            let cert_bin = load_tls_certificate(&node_tls_config.cert_path);
+            let key_bin = load_tls_pkey(&node_tls_config.pkey_path);
+            let identity = Identity::from_pem(cert_bin.clone(), key_bin);
+            
+            //let certificate = Certificate::from_pem(cert_bin);
+            let tls_config = ServerTlsConfig::new()
+                //.client_ca_root(certificate)
+                .identity(identity);
+            server_builder = server_builder.tls_config(tls_config).expect("grpc tls config");
+        } else {
+            error!("tls enabed, but not specified, add \"tls:\" to node config");
+            panic!("tls enabed, but not specified, add \"tls:\" to node config");
         }
-    };
+    }
 
     match authentication_type {
         "stub" => {

@@ -20,7 +20,7 @@ pub mod b_client {
     use tokio::time::timeout;
     use tonic::{
         metadata::MetadataValue,
-        transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
+        transport::{Certificate, Channel, ClientTlsConfig, Endpoint, Identity},
         Request, Response, Status,
     };
 
@@ -53,20 +53,21 @@ pub mod b_client {
             operation_timeout: Duration,
             metrics: BobClientMetrics,
         ) -> Result<Self, String> {
-            let cert = Certificate::from_pem(load_tls_certificate("./cert.csr"));
-            let tls_config = ClientTlsConfig::new().ca_certificate(cert).domain_name("bob");
-            let endpoint = Endpoint::from(node.get_uri())
-                .tls_config(tls_config)
-                .expect("client tls")
-                .tcp_nodelay(true);
-            let mut client = BobApiClient::connect(endpoint)
-                .await
-                .map_err(|e| e.to_string())?;
+            println!("creating");
+            let mut endpoint = Endpoint::from(node.get_uri());
+            if node.tls() {
+                let cert_bin = load_tls_certificate("./my_ca.pem");
+                //let key_bin = load_tls_certificate("./cert.key");
+                //let identity = Identity::from_pem(cert_bin.clone(), key_bin);
+                let cert = Certificate::from_pem(cert_bin);
+                let tls_config = ClientTlsConfig::new().domain_name("bob").ca_certificate(cert);//.ca_certificate(cert);
+                endpoint = endpoint.tls_config(tls_config).expect("client tls");
+            }
+            endpoint = endpoint.tcp_nodelay(true);
             
-                let mut request = Request::new(Null {});
-            //set_credentials(&mut request);
-            println!("we are here");
-            client.ping(request).await.expect("woah");
+            let client = BobApiClient::connect(endpoint)
+                .await.map_err(|e| e.to_string())?;
+            
             Ok(Self {
                 node,
                 operation_timeout,
@@ -281,6 +282,7 @@ impl Factory {
     }
     pub async fn produce(&self, node: Node) -> Result<BobClient, String> {
         let metrics = self.metrics.clone().get_metrics(&node.counter_display());
+        println!("producing");
         BobClient::create(node, self.operation_timeout, metrics).await
     }
 }

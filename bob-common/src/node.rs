@@ -18,6 +18,7 @@ pub type Name = String;
 pub struct Node {
     name: Name,
     address: String,
+    tls: bool,
     index: Id,
     conn: Arc<RwLock<Option<BobClient>>>,
 }
@@ -36,10 +37,11 @@ pub struct Disk {
 }
 
 impl Node {
-    pub async fn new(name: String, address: &str, index: u16) -> Self {
+    pub async fn new(name: String, address: &str, tls: bool, index: u16) -> Self {
         Self {
             name,
             address: address.to_string(),
+            tls,
             index,
             conn: Arc::default(),
         }
@@ -55,6 +57,10 @@ impl Node {
 
     pub fn address(&self) -> &str {
         &self.address
+    }
+
+    pub fn tls(&self) -> bool {
+        self.tls
     }
 
     pub fn get_uri(&self) -> Uri {
@@ -84,6 +90,7 @@ impl Node {
 
     pub async fn check(&self, client_fatory: &Factory) -> Result<(), String> {
         if let Some(conn) = self.get_connection().await {
+            println!("has connection");
             if let Err(e) = conn.ping().await {
                 debug!("Got broken connection to node {:?}", self);
                 self.clear_connection().await;
@@ -93,8 +100,13 @@ impl Node {
                 Ok(())
             }
         } else {
+            println!("want connection");
             debug!("will connect to {:?}", self);
-            let client = client_fatory.produce(self.clone()).await?;
+            let client = client_fatory.produce(self.clone()).await;
+            if let Err(e) = &client {
+                println!("errar: {}", e);
+            }
+            let client = client?;
             self.set_connection(client).await;
             Ok(())
         }

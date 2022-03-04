@@ -454,9 +454,9 @@ impl Validatable for Pearl {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TLSConfig {
     pub rest: bool,
-    pub rest_path: Option<String>,
-    pub grpc: bool,
-    pub grpc_path: Option<String>,
+    pub ca_cert_path: String,
+    pub cert_path: String,
+    pub pkey_path: String,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
@@ -488,6 +488,8 @@ pub struct Node {
     bind_ref: Arc<Mutex<String>>,
     #[serde(skip)]
     disks_ref: Arc<Mutex<Vec<DiskPath>>>,
+    #[serde(skip)]
+    tls_enabled: Arc<Mutex<bool>>,
 
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
@@ -534,8 +536,12 @@ impl NodeConfig {
         self.metrics.as_ref().expect("metrics config")
     }
 
-    pub fn tls(&self) -> &Option<TLSConfig> {
+    pub fn tls_config(&self) -> &Option<TLSConfig> {
         &self.tls
+    }
+
+    pub fn tls(&self) -> bool {
+        *(self.tls_enabled.lock().expect("mutex"))
     }
 
     /// Get log config file path.
@@ -606,6 +612,12 @@ impl NodeConfig {
             let mut lck = self.bind_ref.lock().expect("mutex");
             *lck = node.address().to_owned();
         }
+
+        {
+            let mut lck = self.tls_enabled.lock().expect("mutex");
+            *lck = node.tls();
+        }
+        
         let t = node
             .disks()
             .iter()
@@ -731,22 +743,6 @@ impl Validatable for NodeConfig {
                 return Err(msg);
             }
         }
-        if let Some(tls) = &self.tls {
-            if tls.rest {
-                if tls.rest_path.is_none() {
-                    let msg = "rest tls enabled, but certificate not specified, add \"rest_path\" to tls config".to_string();
-                    error!("{}", msg);
-                    return Err(msg);
-                }
-            }
-            if tls.grpc {
-                if tls.grpc_path.is_none() {
-                    let msg = "grpc tls enabled, but certificate not specified, add \"grpc_path\" to tls config".to_string();
-                    error!("{}", msg);
-                    return Err(msg);
-                }
-            }
-        }
         self.operation_timeout
             .parse::<HumanDuration>()
             .map_err(|e| {
@@ -807,6 +803,7 @@ pub mod tests {
             tls: None,
             bind_ref: Arc::default(),
             disks_ref: Arc::default(),
+            tls_enabled: Arc::default(),
             cleanup_interval: "1d".to_string(),
             open_blobs_soft_limit: None,
             open_blobs_hard_limit: None,

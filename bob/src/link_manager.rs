@@ -27,6 +27,7 @@ impl LinkManager {
             let mut err_cnt = 0;
             let mut status = String::from("Node status: ");
             for node in nodes.iter() {
+                println!("in check!");
                 if let Err(e) = node.check(&factory).await {
                     error!(
                         "No connection to {}:[{}] - {}",
