@@ -12,7 +12,7 @@ use std::{
     fs::File,
 };
 use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
-use tonic::transport::{Server, ServerTlsConfig, Certificate, Identity};
+use tonic::transport::{Server, ServerTlsConfig, Identity};
 
 #[macro_use]
 extern crate log;
@@ -99,7 +99,17 @@ async fn main() {
         .and_then(|v| v.parse().ok())
         .unwrap_or_else(|| node.http_api_address());
 
-    let factory = Factory::new(node.operation_timeout(), metrics);
+    let factory = if node.tls() {
+        if let Some(node_tls_config) = node.tls_config() {
+            let ca_cert_path = node_tls_config.ca_cert_path.clone();
+            Factory::new(node.operation_timeout(), metrics, Some(ca_cert_path))
+        } else {
+            error!("tls enabed, but not specified, add \"tls:\" to node config");
+            panic!("tls enabed, but not specified, add \"tls:\" to node config");
+        }
+    } else {
+        Factory::new(node.operation_timeout(), metrics, None)
+    };
     let grinder = Grinder::new(mapper.clone(), &node).await;
     let authentication_type = matches.value_of("authentication_type").unwrap();
 
@@ -107,14 +117,13 @@ async fn main() {
 
     if node.tls() {
         if let Some(node_tls_config) = node.tls_config() {
-            let cert_bin = load_tls_certificate(&node_tls_config.cert_path);
-            let key_bin = load_tls_pkey(&node_tls_config.pkey_path);
+            let cert_path = node_tls_config.cert_path.as_ref().expect("no certificate path specified");
+            let cert_bin = load_tls_certificate(cert_path);
+            let pkey_path = node_tls_config.pkey_path.as_ref().expect("no private key path specified");
+            let key_bin = load_tls_pkey(pkey_path);
             let identity = Identity::from_pem(cert_bin.clone(), key_bin);
             
-            //let certificate = Certificate::from_pem(cert_bin);
-            let tls_config = ServerTlsConfig::new()
-                //.client_ca_root(certificate)
-                .identity(identity);
+            let tls_config = ServerTlsConfig::new().identity(identity);
             server_builder = server_builder.tls_config(tls_config).expect("grpc tls config");
         } else {
             error!("tls enabed, but not specified, add \"tls:\" to node config");

@@ -90,7 +90,6 @@ impl Node {
 
     pub async fn check(&self, client_fatory: &Factory) -> Result<(), String> {
         if let Some(conn) = self.get_connection().await {
-            println!("has connection");
             if let Err(e) = conn.ping().await {
                 debug!("Got broken connection to node {:?}", self);
                 self.clear_connection().await;
@@ -100,7 +99,6 @@ impl Node {
                 Ok(())
             }
         } else {
-            println!("want connection");
             debug!("will connect to {:?}", self);
             let client = client_fatory.produce(self.clone()).await;
             if let Err(e) = &client {

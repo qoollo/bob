@@ -20,7 +20,7 @@ pub mod b_client {
     use tokio::time::timeout;
     use tonic::{
         metadata::MetadataValue,
-        transport::{Certificate, Channel, ClientTlsConfig, Endpoint, Identity},
+        transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
         Request, Response, Status,
     };
 
@@ -34,12 +34,12 @@ pub mod b_client {
     }
 
     fn load_tls_certificate(path: &str) -> Vec<u8> {
-        let f = File::open(path).expect("can not open tls certificate file");
+        let f = File::open(path).expect("can not open ca certificate file");
         let mut reader = BufReader::new(f);
         let mut buffer = Vec::new();
         reader
             .read_to_end(&mut buffer)
-            .expect("can not read tls certificate from file");
+            .expect("can not read ca certificate from file");
         buffer
     }
 
@@ -52,15 +52,13 @@ pub mod b_client {
             node: Node,
             operation_timeout: Duration,
             metrics: BobClientMetrics,
+            ca_cert_path: Option<&str>
         ) -> Result<Self, String> {
-            println!("creating");
             let mut endpoint = Endpoint::from(node.get_uri());
             if node.tls() {
-                let cert_bin = load_tls_certificate("./my_ca.pem");
-                //let key_bin = load_tls_certificate("./cert.key");
-                //let identity = Identity::from_pem(cert_bin.clone(), key_bin);
+                let cert_bin = load_tls_certificate(ca_cert_path.expect("ca certificate path"));
                 let cert = Certificate::from_pem(cert_bin);
-                let tls_config = ClientTlsConfig::new().domain_name("bob").ca_certificate(cert);//.ca_certificate(cert);
+                let tls_config = ClientTlsConfig::new().domain_name("bob").ca_certificate(cert);
                 endpoint = endpoint.tls_config(tls_config).expect("client tls");
             }
             endpoint = endpoint.tcp_nodelay(true);
@@ -266,6 +264,7 @@ pub type ExistResult = Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>;
 pub struct Factory {
     operation_timeout: Duration,
     metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
+    ca_cert_path: Option<String>,
 }
 
 impl Factory {
@@ -274,16 +273,17 @@ impl Factory {
     pub fn new(
         operation_timeout: Duration,
         metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
+        ca_cert_path: Option<String>,
     ) -> Self {
         Factory {
             operation_timeout,
             metrics,
+            ca_cert_path
         }
     }
     pub async fn produce(&self, node: Node) -> Result<BobClient, String> {
         let metrics = self.metrics.clone().get_metrics(&node.counter_display());
-        println!("producing");
-        BobClient::create(node, self.operation_timeout, metrics).await
+        BobClient::create(node, self.operation_timeout, metrics, self.ca_cert_path.as_deref()).await
     }
 }
 
