@@ -15,10 +15,11 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::{fs::File, io::{BufReader, Read}};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tonic::transport::{Channel, Endpoint};
+use tonic::transport::{Channel, Endpoint, Certificate, ClientTlsConfig};
 use tonic::{Code, Request, Status};
 
 #[macro_use]
@@ -28,6 +29,7 @@ extern crate log;
 struct NetConfig {
     port: u16,
     target: String,
+    ca_cert_path: Option<String>,
 }
 impl NetConfig {
     fn get_uri(&self) -> http::Uri {
@@ -43,11 +45,28 @@ impl NetConfig {
         Self {
             port: matches.value_or_default("port"),
             target: matches.value_or_default("host"),
+            ca_cert_path: matches.value_of("ca_path").map(|p| p.to_string()),
         }
     }
 
+    fn load_tls_certificate(path: &str) -> Vec<u8> {
+        let f = File::open(path).expect("can not open ca certificate file");
+        let mut reader = BufReader::new(f);
+        let mut buffer = Vec::new();
+        reader
+            .read_to_end(&mut buffer)
+            .expect("can not read ca certificate from file");
+        buffer
+    }
+
     async fn build_client(&self) -> BobApiClient<Channel> {
-        let endpoint = Endpoint::from(self.get_uri()).tcp_nodelay(true);
+        let mut endpoint = Endpoint::from(self.get_uri()).tcp_nodelay(true);
+        if let Some(ca_cert_path) = &self.ca_cert_path {
+            let cert_bin = Self::load_tls_certificate(&ca_cert_path);
+            let cert = Certificate::from_pem(cert_bin);
+            let tls_config = ClientTlsConfig::new().domain_name("bob").ca_certificate(cert);
+            endpoint = endpoint.tls_config(tls_config).expect("tls config");
+        }
         loop {
             match BobApiClient::connect(endpoint.clone()).await {
                 Ok(client) => return client,
@@ -786,6 +805,12 @@ fn get_matches() -> ArgMatches<'static> {
                 .long("keysize")
                 .short("k")
                 .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8")),
+        )
+        .arg(
+            Arg::with_name("ca_path")
+                .help("path to tls ca certificate")
+                .takes_value(true)
+                .long("ca_path")
         )
         .get_matches()
 }
