@@ -1,6 +1,6 @@
 use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
-    VirtualMapper,
+    VirtualMapper, BackendType,
 };
 use clap::{crate_version, App, Arg, ArgMatches};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -149,39 +149,44 @@ fn spawn_signal_handler(
 }
 
 fn check_folders(node: &NodeConfig, init_flag: bool) {
-    let p_mutex = node.disks();
-    let paths = p_mutex.lock().expect("node disks mutex");
-    for i in 0..paths.len() {
-        let mut bob_path = PathBuf::from(paths[i].path());
-        bob_path.push("bob");
-        let bob_path = bob_path.as_path();
-        if !bob_path.is_dir() {
-            if init_flag {
-                create_dir(bob_path).expect("Failed to create bob folder");
-            } else {
-                if let Some(path_str) = bob_path.to_str() {
-                    error!("{} folder doesn't exist, try to use --init_folders flag", path_str);
-                    panic!("{} folder doesn't exist, try to use --init_folders flag", path_str);
+    if let BackendType::Pearl = node.backend_type() {
+        let root_dir = node.pearl().settings().root_dir_name();
+        let alien_dir = node.pearl().settings().alien_root_dir_name();
+
+        let p_mutex = node.disks();
+        let paths = p_mutex.lock().expect("node disks mutex");
+        for i in 0..paths.len() {
+            let mut bob_path = PathBuf::from(paths[i].path());
+            bob_path.push(root_dir);
+            let bob_path = bob_path.as_path();
+            if !bob_path.is_dir() {
+                if init_flag {
+                    create_dir(bob_path).expect("Failed to create bob folder");
                 } else {
-                    error!("bob folder doesn't exist, try to use --init_folders flag");
-                    panic!("bob folder doesn't exist, try to use --init_folders flag");
+                    if let Some(path_str) = bob_path.to_str() {
+                        error!("{} folder doesn't exist, try to use --init_folders flag", path_str);
+                        panic!("{} folder doesn't exist, try to use --init_folders flag", path_str);
+                    } else {
+                        error!("bob folder doesn't exist, try to use --init_folders flag");
+                        panic!("bob folder doesn't exist, try to use --init_folders flag");
+                    }
                 }
             }
-        }
 
-        let mut alien_path = PathBuf::from(paths[i].path());
-        alien_path.push("alien");
-        let alien_path = alien_path.as_path();
-        if !alien_path.is_dir() {
-            if init_flag {
-                create_dir(alien_path).expect("Failed to create alien folder");
-            } else {
-                if let Some(path_str) = alien_path.to_str() {
-                    error!("{} folder doesn't exist, try to use --init_folders flag", path_str);
-                    panic!("{} folder doesn't exist, try to use --init_folders flag", path_str);
+            let mut alien_path = PathBuf::from(paths[i].path());
+            alien_path.push(alien_dir);
+            let alien_path = alien_path.as_path();
+            if !alien_path.is_dir() {
+                if init_flag {
+                    create_dir(alien_path).expect("Failed to create alien folder");
                 } else {
-                    error!("alien folder doesn't exist, try to use --init_folders flag");
-                    panic!("alien folder doesn't exist, try to use --init_folders flag");
+                    if let Some(path_str) = alien_path.to_str() {
+                        error!("{} folder doesn't exist, try to use --init_folders flag", path_str);
+                        panic!("{} folder doesn't exist, try to use --init_folders flag", path_str);
+                    } else {
+                        error!("alien folder doesn't exist, try to use --init_folders flag");
+                        panic!("alien folder doesn't exist, try to use --init_folders flag");
+                    }
                 }
             }
         }
