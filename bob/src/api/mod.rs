@@ -1,13 +1,17 @@
 use crate::{build_info::BuildInfo, server::Server as BobServer};
-use axum::{
+/*use axum::{
     body::{self, BoxBody},
     extract::{Extension, Path as AxumPath},
     response::IntoResponse,
     routing::{delete, get, post, MethodRouter},
     AddExtensionLayer, Json, Router, Server,
-};
+};*/
+
+use rocket::{Rocket, Build, State, routes, Route,
+http::hyper::Server, Config, serde::json::Json, http::Method};
+
 pub(crate) use bob_access::Error as AuthError;
-use bob_access::{Authenticator, Credentials};
+use bob_access::{Authenticator, Credentials, UsersMap, BasicAuthenticator};
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
@@ -30,7 +34,7 @@ use uuid::Uuid;
 use self::metric_models::MetricsSnapshotModel;
 
 mod metric_models;
-mod s3;
+//mod s3;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -132,21 +136,55 @@ pub(crate) struct NodeConfiguration {
     blob_file_name_prefix: String,
 }
 
+macro_rules! my_routes {
+    ($T: ty, $NAME: ident) => {
+        mod $NAME {
+            use super::*;
+
+            #[get("/status")]
+            async fn status(bob: &State<BobServer<$T>>) -> Json<Node> {
+                let mapper = bob.grinder().backend().mapper();
+                let name = mapper.local_node_name().to_owned();
+                let address = mapper.local_node_address().to_owned();
+                let vdisks = collect_disks_info(bob);
+                let node = Node {
+                    name,
+                    address,
+                    vdisks,
+                };
+                Json(node)
+            }
+        }
+    }
+}
+
+//my_routes!(BasicAuthenticator<UsersMap>, basic_routes);
+
 pub(crate) fn spawn<A>(bob: BobServer<A>, address: IpAddr, port: u16)
 where
     A: Authenticator,
 {
     let socket_addr = SocketAddr::new(address, port);
+    //my_routes!(A, basic_routes);
 
-    let router = router::<A>().layer(AddExtensionLayer::new(bob));
-    let task = Server::bind(&socket_addr).serve(router.into_make_service());
+    //let router = router::<A>().layer(AddExtensionLayer::new(bob));
+    let mut config = Config::release_default();
+    config.address = address;
+    config.port = port;
+    let task = Rocket::custom(config)
+        .manage(bob)
+        //.mount("/s3", s3::routes::<A>())
+        .mount("/", routes::<A>())
+        .launch();
+    //let router = router::<A>().manage(bob);
+    //let task = Server::bind(&socket_addr).serve(router.into_make_service());
 
     tokio::spawn(task);
 
     info!("API server started, listening: {}", socket_addr);
 }
 
-fn router<A>() -> Router
+/*fn router<A>() -> Router
 where
     A: Authenticator,
 {
@@ -158,9 +196,18 @@ where
         router = router.route(path, service);
     }
     router
+}*/
+fn router<A>() -> Rocket<Build>
+where
+    A: Authenticator,
+{
+    let mut router = rocket::build();
+    router
+        //.mount("/", routes::<A>())
+        //.mount("/s3", s3::routes::<A>())
 }
 
-fn routes<A>() -> Vec<(&'static str, MethodRouter)>
+/*fn routes<A>() -> Vec<(&'static str, MethodRouter)>
 where
     A: Authenticator + Send + Sync + 'static,
 {
@@ -211,6 +258,62 @@ where
         ("/data/:key", get(get_data::<A>)),
         ("/data/:key", post(put_data::<A>)),
     ]
+}*/
+
+fn routes<A>() -> Vec<Route>
+where
+    A: Authenticator + Send + Sync + 'static,
+{
+    routes![
+        //status
+    ]
+    /*vec![
+        ("/status", get(status::<A>)),
+        ("/metrics", get(metrics::<A>)),
+        ("/version", get(version)),
+        ("/nodes", get(nodes::<A>)),
+        ("/disks/list", get(disks_list::<A>)),
+        ("/metadata/distrfunc", get(distribution_function::<A>)),
+        ("/configuration", get(get_node_configuration::<A>)),
+        (
+            "/disks/:disk_name/stop",
+            post(stop_all_disk_controllers::<A>),
+        ),
+        (
+            "/disks/:disk_name/start",
+            post(start_all_disk_controllers::<A>),
+        ),
+        ("/vdisks", get(vdisks::<A>)),
+        ("/blobs/outdated", delete(finalize_outdated_blobs::<A>)),
+        ("/vdisks/:vdisk_id", get(vdisk_by_id::<A>)),
+        (
+            "/vdisks/:vdisk_id/records/count",
+            get(vdisk_records_count::<A>),
+        ),
+        ("/vdisks/:vdisk_id/partitions", get(partitions::<A>)),
+        (
+            "/vdisks/:vdisk_id/partitions/:partition_id",
+            get(partition_by_id::<A>),
+        ),
+        (
+            "/vdisks/:vdisk_id/partitions/by_timestamp/:timestamp/:action",
+            post(change_partition_state::<A>),
+        ),
+        ("/vdisks/:vdisk_id/remount", post(remount_vdisks_group::<A>)),
+        (
+            "/vdisks/:vdisk_id/partitions/by_timestamp/:timestamp",
+            delete(delete_partition::<A>),
+        ),
+        ("/alien", get(alien)),
+        ("/alien/detach", post(detach_alien_partitions::<A>)),
+        ("/alien/dir", get(get_alien_directory::<A>)),
+        (
+            "/vdisks/:vdisk_id/replicas/local/dirs",
+            get(get_local_replica_directories::<A>),
+        ),
+        ("/data/:key", get(get_data::<A>)),
+        ("/data/:key", post(put_data::<A>)),
+    ]*/
 }
 
 fn data_vdisk_to_scheme(disk: &DataVDisk) -> VDisk {
@@ -246,7 +349,7 @@ fn collect_replicas_info(replicas: &[NodeDisk]) -> Vec<Replica> {
         .collect()
 }
 
-fn not_acceptable_backend() -> StatusExt {
+/*fn not_acceptable_backend() -> StatusExt {
     let status = StatusExt::new(
         StatusCode::NOT_ACCEPTABLE,
         false,
@@ -280,23 +383,12 @@ async fn find_group<A: Authenticator>(
         warn!("{}", err);
         StatusExt::new(StatusCode::NOT_FOUND, false, err)
     })
-}
+}*/
 
-async fn status<A: Authenticator>(Extension(bob): Extension<&BobServer<A>>) -> Json<Node> {
-    let mapper = bob.grinder().backend().mapper();
-    let name = mapper.local_node_name().to_owned();
-    let address = mapper.local_node_address().to_owned();
-    let vdisks = collect_disks_info(bob);
-    let node = Node {
-        name,
-        address,
-        vdisks,
-    };
-    Json(node)
-}
 
+/*#[get("/metrics")]
 async fn metrics<A: Authenticator>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: State<&BobServer<A>>,
 ) -> Json<MetricsSnapshotModel> {
     let snapshot = bob.metrics().read().await.clone();
     Json(snapshot.into())
@@ -1041,7 +1133,7 @@ impl From<BobError> for StatusExt {
             msg: err.to_string(),
         }
     }
-}
+}*/
 
 pub(crate) fn infer_data_type(data: &BobData) -> &'static str {
     match infer::get(data.inner()) {

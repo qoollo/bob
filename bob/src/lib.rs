@@ -14,6 +14,8 @@ extern crate log;
 extern crate async_trait;
 #[macro_use]
 extern crate metrics;
+#[macro_use]
+extern crate rocket;
 
 pub mod api;
 pub mod build_info;
