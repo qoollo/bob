@@ -8,7 +8,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, put, MethodRouter},
 };
-use rocket::{Rocket, Build, State, routes, Route};
 
 use bob_access::{Authenticator, Credentials};
 use bob_common::{
@@ -56,22 +55,13 @@ impl From<AuthError> for StatusS3 {
     }
 }
 
-/*pub(crate) fn routes<A>() -> Vec<(&'static str, MethodRouter)>
+pub(crate) fn routes<A>() -> Vec<(&'static str, MethodRouter)>
 where
     A: Authenticator + Send + Sync + 'static,
 {
     vec![
         ("/s3/default/:key", get(get_object::<A>)),
         ("/s3/default/:key", put(put_object::<A>)),
-    ]
-}*/
-pub(crate) fn routes<A>() -> Vec<Route>
-where
-    A: Authenticator + Send + Sync + 'static,
-{
-    routes![
-        //get_object,
-        //put_object,
     ]
 }
 
