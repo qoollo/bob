@@ -838,7 +838,7 @@ fn get_matches() -> ArgMatches<'static> {
             Arg::with_name("username")
                 .help("username for auth")
                 .takes_value(true)
-                .long("user")
+                .long("username")
         )
         .arg(
             Arg::with_name("password")
