@@ -106,7 +106,18 @@ where
 }
 
 impl<T> From<&Request<T>> for Credentials {
-    fn from(_: &Request<T>) -> Self {
-        todo!()
+    fn from(req: &Request<T>) -> Self {
+        let md = req.metadata();
+        let mut builder = Credentials::builder();
+        if let (Some(username), Some(password)) = (md.get("username"), md.get("password"))
+        {
+            let username = username.to_str().expect("username header");
+            let password = password.to_str().expect("password header");
+            builder.with_username_password(username, password);
+        }
+
+        // token
+
+        builder.build()
     }
 }
