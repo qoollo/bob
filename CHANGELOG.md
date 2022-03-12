@@ -8,6 +8,7 @@ Bob versions changelog
   - Nodes authentication. (#318)
   - Http API authentication.
   - User's permissions can be set via role and/or claims (#408)
+  - SHA512 hash of password with salt 'bob' can be specified instead of password (#304)
 
 
 #### Changed
