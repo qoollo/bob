@@ -839,14 +839,12 @@ fn get_matches() -> ArgMatches<'static> {
                 .help("username for auth")
                 .takes_value(true)
                 .long("user")
-                .short("u")
         )
         .arg(
             Arg::with_name("password")
                 .help("password for auth")
                 .takes_value(true)
                 .long("password")
-                .short("w")
         )
         .get_matches()
 }
