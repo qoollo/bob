@@ -211,6 +211,7 @@ where
         ),
         ("/data/:key", get(get_data::<A>)),
         ("/data/:key", post(put_data::<A>)),
+        ("/data/:key", delete(delete_data::<A>)),
     ]
 }
 
@@ -910,6 +911,23 @@ where
     let opts = BobOptions::new_put(None);
     bob.grinder().put(key, data, opts).await?;
     Ok(StatusCode::CREATED.into())
+}
+
+async fn delete_data<A>(
+    bob: Extension<BobServer<A>>,
+    AxumPath(key): AxumPath<String>,
+    creds: Credentials,
+) -> Result<StatusExt, StatusExt>
+where
+    A: Authenticator,
+{
+    if !bob.auth().check_credentials(creds)?.has_rest_write() {
+        return Err(AuthError::PermissionDenied.into());
+    }
+    let key = DataKey::from_str(&key)?.0;
+    bob.block_on(bob.grinder().delete(key, true))
+        .map_err(|e| internal(e.to_string()))
+        .map(|res| StatusExt::new(StatusCode::OK, true, format!("{}", res)))
 }
 
 fn internal(message: String) -> StatusExt {
