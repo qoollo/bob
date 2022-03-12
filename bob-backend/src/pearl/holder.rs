@@ -10,6 +10,8 @@ use bob_common::metrics::pearl::{
     PEARL_PUT_BYTES_COUNTER, PEARL_PUT_COUNTER, PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
 };
 use pearl::error::{AsPearlError, ValidationErrorKind};
+use pearl::BloomProvider;
+use pearl::FilterResult;
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
@@ -143,11 +145,6 @@ impl Holder {
         let storage = self.storage.write().await;
         storage.storage().close_active_blob_in_background().await;
         warn!("Active blob of {} closed", self.get_id());
-    }
-
-    pub async fn offload_filters(&self) {
-        self.storage.write().await.offload_filters().await;
-        debug!("Offload bloom filter of {}", self.get_id());
     }
 
     pub async fn filter_memory_allocated(&self) -> usize {
@@ -417,6 +414,28 @@ impl Holder {
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
 
+    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
+        let state = self.storage.read().await;
+        if state.is_ready() {
+            let storage = state.get();
+            trace!("Vdisk: {}, delete key: {}", self.vdisk, key);
+            let res = storage
+                .mark_all_as_deleted(Key::from(key))
+                .await
+                .map_err(|e| {
+                    trace!("error on delete: {:?}", e);
+                    match e.downcast_ref::<PearlError>().unwrap().kind() {
+                        PearlErrorKind::RecordNotFound => Error::key_not_found(key),
+                        _ => Error::storage(e.to_string()),
+                    }
+                });
+            res
+        } else {
+            trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
+            Err(Error::vdisk_is_not_ready())
+        }
+    }
+
     pub async fn close_storage(&self) {
         let lck = self.storage();
         let pearl_sync = lck.write().await;
@@ -426,6 +445,53 @@ impl Holder {
         }
         if let Err(e) = storage.close().await {
             warn!("pearl close error: {:?}", e);
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl BloomProvider<Key> for Holder {
+    type Filter = <Storage<Key> as BloomProvider<Key>>::Filter;
+    async fn check_filter(&self, item: &Key) -> FilterResult {
+        let storage = self.storage().read().await;
+        if let Some(storage) = &storage.storage {
+            return BloomProvider::check_filter(storage, item).await;
+        }
+        FilterResult::NeedAdditionalCheck
+    }
+
+    fn check_filter_fast(&self, _item: &Key) -> FilterResult {
+        FilterResult::NeedAdditionalCheck
+    }
+
+    async fn offload_buffer(&mut self, needed_memory: usize, level: usize) -> usize {
+        let mut storage = self.storage().write().await;
+        if let Some(storage) = &mut storage.storage {
+            storage.offload_buffer(needed_memory, level).await
+        } else {
+            0
+        }
+    }
+
+    async fn get_filter(&self) -> Option<pearl::Bloom> {
+        let storage = self.storage().read().await;
+        if let Some(storage) = &storage.storage {
+            storage.get_filter().await
+        } else {
+            None
+        }
+    }
+
+    fn get_filter_fast(&self) -> Option<&pearl::Bloom> {
+        None
+    }
+
+    async fn filter_memory_allocated(&self) -> usize {
+        let storage = self.storage().read().await;
+        if let Some(storage) = &storage.storage {
+            storage.filter_memory_allocated().await
+        } else {
+            0
         }
     }
 }
@@ -512,9 +578,11 @@ impl PearlSync {
         }
     }
 
-    pub async fn offload_filters(&self) {
-        if let Some(storage) = &self.storage {
-            storage.offload_bloom().await
+    pub async fn offload_buffer(&mut self, needed_memory: usize, level: usize) -> usize {
+        if let Some(storage) = &mut self.storage {
+            storage.offload_buffer(needed_memory, level).await
+        } else {
+            0
         }
     }
 }
