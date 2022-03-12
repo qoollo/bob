@@ -226,6 +226,29 @@ impl BackendStorage for Pearl {
         }
     }
 
+    async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+        debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
+        let dc_option = self
+            .disk_controllers
+            .iter()
+            .find(|dc| dc.can_process_operation(&op));
+
+        if let Some(disk_controller) = dc_option {
+            disk_controller.delete(op, key).await
+        } else {
+            Err(Error::dc_is_not_available())
+        }
+    }
+
+    async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+        debug!("DELETE[alien][{}] from pearl backend", key);
+        if self.alien_disk_controller.can_process_operation(&op) {
+            self.alien_disk_controller.delete_alien(op, key).await
+        } else {
+            Err(Error::dc_is_not_available())
+        }
+    }
+
     async fn offload_old_filters(&self, limit: usize) {
         Utils::offload_old_filters(self.collect_simple_holders().await, limit).await;
     }

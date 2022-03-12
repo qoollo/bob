@@ -1,6 +1,6 @@
 [package]
 name = "bob-apps"
-version = "2.0.0-alpha.10"
+version = "2.1.0-alpha.0"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
@@ -15,16 +15,16 @@ bob-access = { path = "../bob-access" }
 bytes = "1.1"
 cfg-if = "1.0"
 chrono = "0.4"
-clap = "2.33"
+clap = "2.34"
 crc = "1.8"
 env_logger = "0.9"
 futures = { version = "0.3", features = ["thread-pool"] }
 http = "0.2"
-humantime = "2.1.0"
+humantime = "2.1"
 hyper = { version = "0.14", default-features = false }
-lazy_static = "1.4.0"
+lazy_static = "1.4"
 log = "0.4"
-log4rs = "1.0.0"
+log4rs = "1.0"
 metrics = { version = "0.17", features = ["std"] }
 mockall = "0.10"
 prost = "0.9"
