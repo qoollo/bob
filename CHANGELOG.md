@@ -7,6 +7,7 @@ Bob versions changelog
 - Access management
   - Nodes authentication. (#318)
   - Http API authentication.
+  - Authorization parameters in bobp (#425)
 
 
 #### Changed
