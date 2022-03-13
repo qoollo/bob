@@ -115,6 +115,7 @@ impl<T> From<&Request<T>> for Credentials {
             let password = password.to_str().expect("password header");
             builder.with_username_password(username, password);
         }
+        builder.with_address(req.remote_addr());
 
         // token
 
