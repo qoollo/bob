@@ -58,6 +58,17 @@ http_api_address: 0.0.0.0
 # [size] memory limit for all bloom filters. Unlimited if not specified
 bloom_filter_memory_limit: 8 GiB
 
+# tls parameters
+tls:
+  # [file] ca certificate to verify other tls nodes
+  ca_cert_path: my_ca.pem
+  # [file] node certificate
+  cert_path: server.pem
+  # [file] node private key
+  pkey_path: server.key
+  # enable tls for rest api
+  rest: false
+
 # used only for 'backend_type: pearl'
 pearl:
   # optional, default = false, enables linux AIO

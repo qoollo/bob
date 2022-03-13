@@ -8,6 +8,7 @@ Bob versions changelog
   - Nodes authentication. (#318)
   - Http API authentication.
   - User's permissions can be set via role and/or claims (#408)
+- TLS support, TLS for grpc or rest can be enabled via cluster & node config (#303)
 
 
 #### Changed
