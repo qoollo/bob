@@ -1,12 +1,21 @@
 use crate::prelude::*;
 use bob_common::metrics::{
-    CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE, USED_RAM,
+    CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_RAM, BOB_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE, USED_RAM,
     USED_SPACE,
 };
 use std::path::{Path, PathBuf};
-use sysinfo::{DiskExt, ProcessExt, System, SystemExt};
+use std::process;
+use std::os::unix::fs::MetadataExt;
+use sysinfo::{DiskExt, ProcessExt, System, SystemExt, RefreshKind};
+use libc::statvfs;
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
+
+struct DisksMetrics {
+    total_space: u64,
+    used_space: u64,
+    free_space: u64,
+}
 
 pub(crate) struct HWMetricsCollector {
     disks: HashMap<PathBuf, String>,
@@ -31,8 +40,12 @@ impl HWMetricsCollector {
                 disks
                     .iter()
                     .find(move |dp| {
-                        let dpath = Path::new(dp.path());
-                        dpath.starts_with(&path)
+                        let dp_md = Path::new(dp.path())
+                    				.metadata()
+                    				.expect("Can't get metadata from OS");
+                        let p_md = path.metadata()
+                                       .expect("Can't get metadata from OS");
+                        p_md.dev() == dp_md.dev()               
                     })
                     .map(|config_disk| {
                         let diskpath = path.to_str().expect("Not UTF-8").to_owned();
@@ -57,20 +70,43 @@ impl HWMetricsCollector {
 
         loop {
             interval.tick().await;
-            sys.refresh_all();
-            sys.refresh_disks();
+            sys.refresh_specifics(RefreshKind::new().with_processes()
+                                                    .with_disks()
+                                                    .with_memory());
             let proc = sys.process(pid).expect("Can't get process stat descriptor");
 
-            let (total_space, free_space) = Self::space(&sys, &disks);
-            gauge!(TOTAL_SPACE, total_space as f64);
-            gauge!(USED_SPACE, (total_space - free_space) as f64);
-            gauge!(FREE_SPACE, free_space as f64);
+            let disks_metrics = Self::space(&disks);
+            gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
+            gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
+            gauge!(FREE_SPACE, bytes_to_mb(disks_metrics.free_space) as f64);
             let used_mem = kb_to_mb(sys.used_memory());
             debug!("used mem in mb: {}", used_mem);
             gauge!(USED_RAM, used_mem as f64);
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
+            let bob_ram = kb_to_mb(proc.memory());
+            gauge!(BOB_RAM, bob_ram as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
             gauge!(CPU_LOAD, proc.cpu_usage() as f64);
+        }
+    }
+
+    fn to_cpath(path: &Path) -> Vec<u8> {
+        use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+    
+        let path_os: &OsStr = path.as_ref();
+        let mut cpath = path_os.as_bytes().to_vec();
+        cpath.push(0);
+        cpath
+    }
+
+    fn statvfs_wrap(mount_point: &Vec<u8>) -> Option<statvfs> {
+        unsafe {
+            let mut stat: statvfs = std::mem::zeroed();
+            if statvfs(mount_point.as_ptr() as *const _, &mut stat) == 0 {
+                Some(stat)
+            } else {
+                None
+            }
         }
     }
 
@@ -78,28 +114,30 @@ impl HWMetricsCollector {
     // refreshed, if I clone them
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
-    fn space(sys: &System, disks: &HashMap<PathBuf, String>) -> (u64, u64) {
-        sys.disks()
-            .iter()
-            .filter_map(|disk| {
-                disks
-                    .get(disk.mount_point())
-                    .map(|diskname| (disk, diskname))
-            })
-            .fold((0, 0), |(total, free), (disk, diskname)| {
-                let disk_total = bytes_to_mb(disk.total_space());
-                let disk_free = bytes_to_mb(disk.available_space());
-                trace!(
-                    "{} (with path {}): total = {}, free = {};",
-                    diskname,
-                    disk.mount_point()
-                        .to_str()
-                        .expect("Can't parse mount point"),
-                    disk_total,
-                    disk_free
-                );
-                (total + disk_total, free + disk_free)
-            })
+    fn space(disks: &HashMap<PathBuf, String>) -> DisksMetrics {
+        let mut total = 0;
+        let mut used = 0;
+        let mut free = 0;
+        
+        for mount_point in disks.keys() {
+            let cm_p = Self::to_cpath(mount_point.as_path());
+            let stat = Self::statvfs_wrap(&cm_p);
+            if let Some(stat) = stat {
+                let bsize = stat.f_bsize as u64;
+                let blocks = stat.f_blocks as u64;
+                let bavail = stat.f_bavail as u64;
+                let bfree = stat.f_bfree as u64;
+                total += bsize * blocks;
+                free += bsize * bavail;
+                used += (blocks - bfree) * bsize;
+            }
+        }
+
+        DisksMetrics {
+            total_space: total,
+            used_space: used,
+            free_space: free
+        }
     }
 }
 
@@ -111,6 +149,7 @@ const CACHED_TIMES: usize = 10;
 struct DescrCounter {
     value: u64,
     cached_times: usize,
+    lsof_enabled: bool
 }
 
 impl DescrCounter {
@@ -118,20 +157,60 @@ impl DescrCounter {
         DescrCounter {
             value: 0,
             cached_times: 0,
+            lsof_enabled: true
         }
     }
 
     fn descr_amount(&mut self) -> u64 {
         if self.cached_times == 0 {
             self.cached_times = CACHED_TIMES;
-            self.value = Self::count_descriptors();
+            self.value = self.count_descriptors();
         } else {
             self.cached_times -= 1;
         }
         self.value
     }
 
-    fn count_descriptors() -> u64 {
+    fn count_descriptors_by_lsof(&mut self) -> Option<u64> {
+        if !self.lsof_enabled {
+            return None;
+        }
+        let lsof_str = format!("lsof -a -p {} -d ^mem -d ^cwd -d ^rtd -d ^txt -d ^DEL", process::id());
+        match pipers::Pipe::new(&lsof_str)
+                        .then("wc -l")
+                        .finally() {
+            Ok(proc) => {
+                match proc.wait_with_output() {
+                    Ok(output) => {
+                        if output.status.success() {
+                            let count = String::from_utf8(output.stdout).unwrap();
+                            match count[..count.len() - 1].parse::<u64>() {
+                                Ok(count) => {
+                                    return Some(count - 5); // exclude stdin, stdout, stderr, lsof pipe and wc pipe
+                                },
+                                Err(e) => {
+                                    debug!("failed to parse lsof result: {}", e);
+                                }
+                            }
+                        } else {
+                            debug!("something went wrong (fs /proc will be used): {}",
+                                String::from_utf8(output.stderr).unwrap());
+                        }
+                    },
+                    Err(e) => {
+                        debug!("lsof output wait error (fs /proc will be used): {}", e);
+                    }
+                }
+            },
+            Err(e) => {
+                debug!("can't use lsof (fs /proc will be used): {}", e);
+            }
+        }
+        self.lsof_enabled = false;
+        return None;
+    }
+    
+    fn count_descriptors(&mut self) -> u64 {
         // FIXME: didn't find better way, but iterator's `count` method has O(n) complexity
         // isolated tests (notice that in this case directory may be cached, so it works more
         // quickly):
@@ -148,6 +227,10 @@ impl DescrCounter {
         //  |  10.000   |      0.006     |
         //  with payload
         //  |  10.000   |      0.018     |
+        if let Some(descr) = self.count_descriptors_by_lsof() {
+            return descr;
+        }
+
         let d = std::fs::read_dir(DESCRS_DIR);
         match d {
             Ok(d) => {

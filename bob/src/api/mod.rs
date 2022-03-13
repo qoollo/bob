@@ -4,8 +4,9 @@ use axum::{
     extract::{Extension, Path as AxumPath},
     response::IntoResponse,
     routing::{delete, get, post, MethodRouter},
-    AddExtensionLayer, Json, Router, Server,
+    Json, Router, Server,
 };
+
 pub(crate) use bob_access::Error as AuthError;
 use bob_access::{Authenticator, Credentials};
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
@@ -138,7 +139,7 @@ where
 {
     let socket_addr = SocketAddr::new(address, port);
 
-    let router = router::<A>().layer(AddExtensionLayer::new(bob));
+    let router = router::<A>().layer(Extension(bob));
     let task = Server::bind(&socket_addr).serve(router.into_make_service());
 
     tokio::spawn(task);
@@ -210,6 +211,7 @@ where
         ),
         ("/data/:key", get(get_data::<A>)),
         ("/data/:key", post(put_data::<A>)),
+        ("/data/:key", delete(delete_data::<A>)),
     ]
 }
 
@@ -244,6 +246,20 @@ fn collect_replicas_info(replicas: &[NodeDisk]) -> Vec<Replica> {
             node: r.node_name().to_owned(),
         })
         .collect()
+}
+
+
+async fn status<A: Authenticator>(bob: Extension<BobServer<A>>) -> Json<Node> {
+    let mapper = bob.grinder().backend().mapper();
+    let name = mapper.local_node_name().to_owned();
+    let address = mapper.local_node_address().to_owned();
+    let vdisks = collect_disks_info(&bob);
+    let node = Node {
+        name,
+        address,
+        vdisks,
+    };
+    Json(node)
 }
 
 fn not_acceptable_backend() -> StatusExt {
@@ -282,21 +298,9 @@ async fn find_group<A: Authenticator>(
     })
 }
 
-async fn status<A: Authenticator>(Extension(bob): Extension<&BobServer<A>>) -> Json<Node> {
-    let mapper = bob.grinder().backend().mapper();
-    let name = mapper.local_node_name().to_owned();
-    let address = mapper.local_node_address().to_owned();
-    let vdisks = collect_disks_info(bob);
-    let node = Node {
-        name,
-        address,
-        vdisks,
-    };
-    Json(node)
-}
 
 async fn metrics<A: Authenticator>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
 ) -> Json<MetricsSnapshotModel> {
     let snapshot = bob.metrics().read().await.clone();
     Json(snapshot.into())
@@ -327,7 +331,7 @@ async fn version() -> Json<VersionInfo> {
 }
 
 async fn nodes<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     creds: Credentials,
 ) -> Result<Json<Vec<Node>>, AuthError>
 where
@@ -338,7 +342,7 @@ where
     }
     let mapper = bob.grinder().backend().mapper();
     let mut nodes = vec![];
-    let vdisks = collect_disks_info(bob);
+    let vdisks = collect_disks_info(&bob);
     for node in mapper.nodes().values() {
         let vdisks: Vec<_> = vdisks
             .iter()
@@ -371,7 +375,7 @@ where
 }
 
 async fn disks_list<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     creds: Credentials,
 ) -> Result<Json<Vec<DiskState>>, StatusExt>
 where
@@ -404,7 +408,7 @@ where
 }
 
 async fn distribution_function<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     creds: Credentials,
 ) -> Result<Json<DistrFunc>, AuthError>
 where
@@ -419,7 +423,7 @@ where
 }
 
 async fn get_node_configuration<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     creds: Credentials,
 ) -> Result<Json<NodeConfiguration>, AuthError>
 where
@@ -441,7 +445,7 @@ where
 }
 
 async fn stop_all_disk_controllers<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     AxumPath(disk_name): AxumPath<String>,
     creds: Credentials,
 ) -> Result<StatusExt, StatusExt>
@@ -468,8 +472,8 @@ where
 }
 
 async fn start_all_disk_controllers<A>(
-    Extension(bob): Extension<&BobServer<A>>,
-    disk_name: String,
+    bob: Extension<BobServer<A>>,
+    AxumPath(disk_name): AxumPath<String>,
     creds: Credentials,
 ) -> Result<StatusExt, StatusExt>
 where
@@ -517,7 +521,7 @@ where
 }
 
 async fn vdisks<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     creds: Credentials,
 ) -> Result<Json<Vec<VDisk>>, AuthError>
 where
@@ -526,12 +530,12 @@ where
     if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied);
     }
-    let vdisks = collect_disks_info(bob);
+    let vdisks = collect_disks_info(&bob);
     Ok(Json(vdisks))
 }
 
 async fn finalize_outdated_blobs<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     creds: Credentials,
 ) -> Result<StatusExt, AuthError>
 where
@@ -547,7 +551,7 @@ where
 }
 
 async fn vdisk_by_id<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
     creds: Credentials,
 ) -> Result<Json<VDisk>, StatusExt>
@@ -557,13 +561,13 @@ where
     if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
-    get_vdisk_by_id(bob, vdisk_id)
+    get_vdisk_by_id(&bob, vdisk_id)
         .map(Json)
         .ok_or_else(|| StatusExt::new(StatusCode::NOT_FOUND, false, "vdisk not found".to_string()))
 }
 
 async fn vdisk_records_count<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
     creds: Credentials,
 ) -> Result<Json<u64>, StatusExt>
@@ -573,19 +577,18 @@ where
     if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
-    let group = find_group(bob, vdisk_id).await?;
+    let group = find_group(&bob, vdisk_id).await?;
     let holders = group.holders();
     let pearls = holders.read().await;
-    let pearls: &[_] = pearls.as_ref();
     let mut sum = 0;
-    for pearl in pearls {
+    for pearl in pearls.iter() {
         sum += pearl.records_count().await;
     }
     Ok(Json(sum as u64))
 }
 
 async fn partitions<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
     creds: Credentials,
 ) -> Result<Json<VDiskPartitions>, StatusExt>
@@ -595,12 +598,11 @@ where
     if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
-    let group = find_group(bob, vdisk_id).await?;
+    let group = find_group(&bob, vdisk_id).await?;
     debug!("group with provided vdisk_id found");
     let holders = group.holders();
     let pearls = holders.read().await;
     debug!("get pearl holders: OK");
-    let pearls: &[_] = pearls.as_ref();
     let partitions = pearls.iter().map(Holder::get_id).collect();
 
     let node_name = group.node_name().to_owned();
@@ -617,9 +619,8 @@ where
 }
 
 async fn partition_by_id<A>(
-    Extension(bob): Extension<&BobServer<A>>,
-    AxumPath(vdisk_id): AxumPath<u32>,
-    AxumPath(partition_id): AxumPath<String>,
+    bob: Extension<BobServer<A>>,
+    AxumPath((vdisk_id, partition_id)): AxumPath<(u32, String)>,
     creds: Credentials,
 ) -> Result<Json<Partition>, StatusExt>
 where
@@ -628,7 +629,7 @@ where
     if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
-    let group = find_group(bob, vdisk_id).await?;
+    let group = find_group(&bob, vdisk_id).await?;
     debug!("group with provided vdisk_id found");
     let holders = group.holders();
     debug!("get pearl holders: OK");
@@ -657,10 +658,8 @@ where
 }
 
 async fn change_partition_state<A>(
-    Extension(bob): Extension<&BobServer<A>>,
-    AxumPath(vdisk_id): AxumPath<u32>,
-    AxumPath(timestamp): AxumPath<u64>,
-    AxumPath(action): AxumPath<Action>,
+    bob: Extension<BobServer<A>>,
+    AxumPath((vdisk_id, timestamp, action)): AxumPath<(u32, u64, Action)>,
     creds: Credentials,
 ) -> Result<StatusExt, StatusExt>
 where
@@ -669,7 +668,7 @@ where
     if !bob.auth().check_credentials(creds)?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
-    let group = find_group(bob, vdisk_id).await?;
+    let group = find_group(&bob, vdisk_id).await?;
     let error = match action {
         Action::Attach => group.attach(timestamp).await.err(),
         Action::Detach => group.detach(timestamp).await.err(),
@@ -687,7 +686,7 @@ where
 }
 
 async fn remount_vdisks_group<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
     creds: Credentials,
 ) -> Result<StatusExt, StatusExt>
@@ -697,7 +696,7 @@ where
     if !bob.auth().check_credentials(creds)?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
-    let group = find_group(bob, vdisk_id).await?;
+    let group = find_group(&bob, vdisk_id).await?;
     if let Some(err) = group.remount().await.err() {
         Err(StatusExt::new(StatusCode::OK, false, err.to_string()))
     } else {
@@ -708,9 +707,8 @@ where
 }
 
 async fn delete_partition<A>(
-    Extension(bob): Extension<&BobServer<A>>,
-    AxumPath(vdisk_id): AxumPath<u32>,
-    AxumPath(timestamp): AxumPath<u64>,
+    bob: Extension<BobServer<A>>,
+    AxumPath((vdisk_id, timestamp)): AxumPath<(u32, u64)>,
     creds: Credentials,
 ) -> Result<StatusExt, StatusExt>
 where
@@ -719,7 +717,7 @@ where
     if !bob.auth().check_credentials(creds)?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
-    let group = find_group(bob, vdisk_id).await?;
+    let group = find_group(&bob, vdisk_id).await?;
     let pearls = group.detach(timestamp).await.ok();
     if let Some(holders) = pearls {
         drop_directories(holders, timestamp, vdisk_id).await
@@ -763,7 +761,7 @@ async fn alien() -> &'static str {
 }
 
 async fn detach_alien_partitions<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     creds: Credentials,
 ) -> Result<StatusExt, StatusExt>
 where
@@ -781,7 +779,7 @@ where
 }
 
 async fn get_alien_directory<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     creds: Credentials,
 ) -> Result<Json<Dir>, StatusExt>
 where
@@ -800,7 +798,7 @@ where
 }
 
 async fn get_local_replica_directories<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
     creds: Credentials,
 ) -> Result<Json<Vec<Dir>>, StatusExt>
@@ -810,7 +808,7 @@ where
     if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
-    let vdisk: VDisk = get_vdisk_by_id(bob, vdisk_id).ok_or_else(|| {
+    let vdisk: VDisk = get_vdisk_by_id(&bob, vdisk_id).ok_or_else(|| {
         let msg = format!("VDisk {} not found", vdisk_id);
         StatusExt::new(StatusCode::NOT_FOUND, false, msg)
     })?;
@@ -862,7 +860,7 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
 }
 
 async fn get_data<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     AxumPath(key): AxumPath<String>,
     creds: Credentials,
 ) -> Result<impl IntoResponse, StatusExt>
@@ -894,7 +892,7 @@ where
 }
 
 async fn put_data<A>(
-    Extension(bob): Extension<&BobServer<A>>,
+    bob: Extension<BobServer<A>>,
     AxumPath(key): AxumPath<String>,
     body: Bytes,
     creds: Credentials,
@@ -913,6 +911,23 @@ where
     let opts = BobOptions::new_put(None);
     bob.grinder().put(key, data, opts).await?;
     Ok(StatusCode::CREATED.into())
+}
+
+async fn delete_data<A>(
+    bob: Extension<BobServer<A>>,
+    AxumPath(key): AxumPath<String>,
+    creds: Credentials,
+) -> Result<StatusExt, StatusExt>
+where
+    A: Authenticator,
+{
+    if !bob.auth().check_credentials(creds)?.has_rest_write() {
+        return Err(AuthError::PermissionDenied.into());
+    }
+    let key = DataKey::from_str(&key)?.0;
+    bob.block_on(bob.grinder().delete(key, true))
+        .map_err(|e| internal(e.to_string()))
+        .map(|res| StatusExt::new(StatusCode::OK, true, format!("{}", res)))
 }
 
 fn internal(message: String) -> StatusExt {

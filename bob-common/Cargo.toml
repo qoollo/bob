@@ -1,6 +1,6 @@
 [package]
 name = "bob-common"
-version = "2.0.0-alpha.10"
+version = "2.1.0-alpha.0"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
@@ -16,7 +16,7 @@ futures = { version = "0.3", features = ["thread-pool"] }
 http = "0.2"
 humantime = "2.1.0"
 hyper = { version = "0.14", default-features = false }
-lazy_static = "1.4.0"
+lazy_static = "1.4"
 log = "0.4"
 metrics = { version = "0.17", features = ["std"] }
 metrics-exporter-prometheus = { version = "0.6", features = ["tokio-exporter"]}
@@ -30,6 +30,7 @@ thiserror = "1.0"
 tonic = { version = "0.6", features = ["prost", "tls"] }
 tower = "0.4"
 tower-service = "0.3"
+ubyte = { version = "0.10", features = ["serde"] }
 
 [dependencies.tokio]
 version = "1.14"
@@ -37,4 +38,6 @@ default-features = false
 features = []
 
 [features]
+default = []
 testing = []
+production = []

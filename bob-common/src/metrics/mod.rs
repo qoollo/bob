@@ -62,6 +62,13 @@ pub const CLIENT_EXIST_ERROR_COUNT_COUNTER: &str = "client.exist_error_count";
 /// Measures processing time of the EXIST request
 pub const CLIENT_EXIST_TIMER: &str = "client.exist_timer";
 
+/// Counts number of DELETE requests, processed by Client
+pub const CLIENT_DELETE_COUNTER: &str = "client.delete_count";
+/// Counts number of DELETE requests return error, processed by Client
+pub const CLIENT_DELETE_ERROR_COUNT_COUNTER: &str = "client.delete_error_count";
+/// Measures processing time of the DELETE request
+pub const CLIENT_DELETE_TIMER: &str = "client.delete_timer";
+
 /// Observes number of connected nodes
 pub const AVAILABLE_NODES_COUNT: &str = "link_manager.nodes_number";
 
@@ -69,6 +76,8 @@ pub const AVAILABLE_NODES_COUNT: &str = "link_manager.nodes_number";
 pub const BACKEND_STATE: &str = "backend.backend_state";
 /// Count blobs (without aliens)
 pub const BLOBS_COUNT: &str = "backend.blob_count";
+/// Memory occupied bybloom filters
+pub const BLOOM_FILTERS_RAM: &str = "backend.bloom_filters_ram";
 /// Count alien blobs
 pub const ALIEN_BLOBS_COUNT: &str = "backend.alien_count";
 /// Count memory occupied by indices
@@ -84,6 +93,7 @@ pub const CPU_LOAD: &str = "cpu_load";
 pub const FREE_RAM: &str = "free_ram";
 pub const USED_RAM: &str = "used_ram";
 pub const TOTAL_RAM: &str = "total_ram";
+pub const BOB_RAM: &str = "bob_ram";
 pub const FREE_SPACE: &str = "free_space";
 pub const USED_SPACE: &str = "used_space";
 pub const TOTAL_SPACE: &str = "total_space";
