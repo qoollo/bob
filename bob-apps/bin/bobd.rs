@@ -141,7 +141,7 @@ async fn main() {
             bob.run_backend().await.unwrap();
             create_signal_handlers(&bob).unwrap();
             bob.run_periodic_tasks(factory);
-            bob.run_api_server(http_api_address, http_api_port);
+            bob.run_api_server(node.tls_config(), http_api_address, http_api_port).await;
 
             let bob_service = BobApiServer::new(bob);
             server_builder
@@ -169,9 +169,7 @@ async fn main() {
             bob.run_backend().await.unwrap();
             create_signal_handlers(&bob).unwrap();
             bob.run_periodic_tasks(factory);
-            bob.run_api_server(http_api_address, http_api_port);
-
-            
+            bob.run_api_server(node.tls_config(), http_api_address, http_api_port).await;
 
             let bob_service = BobApiServer::new(bob);
             server_builder
