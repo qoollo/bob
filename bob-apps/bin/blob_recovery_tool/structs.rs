@@ -81,6 +81,13 @@ impl Validatable for BlobHeader {
     }
 }
 
+impl BlobHeader {
+    pub(crate) fn migrate(mut self, target: u32) -> AnyResult<Self> {
+        self.version = target;
+        Ok(self)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub(crate) struct Header {
     pub magic_byte: u64,

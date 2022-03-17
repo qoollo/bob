@@ -308,6 +308,7 @@ impl MigrateCommand {
             &input,
             &output,
             self.validate_every,
+            |header| header.migrate(self.target_version), 
             |record, version| record.migrate(version, self.target_version),
             false,
         )?;
