@@ -11,6 +11,7 @@ Bob versions changelog
 
 #### Fixed
 - Version in BlobHeader now changes during migration (#447)
+- Default target version is now 1 instead of 2 (#448)
 
 #### Updated
 

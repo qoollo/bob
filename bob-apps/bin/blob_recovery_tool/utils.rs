@@ -223,7 +223,7 @@ where
         input,
         output,
         validate_every,
-        |header| Ok(header),
+        |header, _| Ok(header),
         |record, _| Ok(record),
         skip_wrong_record,
     )
@@ -240,7 +240,7 @@ pub(crate) fn recovery_blob_with<P, Q, H, F>(
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
-    H: Fn(BlobHeader) -> AnyResult<BlobHeader>,
+    H: Fn(BlobHeader, u32) -> AnyResult<BlobHeader>,
     F: Fn(Record, u32) -> AnyResult<Record>,
 {
     if input.as_ref() == output.as_ref() {
@@ -253,7 +253,7 @@ where
     info!("Blob reader created");
     let mut header = reader.read_header()?;
     let source_version = header.version;
-    header = preprocess_header(header)?;
+    header = preprocess_header(header, source_version)?;
     // Create writer after read blob header to prevent empty blob creation
     let mut writer = BlobWriter::from_path(&output, validate_written_records)?;
     info!("Blob writer created");
