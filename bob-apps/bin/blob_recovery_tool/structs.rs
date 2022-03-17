@@ -82,8 +82,8 @@ impl Validatable for BlobHeader {
 }
 
 impl BlobHeader {
-    pub(crate) fn migrate(mut self, target: u32) -> AnyResult<Self> {
-        self.version = target;
+    pub(crate) fn migrate(mut self, version: u32) -> AnyResult<Self> {
+        self.version = version;
         Ok(self)
     }
 }
