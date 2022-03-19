@@ -18,9 +18,9 @@ use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
+use tonic::metadata::{Ascii, MetadataValue};
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request, Status};
-use tonic::metadata::{MetadataValue, Ascii};
 
 #[macro_use]
 extern crate log;
@@ -132,7 +132,7 @@ impl TaskConfig {
             measure_time: false,
             key_size,
             basic_username,
-            basic_password
+            basic_password,
         }
     }
 
@@ -171,6 +171,29 @@ impl TaskConfig {
         let mut data = key.to_le_bytes().to_vec();
         data.resize(self.key_size, 0);
         data
+    }
+
+    fn get_request_creator<T>(&self) -> impl Fn(T) -> Request<T> {
+        let do_basic_auth = self.basic_username.is_some() && self.basic_password.is_some();
+        let basic_username = self.basic_username.clone().unwrap_or_default();
+        let basic_password = self.basic_password.clone().unwrap_or_default();
+
+        let basic_username = basic_username
+            .parse::<MetadataValue<Ascii>>()
+            .expect("can not parse username into header");
+        let basic_password = basic_password
+            .parse::<MetadataValue<Ascii>>()
+            .expect("can not parse password into header");
+
+        move |a| {
+            let mut request = Request::new(a);
+            if do_basic_auth {
+                let req_md = request.metadata_mut();
+                req_md.insert("username", basic_username.clone());
+                req_md.insert("password", basic_password.clone());
+            }
+            request
+        }
     }
 }
 
@@ -514,30 +537,14 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         Box::new(keys.into_iter())
     };
 
-    let do_basic_auth = task_conf.basic_username.is_some() && task_conf.basic_password.is_some();
-    let (basic_username, basic_password) = if do_basic_auth {
-        (task_conf.basic_username.clone().unwrap(), 
-         task_conf.basic_password.clone().unwrap())
-    } else {
-        ("".to_string(), "".to_string())
-    };
-    let basic_username = basic_username.parse::<MetadataValue<Ascii>>()
-                         .expect("can not parse username into header");
-    let basic_password = basic_password.parse::<MetadataValue<Ascii>>()
-                         .expect("can not parse password into header");
-
+    let request_creator = task_conf.get_request_creator::<GetRequest>();
     for key in iterator {
-        let mut request = Request::new(GetRequest {
+        let request = request_creator(GetRequest {
             key: Some(BlobKey {
                 key: task_conf.get_proper_key(key),
             }),
             options: options.clone(),
         });
-        if do_basic_auth {
-            let req_md = request.metadata_mut();
-            req_md.insert("username", basic_username.clone());
-            req_md.insert("password", basic_password.clone());
-        }
 
         let res = if measure_time {
             let start = Instant::now();
@@ -562,18 +569,8 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
 async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = net_conf.build_client().await;
 
-    let do_basic_auth = task_conf.basic_username.is_some() && task_conf.basic_password.is_some();
-    let (basic_username, basic_password) = if do_basic_auth {
-        (task_conf.basic_username.clone().unwrap(), 
-         task_conf.basic_password.clone().unwrap())
-    } else {
-        ("".to_string(), "".to_string())
-    };
-    let basic_username = basic_username.parse::<MetadataValue<Ascii>>()
-                         .expect("can not parse username into header");
-    let basic_password = basic_password.parse::<MetadataValue<Ascii>>()
-                         .expect("can not parse password into header");
-                         
+    let request_creator = task_conf.get_request_creator::<PutRequest>();
+
     let options: Option<PutOptions> = task_conf.find_put_options();
     let measure_time = task_conf.is_time_measurement_thread();
     let upper_idx = task_conf.low_idx + task_conf.count;
@@ -582,17 +579,12 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         let key = BlobKey {
             key: task_conf.get_proper_key(i),
         };
-        let mut request = Request::new(PutRequest {
+        let request = request_creator(PutRequest {
             key: Some(key),
             data: Some(blob),
             options: options.clone(),
         });
-        if do_basic_auth {
-            let req_md = request.metadata_mut();
-            req_md.insert("username", basic_username.clone());
-            req_md.insert("password", basic_password.clone());
-        }
-        
+
         let res = if measure_time {
             let start = Instant::now();
             let res = client.put(request).await;
@@ -632,6 +624,9 @@ async fn test_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stati
 async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = net_conf.build_client().await;
 
+    let get_request_creator = task_conf.get_request_creator::<GetRequest>();
+    let put_request_creator = task_conf.get_request_creator::<PutRequest>();
+
     let get_options = task_conf.find_get_options();
     let put_options = task_conf.find_put_options();
     let measure_time = task_conf.is_time_measurement_thread();
@@ -641,7 +636,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
         let key = BlobKey {
             key: task_conf.get_proper_key(i),
         };
-        let put_request = Request::new(PutRequest {
+        let put_request = put_request_creator(PutRequest {
             key: Some(key.clone()),
             data: Some(blob),
             options: put_options.clone(),
@@ -658,7 +653,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
             stat.save_put_error(status).await;
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
-        let get_request = Request::new(GetRequest {
+        let get_request = get_request_creator(GetRequest {
             key: Some(key),
             options: get_options.clone(),
         });
@@ -838,13 +833,13 @@ fn get_matches() -> ArgMatches<'static> {
             Arg::with_name("username")
                 .help("username for auth")
                 .takes_value(true)
-                .long("username")
+                .long("username"),
         )
         .arg(
             Arg::with_name("password")
                 .help("password for auth")
                 .takes_value(true)
-                .long("password")
+                .long("password"),
         )
         .get_matches()
 }
