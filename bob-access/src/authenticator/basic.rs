@@ -59,18 +59,31 @@ where
             credentials.ip(),
             credentials.username()
         );
-        let username = credentials
-            .username()
-            .ok_or_else(|| Error::CredentialsNotProvided("missing username".to_string()))?;
-        let password = credentials
-            .password()
-            .ok_or_else(|| Error::CredentialsNotProvided("missing password".to_string()))?;
 
-        let user = self.users_storage.get_user(username)?;
-        if user.password() == password {
-            Ok(user.into())
-        } else {
-            Err(Error::UnauthorizedRequest)
+        match (credentials.username(), credentials.password()) {
+            (Some(username), Some(password)) => {
+                let user = self.users_storage.get_user(username)?;
+                if user.password() == password {
+                    Ok(user.into())
+                } else {
+                    Err(Error::UnauthorizedRequest)
+                }
+            }
+            (Some(_), None) => Err(Error::CredentialsNotProvided(
+                "missing password".to_string(),
+            )),
+            (None, Some(_)) => Err(Error::CredentialsNotProvided(
+                "missing username".to_string(),
+            )),
+            (None, None) => {
+                if let Ok(default_user) = self.users_storage.get_user("default") {
+                    Ok(default_user.into())
+                } else {
+                    Err(Error::CredentialsNotProvided(
+                        "missing credentials".to_string(),
+                    ))
+                }
+            }
         }
     }
 }
