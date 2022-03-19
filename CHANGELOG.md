@@ -7,6 +7,7 @@ Bob versions changelog
 - Access management
   - Nodes authentication. (#318)
   - Http API authentication.
+  - If no credentials provided and default user specified in config, then request will have default user permissions (#437)
 
 
 #### Changed
