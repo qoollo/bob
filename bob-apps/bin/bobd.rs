@@ -163,13 +163,9 @@ fn check_folders(node: &NodeConfig, init_flag: bool) {
                 if init_flag {
                     create_dir(bob_path).expect("Failed to create bob folder");
                 } else {
-                    if let Some(path_str) = bob_path.to_str() {
-                        error!("{} folder doesn't exist, try to use --init_folders flag", path_str);
-                        panic!("{} folder doesn't exist, try to use --init_folders flag", path_str);
-                    } else {
-                        error!("bob folder doesn't exist, try to use --init_folders flag");
-                        panic!("bob folder doesn't exist, try to use --init_folders flag");
-                    }
+                    let bob_path_str = bob_path.to_str().unwrap();
+                    error!("{} folder doesn't exist, try to use --init_folders flag", bob_path_str);
+                    panic!("{} folder doesn't exist, try to use --init_folders flag", bob_path_str);
                 }
             }
 
@@ -180,13 +176,9 @@ fn check_folders(node: &NodeConfig, init_flag: bool) {
                 if init_flag {
                     create_dir(alien_path).expect("Failed to create alien folder");
                 } else {
-                    if let Some(path_str) = alien_path.to_str() {
-                        error!("{} folder doesn't exist, try to use --init_folders flag", path_str);
-                        panic!("{} folder doesn't exist, try to use --init_folders flag", path_str);
-                    } else {
-                        error!("alien folder doesn't exist, try to use --init_folders flag");
-                        panic!("alien folder doesn't exist, try to use --init_folders flag");
-                    }
+                    let alien_path_str = alien_path.to_str().unwrap();
+                    error!("{} folder doesn't exist, try to use --init_folders flag", alien_path_str);
+                    panic!("{} folder doesn't exist, try to use --init_folders flag", alien_path_str);
                 }
             }
         }
