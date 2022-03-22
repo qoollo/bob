@@ -1,6 +1,6 @@
 use crate::{
     api::http::metric_models::MetricsSnapshotModel, build_info::BuildInfo,
-    hw_metrics_collector::SpaceMetrics, server::Server as BobServer,
+    hw_metrics_collector::DiskSpaceMetrics, server::Server as BobServer,
 };
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
@@ -247,7 +247,7 @@ async fn status(bob: &State<BobServer>) -> Json<Node> {
 
 #[get("/status/space")]
 async fn get_space_info(bob: &State<BobServer>) -> Result<Json<SpaceInfo>, StatusExt> {
-    let SpaceMetrics {
+    let DiskSpaceMetrics {
         total_space,
         used_space,
         free_space,

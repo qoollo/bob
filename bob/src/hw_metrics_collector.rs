@@ -11,7 +11,7 @@ use sysinfo::{DiskExt, ProcessExt, RefreshKind, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 
-pub(crate) struct SpaceMetrics {
+pub(crate) struct DiskSpaceMetrics {
     pub(crate) total_space: u64,
     pub(crate) used_space: u64,
     pub(crate) free_space: u64,
@@ -58,7 +58,7 @@ impl HWMetricsCollector {
         tokio::spawn(Self::task(self.interval_time, self.disks.clone()));
     }
 
-    pub(crate) fn update_space_metrics(&self) -> SpaceMetrics {
+    pub(crate) fn update_space_metrics(&self) -> DiskSpaceMetrics {
         Self::update_space_metrics_from_disks(&self.disks)
     }
 
@@ -93,7 +93,7 @@ impl HWMetricsCollector {
         }
     }
 
-    fn update_space_metrics_from_disks(disks: &HashMap<PathBuf, String>) -> SpaceMetrics {
+    fn update_space_metrics_from_disks(disks: &HashMap<PathBuf, String>) -> DiskSpaceMetrics {
         let disks_metrics = Self::space(disks);
         gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
         gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
@@ -125,7 +125,7 @@ impl HWMetricsCollector {
     // refreshed, if I clone them
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
-    fn space(disks: &HashMap<PathBuf, String>) -> SpaceMetrics {
+    fn space(disks: &HashMap<PathBuf, String>) -> DiskSpaceMetrics {
         let mut total = 0;
         let mut used = 0;
         let mut free = 0;
@@ -144,7 +144,7 @@ impl HWMetricsCollector {
             }
         }
 
-        SpaceMetrics {
+        DiskSpaceMetrics {
             total_space: total,
             used_space: used,
             free_space: free,
