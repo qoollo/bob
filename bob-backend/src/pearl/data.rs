@@ -48,7 +48,7 @@ impl<'a> From<&'a [u8]> for RefKey<'a> {
     }
 }
 
-fn le_cmp(x: &[u8], y: &[u8]) -> std::cmp::Ordering {
+fn le_cmp_keys(x: &[u8], y: &[u8]) -> std::cmp::Ordering {
     use std::cmp::Ordering;
     for i in (0..(Key::LEN as usize)).rev() {
         let ord = x[i].cmp(&y[i]);
@@ -61,13 +61,13 @@ fn le_cmp(x: &[u8], y: &[u8]) -> std::cmp::Ordering {
 
 impl<'a> PartialOrd for RefKey<'a> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(le_cmp(self.0, other.0))
+        Some(le_cmp_keys(self.0, other.0))
     }
 }
 
 impl PartialOrd for Key {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(le_cmp(&self.0, &other.0))
+        Some(le_cmp_keys(&self.0, &other.0))
     }
 }
 
