@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use bob_common::metrics::{
     CPU_IOWAIT, CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE,
-    USED_RAM, USED_SPACE, BOB_RAM,
+    USED_RAM, USED_SPACE, BOB_RAM, DISKS_FOLDER,
 };
 use std::path::{Path, PathBuf};
 use std::process;
@@ -69,13 +69,24 @@ impl HWMetricsCollector {
         debug!("total mem in mb: {}", total_mem);
         let pid = std::process::id() as i32;
 
+        let mut disk_dev_names = Vec::new();
+        for (path, disk_name) in &disks {
+            let path_str = path.as_os_str().to_str().unwrap();
+            if let Ok(dev_name) = Self::dev_name(path_str) {
+                let metric_prefix = format!("{}.{}", DISKS_FOLDER, disk_name);
+                disk_dev_names.push((metric_prefix, dev_name));
+            }
+        }
+
         loop {
             interval.tick().await;
 
             sys.refresh_specifics(RefreshKind::new().with_processes()
                                                     .with_disks()
                                                     .with_memory());
-            gauge!(CPU_IOWAIT, cpu_s_c.iowait());
+            if let Ok(iowait) = cpu_s_c.iowait() {
+                gauge!(CPU_IOWAIT, iowait);
+            }
           
             if let Some(proc) = sys.process(pid) {
                 gauge!(CPU_LOAD, proc.cpu_usage() as f64);
@@ -94,6 +105,16 @@ impl HWMetricsCollector {
             gauge!(USED_RAM, used_mem as f64);
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
+
+            for (metric_pref, dev_name) in &disk_dev_names {
+                if let Ok((iops, iowait)) = Self::collect_iostat(dev_name) {
+                    let gauge_name = format!("{}_iowait", metric_pref);
+                    gauge!(gauge_name, iowait);
+
+                    let gauge_name = format!("{}_iops", metric_pref);
+                    gauge!(gauge_name, iops);
+                }
+            }
         }
     }
 
@@ -146,6 +167,98 @@ impl HWMetricsCollector {
             free_space: free
         }
     }
+
+    fn parse_iostat_result(iostat_str: &str) -> Result<f64, std::num::ParseFloatError> {
+        iostat_str.replace(',', ".").parse()
+    }
+
+    fn collect_iostat(disk_dev_name: &str) -> Result<(f64, f64), String> {
+        let mut iops = 0.;
+        let mut iowait = 0.;
+        let ios = std::process::Command::new("iostat").arg("-dx").output();
+        match ios {
+            Ok(output) => {
+                match (output.status.success(), String::from_utf8(output.stdout)) {
+                    (true, Ok(out)) => {
+                        for i in out.lines() {
+                            let lsp: Vec<&str> = i.split_whitespace().collect();
+                            if lsp.len() > 10 && disk_dev_name == lsp[0] {
+                                if let (Ok(rs), Ok(ws)) = (
+                                    // readops per s count is in 1st column
+                                    Self::parse_iostat_result(lsp[1]),
+                                    // writeops per s count is in 7th column
+                                    Self::parse_iostat_result(lsp[7]),
+                                ) {
+                                    iops = rs + ws;
+                                }
+                                if let (Ok(rwait), Ok(wwait)) = (
+                                    // readops wait time is in 5th column
+                                    Self::parse_iostat_result(lsp[5]),
+                                    // writeops wait time is in 11th column
+                                    Self::parse_iostat_result(lsp[11]),
+                                ) {
+                                    iowait = rwait + wwait;
+                                }
+                            }
+                        }
+                    }
+                    (false, _) => {
+                        if let Ok(e) = String::from_utf8(output.stderr) {
+                            let error = format!("iostat failed: {}", e);
+                            debug!("{}", &error);
+                            return Err(error);
+                        } else {
+                            debug!("iostat failed");
+                            return Err("iostat failed".to_string());
+                        }
+                    }
+                    (_, Err(e)) => {
+                        let error = format!("Can not convert iostat result into string: {}", e);
+                        debug!("{}",&error);
+                        return Err(error);
+                    }
+                }
+            }
+            Err(e) => {
+                let error = format!("Failed to execute iostat: {}", e);
+                debug!("{}",&error);
+                return Err(error);
+            }
+        };
+        Ok((iops, iowait))
+    }
+
+    pub fn dev_name(disk_path: &str) -> Result<String, String> {
+        let df = std::process::Command::new("df").arg(disk_path).output();
+        match df {
+            Ok(output) => {
+                if let (true, Ok(out)) = (output.status.success(), String::from_utf8(output.stdout))
+                {
+                    let mut lines = out.lines();
+                    lines.next(); // skip headers
+                    if let Some(line) = lines.next() {
+                        if let Some(raw_dev_name) = line.split_whitespace().next() {
+                            if let (Some(slash_ind), Some(non_digit_ind)) =
+                                (
+                                    // find where /dev/ ends
+                                    raw_dev_name.rfind('/'),
+                                    // find where partition digits start
+                                    raw_dev_name.rfind(|c: char| !c.is_digit(10)),
+                                )
+                            {
+                                return Ok(raw_dev_name[slash_ind + 1..=non_digit_ind].to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                debug!("Failed to execute df: {}", e);
+                return Err("Failed to execute df".to_string());
+            }
+        };
+        Err("Error occured in dev_name getter".to_string())
+    }
 }
 
 struct CPUStatCollector {
@@ -161,9 +274,9 @@ impl CPUStatCollector {
         iowait_str.replace(',', ".").parse()
     }
 
-    fn iowait(&mut self) -> f64 {
+    fn iowait(&mut self) -> Result<f64, String> {
         if !self.iostat_avl {
-            return -1.;
+            return Err("iostat is not awailable".to_string());
         }
 
         let ios = std::process::Command::new("iostat").arg("-c").output();
@@ -178,10 +291,10 @@ impl CPUStatCollector {
                     // find iowait column on the next line
                     if let Some(line) = lines.next() {
                         let mut values = line.split_whitespace();
-                        // iowait is in 3th column
+                        // iowait is in 3d column
                         if let Some(iowait_str) = values.nth(3) {
                             if let Ok(iowait) = Self::parse_iowait_result(iowait_str) {
-                                return iowait;
+                                return Ok(iowait);
                             }
                         }
                     }
@@ -192,7 +305,7 @@ impl CPUStatCollector {
                 self.iostat_avl = false;
             }
         };
-        -1.
+        Err("iostat is not awailable".to_string())
     }
 }
 

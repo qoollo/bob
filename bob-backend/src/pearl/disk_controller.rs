@@ -32,7 +32,6 @@ enum GroupsState {
 #[derive(Clone, Debug)]
 pub struct DiskController {
     disk: DiskPath,
-    disk_dev_name: String,
     vdisks: Vec<VDiskId>,
     dump_sem: Arc<Semaphore>,
     run_sem: Arc<Semaphore>,
@@ -59,10 +58,8 @@ impl DiskController {
     ) -> Arc<Self> {
         let disk_state_metric = format!("{}.{}", DISKS_FOLDER, disk.name());
         let dump_sem = Arc::new(Semaphore::new(config.disk_access_par_degree()));
-        let disk_dev_name = disk.dev_name();
         let new_dc = Self {
             disk,
-            disk_dev_name,
             vdisks,
             dump_sem,
             run_sem,
@@ -138,70 +135,10 @@ impl DiskController {
         }
     }
 
-    fn parse_iostat_result(iostat_str: &str) -> Result<f64, std::num::ParseFloatError> {
-        iostat_str.replace(',', ".").parse()
-    }
-
-    fn collect_iostat(&self) -> (f64, f64) {
-        let mut iops = 0.;
-        let mut iowait = 0.;
-        let ios = std::process::Command::new("iostat").arg("-dx").output();
-        match ios {
-            Ok(output) => {
-                match (output.status.success(), String::from_utf8(output.stdout)) {
-                    (true, Ok(out)) => {
-                        for i in out.lines() {
-                            let lsp: Vec<&str> = i.split_whitespace().collect();
-                            if lsp.len() > 10 && self.disk_dev_name == lsp[0] {
-                                if let (Ok(rs), Ok(ws)) = (
-                                    // readops per s count is in 1st column
-                                    Self::parse_iostat_result(lsp[1]),
-                                    // writeops per s count is in 7th column
-                                    Self::parse_iostat_result(lsp[7]),
-                                ) {
-                                    iops = rs + ws;
-                                }
-                                if let (Ok(rwait), Ok(wwait)) = (
-                                    // readops wait time is in 5th column
-                                    Self::parse_iostat_result(lsp[5]),
-                                    // writeops wait time is in 11th column
-                                    Self::parse_iostat_result(lsp[11]),
-                                ) {
-                                    iowait = rwait + wwait;
-                                }
-                            }
-                        }
-                    }
-                    (false, _) => {
-                        if let Ok(err) = String::from_utf8(output.stderr) {
-                            debug!("iostat failed: {}", err);
-                        } else {
-                            debug!("iostat failed");
-                        }
-                    }
-                    (_, Err(e)) => {
-                        debug!("Can not convert iostat result into string: {}", e);
-                    }
-                }
-            }
-            Err(e) => {
-                debug!("Failed to execute iostat: {}", e);
-            }
-        };
-        (iops, iowait)
-    }
-
     async fn update_metrics(&self) {
         let gauge_name = format!("{}_blobs_count", self.disk_state_metric);
         let blobs_count = self.blobs_count_cached.load(Ordering::Acquire);
         gauge!(gauge_name, blobs_count as f64);
-
-        let (iops, iowait) = self.collect_iostat();
-        let gauge_name = format!("{}_iowait", self.disk_state_metric);
-        gauge!(gauge_name, iowait);
-
-        let gauge_name = format!("{}_iops", self.disk_state_metric);
-        gauge!(gauge_name, iops);
     }
 
     async fn change_state(&self, new_state: GroupsState) {
