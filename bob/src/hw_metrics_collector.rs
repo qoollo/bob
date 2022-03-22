@@ -11,7 +11,7 @@ use libc::statvfs;
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 
-struct DisksMetrics {
+struct DisksSpaceMetrics {
     total_space: u64,
     used_space: u64,
     free_space: u64,
@@ -64,19 +64,11 @@ impl HWMetricsCollector {
         let mut sys = System::new_all();
         let mut dcounter = DescrCounter::new();
         let mut cpu_s_c = CPUStatCollector::new();
+        let mut disk_s_c = DiskStatCollector::new(&disks);
         let total_mem = kb_to_mb(sys.total_memory());
         gauge!(TOTAL_RAM, total_mem as f64);
         debug!("total mem in mb: {}", total_mem);
         let pid = std::process::id() as i32;
-
-        let mut disk_dev_names = Vec::new();
-        for (path, disk_name) in &disks {
-            let path_str = path.as_os_str().to_str().unwrap();
-            if let Ok(dev_name) = Self::dev_name(path_str) {
-                let metric_prefix = format!("{}.{}", DISKS_FOLDER, disk_name);
-                disk_dev_names.push((metric_prefix, dev_name));
-            }
-        }
 
         loop {
             interval.tick().await;
@@ -106,15 +98,7 @@ impl HWMetricsCollector {
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
 
-            for (metric_pref, dev_name) in &disk_dev_names {
-                if let Ok((iops, iowait)) = Self::collect_iostat(dev_name) {
-                    let gauge_name = format!("{}_iowait", metric_pref);
-                    gauge!(gauge_name, iowait);
-
-                    let gauge_name = format!("{}_iops", metric_pref);
-                    gauge!(gauge_name, iops);
-                }
-            }
+            disk_s_c.collect_and_send_metrics();
         }
     }
 
@@ -142,7 +126,7 @@ impl HWMetricsCollector {
     // refreshed, if I clone them
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
-    fn space(disks: &HashMap<PathBuf, String>) -> DisksMetrics {
+    fn space(disks: &HashMap<PathBuf, String>) -> DisksSpaceMetrics {
         let mut total = 0;
         let mut used = 0;
         let mut free = 0;
@@ -161,74 +145,97 @@ impl HWMetricsCollector {
             }
         }
 
-        DisksMetrics {
+        DisksSpaceMetrics {
             total_space: total,
             used_space: used,
             free_space: free
         }
+    }
+}
+
+struct CPUStatCollector {
+    iostat_avl: bool,
+}
+
+impl CPUStatCollector {
+    fn new() -> CPUStatCollector {
+        CPUStatCollector { iostat_avl: true }
     }
 
     fn parse_iostat_result(iostat_str: &str) -> Result<f64, std::num::ParseFloatError> {
         iostat_str.replace(',', ".").parse()
     }
 
-    fn collect_iostat(disk_dev_name: &str) -> Result<(f64, f64), String> {
-        let mut iops = 0.;
-        let mut iowait = 0.;
-        let ios = std::process::Command::new("iostat").arg("-dx").output();
+    fn iowait(&mut self) -> Result<f64, String> {
+        if !self.iostat_avl {
+            return Err("iostat is not awailable".to_string());
+        }
+
+        let ios = std::process::Command::new("iostat").arg("-c").output();
         match ios {
             Ok(output) => {
-                match (output.status.success(), String::from_utf8(output.stdout)) {
-                    (true, Ok(out)) => {
-                        for i in out.lines() {
-                            let lsp: Vec<&str> = i.split_whitespace().collect();
-                            if lsp.len() > 10 && disk_dev_name == lsp[0] {
-                                if let (Ok(rs), Ok(ws)) = (
-                                    // readops per s count is in 1st column
-                                    Self::parse_iostat_result(lsp[1]),
-                                    // writeops per s count is in 7th column
-                                    Self::parse_iostat_result(lsp[7]),
-                                ) {
-                                    iops = rs + ws;
-                                }
-                                if let (Ok(rwait), Ok(wwait)) = (
-                                    // readops wait time is in 5th column
-                                    Self::parse_iostat_result(lsp[5]),
-                                    // writeops wait time is in 11th column
-                                    Self::parse_iostat_result(lsp[11]),
-                                ) {
-                                    iowait = rwait + wwait;
-                                }
+                if let (true, Ok(out)) = (output.status.success(), String::from_utf8(output.stdout))
+                {
+                    // find avg-cpu headers line
+                    let mut lines = out
+                        .lines()
+                        .skip_while(|line| line.find("avg-cpu:").is_none());
+                    // find iowait column on the next line
+                    if let Some(line) = lines.next() {
+                        let mut values = line.split_whitespace();
+                        // iowait is in 3d column
+                        if let Some(iowait_str) = values.nth(3) {
+                            if let Ok(iowait) = Self::parse_iostat_result(iowait_str) {
+                                return Ok(iowait);
                             }
                         }
-                    }
-                    (false, _) => {
-                        if let Ok(e) = String::from_utf8(output.stderr) {
-                            let error = format!("iostat failed: {}", e);
-                            debug!("{}", &error);
-                            return Err(error);
-                        } else {
-                            debug!("iostat failed");
-                            return Err("iostat failed".to_string());
-                        }
-                    }
-                    (_, Err(e)) => {
-                        let error = format!("Can not convert iostat result into string: {}", e);
-                        debug!("{}",&error);
-                        return Err(error);
                     }
                 }
             }
             Err(e) => {
-                let error = format!("Failed to execute iostat: {}", e);
-                debug!("{}",&error);
-                return Err(error);
+                debug!("Failed to execute iostat: {}", e);
+                self.iostat_avl = false;
             }
         };
-        Ok((iops, iowait))
+        Err("iostat is not awailable".to_string())
+    }
+}
+
+struct DiskStatCollector {
+    iostat_avl: bool,
+    disk_metric_data: Vec<(String, String)>,
+}
+
+impl DiskStatCollector {
+    fn new(disks: &HashMap<PathBuf, String>) -> Self {
+        let mut disk_metric_data = Vec::new();
+        for (path, disk_name) in disks {
+            let path_str = path.as_os_str().to_str().unwrap();
+            if let Ok(dev_name) = Self::dev_name(path_str) {
+                let metric_prefix = format!("{}.{}", DISKS_FOLDER, disk_name);
+                disk_metric_data.push((metric_prefix, dev_name));
+            }
+        }
+
+        DiskStatCollector { 
+            iostat_avl: true,
+            disk_metric_data
+        }
     }
 
-    pub fn dev_name(disk_path: &str) -> Result<String, String> {
+    fn collect_and_send_metrics(&mut self) {
+        for (metric_pref, dev_name) in &self.disk_metric_data {
+            if let Ok((iops, iowait)) = Self::collect_iostat(&mut self.iostat_avl, dev_name) {
+                let gauge_name = format!("{}_iowait", metric_pref);
+                gauge!(gauge_name, iowait);
+
+                let gauge_name = format!("{}_iops", metric_pref);
+                gauge!(gauge_name, iops);
+            }
+        }
+    }
+
+    fn dev_name(disk_path: &str) -> Result<String, String> {
         let df = std::process::Command::new("df").arg(disk_path).output();
         match df {
             Ok(output) => {
@@ -259,55 +266,77 @@ impl HWMetricsCollector {
         };
         Err("Error occured in dev_name getter".to_string())
     }
-}
 
-struct CPUStatCollector {
-    iostat_avl: bool,
-}
-
-impl CPUStatCollector {
-    fn new() -> CPUStatCollector {
-        CPUStatCollector { iostat_avl: true }
+    fn parse_iostat_result(iostat_str: &str) -> Result<f64, std::num::ParseFloatError> {
+        iostat_str.replace(',', ".").parse()
     }
 
-    fn parse_iowait_result(iowait_str: &str) -> Result<f64, std::num::ParseFloatError> {
-        iowait_str.replace(',', ".").parse()
-    }
-
-    fn iowait(&mut self) -> Result<f64, String> {
-        if !self.iostat_avl {
-            return Err("iostat is not awailable".to_string());
+    fn collect_iostat(iostat_avl: &mut bool, disk_dev_name: &str) -> Result<(f64, f64), String> {
+        if !(*iostat_avl) {
+            return Err("iostat is not available".to_string());
         }
 
-        let ios = std::process::Command::new("iostat").arg("-c").output();
+        let ios = std::process::Command::new("iostat").arg("-dx").output();
         match ios {
             Ok(output) => {
-                if let (true, Ok(out)) = (output.status.success(), String::from_utf8(output.stdout))
-                {
-                    // find avg-cpu headers line
-                    let mut lines = out
-                        .lines()
-                        .skip_while(|line| line.find("avg-cpu:").is_none());
-                    // find iowait column on the next line
-                    if let Some(line) = lines.next() {
-                        let mut values = line.split_whitespace();
-                        // iowait is in 3d column
-                        if let Some(iowait_str) = values.nth(3) {
-                            if let Ok(iowait) = Self::parse_iowait_result(iowait_str) {
-                                return Ok(iowait);
+                match (output.status.success(), String::from_utf8(output.stdout)) {
+                    (true, Ok(out)) => {
+                        let mut iops = 0.;
+                        let mut iowait = 0.;
+                        for i in out.lines() {
+                            let lsp: Vec<&str> = i.split_whitespace().collect();
+                            if lsp.len() > 10 && disk_dev_name == lsp[0] {
+                                if let (Ok(rs), Ok(ws)) = (
+                                    // readops per s count is in 1st column
+                                    Self::parse_iostat_result(lsp[1]),
+                                    // writeops per s count is in 7th column
+                                    Self::parse_iostat_result(lsp[7]),
+                                ) {
+                                    iops = rs + ws;
+                                }
+                                if let (Ok(rwait), Ok(wwait)) = (
+                                    // readops wait time is in 5th column
+                                    Self::parse_iostat_result(lsp[5]),
+                                    // writeops wait time is in 11th column
+                                    Self::parse_iostat_result(lsp[11]),
+                                ) {
+                                    iowait = rwait + wwait;
+                                }
+                            } else {
+                                return Err("iostat output format changed, update this code".to_string());
                             }
                         }
+                        return Ok((iops, iowait));
+                    }
+                    (false, _) => {
+                        if let Ok(e) = String::from_utf8(output.stderr) {
+                            let error = format!("iostat failed: {}", e);
+                            debug!("{}", &error);
+                            return Err(error);
+                        } else {
+                            debug!("iostat failed");
+                            return Err("iostat failed".to_string());
+                        }
+                    }
+                    (_, Err(e)) => {
+                        let error = format!("Can not convert iostat result into string: {}", e);
+                        debug!("{}",&error);
+                        return Err(error);
                     }
                 }
             }
             Err(e) => {
-                debug!("Failed to execute iostat: {}", e);
-                self.iostat_avl = false;
+                *iostat_avl = false;
+
+                let error = format!("Failed to execute iostat: {}", e);
+                debug!("{}",&error);
+                return Err(error);
             }
         };
-        Err("iostat is not awailable".to_string())
     }
 }
+
+
 
 // this constant means, that `descriptors amount` value will be recalculated only on every
 // `CACHED_TIMES`-th `descr_amount` function call (on other hand last calculated (i.e. cached) value
