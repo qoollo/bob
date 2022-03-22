@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- root_dir_name to node configuration api (#440)
 
 
 #### Changed
