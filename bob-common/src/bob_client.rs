@@ -163,7 +163,7 @@ pub mod b_client {
         ) -> ExistResult {
             match exist_response {
                 Ok(response) => Ok(NodeOutput::new(node_name, response.into_inner().exist)),
-                Err(error) => Err(NodeOutput::new(node_name, Error::from(error))),
+                Err(error) => Err(NodeOutput::new(node_name, error.into())),
             }
         }
 
