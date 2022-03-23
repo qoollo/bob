@@ -5,9 +5,23 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Added -init_folders flag that creates bob and alien folders (#180)
+
+
+#### Changed
+
+
+#### Fixed
+- brt: Version in BlobHeader now changes during migration (#447)
+- brt: Default target version is now 1 instead of 2 (#448)
+
+#### Updated
+
+
+## [2.1.0-alpha.0] - 2021-02-21
+#### Added
 - Bloom filters memory metric (#400)
 - Add bob ram usage metric (#393)
-- Add REST API method for data deletion ([#221](https://github.com/qoollo/bob/pull/221))
+- Add REST API method for data deletion (#221)
 
 
 #### Changed
