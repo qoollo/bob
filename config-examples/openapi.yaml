@@ -493,5 +493,3 @@ components:
       properties:
         blob_file_name_prefix:
           type: string
-        root_dir_name:
-          type: string

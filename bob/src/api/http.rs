@@ -114,7 +114,6 @@ pub(crate) struct VersionInfo {
 #[derive(Debug, Serialize)]
 pub(crate) struct NodeConfiguration {
     blob_file_name_prefix: String,
-    root_dir_name: String,
 }
 
 pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
@@ -324,7 +323,6 @@ async fn get_node_configuration(bob: &State<BobServer>) -> Json<NodeConfiguratio
     let config = grinder.node_config();
     Json(NodeConfiguration {
         blob_file_name_prefix: config.pearl().blob_file_name_prefix().to_owned(),
-        root_dir_name: config.pearl().settings().root_dir_name().to_owned(),
     })
 }
 
