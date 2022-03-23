@@ -80,13 +80,16 @@ pub mod b_client {
             let timer = BobClientMetrics::start_timer();
             let mut client = self.client.clone();
             let node_name = self.node.name().to_owned();
-            if client.put(request).await.is_ok() {
-                self.metrics.put_timer_stop(timer);
-                Ok(NodeOutput::new(node_name, ()))
-            } else {
-                self.metrics.put_error_count();
-                self.metrics.put_timer_stop(timer);
-                Err(NodeOutput::new(node_name, Error::timeout()))
+            match client.put(request).await {
+                Ok(_) => {
+                    self.metrics.put_timer_stop(timer);
+                    Ok(NodeOutput::new(node_name, ()))
+                },
+                Err(e) => {
+                    self.metrics.put_error_count();
+                    self.metrics.put_timer_stop(timer);
+                    Err(NodeOutput::new(node_name,  e.into()))
+                },
             }
         }
 
@@ -114,7 +117,7 @@ pub mod b_client {
                 Err(e) => {
                     self.metrics.get_error_count();
                     self.metrics.get_timer_stop(timer);
-                    Err(NodeOutput::new(node_name, Error::from(e)))
+                    Err(NodeOutput::new(node_name, e.into()))
                 }
             }
         }
