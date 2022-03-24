@@ -7,7 +7,7 @@ Bob versions changelog
 - Add iops & iowait disk metrics (collected via iostat) & cpu_iowait metric (#342)
 
 #### Changed
-
+- All hardware metrics are now placed in 'hardware' group (#452)
 
 #### Fixed
 
