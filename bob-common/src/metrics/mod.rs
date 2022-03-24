@@ -86,18 +86,20 @@ pub const INDEX_MEMORY: &str = "backend.index_memory";
 pub const ACTIVE_DISKS_COUNT: &str = "backend.active_disks";
 /// Directory, which contains each disks state
 pub const DISKS_FOLDER: &str = "backend.disks";
+/// Directory, which contains each disks hardware metrics
+pub const HW_DISKS_FOLDER: &str = "hardware.disks";
 
-pub const DESCRIPTORS_AMOUNT: &str = "descr_amount";
+pub const DESCRIPTORS_AMOUNT: &str = "hardware.descr_amount";
 
-pub const CPU_LOAD: &str = "cpu_load";
-pub const CPU_IOWAIT: &str = "cpu_iowait";
-pub const FREE_RAM: &str = "free_ram";
-pub const USED_RAM: &str = "used_ram";
-pub const TOTAL_RAM: &str = "total_ram";
-pub const BOB_RAM: &str = "bob_ram";
-pub const FREE_SPACE: &str = "free_space";
-pub const USED_SPACE: &str = "used_space";
-pub const TOTAL_SPACE: &str = "total_space";
+pub const CPU_LOAD: &str = "hardware.cpu_load";
+pub const CPU_IOWAIT: &str = "hardware.cpu_iowait";
+pub const FREE_RAM: &str = "hardware.free_ram";
+pub const USED_RAM: &str = "hardware.used_ram";
+pub const TOTAL_RAM: &str = "hardware.total_ram";
+pub const BOB_RAM: &str = "hardware.bob_ram";
+pub const FREE_SPACE: &str = "hardware.free_space";
+pub const USED_SPACE: &str = "hardware.used_space";
+pub const TOTAL_SPACE: &str = "hardware.total_space";
 
 const CLIENTS_METRICS_DIR: &str = "clients";
 

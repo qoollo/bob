@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use bob_common::metrics::{
     CPU_IOWAIT, CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE,
-    USED_RAM, USED_SPACE, BOB_RAM, DISKS_FOLDER,
+    USED_RAM, USED_SPACE, BOB_RAM, HW_DISKS_FOLDER,
 };
 use std::path::{Path, PathBuf};
 use std::process;
@@ -100,7 +100,6 @@ impl HWMetricsCollector {
 
             if let Err(e) = disk_s_c.collect_and_send_metrics() {
                 debug!("Error while collecting disks stats: {}", e);
-                println!("ahha {}", e);
             }
         }
     }
@@ -215,7 +214,7 @@ impl DiskStatCollector {
         for (path, disk_name) in disks {
             let path_str = path.as_os_str().to_str().unwrap();
             if let Ok(dev_name) = Self::dev_name(path_str) {
-                let metric_prefix = format!("{}.{}", DISKS_FOLDER, disk_name);
+                let metric_prefix = format!("{}.{}", HW_DISKS_FOLDER, disk_name);
                 disk_metric_data.insert(dev_name, metric_prefix);
             }
         }
