@@ -98,7 +98,10 @@ impl HWMetricsCollector {
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
 
-            disk_s_c.collect_and_send_metrics();
+            if let Err(e) = disk_s_c.collect_and_send_metrics() {
+                debug!("Error while collecting disks stats: {}", e);
+                println!("ahha {}", e);
+            }
         }
     }
 
@@ -203,17 +206,17 @@ impl CPUStatCollector {
 
 struct DiskStatCollector {
     iostat_avl: bool,
-    disk_metric_data: Vec<(String, String)>,
+    disk_metric_data: HashMap<String, String>,
 }
 
 impl DiskStatCollector {
     fn new(disks: &HashMap<PathBuf, String>) -> Self {
-        let mut disk_metric_data = Vec::new();
+        let mut disk_metric_data = HashMap::new();
         for (path, disk_name) in disks {
             let path_str = path.as_os_str().to_str().unwrap();
             if let Ok(dev_name) = Self::dev_name(path_str) {
                 let metric_prefix = format!("{}.{}", DISKS_FOLDER, disk_name);
-                disk_metric_data.push((metric_prefix, dev_name));
+                disk_metric_data.insert(dev_name, metric_prefix);
             }
         }
 
@@ -223,16 +226,43 @@ impl DiskStatCollector {
         }
     }
 
-    fn collect_and_send_metrics(&mut self) {
-        for (metric_pref, dev_name) in &self.disk_metric_data {
-            if let Ok((iops, iowait)) = Self::collect_iostat(&mut self.iostat_avl, dev_name) {
-                let gauge_name = format!("{}_iowait", metric_pref);
-                gauge!(gauge_name, iowait);
+    fn collect_and_send_metrics(&mut self) -> Result<(), String> {
+        let iostat_lines = self.collect_iostat()?;
+        for i in iostat_lines {
+            let lsp: Vec<&str> = i.split_whitespace().collect();
+            if lsp.len() > 11 {
+                if let Some(metric_prefix) = self.disk_metric_data.get(lsp[0]) {
+                    let mut iops = 0.;
+                    let mut iowait = 0.;
 
-                let gauge_name = format!("{}_iops", metric_pref);
-                gauge!(gauge_name, iops);
+                    if let (Ok(rs), Ok(ws)) = (
+                        // readops per s count is in 1st column
+                        Self::parse_iostat_result(lsp[1]),
+                        // writeops per s count is in 7th column
+                        Self::parse_iostat_result(lsp[7]),
+                    ) {
+                        iops = rs + ws;
+                    }
+                    if let (Ok(rwait), Ok(wwait)) = (
+                        // readops wait time is in 5th column
+                        Self::parse_iostat_result(lsp[5]),
+                        // writeops wait time is in 11th column
+                        Self::parse_iostat_result(lsp[11]),
+                    ) {
+                        iowait = rwait + wwait;
+                    }
+
+                    let gauge_name = format!("{}_iowait", metric_prefix);
+                    gauge!(gauge_name, iowait);
+
+                    let gauge_name = format!("{}_iops", metric_prefix);
+                    gauge!(gauge_name, iops);
+                }
+            } else if lsp.len() > 0 {
+                return Err("iostat output format changed, update this code".to_string());
             }
         }
+        Ok(())
     }
 
     fn dev_name(disk_path: &str) -> Result<String, String> {
@@ -271,8 +301,8 @@ impl DiskStatCollector {
         iostat_str.replace(',', ".").parse()
     }
 
-    fn collect_iostat(iostat_avl: &mut bool, disk_dev_name: &str) -> Result<(f64, f64), String> {
-        if !(*iostat_avl) {
+    fn collect_iostat(&mut self) -> Result<Vec<String>, String> {
+        if !self.iostat_avl {
             return Err("iostat is not available".to_string());
         }
 
@@ -281,32 +311,10 @@ impl DiskStatCollector {
             Ok(output) => {
                 match (output.status.success(), String::from_utf8(output.stdout)) {
                     (true, Ok(out)) => {
-                        let mut iops = 0.;
-                        let mut iowait = 0.;
-                        for i in out.lines() {
-                            let lsp: Vec<&str> = i.split_whitespace().collect();
-                            if lsp.len() > 10 && disk_dev_name == lsp[0] {
-                                if let (Ok(rs), Ok(ws)) = (
-                                    // readops per s count is in 1st column
-                                    Self::parse_iostat_result(lsp[1]),
-                                    // writeops per s count is in 7th column
-                                    Self::parse_iostat_result(lsp[7]),
-                                ) {
-                                    iops = rs + ws;
-                                }
-                                if let (Ok(rwait), Ok(wwait)) = (
-                                    // readops wait time is in 5th column
-                                    Self::parse_iostat_result(lsp[5]),
-                                    // writeops wait time is in 11th column
-                                    Self::parse_iostat_result(lsp[11]),
-                                ) {
-                                    iowait = rwait + wwait;
-                                }
-                            } else {
-                                return Err("iostat output format changed, update this code".to_string());
-                            }
-                        }
-                        return Ok((iops, iowait));
+                        let line_iter = out.lines();
+                        // skip headers
+                        let line_iter = line_iter.skip(3);
+                        return Ok(line_iter.map(|line| line.to_string()).collect());
                     }
                     (false, _) => {
                         if let Ok(e) = String::from_utf8(output.stderr) {
@@ -326,7 +334,7 @@ impl DiskStatCollector {
                 }
             }
             Err(e) => {
-                *iostat_avl = false;
+                self.iostat_avl = false;
 
                 let error = format!("Failed to execute iostat: {}", e);
                 debug!("{}",&error);
