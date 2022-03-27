@@ -243,6 +243,8 @@ impl DiskStatCollector {
 
                         let gauge_name = format!("{}_iops", metric_prefix);
                         gauge!(gauge_name, iops);
+                    } else {
+                        return Err("Can't parse iostat output into float".to_string());
                     }
 
                     if let (Ok(rwait), Ok(wwait)) = (
@@ -255,6 +257,8 @@ impl DiskStatCollector {
 
                         let gauge_name = format!("{}_iowait", metric_prefix);
                         gauge!(gauge_name, iowait);
+                    } else {
+                        return Err("Can't parse iostat output into float".to_string());
                     }
                 }
             } else if lsp.len() > 0 {
