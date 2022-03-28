@@ -4,6 +4,8 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Added -init_folders flag that creates bob and alien folders (#180)
+- If bob and alien folders doesn't exist bobd will panic (#398)
 - root_dir_name to node configuration api (#440)
 
 
@@ -11,8 +13,8 @@ Bob versions changelog
 
 
 #### Fixed
-- Version in BlobHeader now changes during migration (#447)
-- Default target version is now 1 instead of 2 (#448)
+- brt: Version in BlobHeader now changes during migration (#447)
+- brt: Default target version is now 1 instead of 2 (#448)
 
 #### Updated
 
