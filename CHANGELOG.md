@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- API method for occupied space info (#404)
 - Added -init_folders flag that creates bob and alien folders (#180)
 - If bob and alien folders doesn't exist bobd will panic (#398)
 - root_dir_name to node configuration api (#440)

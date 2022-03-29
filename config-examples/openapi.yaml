@@ -17,6 +17,19 @@ paths:
                 $ref: "#/components/schemas/Node"
         default:
           $ref: "#/components/responses/DefaultError"
+  /status/space:
+    get:
+      summary: Get space info
+      operationId: getSpaceInfo
+      response:
+        "200":
+          description: "Space info"
+          content:
+            application/json:
+              schema:
+                ref: "#components/schemas/DiskSpace"
+        "503":
+          description: "Space info not available"
   /version:
     get:
       summary: Returns server version
@@ -495,3 +508,12 @@ components:
           type: string
         root_dir_name:
           type: string
+    SpaceInfo:
+      type: object
+      properties:
+        total_disk_space_bytes:
+          type: integer
+        free_disk_space_bytes:
+          type: integer
+        used_disk_space_bytes:
+          type: integer

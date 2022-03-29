@@ -1,6 +1,6 @@
 use crate::{
     api::http::metric_models::MetricsSnapshotModel, build_info::BuildInfo,
-    server::Server as BobServer,
+    hw_metrics_collector::DiskSpaceMetrics, server::Server as BobServer,
 };
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
@@ -117,6 +117,13 @@ pub(crate) struct NodeConfiguration {
     root_dir_name: String,
 }
 
+#[derive(Debug, Serialize)]
+pub(crate) struct SpaceInfo {
+    total_disk_space_bytes: u64,
+    free_disk_space_bytes: u64,
+    used_disk_space_bytes: u64,
+}
+
 pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
     let routes = routes![
         status,
@@ -143,7 +150,8 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
         delete_records_by_key,
         get_data,
         put_data,
-        metrics
+        metrics,
+        get_space_info
     ];
     info!("API server started");
     let mut config = Config::release_default();
@@ -236,6 +244,21 @@ async fn status(bob: &State<BobServer>) -> Json<Node> {
         vdisks,
     };
     Json(node)
+}
+
+#[get("/status/space")]
+async fn get_space_info(bob: &State<BobServer>) -> Result<Json<SpaceInfo>, StatusExt> {
+    let DiskSpaceMetrics {
+        total_space,
+        used_space,
+        free_space,
+    } = bob.grinder().hw_counter().update_space_metrics();
+
+    Ok(Json(SpaceInfo {
+        total_disk_space_bytes: total_space,
+        used_disk_space_bytes: used_space,
+        free_disk_space_bytes: free_space,
+    }))
 }
 
 #[get("/metrics")]
