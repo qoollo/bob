@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Bloom filters memory metric (#400)
 - root_dir_name to node configuration api (#440)
 
 #### Changed
