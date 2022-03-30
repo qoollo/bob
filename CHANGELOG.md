@@ -14,7 +14,7 @@ Bob versions changelog
 - Default target version is now 1 instead of 2 (#448)
 
 #### Updated
-
+- Update pearl to v0.10.0
 
 ## [2.1.0-alpha.0] - 2021-02-21
 #### Added
