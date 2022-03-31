@@ -4,11 +4,11 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Add refkey to support pearl #141
 - API method for occupied space info (#404)
 - Added -init_folders flag that creates bob and alien folders (#180)
 - If bob and alien folders doesn't exist bobd will panic (#398)
 - root_dir_name to node configuration api (#440)
-
 
 #### Changed
 
@@ -18,7 +18,7 @@ Bob versions changelog
 - brt: Default target version is now 1 instead of 2 (#448)
 
 #### Updated
-
+- Update pearl to v0.10.0
 
 ## [2.1.0-alpha.0] - 2021-02-21
 #### Added
