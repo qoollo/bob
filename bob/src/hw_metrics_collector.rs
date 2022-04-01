@@ -11,10 +11,10 @@ use sysinfo::{DiskExt, ProcessExt, RefreshKind, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 
-struct DisksSpaceMetrics {
-    total_space: u64,
-    used_space: u64,
-    free_space: u64,
+pub(crate) struct DiskSpaceMetrics {
+    pub(crate) total_space: u64,
+    pub(crate) used_space: u64,
+    pub(crate) free_space: u64,
 }
 
 pub(crate) struct HWMetricsCollector {
@@ -58,6 +58,10 @@ impl HWMetricsCollector {
         tokio::spawn(Self::task(self.interval_time, self.disks.clone()));
     }
 
+    pub(crate) fn update_space_metrics(&self) -> DiskSpaceMetrics {
+        Self::update_space_metrics_from_disks(&self.disks)
+    }
+
     async fn task(t: Duration, disks: HashMap<PathBuf, String>) {
         let mut interval = interval(t);
         let mut sys = System::new_all();
@@ -78,6 +82,7 @@ impl HWMetricsCollector {
                     .with_disks()
                     .with_memory(),
             );
+
             match cpu_s_c.iowait() {
                 Ok(iowait) => {
                     gauge!(CPU_IOWAIT, iowait);
@@ -95,10 +100,7 @@ impl HWMetricsCollector {
                 debug!("Can't get process stat descriptor");
             }
 
-            let disks_metrics = Self::space(&disks);
-            gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
-            gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
-            gauge!(FREE_SPACE, bytes_to_mb(disks_metrics.free_space) as f64);
+            let _ = Self::update_space_metrics_from_disks(&disks);
             let used_mem = kb_to_mb(sys.used_memory());
             debug!("used mem in mb: {}", used_mem);
             gauge!(USED_RAM, used_mem as f64);
@@ -109,6 +111,14 @@ impl HWMetricsCollector {
                 warn!("Error while collecting stats of disks: {}", e);
             }
         }
+    }
+
+    fn update_space_metrics_from_disks(disks: &HashMap<PathBuf, String>) -> DiskSpaceMetrics {
+        let disks_metrics = Self::space(disks);
+        gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
+        gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
+        gauge!(FREE_SPACE, bytes_to_mb(disks_metrics.free_space) as f64);
+        disks_metrics
     }
 
     fn to_cpath(path: &Path) -> Vec<u8> {
@@ -135,7 +145,8 @@ impl HWMetricsCollector {
     // refreshed, if I clone them
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
-    fn space(disks: &HashMap<PathBuf, String>) -> DisksSpaceMetrics {
+
+    fn space(disks: &HashMap<PathBuf, String>) -> DiskSpaceMetrics {
         let mut total = 0;
         let mut used = 0;
         let mut free = 0;
@@ -154,14 +165,13 @@ impl HWMetricsCollector {
             }
         }
 
-        DisksSpaceMetrics {
+        DiskSpaceMetrics {
             total_space: total,
             used_space: used,
             free_space: free,
         }
     }
 }
-
 struct CPUStatCollector {
     iostat_avl: bool,
 }
