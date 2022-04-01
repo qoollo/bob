@@ -6,7 +6,7 @@ use bob_common::metrics::{
 use libc::statvfs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-use std::process::{self, Output};
+use std::process::{self, Command};
 use sysinfo::{DiskExt, ProcessExt, RefreshKind, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
@@ -78,8 +78,13 @@ impl HWMetricsCollector {
                     .with_disks()
                     .with_memory(),
             );
-            if let Ok(iowait) = cpu_s_c.iowait() {
-                gauge!(CPU_IOWAIT, iowait);
+            match cpu_s_c.iowait() {
+                Ok(iowait) => {
+                    gauge!(CPU_IOWAIT, iowait);
+                },
+                Err(e) => {
+                    warn!("Error while collecting cpu iowait: {}", e);
+                }
             }
 
             if let Some(proc) = sys.process(pid) {
@@ -101,7 +106,7 @@ impl HWMetricsCollector {
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
 
             if let Err(e) = disk_s_c.collect_and_send_metrics() {
-                info!("Error while collecting stats of disks: {}", e);
+                warn!("Error while collecting stats of disks: {}", e);
             }
         }
     }
@@ -175,8 +180,7 @@ impl CPUStatCollector {
             return Err("iostat is not available".to_string());
         }
 
-        let ios = std::process::Command::new("iostat").arg("-c").output();
-        match parse_command_output(ios) {
+        match parse_command_output(Command::new("iostat").arg("-c")) {
             Ok(output) => {
                 // find avg-cpu headers line
                 let mut lines = output
@@ -269,8 +273,7 @@ impl DiskStatCollector {
     }
 
     fn dev_name(disk_path: &str) -> Result<String, String> {
-        let df = std::process::Command::new("df").arg(disk_path).output();
-        let output = parse_command_output(df)?;
+        let output = parse_command_output(Command::new("df").arg(disk_path))?;
 
         let mut lines = output.lines();
         lines.next(); // skip headers
@@ -299,8 +302,7 @@ impl DiskStatCollector {
             return Err("iostat is not available".to_string());
         }
 
-        let ios = std::process::Command::new("iostat").arg("-dx").output();
-        match parse_command_output(ios) {
+        match parse_command_output(Command::new("iostat").arg("-dx")) {
             Ok(output) => {
                 let line_iter = output.lines();
                 // skip headers
@@ -429,25 +431,27 @@ fn kb_to_mb(kbs: u64) -> u64 {
     kbs / 1024
 }
 
-fn parse_command_output(output: std::io::Result<Output>) -> Result<String, String> {
+fn parse_command_output(command: &mut Command) -> Result<String, String> {
+    let output = command.output();
+    let program = command.get_program().to_str().unwrap();
     match output {
         Ok(output) => match (output.status.success(), String::from_utf8(output.stdout)) {
             (true, Ok(out)) => Ok(out),
             (false, _) => {
                 if let Ok(e) = String::from_utf8(output.stderr) {
-                    let error = format!("Command finished with error: {}", e);
+                    let error = format!("Command {} finished with error: {}", program, e);
                     Err(error)
                 } else {
                     Err("Command finished with error".to_string())
                 }
             }
             (_, Err(e)) => {
-                let error = format!("Can not convert output into string: {}", e);
+                let error = format!("Can not convert output of {} into string: {}", program, e);
                 Err(error)
             }
         },
         Err(e) => {
-            let error = format!("Failed to execute command: {}", e);
+            let error = format!("Failed to execute command {}: {}", program, e);
             Err(error)
         }
     }
