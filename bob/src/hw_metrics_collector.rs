@@ -88,7 +88,9 @@ impl HWMetricsCollector {
                     gauge!(CPU_IOWAIT, iowait);
                 },
                 Err(e) => {
-                    warn!("Error while collecting cpu iowait: {}", e);
+                    if let CommandError::Primary(e) = e {
+                        warn!("Error while collecting cpu iowait: {}", e);
+                    }
                 }
             }
 
@@ -108,7 +110,9 @@ impl HWMetricsCollector {
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
 
             if let Err(e) = disk_s_c.collect_and_send_metrics() {
-                warn!("Error while collecting stats of disks: {}", e);
+                if let CommandError::Primary(e) = e {
+                    warn!("Error while collecting stats of disks: {}", e);
+                }
             }
         }
     }
@@ -172,6 +176,11 @@ impl HWMetricsCollector {
         }
     }
 }
+
+enum CommandError {
+    Unavailable,
+    Primary(String),
+}
 struct CPUStatCollector {
     iostat_avl: bool,
 }
@@ -185,9 +194,9 @@ impl CPUStatCollector {
         iostat_str.replace(',', ".").parse()
     }
 
-    fn iowait(&mut self) -> Result<f64, String> {
+    fn iowait(&mut self) -> Result<f64, CommandError> {
         if !self.iostat_avl {
-            return Err("iostat is not available".to_string());
+            return Err(CommandError::Unavailable);
         }
 
         match parse_command_output(Command::new("iostat").arg("-c")) {
@@ -209,11 +218,11 @@ impl CPUStatCollector {
             }
             Err(e) => {
                 self.iostat_avl = false;
-                return Err(e);
+                return Err(CommandError::Primary(e));
             }
         }
         self.iostat_avl = false;
-        Err("Failed to get iowait from iostat".to_string())
+        Err(CommandError::Primary("Failed to get iowait from iostat".to_string()))
     }
 }
 
@@ -231,7 +240,7 @@ impl DiskStatCollector {
                 let metric_prefix = format!("{}.{}", HW_DISKS_FOLDER, disk_name);
                 disk_metric_data.insert(dev_name, metric_prefix);
             } else {
-                info!("Device name of disk {} is unknown", disk_name);
+                warn!("Device name of disk {} is unknown", disk_name);
             }
         }
 
@@ -241,7 +250,7 @@ impl DiskStatCollector {
         }
     }
 
-    fn collect_and_send_metrics(&mut self) -> Result<(), String> {
+    fn collect_and_send_metrics(&mut self) -> Result<(), CommandError> {
         let iostat_lines = self.collect_iostat()?;
         for i in iostat_lines {
             let lsp: Vec<&str> = i.split_whitespace().collect();
@@ -258,7 +267,7 @@ impl DiskStatCollector {
                         let gauge_name = format!("{}_iops", metric_prefix);
                         gauge!(gauge_name, iops);
                     } else {
-                        return Err("Can't parse iostat output into float".to_string());
+                        return Err(CommandError::Primary("Can't parse iostat output into float".to_string()));
                     }
 
                     if let (Ok(rwait), Ok(wwait)) = (
@@ -272,11 +281,11 @@ impl DiskStatCollector {
                         let gauge_name = format!("{}_iowait", metric_prefix);
                         gauge!(gauge_name, iowait);
                     } else {
-                        return Err("Can't parse iostat output into float".to_string());
+                        return Err(CommandError::Primary("Can't parse iostat output into float".to_string()));
                     }
                 }
             } else if lsp.len() > 0 {
-                return Err("iostat output format changed, update this code".to_string());
+                return Err(CommandError::Primary("iostat output format changed, update this code".to_string()));
             }
         }
         Ok(())
@@ -307,9 +316,9 @@ impl DiskStatCollector {
         iostat_str.replace(',', ".").parse()
     }
 
-    fn collect_iostat(&mut self) -> Result<Vec<String>, String> {
+    fn collect_iostat(&mut self) -> Result<Vec<String>, CommandError> {
         if !self.iostat_avl {
-            return Err("iostat is not available".to_string());
+            return Err(CommandError::Unavailable);
         }
 
         match parse_command_output(Command::new("iostat").arg("-dx")) {
@@ -321,7 +330,7 @@ impl DiskStatCollector {
             }
             Err(e) => {
                 self.iostat_avl = false;
-                Err(e)
+                Err(CommandError::Primary(e))
             }
         }
     }
