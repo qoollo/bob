@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Add iops & iowait disk metrics (collected via iostat) & cpu_iowait metric (#342)
 - Add refkey to support pearl #141
 - API method for occupied space info (#404)
 - Added -init_folders flag that creates bob and alien folders (#180)
@@ -11,7 +12,7 @@ Bob versions changelog
 - root_dir_name to node configuration api (#440)
 
 #### Changed
-
+- All hardware metrics are now placed in 'hardware' group (#452)
 
 #### Fixed
 - brt: Version in BlobHeader now changes during migration (#447)
