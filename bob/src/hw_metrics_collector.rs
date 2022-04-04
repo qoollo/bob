@@ -87,11 +87,10 @@ impl HWMetricsCollector {
                 Ok(iowait) => {
                     gauge!(CPU_IOWAIT, iowait);
                 },
-                Err(e) => {
-                    if let CommandError::Primary(e) = e {
-                        warn!("Error while collecting cpu iowait: {}", e);
-                    }
-                }
+                Err(CommandError::Primary(e)) => {
+                    warn!("Error while collecting cpu iowait: {}", e);
+                },
+                Err(CommandError::Unavailable) => (),
             }
 
             if let Some(proc) = sys.process(pid) {
@@ -109,10 +108,8 @@ impl HWMetricsCollector {
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
 
-            if let Err(e) = disk_s_c.collect_and_send_metrics() {
-                if let CommandError::Primary(e) = e {
-                    warn!("Error while collecting stats of disks: {}", e);
-                }
+            if let Err(CommandError::Primary(e)) = disk_s_c.collect_and_send_metrics() {
+                warn!("Error while collecting stats of disks: {}", e);
             }
         }
     }
