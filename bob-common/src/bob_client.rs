@@ -1,5 +1,5 @@
 pub mod b_client {
-    use super::{ExistResult, GetResult, PingResult, PutResult};
+    use super::{DeleteResult, ExistResult, GetResult, PingResult, PutResult};
     use crate::{
         data::{BobData, BobKey, BobMeta},
         error::Error,
@@ -7,8 +7,8 @@ pub mod b_client {
         node::{Node, Output as NodeOutput},
     };
     use bob_grpc::{
-        bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, ExistRequest, ExistResponse,
-        GetOptions, GetRequest, Null, PutOptions, PutRequest,
+        bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, DeleteRequest, ExistRequest,
+        ExistResponse, GetOptions, GetRequest, Null, PutOptions, PutRequest,
     };
     use mockall::mock;
     use std::{
@@ -170,6 +170,26 @@ pub mod b_client {
                 Err(error) => Err(NodeOutput::new(node_name, Error::from(error))),
             }
         }
+        pub async fn delete(&self, key: BobKey) -> DeleteResult {
+            let node_name = self.node().name().to_owned();
+            let mut client = self.client.clone();
+            // TODO
+            // self.metrics.delete_count();
+            // let timer = BobClientMetrics::start_timer();
+            let message = DeleteRequest {
+                key: Some(BlobKey { key: key.into() }),
+            };
+            let req = Request::new(message);
+            // TODO
+            // self.metrics.delete_timer_stop(timer);
+            if client.delete(req).await.is_ok() {
+                Ok(NodeOutput::new(node_name, ()))
+            } else {
+                // TODO
+                // self.metrics.delete_error_count();
+                Err(NodeOutput::new(node_name, Error::timeout()))
+            }
+        }
     }
 
     mock! {
@@ -218,13 +238,17 @@ cfg_if::cfg_if! {
     }
 }
 
-pub type PutResult = Result<NodeOutput<()>, NodeOutput<Error>>;
+type NodeResult<T> = Result<NodeOutput<T>, NodeOutput<Error>>;
 
-pub type GetResult = Result<NodeOutput<BobData>, NodeOutput<Error>>;
+pub type PutResult = NodeResult<()>;
 
-pub type PingResult = Result<NodeOutput<()>, NodeOutput<Error>>;
+pub type GetResult = NodeResult<BobData>;
 
-pub type ExistResult = Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>;
+pub type PingResult = NodeResult<()>;
+
+pub type ExistResult = NodeResult<Vec<bool>>;
+
+pub type DeleteResult = NodeResult<()>;
 
 /// Bob metrics factory
 #[derive(Clone)]
