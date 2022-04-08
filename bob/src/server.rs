@@ -212,4 +212,8 @@ impl BobApi for Server {
         let response = Response::new(response);
         Ok(response)
     }
+
+    async fn delete(&self, req: Request<DeleteRequest>) -> ApiResult<OpStatus> {
+        unimplemented!()
+    }
 }
