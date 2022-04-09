@@ -223,21 +223,24 @@ where
         input,
         output,
         validate_every,
+        |header, _| Ok(header),
         |record, _| Ok(record),
         skip_wrong_record,
     )
 }
 
-pub(crate) fn recovery_blob_with<P, Q, F>(
+pub(crate) fn recovery_blob_with<P, Q, H, F>(
     input: &P,
     output: &Q,
     validate_every: usize,
+    preprocess_header: H,
     preprocess_record: F,
     skip_wrong_record: bool,
 ) -> AnyResult<()>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
+    H: Fn(BlobHeader, u32) -> AnyResult<BlobHeader>,
     F: Fn(Record, u32) -> AnyResult<Record>,
 {
     if input.as_ref() == output.as_ref() {
@@ -248,17 +251,19 @@ where
     let validate_written_records = validate_every != 0;
     let mut reader = BlobReader::from_path(&input)?;
     info!("Blob reader created");
-    let header = reader.read_header()?;
+    let mut header = reader.read_header()?;
+    let source_version = header.version;
+    header = preprocess_header(header, source_version)?;
     // Create writer after read blob header to prevent empty blob creation
     let mut writer = BlobWriter::from_path(&output, validate_written_records)?;
     info!("Blob writer created");
     writer.write_header(&header)?;
-    info!("Input blob header version: {}", header.version);
+    info!("Input blob header version: {}", source_version);
     let mut count = 0;
     while !reader.is_eof() {
         match reader
             .read_record(skip_wrong_record)
-            .and_then(|record| preprocess_record(record, header.version))
+            .and_then(|record| preprocess_record(record, source_version))
         {
             Ok(record) => {
                 writer.write_record(record)?;

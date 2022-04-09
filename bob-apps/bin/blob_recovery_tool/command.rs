@@ -308,6 +308,7 @@ impl MigrateCommand {
             &input,
             &output,
             self.validate_every,
+            |header, version| header.migrate(version, self.target_version), 
             |record, version| record.migrate(version, self.target_version),
             false,
         )?;
@@ -355,7 +356,7 @@ impl MigrateCommand {
                 Arg::with_name(TARGET_VERSION_OPT)
                     .help("target blob version for migration")
                     .takes_value(true)
-                    .default_value("2")
+                    .default_value("1")
                     .short("t")
                     .value_name("version")
                     .long("target-version"),
