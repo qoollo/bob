@@ -6,6 +6,8 @@ use crate::{
     stub_backend::StubBackend,
 };
 
+use bob_common::metrics::BLOOM_FILTERS_RAM;
+
 pub const BACKEND_STARTING: f64 = 0f64;
 pub const BACKEND_STARTED: f64 = 1f64;
 
@@ -97,6 +99,9 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
 
     async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
+
+    async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error>;
+    async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error>;
 
     async fn shutdown(&self);
 
@@ -215,6 +220,7 @@ impl Backend {
             Err(Error::internal())
         };
         trace!("<<<<<<- - - - - BACKEND PUT FINISH - - - - -");
+        
         res
     }
 
@@ -226,6 +232,11 @@ impl Backend {
         operation: Operation,
     ) -> Result<(), Error> {
         self.put_single(key, data, operation).await
+    }
+
+    async fn update_bloom_filter_metrics(&self) {
+        let bfr = self.filter_memory_allocated().await;
+        gauge!(BLOOM_FILTERS_RAM, bfr as f64);
     }
 
     async fn put_single(
@@ -363,8 +374,47 @@ impl Backend {
         self.inner.close_unneeded_active_blobs(soft, hard).await
     }
 
+    pub async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<u64, Error> {
+        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let mut ops = vec![];
+        if let Some(path) = disk_path {
+            ops.push(Operation::new_local(vdisk_id, path.clone()));
+        }
+        if with_aliens {
+            ops.push(Operation::new_alien(vdisk_id));
+        }
+        let total_count = futures::future::join_all(ops.into_iter().map(|op| {
+            trace!("DELETE[{}] try delete", key);
+            self.delete_single(key, op)
+                .map_err(|e| {
+                    debug!("DELETE[{}] delete error: {}", key, e);
+                })
+                .unwrap_or_else(|_| 0)
+        }))
+        .await
+        .iter()
+        .sum();
+        Ok(total_count)
+    }
+
+    async fn delete_single(&self, key: BobKey, operation: Operation) -> Result<u64, Error> {
+        if operation.is_data_alien() {
+            debug!("DELETE[{}] from backend, foreign data", key);
+            self.inner.delete_alien(operation, key).await
+        } else {
+            debug!(
+                "DELETE[{}][{}] from backend",
+                key,
+                operation.disk_name_local()
+            );
+            self.inner.delete(operation, key).await
+        }
+    }
+
     pub async fn offload_old_filters(&self, limit: usize) {
-        self.inner.offload_old_filters(limit).await
+        self.inner.offload_old_filters(limit).await;
+        
+        self.update_bloom_filter_metrics().await;
     }
 
     pub async fn filter_memory_allocated(&self) -> usize {
