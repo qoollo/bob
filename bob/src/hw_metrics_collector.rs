@@ -202,6 +202,8 @@ impl CPUStatCollector {
                 let mut lines = output
                     .lines()
                     .skip_while(|line| line.find("avg-cpu:").is_none());
+                // skip headers
+                lines.next();
                 // find iowait column on the next line
                 if let Some(line) = lines.next() {
                     let mut values = line.split_whitespace();
