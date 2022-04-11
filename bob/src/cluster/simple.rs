@@ -81,10 +81,10 @@ impl Quorum {
 #[async_trait]
 impl Cluster for Quorum {
     async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
-        self.perform_on_nodes(key, "PUT", move |c| {
+        self.perform_on_nodes(key, "PUT", |c| {
             Box::pin(c.put(
                 key,
-                data,
+                data.clone(),
                 PutOptions {
                     remote_nodes: vec![], //TODO check
                     force_node: true,

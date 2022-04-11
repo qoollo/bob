@@ -227,4 +227,12 @@ impl Cluster for Quorum {
         }
         Ok(exist)
     }
+
+    async fn delete(&self, key: BobKey) -> Result<(), Error>
+    where
+        'life0: 'async_trait,
+        Self: 'async_trait,
+    {
+        todo!()
+    }
 }
