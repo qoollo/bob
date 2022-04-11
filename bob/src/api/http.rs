@@ -8,6 +8,7 @@ use bob_common::{
     error::Error as BobError,
     node::Disk as NodeDisk,
 };
+use bob_grpc::DeleteOptions;
 use futures::{future::BoxFuture, FutureExt};
 use rocket::{
     data::ByteUnit,
@@ -742,9 +743,9 @@ fn delete_records_by_key(
     key: Result<DataKey, StatusExt>,
 ) -> Result<StatusExt, StatusExt> {
     let key = key?.0;
-    bob.block_on(bob.grinder().delete(key, true))
+    bob.block_on(bob.grinder().delete(key, DeleteOptions::new_all(true)))
         .map_err(|e| internal(e.to_string()))
-        .map(|res| StatusExt::new(Status::Ok, true, format!("{}", res)))
+        .map(|res| StatusExt::new(Status::Ok, true, format!("Done")))
 }
 
 impl DataKey {

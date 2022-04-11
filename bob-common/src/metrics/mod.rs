@@ -41,6 +41,13 @@ pub const GRINDER_EXIST_ERROR_COUNT_COUNTER: &str = "cluster_grinder.exist_error
 /// Measures processing time of the EXIST request
 pub const GRINDER_EXIST_TIMER: &str = "cluster_grinder.exist_timer";
 
+/// Counts number of DELETE requests, processed by Grinder
+pub const GRINDER_DELETE_COUNTER: &str = "cluster_grinder.delete_count";
+/// Counts number of DELETE requests return error, processed by Grinder
+pub const GRINDER_DELETE_ERROR_COUNT_COUNTER: &str = "cluster_grinder.delete_error_count";
+/// Measures processing time of the DELETE request
+pub const GRINDER_DELETE_TIMER: &str = "cluster_grinder.delete_timer";
+
 /// Counts number of PUT requests, processed by Client
 pub const CLIENT_PUT_COUNTER: &str = "client.put_count";
 /// Counts number of PUT requests return error, processed by Client

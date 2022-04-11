@@ -50,6 +50,13 @@ impl GetOptions {
 }
 
 impl DeleteOptions {
+    pub fn new_all(with_aliens: bool) -> Self {
+        Self {
+            force_node: false,
+            with_aliens,
+        }
+    }
+
     pub fn new_local(with_aliens: bool) -> Self {
         Self {
             force_node: true,
