@@ -32,10 +32,13 @@ fn call_node_put(
 
 fn call_node_delete(
     key: BobKey,
+    options: DeleteOptions,
     node: Node,
 ) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
     debug!("DELETE[{}] delete to {}", key, node.name());
-    let task = async move { LinkManager::call_node(&node, |conn| conn.delete(key).boxed()).await };
+    let task = async move {
+        LinkManager::call_node(&node, |conn| conn.delete(key, options).boxed()).await
+    };
     tokio::spawn(task)
 }
 
@@ -93,8 +96,12 @@ pub(crate) async fn delete_at_least(
     key: BobKey,
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
+    options: DeleteOptions,
 ) -> (Tasks, Vec<NodeOutput<Error>>) {
-    call_at_least(target_nodes, at_least, |n| call_node_delete(key, n)).await
+    call_at_least(target_nodes, at_least, |n| {
+        call_node_delete(key, options.clone(), n)
+    })
+    .await
 }
 
 pub(crate) async fn call_at_least(
@@ -267,4 +274,14 @@ pub(crate) async fn put_local_node(
     debug!("local node has vdisk replica, put local");
     let op = Operation::new_local(vdisk_id, disk_path);
     backend.put_local(key, data, op).await
+}
+
+pub(crate) async fn delete_at_local_node(
+    backend: &Backend,
+    key: BobKey,
+    with_aliens: bool,
+) -> Result<(), Error> {
+    debug!("local node has vdisk replica, put local");
+    backend.delete(key, with_aliens).await?;
+    Ok(())
 }

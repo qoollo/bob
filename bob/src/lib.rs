@@ -63,8 +63,8 @@ mod prelude {
         node::{Node, Output as NodeOutput},
     };
     pub use bob_grpc::{
-        bob_api_server::BobApi, Blob, BlobMeta, DeleteRequest, ExistRequest, ExistResponse,
-        GetOptions, GetRequest, Null, OpStatus, PutOptions, PutRequest,
+        bob_api_server::BobApi, Blob, BlobMeta, DeleteOptions, DeleteRequest, ExistRequest,
+        ExistResponse, GetOptions, GetRequest, Null, OpStatus, PutOptions, PutRequest,
     };
     pub use futures::{future, stream::FuturesUnordered, Future, FutureExt, StreamExt};
     pub use std::{

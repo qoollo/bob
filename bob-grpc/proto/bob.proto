@@ -35,6 +35,7 @@ message ExistRequest {
 // Delete operation parameters
 message DeleteRequest {
     BlobKey key = 1; // Blob's key
+    DeleteOptions options = 2; // Options
 }
 
 // Blob id
@@ -84,4 +85,10 @@ message GetOptions {
 message BobError {
     int32 code = 1; // Error code in case of error
     string desc = 2; // Error desription
+}
+
+// Delete operation options
+message DeleteOptions {
+    bool force_node = 1; // Force operation to be served by node to which it comes
+    bool with_aliens = 2; // Remove data in aliens as well
 }

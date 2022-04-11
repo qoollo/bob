@@ -7,8 +7,8 @@ pub mod b_client {
         node::{Node, Output as NodeOutput},
     };
     use bob_grpc::{
-        bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, DeleteRequest, ExistRequest,
-        ExistResponse, GetOptions, GetRequest, Null, PutOptions, PutRequest,
+        bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, DeleteOptions, DeleteRequest,
+        ExistRequest, ExistResponse, GetOptions, GetRequest, Null, PutOptions, PutRequest,
     };
     use mockall::mock;
     use std::{
@@ -170,7 +170,8 @@ pub mod b_client {
                 Err(error) => Err(NodeOutput::new(node_name, Error::from(error))),
             }
         }
-        pub async fn delete(&self, key: BobKey) -> DeleteResult {
+
+        pub async fn delete(&self, key: BobKey, options: DeleteOptions) -> DeleteResult {
             let node_name = self.node().name().to_owned();
             let mut client = self.client.clone();
             // TODO
@@ -178,6 +179,7 @@ pub mod b_client {
             // let timer = BobClientMetrics::start_timer();
             let message = DeleteRequest {
                 key: Some(BlobKey { key: key.into() }),
+                options: Some(options),
             };
             let req = Request::new(message);
             // TODO

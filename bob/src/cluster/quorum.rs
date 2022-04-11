@@ -1,9 +1,10 @@
-use crate::{cluster::operations::delete_at_least, prelude::*};
+use crate::prelude::*;
 
 use super::{
     operations::{
-        group_keys_by_nodes, lookup_local_alien, lookup_local_node, lookup_remote_aliens,
-        lookup_remote_nodes, put_at_least, put_local_all, put_local_node, put_sup_nodes, Tasks,
+        delete_at_least, delete_at_local_node, group_keys_by_nodes, lookup_local_alien,
+        lookup_local_node, lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all,
+        put_local_node, put_sup_nodes, Tasks,
     },
     Cluster,
 };
@@ -77,6 +78,50 @@ impl Quorum {
         }
     }
 
+    async fn delete_at_least(&self, key: BobKey, with_aliens: bool) -> Result<(), Error> {
+        debug!("DELETE[{}] ~~~DELETE LOCAL NODE FIRST~~~", key);
+        let mut local_put_ok = 0_usize;
+        let mut remote_ok_count = 0_usize;
+        let mut at_least = self.quorum;
+        let mut failed_nodes = Vec::new();
+        let res = delete_at_local_node(&self.backend, key, with_aliens).await;
+        if let Err(e) = res {
+            error!("{}", e);
+            failed_nodes.push(self.mapper.local_node_name().to_owned());
+        } else {
+            local_put_ok += 1;
+            at_least -= 1;
+            debug!("DELETE[{}] local node delete successful", key);
+        }
+        debug!(
+            "DELETE[{}] need at least {} additional deletes",
+            key, at_least
+        );
+
+        debug!("DELETE[{}] ~~~DELETE TO REMOTE NODES~~~", key);
+        let (tasks, errors) = self
+            .delete_at_remote_nodes(key, with_aliens, at_least)
+            .await;
+        let all_count = self.mapper.get_target_nodes_for_key(key).len();
+        remote_ok_count += all_count - errors.len() - tasks.len() - local_put_ok;
+        failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
+        if remote_ok_count + local_put_ok >= self.quorum {
+            debug!("DELETE[{}] spawn {} background put tasks", key, tasks.len());
+            let q = self.clone();
+            tokio::spawn(q.background_delete(tasks, key, failed_nodes));
+            Ok(())
+        } else {
+            warn!(
+                "DELETE[{}] quorum was not reached. ok {}, quorum {}, errors: {:?}",
+                key,
+                remote_ok_count + local_put_ok,
+                self.quorum,
+                errors
+            );
+            Ok(())
+        }
+    }
+
     async fn background_put(
         self,
         mut rest_tasks: Tasks,
@@ -107,6 +152,29 @@ impl Quorum {
         }
     }
 
+    async fn background_delete(
+        self,
+        mut rest_tasks: Tasks,
+        key: BobKey,
+        mut failed_nodes: Vec<String>,
+    ) {
+        debug!("DELETE[{}] ~~~BACKGROUND DELETE TO REMOTE NODES~~~", key);
+        while let Some(join_res) = rest_tasks.next().await {
+            match join_res {
+                Ok(Ok(output)) => debug!(
+                    "DELETE[{}] successful background delete to: {}",
+                    key,
+                    output.node_name()
+                ),
+                Ok(Err(e)) => {
+                    error!("{:?}", e);
+                    failed_nodes.push(e.node_name().to_string());
+                }
+                Err(e) => error!("{:?}", e),
+            }
+        }
+    }
+
     pub(crate) async fn put_remote_nodes(
         &self,
         key: BobKey,
@@ -127,6 +195,7 @@ impl Quorum {
     pub(crate) async fn delete_at_remote_nodes(
         &self,
         key: BobKey,
+        with_aliens: bool,
         at_least: usize,
     ) -> (Tasks, Vec<NodeOutput<Error>>) {
         let local_node = self.mapper.local_node_name();
@@ -137,7 +206,13 @@ impl Quorum {
             target_nodes.len(),
         );
         let target_nodes = target_nodes.iter().filter(|node| node.name() != local_node);
-        delete_at_least(key, target_nodes, at_least).await
+        delete_at_least(
+            key,
+            target_nodes,
+            at_least,
+            DeleteOptions::new_local(with_aliens),
+        )
+        .await
     }
 
     pub(crate) async fn put_aliens(
@@ -244,11 +319,7 @@ impl Cluster for Quorum {
         Ok(exist)
     }
 
-    async fn delete(&self, key: BobKey) -> Result<(), Error>
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
-        todo!()
+    async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<(), Error> {
+        self.delete_at_least(key, with_aliens).await
     }
 }
