@@ -30,6 +30,15 @@ fn call_node_put(
     tokio::spawn(task)
 }
 
+fn call_node_delete(
+    key: BobKey,
+    node: Node,
+) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
+    debug!("DELETE[{}] delete to {}", key, node.name());
+    let task = async move { LinkManager::call_node(&node, |conn| conn.delete(key).boxed()).await };
+    tokio::spawn(task)
+}
+
 fn is_result_successful(
     join_res: Result<Result<NodeOutput<()>, NodeOutput<Error>>, JoinError>,
     errors: &mut Vec<NodeOutput<Error>>,
@@ -74,10 +83,26 @@ pub(crate) async fn put_at_least(
     at_least: usize,
     options: PutOptions,
 ) -> (Tasks, Vec<NodeOutput<Error>>) {
-    let mut handles: FuturesUnordered<_> = target_nodes
-        .cloned()
-        .map(|node| call_node_put(key, data.clone(), node, options.clone()))
-        .collect();
+    call_at_least(target_nodes, at_least, |n| {
+        call_node_put(key, data.clone(), n, options.clone())
+    })
+    .await
+}
+
+pub(crate) async fn delete_at_least(
+    key: BobKey,
+    target_nodes: impl Iterator<Item = &Node>,
+    at_least: usize,
+) -> (Tasks, Vec<NodeOutput<Error>>) {
+    call_at_least(target_nodes, at_least, |n| call_node_delete(key, n)).await
+}
+
+pub(crate) async fn call_at_least(
+    target_nodes: impl Iterator<Item = &Node>,
+    at_least: usize,
+    f: impl Fn(Node) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>,
+) -> (Tasks, Vec<NodeOutput<Error>>) {
+    let mut handles: FuturesUnordered<_> = target_nodes.cloned().map(|node| f(node)).collect();
     debug!("total handles count: {}", handles.len());
     let errors = finish_at_least_handles(&mut handles, at_least).await;
     debug!("remains: {}, errors: {}", handles.len(), errors.len());

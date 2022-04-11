@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{cluster::operations::delete_at_least, prelude::*};
 
 use super::{
     operations::{
@@ -122,6 +122,22 @@ impl Quorum {
         );
         let target_nodes = target_nodes.iter().filter(|node| node.name() != local_node);
         put_at_least(key, data, target_nodes, at_least, PutOptions::new_local()).await
+    }
+
+    pub(crate) async fn delete_at_remote_nodes(
+        &self,
+        key: BobKey,
+        at_least: usize,
+    ) -> (Tasks, Vec<NodeOutput<Error>>) {
+        let local_node = self.mapper.local_node_name();
+        let target_nodes = self.mapper.get_target_nodes_for_key(key);
+        debug!(
+            "DELETE[{}] cluster quorum put remote nodes {} total target nodes",
+            key,
+            target_nodes.len(),
+        );
+        let target_nodes = target_nodes.iter().filter(|node| node.name() != local_node);
+        delete_at_least(key, target_nodes, at_least).await
     }
 
     pub(crate) async fn put_aliens(
