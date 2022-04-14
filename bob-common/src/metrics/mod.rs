@@ -173,6 +173,21 @@ impl BobClient {
             timer.elapsed().as_nanos() as f64
         );
     }
+
+    pub(crate) fn delete_count(&self) {
+        counter!(self.prefix.clone() + ".delete_count", 1);
+    }
+
+    pub(crate) fn delete_error_count(&self) {
+        counter!(self.prefix.clone() + ".delete_error_count", 1);
+    }
+
+    pub(crate) fn delete_timer_stop(&self, timer: Timer) {
+        histogram!(
+            self.prefix.clone() + ".delete_timer",
+            timer.elapsed().as_nanos() as f64
+        );
+    }
 }
 
 #[derive(Debug, Clone)]

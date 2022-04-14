@@ -174,21 +174,18 @@ pub mod b_client {
         pub async fn delete(&self, key: BobKey, options: DeleteOptions) -> DeleteResult {
             let node_name = self.node().name().to_owned();
             let mut client = self.client.clone();
-            // TODO
-            // self.metrics.delete_count();
-            // let timer = BobClientMetrics::start_timer();
+            self.metrics.delete_count();
+            let timer = BobClientMetrics::start_timer();
             let message = DeleteRequest {
                 key: Some(BlobKey { key: key.into() }),
                 options: Some(options),
             };
             let req = Request::new(message);
-            // TODO
-            // self.metrics.delete_timer_stop(timer);
+            self.metrics.delete_timer_stop(timer);
             if client.delete(req).await.is_ok() {
                 Ok(NodeOutput::new(node_name, ()))
             } else {
-                // TODO
-                // self.metrics.delete_error_count();
+                self.metrics.delete_error_count();
                 Err(NodeOutput::new(node_name, Error::timeout()))
             }
         }
