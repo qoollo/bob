@@ -215,8 +215,8 @@ fn get_matches() -> ArgMatches<'static> {
         .conflicts_with("vdisks_per_disk")
         .takes_value(true);
     let vdisks_per_disk = Arg::with_name("vdisks_per_disk")
-        .short("vdisks_per_disk")
-        .long("vdisks_count")
+        .short("p")
+        .long("vdisks_per_disk")
         .help("number of vdisks per physical disk")
         .takes_value(true);
     let replicas = Arg::with_name("replicas")
