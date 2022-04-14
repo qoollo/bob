@@ -210,11 +210,13 @@ fn get_matches() -> ArgMatches<'static> {
         .help("output file, if not set, use stdout instead");
     let vdisks_count = Arg::with_name("vdisks_count")
         .short("d")
+        .long("vdisks_count")
         .help("min - equal to number of pairs node-disk")
         .conflicts_with("vdisks_per_disk")
         .takes_value(true);
     let vdisks_per_disk = Arg::with_name("vdisks_per_disk")
-        .short("p")
+        .short("vdisks_per_disk")
+        .long("vdisks_count")
         .help("number of vdisks per physical disk")
         .takes_value(true);
     let replicas = Arg::with_name("replicas")
