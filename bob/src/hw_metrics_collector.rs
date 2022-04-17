@@ -7,9 +7,12 @@ use libc::statvfs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
+use std::fs::File;
+use std::io::{Read};
 use sysinfo::{DiskExt, ProcessExt, RefreshKind, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
+const STAT_FILE: &str = "/proc/stat";
 
 pub(crate) struct DiskSpaceMetrics {
     pub(crate) total_space: u64,
@@ -179,49 +182,73 @@ enum CommandError {
     Primary(String),
 }
 struct CPUStatCollector {
-    iostat_avl: bool,
+    procfs_avl: bool,
 }
 
 impl CPUStatCollector {
     fn new() -> CPUStatCollector {
-        CPUStatCollector { iostat_avl: true }
+        CPUStatCollector {
+            procfs_avl: true
+        }
     }
 
-    fn parse_iostat_result(iostat_str: &str) -> Result<f64, std::num::ParseFloatError> {
-        iostat_str.replace(',', ".").parse()
+    fn stat_cpu_line() -> Result<String, String> {
+        if let Ok(mut stat_file) = File::open(STAT_FILE) {
+            let mut contents = String::new();
+            if stat_file.read_to_string(&mut contents).is_err() {
+                return Err("Failed to read stat file".into());
+            }
+            for stat_line in contents.lines() {
+                let mut parts = stat_line.split_whitespace();
+                if let Some("cpu") = parts.next() {
+                    return Ok(stat_line.into())
+                }
+            }
+            Err("Can't find cpu stat".into())
+        } else {
+            Err("Can't open stat file".into())
+        }
     }
 
     fn iowait(&mut self) -> Result<f64, CommandError> {
-        if !self.iostat_avl {
+        if !self.procfs_avl {
             return Err(CommandError::Unavailable);
         }
 
-        match parse_command_output(Command::new("iostat").arg("-c")) {
-            Ok(output) => {
-                // find avg-cpu headers line
-                let mut lines = output
-                    .lines()
-                    .skip_while(|line| line.find("avg-cpu:").is_none());
-                // skip headers
-                lines.next();
-                // find iowait column on the next line
-                if let Some(line) = lines.next() {
-                    let mut values = line.split_whitespace();
-                    // iowait is in 3d column
-                    if let Some(iowait_str) = values.nth(3) {
-                        if let Ok(iowait) = Self::parse_iostat_result(iowait_str) {
-                            return Ok(iowait);
+        let mut err = None;
+        match Self::stat_cpu_line() {
+            Ok(line) => {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() > 5 {
+                    let mut sum = 0.;
+                    let mut f_iowait = 0.;
+                    for i in 1..parts.len() {
+                        match parts[i].parse::<f64>() {
+                            Ok(val) => {
+                                sum += val;
+                                if i == 5 {
+                                    f_iowait = val;
+                                }
+                            },
+                            Err(_) => {
+                                err = Some("Can't parse stat".to_string());
+                                break;
+                            }
                         }
                     }
+                    if err.is_none() {
+                        return Ok(f_iowait * 100. / sum);
+                    }
+                } else {
+                    err = Some("Stat format changed".into());
                 }
-            }
+            },
             Err(e) => {
-                self.iostat_avl = false;
-                return Err(CommandError::Primary(e));
+                err = Some(e);
             }
         }
-        self.iostat_avl = false;
-        Err(CommandError::Primary("Failed to get iowait from iostat".to_string()))
+        self.procfs_avl = false;
+        Err(CommandError::Primary(err.unwrap()))
     }
 }
 
