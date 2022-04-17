@@ -651,6 +651,23 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     }
 }
 
+fn prepare_exist_keys(from: u64, count: u64, packet_size: u64, shuffle: bool) -> Vec<Vec<u64>> {
+    let mut keys = Vec::new();
+    let mut current_low = from;
+    for _ in 0..count {
+        let mut keys_portion: Vec<_> = 
+            (current_low..current_low + packet_size).collect();
+        if shuffle {
+            keys_portion.shuffle(&mut thread_rng());
+        }
+
+        keys.push(keys_portion);
+
+        current_low += packet_size;
+    }
+    keys
+}
+
 async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = net_conf.build_client().await;
 
@@ -658,32 +675,10 @@ async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat
     let send_size_bytes = task_conf.packet_size * (task_conf.key_size as u64);
     let request_count = task_conf.count / task_conf.packet_size;
     let measure_time = task_conf.is_time_measurement_thread();
-    let iterator: Box<dyn Send + Iterator<Item = Vec<u64>>> = if task_conf.is_random() {
-        let mut keys = Vec::new();
-        let mut current_low = task_conf.low_idx;
-        for _ in 0..request_count {
-            let mut keys_portion: Vec<_> = 
-                (current_low..current_low + task_conf.packet_size).collect();
-            keys_portion.shuffle(&mut thread_rng());
 
-            keys.push(keys_portion);
+    let keys = prepare_exist_keys(task_conf.low_idx, request_count, task_conf.packet_size, task_conf.is_random());
+    let iterator = Box::new(keys.into_iter());
 
-            current_low += task_conf.packet_size;
-        }
-        Box::new(keys.into_iter())
-    } else {
-        let mut keys = Vec::new();
-        let mut current_low = task_conf.low_idx;
-        for _ in 0..request_count {
-            let keys_portion: Vec<_> = 
-                (current_low..current_low + task_conf.packet_size).collect();
-
-            keys.push(keys_portion);
-
-            current_low += task_conf.packet_size;
-        }
-        Box::new(keys.into_iter())
-    };
     for portion in iterator {
         let keys = portion.iter().map(|key| 
             BlobKey {
