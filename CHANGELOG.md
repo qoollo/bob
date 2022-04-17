@@ -15,7 +15,28 @@ Bob versions changelog
 #### Updated
 
 
-## [2.1.0-alpha.0] - 2021-02-21
+
+## [2.1.0-alpha.1] - 2022-04-04
+#### Added
+- Add iops & iowait disk metrics (collected via iostat) & cpu_iowait metric (#342)
+- Add refkey to support pearl #141
+- API method for occupied space info (#404)
+- Added -init_folders flag that creates bob and alien folders (#180)
+- If bob and alien folders doesn't exist bobd will panic (#398)
+- root_dir_name to node configuration api (#440)
+
+#### Changed
+- All hardware metrics are now placed in 'hardware' group (#452)
+
+#### Fixed
+- brt: Version in BlobHeader now changes during migration (#447)
+- brt: Default target version is now 1 instead of 2 (#448)
+
+#### Updated
+- Update pearl to v0.10.0
+
+
+## [2.1.0-alpha.0] - 2022-02-21
 #### Added
 - Bloom filters memory metric (#400)
 - Add bob ram usage metric (#393)
