@@ -10,6 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Fix ping and timeout leading to sending too much requests (#438)
 
 
 #### Updated
