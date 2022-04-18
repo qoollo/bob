@@ -7,6 +7,7 @@ Bob versions changelog
 
 
 #### Changed
+- Deleted dcr utility (#370)
 
 
 #### Fixed
