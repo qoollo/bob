@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use coarsetime::{Duration as CDuration,Instant};
+use coarsetime::{Duration as CDuration, Instant as CInstant};
 
 use crate::{
     mem_backend::MemBackend,
@@ -145,7 +145,7 @@ enum BackendErrorAction {
 struct BackendErrorLogger {
     errors: HashMap<BackendErrorAction, u64>,
     interval: CDuration,
-    last_timestamp: Instant,
+    last_timestamp: CInstant,
 }
 
 impl BackendErrorLogger {
@@ -153,7 +153,7 @@ impl BackendErrorLogger {
         BackendErrorLogger {
             errors: HashMap::new(),
             interval: CDuration::from_millis(ERROR_LOG_INTERVAL),
-            last_timestamp: Instant::now(),
+            last_timestamp: CInstant::now(),
         }
     }
 
@@ -177,7 +177,7 @@ impl BackendErrorLogger {
                     *count = 0;
                 }
             }
-            logger.last_timestamp = Instant::now();
+            logger.last_timestamp = CInstant::now();
         }
     }
 
