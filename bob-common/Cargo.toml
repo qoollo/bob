@@ -1,6 +1,6 @@
 [package]
 name = "bob-common"
-version = "2.0.13"
+version = "2.0.14-alpha.0"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 

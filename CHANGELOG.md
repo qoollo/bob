@@ -4,6 +4,19 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+## [2.0.14-alpha.0] - 2022-04-19
+#### Added
 - Bloom filters memory metric (#400)
 - root_dir_name to node configuration api (#440)
 
@@ -17,7 +30,6 @@ Bob versions changelog
 
 #### Updated
 - Update pearl to 0.9.3
-
 
 
 ## [2.0.13] - 2022-02-17
