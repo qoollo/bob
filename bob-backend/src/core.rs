@@ -1,12 +1,15 @@
 use crate::prelude::*;
-use std::collections::HashMap;
-use std::sync::Mutex;
-use coarsetime::{Duration as CDuration, Instant as CInstant};
+use std::{
+    collections::HashMap,
+    sync::Mutex,
+    fmt::{Display, Formatter, Result as FMTResult},
+};
 
 use crate::{
     mem_backend::MemBackend,
     pearl::{DiskController, Pearl},
     stub_backend::StubBackend,
+    interval_logger::IntervalErrorLogger
 };
 
 pub const BACKEND_STARTING: f64 = 0f64;
@@ -134,66 +137,34 @@ pub trait MetricsProducer: Send + Sync {
     }
 }
 
-const ERROR_LOG_INTERVAL: u64 = 5000;
-
 #[derive(Hash, PartialEq, Eq, Debug)]
 enum BackendErrorAction {
     PUT(String, String),
 }
 
-#[derive(Debug)]
-struct BackendErrorLogger {
-    errors: HashMap<BackendErrorAction, u64>,
-    interval: CDuration,
-    last_timestamp: CInstant,
+impl Display for BackendErrorAction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FMTResult {
+        match self {
+            BackendErrorAction::PUT(disk, error) => {
+                write!(f, "local PUT on disk {} failed with error: {:?}", disk, error)
+            },
+        }
+    }
 }
 
-impl BackendErrorLogger {
-    fn new() -> BackendErrorLogger {
-        BackendErrorLogger {
-            errors: HashMap::new(),
-            interval: CDuration::from_millis(ERROR_LOG_INTERVAL),
-            last_timestamp: CInstant::now(),
-        }
-    }
-
-    fn report_error(logger: Arc<Mutex<BackendErrorLogger>>, action: BackendErrorAction) {
-        let mut logger = logger.lock().expect("mutex lock");
-
-        if let Some(count) = logger.errors.get_mut(&action) {
-            *count += 1;
-        } else {
-            logger.errors.insert(action, 1);
-        }
-
-        if logger.last_timestamp.elapsed() > logger.interval {
-            for (action, count) in logger.errors.iter_mut() {
-                if *count > 0 {
-                    match action {
-                        BackendErrorAction::PUT(disk, error) => {
-                            error!("local PUT on disk {} failed {} times: {:?}", disk, count, error);
-                        },
-                    }
-                    *count = 0;
-                }
-            }
-            logger.last_timestamp = CInstant::now();
-        }
-    }
-
-    fn report_put_error(logger: Arc<Mutex<BackendErrorLogger>>, disk: String, error: bob_common::error::Error) {
-        let error_str = format!("{:?}", error);
-        let action = BackendErrorAction::PUT(disk, error_str);
-
-        BackendErrorLogger::report_error(logger, action);
+impl BackendErrorAction {
+    fn put(disk: String, error: &Error) -> Self {
+        BackendErrorAction::PUT(disk, error.to_string())
     }
 }
+
+const ERROR_LOG_INTERVAL: u64 = 5000;
 
 #[derive(Debug)]
 pub struct Backend {
     inner: Arc<dyn BackendStorage>,
     mapper: Arc<Virtual>,
-    error_logger: Arc<Mutex<BackendErrorLogger>>,
+    error_logger: Mutex<IntervalErrorLogger<BackendErrorAction>>,
 }
 
 impl Backend {
@@ -208,7 +179,7 @@ impl Backend {
                 Arc::new(pearl)
             }
         };
-        let error_logger = Arc::new(Mutex::new(BackendErrorLogger::new()));
+        let error_logger = Mutex::new(IntervalErrorLogger::new(ERROR_LOG_INTERVAL));
 
         Self { inner, mapper, error_logger }
     }
@@ -309,9 +280,10 @@ impl Backend {
                         operation.disk_name_local(),
                         local_err
                     );
-                    BackendErrorLogger::report_put_error(self.error_logger.clone(),
-                                                        operation.disk_name_local(),
-                                                        local_err.clone());
+                    let error_to_log = BackendErrorAction::put(operation.disk_name_local(), &local_err);
+                    if let Ok(mut logger) = self.error_logger.lock() {
+                        logger.report_error(error_to_log);
+                    }
 
                     // write to alien/<local name>
                     let mut op = operation.clone_local_alien(self.mapper().local_node_name());
