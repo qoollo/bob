@@ -168,6 +168,24 @@ impl TaskConfig {
         data.resize(self.key_size, 0);
         data
     }
+
+    fn prepare_exist_keys(&self, count: u64) -> Vec<Vec<u64>> {
+        let mut keys = Vec::new();
+        let mut current_low = self.low_idx;
+        let shuffle = self.is_random();
+        for _ in 0..count {
+            let mut keys_portion: Vec<_> = 
+                (current_low..current_low + self.packet_size).collect();
+            if shuffle {
+                keys_portion.shuffle(&mut thread_rng());
+            }
+    
+            keys.push(keys_portion);
+    
+            current_low += self.packet_size;
+        }
+        keys
+    }
 }
 
 impl Debug for TaskConfig {
@@ -418,7 +436,7 @@ async fn print_errors_with_codes(stat: Arc<Statistics>) {
     }
     let guard = stat.exist_errors.lock().await;
     if !guard.is_empty() {
-        println!("put errors:");
+        println!("exist errors:");
         for (&code, count) in guard.iter() {
             println!("{:?} = {}", Code::from(code), count);
         }
@@ -432,39 +450,40 @@ fn print_averages(
     exist_speed_values: &[f64],
     elapsed: Duration,
 ) {
-    let avg_total = ((stat.put_total.load(Ordering::Relaxed) + 
-                    stat.get_total.load(Ordering::Relaxed) +
-                    stat.exist_total.load(Ordering::Relaxed)) * 1000)
+    let total_put = stat.put_total.load(Ordering::Relaxed);
+    let total_exist = stat.exist_total.load(Ordering::Relaxed);
+    let total_get = stat.get_total.load(Ordering::Relaxed);
+    let avg_total = ((total_put + total_get + total_exist) * 1000)
                     .checked_div(elapsed.as_millis() as u64)
                     .unwrap_or_default();
     let total_err = stat.put_error_count.load(Ordering::Relaxed) + 
                     stat.get_error_count.load(Ordering::Relaxed) +
                     stat.exist_error_count.load(Ordering::Relaxed);
-    println!(
-        "avg total: {} rps | total err: {}\r\n\
-        put: {:>6.2} kb/s | get: {:>6.2} kb/s | exist: {:>6.2} kb/s\r\n\
-        put resp time, ms: {:>6.2} | get resp time, ms: {:>6.2} | exist resp time, ms: {:>6.2}",
-        avg_total,
-        total_err,
-        average(put_speed_values),
-        average(get_speed_values),
-        average(exist_speed_values),
-        finite_or_default(
+    print!("avg total: {} rps | total err: {}\r\n", avg_total, total_err);
+    if total_put > 0 {
+        let put_resp_time = finite_or_default(
             (stat.put_time_ns_st.load(Ordering::Relaxed) as f64)
                 / (stat.put_count_st.load(Ordering::Relaxed) as f64)
                 / 1e9
-        ),
-        finite_or_default(
+        );
+        println!("put: {:>6.2} kb/s | put resp time, ms: {:>6.2}", average(put_speed_values), put_resp_time);
+    }
+    if total_get > 0 {
+        let get_resp_time = finite_or_default(
             (stat.get_time_ns_st.load(Ordering::Relaxed) as f64)
                 / (stat.get_count_st.load(Ordering::Relaxed) as f64)
                 / 1e9
-        ),
-        finite_or_default(
+        );
+        println!("get: {:>6.2} kb/s | get resp time, ms: {:>6.2}", average(get_speed_values), get_resp_time);
+    }
+    if total_exist > 0 {
+        let exist_resp_time = finite_or_default(
             (stat.exist_time_ns_st.load(Ordering::Relaxed) as f64)
                 / (stat.exist_count_st.load(Ordering::Relaxed) as f64)
                 / 1e9
-        ),
-    );
+        );
+        println!("exist: {:>6.2} kb/s | exist resp time, ms: {:>6.2}", average(exist_speed_values), exist_resp_time);
+    }
     if get_matches().is_present("verify") {
         println!(
             "verified put threads: {}",
@@ -505,47 +524,55 @@ fn print_periodic_stat(
     let start = Instant::now();
     while !stop_token.load(Ordering::Relaxed) {
         thread::sleep(pause);
-        let put_count_spd = put_count.get_diff() * 1000 / period_ms;
-        let get_count_spd = get_count.get_diff() * 1000 / period_ms;
-        let exist_count_spd = exist_count.get_diff() * 1000 / period_ms;
-        let cur_st_put_time = put_time_st.get_diff() as f64;
-        let cur_st_put_count = put_count_st.get_diff() as f64;
-        let cur_st_get_time = get_time_st.get_diff() as f64;
-        let cur_st_get_count = get_count_st.get_diff() as f64;
-        let cur_st_exist_time = exist_time_st.get_diff() as f64;
-        let cur_st_exist_count = exist_count_st.get_diff() as f64;
-
-        let put_error = stat.put_error_count.load(Ordering::Relaxed);
-        let get_error = stat.get_error_count.load(Ordering::Relaxed);
-        let exist_error = stat.get_error_count.load(Ordering::Relaxed);
-        let put_spd = put_count_spd as f64 * k;
-        let get_spd = get_size.get_diff() as f64 / 1024. / sec;
-        let exist_spd = exist_size.get_diff() as f64 / 1024.0 / sec;
-        if put_spd > 0.0 {
-            put_speed_values.push(put_spd);
+        let d_put = put_count.get_diff();
+        let d_get = get_count.get_diff();
+        let d_exist = exist_count.get_diff();
+        if d_put > 0 {
+            let put_count_spd = d_put * 1000 / period_ms;
+            let cur_st_put_time = put_time_st.get_diff() as f64;
+            let cur_st_put_count = put_count_st.get_diff() as f64;
+            let put_error = stat.put_error_count.load(Ordering::Relaxed);
+            let put_spd = put_count_spd as f64 * k;
+            if put_spd > 0.0 {
+                put_speed_values.push(put_spd);
+            }
+            println!("put: {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+                put_count_spd,
+                put_error,
+                put_spd,
+                finite_or_default(cur_st_put_time / cur_st_put_count / 1e9));
         }
-        if get_spd > 0.0 {
-            get_speed_values.push(get_spd);
+        if d_get > 0 {
+            let get_count_spd = d_get * 1000 / period_ms;
+            let cur_st_get_time = get_time_st.get_diff() as f64;
+            let cur_st_get_count = get_count_st.get_diff() as f64;
+            let get_error = stat.get_error_count.load(Ordering::Relaxed);
+            let get_spd = get_size.get_diff() as f64 / 1024. / sec;
+            if get_spd > 0.0 {
+                get_speed_values.push(get_spd);
+            }
+            println!("get: {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+                get_count_spd,
+                get_error,
+                get_spd,
+                finite_or_default(cur_st_get_time / cur_st_get_count / 1e9));
         }
-        if exist_spd > 0.0 {
-            exist_speed_values.push(exist_spd);
+        if d_exist > 0 {
+            let exist_count_spd = exist_count.get_diff() * 1000 / period_ms;
+            let cur_st_exist_time = exist_time_st.get_diff() as f64;
+            let cur_st_exist_count = exist_count_st.get_diff() as f64;
+            let exist_error = stat.get_error_count.load(Ordering::Relaxed);
+            let exist_spd = exist_size.get_diff() as f64 / 1024.0 / sec;
+            if exist_spd > 0.0 {
+                exist_speed_values.push(exist_spd);
+            }
+            println!("exist: {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+                exist_count_spd,
+                exist_error,
+                exist_spd,
+                finite_or_default(cur_st_exist_time / cur_st_exist_count / 1e9));
         }
-        println!(
-            "put: {:>6} rps  | get {:>6} rps   | exist {:>6} rps   | put err: {:5}     | get err: {:5}     | exist err: {:5}\r\n\
-            put: {:>6.2} kb/s | get: {:>6.2} kb/s | exist: {:>6.2} kb/s | put lat: {:>6.2} ms | get lat: {:>6.2} ms | exist lat: {:>6.2} ms",
-            put_count_spd,
-            get_count_spd,
-            exist_count_spd,
-            put_error,
-            get_error,
-            exist_error,
-            put_spd,
-            get_spd,
-            exist_spd,
-            finite_or_default(cur_st_put_time / cur_st_put_count / 1e9),
-            finite_or_default(cur_st_get_time / cur_st_get_count / 1e9),
-            finite_or_default(cur_st_exist_time / cur_st_exist_count / 1e9)
-        );
+        println!("-------------");
     }
     let elapsed = start.elapsed();
     println!("Total statistics, elapsed: {:?}", elapsed);
@@ -651,23 +678,6 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     }
 }
 
-fn prepare_exist_keys(from: u64, count: u64, packet_size: u64, shuffle: bool) -> Vec<Vec<u64>> {
-    let mut keys = Vec::new();
-    let mut current_low = from;
-    for _ in 0..count {
-        let mut keys_portion: Vec<_> = 
-            (current_low..current_low + packet_size).collect();
-        if shuffle {
-            keys_portion.shuffle(&mut thread_rng());
-        }
-
-        keys.push(keys_portion);
-
-        current_low += packet_size;
-    }
-    keys
-}
-
 async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = net_conf.build_client().await;
 
@@ -676,7 +686,7 @@ async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat
     let request_count = task_conf.count / task_conf.packet_size;
     let measure_time = task_conf.is_time_measurement_thread();
 
-    let keys = prepare_exist_keys(task_conf.low_idx, request_count, task_conf.packet_size, task_conf.is_random());
+    let keys = task_conf.prepare_exist_keys(request_count);
     let iterator = Box::new(keys.into_iter());
 
     for portion in iterator {
