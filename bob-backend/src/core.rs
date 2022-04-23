@@ -1,9 +1,9 @@
 use crate::prelude::*;
 use std::{
     collections::HashMap,
-    sync::Mutex,
     fmt::{Display, Formatter, Result as FMTResult},
 };
+use parking_lot::Mutex as PLMutex;
 
 use crate::{
     mem_backend::MemBackend,
@@ -164,7 +164,7 @@ const ERROR_LOG_INTERVAL: u64 = 5000;
 pub struct Backend {
     inner: Arc<dyn BackendStorage>,
     mapper: Arc<Virtual>,
-    error_logger: Mutex<IntervalErrorLogger<BackendErrorAction>>,
+    error_logger: PLMutex<IntervalErrorLogger<BackendErrorAction>>,
 }
 
 impl Backend {
@@ -179,7 +179,7 @@ impl Backend {
                 Arc::new(pearl)
             }
         };
-        let error_logger = Mutex::new(IntervalErrorLogger::new(ERROR_LOG_INTERVAL));
+        let error_logger = PLMutex::new(IntervalErrorLogger::new(ERROR_LOG_INTERVAL));
 
         Self { inner, mapper, error_logger }
     }
@@ -281,9 +281,7 @@ impl Backend {
                         local_err
                     );
                     let error_to_log = BackendErrorAction::put(operation.disk_name_local(), &local_err);
-                    if let Ok(mut logger) = self.error_logger.lock() {
-                        logger.report_error(error_to_log);
-                    }
+                    self.error_logger.lock().report_error(error_to_log);
 
                     // write to alien/<local name>
                     let mut op = operation.clone_local_alien(self.mapper().local_node_name());
