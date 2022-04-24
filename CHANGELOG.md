@@ -7,7 +7,7 @@ Bob versions changelog
 
 
 #### Changed
-
+- CPU iowait & disks iowait, iops are now collected via procfs (#461)
 
 #### Fixed
 
