@@ -5,6 +5,7 @@ use std::{
     cmp::Eq,
     fmt::Display
 };
+use parking_lot::Mutex as PLMutex;
 
 #[derive(Debug)]
 pub struct IntervalErrorLogger<E> {
@@ -38,5 +39,22 @@ impl<E: Hash + Eq + Display> IntervalErrorLogger<E> {
             }
             self.last_timestamp = CInstant::now();
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct IntervalErrorLoggerSafe<E> {
+    inner: PLMutex<IntervalErrorLogger<E>>
+}
+
+impl<E: Hash + Eq + Display> IntervalErrorLoggerSafe<E> {
+    pub fn new(interval_ms: u64) -> Self {
+        Self {
+            inner: PLMutex::new(IntervalErrorLogger::new(interval_ms))
+        }
+    }
+
+    pub fn report_error(&self, action: E) {
+        self.inner.lock().report_error(action);
     }
 }

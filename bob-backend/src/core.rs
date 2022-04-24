@@ -3,13 +3,12 @@ use std::{
     collections::HashMap,
     fmt::{Display, Formatter, Result as FMTResult},
 };
-use parking_lot::Mutex as PLMutex;
 
 use crate::{
     mem_backend::MemBackend,
     pearl::{DiskController, Pearl},
     stub_backend::StubBackend,
-    interval_logger::IntervalErrorLogger
+    interval_logger::IntervalErrorLoggerSafe
 };
 
 pub const BACKEND_STARTING: f64 = 0f64;
@@ -164,7 +163,7 @@ const ERROR_LOG_INTERVAL: u64 = 5000;
 pub struct Backend {
     inner: Arc<dyn BackendStorage>,
     mapper: Arc<Virtual>,
-    error_logger: PLMutex<IntervalErrorLogger<BackendErrorAction>>,
+    error_logger: IntervalErrorLoggerSafe<BackendErrorAction>,
 }
 
 impl Backend {
@@ -179,7 +178,7 @@ impl Backend {
                 Arc::new(pearl)
             }
         };
-        let error_logger = PLMutex::new(IntervalErrorLogger::new(ERROR_LOG_INTERVAL));
+        let error_logger = IntervalErrorLoggerSafe::new(ERROR_LOG_INTERVAL);
 
         Self { inner, mapper, error_logger }
     }
@@ -281,7 +280,7 @@ impl Backend {
                         local_err
                     );
                     let error_to_log = BackendErrorAction::put(operation.disk_name_local(), &local_err);
-                    self.error_logger.lock().report_error(error_to_log);
+                    self.error_logger.report_error(error_to_log);
 
                     // write to alien/<local name>
                     let mut op = operation.clone_local_alien(self.mapper().local_node_name());
