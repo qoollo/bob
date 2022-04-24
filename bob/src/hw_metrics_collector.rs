@@ -195,21 +195,14 @@ impl CPUStatCollector {
     }
 
     fn stat_cpu_line() -> Result<String, String> {
-        if let Ok(mut stat_file) = File::open(CPU_STAT_FILE) {
-            let mut contents = String::new();
-            if stat_file.read_to_string(&mut contents).is_err() {
-                return Err("Failed to read stat file".into());
+        let lines = file_contents(CPU_STAT_FILE)?;
+        for stat_line in lines {
+            let mut parts = stat_line.split_whitespace();
+            if let Some("cpu") = parts.next() {
+                return Ok(stat_line);
             }
-            for stat_line in contents.lines() {
-                let mut parts = stat_line.split_whitespace();
-                if let Some("cpu") = parts.next() {
-                    return Ok(stat_line.into())
-                }
-            }
-            Err("Can't find cpu stat".into())
-        } else {
-            Err("Can't open stat file".into())
         }
+        Err("Can't find cpu stat".into())
     }
 
     fn iowait(&mut self) -> Result<f64, CommandError> {
