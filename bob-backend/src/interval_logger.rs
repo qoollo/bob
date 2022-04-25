@@ -16,10 +16,11 @@ pub struct IntervalErrorLogger<E> {
 
 impl<E: Hash + Eq + Display> IntervalErrorLogger<E> {
     pub fn new(interval_ms: u64) -> Self {
+        let interval = CDuration::from_millis(interval_ms);
         Self {
             errors: HashMap::new(),
-            interval: CDuration::from_millis(interval_ms),
-            last_timestamp: CInstant::now(),
+            interval,
+            last_timestamp: CInstant::now() - interval,
         }
     }
 
