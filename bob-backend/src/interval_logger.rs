@@ -6,21 +6,24 @@ use std::{
     fmt::Display
 };
 use parking_lot::Mutex as PLMutex;
+use log::Level;
 
 #[derive(Debug)]
-pub struct IntervalErrorLogger<E> {
+pub struct IntervalLogger<E> {
     errors: HashMap<E, u64>,
     interval: CDuration,
     last_timestamp: CInstant,
+    level: Level,
 }
 
-impl<E: Hash + Eq + Display> IntervalErrorLogger<E> {
-    pub fn new(interval_ms: u64) -> Self {
+impl<E: Hash + Eq + Display> IntervalLogger<E> {
+    pub fn new(interval_ms: u64, level: Level) -> Self {
         let interval = CDuration::from_millis(interval_ms);
         Self {
             errors: HashMap::new(),
             interval,
-            last_timestamp: CInstant::now() - interval,
+            last_timestamp: CInstant::now() - interval - CDuration::from_millis(1),
+            level,
         }
     }
 
@@ -34,7 +37,7 @@ impl<E: Hash + Eq + Display> IntervalErrorLogger<E> {
         if self.last_timestamp.elapsed() > self.interval {
             for (action, count) in self.errors.iter_mut() {
                 if *count > 0 {
-                    error!("{} [{} times]", action, count);
+                    log!(self.level, "{} [{} times]", action, count);
                     *count = 0;
                 }
             }
@@ -44,14 +47,14 @@ impl<E: Hash + Eq + Display> IntervalErrorLogger<E> {
 }
 
 #[derive(Debug)]
-pub struct IntervalErrorLoggerSafe<E> {
-    inner: PLMutex<IntervalErrorLogger<E>>
+pub struct IntervalLoggerSafe<E> {
+    inner: PLMutex<IntervalLogger<E>>
 }
 
-impl<E: Hash + Eq + Display> IntervalErrorLoggerSafe<E> {
-    pub fn new(interval_ms: u64) -> Self {
+impl<E: Hash + Eq + Display> IntervalLoggerSafe<E> {
+    pub fn new(interval_ms: u64, level: Level) -> Self {
         Self {
-            inner: PLMutex::new(IntervalErrorLogger::new(interval_ms))
+            inner: PLMutex::new(IntervalLogger::new(interval_ms, level))
         }
     }
 

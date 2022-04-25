@@ -8,8 +8,9 @@ use crate::{
     mem_backend::MemBackend,
     pearl::{DiskController, Pearl},
     stub_backend::StubBackend,
-    interval_logger::IntervalErrorLoggerSafe
+    interval_logger::IntervalLoggerSafe
 };
+use log::Level;
 
 pub const BACKEND_STARTING: f64 = 0f64;
 pub const BACKEND_STARTED: f64 = 1f64;
@@ -163,7 +164,7 @@ const ERROR_LOG_INTERVAL: u64 = 5000;
 pub struct Backend {
     inner: Arc<dyn BackendStorage>,
     mapper: Arc<Virtual>,
-    error_logger: IntervalErrorLoggerSafe<BackendErrorAction>,
+    error_logger: IntervalLoggerSafe<BackendErrorAction>,
 }
 
 impl Backend {
@@ -178,7 +179,7 @@ impl Backend {
                 Arc::new(pearl)
             }
         };
-        let error_logger = IntervalErrorLoggerSafe::new(ERROR_LOG_INTERVAL);
+        let error_logger = IntervalLoggerSafe::new(ERROR_LOG_INTERVAL, Level::Error);
 
         Self { inner, mapper, error_logger }
     }
