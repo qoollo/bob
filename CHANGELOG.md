@@ -8,9 +8,11 @@ Add support for hierarchical range filters (#439)
 
 
 #### Changed
+- Deleted dcr utility (#370)
 
 
 #### Fixed
+- Fix ping and timeout leading to sending too much requests (#438)
 
 
 #### Updated
