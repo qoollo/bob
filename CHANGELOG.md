@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+Add support for hierarchical range filters (#439)
 
 
 #### Changed
