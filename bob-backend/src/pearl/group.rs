@@ -526,6 +526,40 @@ impl Group {
         });
     }
 
+    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
+        let holders = self.holders.read().await;
+        let mut total_count = 0;
+        for holder in holders.iter() {
+            let delete = Self::delete_common(holder.clone(), key).await;
+            match delete {
+                Ok(count) => {
+                    trace!("delete data: {:?} from: {:?}", count, holder);
+                    total_count += count;
+                }
+                Err(err) => {
+                    if err.is_key_not_found() {
+                        debug!("{} not found in {:?}", key, holder)
+                    } else {
+                        error!("delete error: {}, from : {:?}", err, holder);
+                    }
+                }
+            }
+        }
+        Ok(total_count)
+    }
+
+    async fn delete_common(holder: Holder, key: BobKey) -> Result<u64, Error> {
+        let result = holder.delete(key).await;
+        if let Err(e) = &result {
+            if !e.is_key_not_found() && !e.is_not_ready() {
+                holder.try_reinit().await?;
+                holder.prepare_storage().await?;
+                debug!("backend pearl group delete common storage prepared");
+            }
+        }
+        result
+    }
+
     pub(crate) async fn filter_memory_allocated(&self) -> usize {
         self.holders.read().await.filter_memory_allocated().await
     }

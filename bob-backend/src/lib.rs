@@ -32,7 +32,8 @@ pub(crate) mod prelude {
     pub use futures::{stream::FuturesUnordered, StreamExt, TryFutureExt};
     pub use pearl::{
         filter::hierarchical::*, filter::traits::*, filter::Config as BloomConfig, rio, Builder,
-        Error as PearlError, ErrorKind as PearlErrorKind, Key as KeyTrait, Storage,
+        Error as PearlError, ErrorKind as PearlErrorKind, Key as KeyTrait, RefKey as RefKeyTrait,
+        Storage,
     };
     pub use std::{
         collections::{hash_map::Entry, HashMap},
