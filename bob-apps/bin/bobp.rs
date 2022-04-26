@@ -550,8 +550,11 @@ fn print_periodic_stat(
     let print_put = (behavior_flags & PUT_FLAG) > 0;
     let print_get = (behavior_flags & GET_FLAG) > 0;
     let print_exist = (behavior_flags & EXIST_FLAG) > 0;
+    let multiline = (u8::from(print_exist) + u8::from(print_put) + u8::from(print_get)) > 1;
     while !stop_token.load(Ordering::Relaxed) {
         thread::sleep(pause);
+        let elapsed = start.elapsed().as_millis() as f64 / 1000.;
+        print!("{:>8.1} ", elapsed);
         if print_put {
             let d_put = put_count.get_diff();
             let put_count_spd = d_put * 1000 / period_ms;
@@ -566,6 +569,10 @@ fn print_periodic_stat(
                 finite_or_default(cur_st_put_time / cur_st_put_count / 1e9));
 
             put_speed_values.push(put_spd);
+
+            if multiline {
+                print!("{:>9}", ' ');
+            }
         }
         if print_get {
             let d_get = get_count.get_diff();
@@ -583,6 +590,10 @@ fn print_periodic_stat(
             get_speed_values.push(get_spd);
         }
         if print_exist {
+            if multiline {
+                print!("{:>9}", ' ');
+            }
+            
             let d_exist = exist_count.get_diff();
             let exist_count_spd = d_exist * 1000 / period_ms;
             let cur_st_exist_time = exist_time_st.get_diff() as f64;
@@ -597,7 +608,6 @@ fn print_periodic_stat(
 
             exist_speed_values.push(exist_spd);
         }
-        println!("-------------");
     }
     let elapsed = start.elapsed();
     println!("Total statistics, elapsed: {:?}", elapsed);
@@ -988,7 +998,7 @@ fn get_matches() -> ArgMatches<'static> {
             Arg::with_name("packet_size")
                 .help("size of packet in exist request")
                 .takes_value(true)
-                .long("size_p")
+                .long("packet_size")
                 .short("s")
                 .default_value("1000"),
         )
