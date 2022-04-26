@@ -33,6 +33,7 @@ Bob versions changelog
 
 
 #### Updated
+- Update Pearl to v0.11.0
 
 
 
