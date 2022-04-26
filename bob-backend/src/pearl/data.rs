@@ -5,6 +5,11 @@ include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Key(Vec<u8>);
 
+#[derive(PartialEq, Eq)]
+pub struct RefKey<'a>(&'a [u8]);
+
+impl<'a> RefKeyTrait<'a> for RefKey<'a> {}
+
 impl<T: Into<Vec<u8>>> From<T> for Key {
     fn from(t: T) -> Self {
         let mut v = t.into();
@@ -13,8 +18,10 @@ impl<T: Into<Vec<u8>>> From<T> for Key {
     }
 }
 
-impl KeyTrait for Key {
+impl<'a> KeyTrait<'a> for Key {
     const LEN: u16 = BOB_KEY_SIZE;
+
+    type Ref = RefKey<'a>;
 }
 
 impl Default for Key {
@@ -35,22 +42,44 @@ impl AsRef<Key> for Key {
     }
 }
 
+impl<'a> From<&'a [u8]> for RefKey<'a> {
+    fn from(v: &'a [u8]) -> Self {
+        Self(v)
+    }
+}
+
+fn le_cmp_keys(x: &[u8], y: &[u8]) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    for i in (0..(Key::LEN as usize)).rev() {
+        let ord = x[i].cmp(&y[i]);
+        if ord != Ordering::Equal {
+            return ord;
+        }
+    }
+    Ordering::Equal
+}
+
+impl<'a> PartialOrd for RefKey<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(le_cmp_keys(self.0, other.0))
+    }
+}
+
 impl PartialOrd for Key {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        use std::cmp::Ordering;
-        for i in (0..(Key::LEN as usize)).rev() {
-            let ord = self.0[i].cmp(&other.0[i]);
-            if ord != Ordering::Equal {
-                return Some(ord);
-            }
-        }
-        Some(Ordering::Equal)
+        Some(le_cmp_keys(&self.0, &other.0))
+    }
+}
+
+impl<'a> Ord for RefKey<'a> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
     }
 }
 
 impl Ord for Key {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
+        self.partial_cmp(&other).unwrap()
     }
 }
 

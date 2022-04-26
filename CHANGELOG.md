@@ -4,7 +4,49 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Added grpc exist testing feature to bobp
+- Added grpc exist testing feature to bobp (#402)
+- Add support for hierarchical range filters (#439)
+
+
+#### Changed
+- Deleted dcr utility (#370)
+- Put error logs now agregate in one line every 5 sec (in case of disk disconnection) (#420)
+
+
+#### Fixed
+- Fix ping and timeout leading to sending too much requests (#438)
+- Get & Put speed calculation in bobp
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.1] - 2022-04-04
+#### Added
+- Add iops & iowait disk metrics (collected via iostat) & cpu_iowait metric (#342)
+- Add refkey to support pearl #141
+- API method for occupied space info (#404)
+- Added -init_folders flag that creates bob and alien folders (#180)
+- If bob and alien folders doesn't exist bobd will panic (#398)
+- root_dir_name to node configuration api (#440)
+
+#### Changed
+- All hardware metrics are now placed in 'hardware' group (#452)
+
+#### Fixed
+- brt: Version in BlobHeader now changes during migration (#447)
+- brt: Default target version is now 1 instead of 2 (#448)
+
+#### Updated
+- Update pearl to v0.10.0
+
+
+## [2.1.0-alpha.0] - 2022-02-21
+#### Added
+- Bloom filters memory metric (#400)
+- Add bob ram usage metric (#393)
+- Add REST API method for data deletion (#221)
 
 
 #### Changed
@@ -12,13 +54,15 @@ Bob versions changelog
 
 
 #### Fixed
+- Used disk space metric calculation fix (#376)
+- Fix partitions removal response code (#405)
 - No more use of MockBobClient in production (#389)
 - Ubuntu docker image build error (#412)
-- Get & Put speed calculation in bobp
-
+- Fix panic on nodes request (#429)
 
 #### Updated
 - Configs now support human readable formats (in max_blob_size & bloom_filter_memory_limit) (#388)
+- Upgrade pearl to v0.9.2
 
 
 ## [2.0.0-alpha.11] - 2021-12-10

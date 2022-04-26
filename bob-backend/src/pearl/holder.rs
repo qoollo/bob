@@ -414,6 +414,28 @@ impl Holder {
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
 
+    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
+        let state = self.storage.read().await;
+        if state.is_ready() {
+            let storage = state.get();
+            trace!("Vdisk: {}, delete key: {}", self.vdisk, key);
+            let res = storage
+                .mark_all_as_deleted(Key::from(key))
+                .await
+                .map_err(|e| {
+                    trace!("error on delete: {:?}", e);
+                    match e.downcast_ref::<PearlError>().unwrap().kind() {
+                        PearlErrorKind::RecordNotFound => Error::key_not_found(key),
+                        _ => Error::storage(e.to_string()),
+                    }
+                });
+            res
+        } else {
+            trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
+            Err(Error::vdisk_is_not_ready())
+        }
+    }
+
     pub async fn close_storage(&self) {
         let lck = self.storage();
         let pearl_sync = lck.write().await;
@@ -451,7 +473,7 @@ impl BloomProvider<Key> for Holder {
         }
     }
 
-    async fn get_filter(&self) -> Option<pearl::Bloom> {
+    async fn get_filter(&self) -> Option<Self::Filter> {
         let storage = self.storage().read().await;
         if let Some(storage) = &storage.storage {
             storage.get_filter().await
@@ -460,7 +482,7 @@ impl BloomProvider<Key> for Holder {
         }
     }
 
-    fn get_filter_fast(&self) -> Option<&pearl::Bloom> {
+    fn get_filter_fast(&self) -> Option<&Self::Filter> {
         None
     }
 
