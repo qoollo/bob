@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.2] - 2022-04-26
+#### Added
 - Added grpc exist testing feature to bobp (#419)
 - Add support for hierarchical range filters (#439)
 
