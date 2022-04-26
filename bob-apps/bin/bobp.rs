@@ -550,12 +550,18 @@ fn print_periodic_stat(
     let print_put = (behavior_flags & PUT_FLAG) > 0;
     let print_get = (behavior_flags & GET_FLAG) > 0;
     let print_exist = (behavior_flags & EXIST_FLAG) > 0;
-    let multiline = (u8::from(print_exist) + u8::from(print_put) + u8::from(print_get)) > 1;
     while !stop_token.load(Ordering::Relaxed) {
         thread::sleep(pause);
-        let elapsed = start.elapsed().as_millis() as f64 / 1000.;
-        print!("{:>8.1} ", elapsed);
+        let elapsed = start.elapsed().as_secs();
+        print!("{:>5} ", elapsed);
+        let mut first_line = true;
         if print_put {
+            if !first_line {
+                print!("{:>6}", ' ');
+            } else {
+                first_line = false;
+            }
+
             let d_put = put_count.get_diff();
             let put_count_spd = d_put * 1000 / period_ms;
             let cur_st_put_time = put_time_st.get_diff() as f64;
@@ -569,12 +575,14 @@ fn print_periodic_stat(
                 finite_or_default(cur_st_put_time / cur_st_put_count / 1e9));
 
             put_speed_values.push(put_spd);
-
-            if multiline {
-                print!("{:>9}", ' ');
-            }
         }
         if print_get {
+            if !first_line {
+                print!("{:>6}", ' ');
+            } else {
+                first_line = false;
+            }
+            
             let d_get = get_count.get_diff();
             let get_count_spd = d_get * 1000 / period_ms;
             let cur_st_get_time = get_time_st.get_diff() as f64;
@@ -590,8 +598,10 @@ fn print_periodic_stat(
             get_speed_values.push(get_spd);
         }
         if print_exist {
-            if multiline {
-                print!("{:>9}", ' ');
+            if !first_line {
+                print!("{:>6}", ' ');
+            } else {
+                first_line = false;
             }
             
             let d_exist = exist_count.get_diff();
