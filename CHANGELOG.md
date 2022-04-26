@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Added grpc exist testing feature to bobp (#402)
+- Added grpc exist testing feature to bobp (#419)
 - Add support for hierarchical range filters (#439)
 
 
@@ -15,7 +15,7 @@ Bob versions changelog
 
 #### Fixed
 - Fix ping and timeout leading to sending too much requests (#438)
-- Get & Put speed calculation in bobp
+- Get & Put speed calculation in bobp (#419)
 
 
 #### Updated
