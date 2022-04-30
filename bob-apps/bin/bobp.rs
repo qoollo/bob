@@ -600,8 +600,6 @@ fn print_periodic_stat(
         if print_exist {
             if !first_line {
                 print!("{:>6}", ' ');
-            } else {
-                first_line = false;
             }
             
             let d_exist = exist_count.get_diff();
