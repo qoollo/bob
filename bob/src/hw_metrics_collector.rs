@@ -1,11 +1,11 @@
 use crate::prelude::*;
 use bob_common::metrics::{
     CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE, USED_RAM,
-    USED_SPACE,
+    USED_SPACE, BOB_RAM,
 };
 use std::path::{Path, PathBuf};
 use std::os::unix::fs::MetadataExt;
-use sysinfo::{DiskExt, ProcessExt, System, SystemExt};
+use sysinfo::{DiskExt, ProcessExt, System, SystemExt, RefreshKind};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 
@@ -62,8 +62,10 @@ impl HWMetricsCollector {
 
         loop {
             interval.tick().await;
-            sys.refresh_all();
-            sys.refresh_disks();
+            sys.refresh_specifics(RefreshKind::new()
+                    .with_processes()
+                    .with_disks()
+                    .with_memory());
             let proc = sys.process(pid).expect("Can't get process stat descriptor");
 
             let (total_space, free_space) = Self::space(&sys, &disks);
@@ -74,6 +76,8 @@ impl HWMetricsCollector {
             debug!("used mem in mb: {}", used_mem);
             gauge!(USED_RAM, used_mem as f64);
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
+            let bob_ram = kb_to_mb(proc.memory());
+            gauge!(BOB_RAM, bob_ram as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
             gauge!(CPU_LOAD, proc.cpu_usage() as f64);
         }
