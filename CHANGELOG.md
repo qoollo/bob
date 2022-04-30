@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Add bob ram usage metric (#393)
 
 
 #### Changed
