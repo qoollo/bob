@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-- Removed unused asignment in bobp (#478)
+- Removed unused assignment in bobp (#478)
 
 
 #### Updated
