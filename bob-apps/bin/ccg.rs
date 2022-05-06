@@ -69,13 +69,12 @@ fn subcommand_expand(matches: &ArgMatches) -> AnyResult<()> {
 
 fn generate_config(matches: &ArgMatches, input: ClusterConfig) -> AnyResult<ClusterConfig> {
     let replicas_count = get_replicas_count(matches)?;
-    let vdisks_count = get_vdisks_count(matches)?;
-    let vdisks_per_disk = vdisks_per_disk_match(matches);
+    let (total_vdisks, vdisks_per_disk) = get_vdisks_total_and_per_disk(matches)?;
     let use_racks = get_use_racks(matches);
     let res = simple_gen(
         input,
         replicas_count,
-        vdisks_count,
+        total_vdisks,
         vdisks_per_disk,
         use_racks,
     )?;
@@ -129,14 +128,17 @@ fn simple_expand(
 fn simple_gen(
     mut config: ClusterConfig,
     replicas_count: usize,
-    mut vdisks_count: usize,
-    vdisks_per_disk: bool,
+    total_vdisks: Option<usize>,
+    vdisks_per_disk: Option<usize>,
     use_racks: bool,
 ) -> AnyResult<ClusterConfig> {
     let mut center = Center::from_cluster_config(&config, use_racks)?;
     center.validate()?;
-    if vdisks_per_disk {
-        vdisks_count = ceil(vdisks_count * center.disks_count(), replicas_count);
+    let vdisks_count;
+    if let Some(vdpd) = vdisks_per_disk {
+        vdisks_count = ceil(vdpd * center.disks_count(), replicas_count);
+    } else {
+        vdisks_count = total_vdisks.unwrap();
     }
 
     debug!("new vdisks count: OK [{}]", vdisks_count);
@@ -181,22 +183,18 @@ fn get_replicas_count(matches: &ArgMatches) -> AnyResult<usize> {
         .map_err(|err| anyhow!("get replicas count: {}", err))
 }
 
-fn get_vdisks_count(matches: &ArgMatches) -> AnyResult<usize> {
+fn get_vdisks_total_and_per_disk(matches: &ArgMatches) -> AnyResult<(Option<usize>, Option<usize>)> {
     if let Some(s) = matches.value_of("vdisks_count") {
         s.parse()
             .map_err(|err| anyhow!("get vdisks count: {}", err))
+            .map(|ok| (Some(ok), None))
     } else if let Some(s) = matches.value_of("vdisks_per_disk") {
         s.parse()
             .map_err(|err| anyhow!("get vdisks per disk: {}", err))
+            .map(|ok| (None, Some(ok)))
     } else {
         Err(anyhow!("No -p or -d argument specified"))
     }
-}
-
-fn vdisks_per_disk_match(matches: &ArgMatches) -> bool {
-    let res = matches.is_present("vdisks_per_disk");
-    debug!("vdisks_per_disk_match: OK [{}]", res);
-    res
 }
 
 fn get_matches() -> ArgMatches<'static> {
