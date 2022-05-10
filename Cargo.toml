@@ -1,7 +1,2 @@
 [workspace]
-members = [
-    "bob",
-    "bob-apps",
-    "bob-backend",
-    "bob-common",
-]
+members = ["bob", "bob-apps", "bob-backend", "bob-common"]
