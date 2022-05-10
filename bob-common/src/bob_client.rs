@@ -84,12 +84,12 @@ pub mod b_client {
                 Ok(_) => {
                     self.metrics.put_timer_stop(timer);
                     Ok(NodeOutput::new(node_name, ()))
-                },
+                }
                 Err(e) => {
                     self.metrics.put_error_count();
                     self.metrics.put_timer_stop(timer);
-                    Err(NodeOutput::new(node_name,  e.into()))
-                },
+                    Err(NodeOutput::new(node_name, e.into()))
+                }
             }
         }
 
@@ -186,7 +186,7 @@ pub mod b_client {
                 Err(NodeOutput::new(node_name, Error::timeout()))
             }
         }
-        
+
         fn set_timeout<T>(&self, r: &mut Request<T>) {
             r.set_timeout(self.operation_timeout);
         }

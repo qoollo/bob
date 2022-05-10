@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Add clusterwide delete operation (#364)
 
 #### Changed
 
