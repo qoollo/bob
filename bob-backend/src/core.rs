@@ -1,10 +1,16 @@
 use crate::prelude::*;
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter, Result as FMTResult},
+};
 
 use crate::{
     mem_backend::MemBackend,
     pearl::{DiskController, Pearl},
     stub_backend::StubBackend,
+    interval_logger::IntervalLoggerSafe
 };
+use log::Level;
 
 use bob_common::metrics::BLOOM_FILTERS_RAM;
 
@@ -136,10 +142,34 @@ pub trait MetricsProducer: Send + Sync {
     }
 }
 
+#[derive(Hash, PartialEq, Eq, Debug)]
+enum BackendErrorAction {
+    PUT(String, String),
+}
+
+impl Display for BackendErrorAction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FMTResult {
+        match self {
+            BackendErrorAction::PUT(disk, error) => {
+                write!(f, "local PUT on disk {} failed with error: {:?}", disk, error)
+            },
+        }
+    }
+}
+
+impl BackendErrorAction {
+    fn put(disk: String, error: &Error) -> Self {
+        BackendErrorAction::PUT(disk, error.to_string())
+    }
+}
+
+const ERROR_LOG_INTERVAL: u64 = 5000;
+
 #[derive(Debug)]
 pub struct Backend {
     inner: Arc<dyn BackendStorage>,
     mapper: Arc<Virtual>,
+    error_logger: IntervalLoggerSafe<BackendErrorAction>,
 }
 
 impl Backend {
@@ -154,7 +184,9 @@ impl Backend {
                 Arc::new(pearl)
             }
         };
-        Self { inner, mapper }
+        let error_logger = IntervalLoggerSafe::new(ERROR_LOG_INTERVAL, Level::Error);
+
+        Self { inner, mapper, error_logger }
     }
 
     pub async fn blobs_count(&self) -> (usize, usize) {
@@ -253,12 +285,15 @@ impl Backend {
             let result = self.inner.put(operation.clone(), key, data.clone()).await;
             match result {
                 Err(local_err) if !local_err.is_duplicate() => {
-                    error!(
+                    debug!(
                         "PUT[{}][{}] local failed: {:?}",
                         key,
                         operation.disk_name_local(),
                         local_err
                     );
+                    let error_to_log = BackendErrorAction::put(operation.disk_name_local(), &local_err);
+                    self.error_logger.report_error(error_to_log);
+
                     // write to alien/<local name>
                     let mut op = operation.clone_local_alien(self.mapper().local_node_name());
                     op.set_remote_folder(self.mapper.local_node_name().to_owned());

@@ -16,6 +16,27 @@ Bob versions changelog
 
 
 
+## [2.1.0-alpha.2] - 2022-04-26
+#### Added
+- Added grpc exist testing feature to bobp (#419)
+- Add support for hierarchical range filters (#439)
+
+
+#### Changed
+- Deleted dcr utility (#370)
+- Put error logs now agregate in one line every 5 sec (in case of disk disconnection) (#420)
+
+
+#### Fixed
+- Fix ping and timeout leading to sending too much requests (#438)
+- Get & Put speed calculation in bobp (#419)
+
+
+#### Updated
+- Update Pearl to v0.11.0
+
+
+
 ## [2.1.0-alpha.1] - 2022-04-04
 #### Added
 - Add iops & iowait disk metrics (collected via iostat) & cpu_iowait metric (#342)
