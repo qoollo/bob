@@ -699,7 +699,6 @@ async fn get_data(
     let key = key?.0;
     let opts = BobOptions::new_get(None);
     let result = bob.grinder().get(key, &opts).await?;
-    println!("{:?}", result.inner());
     Ok((infer_data_type(&result), result.inner().to_owned()))
 }
 
