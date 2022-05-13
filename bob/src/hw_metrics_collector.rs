@@ -7,10 +7,10 @@ use libc::statvfs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
-use std::fs::File;
-use std::io::{Read};
+use std::fs::read_to_string;
 use sysinfo::{DiskExt, ProcessExt, RefreshKind, System, SystemExt};
 
+const EPS: f64 = 1e-7;
 const DESCRS_DIR: &str = "/proc/self/fd/";
 const CPU_STAT_FILE: &str = "/proc/stat";
 const DISK_STAT_FILE: &str = "/proc/diskstats";
@@ -187,6 +187,8 @@ struct CPUStatCollector {
     procfs_avl: bool,
 }
 
+const CPU_IOWAIT_COLUMN: usize = 5;
+
 impl CPUStatCollector {
     fn new() -> CPUStatCollector {
         CPUStatCollector {
@@ -197,12 +199,11 @@ impl CPUStatCollector {
     fn stat_cpu_line() -> Result<String, String> {
         let lines = file_contents(CPU_STAT_FILE)?;
         for stat_line in lines {
-            let mut parts = stat_line.split_whitespace();
-            if let Some("cpu") = parts.next() {
+            if stat_line.starts_with("cpu") {
                 return Ok(stat_line);
             }
         }
-        Err("Can't find cpu stat".into())
+        Err(format!("Can't find cpu stat line in {}", CPU_STAT_FILE))
     }
 
     fn iowait(&mut self) -> Result<f64, CommandError> {
@@ -214,19 +215,20 @@ impl CPUStatCollector {
         match Self::stat_cpu_line() {
             Ok(line) => {
                 let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() > 5 {
+                if parts.len() > CPU_IOWAIT_COLUMN {
                     let mut sum = 0.;
                     let mut f_iowait = 0.;
                     for i in 1..parts.len() {
                         match parts[i].parse::<f64>() {
                             Ok(val) => {
                                 sum += val;
-                                if i == 5 {
+                                if i == CPU_IOWAIT_COLUMN {
                                     f_iowait = val;
                                 }
                             },
                             Err(_) => {
-                                err = Some("Can't parse stat".to_string());
+                                let msg = format!("Can't parse {}", CPU_STAT_FILE);
+                                err = Some(msg);
                                 break;
                             }
                         }
@@ -235,7 +237,8 @@ impl CPUStatCollector {
                         return Ok(f_iowait * 100. / sum);
                     }
                 } else {
-                    err = Some("Stat format changed".into());
+                    let msg = format!("CPU stat format in {} changed", CPU_STAT_FILE);
+                    err = Some(msg);
                 }
             },
             Err(e) => {
@@ -247,9 +250,34 @@ impl CPUStatCollector {
     }
 }
 
+struct DiffContainer<T> {
+    last: T,
+}
+
+impl<T> DiffContainer<T>
+where T: Default + std::ops::Sub<Output = T> + Copy
+{
+    fn new() -> Self {
+        Self {
+            last: T::default(),
+        }
+    }
+
+    fn diff(&mut self, new: T) -> T {
+        let diff = new - self.last;
+        self.last = new;
+        diff
+    }
+}
+
 struct DiskStatCollector {
     procfs_avl: bool,
     disk_metric_data: HashMap<String, String>,
+    uptime: DiffContainer<f64>,
+    reads: DiffContainer<f64>,
+    writes: DiffContainer<f64>,
+    read_time: DiffContainer<f64>,
+    write_time: DiffContainer<f64>,
 }
 
 impl DiskStatCollector {
@@ -268,15 +296,22 @@ impl DiskStatCollector {
         DiskStatCollector {
             procfs_avl: true,
             disk_metric_data,
+            uptime: DiffContainer::new(),
+            reads: DiffContainer::new(),
+            writes: DiffContainer::new(),
+            read_time: DiffContainer::new(),
+            write_time: DiffContainer::new(),
         }
     }
 
     fn collect_and_send_metrics(&mut self) -> Result<(), CommandError> {
         let uptime = self.uptime()?;
+        let elapsed = self.uptime.diff(uptime);
         let diskstats = self.diskstats()?;
         for i in diskstats {
             let lsp: Vec<&str> = i.split_whitespace().collect();
             if lsp.len() >= 8 {
+                // compare device name from 2nd column with disk device names
                 if let Some(metric_prefix) = self.disk_metric_data.get(lsp[2]) {
                     if let (Ok(r_ios), Ok(w_ios)) = (
                         // successfull reads count is in 3rd column
@@ -284,7 +319,9 @@ impl DiskStatCollector {
                         // successfull writes count is in 7th column
                         lsp[7].parse::<f64>(),
                     ) {
-                        let iops = (r_ios + w_ios) / uptime;
+                        let d_r_ios = self.reads.diff(r_ios);
+                        let d_w_ios = self.writes.diff(w_ios);
+                        let iops = (d_r_ios + d_w_ios) / elapsed;
 
                         let gauge_name = format!("{}_iops", metric_prefix);
                         gauge!(gauge_name, iops);
@@ -296,21 +333,32 @@ impl DiskStatCollector {
                                 // time spend on read is in 6th column
                                 lsp[6].parse::<f64>(),
                             ) {
-                                let iowait = r_ticks / r_ios + w_ticks / w_ios;
+                                let d_r_ticks = self.read_time.diff(r_ticks);
+                                let d_w_ticks = self.write_time.diff(w_ticks);
+                                let mut iowait = 0.;
+                                if d_r_ios > EPS {
+                                    iowait += d_r_ticks / d_r_ios;
+                                }
+                                if d_w_ios > EPS {
+                                    iowait += d_w_ticks / d_w_ios;
+                                }
         
                                 let gauge_name = format!("{}_iowait", metric_prefix);
                                 gauge!(gauge_name, iowait);
                             } else {
-                                return Err(CommandError::Primary("Can't parse diskstat values to float".to_string()));
+                                let msg = format!("Can't parse {} values to float", DISK_STAT_FILE);
+                                return Err(CommandError::Primary(msg));
                             }
                         }
                     } else {
-                        return Err(CommandError::Primary("Can't parse diskstat values to float".to_string()));
+                        let msg = format!("Can't parse {} values to float", DISK_STAT_FILE);
+                        return Err(CommandError::Primary(msg));
                     }
                 }
             } else {
                 self.procfs_avl = false;
-                return Err(CommandError::Primary("Not enough diskstat info for metrics calculation".to_string()));
+                let msg = format!("Not enough diskstat info in {} for metrics calculation", DISK_STAT_FILE);
+                return Err(CommandError::Primary(msg));
             }
         }
         Ok(())
@@ -330,11 +378,13 @@ impl DiskStatCollector {
                         if let Ok(uptime) = uptime.parse::<f64>() {
                             return Ok(uptime);
                         } else {
-                            err = Some("Can't parse uptime contents".into());
+                            let msg = format!("Can't parse {}", UPTIME);
+                            err = Some(msg);
                         }
                     }
                 } else {
-                    err = Some("Can't find uptime in file".into());
+                    let msg = format!("Can't find uptime in {}", UPTIME);
+                    err = Some(msg);
                 }
             },
             Err(e) => {err = Some(e)}
@@ -380,14 +430,10 @@ impl DiskStatCollector {
 }
 
 fn file_contents(path: &str) -> Result<Vec<String>, String> {
-    if let Ok(mut file) = File::open(path) {
-        let mut contents = String::new();
-        if file.read_to_string(&mut contents).is_err() {
-            return Err(format!("Failed to read file {}", path));
-        }
-        return Ok(contents.lines().map(|l| l.to_string()).collect());
+    if let Ok(contents) = read_to_string(path) {
+        Ok(contents.lines().map(|l| l.to_string()).collect())
     } else {
-        Err(format!("Can't open file {}", path))
+        Err(format!("Can't read file {}", path))
     }
 }
 
