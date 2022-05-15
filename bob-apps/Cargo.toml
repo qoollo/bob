@@ -1,7 +1,10 @@
 [package]
 name = "bob-apps"
 version = "2.1.0-alpha.2"
-authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
+authors = [
+    "Kirill Bushminkin <kb@qoollo.com>",
+    "Pavel Iakushin <pyakushin@qoollo.com>",
+]
 edition = "2018"
 
 [dependencies]
@@ -38,10 +41,7 @@ tonic = { version = "0.6", features = ["prost"] }
 tower = "0.4"
 rand = "0.8"
 tower-service = "0.3"
-
-[dependencies.log4rs-logstash]
-git = "https://github.com/qoollo/rust-log4rs-logstash"
-branch = "develop"
+log4rs-logstash = { version = "0.1.0", features = ["tls"] }
 
 [dependencies.tokio]
 version = "1.14"
