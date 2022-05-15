@@ -62,6 +62,13 @@ pub const CLIENT_EXIST_ERROR_COUNT_COUNTER: &str = "client.exist_error_count";
 /// Measures processing time of the EXIST request
 pub const CLIENT_EXIST_TIMER: &str = "client.exist_timer";
 
+/// Counts number of DELETE requests, processed by Client
+pub const CLIENT_DELETE_COUNTER: &str = "client.delete_count";
+/// Counts number of DELETE requests return error, processed by Client
+pub const CLIENT_DELETE_ERROR_COUNT_COUNTER: &str = "client.delete_error_count";
+/// Measures processing time of the DELETE request
+pub const CLIENT_DELETE_TIMER: &str = "client.delete_timer";
+
 /// Observes number of connected nodes
 pub const AVAILABLE_NODES_COUNT: &str = "link_manager.nodes_number";
 
@@ -79,17 +86,20 @@ pub const INDEX_MEMORY: &str = "backend.index_memory";
 pub const ACTIVE_DISKS_COUNT: &str = "backend.active_disks";
 /// Directory, which contains each disks state
 pub const DISKS_FOLDER: &str = "backend.disks";
+/// Directory, which contains each disks hardware metrics
+pub const HW_DISKS_FOLDER: &str = "hardware.disks";
 
-pub const DESCRIPTORS_AMOUNT: &str = "descr_amount";
+pub const DESCRIPTORS_AMOUNT: &str = "hardware.descr_amount";
 
-pub const CPU_LOAD: &str = "cpu_load";
-pub const FREE_RAM: &str = "free_ram";
-pub const USED_RAM: &str = "used_ram";
-pub const TOTAL_RAM: &str = "total_ram";
-pub const BOB_RAM: &str = "bob_ram";
-pub const FREE_SPACE: &str = "free_space";
-pub const USED_SPACE: &str = "used_space";
-pub const TOTAL_SPACE: &str = "total_space";
+pub const CPU_LOAD: &str = "hardware.cpu_load";
+pub const CPU_IOWAIT: &str = "hardware.cpu_iowait";
+pub const FREE_RAM: &str = "hardware.free_ram";
+pub const USED_RAM: &str = "hardware.used_ram";
+pub const TOTAL_RAM: &str = "hardware.total_ram";
+pub const BOB_RAM: &str = "hardware.bob_ram";
+pub const FREE_SPACE: &str = "hardware.free_space";
+pub const USED_SPACE: &str = "hardware.used_space";
+pub const TOTAL_SPACE: &str = "hardware.total_space";
 
 const CLIENTS_METRICS_DIR: &str = "clients";
 

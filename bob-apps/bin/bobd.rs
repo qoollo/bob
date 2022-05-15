@@ -1,11 +1,13 @@
 use bob::{
-    build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder,
-    VirtualMapper,
+    build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
+    VirtualMapper, BackendType,
 };
 use clap::{crate_version, App, Arg, ArgMatches};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::runtime::Handle;
 use tonic::transport::Server;
+use std::path::PathBuf;
+use std::fs::create_dir;
 
 #[macro_use]
 extern crate log;
@@ -36,6 +38,8 @@ async fn main() {
 
     log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
         .expect("can't find log config");
+
+    check_folders(&node, matches.is_present("init_folders"));
 
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
 
@@ -146,6 +150,43 @@ fn spawn_signal_handler(
     Ok(())
 }
 
+fn check_folders(node: &NodeConfig, init_flag: bool) {
+    if let BackendType::Pearl = node.backend_type() {
+        let root_dir = node.pearl().settings().root_dir_name();
+        let alien_dir = node.pearl().settings().alien_root_dir_name();
+
+        let p_mutex = node.disks();
+        let paths = p_mutex.lock().expect("node disks mutex");
+        for i in 0..paths.len() {
+            let mut bob_path = PathBuf::from(paths[i].path());
+            bob_path.push(root_dir);
+            let bob_path = bob_path.as_path();
+            if !bob_path.is_dir() {
+                if init_flag {
+                    create_dir(bob_path).expect("Failed to create bob folder");
+                } else {
+                    let bob_path_str = bob_path.to_str().unwrap();
+                    error!("{} folder doesn't exist, try to use --init_folders flag", bob_path_str);
+                    panic!("{} folder doesn't exist, try to use --init_folders flag", bob_path_str);
+                }
+            }
+
+            let mut alien_path = PathBuf::from(paths[i].path());
+            alien_path.push(alien_dir);
+            let alien_path = alien_path.as_path();
+            if !alien_path.is_dir() {
+                if init_flag {
+                    create_dir(alien_path).expect("Failed to create alien folder");
+                } else {
+                    let alien_path_str = alien_path.to_str().unwrap();
+                    error!("{} folder doesn't exist, try to use --init_folders flag", alien_path_str);
+                    panic!("{} folder doesn't exist, try to use --init_folders flag", alien_path_str);
+                }
+            }
+        }
+    }
+}
+
 fn get_matches<'a>() -> ArgMatches<'a> {
     let ver = format!("{}\n{}", crate_version!(), BuildInfo::new());
     App::new("bobd")
@@ -192,6 +233,12 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .short("p")
                 .long("port")
                 .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("init_folders")
+                .help("Initializes bob and alien folders")
+                .long("init_folders")
+                .takes_value(false),
         )
         .get_matches()
 }
