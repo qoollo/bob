@@ -13,7 +13,7 @@ Bob versions changelog
 
 
 #### Updated
-
+- Update rocket to  (#486)
 
 
 ## [2.1.0-alpha.2] - 2022-04-26
