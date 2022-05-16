@@ -8,12 +8,13 @@ Bob versions changelog
 
 #### Changed
 - Number of vdisks in ccg now is defined by -p or -d arg only, -exact arg removed (#459)
+- RAM metrics (bob ram, total ram, used ram, free ram) are published in bytes now (#463)
 
 #### Fixed
 
 
 #### Updated
-
+- Update rocket to v0.5.0-rc.2 (#486)
 
 
 ## [2.1.0-alpha.2] - 2022-04-26

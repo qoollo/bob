@@ -13,7 +13,7 @@ use rocket::{
     data::ByteUnit,
     http::{ContentType, Status},
     request::FromParam,
-    response::{content::Custom as Content, Responder, Result as RocketResult},
+    response::{Responder, Result as RocketResult},
     serde::{json::Json, uuid::Uuid},
     Config, Data, Request, Response, Rocket, State,
 };
@@ -695,11 +695,11 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
 async fn get_data(
     bob: &State<BobServer>,
     key: Result<DataKey, StatusExt>,
-) -> Result<Content<Vec<u8>>, StatusExt> {
+) -> Result<(ContentType, Vec<u8>), StatusExt> {
     let key = key?.0;
     let opts = BobOptions::new_get(None);
     let result = bob.grinder().get(key, &opts).await?;
-    Ok(Content(infer_data_type(&result), result.inner().to_owned()))
+    Ok((infer_data_type(&result), result.inner().to_owned()))
 }
 
 #[post("/data/<key>", data = "<data>")]
