@@ -4,11 +4,11 @@ mod config_cluster_generator;
 extern crate log;
 
 use anyhow::{anyhow, Result as AnyResult};
-use bob::{ClusterConfig, ClusterNodeConfig as ClusterNode};
+use bob::{ClusterConfig};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use config_cluster_generator::{
-    center::{check_expand_configs, get_new_disks, get_new_racks, get_pairs_count, Center},
-    utils::{init_logger, lcm, read_config_from_file, write_to_file},
+    center::{check_expand_configs, get_new_disks, get_new_racks, Center},
+    utils::{init_logger, ceil, read_config_from_file, write_to_file},
 };
 
 #[tokio::main]
@@ -69,14 +69,13 @@ fn subcommand_expand(matches: &ArgMatches) -> AnyResult<()> {
 
 fn generate_config(matches: &ArgMatches, input: ClusterConfig) -> AnyResult<ClusterConfig> {
     let replicas_count = get_replicas_count(matches)?;
-    let vdisks_count = get_vdisks_count(matches, input.nodes())?;
-    let vdisks_counts_match = vdisks_counts_match(matches);
+    let (total_vdisks, vdisks_per_disk) = get_vdisks_total_and_per_disk(matches)?;
     let use_racks = get_use_racks(matches);
     let res = simple_gen(
         input,
         replicas_count,
-        vdisks_count,
-        vdisks_counts_match,
+        total_vdisks,
+        vdisks_per_disk,
         use_racks,
     )?;
     debug!("generate config: OK");
@@ -129,15 +128,19 @@ fn simple_expand(
 fn simple_gen(
     mut config: ClusterConfig,
     replicas_count: usize,
-    mut vdisks_count: usize,
-    vdisks_counts_match: bool,
+    total_vdisks: Option<usize>,
+    vdisks_per_disk: Option<usize>,
     use_racks: bool,
 ) -> AnyResult<ClusterConfig> {
     let mut center = Center::from_cluster_config(&config, use_racks)?;
     center.validate()?;
-    if !vdisks_counts_match {
-        vdisks_count = vdisks_count.max(lcm(center.disks_count(), replicas_count));
+    let vdisks_count;
+    if let Some(vdpd) = vdisks_per_disk {
+        vdisks_count = ceil(vdpd * center.disks_count(), replicas_count);
+    } else {
+        vdisks_count = total_vdisks.unwrap();
     }
+
     debug!("new vdisks count: OK [{}]", vdisks_count);
     let mut vdisks = Vec::new();
     while vdisks.len() < vdisks_count {
@@ -180,24 +183,18 @@ fn get_replicas_count(matches: &ArgMatches) -> AnyResult<usize> {
         .map_err(|err| anyhow!("get replicas count: {}", err))
 }
 
-fn get_vdisks_count(matches: &ArgMatches, nodes: &[ClusterNode]) -> AnyResult<usize> {
-    matches.value_of("vdisks_count").map_or_else(
-        || {
-            let res = get_pairs_count(nodes);
-            debug!("get vdisks count: OK [{}]", res);
-            Ok(res)
-        },
-        |s| {
-            s.parse()
-                .map_err(|err| anyhow!("get vdisks count: {}", err))
-        },
-    )
-}
-
-fn vdisks_counts_match(matches: &ArgMatches) -> bool {
-    let res = matches.is_present("exact_vdisks_count");
-    debug!("vdisks_counts_match: OK [{}]", res);
-    res
+fn get_vdisks_total_and_per_disk(matches: &ArgMatches) -> AnyResult<(Option<usize>, Option<usize>)> {
+    if let Some(s) = matches.value_of("vdisks_count") {
+        s.parse()
+            .map_err(|err| anyhow!("get vdisks count: {}", err))
+            .map(|ok| (Some(ok), None))
+    } else if let Some(s) = matches.value_of("vdisks_per_disk") {
+        s.parse()
+            .map_err(|err| anyhow!("get vdisks per disk: {}", err))
+            .map(|ok| (None, Some(ok)))
+    } else {
+        Err(anyhow!("No -p or -d argument specified"))
+    }
 }
 
 fn get_matches() -> ArgMatches<'static> {
@@ -211,7 +208,14 @@ fn get_matches() -> ArgMatches<'static> {
         .help("output file, if not set, use stdout instead");
     let vdisks_count = Arg::with_name("vdisks_count")
         .short("d")
+        .long("vdisks_count")
         .help("min - equal to number of pairs node-disk")
+        .conflicts_with("vdisks_per_disk")
+        .takes_value(true);
+    let vdisks_per_disk = Arg::with_name("vdisks_per_disk")
+        .short("p")
+        .long("vdisks_per_disk")
+        .help("number of vdisks per physical disk")
         .takes_value(true);
     let replicas = Arg::with_name("replicas")
         .short("r")
@@ -222,11 +226,6 @@ fn get_matches() -> ArgMatches<'static> {
         .help("new hardware configuration")
         .required(true)
         .takes_value(true);
-    let exact_vdisks_count = Arg::with_name("exact_vdisks_count")
-        .short("e")
-        .long("exact")
-        .help("Create config with exactly provided vdisks count")
-        .takes_value(false);
     let use_racks = Arg::with_name("use_racks")
         .short("R")
         .long("use-racks")
@@ -242,9 +241,9 @@ fn get_matches() -> ArgMatches<'static> {
     let subcommand_new = SubCommand::with_name("new")
         .arg(input)
         .arg(output)
+        .arg(vdisks_per_disk)
         .arg(vdisks_count)
         .arg(use_racks)
-        .arg(exact_vdisks_count)
         .arg(replicas);
 
     App::new("Config Cluster Generator")

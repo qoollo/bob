@@ -4,11 +4,11 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Number of vdisks per disk in ccg can be specified via -p arg (#459)
 
 #### Changed
+- Number of vdisks in ccg now is defined by -p or -d arg only, -exact arg removed (#459)
 - RAM metrics (bob ram, total ram, used ram, free ram) are published in bytes now (#463)
-
 
 #### Fixed
 
