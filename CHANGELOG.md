@@ -7,6 +7,7 @@ Bob versions changelog
 
 
 #### Changed
+- RAM metrics (bob ram, total ram, used ram, free ram) are published in bytes now (#463)
 
 
 #### Fixed
