@@ -32,7 +32,7 @@ Bob versions changelog
 
 #### Updated
 - Update pearl to 0.9.3
-
+- Update rocket to v0.5.0-rc.2 (#486)
 
 ## [2.0.13] - 2022-02-17
 #### Fixed
