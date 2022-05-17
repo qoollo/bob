@@ -4,15 +4,38 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Number of vdisks per disk in ccg can be specified via -p arg (#459)
 
 #### Changed
+- Number of vdisks in ccg now is defined by -p or -d arg only, -exact arg removed (#459)
+- RAM metrics (bob ram, total ram, used ram, free ram) are published in bytes now (#463)
 - CPU iowait & disks iowait, iops are now collected via procfs (#461)
 
 #### Fixed
 
 
 #### Updated
+- Update rocket to v0.5.0-rc.2 (#486)
+
+
+## [2.1.0-alpha.2] - 2022-04-26
+#### Added
+- Added grpc exist testing feature to bobp (#419)
+- Add support for hierarchical range filters (#439)
+
+
+#### Changed
+- Deleted dcr utility (#370)
+- Put error logs now agregate in one line every 5 sec (in case of disk disconnection) (#420)
+
+
+#### Fixed
+- Fix ping and timeout leading to sending too much requests (#438)
+- Get & Put speed calculation in bobp (#419)
+
+
+#### Updated
+- Update Pearl to v0.11.0
 
 
 

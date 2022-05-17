@@ -473,7 +473,7 @@ impl BloomProvider<Key> for Holder {
         }
     }
 
-    async fn get_filter(&self) -> Option<pearl::Bloom> {
+    async fn get_filter(&self) -> Option<Self::Filter> {
         let storage = self.storage().read().await;
         if let Some(storage) = &storage.storage {
             storage.get_filter().await
@@ -482,7 +482,7 @@ impl BloomProvider<Key> for Holder {
         }
     }
 
-    fn get_filter_fast(&self) -> Option<&pearl::Bloom> {
+    fn get_filter_fast(&self) -> Option<&Self::Filter> {
         None
     }
 
