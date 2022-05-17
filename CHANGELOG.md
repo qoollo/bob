@@ -9,6 +9,7 @@ Bob versions changelog
 
 #### Changed
 - Put error logs now agregate in one line every 5 sec (in case of disk disconnection) (#420)
+- RAM metrics (bob ram, total ram, used ram, free ram) are published in bytes now (#463)
 
 
 #### Fixed

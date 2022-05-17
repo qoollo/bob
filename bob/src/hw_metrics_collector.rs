@@ -55,9 +55,9 @@ impl HWMetricsCollector {
         let mut interval = interval(t);
         let mut sys = System::new_all();
         let mut dcounter = DescrCounter::new();
-        let total_mem = kb_to_mb(sys.total_memory());
+        let total_mem = kb_to_b(sys.total_memory());
         gauge!(TOTAL_RAM, total_mem as f64);
-        debug!("total mem in mb: {}", total_mem);
+        debug!("total mem in bytes: {}", total_mem);
         let pid = std::process::id() as i32;
 
         loop {
@@ -72,11 +72,11 @@ impl HWMetricsCollector {
             gauge!(TOTAL_SPACE, total_space as f64);
             gauge!(USED_SPACE, (total_space - free_space) as f64);
             gauge!(FREE_SPACE, free_space as f64);
-            let used_mem = kb_to_mb(sys.used_memory());
-            debug!("used mem in mb: {}", used_mem);
+            let used_mem = kb_to_b(sys.used_memory());
+            debug!("used mem in bytes: {}", used_mem);
             gauge!(USED_RAM, used_mem as f64);
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
-            let bob_ram = kb_to_mb(proc.memory());
+            let bob_ram = kb_to_b(proc.memory());
             gauge!(BOB_RAM, bob_ram as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
             gauge!(CPU_LOAD, proc.cpu_usage() as f64);
@@ -174,6 +174,6 @@ fn bytes_to_mb(bytes: u64) -> u64 {
     bytes / 1024 / 1024
 }
 
-fn kb_to_mb(kbs: u64) -> u64 {
-    kbs / 1024
+fn kb_to_b(kbs: u64) -> u64 {
+    kbs * 1024
 }
