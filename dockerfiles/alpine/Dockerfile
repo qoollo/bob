@@ -71,7 +71,7 @@ WORKDIR /home/bob/bin/
 COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-musl/release/bobd .
 RUN chown bobd:bobd bobd \
   && mkdir /bob/log -p && chown bobd:bobd /bob/log -R \
-  && mkdir /bob/data -p && chown bobd:bobd /bob/data -R \
+  && mkdir /bob/data/d1 -p && chown bobd:bobd /bob/data/d1 -R \
   && mkdir /bob/configs -p && chown bobd:bobd /bob/configs -R \
   && mkdir ~/.ssh \
   && chmod 600 -R ~/.ssh \
@@ -84,13 +84,13 @@ RUN chown bobd:bobd bobd \
   && chmod +x prep.sh \
   && echo -e "#!/bin/bash\n\
   trap 'kill -TERM \$! && wait' SIGTERM\n\
-  ./bobd -c /bob/configs/\$1 -n /bob/configs/\$2 &\n\
+  ./bobd -c /bob/configs/\$1 -n /bob/configs/\$2 \${@:3} &\n\
   wait" >> bobd.sh \
   && chmod +x bobd.sh \
   && echo -e "#!/bin/bash\n\
   trap 'kill -TERM \$! && wait' SIGTERM\n\
   sudo -S ./prep.sh\n\
-  ./bobd.sh \$1 \$2 & \n\
+  ./bobd.sh \$@ & \n\
   wait" >> run.sh \
   && chmod +x run.sh
 
