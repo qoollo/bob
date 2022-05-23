@@ -245,9 +245,6 @@ impl ValidateIndexCommand {
     }
 
     fn subcommand<'a, 'b>() -> App<'a, 'b> {
-        lazy_static::lazy_static! {
-                    static ref KEY_SIZE_HELP: String = format!("key size, supported 1, 2, 4, 8, 16, 32. {} used by default", PearlKey::LEN);
-        };
         SubCommand::with_name(VALIDATE_INDEX_COMMAND)
             .arg(
                 Arg::with_name(DISK_PATH_OPT)
@@ -282,7 +279,13 @@ impl ValidateIndexCommand {
                 Arg::with_name(KEY_SIZE_OPT)
                     .takes_value(true)
                     .required(false)
-                    .help(&KEY_SIZE_HELP)
+                    .help(
+                        format!(
+                            "key size, supported 1, 2, 4, 8, 16, 32. {} used by default",
+                            PearlKey::LEN
+                        )
+                        .as_str(),
+                    )
                     .long("no-confirm"),
             )
     }
@@ -334,6 +337,18 @@ impl MigrateCommand {
         Ok(())
     }
 
+    fn migrate_file(&self, input: &Path, output: &Path) -> AnyResult<()> {
+        recovery_blob_with(
+            &input,
+            &output,
+            self.validate_every,
+            |header, version| header.migrate(version, self.target_version),
+            |record, version| record.migrate(version, self.target_version),
+            false,
+        )?;
+        Ok(())
+    }
+
     fn subcommand<'a, 'b>() -> App<'a, 'b> {
         SubCommand::with_name(MIGRATE_COMMAND)
             .arg(
@@ -375,7 +390,7 @@ impl MigrateCommand {
                 Arg::with_name(TARGET_VERSION_OPT)
                     .help("target blob version for migration")
                     .takes_value(true)
-                    .default_value("2")
+                    .default_value("1")
                     .short("t")
                     .value_name("version")
                     .long("target-version"),

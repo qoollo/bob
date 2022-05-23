@@ -1,6 +1,6 @@
 [package]
 name = "bob-common"
-version = "2.0.0-alpha.11"
+version = "2.1.0-alpha.2"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
@@ -29,6 +29,7 @@ thiserror = "1.0"
 tonic = { version = "0.6", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"
+ubyte = { version = "0.10", features = ["serde"] }
 
 [dependencies.tokio]
 version = "1.14"
@@ -36,4 +37,6 @@ default-features = false
 features = []
 
 [features]
+default = []
 testing = []
+production = []
