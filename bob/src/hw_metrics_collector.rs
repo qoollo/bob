@@ -250,98 +250,71 @@ impl CPUStatCollector {
 
 const DIFFCONTAINER_THRESHOLD: Duration = Duration::from_millis(500);
 
-struct TimeContainer {
-    last: Option<Instant>,
-    prelast: Option<Instant>,
-}
-
-enum TimeMoment {
-    Last(Duration),
-    Prelast(Duration),
-}
-
-impl TimeMoment {
-    fn elapsed_ms(&self) -> f64 {
-        match self {
-            TimeMoment::Last(dur) => dur.as_millis() as f64,
-            TimeMoment::Prelast(dur) => dur.as_millis() as f64,
-        }
-    }
-}
-
-impl TimeContainer {
-    fn new() -> Self {
-        Self {
-            last: None,
-            prelast: None,
-        }
-    }
-
-    fn update(&mut self, now: Instant) {
-        self.prelast = self.last;
-        self.last = Some(now);
-    }
-
-    fn tick(&mut self) -> Option<TimeMoment> {
-        let now = Instant::now();
-        if let Some(last) = self.last {
-            let elapsed = now.duration_since(last);
-            if elapsed > DIFFCONTAINER_THRESHOLD {
-                self.update(now);
-                return Some(TimeMoment::Last(elapsed));
-            } else if let Some(prelast) = self.prelast {
-                let elapsed = now.duration_since(prelast);
-                self.update(now);
-                return Some(TimeMoment::Prelast(elapsed));
-            }
-        }
-        self.update(now);
-        None
-    }
-}
 struct DiffContainer<T> {
-    last: T,
-    prelast: T,
+    last: Option<T>,
 }
 
 impl<T> DiffContainer<T>
-where T: Default + 
-         std::ops::Sub<Output = T> +
+where T: std::ops::Sub<Output = T> +
          Copy,
 {
     fn new() -> Self {
         Self {
-            last: T::default(),
-            prelast: T::default(),
+            last: None,
         }
     }
 
-    fn diff(&mut self, new: T, elapsed: &TimeMoment) -> T {
-        match elapsed {
-            TimeMoment::Last(_) => {
-                let diff = new - self.last;
-                self.prelast = self.last;
-                self.last = new;
-                diff
-            },
-            TimeMoment::Prelast(_) => {
-                let diff = new - self.prelast;
-                self.prelast = self.last;
-                self.last = new;
-                diff
-            },
+    fn diff(&mut self, new: T) -> Option<T> {
+        if let Some(last) = self.last {
+            let diff = new - last;
+            self.last = Some(new);
+            Some(diff)
+        } else {
+            self.last = Some(new);
+            None
         }
     }
 }
 
+#[derive(Clone, Copy)]
+struct DiskStats {
+    reads: f64,
+    writes: f64,
+    read_time: f64,
+    write_time: f64,
+    extended: bool,
+}
+
+impl std::ops::Sub for DiskStats {
+    type Output = DiskStats;
+    fn sub(self, rhs: DiskStats) -> DiskStats {
+        DiskStats {
+            reads: self.reads - rhs.reads,
+            writes: self.writes - rhs.writes,
+            read_time: self.read_time - rhs.read_time,
+            write_time: self.write_time - rhs.write_time,
+            extended: self.extended && rhs.extended,
+        }
+    }
+}
+
+struct DiskStatsContainer {
+    prefix: String,
+    stats: DiffContainer<DiskStats>,
+}
+
+impl  DiskStatsContainer {
+    fn new(prefix: String) -> Self {
+        Self {
+            prefix,
+            stats: DiffContainer::new(),
+        }
+    }
+}
 struct DiskStatCollector {
     procfs_avl: bool,
-    disk_metric_data: HashMap<String, String>,
-    time: TimeContainer,
-    reads: DiffContainer<f64>,
-    writes: DiffContainer<f64>,
-    read_time: DiffContainer<f64>,
-    write_time: DiffContainer<f64>,
+    disk_metric_data: HashMap<String, DiskStatsContainer>,
+    upd_timestamp: Instant,
 }
 
 impl DiskStatCollector {
@@ -351,7 +324,7 @@ impl DiskStatCollector {
             let path_str = path.as_os_str().to_str().unwrap();
             if let Ok(dev_name) = Self::dev_name(path_str) {
                 let metric_prefix = format!("{}.{}", HW_DISKS_FOLDER, disk_name);
-                disk_metric_data.insert(dev_name, metric_prefix);
+                disk_metric_data.insert(dev_name, DiskStatsContainer::new(metric_prefix));
             } else {
                 warn!("Device name of disk {} is unknown", disk_name);
             }
@@ -360,62 +333,78 @@ impl DiskStatCollector {
         DiskStatCollector {
             procfs_avl: true,
             disk_metric_data,
-            time: TimeContainer::new(),
-            reads: DiffContainer::new(),
-            writes: DiffContainer::new(),
-            read_time: DiffContainer::new(),
-            write_time: DiffContainer::new(),
+            upd_timestamp: Instant::now(),
         }
+    }
+
+    fn parse_stat_line(parts: Vec<&str>) -> Result<DiskStats, CommandError> {
+        let mut new_ds = DiskStats {
+            reads: 0.,
+            writes: 0.,
+            write_time: 0.,
+            read_time: 0.,
+            extended: parts.len() >= 11,
+        };
+        if let (Ok(r_ios), Ok(w_ios)) = (
+            // successfull reads count is in 3rd column
+            parts[3].parse::<f64>(),
+            // successfull writes count is in 7th column
+            parts[7].parse::<f64>(),
+        ) {
+            new_ds.reads = r_ios;
+            new_ds.writes = w_ios;  
+            if new_ds.extended {
+                if let (Ok(w_ticks), Ok(r_ticks)) = (
+                    // time spend on write is in 10th column
+                    parts[10].parse::<f64>(),
+                    // time spend on read is in 6th column
+                    parts[6].parse::<f64>(),
+                ) {
+                    new_ds.read_time = r_ticks;
+                    new_ds.write_time = w_ticks;
+                } else {
+                    let msg = format!("Can't parse {} values to float", DISK_STAT_FILE);
+                    return Err(CommandError::Primary(msg));
+                }
+            }
+        } else {
+            let msg = format!("Can't parse {} values to float", DISK_STAT_FILE);
+            return Err(CommandError::Primary(msg));
+        }
+        Ok(new_ds)
     }
 
     fn collect_and_send_metrics(&mut self) -> Result<(), CommandError> {
         let diskstats = self.diskstats()?;
-        if let Some(elapsed) = self.time.tick() {
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.upd_timestamp);
+        if elapsed > DIFFCONTAINER_THRESHOLD {
+            self.upd_timestamp = now;
+            let elapsed = elapsed.as_millis() as f64 / 1000.;
             for i in diskstats {
                 let lsp: Vec<&str> = i.split_whitespace().collect();
                 if lsp.len() >= 8 {
                     // compare device name from 2nd column with disk device names
-                    if let Some(metric_prefix) = self.disk_metric_data.get(lsp[2]) {
-                        if let (Ok(r_ios), Ok(w_ios)) = (
-                            // successfull reads count is in 3rd column
-                            lsp[3].parse::<f64>(),
-                            // successfull writes count is in 7th column
-                            lsp[7].parse::<f64>(),
-                        ) {
-                            let d_r_ios = self.reads.diff(r_ios, &elapsed);
-                            let d_w_ios = self.writes.diff(w_ios, &elapsed);
-                            let iops = (d_r_ios + d_w_ios) * 1000. / elapsed.elapsed_ms();
-    
-                            let gauge_name = format!("{}_iops", metric_prefix);
+                    if let Some(ds) = self.disk_metric_data.get_mut(lsp[2]) {
+                        let new_ds = Self::parse_stat_line(lsp)?;
+                        
+                        if let Some(diff) = ds.stats.diff(new_ds) {
+                            let iops = (diff.reads + diff.writes) / elapsed;
+                            let gauge_name = format!("{}_iops", ds.prefix);
                             gauge!(gauge_name, iops);
-    
-                            if lsp.len() >= 11 {
-                                if let (Ok(w_ticks), Ok(r_ticks)) = (
-                                    // time spend on write is in 10th column
-                                    lsp[10].parse::<f64>(),
-                                    // time spend on read is in 6th column
-                                    lsp[6].parse::<f64>(),
-                                ) {
-                                    let d_r_ticks = self.read_time.diff(r_ticks, &elapsed);
-                                    let d_w_ticks = self.write_time.diff(w_ticks, &elapsed);
-                                    let mut iowait = 0.;
-                                    if d_r_ios > EPS {
-                                        iowait += d_r_ticks / d_r_ios;
-                                    }
-                                    if d_w_ios > EPS {
-                                        iowait += d_w_ticks / d_w_ios;
-                                    }
-            
-                                    let gauge_name = format!("{}_iowait", metric_prefix);
-                                    gauge!(gauge_name, iowait);
-                                } else {
-                                    let msg = format!("Can't parse {} values to float", DISK_STAT_FILE);
-                                    return Err(CommandError::Primary(msg));
+
+                            if diff.extended {
+                                let mut iowait = 0.;
+                                if diff.reads > EPS {
+                                    iowait += diff.read_time / diff.reads;
                                 }
+                                if diff.writes > EPS {
+                                    iowait += diff.write_time / diff.writes;
+                                }
+        
+                                let gauge_name = format!("{}_iowait", ds.prefix);
+                                gauge!(gauge_name, iowait);
                             }
-                        } else {
-                            let msg = format!("Can't parse {} values to float", DISK_STAT_FILE);
-                            return Err(CommandError::Primary(msg));
                         }
                     }
                 } else {
