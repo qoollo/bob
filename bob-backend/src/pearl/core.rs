@@ -226,7 +226,7 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn close_oldest_active_blob(&self) -> bool {
+    async fn close_oldest_active_blob(&self) -> Option<usize> {
         let mut oldest: Option<Holder> = None;
         for dc in self.disk_controllers.iter() {
             if let Some(holder) = dc.find_oldest_inactive_holder().await {
@@ -243,9 +243,9 @@ impl BackendStorage for Pearl {
 
         if let Some(h) = oldest {
             h.close_active_blob().await;
-            true
+            Some(h.index_memory().await)
         } else {
-            false
+            None
         }
     }
 

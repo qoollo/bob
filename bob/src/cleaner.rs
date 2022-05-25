@@ -5,6 +5,7 @@ pub(crate) struct Cleaner {
     soft_open_blobs: usize,
     hard_open_blobs: usize,
     bloom_filter_memory_limit: Option<usize>,
+    index_memory_limit: Option<usize>,
 }
 
 impl Cleaner {
@@ -13,12 +14,14 @@ impl Cleaner {
         soft_open_blobs: usize,
         hard_open_blobs: usize,
         bloom_filter_memory_limit: Option<usize>,
+        index_memory_limit: Option<usize>,
     ) -> Self {
         Self {
             old_blobs_check_timeout,
             soft_open_blobs,
             hard_open_blobs,
             bloom_filter_memory_limit,
+            index_memory_limit,
         }
     }
 
@@ -29,6 +32,7 @@ impl Cleaner {
             self.soft_open_blobs,
             self.hard_open_blobs,
             self.bloom_filter_memory_limit,
+            self.index_memory_limit,
         ));
     }
 
@@ -38,6 +42,7 @@ impl Cleaner {
         soft: usize,
         hard: usize,
         bloom_filter_memory_limit: Option<usize>,
+        index_memory_limit: Option<usize>,
     ) {
         let mut interval = interval(t);
         loop {
@@ -47,8 +52,18 @@ impl Cleaner {
                 backend.offload_old_filters(limit).await;
             }
 
-            while backend.close_oldest_active_blob().await {
-                warn!("closed");
+            if let Some(limit) = index_memory_limit {
+                let mut memory = backend.index_memory().await;
+                warn!("Memory before closing old active blobs: {:?}", memory);
+                while memory > limit {
+                    if let Some(freed) = backend.close_oldest_active_blob().await {
+                        memory = memory - freed;
+                        warn!("closed index, freeing {:?} bytes", freed);
+                    } else {
+                        break;
+                    }
+                }
+                warn!("Memory after closing old active blobs: {:?}", memory);
             }
         }
     }
