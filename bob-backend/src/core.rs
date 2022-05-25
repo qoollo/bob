@@ -5,10 +5,10 @@ use std::{
 };
 
 use crate::{
+    interval_logger::IntervalLoggerSafe,
     mem_backend::MemBackend,
     pearl::{DiskController, Pearl},
     stub_backend::StubBackend,
-    interval_logger::IntervalLoggerSafe
 };
 use log::Level;
 
@@ -119,6 +119,9 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
     }
 
     async fn close_unneeded_active_blobs(&self, _soft: usize, _hard: usize) {}
+    async fn close_oldest_active_blob(&self) -> bool {
+        false
+    }
 
     async fn offload_old_filters(&self, _limit: usize) {}
 
@@ -151,8 +154,12 @@ impl Display for BackendErrorAction {
     fn fmt(&self, f: &mut Formatter<'_>) -> FMTResult {
         match self {
             BackendErrorAction::PUT(disk, error) => {
-                write!(f, "local PUT on disk {} failed with error: {:?}", disk, error)
-            },
+                write!(
+                    f,
+                    "local PUT on disk {} failed with error: {:?}",
+                    disk, error
+                )
+            }
         }
     }
 }
@@ -186,7 +193,11 @@ impl Backend {
         };
         let error_logger = IntervalLoggerSafe::new(ERROR_LOG_INTERVAL, Level::Error);
 
-        Self { inner, mapper, error_logger }
+        Self {
+            inner,
+            mapper,
+            error_logger,
+        }
     }
 
     pub async fn blobs_count(&self) -> (usize, usize) {
@@ -252,7 +263,7 @@ impl Backend {
             Err(Error::internal())
         };
         trace!("<<<<<<- - - - - BACKEND PUT FINISH - - - - -");
-        
+
         res
     }
 
@@ -291,7 +302,8 @@ impl Backend {
                         operation.disk_name_local(),
                         local_err
                     );
-                    let error_to_log = BackendErrorAction::put(operation.disk_name_local(), &local_err);
+                    let error_to_log =
+                        BackendErrorAction::put(operation.disk_name_local(), &local_err);
                     self.error_logger.report_error(error_to_log);
 
                     // write to alien/<local name>
@@ -409,6 +421,10 @@ impl Backend {
         self.inner.close_unneeded_active_blobs(soft, hard).await
     }
 
+    pub async fn close_oldest_active_blob(&self) -> bool {
+        self.inner.close_oldest_active_blob().await
+    }
+
     pub async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<u64, Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         let mut ops = vec![];
@@ -448,7 +464,7 @@ impl Backend {
 
     pub async fn offload_old_filters(&self, limit: usize) {
         self.inner.offload_old_filters(limit).await;
-        
+
         self.update_bloom_filter_metrics().await;
     }
 

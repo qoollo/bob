@@ -42,9 +42,13 @@ impl Cleaner {
         let mut interval = interval(t);
         loop {
             interval.tick().await;
-            backend.close_unneeded_active_blobs(soft, hard).await;
+            // backend.close_unneeded_active_blobs(soft, hard).await;
             if let Some(limit) = bloom_filter_memory_limit {
                 backend.offload_old_filters(limit).await;
+            }
+
+            while backend.close_oldest_active_blob().await {
+                warn!("closed");
             }
         }
     }

@@ -226,6 +226,29 @@ impl BackendStorage for Pearl {
         }
     }
 
+    async fn close_oldest_active_blob(&self) -> bool {
+        let mut oldest: Option<Holder> = None;
+        for dc in self.disk_controllers.iter() {
+            if let Some(holder) = dc.find_oldest_inactive_holder().await {
+                if holder.end_timestamp()
+                    < oldest
+                        .as_ref()
+                        .map(|h| h.end_timestamp())
+                        .unwrap_or(u64::MAX)
+                {
+                    oldest = Some(holder);
+                }
+            }
+        }
+
+        if let Some(h) = oldest {
+            h.close_active_blob().await;
+            true
+        } else {
+            false
+        }
+    }
+
     async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
         debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
         let dc_option = self

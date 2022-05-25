@@ -555,6 +555,24 @@ impl DiskController {
         }
     }
 
+    pub(crate) async fn find_oldest_inactive_holder(&self) -> Option<Holder> {
+        let groups = self.groups.read().await;
+        let mut result: Option<Holder> = None;
+        for group in groups.iter() {
+            if let Some(holder) = group.find_oldest_inactive_holder().await {
+                if holder.end_timestamp()
+                    < result
+                        .as_ref()
+                        .map(|h| h.end_timestamp())
+                        .unwrap_or(u64::MAX)
+                {
+                    result = Some(holder);
+                }
+            }
+        }
+        result
+    }
+
     pub(crate) async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
         if *self.state.read().await == GroupsState::Ready {
             debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);

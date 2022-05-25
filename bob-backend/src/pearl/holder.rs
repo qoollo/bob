@@ -9,6 +9,7 @@ use bob_common::metrics::pearl::{
     PEARL_GET_BYTES_COUNTER, PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER,
     PEARL_PUT_BYTES_COUNTER, PEARL_PUT_COUNTER, PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
 };
+use futures::FutureExt;
 use pearl::error::{AsPearlError, ValidationErrorKind};
 use pearl::BloomProvider;
 use pearl::FilterResult;
@@ -104,24 +105,22 @@ impl Holder {
         ts - last_write_ts > MAX_TIME_SINCE_LAST_WRITE_SEC
     }
 
-    pub async fn active_blob_is_empty(&self) -> bool {
-        let active = self
-            .storage()
+    pub async fn active_blob_is_empty(&self) -> Option<bool> {
+        self.storage()
             .read()
             .await
             .active_blob_records_count()
-            .await as u64;
-        active == 0
+            .await
+            .map(|c| c == 0)
     }
 
-    pub async fn active_blob_is_small(&self) -> bool {
-        let active = self
-            .storage()
+    pub async fn active_blob_is_small(&self) -> Option<bool> {
+        self.storage()
             .read()
             .await
             .active_blob_records_count()
-            .await as u64;
-        active * SMALL_RECORDS_COUNT_MUL < self.config.max_data_in_blob()
+            .await
+            .map(|c| c as u64 * SMALL_RECORDS_COUNT_MUL < self.config.max_data_in_blob())
     }
 
     fn get_current_ts() -> u64 {
@@ -523,11 +522,8 @@ impl PearlSync {
         self.storage().index_memory().await
     }
 
-    pub async fn active_blob_records_count(&self) -> usize {
-        self.storage()
-            .records_count_in_active_blob()
-            .await
-            .unwrap_or_default()
+    pub async fn active_blob_records_count(&self) -> Option<usize> {
+        self.storage().records_count_in_active_blob().await
     }
 
     pub async fn blobs_count(&self) -> usize {
