@@ -362,12 +362,12 @@ impl DiskStatCollector {
                     new_ds.read_time = r_ticks;
                     new_ds.write_time = w_ticks;
                 } else {
-                    let msg = format!("Can't parse {} values to float", DISK_STAT_FILE);
+                    let msg = format!("Can't parse {} values to unsigned int", DISK_STAT_FILE);
                     return Err(CommandError::Primary(msg));
                 }
             }
         } else {
-            let msg = format!("Can't parse {} values to float", DISK_STAT_FILE);
+            let msg = format!("Can't parse {} values to unsigned int", DISK_STAT_FILE);
             return Err(CommandError::Primary(msg));
         }
         Ok(new_ds)
