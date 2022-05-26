@@ -10,7 +10,6 @@ use std::process::{self, Command};
 use std::fs::read_to_string;
 use sysinfo::{DiskExt, ProcessExt, RefreshKind, System, SystemExt};
 
-const EPS: f64 = 1e-7;
 const DESCRS_DIR: &str = "/proc/self/fd/";
 const CPU_STAT_FILE: &str = "/proc/stat";
 const DISK_STAT_FILE: &str = "/proc/diskstats";
@@ -278,10 +277,10 @@ where T: std::ops::Sub<Output = T> +
 
 #[derive(Clone, Copy)]
 struct DiskStats {
-    reads: f64,
-    writes: f64,
-    read_time: f64,
-    write_time: f64,
+    reads: u128,
+    writes: u128,
+    read_time: u128,
+    write_time: u128,
     extended: bool,
 }
 
@@ -339,26 +338,26 @@ impl DiskStatCollector {
 
     fn parse_stat_line(parts: Vec<&str>) -> Result<DiskStats, CommandError> {
         let mut new_ds = DiskStats {
-            reads: 0.,
-            writes: 0.,
-            write_time: 0.,
-            read_time: 0.,
+            reads: 0,
+            writes: 0,
+            write_time: 0,
+            read_time: 0,
             extended: parts.len() >= 11,
         };
         if let (Ok(r_ios), Ok(w_ios)) = (
             // successfull reads count is in 3rd column
-            parts[3].parse::<f64>(),
+            parts[3].parse::<u128>(),
             // successfull writes count is in 7th column
-            parts[7].parse::<f64>(),
+            parts[7].parse::<u128>(),
         ) {
             new_ds.reads = r_ios;
             new_ds.writes = w_ios;  
             if new_ds.extended {
                 if let (Ok(w_ticks), Ok(r_ticks)) = (
                     // time spend on write is in 10th column
-                    parts[10].parse::<f64>(),
+                    parts[10].parse::<u128>(),
                     // time spend on read is in 6th column
-                    parts[6].parse::<f64>(),
+                    parts[6].parse::<u128>(),
                 ) {
                     new_ds.read_time = r_ticks;
                     new_ds.write_time = w_ticks;
@@ -389,17 +388,17 @@ impl DiskStatCollector {
                         let new_ds = Self::parse_stat_line(lsp)?;
                         
                         if let Some(diff) = ds.stats.diff(new_ds) {
-                            let iops = (diff.reads + diff.writes) / elapsed;
+                            let iops = (diff.reads + diff.writes) as f64 / elapsed;
                             let gauge_name = format!("{}_iops", ds.prefix);
                             gauge!(gauge_name, iops);
 
                             if diff.extended {
                                 let mut iowait = 0.;
-                                if diff.reads > EPS {
-                                    iowait += diff.read_time / diff.reads;
+                                if diff.reads > 0 {
+                                    iowait += diff.read_time as f64 / diff.reads as f64;
                                 }
-                                if diff.writes > EPS {
-                                    iowait += diff.write_time / diff.writes;
+                                if diff.writes > 0 {
+                                    iowait += diff.write_time as f64 / diff.writes as f64;
                                 }
         
                                 let gauge_name = format!("{}_iowait", ds.prefix);
