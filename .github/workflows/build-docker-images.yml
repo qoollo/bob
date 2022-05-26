@@ -49,7 +49,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            COMMIT_HASH=${BOB_COMMIT_HASH}
+            COMMIT_HASH=${{ env.BOB_COMMIT_HASH }}
             KEY_SIZE=${{ matrix.bob_key_size }}
 
   build-ubuntu-image:
@@ -87,5 +87,5 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            COMMIT_HASH=${BOB_COMMIT_HASH}
+            COMMIT_HASH=${{ env.BOB_COMMIT_HASH }}
             KEY_SIZE=${{ matrix.bob_key_size }}
