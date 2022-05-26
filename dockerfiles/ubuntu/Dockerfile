@@ -4,6 +4,7 @@ FROM rust:1.47.0 as cargo-build
 # rust toolchain version
 ARG RUST_TC_VER=stable
 ARG KEY_SIZE=8
+ARG COMMIT_HASH
 
 RUN rustup install $RUST_TC_VER \
   && rustup default $RUST_TC_VER \
@@ -46,6 +47,7 @@ RUN cargo build --release --target=x86_64-unknown-linux-gnu \
 # final build
 COPY . .
 ENV BOB_KEY_SIZE=${KEY_SIZE}
+ENV BOB_COMMIT_HASH=${COMMIT_HASH}
 RUN cargo build --release --target=x86_64-unknown-linux-gnu
 
 # bobd image
