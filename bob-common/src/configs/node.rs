@@ -619,30 +619,26 @@ impl NodeConfig {
             .into()
     }
 
-    pub fn open_blobs_soft(&self) -> usize {
-        self.open_blobs_soft_limit
-            .and_then(|i| {
-                if i == 0 {
-                    error!("soft open blobs limit can't be less than 1");
-                    None
-                } else {
-                    Some(i)
-                }
-            })
-            .unwrap_or(1)
+    pub fn open_blobs_soft(&self) -> Option<usize> {
+        self.open_blobs_soft_limit.and_then(|i| {
+            if i == 0 {
+                error!("soft open blobs limit can't be less than 1");
+                None
+            } else {
+                Some(i)
+            }
+        })
     }
 
-    pub fn hard_open_blobs(&self) -> usize {
-        self.open_blobs_hard_limit
-            .and_then(|i| {
-                if i == 0 {
-                    error!("hard open blobs limit can't be less than 1");
-                    None
-                } else {
-                    Some(i)
-                }
-            })
-            .unwrap_or(10)
+    pub fn hard_open_blobs(&self) -> Option<usize> {
+        self.open_blobs_hard_limit.and_then(|i| {
+            if i == 0 {
+                error!("hard open blobs limit can't be less than 1");
+                None
+            } else {
+                Some(i)
+            }
+        })
     }
 
     pub fn bloom_filter_memory_limit(&self) -> Option<usize> {
