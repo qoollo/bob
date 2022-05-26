@@ -5,6 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Number of vdisks per disk in ccg can be specified via -p arg (#459)
+- Memory limit for indexes (#466)
 
 #### Changed
 - Number of vdisks in ccg now is defined by -p or -d arg only, -exact arg removed (#459)
