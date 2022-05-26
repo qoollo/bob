@@ -380,7 +380,7 @@ impl DiskStatCollector {
         let elapsed = now.duration_since(self.upd_timestamp);
         if elapsed > DIFFCONTAINER_THRESHOLD {
             self.upd_timestamp = now;
-            let elapsed = elapsed.as_millis() as f64 / 1000.;
+            let elapsed = elapsed.as_secs_f64();
             for i in diskstats {
                 let lsp: Vec<&str> = i.split_whitespace().collect();
                 if lsp.len() >= 8 {
