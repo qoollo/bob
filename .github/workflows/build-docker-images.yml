@@ -5,8 +5,6 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
-    branches:
-      - 491-fix-docker-image-release-v2.0.0
 
 jobs:
 
@@ -34,12 +32,11 @@ jobs:
         with:
           images: qoollo/bob
           tags: |
-            491-fix-docker-image-release-v2.0.0-key${{ matrix.bob_key_size }}-alpine3.12
-#            ${{ env.VERSION }}-key${{ matrix.bob_key_size }}-alpine3.12
-#            ${{ env.VERSION }}-key${{ matrix.bob_key_size }}
-#            ${{ env.VERSION }},enable=${{ matrix.bob_key_size == 8 }}          
-#            nightly,enable=${{ matrix.bob_key_size == 8 }} 
-#            latest,enable=${{ matrix.bob_key_size == 8 && ! contains(env.VERSION, 'alpha') }}
+            ${{ env.VERSION }}-key${{ matrix.bob_key_size }}-alpine3.12
+            ${{ env.VERSION }}-key${{ matrix.bob_key_size }}
+            ${{ env.VERSION }},enable=${{ matrix.bob_key_size == 8 }}          
+            nightly,enable=${{ matrix.bob_key_size == 8 }} 
+            latest,enable=${{ matrix.bob_key_size == 8 && ! contains(env.VERSION, 'alpha') }}
       - name: Build and push alpine image
         uses: docker/build-push-action@v2
         with:
@@ -76,8 +73,7 @@ jobs:
         with:
           images: qoollo/bob
           tags: |
-            491-fix-docker-image-release-v2.0.0-key${{ matrix.bob_key_size }}-ubuntu20.04
-#            ${{ env.VERSION }}-key${{ matrix.bob_key_size }}-ubuntu20.04
+            ${{ env.VERSION }}-key${{ matrix.bob_key_size }}-ubuntu20.04
       - name: Build and push ubuntu image
         uses: docker/build-push-action@v2
         with:
