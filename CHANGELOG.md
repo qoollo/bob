@@ -13,6 +13,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Fix docker image build parametrization (#493)
 
 
 #### Updated
