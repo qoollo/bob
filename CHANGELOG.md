@@ -11,6 +11,7 @@ Bob versions changelog
 - RAM metrics (bob ram, total ram, used ram, free ram) are published in bytes now (#463)
 
 #### Fixed
+- Fix docker image build parametrization (#494)
 
 
 #### Updated
@@ -31,7 +32,6 @@ Bob versions changelog
 #### Fixed
 - Fix ping and timeout leading to sending too much requests (#438)
 - Get & Put speed calculation in bobp (#419)
-- Fix docker image build parametrization (#494)
 
 
 #### Updated
