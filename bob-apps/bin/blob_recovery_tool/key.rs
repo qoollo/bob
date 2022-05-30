@@ -2,10 +2,32 @@ use super::prelude::*;
 
 fn le_cmp_keys<const N: usize>(x: &[u8], y: &[u8]) -> std::cmp::Ordering {
     use std::cmp::Ordering;
-    for i in (0..N).rev() {
-        let ord = x[i].cmp(&y[i]);
-        if ord != Ordering::Equal {
-            return ord;
+    use std::convert::TryInto;
+
+    if N % std::mem::size_of::<usize>() == 0 {
+        let len = N / std::mem::size_of::<usize>();
+        for i in (0..len).rev() {
+            let x_part: usize = usize::from_le_bytes(
+                x[i * std::mem::size_of::<usize>()..(i + 1) * std::mem::size_of::<usize>()]
+                    .try_into()
+                    .unwrap(),
+            );
+            let y_part: usize = usize::from_le_bytes(
+                y[i * std::mem::size_of::<usize>()..(i + 1) * std::mem::size_of::<usize>()]
+                    .try_into()
+                    .unwrap(),
+            );
+            let ord = x_part.cmp(&y_part);
+            if ord != Ordering::Equal {
+                return ord;
+            }
+        }
+    } else {
+        for i in (0..N).rev() {
+            let ord = x[i].cmp(&y[i]);
+            if ord != Ordering::Equal {
+                return ord;
+            }
         }
     }
     Ordering::Equal
