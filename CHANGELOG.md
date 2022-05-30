@@ -5,7 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Add bob ram usage metric (#393)
-
+- Dockerfile arguments propagation (#483)
 
 #### Changed
 - Put error logs now agregate in one line every 5 sec (in case of disk disconnection) (#420)
