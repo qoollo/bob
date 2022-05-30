@@ -287,9 +287,9 @@ impl std::ops::Sub for DiskStats {
     type Output = DiskStats;
     fn sub(self, rhs: DiskStats) -> DiskStats {
         DiskStats {
-            reads: self.reads - rhs.reads,
-            writes: self.writes - rhs.writes,
-            io_time: self.io_time - rhs.io_time,
+            reads: self.reads.wrapping_sub(rhs.reads),
+            writes: self.writes.wrapping_sub(rhs.writes),
+            io_time: self.io_time.wrapping_sub(rhs.io_time),
             extended: self.extended && rhs.extended,
         }
     }
