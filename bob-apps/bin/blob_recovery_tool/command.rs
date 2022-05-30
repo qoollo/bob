@@ -208,8 +208,6 @@ pub struct ValidateIndexCommand {
 impl ValidateIndexCommand {
     fn run(&self) -> AnyResult<()> {
         let validate_index_fn = match self.key_size {
-            Some(1) => validate_index::<Key1>,
-            Some(2) => validate_index::<Key2>,
             Some(4) => validate_index::<Key4>,
             Some(8) => validate_index::<Key8>,
             Some(16) => validate_index::<Key16>,
@@ -245,6 +243,13 @@ impl ValidateIndexCommand {
     }
 
     fn subcommand<'a, 'b>() -> App<'a, 'b> {
+        lazy_static::lazy_static! {
+            static ref KEY_SIZE_HELP: String =
+                        format!(
+                            "key size, supported 1, 2, 4, 8, 16, 32. {} used by default",
+                            PearlKey::LEN
+                        );
+        }
         SubCommand::with_name(VALIDATE_INDEX_COMMAND)
             .arg(
                 Arg::with_name(DISK_PATH_OPT)
@@ -279,13 +284,7 @@ impl ValidateIndexCommand {
                 Arg::with_name(KEY_SIZE_OPT)
                     .takes_value(true)
                     .required(false)
-                    .help(
-                        format!(
-                            "key size, supported 1, 2, 4, 8, 16, 32. {} used by default",
-                            PearlKey::LEN
-                        )
-                        .as_str(),
-                    )
+                    .help(KEY_SIZE_HELP.as_str())
                     .long("no-confirm"),
             )
     }
@@ -334,18 +333,6 @@ impl MigrateCommand {
                 "Migration",
             )?;
         }
-        Ok(())
-    }
-
-    fn migrate_file(&self, input: &Path, output: &Path) -> AnyResult<()> {
-        recovery_blob_with(
-            &input,
-            &output,
-            self.validate_every,
-            |header, version| header.migrate(version, self.target_version),
-            |record, version| record.migrate(version, self.target_version),
-            false,
-        )?;
         Ok(())
     }
 

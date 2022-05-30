@@ -9,7 +9,7 @@ pub(crate) mod prelude {
     pub(crate) use bob::PearlKey;
     pub(crate) use clap::{App, Arg, ArgMatches, SubCommand};
     pub(crate) use pearl::tools::*;
-    pub(crate) use pearl::Key as KeyTrait;
+    pub(crate) use pearl::{Key as KeyTrait, RefKey as RefKeyTrait};
     pub(crate) use std::{
         io::Write,
         path::{Path, PathBuf},
