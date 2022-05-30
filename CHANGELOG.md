@@ -5,6 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Number of vdisks per disk in ccg can be specified via -p arg (#459)
+- Dockerfile arguments propagation (#483)
 
 #### Changed
 - Number of vdisks in ccg now is defined by -p or -d arg only, -exact arg removed (#459)
@@ -12,6 +13,7 @@ Bob versions changelog
 - Move brt utils to pearl (#415)
 
 #### Fixed
+- Fix docker image build parametrization (#494)
 
 
 #### Updated
