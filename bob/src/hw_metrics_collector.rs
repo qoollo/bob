@@ -279,8 +279,7 @@ where T: std::ops::Sub<Output = T> +
 struct DiskStats {
     reads: u64,
     writes: u64,
-    read_time: u64,
-    write_time: u64,
+    io_time: u64,
     extended: bool,
 }
 
@@ -290,8 +289,7 @@ impl std::ops::Sub for DiskStats {
         DiskStats {
             reads: self.reads - rhs.reads,
             writes: self.writes - rhs.writes,
-            read_time: self.read_time - rhs.read_time,
-            write_time: self.write_time - rhs.write_time,
+            io_time: self.io_time - rhs.io_time,
             extended: self.extended && rhs.extended,
         }
     }
@@ -340,9 +338,8 @@ impl DiskStatCollector {
         let mut new_ds = DiskStats {
             reads: 0,
             writes: 0,
-            write_time: 0,
-            read_time: 0,
-            extended: parts.len() >= 11,
+            io_time: 0,
+            extended: parts.len() >= 13,
         };
         if let (Ok(r_ios), Ok(w_ios)) = (
             // successfull reads count is in 3rd column
@@ -353,14 +350,9 @@ impl DiskStatCollector {
             new_ds.reads = r_ios;
             new_ds.writes = w_ios;  
             if new_ds.extended {
-                if let (Ok(w_ticks), Ok(r_ticks)) = (
-                    // time spend on write is in 10th column
-                    parts[10].parse::<u64>(),
-                    // time spend on read is in 6th column
-                    parts[6].parse::<u64>(),
-                ) {
-                    new_ds.read_time = r_ticks;
-                    new_ds.write_time = w_ticks;
+                // time spend doing i/o operations is in 13th column
+                if let Ok(io_time) = parts[13].parse::<u64>() {
+                    new_ds.io_time = io_time;
                 } else {
                     let msg = format!("Can't parse {} values to unsigned int", DISK_STAT_FILE);
                     return Err(CommandError::Primary(msg));
@@ -393,16 +385,10 @@ impl DiskStatCollector {
                             gauge!(gauge_name, iops);
 
                             if diff.extended {
-                                let mut iowait = 0.;
-                                if diff.reads > 0 {
-                                    iowait += diff.read_time as f64 / diff.reads as f64;
-                                }
-                                if diff.writes > 0 {
-                                    iowait += diff.write_time as f64 / diff.writes as f64;
-                                }
-        
-                                let gauge_name = format!("{}_iowait", ds.prefix);
-                                gauge!(gauge_name, iowait);
+                                // disk util in %
+                                let util = diff.io_time as f64 / elapsed / 10.;
+                                let gauge_name = format!("{}_util", ds.prefix);
+                                gauge!(gauge_name, util);
                             }
                         }
                     }
