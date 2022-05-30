@@ -339,7 +339,7 @@ impl DiskStatCollector {
             reads: 0,
             writes: 0,
             io_time: 0,
-            extended: parts.len() >= 13,
+            extended: parts.len() >= 12,
         };
         if let (Ok(r_ios), Ok(w_ios)) = (
             // successfull reads count is in 3rd column
@@ -350,8 +350,8 @@ impl DiskStatCollector {
             new_ds.reads = r_ios;
             new_ds.writes = w_ios;  
             if new_ds.extended {
-                // time spend doing i/o operations is in 13th column
-                if let Ok(io_time) = parts[13].parse::<u64>() {
+                // time spend doing i/o operations is in 12th column
+                if let Ok(io_time) = parts[12].parse::<u64>() {
                     new_ds.io_time = io_time;
                 } else {
                     let msg = format!("Can't parse {} values to unsigned int", DISK_STAT_FILE);
