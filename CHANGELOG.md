@@ -11,6 +11,7 @@ Bob versions changelog
 - RAM metrics (bob ram, total ram, used ram, free ram) are published in bytes now (#463)
 
 #### Fixed
+- Fix docker image build parametrization (#494)
 
 
 #### Updated
