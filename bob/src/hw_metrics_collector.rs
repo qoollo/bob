@@ -277,10 +277,10 @@ where T: std::ops::Sub<Output = T> +
 
 #[derive(Clone, Copy)]
 struct DiskStats {
-    reads: u128,
-    writes: u128,
-    read_time: u128,
-    write_time: u128,
+    reads: u64,
+    writes: u64,
+    read_time: u64,
+    write_time: u64,
     extended: bool,
 }
 
@@ -346,18 +346,18 @@ impl DiskStatCollector {
         };
         if let (Ok(r_ios), Ok(w_ios)) = (
             // successfull reads count is in 3rd column
-            parts[3].parse::<u128>(),
+            parts[3].parse::<u64>(),
             // successfull writes count is in 7th column
-            parts[7].parse::<u128>(),
+            parts[7].parse::<u64>(),
         ) {
             new_ds.reads = r_ios;
             new_ds.writes = w_ios;  
             if new_ds.extended {
                 if let (Ok(w_ticks), Ok(r_ticks)) = (
                     // time spend on write is in 10th column
-                    parts[10].parse::<u128>(),
+                    parts[10].parse::<u64>(),
                     // time spend on read is in 6th column
-                    parts[6].parse::<u128>(),
+                    parts[6].parse::<u64>(),
                 ) {
                     new_ds.read_time = r_ticks;
                     new_ds.write_time = w_ticks;
