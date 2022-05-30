@@ -83,21 +83,10 @@ fn deserialize(content: String) -> AnyResult<ClusterConfig> {
         .map_err(|e| anyhow!("deserialize: ERR [{}]", e))
 }
 
-/// greatest common divider
-pub fn gcd(a: usize, b: usize) -> usize {
-    debug!("gcd of {} and {}", a, b);
-    if a == 0 {
-        b
-    } else if b == 0 {
-        a
+pub fn ceil(a: usize, b: usize) -> usize {
+    if a % b > 0 {
+        a / b + 1
     } else {
-        gcd(b, a % b)
+        a / b
     }
-}
-
-/// least common multiple
-pub fn lcm(a: usize, b: usize) -> usize {
-    let lcm = a / gcd(a, b) * b;
-    debug!("lcm of {} and {} is {}", a, b, lcm);
-    lcm
 }
