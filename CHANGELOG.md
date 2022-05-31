@@ -10,6 +10,7 @@ Bob versions changelog
 #### Changed
 - Number of vdisks in ccg now is defined by -p or -d arg only, -exact arg removed (#459)
 - RAM metrics (bob ram, total ram, used ram, free ram) are published in bytes now (#463)
+- Move brt utils to pearl (#415)
 
 #### Fixed
 - Fix docker image build parametrization (#494)
