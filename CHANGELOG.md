@@ -4,6 +4,19 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+## [2.0.14-alpha.1] - 2022-05-31
+#### Added
 - Add bob ram usage metric (#393)
 - Dockerfile arguments propagation (#483)
 
@@ -11,10 +24,8 @@ Bob versions changelog
 - Put error logs now agregate in one line every 5 sec (in case of disk disconnection) (#420)
 - RAM metrics (bob ram, total ram, used ram, free ram) are published in bytes now (#463)
 
-
 #### Fixed
 - Fix docker image build parametrization (#493)
-
 
 #### Updated
 - Update rocket to v0.5.0-rc.2 (#486)
