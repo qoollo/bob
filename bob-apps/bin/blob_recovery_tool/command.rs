@@ -246,7 +246,7 @@ impl ValidateIndexCommand {
         lazy_static::lazy_static! {
             static ref KEY_SIZE_HELP: String =
                         format!(
-                            "key size, supported 1, 2, 4, 8, 16, 32. {} used by default",
+                            "key size, supported 4, 8, 16, 32. {} used by default",
                             PearlKey::LEN
                         );
         }
