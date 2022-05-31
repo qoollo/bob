@@ -10,11 +10,11 @@ Bob versions changelog
 #### Changed
 - Number of vdisks in ccg now is defined by -p or -d arg only, -exact arg removed (#459)
 - RAM metrics (bob ram, total ram, used ram, free ram) are published in bytes now (#463)
+- CPU iowait & disks iowait, iops are now collected via procfs (#461)
 - Move brt utils to pearl (#415)
 
 #### Fixed
 - Fix docker image build parametrization (#494)
-
 
 #### Updated
 - Update rocket to v0.5.0-rc.2 (#486)
