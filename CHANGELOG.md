@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [Unreleased]
+#### Added
 - Number of vdisks per disk in ccg can be specified via -p arg (#459)
 - Dockerfile arguments propagation (#483)
 
@@ -18,6 +32,7 @@ Bob versions changelog
 
 #### Updated
 - Update rocket to v0.5.0-rc.2 (#486)
+- Update Pearl to v0.12.0 
 
 
 ## [2.1.0-alpha.2] - 2022-04-26
