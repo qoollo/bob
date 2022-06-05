@@ -7,6 +7,7 @@ Bob versions changelog
 
 
 #### Changed
+- Publish available ram metric instead of calculated free ram, used ram is now calculated (#508)
 
 
 #### Fixed
