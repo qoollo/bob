@@ -7,6 +7,7 @@ Bob versions changelog
 
 
 #### Changed
+- Log about disk availability would be written once (#499)
 
 
 #### Fixed
