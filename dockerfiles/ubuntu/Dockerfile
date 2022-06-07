@@ -13,7 +13,7 @@ RUN rustup install $RUST_TC_VER \
 WORKDIR /usr/src/bob
 
 # crates downloading and initial build
-RUN mkdir -p bob/src bob-backend/src bob-common/src bob-grpc/src bob-apps/bin
+RUN mkdir -p bob/src bob-backend/src bob-backend/benches bob-common/src bob-grpc/src bob-apps/bin
 RUN mkdir target
 ENV OUT_DIR /usr/src/bob/target
 COPY Cargo.toml Cargo.toml
@@ -25,6 +25,7 @@ COPY bob-apps/Cargo.toml bob-apps/Cargo.toml
 
 RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/lib.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-backend/src/lib.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-backend/benches/key_cmp_benchmark.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-common/src/lib.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-grpc/src/lib.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/bobd.rs \
