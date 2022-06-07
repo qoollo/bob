@@ -7,7 +7,7 @@ Bob versions changelog
 
 
 #### Changed
-
+- Add special cmp for keys with sizes aligned with word (#496)
 
 #### Fixed
 
