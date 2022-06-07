@@ -50,18 +50,7 @@ impl<'a> From<&'a [u8]> for RefKey<'a> {
     }
 }
 
-fn le_cmp_keys(x: &[u8], y: &[u8]) -> std::cmp::Ordering {
-    use std::cmp::Ordering;
-    for i in (0..BOB_KEY_SIZE_USIZE).rev() {
-        let ord = x[i].cmp(&y[i]);
-        if ord != Ordering::Equal {
-            return ord;
-        }
-    }
-    Ordering::Equal
-}
-
-fn le_cmp_keys_opt(x: &[u8], y: &[u8]) -> std::cmp::Ordering {
+pub fn le_cmp_keys(x: &[u8], y: &[u8]) -> std::cmp::Ordering {
     use std::cmp::Ordering;
     if BOB_KEY_SIZE_USIZE == std::mem::size_of::<usize>() {
         let x_part: usize = usize::from_le_bytes(x.try_into().unwrap());
