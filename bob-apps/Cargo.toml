@@ -1,7 +1,10 @@
 [package]
 name = "bob-apps"
-version = "2.1.0-alpha.0"
-authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
+version = "2.1.0-alpha.3"
+authors = [
+    "Kirill Bushminkin <kb@qoollo.com>",
+    "Pavel Iakushin <pyakushin@qoollo.com>",
+]
 edition = "2018"
 
 [dependencies]
@@ -44,6 +47,9 @@ tower-service = "0.3"
 version = "1.14"
 default-features = false
 features = ["signal"]
+
+[dependencies.pearl]
+version = "0.12.0"
 
 [build-dependencies]
 tonic-build = "0.6"
