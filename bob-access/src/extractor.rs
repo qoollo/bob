@@ -55,21 +55,18 @@ impl<T: Extractor> ExtractorExt for T {
         header_map: &HeaderMap,
         addr: Option<SocketAddr>,
     ) -> Result<Option<Credentials>, Error> {
-        let username = if let Some(username) = header_map.get("username") {
-            username.to_str().map_err(Error::ConversionError)?
+        if let (Some(username), Some(password)) = 
+            (parse_header_field(header_map, "username")?, 
+            parse_header_field(header_map, "password")?)
+        {
+            let creds = Credentials::builder()
+                .with_username_password(username, password)
+                .with_address(addr)
+                .build();
+            Ok(Some(creds))
         } else {
-            return Ok(None);
-        };
-        let password = if let Some(password) = header_map.get("password") {
-            password.to_str().map_err(Error::ConversionError)?
-        } else {
-            return Ok(None);
-        };
-        let creds = Credentials::builder()
-            .with_username_password(username, password)
-            .with_address(addr)
-            .build();
-        Ok(Some(creds))
+            Ok(None)
+        }
     }
 
     fn extract_token(
@@ -77,16 +74,23 @@ impl<T: Extractor> ExtractorExt for T {
         header_map: &HeaderMap,
         addr: Option<SocketAddr>,
     ) -> Result<Option<Credentials>, Error> {
-        let token = if let Some(token) = header_map.get("token") {
-            token.to_str().map_err(Error::ConversionError)?
+        if let Some(token) = parse_header_field(header_map, "token")? {
+            let creds = Credentials::builder()
+                .with_token(token)
+                .with_address(addr)
+                .build();
+            Ok(Some(creds))
         } else {
-            return Ok(None);
-        };
-        let creds = Credentials::builder()
-            .with_token(token)
-            .with_address(addr)
-            .build();
-        Ok(Some(creds))
+            Ok(None)
+        }
+    }
+}
+
+fn parse_header_field<'a>(header: &'a HeaderMap, field: &str) -> Result<Option<&'a str>, Error> {
+    if let Some(value) = header.get(field) {
+        value.to_str().map_err(Error::ConversionError).map(|r| Some(r))
+    } else {
+        Ok(None)
     }
 }
 
