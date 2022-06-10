@@ -45,12 +45,12 @@ impl Error {
             InvalidToken(_) => StatusCode::BAD_REQUEST,
             Validation(_) => StatusCode::BAD_REQUEST,
             Os(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            UserNotFound => StatusCode::FORBIDDEN,
+            UserNotFound => StatusCode::UNAUTHORIZED,
             ConversionError(_) => StatusCode::BAD_REQUEST,
             CredentialsNotProvided(_) => StatusCode::UNAUTHORIZED,
             MultipleCredentialsTypes => StatusCode::BAD_REQUEST,
             UnauthorizedRequest => StatusCode::UNAUTHORIZED,
-            PermissionDenied => StatusCode::UNAUTHORIZED,
+            PermissionDenied => StatusCode::FORBIDDEN,
         }
     }
 
