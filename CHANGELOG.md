@@ -20,7 +20,64 @@ Bob versions changelog
 #### Updated
 
 
-## [2.1.0-alpha.0] - 2021-02-21
+
+## [2.1.0-alpha.3] - 2022-05-31
+#### Added
+- Number of vdisks per disk in ccg can be specified via -p arg (#459)
+- Dockerfile arguments propagation (#483)
+
+#### Changed
+- Number of vdisks in ccg now is defined by -p or -d arg only, -exact arg removed (#459)
+- RAM metrics (bob ram, total ram, used ram, free ram) are published in bytes now (#463)
+- CPU iowait & disks iowait, iops are now collected via procfs (#461)
+- Move brt utils to pearl (#415)
+
+#### Fixed
+- Fix docker image build parametrization (#494)
+
+#### Updated
+- Update rocket to v0.5.0-rc.2 (#486)
+- Update Pearl to v0.12.0 
+
+
+## [2.1.0-alpha.2] - 2022-04-26
+#### Added
+- Added grpc exist testing feature to bobp (#419)
+- Add support for hierarchical range filters (#439)
+
+#### Changed
+- Deleted dcr utility (#370)
+- Put error logs now agregate in one line every 5 sec (in case of disk disconnection) (#420)
+
+#### Fixed
+- Fix ping and timeout leading to sending too much requests (#438)
+- Get & Put speed calculation in bobp (#419)
+
+#### Updated
+- Update Pearl to v0.11.0
+
+
+## [2.1.0-alpha.1] - 2022-04-04
+#### Added
+- Add iops & iowait disk metrics (collected via iostat) & cpu_iowait metric (#342)
+- Add refkey to support pearl #141
+- API method for occupied space info (#404)
+- Added -init_folders flag that creates bob and alien folders (#180)
+- If bob and alien folders doesn't exist bobd will panic (#398)
+- root_dir_name to node configuration api (#440)
+
+#### Changed
+- All hardware metrics are now placed in 'hardware' group (#452)
+
+#### Fixed
+- brt: Version in BlobHeader now changes during migration (#447)
+- brt: Default target version is now 1 instead of 2 (#448)
+
+#### Updated
+- Update pearl to v0.10.0
+
+
+## [2.1.0-alpha.0] - 2022-02-21
 #### Added
 - Bloom filters memory metric (#400)
 - Add bob ram usage metric (#393)

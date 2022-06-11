@@ -12,6 +12,7 @@ mod tests;
 
 pub use self::{
     core::Pearl,
+    data::Key,
     disk_controller::DiskController,
     group::Group,
     holder::Holder,

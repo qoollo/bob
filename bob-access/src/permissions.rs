@@ -68,23 +68,3 @@ pub trait GetGrpcPermissions {
     fn get_grpc_permissions(&self) -> Option<Permissions>;
 }
 
-impl<T> GetGrpcPermissions for Request<T>
-where
-    T: std::fmt::Debug,
-{
-    fn get_grpc_permissions(&self) -> Option<Permissions> {
-        trace!("request: {:#?}", self);
-        if let Some(content_type) = self.headers().get(http::header::CONTENT_TYPE) {
-            let grpc_content_type = HeaderValue::from_static("application/grpc");
-            if content_type == grpc_content_type {
-                let perms = match *self.method() {
-                    Method::GET => Permissions::READ,
-                    Method::PUT | Method::DELETE | Method::POST => Permissions::WRITE,
-                    _ => Permissions::FORBIDDEN,
-                };
-                return Some(perms);
-            }
-        }
-        None
-    }
-}

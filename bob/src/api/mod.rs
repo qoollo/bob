@@ -1,4 +1,4 @@
-use crate::{build_info::BuildInfo, server::Server as BobServer};
+use crate::{build_info::BuildInfo, server::Server as BobServer, hw_metrics_collector::DiskSpaceMetrics};
 use axum::{
     body::{self, BoxBody},
     extract::{Extension, Path as AxumPath},
@@ -131,6 +131,14 @@ pub(crate) struct VersionInfo {
 #[derive(Debug, Serialize)]
 pub(crate) struct NodeConfiguration {
     blob_file_name_prefix: String,
+    root_dir_name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct SpaceInfo {
+    total_disk_space_bytes: u64,
+    free_disk_space_bytes: u64,
+    used_disk_space_bytes: u64,
 }
 
 pub(crate) fn spawn<A>(bob: BobServer<A>, address: IpAddr, port: u16)
@@ -167,6 +175,7 @@ where
 {
     vec![
         ("/status", get(status::<A>)),
+        ("/status/space", get(get_space_info::<A>)),
         ("/metrics", get(metrics::<A>)),
         ("/version", get(version)),
         ("/nodes", get(nodes::<A>)),
@@ -211,6 +220,7 @@ where
         ),
         ("/data/:key", get(get_data::<A>)),
         ("/data/:key", post(put_data::<A>)),
+        ("/data/:key", delete(delete_data::<A>)),
     ]
 }
 
@@ -247,7 +257,7 @@ fn collect_replicas_info(replicas: &[NodeDisk]) -> Vec<Replica> {
         .collect()
 }
 
-
+// GET /status
 async fn status<A: Authenticator>(bob: Extension<BobServer<A>>) -> Json<Node> {
     let mapper = bob.grinder().backend().mapper();
     let name = mapper.local_node_name().to_owned();
@@ -259,6 +269,21 @@ async fn status<A: Authenticator>(bob: Extension<BobServer<A>>) -> Json<Node> {
         vdisks,
     };
     Json(node)
+}
+
+// GET /status/space
+async fn get_space_info<A: Authenticator>(bob: Extension<BobServer<A>>) -> Result<Json<SpaceInfo>, StatusExt> {
+    let DiskSpaceMetrics {
+        total_space,
+        used_space,
+        free_space,
+    } = bob.grinder().hw_counter().update_space_metrics();
+
+    Ok(Json(SpaceInfo {
+        total_disk_space_bytes: total_space,
+        used_disk_space_bytes: used_space,
+        free_disk_space_bytes: free_space,
+    }))
 }
 
 fn not_acceptable_backend() -> StatusExt {
@@ -297,7 +322,7 @@ async fn find_group<A: Authenticator>(
     })
 }
 
-
+// GET /metrics
 async fn metrics<A: Authenticator>(
     bob: Extension<BobServer<A>>,
 ) -> Json<MetricsSnapshotModel> {
@@ -305,6 +330,7 @@ async fn metrics<A: Authenticator>(
     Json(snapshot.into())
 }
 
+// GET /version
 async fn version() -> Json<VersionInfo> {
     let build_info = BuildInfo::default();
 
@@ -329,6 +355,7 @@ async fn version() -> Json<VersionInfo> {
     Json(version_info)
 }
 
+// GET /nodes
 async fn nodes<A>(
     bob: Extension<BobServer<A>>,
     creds: Credentials,
@@ -348,11 +375,7 @@ where
             .filter_map(|vd| {
                 if vd.replicas.iter().any(|r| r.node == node.name()) {
                     let mut vd = vd.clone();
-                    for i in 0..vd.replicas.len() {
-                        if vd.replicas[i].node != node.name() {
-                            vd.replicas.remove(i);
-                        }
-                    }
+                    vd.replicas.retain(|r| r.node == node.name());
                     Some(vd)
                 } else {
                     None
@@ -373,6 +396,7 @@ where
     Ok(Json(nodes))
 }
 
+// GET /disks/list
 async fn disks_list<A>(
     bob: Extension<BobServer<A>>,
     creds: Credentials,
@@ -406,6 +430,7 @@ where
     Ok(Json(disks))
 }
 
+// GET /metadata/distrfunc
 async fn distribution_function<A>(
     bob: Extension<BobServer<A>>,
     creds: Credentials,
@@ -421,6 +446,7 @@ where
     Ok(Json(DistrFunc { func }))
 }
 
+// GET /configuration
 async fn get_node_configuration<A>(
     bob: Extension<BobServer<A>>,
     creds: Credentials,
@@ -431,18 +457,16 @@ where
     if !bob.auth().check_credentials(creds)?.has_rest_read() {
         return Err(AuthError::PermissionDenied);
     }
-    let blob_file_name_prefix = bob
-        .grinder()
-        .node_config()
-        .pearl()
-        .blob_file_name_prefix()
-        .to_owned();
-    let node_configuration = NodeConfiguration {
-        blob_file_name_prefix,
-    };
-    Ok(Json(node_configuration))
+
+    let grinder = bob.grinder();
+    let config = grinder.node_config();
+    Ok(Json(NodeConfiguration {
+        blob_file_name_prefix: config.pearl().blob_file_name_prefix().to_owned(),
+        root_dir_name: config.pearl().settings().root_dir_name().to_owned(),
+    }))
 }
 
+// POST /disks/:disk_name/stop
 async fn stop_all_disk_controllers<A>(
     bob: Extension<BobServer<A>>,
     AxumPath(disk_name): AxumPath<String>,
@@ -470,6 +494,7 @@ where
     Ok(status_ext)
 }
 
+// POST /disks/:disk_name/start
 async fn start_all_disk_controllers<A>(
     bob: Extension<BobServer<A>>,
     AxumPath(disk_name): AxumPath<String>,
@@ -519,6 +544,7 @@ where
     }
 }
 
+// GET /vdisks
 async fn vdisks<A>(
     bob: Extension<BobServer<A>>,
     creds: Credentials,
@@ -533,6 +559,7 @@ where
     Ok(Json(vdisks))
 }
 
+// DELETE /blobs/outdated
 async fn finalize_outdated_blobs<A>(
     bob: Extension<BobServer<A>>,
     creds: Credentials,
@@ -549,6 +576,7 @@ where
     Ok(StatusExt::new(StatusCode::OK, true, msg))
 }
 
+// GET /vdisks/:vdisk_id
 async fn vdisk_by_id<A>(
     bob: Extension<BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
@@ -565,6 +593,7 @@ where
         .ok_or_else(|| StatusExt::new(StatusCode::NOT_FOUND, false, "vdisk not found".to_string()))
 }
 
+// GET /vdisks/:vdisk_id/records/count
 async fn vdisk_records_count<A>(
     bob: Extension<BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
@@ -586,6 +615,7 @@ where
     Ok(Json(sum as u64))
 }
 
+// GET /vdisks/:vdisk_id/partitions
 async fn partitions<A>(
     bob: Extension<BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
@@ -617,6 +647,7 @@ where
     Ok(Json(ps))
 }
 
+// GET /vdisks/:vdisk_id/partitions/:partition_id
 async fn partition_by_id<A>(
     bob: Extension<BobServer<A>>,
     AxumPath((vdisk_id, partition_id)): AxumPath<(u32, String)>,
@@ -656,6 +687,7 @@ where
     })
 }
 
+// POST /vdisks/:vdisk_id/partitions/by_timestamp/:timestamp/:action
 async fn change_partition_state<A>(
     bob: Extension<BobServer<A>>,
     AxumPath((vdisk_id, timestamp, action)): AxumPath<(u32, u64, Action)>,
@@ -684,6 +716,7 @@ where
     }
 }
 
+// POST /vdisks/:vdisk_id/remount
 async fn remount_vdisks_group<A>(
     bob: Extension<BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
@@ -705,6 +738,7 @@ where
     }
 }
 
+// DELETE /vdisks/:vdisk_id/partitions/by_timestamp/:timestamp
 async fn delete_partition<A>(
     bob: Extension<BobServer<A>>,
     AxumPath((vdisk_id, timestamp)): AxumPath<(u32, u64)>,
@@ -755,10 +789,12 @@ async fn drop_directories(
     }
 }
 
+// GET /alien
 async fn alien() -> &'static str {
     "alien"
 }
 
+// POST /alien/detach
 async fn detach_alien_partitions<A>(
     bob: Extension<BobServer<A>>,
     creds: Credentials,
@@ -777,6 +813,7 @@ where
     Ok(StatusExt::new(StatusCode::OK, true, String::default()))
 }
 
+// GET /alien/dir
 async fn get_alien_directory<A>(
     bob: Extension<BobServer<A>>,
     creds: Credentials,
@@ -796,6 +833,7 @@ where
     Ok(Json(dir))
 }
 
+// GET /vdisks/:vdisk_id/replicas/local/dirs
 async fn get_local_replica_directories<A>(
     bob: Extension<BobServer<A>>,
     AxumPath(vdisk_id): AxumPath<u32>,
@@ -858,6 +896,7 @@ async fn read_directory_children(mut read_dir: ReadDir, name: &str, path: &str) 
     }
 }
 
+// GET /data/:key
 async fn get_data<A>(
     bob: Extension<BobServer<A>>,
     AxumPath(key): AxumPath<String>,
@@ -890,6 +929,7 @@ where
     Ok((headers, result.inner().to_owned()))
 }
 
+// POST /data/:key
 async fn put_data<A>(
     bob: Extension<BobServer<A>>,
     AxumPath(key): AxumPath<String>,
@@ -910,6 +950,24 @@ where
     let opts = BobOptions::new_put(None);
     bob.grinder().put(key, data, opts).await?;
     Ok(StatusCode::CREATED.into())
+}
+
+// DELETE /data/:key
+async fn delete_data<A>(
+    bob: Extension<BobServer<A>>,
+    AxumPath(key): AxumPath<String>,
+    creds: Credentials,
+) -> Result<StatusExt, StatusExt>
+where
+    A: Authenticator,
+{
+    if !bob.auth().check_credentials(creds)?.has_rest_write() {
+        return Err(AuthError::PermissionDenied.into());
+    }
+    let key = DataKey::from_str(&key)?.0;
+    bob.block_on(bob.grinder().delete(key, true))
+        .map_err(|e| internal(e.to_string()))
+        .map(|res| StatusExt::new(StatusCode::OK, true, format!("{}", res)))
 }
 
 fn internal(message: String) -> StatusExt {
