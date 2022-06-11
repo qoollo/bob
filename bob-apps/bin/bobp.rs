@@ -120,7 +120,7 @@ impl TaskConfig {
                 );
             }
         }
-        let basic_username = matches.value_of("username").map(|s| s.to_string());
+        let basic_username = matches.value_of("user").map(|s| s.to_string());
         let basic_password = matches.value_of("password").map(|s| s.to_string());
 
         Self {
@@ -830,10 +830,10 @@ fn get_matches() -> ArgMatches<'static> {
                 .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8")),
         )
         .arg(
-            Arg::with_name("username")
+            Arg::with_name("user")
                 .help("username for auth")
                 .takes_value(true)
-                .long("username"),
+                .long("user"),
         )
         .arg(
             Arg::with_name("password")
