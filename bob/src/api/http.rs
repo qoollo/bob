@@ -17,7 +17,7 @@ use rocket::{
     serde::{json::Json, uuid::Uuid},
     Config, Data, Request, Response, Rocket, State,
 };
-use std::net::IpAddr;
+use std::{collections::HashMap, net::IpAddr};
 use std::{
     io::{Cursor, Error as IoError, ErrorKind},
     path::{Path, PathBuf},
@@ -122,6 +122,8 @@ pub(crate) struct SpaceInfo {
     total_disk_space_bytes: u64,
     free_disk_space_bytes: u64,
     used_disk_space_bytes: u64,
+    occupied_disk_space_bytes: u64,
+    occupied_disk_space_by_disk: HashMap<String, u64>
 }
 
 pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
@@ -151,7 +153,7 @@ pub(crate) fn spawn(bob: BobServer, address: IpAddr, port: u16) {
         get_data,
         put_data,
         metrics,
-        get_space_info
+        get_space_info,
     ];
     info!("API server started");
     let mut config = Config::release_default();
@@ -254,10 +256,25 @@ async fn get_space_info(bob: &State<BobServer>) -> Result<Json<SpaceInfo>, Statu
         free_space,
     } = bob.grinder().hw_counter().update_space_metrics();
 
+    let backend = bob.grinder().backend().inner();
+    let (dcs, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    let mut map = HashMap::new();
+    for dc in dcs.iter() {
+        map.insert(dc.disk().name().to_string(), dc.disk_used().await);
+    }
+    let adc_space = adc.disk_used().await;
+    map.entry(adc.disk().name().to_string())
+        .and_modify(|s| *s = *s + adc_space)
+        .or_insert(adc_space);
+
     Ok(Json(SpaceInfo {
         total_disk_space_bytes: total_space,
         used_disk_space_bytes: used_space,
         free_disk_space_bytes: free_space,
+        occupied_disk_space_bytes: map.values().sum(),
+        occupied_disk_space_by_disk: map
     }))
 }
 
