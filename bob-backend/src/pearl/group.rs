@@ -563,6 +563,17 @@ impl Group {
     pub(crate) async fn filter_memory_allocated(&self) -> usize {
         self.holders.read().await.filter_memory_allocated().await
     }
+
+    pub async fn disk_used(&self) -> u64 {
+        self.holders
+            .read()
+            .await
+            .iter()
+            .map(|h| h.disk_used())
+            .collect::<FuturesUnordered<_>>()
+            .fold(0, |acc, x| async move { acc + x })
+            .await
+    }
 }
 
 async fn close_holders(holders: impl Iterator<Item = &Holder>) {

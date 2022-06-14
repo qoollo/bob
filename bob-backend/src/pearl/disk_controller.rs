@@ -608,4 +608,15 @@ impl DiskController {
     pub(crate) fn groups(&self) -> Arc<RwLock<Vec<Group>>> {
         self.groups.clone()
     }
+
+    pub async fn disk_used(&self) -> u64 {
+        self.groups
+            .read()
+            .await
+            .iter()
+            .map(|h| h.disk_used())
+            .collect::<FuturesUnordered<_>>()
+            .fold(0, |acc, x| async move { acc + x })
+            .await
+    }
 }
