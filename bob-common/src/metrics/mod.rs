@@ -100,6 +100,7 @@ pub const BOB_RAM: &str = "hardware.bob_ram";
 pub const FREE_SPACE: &str = "hardware.free_space";
 pub const USED_SPACE: &str = "hardware.used_space";
 pub const TOTAL_SPACE: &str = "hardware.total_space";
+pub const DISK_USED: &str = "hardware.used_disk";
 
 const CLIENTS_METRICS_DIR: &str = "clients";
 
