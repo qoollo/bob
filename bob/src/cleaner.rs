@@ -52,9 +52,6 @@ impl Cleaner {
                 let hard = hard.unwrap_or(10);
                 backend.close_unneeded_active_blobs(soft, hard).await;
             }
-            if let Some(limit) = bloom_filter_memory_limit {
-                backend.offload_old_filters(limit).await;
-            }
             if let Some(limit) = index_memory_limit {
                 let mut memory = backend.index_memory().await;
                 info!("Memory before closing old active blobs: {:?}", memory);
@@ -67,6 +64,9 @@ impl Cleaner {
                     }
                 }
                 info!("Memory after closing old active blobs: {:?}", memory);
+            }
+            if let Some(limit) = bloom_filter_memory_limit {
+                backend.offload_old_filters(limit).await;
             }
         }
     }
