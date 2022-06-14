@@ -9,7 +9,6 @@ use bob_common::metrics::pearl::{
     PEARL_GET_BYTES_COUNTER, PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER,
     PEARL_PUT_BYTES_COUNTER, PEARL_PUT_COUNTER, PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
 };
-use futures::FutureExt;
 use pearl::error::{AsPearlError, ValidationErrorKind};
 use pearl::BloomProvider;
 use pearl::FilterResult;
@@ -124,10 +123,7 @@ impl Holder {
     }
 
     fn get_current_ts() -> u64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("current time is before unix epoch")
-            .as_secs()
+        coarsetime::Clock::now_since_epoch().as_secs()
     }
 
     pub async fn close_active_blob(&self) {
