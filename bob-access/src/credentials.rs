@@ -20,6 +20,41 @@ pub enum CredentialsKind {
     Token(String),
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum CredentialsType {
+    Stub,
+    Basic,
+    Token,
+}
+
+impl CredentialsType {
+    pub fn is_basic(&self) -> bool {
+        *self == CredentialsType::Basic
+    }
+
+    pub fn is_stub(&self) -> bool {
+        *self == CredentialsType::Stub
+    }
+}
+
+fn _credentials_type(tp: Option<CredentialsType>) -> CredentialsType {
+    static mut CREDENTIALS_TYPE: CredentialsType = CredentialsType::Stub;
+    unsafe {
+        if let Some(tp) = tp {
+            CREDENTIALS_TYPE = tp;
+        }
+        CREDENTIALS_TYPE
+    }
+}
+
+pub fn credentials_type() -> CredentialsType {
+    _credentials_type(None)
+}
+
+pub fn set_credentials_type(tp: CredentialsType) {
+    _credentials_type(Some(tp));
+}
+
 impl Credentials {
     pub fn builder() -> CredentialsBuilder {
         CredentialsBuilder::default()

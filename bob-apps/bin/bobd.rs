@@ -2,7 +2,7 @@ use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
     VirtualMapper, BackendType,
 };
-use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap};
+use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap, set_credentials_type, CredentialsType};
 use clap::{crate_version, App, Arg, ArgMatches};
 use std::{
     collections::HashMap,
@@ -100,12 +100,14 @@ async fn main() {
     let authentication_type = matches.value_of("authentication_type").unwrap();
     match authentication_type {
         "stub" => {
+            set_credentials_type(CredentialsType::Stub);
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let authenticator = StubAuthenticator::new(users_storage);
             run_server(node, authenticator, mapper, http_api_address, http_api_port, addr).await;
         }
         "basic" => {
+            set_credentials_type(CredentialsType::Basic);
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let mut authenticator = BasicAuthenticator::new(users_storage);

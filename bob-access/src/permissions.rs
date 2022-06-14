@@ -1,5 +1,4 @@
 use bitflags::bitflags;
-use http::{HeaderValue, Method, Request};
 use std::fmt::Display;
 
 use crate::authenticator::User;
