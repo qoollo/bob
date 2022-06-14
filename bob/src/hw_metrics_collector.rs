@@ -106,9 +106,8 @@ impl HWMetricsCollector {
 
             let _ = Self::update_space_metrics_from_disks(&disks);
             let available_mem = kb_to_b(sys.available_memory());
-            debug!("available mem in bytes: {}", available_mem);
             let used_mem = total_mem - available_mem;
-            debug!("used mem in bytes: {}", used_mem);
+            debug!("used mem in bytes: {} | available mem in bytes: {}", used_mem, available_mem);
             gauge!(USED_RAM, used_mem as f64);
             gauge!(AVAILABLE_RAM, available_mem as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
