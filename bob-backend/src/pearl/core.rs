@@ -242,8 +242,9 @@ impl BackendStorage for Pearl {
         }
 
         if let Some(h) = oldest {
+            let memory = h.index_memory().await;
             h.close_active_blob().await;
-            Some(h.index_memory().await)
+            Some(memory)
         } else {
             None
         }

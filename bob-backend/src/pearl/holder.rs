@@ -98,6 +98,11 @@ impl Holder {
         ts > self.end_timestamp
     }
 
+    pub fn is_older_than(&self, secs: u64) -> bool {
+        let ts = Self::get_current_ts();
+        (ts - secs) > self.end_timestamp
+    }
+
     pub async fn no_writes_recently(&self) -> bool {
         let ts = Self::get_current_ts();
         let last_write_ts = *self.last_write_ts.read().await;

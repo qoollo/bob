@@ -478,9 +478,10 @@ impl Group {
         let holders_lock = self.holders();
         let holders = holders_lock.read().await;
         let mut result: Option<Holder> = None;
+        let period = self.settings.timestamp_period_as_secs() / 2;
         for holder in holders.iter() {
-            if let Some(is_empty) = holder.active_blob_is_empty().await {
-                if !is_empty && holder.is_outdated() {
+            if holder.active_blob_is_empty().await.is_some() {
+                if holder.is_outdated() && holder.is_older_than(period) {
                     if holder.end_timestamp()
                         < result
                             .as_ref()
@@ -502,12 +503,10 @@ impl Group {
         let mut total_open_blobs = 0;
         let mut close = vec![];
         for h in holders.iter() {
-            if let Some(is_empty) = h.active_blob_is_empty().await {
-                if !is_empty {
-                    total_open_blobs += 1;
-                    if h.is_outdated() && h.no_writes_recently().await {
-                        close.push(h);
-                    }
+            if h.active_blob_is_empty().await.is_some() {
+                total_open_blobs += 1;
+                if h.is_outdated() && h.no_writes_recently().await {
+                    close.push(h);
                 }
             }
         }
