@@ -637,7 +637,7 @@ fn print_periodic_stat(
             let exist_count_spd = d_exist * 1000 / period_ms;
             let cur_st_exist_time = exist_time_st.get_diff() as f64;
             let cur_st_exist_count = exist_count_st.get_diff() as f64;
-            let exist_error = stat.get_error_count.load(Ordering::Relaxed);
+            let exist_error = stat.exist_error_count.load(Ordering::Relaxed);
             let exist_spd = exist_size.get_diff() as f64 / 1024.0 / sec;
             println!("exist: {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
                 exist_count_spd,
