@@ -761,6 +761,8 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
 async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = net_conf.build_client().await;
 
+    let request_creator = task_conf.get_request_creator::<ExistRequest>();
+
     let options = task_conf.find_get_options();
     let send_size_bytes = task_conf.packet_size * (task_conf.key_size as u64);
     let measure_time = task_conf.is_time_measurement_thread();
@@ -773,7 +775,7 @@ async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat
             BlobKey {
                 key: task_conf.get_proper_key(*key),
             }).collect();
-        let request = Request::new(ExistRequest {
+        let request = request_creator(ExistRequest {
             keys,
             options: options.clone(),
         });
