@@ -506,6 +506,7 @@ vdisks:
     fn test_node_config() {
         let s = "
 log_config: logger.yaml
+users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
@@ -522,6 +523,7 @@ cleanup_interval: 1d
     fn test_node_pearl_config_no_pearl_config() {
         let s = "
 log_config: logger.yaml
+users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
@@ -538,6 +540,7 @@ cleanup_interval: 1d
     fn test_node_pearl_config() {
         let s = "
 log_config: logger.yaml
+users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
@@ -565,6 +568,7 @@ pearl:
     fn test_node_pearl_config_big_timestamp() {
         let s = "
 log_config: logger.yaml
+users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
@@ -592,6 +596,7 @@ pearl:
     fn test_node_pearl_config2() {
         let s = "
 log_config: logger.yaml
+users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
@@ -619,6 +624,7 @@ pearl:
     fn test_node_pearl_config_invalid_retry_time() {
         let s = "
 log_config: logger.yaml
+users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
@@ -646,6 +652,7 @@ pearl:
     fn test_node_config_invalid_backend_type() {
         let s = "
 log_config: logger.yaml
+users_config: users.yaml
 name: n1
 quorum: 1
 operation_timeout: 12h 5min 2ns
@@ -680,6 +687,7 @@ vdisks:
     fn test_node_config_invalid_time() {
         let s = "
 log_config: logger.yaml
+users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
@@ -696,6 +704,7 @@ cleanup_interval: 1d
     fn test_node_config_valid() {
         let s = "
 log_config: logger.yaml
+users_config: users.yaml
 name: n1
 quorum: 1
 operation_timeout: 12h 5min 2ns
@@ -729,6 +738,7 @@ vdisks:
     fn test_node_config_invalid() {
         let s = "
 log_config: logger.yaml
+users_config: users.yaml
 name: 1n2112321321321321
 quorum: 1
 operation_timeout: 12h 5min 2ns
@@ -762,6 +772,7 @@ vdisks:
     fn test_node_config_with_metrics() {
         let s = "
 log_config: logger.yaml
+users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
@@ -784,6 +795,7 @@ metrics:                      # optional, send metrics
     fn test_node_config_with_metrics_invalid_graphite() {
         let s = "
 log_config: logger.yaml
+users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
@@ -805,6 +817,7 @@ metrics:                      # optional, send metrics
     fn test_node_config_with_metrics_no_fields() {
         let s = "
 log_config: logger.yaml
+users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
