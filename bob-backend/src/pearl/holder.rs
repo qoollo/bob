@@ -109,6 +109,10 @@ impl Holder {
         ts - last_write_ts > MAX_TIME_SINCE_LAST_WRITE_SEC
     }
 
+    pub async fn has_active_blob(&self) -> bool {
+        self.storage().read().await.has_active_blob().await
+    }
+
     pub async fn active_blob_is_empty(&self) -> Option<bool> {
         self.storage()
             .read()
@@ -529,6 +533,10 @@ impl PearlSync {
 
     pub async fn blobs_count(&self) -> usize {
         self.storage().blobs_count().await
+    }
+
+    pub async fn has_active_blob(&self) -> bool {
+        self.storage().has_active_blob().await
     }
 
     #[inline]

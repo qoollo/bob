@@ -480,7 +480,7 @@ impl Group {
         let mut result: Option<Holder> = None;
         let period = self.settings.timestamp_period_as_secs() / 2;
         for holder in holders.iter() {
-            if holder.active_blob_is_empty().await.is_some() {
+            if holder.has_active_blob().await {
                 if holder.is_outdated() && holder.is_older_than(period) {
                     if holder.end_timestamp()
                         < result
@@ -503,7 +503,7 @@ impl Group {
         let mut total_open_blobs = 0;
         let mut close = vec![];
         for h in holders.iter() {
-            if h.active_blob_is_empty().await.is_some() {
+            if h.has_active_blob().await {
                 total_open_blobs += 1;
                 if h.is_outdated() && h.no_writes_recently().await {
                     close.push(h);
