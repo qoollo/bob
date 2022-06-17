@@ -478,7 +478,7 @@ impl Group {
         let holders_lock = self.holders();
         let holders = holders_lock.read().await;
         let mut result: Option<Holder> = None;
-        let period = self.settings.timestamp_period_as_secs() / 2;
+        let period = self.settings.timestamp_period_as_secs() / 2 + 10;
         for holder in holders.iter() {
             if holder.has_active_blob().await {
                 if holder.is_outdated() && holder.is_older_than(period) {
