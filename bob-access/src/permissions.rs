@@ -62,8 +62,3 @@ impl Display for Permissions {
         )
     }
 }
-
-pub trait GetGrpcPermissions {
-    fn get_grpc_permissions(&self) -> Option<Permissions>;
-}
-
