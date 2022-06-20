@@ -34,7 +34,7 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/ccg.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/dcr.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/brt.rs \
-  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-access/src/main.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-access/src/lib.rs \
   && cargo build --release --target=x86_64-unknown-linux-gnu
 
 
@@ -44,7 +44,8 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grp
 COPY bob-grpc/proto/* bob-grpc/proto/
 COPY bob-grpc/build.rs bob-grpc/build.rs
 RUN cargo build --release --target=x86_64-unknown-linux-gnu \
-  && rm -f target/x86_64-unknown-linux-musl/release/deps/bob*
+  && rm -f target/x86_64-unknown-linux-gnu/release/deps/bob* \
+  && rm -f target/x86_64-unknown-linux-gnu/release/deps/libbob*
 
 # final build
 COPY . .
