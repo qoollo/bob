@@ -1,0 +1,24 @@
+version: "3.7"
+
+services:
+  {% for item in range(amount_of_nodes) %}
+  bob_node{{ item }}:
+    image: {{ version }}
+    volumes:
+      - "{{ path }}:/bob/configs"
+      - "{{ path }}/data{{ item }}:/bob/data"
+    command: "cluster.yaml.bobnet node.yaml.bobnet{{ item }} --init_folders"
+    hostname: bob_node{{ item }}
+    ports:
+      - "{{ 20000|int + item }}:20000/tcp"
+      - "{{ 8000|int + item }}:8000/tcp"
+    networks:
+      default:
+        aliases:
+          - node{{ item }}
+   {% endfor %}
+
+networks:
+  default:
+    external: true
+    name: bob_net

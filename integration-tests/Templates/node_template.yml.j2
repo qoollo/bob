@@ -1,0 +1,34 @@
+
+log_config: {{ log_config }}    # logger config file
+name: local_node_{{ node_number }}        # node name, required to match with cluster config
+quorum: {{ quorum }}         # min count of successful operations on replicas to consider operation successful
+operation_timeout: {{ operation_timeout }}           # timeout for every GRPC operation, eg: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
+check_interval: {{ check_interval }}              # interval for checking connections , eg: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
+cluster_policy: {{ cluster_policy }}              # simple - without checking status [simple, quorum]
+backend_type: {{ backend_type }}                 # type of the backend [in_memory, stub, pearl]
+cleanup_interval: {{ cleanup_interval }}               # interval for checking for blobs cleanup
+open_blobs_soft_limit: {{ open_blobs_soft_limit }}           # soft limit for count of max blobs to remain in ram
+open_blobs_hard_limit: {{ open_blobs_hard_limit }}           # hard limit for count of max blobs to remain in ram
+init_par_degree: 4   # degree of parallelism in disks initialization
+http_api_port: 8000
+
+pearl:                              # used only for 'backend_type: pearl'
+  enable_aio: {{ enable_aio }}                  # optional, default = true, enables linux AIO
+  max_blob_size: {{ max_blob_size }}        # size in bytes. required for 'pearl'
+  allow_duplicates: {{ allow_duplicates }}            # optional, required for 'pearl', disables search for existing keys before write
+  max_data_in_blob: {{ max_data_in_blob }} # optional
+  blob_file_name_prefix: {{ blob_file_name_prefix }}        # optional
+  fail_retry_timeout: {{ fail_retry_timeout }}            # mls, retry to reinit pearl backend after fail. required for 'pearl'
+  disks_events_logfile: "{{ disks_events_logfile }}"
+  settings:                         # describes how create and manage bob directories. required for 'pearl'
+    root_dir_name: {{ root_dir_name }}              # root dir for bob storage. required for 'pearl'
+    alien_root_dir_name: {{ alien_root_dir_name }} # root dir for alien storage in 'alien_disk'. required for 'pearl'
+    timestamp_period: {{ timestamp_period }}         # period when new pearl directory created. required for 'pearl'
+    create_pearl_wait_delay: {{ create_pearl_wait_delay }}  # each thread will wait this peariod if another thread init requieed pearl. required for 'pearl'
+
+metrics:                    # optional, send metrics
+  name: {{ metrics_name }}
+  graphite_enabled: {{ graphite_enabled }}
+  graphite: 127.0.0.1:2003    # optional, send metrics to graphite
+  prometheus_enabled: {{ graphite_enabled }}
+  prometheus_addr: "0.0.0.0:9000"
