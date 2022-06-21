@@ -22,7 +22,7 @@ jobs:
         run: |
           pip3 install python-on-whales, jinja2, docker
       - name: Install compose
-      - uses: KengoTODA/actions-setup-docker-compose@main
+        uses: KengoTODA/actions-setup-docker-compose@main
         with:
           version: '2.6.0'
         env:
