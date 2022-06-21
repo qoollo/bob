@@ -20,8 +20,7 @@ jobs:
           python-version: '3.x'
       - name: Install deps
         run: |
-          python3 -m pip install --upgrade pip
-          pip install -r ./requirements.txt
+          /usr/bin/pip3 install -r ./requirements.txt
         working-directory: ./integration-tests
       - name: Install compose
         uses: KengoTODA/actions-setup-docker-compose@main
