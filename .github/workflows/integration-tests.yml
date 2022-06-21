@@ -12,7 +12,8 @@ jobs:
   setup-enviroment:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checks-out repo
+        uses: actions/checkout@v2
       - name: Install python
         uses: actions/setup-python@v4
         with:
@@ -28,7 +29,8 @@ jobs:
       AMOUNT_OF_NODES: 4
       VERSION: ${{ github.event.release.tag_name }}
     steps:
-      - uses: actions/checkout@v2
+      - name: Checks-out repo
+        uses: actions/checkout@v2
       - name: Generate config files for docker and bob
         run: |
           generate_from_templates.py -a $AMOUNT_OF_NODES -v $VERSION --path $PATH
@@ -39,7 +41,8 @@ jobs:
    env:
      PATH_TO_CONFIGS: $PATH/generated_configs
    steps:
-     - uses: actions/checkout@v2
+     - name: Checks-out repo
+       uses: actions/checkout@v2
      - name: Deploy docker containers
        run: |
           deploy.py --path $PATH_TO_CONFIGS -d 4 -r 2
@@ -51,7 +54,8 @@ jobs:
      PAYLOAD: 10240
      COUNT: 10000
    steps:
-     - uses: actions/checkout@v2
+     - name: Checks-out repo
+       uses: actions/checkout@v2
      - name: Run write/read tests
        run: |
           tests.py -l $PAYLOAD -c $COUNT -n 0.0.0.0
