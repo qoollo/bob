@@ -485,6 +485,7 @@ pub struct Node {
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
     bloom_filter_memory_limit: Option<ByteUnit>,
+    index_memory_limit: Option<ByteUnit>,
     #[serde(default = "Node::default_init_par_degree")]
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
@@ -618,34 +619,35 @@ impl NodeConfig {
             .into()
     }
 
-    pub fn open_blobs_soft(&self) -> usize {
-        self.open_blobs_soft_limit
-            .and_then(|i| {
-                if i == 0 {
-                    error!("soft open blobs limit can't be less than 1");
-                    None
-                } else {
-                    Some(i)
-                }
-            })
-            .unwrap_or(1)
+    pub fn open_blobs_soft(&self) -> Option<usize> {
+        self.open_blobs_soft_limit.and_then(|i| {
+            if i == 0 {
+                error!("soft open blobs limit can't be less than 1");
+                None
+            } else {
+                Some(i)
+            }
+        })
     }
 
-    pub fn hard_open_blobs(&self) -> usize {
-        self.open_blobs_hard_limit
-            .and_then(|i| {
-                if i == 0 {
-                    error!("hard open blobs limit can't be less than 1");
-                    None
-                } else {
-                    Some(i)
-                }
-            })
-            .unwrap_or(10)
+    pub fn hard_open_blobs(&self) -> Option<usize> {
+        self.open_blobs_hard_limit.and_then(|i| {
+            if i == 0 {
+                error!("hard open blobs limit can't be less than 1");
+                None
+            } else {
+                Some(i)
+            }
+        })
     }
 
     pub fn bloom_filter_memory_limit(&self) -> Option<usize> {
-        self.bloom_filter_memory_limit.map(|bu| bu.as_u64() as usize)
+        self.bloom_filter_memory_limit
+            .map(|bu| bu.as_u64() as usize)
+    }
+
+    pub fn index_memory_limit(&self) -> Option<usize> {
+        self.index_memory_limit.map(|bu| bu.as_u64() as usize)
     }
 
     #[inline]
@@ -788,6 +790,7 @@ pub mod tests {
             http_api_address: NodeConfig::default_http_api_address(),
             bind_to_ip_address: None,
             bloom_filter_memory_limit: None,
+            index_memory_limit: None,
             holder_group_size: 8,
         }
     }

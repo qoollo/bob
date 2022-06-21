@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Memory limit for indexes (#466)
 
 #### Changed
 - Publish available ram metric instead of calculated free ram, used ram is now calculated (#508)

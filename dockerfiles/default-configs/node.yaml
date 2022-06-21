@@ -32,6 +32,10 @@ cleanup_interval: 1h
 open_blobs_soft_limit: 2
 # hard limit for count of max blobs to remain in ram
 open_blobs_hard_limit: 10
+# [size] memory limit for all bloom filters. Unlimited if not specified
+bloom_filter_memory_limit: 8 GiB
+# [size] memory limit for all indexes. Unlimited if not specified
+index_memory_limit: 8 GiB
 
 # used only for 'backend_type: pearl'
 pearl:

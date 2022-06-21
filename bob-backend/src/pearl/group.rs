@@ -474,6 +474,28 @@ impl Group {
         String::from_utf8(hex).unwrap()
     }
 
+    pub(crate) async fn find_oldest_inactive_holder(&self) -> Option<Holder> {
+        let holders_lock = self.holders();
+        let holders = holders_lock.read().await;
+        let mut result: Option<Holder> = None;
+        let period = self.settings.timestamp_period_as_secs() / 2 + 10;
+        for holder in holders.iter() {
+            if holder.has_active_blob().await {
+                if holder.is_outdated() && holder.is_older_than(period) {
+                    if holder.end_timestamp()
+                        < result
+                            .as_ref()
+                            .map(|h| h.end_timestamp())
+                            .unwrap_or(u64::MAX)
+                    {
+                        result = Some(holder.clone());
+                    }
+                }
+            }
+        }
+        result
+    }
+
     pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
         let holders_lock = self.holders();
         let holders = holders_lock.read().await;
@@ -481,7 +503,7 @@ impl Group {
         let mut total_open_blobs = 0;
         let mut close = vec![];
         for h in holders.iter() {
-            if !h.active_blob_is_empty().await {
+            if h.has_active_blob().await {
                 total_open_blobs += 1;
                 if h.is_outdated() && h.no_writes_recently().await {
                     close.push(h);
@@ -498,7 +520,7 @@ impl Group {
 
         let mut is_small = vec![];
         for h in &close {
-            is_small.push(h.active_blob_is_small().await);
+            is_small.push(h.active_blob_is_small().await.unwrap_or_default());
         }
 
         let mut close: Vec<_> = close.into_iter().enumerate().collect();
