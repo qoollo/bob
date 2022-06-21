@@ -1,7 +1,7 @@
 #!/usr/bin/python3
+import os, argparse, sys, subprocess, shlex, docker, python_on_whales
 from time import sleep
 from python_on_whales import docker as d_cli
-import os, argparse, sys, subprocess, shlex, docker
 from docker import errors as d_err
 from docker import types as d_types
 
