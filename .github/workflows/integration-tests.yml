@@ -1,0 +1,45 @@
+name: integration-tests
+on:
+  push:
+    branches: [ "518-implement-semi-automatic-integration-tests" ]
+  pull_request:
+    branches: [ "518-implement-semi-automatic-integration-tests" ]
+
+env:
+  PATH: "/tmp"
+
+jobs:
+  generate-configs:
+    runs-on: ubuntu-latest
+    env:
+      AMOUNT_OF_NODES: 4
+      VERSION: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Generate config files for docker and bob
+        run: |
+          generate_from_templates.py -a $AMOUNT_OF_NODES -v $VERSION --path $PATH
+        working-directory: ./integration-tests
+        
+  deploy-containers:
+   runs-on: ubuntu-latest
+   env:
+     PATH_TO_CONFIGS: $PATH/generated_configs
+   steps:
+     - uses: actions/checkout@v2
+     - name: Deploy docker containers
+       run: |
+          deploy.py --path $PATH_TO_CONFIGS -d 4 -r 2
+       working-directory: ./integration-tests
+       
+  run-tests:
+   runs-on: ubuntu-latest
+   env:
+     PAYLOAD: 10240
+     COUNT: 10000
+   steps:
+     - uses: actions/checkout@v2
+     - name: Run write/read tests
+       run: |
+          tests.py -l $PAYLOAD -c $COUNT -n 0.0.0.0
+       working-directory: ./integration-tests
