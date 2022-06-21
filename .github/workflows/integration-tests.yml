@@ -20,7 +20,11 @@ jobs:
           python-version: '3.x'
       - name: Install deps
         run: |
-          pip3 install docker_on_whales, jinja2, docker
+          pip3 install python-on-whales, jinja2, docker
+      - name: Install compose
+      - uses: KengoTODA/actions-setup-docker-compose@main
+        with:
+          version: '2.6.0'
         env:
           AMOUNT_OF_NODES: 4
           VERSION: ${{ github.event.release.tag_name }}
