@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use bob_common::metrics::{
-    BOB_RAM, CPU_IOWAIT, CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, HW_DISKS_FOLDER,
+    BOB_RAM, CPU_IOWAIT, CPU_LOAD, DESCRIPTORS_AMOUNT, AVAILABLE_RAM, FREE_SPACE, HW_DISKS_FOLDER,
     TOTAL_RAM, TOTAL_SPACE, USED_RAM, USED_SPACE,
 };
 use libc::statvfs;
@@ -105,10 +105,11 @@ impl HWMetricsCollector {
             }
 
             let _ = Self::update_space_metrics_from_disks(&disks);
-            let used_mem = kb_to_b(sys.used_memory());
-            debug!("used mem in bytes: {}", used_mem);
+            let available_mem = kb_to_b(sys.available_memory());
+            let used_mem = total_mem - available_mem;
+            debug!("used mem in bytes: {} | available mem in bytes: {}", used_mem, available_mem);
             gauge!(USED_RAM, used_mem as f64);
-            gauge!(FREE_RAM, (total_mem - used_mem) as f64);
+            gauge!(AVAILABLE_RAM, available_mem as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
 
             if let Err(CommandError::Primary(e)) = disk_s_c.collect_and_send_metrics() {

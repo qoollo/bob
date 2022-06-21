@@ -7,7 +7,8 @@ Bob versions changelog
 - Memory limit for indexes (#466)
 
 #### Changed
-
+- Publish available ram metric instead of calculated free ram, used ram is now calculated (#508)
+- Log about disk availability would be written once (#499)
 
 #### Fixed
 

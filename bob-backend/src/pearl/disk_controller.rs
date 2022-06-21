@@ -111,6 +111,7 @@ impl DiskController {
     async fn monitor_task(self: Arc<Self>) {
         let mut check_interval = interval(CHECK_INTERVAL);
         Self::monitor_wait(self.state.clone(), &mut check_interval).await;
+        let mut ready_log = false;
         loop {
             check_interval.tick().await;
             let _permit = self.monitor_sem.acquire().await.expect("Sem is closed");
@@ -122,14 +123,19 @@ impl DiskController {
                             "Work dir is available, but disk is not running ({:?})",
                             self.disk
                         );
+                        ready_log = false;
                     }
                     GroupsState::Ready => {
-                        info!("Disk is available: {:?}", self.disk);
+                        if !ready_log {
+                            info!("Disk is available: {:?}", self.disk);
+                        }
+                        ready_log = true;
                     }
                 }
             } else {
                 error!("Disk is unavailable: {:?}", self.disk);
                 self.change_state(GroupsState::NotReady).await;
+                ready_log = false;
             }
             self.update_metrics().await;
         }
