@@ -33,6 +33,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
+          args: --package=bob-apps
       - name: Generate config files for docker and bob
         env:
           AMOUNT_OF_NODES: "4"
