@@ -60,34 +60,16 @@ impl Credentials {
         CredentialsBuilder::default()
     }
 
-    pub fn username(&self) -> Option<&str> {
-        let kind = self.kind.as_ref()?;
-        match kind {
-            CredentialsKind::Basic {
-                username,
-                password: _,
-            } => Some(username),
-            CredentialsKind::Token(_) => None,
-        }
-    }
-
-    pub fn password(&self) -> Option<&str> {
-        let kind = self.kind.as_ref()?;
-        match kind {
-            CredentialsKind::Basic {
-                username: _,
-                password,
-            } => Some(password),
-            CredentialsKind::Token(_) => None,
-        }
-    }
-
     pub fn ip(&self) -> Option<IpAddr> {
         Some(self.address?.ip())
     }
 
     pub fn is_complete(&self) -> bool {
         self.address.is_some() && self.ip().is_some()
+    }
+
+    pub fn kind(&self) -> Option<&CredentialsKind> {
+        self.kind.as_ref()
     }
 }
 

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, net::IpAddr};
 
-use crate::{credentials::Credentials, error::Error, permissions::Permissions};
+use crate::{credentials::{Credentials, CredentialsKind}, error::Error, permissions::Permissions};
 
 use super::{users_storage::UsersStorage, Authenticator};
 
@@ -24,7 +24,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
     ) -> Result<(), Error> {
         if nodes
             .values()
-            .all(|cred| cred.ip().is_some() && cred.username().is_some())
+            .all(|cred| cred.ip().is_some() && cred.kind().is_some())
         {
             self.nodes = nodes;
             Ok(())
@@ -40,7 +40,14 @@ impl<Storage: UsersStorage> Basic<Storage> {
         }
         self.nodes
             .get(other.ip().as_ref()?)
-            .map(|cred| cred.username() == other.username())
+            .map(|cred| 
+                match (cred.kind(), other.kind()) {
+                    (Some(CredentialsKind::Basic { username: c_username, password: _ }),
+                    Some(CredentialsKind::Basic { username: o_username, password: _ })) => c_username == o_username,
+                    (Some(CredentialsKind::Token(c_token)), 
+                    Some(CredentialsKind::Token(o_token))) => c_token == o_token,
+                    _ => false
+                })
     }
 }
 
@@ -51,26 +58,34 @@ where
     fn check_credentials(&self, credentials: Credentials) -> Result<Permissions, Error> {
         debug!("check {:?}", credentials);
         if self.is_node_request(&credentials) == Some(true) {
-            debug!("request from node: {:?}", credentials.username());
+            debug!("request from node: {:?}", credentials.ip());
             return Ok(Permissions::all());
         }
-        debug!(
-            "external request ip: {:?}, name: {:?}",
-            credentials.ip(),
-            credentials.username()
-        );
-        let username = credentials
-            .username()
-            .ok_or_else(|| Error::CredentialsNotProvided("missing username".to_string()))?;
-        let password = credentials
-            .password()
-            .ok_or_else(|| Error::CredentialsNotProvided("missing password".to_string()))?;
-
-        let user = self.users_storage.get_user(username)?;
-        if user.password() == password {
-            Ok(user.into())
-        } else {
-            Err(Error::UnauthorizedRequest)
+        match credentials.kind() {
+            Some(CredentialsKind::Basic { username, password }) => {
+                debug!(
+                    "external request ip: {:?}, name: {:?}",
+                    credentials.ip(),
+                    username
+                );
+        
+                let user = self.users_storage.get_user(&username)?;
+                if user.password() == password {
+                    Ok(user.into())
+                } else {
+                    Err(Error::UnauthorizedRequest)
+                }
+            },
+            Some(CredentialsKind::Token(_token)) => {
+                debug!(
+                    "external token request ip: {:?}",
+                    credentials.ip());
+                // todo
+                Err(Error::UnauthorizedRequest)
+            },
+            None => {
+                Err(Error::CredentialsNotProvided("missing credentials".to_string()))
+            }
         }
     }
 }
