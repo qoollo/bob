@@ -26,7 +26,7 @@ jobs:
         with:
           version: '2.6.0'
         env:
-          AMOUNT_OF_NODES: 4
+          AMOUNT_OF_NODES: "4"
           VERSION: ${{ github.event.release.tag_name }}
       - name: Generate config files for docker and bob
         run: |
@@ -39,8 +39,8 @@ jobs:
           ./deploy.py --path $PATH_TO_CONFIGS -d 4 -r 2
         working-directory: ./integration-tests
         env:
-          PAYLOAD: 10240
-          COUNT: 10000
+          PAYLOAD: "10240"
+          COUNT: "10000"
       - name: Run write/read tests
         run: |
           ./tests.py -l $PAYLOAD -c $COUNT -n 0.0.0.0
