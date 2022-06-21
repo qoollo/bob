@@ -32,7 +32,7 @@ jobs:
         env:
           AMOUNT_OF_NODES: "4"
         run: |
-          ./generate_from_templates.py -a ${{ env.AMOUNT_OF_NODES }} -v qoollo/bob:${{ env.VERSION }} --path ${{ env.PATH }}
+          ./generate_from_templates.py -a ${{ env.AMOUNT_OF_NODES }} -v qoollo/bob:${{ env.VERSION }} --path ${{ env.STORAGE_PATH }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
         env:
