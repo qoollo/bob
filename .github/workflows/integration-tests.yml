@@ -25,12 +25,14 @@ jobs:
         uses: KengoTODA/actions-setup-docker-compose@main
         with:
           version: '2.6.0'
+      - name: Get version data
+        run: |
+          echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
       - name: Generate config files for docker and bob
         env:
           AMOUNT_OF_NODES: "4"
-          VERSION: ${{ github.event.release.tag_name }}
         run: |
-          ./generate_from_templates.py -a ${{ env.AMOUNT_OF_NODES }} -v ${{ env.VERSION }} --path ${{ env.PATH }}
+          ./generate_from_templates.py -a ${{ env.AMOUNT_OF_NODES }} -v qoollo/bob:${{ env.VERSION }} --path ${{ env.PATH }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
         env:
