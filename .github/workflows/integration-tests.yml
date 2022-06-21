@@ -6,7 +6,7 @@ on:
     branches: [ "518-implement-semi-automatic-integration-tests" ]
 
 env:
-  PATH: "/tmp"
+  STORAGE_PATH: "/tmp"
 
 jobs:
   deploy-and-test:
@@ -29,7 +29,7 @@ jobs:
           generate_from_templates.py -a $AMOUNT_OF_NODES -v $VERSION --path $PATH
         working-directory: ./integration-tests
         env:
-          PATH_TO_CONFIGS: $PATH/generated_configs
+          PATH_TO_CONFIGS: $STORAGE_PATH/generated_configs
       - name: Deploy docker containers
         run: |
           deploy.py --path $PATH_TO_CONFIGS -d 4 -r 2
