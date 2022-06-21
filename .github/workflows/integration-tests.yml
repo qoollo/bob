@@ -31,7 +31,7 @@ jobs:
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
       - name: Configure enviroment
         run: |
-          sudo apt-get install bob-${{ env.VERSION }}
+          sudo apt-get install -y bob
           sudo systemctl stop bob
       - name: Generate config files for docker and bob
         env:
