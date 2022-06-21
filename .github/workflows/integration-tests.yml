@@ -30,18 +30,18 @@ jobs:
           AMOUNT_OF_NODES: "4"
           VERSION: ${{ github.event.release.tag_name }}
         run: |
-          ./generate_from_templates.py -a $AMOUNT_OF_NODES -v $VERSION --path $PATH
+          ./generate_from_templates.py -a ${{ env.AMOUNT_OF_NODES }} -v ${{ env.VERSION }} --path ${{ env.PATH }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
         env:
-          PATH_TO_CONFIGS: $STORAGE_PATH/generated_configs
+          PATH_TO_CONFIGS: ${{ env.STORAGE_PATH }}/generated_configs
         run: |
-          ./deploy.py --path $PATH_TO_CONFIGS -d 4 -r 2
+          ./deploy.py --path ${{ env.PATH_TO_CONFIGS }} -d 4 -r 2
         working-directory: ./integration-tests
       - name: Run write/read tests
         env:
           PAYLOAD: "10240"
           COUNT: "10000"
         run: |
-          ./tests.py -l $PAYLOAD -c $COUNT -n 0.0.0.0
+          ./tests.py -l ${{ env.PAYLOAD }} -c ${{ env.COUNT }} -n 0.0.0.0
         working-directory: ./integration-tests
