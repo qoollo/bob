@@ -25,23 +25,25 @@ jobs:
         uses: KengoTODA/actions-setup-docker-compose@main
         with:
           version: '2.6.0'
-        env:
-          AMOUNT_OF_NODES: 4
-          VERSION: ${{ github.event.release.tag_name }}
+      - name: Get version data
+        run: |
+          echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
       - name: Generate config files for docker and bob
-        run: |
-          ./generate_from_templates.py -a $AMOUNT_OF_NODES -v $VERSION --path $PATH
-        working-directory: ./integration-tests
         env:
-          PATH_TO_CONFIGS: $STORAGE_PATH/generated_configs
+          AMOUNT_OF_NODES: "4"
+        run: |
+          ./generate_from_templates.py -a ${{ env.AMOUNT_OF_NODES }} -v qoollo/bob:${{ env.VERSION }} --path ${{ env.STORAGE_PATH }}
+        working-directory: ./integration-tests
       - name: Deploy docker containers
-        run: |
-          ./deploy.py --path $PATH_TO_CONFIGS -d 4 -r 2
-        working-directory: ./integration-tests
         env:
-          PAYLOAD: 10240
-          COUNT: 10000
-      - name: Run write/read tests
+          PATH_TO_CONFIGS: ${{ env.STORAGE_PATH }}/generated_configs
         run: |
-          ./tests.py -l $PAYLOAD -c $COUNT -n 0.0.0.0
+          ./deploy.py --path ${{ env.PATH_TO_CONFIGS }} -d 4 -r 2
+        working-directory: ./integration-tests
+      - name: Run write/read tests
+        env:
+          PAYLOAD: "10240"
+          COUNT: "10000"
+        run: |
+          ./tests.py -l ${{ env.PAYLOAD }} -c ${{ env.COUNT }} -n 0.0.0.0
         working-directory: ./integration-tests
