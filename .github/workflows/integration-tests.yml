@@ -29,6 +29,10 @@ jobs:
       - name: Get version data
         run: |
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+      - name: Configure enviroment
+        run: |
+          apt-get install bob-${{ env.VERSION }}
+          systemctl stop bob
       - name: Generate config files for docker and bob
         env:
           AMOUNT_OF_NODES: "4"
