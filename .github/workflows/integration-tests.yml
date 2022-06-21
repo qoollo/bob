@@ -9,6 +9,19 @@ env:
   PATH: "/tmp"
 
 jobs:
+  setup-enviroment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v4
+      - name: Install python
+        with:
+          python-version: '3.x'
+      - uses: actions/checkout@v2
+      - name: Install deps
+        run: |
+          pip3 install docker_on_whales, jinja2, docker
+       
+         
   generate-configs:
     runs-on: ubuntu-latest
     env:
