@@ -211,14 +211,6 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .long("name"),
         )
         .arg(
-            Arg::with_name("threads")
-                .help("count threads")
-                .takes_value(true)
-                .short("t")
-                .long("threads")
-                .default_value("4"),
-        )
-        .arg(
             Arg::with_name("http_api_address")
                 .help("http api address")
                 .short("h")
