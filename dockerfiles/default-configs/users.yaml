@@ -1,0 +1,24 @@
+---
+roles:
+  admin:
+    read: true
+    write: true
+    read_rest: true
+    write_rest: true
+  reader:
+    read: true
+    read_rest: true
+  writer:
+    write: true
+    write_rest: true
+
+users:
+  - username: admin_user
+    password: admin_pass
+    role: admin
+  - username: reader_user
+    password: reader_pass
+    role: reader
+  - username: writer_user
+    password: writer_pass
+    role: writer

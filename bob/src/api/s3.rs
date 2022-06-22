@@ -126,6 +126,7 @@ impl IntoResponse for GetObjectOutput {
     }
 }
 
+// GET /s3/default/:key
 async fn get_object<A>(
     Extension(bob): Extension<&BobServer<A>>,
     Path(key): Path<String>,
@@ -158,6 +159,7 @@ where
     Ok(GetObjectOutput { data, content_type })
 }
 
+// PUT /s3/default/:key
 async fn put_object<A>(
     Extension(bob): Extension<&BobServer<A>>,
     Path(key): Path<String>,

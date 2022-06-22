@@ -14,6 +14,7 @@
 
 # [file] logger config file
 log_config: /bob/configs/logger.yaml
+users_config: /bob/configs/users.yaml
 # [str] node name, required to match with cluster config
 name: local_node
 # [uint] min count of successful operations on replicas to consider operation successful
