@@ -5,7 +5,7 @@ use axum::{
 use http::StatusCode;
 use serde_json::json;
 use std::{error::Error as StdError, fmt::Display};
-use tonic::{codegen::http::header::ToStrError, Code, Status};
+use tonic::{Code, Status};
 
 #[derive(Debug)]
 pub enum Error {
@@ -14,7 +14,7 @@ pub enum Error {
     Validation(String),
     Os(String),
     UserNotFound,
-    ConversionError(ToStrError),
+    ConversionError(String),
     CredentialsNotProvided(String),
     MultipleCredentialsTypes,
     UnauthorizedRequest,

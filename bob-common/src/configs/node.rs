@@ -499,7 +499,7 @@ pub struct Node {
     #[serde(default = "NodeConfig::default_holder_group_size")]
     holder_group_size: usize,
 
-    #[serde(default = "CredentialsType::Stub")]
+    #[serde(default = "NodeConfig::default_authentication_type")]
     authentication_type: CredentialsType,
 }
 
@@ -589,6 +589,10 @@ impl NodeConfig {
 
     pub fn authentication_type(&self) -> CredentialsType {
         self.authentication_type
+    }
+
+    fn default_authentication_type() -> CredentialsType {
+        CredentialsType::Stub
     }
 
     pub fn backend_result(&self) -> Result<BackendType, String> {

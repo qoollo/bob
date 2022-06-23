@@ -20,7 +20,7 @@ pub enum CredentialsKind {
     Token(String),
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum CredentialsType {
     Stub,
     Basic,
@@ -124,18 +124,9 @@ where
 
 impl<T> From<&Request<T>> for Credentials {
     fn from(req: &Request<T>) -> Self {
-        let md = req.metadata();
-        let mut builder = Credentials::builder();
-        if let (Some(username), Some(password)) = (md.get("username"), md.get("password"))
-        {
-            let username = username.to_str().expect("username header");
-            let password = password.to_str().expect("password header");
-            builder.with_username_password(username, password);
+        match req.extract() {
+            Ok(c) => c,
+            Err(_) => Credentials::default()
         }
-        builder.with_address(req.remote_addr());
-
-        // token
-
-        builder.build()
     }
 }
