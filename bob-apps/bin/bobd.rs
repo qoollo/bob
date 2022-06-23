@@ -97,17 +97,16 @@ async fn main() {
         .and_then(|v| v.parse().ok())
         .unwrap_or_else(|| node.http_api_address());
 
-    let authentication_type = matches.value_of("authentication_type").unwrap();
+    let authentication_type = node.authentication_type();
+    set_credentials_type(authentication_type);
     match authentication_type {
-        "stub" => {
-            set_credentials_type(CredentialsType::Stub);
+        CredentialsType::Stub => {
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let authenticator = StubAuthenticator::new(users_storage);
             run_server(node, authenticator, mapper, http_api_address, http_api_port, addr).await;
         }
-        "basic" => {
-            set_credentials_type(CredentialsType::Basic);
+        CredentialsType::Basic => {
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let mut authenticator = BasicAuthenticator::new(users_storage);
@@ -295,13 +294,6 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .help("http api port")
                 .short("p")
                 .long("port")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("authentication_type")
-                .default_value("stub")
-                .long("auth")
-                .possible_values(&["stub", "basic"])
                 .takes_value(true),
         )
         .arg(

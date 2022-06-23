@@ -20,7 +20,7 @@ pub enum CredentialsKind {
     Token(String),
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum CredentialsType {
     Stub,
     Basic,

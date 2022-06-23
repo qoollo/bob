@@ -3,6 +3,7 @@ use super::{
     node::Node as NodeConfig,
     reader::{Validatable, YamlBobConfig},
 };
+use bob_access::CredentialsType;
 use crate::data::DiskPath;
 use futures::Future;
 use humantime::Duration as HumanDuration;
@@ -497,6 +498,9 @@ pub struct Node {
     bind_to_ip_address: Option<SocketAddr>,
     #[serde(default = "NodeConfig::default_holder_group_size")]
     holder_group_size: usize,
+
+    #[serde(default = "CredentialsType::Stub")]
+    authentication_type: CredentialsType,
 }
 
 impl NodeConfig {
@@ -581,6 +585,10 @@ impl NodeConfig {
 
     pub fn backend_type(&self) -> BackendType {
         self.backend_result().expect("clone backend type")
+    }
+
+    pub fn authentication_type(&self) -> CredentialsType {
+        self.authentication_type
     }
 
     pub fn backend_result(&self) -> Result<BackendType, String> {
@@ -773,6 +781,7 @@ impl Validatable for NodeConfig {
 
 pub mod tests {
     use crate::configs::node::Node as NodeConfig;
+    use bob_access::CredentialsType;
 
     use std::sync::Arc;
 
@@ -801,6 +810,7 @@ pub mod tests {
             bind_to_ip_address: None,
             bloom_filter_memory_limit: None,
             holder_group_size: 8,
+            authentication_type: CredentialsType::Stub,
         }
     }
 }
