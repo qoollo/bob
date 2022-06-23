@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Add occupied disk space to api and metrics (#501)
 
 #### Changed
 
