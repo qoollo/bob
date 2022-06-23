@@ -2,7 +2,7 @@ use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
     VirtualMapper, BackendType,
 };
-use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap, set_credentials_type, CredentialsType};
+use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap, CredentialsType};
 use clap::{crate_version, App, Arg, ArgMatches};
 use std::{
     collections::HashMap,
@@ -98,7 +98,6 @@ async fn main() {
         .unwrap_or_else(|| node.http_api_address());
 
     let authentication_type = node.authentication_type();
-    set_credentials_type(authentication_type);
     match authentication_type {
         CredentialsType::Stub => {
             let users_storage =

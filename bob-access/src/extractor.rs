@@ -2,7 +2,7 @@ use crate::{credentials::{Credentials, CredentialsBuilder}, error::Error};
 use axum::extract::RequestParts;
 use http::Request;
 use tonic::{transport::server::TcpConnectInfo, Request as TonicRequest};
-use super::{credentials_type, CredentialsType};
+use super::CredentialsType;
 
 pub trait Extractor {
     fn get_header(&self, header: &str) -> Result<Option<&str>, Error>;
@@ -10,7 +10,7 @@ pub trait Extractor {
 }
 
 pub trait ExtractorExt {
-    fn extract(&self) -> Result<Credentials, Error>;
+    fn extract(&self, cred_type: CredentialsType) -> Result<Credentials, Error>;
     fn extract_basic(&self) -> Result<Credentials, Error>;
     fn extract_token(&self) -> Result<Credentials, Error>;
 }
@@ -25,9 +25,8 @@ fn prepare_builder<T: Extractor>(slf: &T) -> Result<CredentialsBuilder, Error> {
 }
 
 impl<T: Extractor> ExtractorExt for T {
-    fn extract(&self) -> Result<Credentials, Error> {
-        let cred_tp = credentials_type();
-        match cred_tp {
+    fn extract(&self, cred_type: CredentialsType) -> Result<Credentials, Error> {
+        match cred_type {
             CredentialsType::Stub => {
                 return Ok(Credentials::default());
             },

@@ -1,4 +1,4 @@
-use crate::{credentials::Credentials, error::Error, permissions::Permissions};
+use crate::{credentials::{Credentials, CredentialsType}, error::Error, permissions::Permissions};
 
 use super::{users_storage::UsersStorage, Authenticator};
 
@@ -16,5 +16,9 @@ impl<Storage: UsersStorage> Stub<Storage> {
 impl<Storage: UsersStorage> Authenticator for Stub<Storage> {
     fn check_credentials(&self, _: Credentials) -> Result<Permissions, Error> {
         Ok(Permissions::all())
+    }
+
+    fn credentials_type() -> CredentialsType {
+        CredentialsType::Stub
     }
 }

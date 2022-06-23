@@ -14,7 +14,7 @@ mod token;
 pub use authenticator::{
     basic::Basic as BasicAuthenticator, stub::Stub as StubAuthenticator, Authenticator, UsersMap,
 };
-pub use credentials::{Credentials, set_credentials_type, credentials_type, CredentialsType};
+pub use credentials::{Credentials, CredentialsHolder, CredentialsType};
 pub use error::Error;
 pub use extractor::Extractor;
 pub use permissions::Permissions;

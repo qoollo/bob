@@ -9,7 +9,7 @@ use axum::{
     routing::{get, put, MethodRouter},
 };
 
-use bob_access::{Authenticator, Credentials};
+use bob_access::{Authenticator, CredentialsHolder};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions},
     error::Error,
@@ -131,12 +131,12 @@ async fn get_object<A>(
     Extension(bob): Extension<&BobServer<A>>,
     Path(key): Path<String>,
     headers: GetObjectHeaders,
-    creds: Credentials,
+    creds: CredentialsHolder<A>,
 ) -> Result<GetObjectOutput, StatusS3>
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds)?.has_rest_read() {
+    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
@@ -165,12 +165,12 @@ async fn put_object<A>(
     Path(key): Path<String>,
     body: Bytes,
     headers: CopyObjectHeaders,
-    creds: Credentials,
+    creds: CredentialsHolder<A>,
 ) -> Result<StatusS3, StatusS3>
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds)?.has_rest_write() {
+    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;

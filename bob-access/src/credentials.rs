@@ -1,4 +1,5 @@
 use std::net::{IpAddr, SocketAddr};
+use std::marker::PhantomData;
 
 use axum::{
     async_trait,
@@ -6,12 +7,23 @@ use axum::{
 };
 use tonic::Request;
 
-use crate::{error::Error, extractor::ExtractorExt};
+use crate::{error::Error, extractor::ExtractorExt, Authenticator};
 
 #[derive(Debug, Default, Clone)]
 pub struct Credentials {
     address: Option<SocketAddr>,
     kind: Option<CredentialsKind>,
+}
+
+pub struct CredentialsHolder<A: Authenticator> {
+    credentials: Credentials,
+    pd: PhantomData<A>,
+}
+
+impl<A: Authenticator> CredentialsHolder<A> {
+    pub fn into_credentials(self) -> Credentials {
+        self.credentials
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -35,24 +47,6 @@ impl CredentialsType {
     pub fn is_stub(&self) -> bool {
         *self == CredentialsType::Stub
     }
-}
-
-fn _credentials_type(tp: Option<CredentialsType>) -> CredentialsType {
-    static mut CREDENTIALS_TYPE: CredentialsType = CredentialsType::Stub;
-    unsafe {
-        if let Some(tp) = tp {
-            CREDENTIALS_TYPE = tp;
-        }
-        CREDENTIALS_TYPE
-    }
-}
-
-pub fn credentials_type() -> CredentialsType {
-    _credentials_type(None)
-}
-
-pub fn set_credentials_type(tp: CredentialsType) {
-    _credentials_type(Some(tp));
 }
 
 impl Credentials {
@@ -111,22 +105,29 @@ impl CredentialsBuilder {
 }
 
 #[async_trait]
-impl<B> FromRequest<B> for Credentials
+impl<B, A: Authenticator> FromRequest<B> for CredentialsHolder<A>
 where
     B: Send,
 {
     type Rejection = Error;
 
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        req.extract()
+        Ok(CredentialsHolder {
+            credentials: req.extract(A::credentials_type())?,
+            pd: PhantomData,
+        })
     }
 }
 
-impl<T> From<&Request<T>> for Credentials {
+impl<T, A: Authenticator> From<&Request<T>> for CredentialsHolder<A> {
     fn from(req: &Request<T>) -> Self {
-        match req.extract() {
+        let credentials = match req.extract(A::credentials_type()) {
             Ok(c) => c,
             Err(_) => Credentials::default()
+        };
+        CredentialsHolder {
+            credentials,
+            pd: PhantomData,
         }
     }
 }

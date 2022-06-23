@@ -1,6 +1,6 @@
 use std::{collections::HashMap, net::IpAddr};
 
-use crate::{credentials::{Credentials, CredentialsKind}, error::Error, permissions::Permissions};
+use crate::{credentials::{Credentials, CredentialsKind, CredentialsType}, error::Error, permissions::Permissions};
 
 use super::{users_storage::UsersStorage, Authenticator};
 
@@ -87,5 +87,9 @@ where
                 Err(Error::CredentialsNotProvided("missing credentials".to_string()))
             }
         }
+    }
+
+    fn credentials_type() -> CredentialsType {
+        CredentialsType::Basic
     }
 }
