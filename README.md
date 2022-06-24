@@ -1,5 +1,5 @@
 # Bob
-[![build](https://github.com/qoollo/bob/actions/workflows/build.yml/badge.svg)](https://github.com/qoollo/bob/actions/workflows/build.yml)
+[![build](https://github.com/qoollo/bob/actions/workflows/build.yml/badge.svg)](https://github.com/qoollo/bob/actions/workflows/build.yml) [![Docker Pulls](https://img.shields.io/docker/pulls/qoollo/bob.svg?maxAge=604800)](https://hub.docker.com/r/qoollo/bob/)
 
 ![Bob](https://raw.githubusercontent.com/qoollo/bob/305-bob-logo/logo/bob-git-docker-logo.svg?sanitize=true)
 
