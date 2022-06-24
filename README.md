@@ -1,6 +1,8 @@
 # Bob
 [![build](https://github.com/qoollo/bob/actions/workflows/build.yml/badge.svg)](https://github.com/qoollo/bob/actions/workflows/build.yml)
 
+![Bob](https://raw.githubusercontent.com/qoollo/bob/master/logo/bob-git-docker-logo.svg?sanitize=true)
+
 Bob is a distributed storage system designed for byte data such as photos. It has decentralized architecture where each node can handle user calls. [Pearl](https://github.com/qoollo/pearl) uses as backend storage.
 
 More information can be found on [wiki](https://github.com/qoollo/bob/wiki).
