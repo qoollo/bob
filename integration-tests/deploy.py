@@ -39,6 +39,11 @@ if not 'cluster.yaml.bobnet' in os.listdir(good_path):
     print('Cluster config not found in the specifed directory.')
     sys.exit()
 
+try:
+    os.chmod(path='../ccg', mode=0o771)
+    os.chmod(path='../bobp', mode=0o771)
+except e as OSError:
+    print(e)
 
 try:
     pr = subprocess.check_output(shlex.split(f'../ccg new -i {args.path}/cluster.yaml.bobnet -o {args.path}/cluster.yaml.bobnet {args_str.rstrip()}'))
