@@ -41,7 +41,7 @@ if not 'cluster.yaml.bobnet' in os.listdir(good_path):
 
 
 try:
-    pr = subprocess.check_output(shlex.split(f'./ccg new -i {args.path}/cluster.yaml.bobnet -o {args.path}/cluster.yaml.bobnet {args_str.rstrip()}'))
+    pr = subprocess.check_output(shlex.split(f'../ccg new -i {args.path}/cluster.yaml.bobnet -o {args.path}/cluster.yaml.bobnet {args_str.rstrip()}'))
     if str(pr).find('ERROR') != -1:
         print(pr)
         sys.exit()
