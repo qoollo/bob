@@ -32,12 +32,13 @@ jobs:
       - name: Get version data
         run: |
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+          echo "VERSION_NO_FORMATTING=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g')" >> $GITHUB_ENV
       - name: Get tools
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: build-packages.yml
           workflow_conclusion: success
-          branch: v${{ env.VERSION }}
+          branch: v${{ env.VERSION_NO_FORMATTING }}
           name: bob-binaries-${{ matrix.key }}
           check_artifacts:  true
           path: /usr/bin
