@@ -37,7 +37,7 @@ jobs:
         with:
           workflow: build-packages.yml
           workflow_conclusion: success
-          branch: master
+          branch: v${{ env.VERSION }}
           name: bob-binaries-${{ matrix.key }}
           check_artifacts:  true
           path: /usr/bin
