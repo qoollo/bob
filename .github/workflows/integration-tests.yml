@@ -41,7 +41,6 @@ jobs:
           branch: v${{ env.VERSION_NO_FORMATTING }}
           name: bob-binaries-${{ matrix.key }}
           check_artifacts:  true
-          path: /usr/bin
       - name: Generate config files for docker and bob
         env:
           AMOUNT_OF_NODES: "4"
