@@ -31,8 +31,24 @@ except d_err.NotFound:
     ipam_config = d_types.IPAMConfig(pool_configs=[d_types.IPAMPool(subnet='172.21.0.0/24', gateway='172.21.0.1')])
     bobnet = client.networks.create('bob_net', driver='bridge', ipam=ipam_config, attachable=True)
 
-
+start_path = os.getcwdb()
 good_path = os.path.abspath(args.path)
+
+
+if not 'cluster.yaml.bobnet' in os.listdir(good_path):
+    print('Cluster config not found in the specifed directory.')
+    sys.exit()
+
+
+try:
+    pr = subprocess.check_output(shlex.split(f'./ccg new -i {args.path}/cluster.yaml.bobnet -o {args.path}/cluster.yaml.bobnet {args_str.rstrip()}'))
+    if str(pr).find('ERROR') != -1:
+        print(pr)
+        sys.exit()
+except subprocess.CalledProcessError:
+    print(pr.stderr)
+    sys.exit()
+
 
 try:
     os.chdir(good_path)
@@ -46,27 +62,25 @@ except NotADirectoryError:
     print('The specified path is not a directory.')
     sys.exit()
 
-
-if not 'cluster.yaml.bobnet' in os.listdir(good_path):
-    print('Cluster config not found in the specifed directory.')
-    sys.exit()
-
-
-try:
-    pr = subprocess.check_output(shlex.split(f'/usr/bin/ccg new -i {args.path}/cluster.yaml.bobnet -o {args.path}/cluster.yaml.bobnet {args_str.rstrip()}'))
-    if str(pr).find('ERROR') != -1:
-        print(pr)
-        sys.exit()
-except subprocess.CalledProcessError:
-    print(pr.stderr)
-    sys.exit()
-
-
 try:
     client.networks.get('bob_net')
     d_cli.compose.up(detach=True)
     print('Containers are running!')
 except d_err.NotFound:
     print('docker network not found')
+    sys.exit()
+
+try:
+    os.chdir(start_path)
+except FileNotFoundError:
+    print('The initial path does not exist.')
+    sys.exit()
+except PermissionError:
+    print(f'Access to {start_path} is denied.')
+    sys.exit()
+except NotADirectoryError:
+    print('The specified path is not a directory.')
+    sys.exit()
+
 
 
