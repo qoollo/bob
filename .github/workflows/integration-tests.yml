@@ -50,8 +50,10 @@ jobs:
       - name: Deploy docker containers
         env:
           PATH_TO_CONFIGS: ${{ env.STORAGE_PATH }}/generated_configs
+          REPLICAS: "2"
+          DISKS: "4"
         run: |
-          ./deploy.py --path ${{ env.PATH_TO_CONFIGS }} -d 4 -r 2
+          ./deploy.py --path ${{ env.PATH_TO_CONFIGS }} -d ${{ env.DISKS }} -r ${{ env.REPLICAS }}
         working-directory: ./integration-tests
       - name: Run write/read tests
         env:

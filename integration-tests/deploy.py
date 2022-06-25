@@ -34,7 +34,6 @@ except d_err.NotFound:
 start_path = os.getcwdb()
 good_path = os.path.abspath(args.path)
 
-
 if not 'cluster.yaml.bobnet' in os.listdir(good_path):
     print('Cluster config not found in the specifed directory.')
     sys.exit()
@@ -53,7 +52,6 @@ try:
 except subprocess.CalledProcessError:
     print(pr.stderr)
     sys.exit()
-
 
 try:
     os.chdir(good_path)
