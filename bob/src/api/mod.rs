@@ -905,7 +905,7 @@ async fn get_data<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_read() {
+    if !bob.auth().check_credentials(creds.into_credentials())?.has_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
@@ -939,7 +939,7 @@ async fn put_data<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_write() {
+    if !bob.auth().check_credentials(creds.into_credentials())?.has_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
@@ -961,7 +961,7 @@ async fn delete_data<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_write() {
+    if !bob.auth().check_credentials(creds.into_credentials())?.has_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
