@@ -8,17 +8,18 @@ roles:
   reader:
     read: true
     read_rest: true
-  writer:
+  data_manipulator:
     write: true
-    write_rest: true
+    read: true
+    read_rest: true
 
 users:
-  - username: admin_user
-    password: admin_pass
+  - username: admin
+    password: password
     role: admin
-  - username: reader_user
-    password: reader_pass
+  - username: readonly
+    password: password
     role: reader
-  - username: writer_user
-    password: writer_pass
-    role: writer
+  - username: user
+    password: password
+    role: data_manipulator
