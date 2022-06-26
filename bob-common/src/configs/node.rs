@@ -592,7 +592,7 @@ impl NodeConfig {
     }
 
     fn default_authentication_type() -> CredentialsType {
-        CredentialsType::Stub
+        CredentialsType::None
     }
 
     pub fn backend_result(&self) -> Result<BackendType, String> {
@@ -814,7 +814,7 @@ pub mod tests {
             bind_to_ip_address: None,
             bloom_filter_memory_limit: None,
             holder_group_size: 8,
-            authentication_type: CredentialsType::Stub,
+            authentication_type: CredentialsType::None,
         }
     }
 }

@@ -99,7 +99,7 @@ async fn main() {
 
     let authentication_type = node.authentication_type();
     match authentication_type {
-        CredentialsType::Stub => {
+        CredentialsType::None => {
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let authenticator = StubAuthenticator::new(users_storage);

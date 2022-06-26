@@ -19,6 +19,6 @@ impl<Storage: UsersStorage> Authenticator for Stub<Storage> {
     }
 
     fn credentials_type() -> CredentialsType {
-        CredentialsType::Stub
+        CredentialsType::None
     }
 }

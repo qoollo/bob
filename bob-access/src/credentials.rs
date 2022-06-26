@@ -34,7 +34,7 @@ pub enum CredentialsKind {
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum CredentialsType {
-    Stub,
+    None,
     Basic,
     Token,
 }
@@ -45,7 +45,7 @@ impl CredentialsType {
     }
 
     pub fn is_stub(&self) -> bool {
-        *self == CredentialsType::Stub
+        *self == CredentialsType::None
     }
 }
 

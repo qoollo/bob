@@ -27,7 +27,7 @@ fn prepare_builder<T: Extractor>(slf: &T) -> Result<CredentialsBuilder, Error> {
 impl<T: Extractor> ExtractorExt for T {
     fn extract(&self, cred_type: CredentialsType) -> Result<Credentials, Error> {
         match cred_type {
-            CredentialsType::Stub => {
+            CredentialsType::None => {
                 return Ok(Credentials::default());
             },
             CredentialsType::Basic => {

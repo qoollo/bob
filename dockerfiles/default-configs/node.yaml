@@ -14,6 +14,7 @@
 
 # [file] logger config file
 log_config: /bob/configs/logger.yaml
+# [file] config with users permissions.
 users_config: /bob/configs/users.yaml
 # [str] node name, required to match with cluster config
 name: local_node
@@ -33,6 +34,8 @@ cleanup_interval: 1h
 open_blobs_soft_limit: 2
 # hard limit for count of max blobs to remain in ram
 open_blobs_hard_limit: 10
+# [None, Basic] type of request authentication
+authentication_type: None
 
 # used only for 'backend_type: pearl'
 pearl:
