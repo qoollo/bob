@@ -7,6 +7,7 @@ Bob versions changelog
 - Memory limit for indexes (#466)
 
 #### Changed
+- Add special cmp for keys with sizes aligned with word (#496)
 - Publish available ram metric instead of calculated free ram, used ram is now calculated (#508)
 - Log about disk availability would be written once (#499)
 
