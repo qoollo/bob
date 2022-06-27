@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Semi-automatic integration tests for bob (#518)
 
 #### Changed
 
