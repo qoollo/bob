@@ -59,6 +59,8 @@ http_api_address: 0.0.0.0
 bloom_filter_memory_limit: 8 GiB
 # [None, Basic] type of request authentication
 authentication_type: Basic
+# [size] memory limit for all indexes. Unlimited if not specified
+index_memory_limit: 8 GiB
 
 # used only for 'backend_type: pearl'
 pearl:
