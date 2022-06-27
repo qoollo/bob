@@ -4,16 +4,16 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Semi-automatic integration tests for bob (#518)
+- Memory limit for indexes (#466)
 
 #### Changed
-
-
+- Publish available ram metric instead of calculated free ram, used ram is now calculated (#508)
+- Log about disk availability would be written once (#499)
+- Semi-automatic integration tests for bob (#518)
 #### Fixed
 
 
 #### Updated
-
 
 
 ## [2.1.0-alpha.3] - 2022-05-31
