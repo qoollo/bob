@@ -97,8 +97,8 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
         result
     }
 
-    async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
-    async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
+    async fn put(&self, op: Operation, key: BobKey, data: &BobData) -> Result<(), Error>;
+    async fn put_alien(&self, op: Operation, key: BobKey, data: &BobData) -> Result<(), Error>;
 
     async fn get(&self, op: Operation, key: BobKey) -> Result<BobData, Error>;
     async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error>;
@@ -225,7 +225,7 @@ impl Backend {
         self.inner.run().await
     }
 
-    pub async fn put(&self, key: BobKey, data: BobData, options: BobOptions) -> Result<(), Error> {
+    pub async fn put(&self, key: BobKey, data: &BobData, options: BobOptions) -> Result<(), Error> {
         trace!(">>>>>>- - - - - BACKEND PUT START - - - - -");
         let sw = Stopwatch::start_new();
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
@@ -242,7 +242,7 @@ impl Backend {
                 op.set_remote_folder(node_name.to_owned());
 
                 //TODO make it parallel?
-                self.put_single(key, data.clone(), op).await?;
+                self.put_single(key, data, op).await?;
             }
             Ok(())
         } else if let Some(path) = disk_path {
@@ -271,7 +271,7 @@ impl Backend {
     pub async fn put_local(
         &self,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
         operation: Operation,
     ) -> Result<(), Error> {
         self.put_single(key, data, operation).await
@@ -285,7 +285,7 @@ impl Backend {
     async fn put_single(
         &self,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
         operation: Operation,
     ) -> Result<(), Error> {
         if operation.is_data_alien() {
@@ -293,7 +293,7 @@ impl Backend {
             self.inner.put_alien(operation, key, data).await
         } else {
             debug!("PUT[{}] to backend: {:?}", key, operation);
-            let result = self.inner.put(operation.clone(), key, data.clone()).await;
+            let result = self.inner.put(operation.clone(), key, data).await;
             match result {
                 Err(local_err) if !local_err.is_duplicate() => {
                     debug!(

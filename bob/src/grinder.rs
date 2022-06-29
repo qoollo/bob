@@ -88,7 +88,7 @@ impl Grinder {
             counter!(CLIENT_PUT_COUNTER, 1);
             let time = Instant::now();
 
-            let result = self.backend.put(key, data, opts).await;
+            let result = self.backend.put(key, &data, opts).await;
             trace!(
                 "backend processed put, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0

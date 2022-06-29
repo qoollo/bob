@@ -75,7 +75,7 @@ async fn test_write_multiple_read() {
     let operation = Operation::new_local(vdisk_id, path);
     let data = BobData::new(vec![], BobMeta::new(TIMESTAMP));
     let write = backend
-        .put(operation.clone(), BobKey::from(KEY_ID), data)
+        .put(operation.clone(), BobKey::from(KEY_ID), &data)
         .await;
     assert!(write.is_ok());
 

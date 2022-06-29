@@ -165,14 +165,14 @@ impl Holder {
         );
     }
 
-    pub async fn write(&self, key: BobKey, data: BobData) -> BackendResult<()> {
+    pub async fn write(&self, key: BobKey, data: &BobData) -> BackendResult<()> {
         let state = self.storage.read().await;
 
         if state.is_ready() {
             let storage = state.get();
             *self.last_write_ts.write().await = Self::get_current_ts();
             trace!("Vdisk: {}, write key: {}", self.vdisk, key);
-            Self::write_disk(storage, Key::from(key), data.clone()).await
+            Self::write_disk(storage, Key::from(key), data).await
         } else {
             trace!("Vdisk: {} isn't ready for writing: {:?}", self.vdisk, state);
             Err(Error::vdisk_is_not_ready())
@@ -187,11 +187,11 @@ impl Holder {
 
     // @TODO remove redundant return result
     #[allow(clippy::cast_possible_truncation)]
-    async fn write_disk(storage: PearlStorage, key: Key, data: BobData) -> BackendResult<()> {
+    async fn write_disk(storage: PearlStorage, key: Key, data: &BobData) -> BackendResult<()> {
         counter!(PEARL_PUT_COUNTER, 1);
         let data_size = Self::calc_data_size(&data);
         let timer = Instant::now();
-        let res = storage.write(key, Data::from(data).to_vec()).await;
+        let res = storage.write(key, Data::from(data.clone()).to_vec()).await;
         let res = match res {
             Err(e) => {
                 counter!(PEARL_PUT_ERROR_COUNTER, 1);

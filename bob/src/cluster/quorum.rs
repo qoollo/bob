@@ -26,6 +26,7 @@ impl Quorum {
     }
 
     async fn put_at_least(&self, key: BobKey, data: BobData) -> Result<(), Error> {
+        let data = Arc::new(data);
         debug!("PUT[{}] ~~~PUT LOCAL NODE FIRST~~~", key);
         let mut local_put_ok = 0_usize;
         let mut remote_ok_count = 0_usize;
@@ -34,7 +35,7 @@ impl Quorum {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         if let Some(path) = disk_path {
             debug!("disk path is present, try put local");
-            let res = put_local_node(&self.backend, key, data.clone(), vdisk_id, path).await;
+            let res = put_local_node(&self.backend, key, &data, vdisk_id, path).await;
             if let Err(e) = res {
                 error!("{}", e);
                 failed_nodes.push(self.mapper.local_node_name().to_owned());
@@ -66,7 +67,7 @@ impl Quorum {
                 self.quorum,
                 errors
             );
-            if let Err(err) = self.put_aliens(failed_nodes, key, data).await {
+            if let Err(err) = self.put_aliens(failed_nodes, key, &data).await {
                 error!("PUT[{}] smth wrong with cluster/node configuration", key);
                 error!("PUT[{}] node errors: {:?}", key, errors);
                 Err(err)
@@ -81,7 +82,7 @@ impl Quorum {
         self,
         mut rest_tasks: Tasks,
         key: BobKey,
-        data: BobData,
+        data: Arc<BobData>,
         mut failed_nodes: Vec<String>,
     ) {
         debug!("PUT[{}] ~~~BACKGROUND PUT TO REMOTE NODES~~~", key);
@@ -101,7 +102,7 @@ impl Quorum {
         }
         debug!("PUT[{}] ~~~PUT TO REMOTE NODES ALIEN~~~", key);
         if !failed_nodes.is_empty() {
-            if let Err(e) = self.put_aliens(failed_nodes, key, data).await {
+            if let Err(e) = self.put_aliens(failed_nodes, key, &data).await {
                 error!("{}", e);
             }
         }
@@ -110,7 +111,7 @@ impl Quorum {
     pub(crate) async fn put_remote_nodes(
         &self,
         key: BobKey,
-        data: BobData,
+        data: Arc<BobData>,
         at_least: usize,
     ) -> (Tasks, Vec<NodeOutput<Error>>) {
         let local_node = self.mapper.local_node_name();
@@ -128,7 +129,7 @@ impl Quorum {
         &self,
         mut failed_nodes: Vec<String>,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
     ) -> Result<(), Error> {
         debug!("PUT[{}] ~~~TRY PUT TO REMOTE ALIENS FIRST~~~", key);
         if failed_nodes.is_empty() {
@@ -163,7 +164,7 @@ impl Quorum {
             &self.backend,
             failed_nodes.clone(),
             key,
-            data.clone(),
+            data,
             operation,
         )
         .await;

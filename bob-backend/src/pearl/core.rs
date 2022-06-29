@@ -134,7 +134,7 @@ impl BackendStorage for Pearl {
         Ok(())
     }
 
-    async fn put(&self, op: Operation, key: BobKey, data: BobData) -> BackendResult<()> {
+    async fn put(&self, op: Operation, key: BobKey, data: &BobData) -> BackendResult<()> {
         debug!("PUT[{}] to pearl backend. operation: {:?}", key, op);
         let dc_option = self
             .disk_controllers
@@ -154,7 +154,7 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> BackendResult<()> {
+    async fn put_alien(&self, op: Operation, key: BobKey, data: &BobData) -> BackendResult<()> {
         debug!("PUT[alien][{}] to pearl backend, operation: {:?}", key, op);
         self.alien_disk_controller.put_alien(op, key, data).await
     }

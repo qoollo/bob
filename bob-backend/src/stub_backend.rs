@@ -14,7 +14,7 @@ impl BackendStorage for StubBackend {
         Ok(())
     }
 
-    async fn put(&self, _operation: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put(&self, _operation: Operation, key: BobKey, data: &BobData) -> Result<(), Error> {
         debug!(
             "PUT[{}]: hi from backend, timestamp: {:?}",
             key,
@@ -27,7 +27,7 @@ impl BackendStorage for StubBackend {
         &self,
         _operation: Operation,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
     ) -> Result<(), Error> {
         debug!(
             "PUT[{}]: hi from backend, timestamp: {:?}",
