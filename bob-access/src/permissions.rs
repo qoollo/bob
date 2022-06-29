@@ -1,5 +1,4 @@
 use bitflags::bitflags;
-use http::{HeaderValue, Method, Request};
 use std::fmt::Display;
 
 use crate::authenticator::User;
@@ -63,8 +62,3 @@ impl Display for Permissions {
         )
     }
 }
-
-pub trait GetGrpcPermissions {
-    fn get_grpc_permissions(&self) -> Option<Permissions>;
-}
-

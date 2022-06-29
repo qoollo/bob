@@ -4,15 +4,16 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Access management
+- Access management (#217)
   - Nodes authentication. (#318)
-  - Http API authentication.
   - Authorization parameters in bobp (#425)
-
+  - Http API authentication. (#217)
+- Memory limit for indexes (#466)
 
 #### Changed
-- Rocket replaced with axum.
-
+- Rocket replaced with axum. (#217)
+- Publish available ram metric instead of calculated free ram, used ram is now calculated (#508)
+- Log about disk availability would be written once (#499)
 
 #### Fixed
 

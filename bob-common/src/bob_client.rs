@@ -172,9 +172,7 @@ pub mod b_client {
         fn set_credentials<T>(&self, req: &mut Request<T>) {
             let val = MetadataValue::from_str(self.node.name())
                 .expect("failed to create metadata value from node name");
-            req.metadata_mut().insert("username", val);
-            let val = MetadataValue::from_str("").expect("failed to create metadata value");
-            req.metadata_mut().insert("password", val);
+            req.metadata_mut().insert("node_name", val);
         }
 
         fn set_timeout<T>(&self, r: &mut Request<T>) {
