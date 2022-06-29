@@ -14,7 +14,11 @@ impl<Storage: UsersStorage> Stub<Storage> {
 }
 
 impl<Storage: UsersStorage> Authenticator for Stub<Storage> {
-    fn check_credentials(&self, _: Credentials) -> Result<Permissions, Error> {
+    fn check_credentials_grpc(&self, _: Credentials) -> Result<Permissions, Error> {
+        Ok(Permissions::all())
+    }
+
+    fn check_credentials_rest(&self, _: Credentials) -> Result<Permissions, Error> {
         Ok(Permissions::all())
     }
 

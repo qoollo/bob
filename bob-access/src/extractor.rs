@@ -13,6 +13,7 @@ pub trait ExtractorExt {
     fn extract(&self, cred_type: CredentialsType) -> Result<Credentials, Error>;
     fn extract_basic(&self) -> Result<Credentials, Error>;
     fn extract_token(&self) -> Result<Credentials, Error>;
+    fn extract_internode(&self) -> Result<Credentials, Error>;
 }
 
 fn prepare_builder<T: Extractor>(slf: &T) -> Result<CredentialsBuilder, Error> {
@@ -31,11 +32,18 @@ impl<T: Extractor> ExtractorExt for T {
                 return Ok(Credentials::default());
             },
             CredentialsType::Basic => {
-                return Ok(self.extract_basic()?);
+                return self.extract_basic().or_else(|e| {
+                    self.extract_internode().map_err(|_| e)
+                });
             },
             CredentialsType::Token => {
-                return Ok(self.extract_token()?);
+                return self.extract_token().or_else(|e| {
+                    self.extract_internode().map_err(|_| e)
+                });
             },
+            CredentialsType::InterNode => {
+                return Ok(self.extract_internode()?);
+            }
         }
     }
 
@@ -51,6 +59,19 @@ impl<T: Extractor> ExtractorExt for T {
             Ok(creds)
         } else {
             Err(Error::CredentialsNotProvided("missing username or password".into()))
+        }
+    }
+
+    fn extract_internode(&self) -> Result<Credentials, Error> {
+        let mut builder = prepare_builder(self)?;
+        if let Some(node_name) = self.get_header("node_name")?
+        {
+            let creds = builder
+                .with_nodename(node_name)
+                .build();
+            Ok(creds)
+        } else {
+            Err(Error::CredentialsNotProvided("missing node name".into()))
         }
     }
 

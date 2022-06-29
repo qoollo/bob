@@ -20,9 +20,9 @@ pub struct CredentialsHolder<A: Authenticator> {
     pd: PhantomData<A>,
 }
 
-impl<A: Authenticator> CredentialsHolder<A> {
-    pub fn into_credentials(self) -> Credentials {
-        self.credentials
+impl<A: Authenticator> From<CredentialsHolder<A>> for Credentials {
+    fn from(holder: CredentialsHolder<A>) -> Self {
+        holder.credentials
     }
 }
 
@@ -30,6 +30,7 @@ impl<A: Authenticator> CredentialsHolder<A> {
 pub enum CredentialsKind {
     Basic { username: String, password: String },
     Token(String),
+    InterNode(String),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
@@ -37,6 +38,7 @@ pub enum CredentialsType {
     None,
     Basic,
     Token,
+    InterNode,
 }
 
 impl CredentialsType {
@@ -93,6 +95,11 @@ impl CredentialsBuilder {
 
     pub fn with_address(&mut self, address: Option<SocketAddr>) -> &mut Self {
         self.address = address;
+        self
+    }
+
+    pub fn with_nodename(&mut self, node_name: impl Into<String>) -> &mut Self {
+        self.kind = Some(CredentialsKind::InterNode(node_name.into()));
         self
     }
 

@@ -7,6 +7,7 @@ use crate::{credentials::Credentials, error::Error, permissions::Permissions, Cr
 pub use users_storage::{User, UsersMap};
 
 pub trait Authenticator: Clone + Send + Sync + 'static {
-    fn check_credentials(&self, credentials: Credentials) -> Result<Permissions, Error>;
+    fn check_credentials_rest(&self, credentials: Credentials) -> Result<Permissions, Error>;
+    fn check_credentials_grpc(&self, credentials: Credentials) -> Result<Permissions, Error>;
     fn credentials_type() -> CredentialsType;
 }

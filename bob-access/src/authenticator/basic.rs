@@ -34,19 +34,17 @@ impl<Storage: UsersStorage> Basic<Storage> {
         }
     }
 
-    fn is_node_request(&self, other: &Credentials) -> Option<bool> {
+    fn check_node_request(&self, node_name: &String, ip: Option<IpAddr>) -> Option<bool> {
         if self.nodes.is_empty() {
             warn!("nodes credentials not set");
         }
         self.nodes
-            .get(other.ip().as_ref()?)
-            .map(|cred| 
-                match (cred.kind(), other.kind()) {
-                    (Some(CredentialsKind::Basic { username: c_username, password: _ }),
-                    Some(CredentialsKind::Basic { username: o_username, password: _ })) => c_username == o_username,
-                    (Some(CredentialsKind::Token(c_token)), 
-                    Some(CredentialsKind::Token(o_token))) => c_token == o_token,
-                    _ => false
+            .get(ip.as_ref()?)
+            .map(|cred|
+                if let Some(CredentialsKind::InterNode(other_name)) = cred.kind() {
+                    node_name == other_name
+                } else {
+                    false
                 })
     }
 }
@@ -55,12 +53,8 @@ impl<Storage> Authenticator for Basic<Storage>
 where
     Storage: UsersStorage,
 {
-    fn check_credentials(&self, credentials: Credentials) -> Result<Permissions, Error> {
+    fn check_credentials_grpc(&self, credentials: Credentials) -> Result<Permissions, Error> {
         debug!("check {:?}", credentials);
-        if self.is_node_request(&credentials) == Some(true) {
-            debug!("request from node: {:?}", credentials.ip());
-            return Ok(Permissions::all());
-        }
         match credentials.kind() {
             Some(CredentialsKind::Basic { username, password }) => {
                 debug!(
@@ -83,7 +77,45 @@ where
                 // todo
                 Err(Error::UnauthorizedRequest)
             },
+            Some(CredentialsKind::InterNode(node_name)) => {
+                if let Some(true) = self.check_node_request(node_name, credentials.ip()) {
+                    debug!("request from node: {:?}", credentials.ip());
+                    Ok(Permissions::all())
+                } else {
+                    Err(Error::UnauthorizedRequest)
+                }
+            },
             None => {
+                Err(Error::CredentialsNotProvided("missing credentials".to_string()))
+            }
+        }
+    }
+
+    fn check_credentials_rest(&self, credentials: Credentials) -> Result<Permissions, Error> {
+        debug!("check {:?}", credentials);
+        match credentials.kind() {
+            Some(CredentialsKind::Basic { username, password }) => {
+                debug!(
+                    "external request ip: {:?}, name: {:?}",
+                    credentials.ip(),
+                    username
+                );
+        
+                let user = self.users_storage.get_user(&username)?;
+                if user.password() == password {
+                    Ok(user.into())
+                } else {
+                    Err(Error::UnauthorizedRequest)
+                }
+            },
+            Some(CredentialsKind::Token(_token)) => {
+                debug!(
+                    "external token request ip: {:?}",
+                    credentials.ip());
+                // todo
+                Err(Error::UnauthorizedRequest)
+            },
+            None | _ => {
                 Err(Error::CredentialsNotProvided("missing credentials".to_string()))
             }
         }

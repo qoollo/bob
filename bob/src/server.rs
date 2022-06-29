@@ -104,8 +104,8 @@ where
     A: Authenticator,
 {
     async fn put(&self, req: Request<PutRequest>) -> ApiResult<OpStatus> {
-        let creds: CredentialsHolder<A> = CredentialsHolder::from(&req);
-        if !self.auth.check_credentials(creds.into_credentials())?.has_write() {
+        let creds: CredentialsHolder<A> = (&req).into();
+        if !self.auth.check_credentials_grpc(creds.into())?.has_write() {
             return Err(Status::permission_denied("WRITE permission required"));
         }
         trace!("- - - - - SERVER PUT START - - - - -");
@@ -166,8 +166,8 @@ where
     }
 
     async fn get(&self, req: Request<GetRequest>) -> ApiResult<Blob> {
-        let creds: CredentialsHolder<A> = CredentialsHolder::from(&req);
-        if !self.auth.check_credentials(creds.into_credentials())?.has_read() {
+        let creds: CredentialsHolder<A> = (&req).into();
+        if !self.auth.check_credentials_grpc(creds.into())?.has_read() {
             return Err(Status::permission_denied("READ permission required"));
         }
         trace!("- - - - - SERVER GET START - - - - -");
@@ -222,8 +222,8 @@ where
     }
 
     async fn exist(&self, req: Request<ExistRequest>) -> ApiResult<ExistResponse> {
-        let creds: CredentialsHolder<A> = CredentialsHolder::from(&req);
-        if !self.auth.check_credentials(creds.into_credentials())?.has_read() {
+        let creds: CredentialsHolder<A> = (&req).into();
+        if !self.auth.check_credentials_grpc(creds.into())?.has_read() {
             return Err(Status::permission_denied("READ permission required"));
         }
         let sw = Stopwatch::start_new();

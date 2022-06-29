@@ -363,7 +363,7 @@ async fn nodes<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_read() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
         return Err(AuthError::PermissionDenied);
     }
     let mapper = bob.grinder().backend().mapper();
@@ -404,7 +404,7 @@ async fn disks_list<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_read() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -438,7 +438,7 @@ async fn distribution_function<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_read() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
         return Err(AuthError::PermissionDenied);
     }
     let mapper = bob.grinder().backend().mapper().distribution_func();
@@ -454,7 +454,7 @@ async fn get_node_configuration<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_read() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
         return Err(AuthError::PermissionDenied);
     }
 
@@ -475,7 +475,7 @@ async fn stop_all_disk_controllers<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_write() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -503,7 +503,7 @@ async fn start_all_disk_controllers<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_write() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -552,7 +552,7 @@ async fn vdisks<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_read() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
         return Err(AuthError::PermissionDenied);
     }
     let vdisks = collect_disks_info(&bob);
@@ -567,7 +567,7 @@ async fn finalize_outdated_blobs<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_write() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
         return Err(AuthError::PermissionDenied);
     }
     let backend = bob.grinder().backend();
@@ -585,7 +585,7 @@ async fn vdisk_by_id<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_read() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     get_vdisk_by_id(&bob, vdisk_id)
@@ -602,7 +602,7 @@ async fn vdisk_records_count<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_read() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(&bob, vdisk_id).await?;
@@ -624,7 +624,7 @@ async fn partitions<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_read() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(&bob, vdisk_id).await?;
@@ -656,7 +656,7 @@ async fn partition_by_id<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_read() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(&bob, vdisk_id).await?;
@@ -696,7 +696,7 @@ async fn change_partition_state<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_write() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(&bob, vdisk_id).await?;
@@ -725,7 +725,7 @@ async fn remount_vdisks_group<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_write() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(&bob, vdisk_id).await?;
@@ -747,7 +747,7 @@ async fn delete_partition<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_write() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(&bob, vdisk_id).await?;
@@ -802,7 +802,7 @@ async fn detach_alien_partitions<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_write() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -821,7 +821,7 @@ async fn get_alien_directory<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_read() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -842,7 +842,7 @@ async fn get_local_replica_directories<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_rest_read() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let vdisk: VDisk = get_vdisk_by_id(&bob, vdisk_id).ok_or_else(|| {
@@ -905,7 +905,7 @@ async fn get_data<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_read() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_read() {
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
@@ -939,7 +939,7 @@ async fn put_data<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_write() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
@@ -961,7 +961,7 @@ async fn delete_data<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials(creds.into_credentials())?.has_write() {
+    if !bob.auth().check_credentials_rest(creds.into())?.has_write() {
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
