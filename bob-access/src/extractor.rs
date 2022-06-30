@@ -41,9 +41,6 @@ impl<T: Extractor> ExtractorExt for T {
                     self.extract_internode().map_err(|_| e)
                 });
             },
-            CredentialsType::InterNode => {
-                return Ok(self.extract_internode()?);
-            }
         }
     }
 

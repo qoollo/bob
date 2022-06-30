@@ -38,7 +38,6 @@ pub enum CredentialsType {
     None,
     Basic,
     Token,
-    InterNode,
 }
 
 impl CredentialsType {
