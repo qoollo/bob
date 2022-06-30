@@ -24,12 +24,14 @@ impl<Storage: UsersStorage> Basic<Storage> {
     ) -> Result<(), Error> {
         if nodes
             .values()
-            .all(|cred| cred.ip().is_some() && cred.kind().is_some())
+            .all(|cred| 
+                cred.ip().is_some() &&
+                cred.kind().map(|k| k.is_internode()) == Some(true))
         {
             self.nodes = nodes;
             Ok(())
         } else {
-            let message = "nodes credentials missing ip or username";
+            let message = "nodes credentials missing ip or node name";
             Err(Error::CredentialsNotProvided(message.to_string()))
         }
     }

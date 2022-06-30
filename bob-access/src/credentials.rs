@@ -33,6 +33,16 @@ pub enum CredentialsKind {
     InterNode(String),
 }
 
+impl CredentialsKind {
+    pub fn is_internode(&self) -> bool {
+        if let CredentialsKind::InterNode(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum CredentialsType {
     None,
