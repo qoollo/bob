@@ -32,14 +32,10 @@ impl<T: Extractor> ExtractorExt for T {
                 return Ok(Credentials::default());
             },
             CredentialsType::Basic => {
-                return self.extract_basic().or_else(|e| {
-                    self.extract_internode().map_err(|_| e)
-                });
+                return self.extract_basic();
             },
             CredentialsType::Token => {
-                return self.extract_token().or_else(|e| {
-                    self.extract_internode().map_err(|_| e)
-                });
+                return self.extract_token();
             },
         }
     }
@@ -55,7 +51,8 @@ impl<T: Extractor> ExtractorExt for T {
                 .build();
             Ok(creds)
         } else {
-            Err(Error::CredentialsNotProvided("missing username or password".into()))
+            self.extract_internode().map_err(|_| 
+                Error::CredentialsNotProvided("missing username or password".into()))
         }
     }
 
@@ -80,7 +77,8 @@ impl<T: Extractor> ExtractorExt for T {
                 .build();
             Ok(creds)
         } else {
-            Err(Error::CredentialsNotProvided("missing token".into()))
+            self.extract_internode().map_err(|_| 
+                Error::CredentialsNotProvided("missing token".into()))
         }
     }
 }
