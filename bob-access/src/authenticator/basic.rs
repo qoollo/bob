@@ -49,6 +49,29 @@ impl<Storage: UsersStorage> Basic<Storage> {
                     false
                 })
     }
+
+    fn check_credentials_common(&self, credentials: Credentials) -> Result<Permissions, Error> {
+        match credentials.kind() {
+            Some(CredentialsKind::Basic { username, password }) => {
+                debug!(
+                    "external request ip: {:?}, name: {:?}",
+                    credentials.ip(),
+                    username
+                );
+        
+                let user = self.users_storage.get_user(&username)?;
+                if user.password() == password {
+                    Ok(user.into())
+                } else {
+                    Err(Error::UnauthorizedRequest)
+                }
+            },
+            None => {
+                Err(Error::CredentialsNotProvided("missing credentials".to_string()))
+            },
+            _ => Err(Error::UnauthorizedRequest),
+        }
+    }
 }
 
 impl<Storage> Authenticator for Basic<Storage>
@@ -58,27 +81,6 @@ where
     fn check_credentials_grpc(&self, credentials: Credentials) -> Result<Permissions, Error> {
         debug!("check {:?}", credentials);
         match credentials.kind() {
-            Some(CredentialsKind::Basic { username, password }) => {
-                debug!(
-                    "external request ip: {:?}, name: {:?}",
-                    credentials.ip(),
-                    username
-                );
-        
-                let user = self.users_storage.get_user(&username)?;
-                if user.password() == password {
-                    Ok(user.into())
-                } else {
-                    Err(Error::UnauthorizedRequest)
-                }
-            },
-            Some(CredentialsKind::Token(_token)) => {
-                debug!(
-                    "external token request ip: {:?}",
-                    credentials.ip());
-                // todo
-                Err(Error::UnauthorizedRequest)
-            },
             Some(CredentialsKind::InterNode(node_name)) => {
                 if let Some(true) = self.check_node_request(node_name, credentials.ip()) {
                     debug!("request from node: {:?}", credentials.ip());
@@ -87,40 +89,13 @@ where
                     Err(Error::UnauthorizedRequest)
                 }
             },
-            None => {
-                Err(Error::CredentialsNotProvided("missing credentials".to_string()))
-            }
+            _ => self.check_credentials_common(credentials),
         }
     }
 
     fn check_credentials_rest(&self, credentials: Credentials) -> Result<Permissions, Error> {
         debug!("check {:?}", credentials);
-        match credentials.kind() {
-            Some(CredentialsKind::Basic { username, password }) => {
-                debug!(
-                    "external request ip: {:?}, name: {:?}",
-                    credentials.ip(),
-                    username
-                );
-        
-                let user = self.users_storage.get_user(&username)?;
-                if user.password() == password {
-                    Ok(user.into())
-                } else {
-                    Err(Error::UnauthorizedRequest)
-                }
-            },
-            Some(CredentialsKind::Token(_token)) => {
-                debug!(
-                    "external token request ip: {:?}",
-                    credentials.ip());
-                // todo
-                Err(Error::UnauthorizedRequest)
-            },
-            None | _ => {
-                Err(Error::CredentialsNotProvided("missing credentials".to_string()))
-            }
-        }
+        self.check_credentials_common(credentials)
     }
 
     fn credentials_type() -> CredentialsType {
