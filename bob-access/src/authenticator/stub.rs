@@ -1,6 +1,6 @@
-use crate::{credentials::{Credentials, CredentialsType}, error::Error, permissions::Permissions};
+use crate::{credentials::Credentials, error::Error, permissions::Permissions};
 
-use super::{users_storage::UsersStorage, Authenticator};
+use super::{users_storage::UsersStorage, Authenticator, AuthenticationType};
 
 #[derive(Debug, Default, Clone)]
 pub struct Stub<Storage: UsersStorage> {
@@ -22,7 +22,7 @@ impl<Storage: UsersStorage> Authenticator for Stub<Storage> {
         Ok(Permissions::all())
     }
 
-    fn credentials_type() -> CredentialsType {
-        CredentialsType::None
+    fn credentials_type() -> AuthenticationType {
+        AuthenticationType::None
     }
 }

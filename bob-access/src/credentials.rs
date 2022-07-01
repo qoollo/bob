@@ -43,23 +43,6 @@ impl CredentialsKind {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
-pub enum CredentialsType {
-    None,
-    Basic,
-    Token,
-}
-
-impl CredentialsType {
-    pub fn is_basic(&self) -> bool {
-        *self == CredentialsType::Basic
-    }
-
-    pub fn is_stub(&self) -> bool {
-        *self == CredentialsType::None
-    }
-}
-
 impl Credentials {
     pub fn builder() -> CredentialsBuilder {
         CredentialsBuilder::default()

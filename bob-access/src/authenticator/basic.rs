@@ -1,6 +1,6 @@
 use std::{collections::HashMap, net::IpAddr};
 
-use crate::{credentials::{Credentials, CredentialsKind, CredentialsType}, error::Error, permissions::Permissions};
+use crate::{credentials::{Credentials, CredentialsKind}, AuthenticationType, error::Error, permissions::Permissions};
 
 use super::{users_storage::UsersStorage, Authenticator};
 
@@ -98,7 +98,7 @@ where
         self.check_credentials_common(credentials)
     }
 
-    fn credentials_type() -> CredentialsType {
-        CredentialsType::Basic
+    fn credentials_type() -> AuthenticationType {
+        AuthenticationType::Basic
     }
 }
