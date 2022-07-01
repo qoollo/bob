@@ -168,7 +168,7 @@ async fn nodes_credentials_from_cluster_config(
             }
         };
         let creds = Credentials::builder()
-            .with_username_password(node.name(), "")
+            .with_nodename(node.name())
             .with_address(Some(address))
             .build();
         nodes_creds.insert(creds.ip().expect("node missing ip"), creds);
