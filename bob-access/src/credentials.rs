@@ -41,6 +41,22 @@ impl CredentialsKind {
             false
         }
     }
+
+    pub fn is_basic(&self) -> bool {
+        if let CredentialsKind::Basic{username: _, password: _} = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_token(&self) -> bool {
+        if let CredentialsKind::Token(_) = self {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl Credentials {

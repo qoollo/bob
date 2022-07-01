@@ -29,7 +29,7 @@ impl Error {
             InvalidToken(_) => "Invalid token",
             Validation(_) => "Validation error",
             Os(_) => "Os error",
-            UserNotFound => "User not found",
+            UserNotFound => "Unauthorized request",
             ConversionError(_) => "Conversion error",
             CredentialsNotProvided(_) => "Credentials not provided",
             MultipleCredentialsTypes => "Multiple credentials type",
