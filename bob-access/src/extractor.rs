@@ -12,7 +12,6 @@ pub trait ExtractorExt {
     fn extract(&self, cred_type: AuthenticationType) -> Result<Credentials, Error>;
     fn extract_basic(&self) -> Result<Credentials, Error>;
     fn extract_token(&self) -> Result<Credentials, Error>;
-    fn extract_internode(&self) -> Result<Credentials, Error>;
 }
 
 fn prepare_builder<T: Extractor>(slf: &T) -> Result<CredentialsBuilder, Error> {
@@ -50,21 +49,14 @@ impl<T: Extractor> ExtractorExt for T {
                 .build();
             Ok(creds)
         } else {
-            self.extract_internode().map_err(|_| 
-                Error::CredentialsNotProvided("missing username or password".into()))
-        }
-    }
-
-    fn extract_internode(&self) -> Result<Credentials, Error> {
-        let mut builder = prepare_builder(self)?;
-        if let Some(node_name) = self.get_header("node_name")?
-        {
-            let creds = builder
-                .with_nodename(node_name)
-                .build();
-            Ok(creds)
-        } else {
-            Err(Error::CredentialsNotProvided("missing node name".into()))
+            if let Some(node_name) = self.get_header("node_name")? {
+                let creds = builder
+                    .with_nodename(node_name)
+                    .build();
+                Ok(creds)
+            } else {
+                Err(Error::CredentialsNotProvided("missing username or password".into()))
+            }
         }
     }
 
@@ -76,8 +68,14 @@ impl<T: Extractor> ExtractorExt for T {
                 .build();
             Ok(creds)
         } else {
-            self.extract_internode().map_err(|_| 
-                Error::CredentialsNotProvided("missing token".into()))
+            if let Some(node_name) = self.get_header("node_name")? {
+                let creds = builder
+                    .with_nodename(node_name)
+                    .build();
+                Ok(creds)
+            } else {
+                Err(Error::CredentialsNotProvided("missing token".into()))
+            }
         }
     }
 }
