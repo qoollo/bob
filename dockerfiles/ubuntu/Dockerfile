@@ -23,6 +23,7 @@ COPY bob-common/Cargo.toml bob-common/Cargo.toml
 COPY bob-grpc/Cargo.toml bob-grpc/Cargo.toml
 COPY bob-apps/Cargo.toml bob-apps/Cargo.toml
 COPY bob-access/Cargo.toml bob-access/Cargo.toml
+RUN sed -i "s|\[\[bench\]\]|\[\[bench_ignore\]\]|g" */Cargo.toml
 
 RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/lib.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-backend/src/lib.rs \
