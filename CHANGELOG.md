@@ -7,6 +7,7 @@ Bob versions changelog
 - Memory limit for indexes (#466)
 - Access management (#217)
   - Nodes authentication. (#318)
+  - Authorization parameters in bobp (#425)
   - Http API authentication. (#217)
 
 #### Changed
