@@ -4,5 +4,7 @@
         "options": [
             "--proto_path=${workspaceRoot}/proto"
         ]
-    }
+    },
+    "editor.defaultFormatter": "matklad.rust-analyzer",
+    "editor.formatOnSave": true
 }
