@@ -17,17 +17,6 @@ pub struct BuildInfo {
 }
 
 impl BuildInfo {
-    pub fn new() -> Self {
-        Self {
-            name: env!("CARGO_PKG_NAME"),
-            version: env!("CARGO_PKG_VERSION"),
-            key_size: BOB_KEY_SIZE,
-            commit: option_env!("BOB_COMMIT_HASH").unwrap_or("hash-undefined"),
-            build_time: BUILD_TIME,
-            pearl: PearlBuildInfo::new(),
-        }
-    }
-
     pub fn name(&self) -> &'static str {
         self.name
     }
@@ -53,6 +42,19 @@ impl BuildInfo {
     }
 }
 
+impl Default for BuildInfo {
+    fn default() -> Self {
+        Self {
+            name: env!("CARGO_PKG_NAME"),
+            version: env!("CARGO_PKG_VERSION"),
+            key_size: BOB_KEY_SIZE,
+            commit: option_env!("BOB_COMMIT_HASH").unwrap_or("hash-undefined"),
+            build_time: BUILD_TIME,
+            pearl: PearlBuildInfo::new(),
+        }
+    }
+}
+
 impl Display for BuildInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         writeln!(
@@ -66,5 +68,5 @@ impl Display for BuildInfo {
 
 #[test]
 fn print_build_info() {
-    println!("{}", BuildInfo::new());
+    println!("{}", BuildInfo::default());
 }
