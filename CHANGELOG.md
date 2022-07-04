@@ -21,6 +21,7 @@ Bob versions changelog
 #### Added
 - Added grpc exist testing feature to bobp (#419)
 - Add support for hierarchical range filters (#439)
+- Add support for logstash (#243)
 
 
 #### Changed
