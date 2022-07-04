@@ -51,7 +51,7 @@ impl LinkManager {
         tokio::spawn(Self::checker_task(factory, nodes, self.check_interval));
     }
 
-    pub(crate) async fn call_nodes<'a, F, T>(
+    pub(crate) async fn call_nodes<F, T>(
         nodes: impl Iterator<Item = &Node>,
         f: F,
     ) -> Vec<ClusterCallOutput<T>>
@@ -64,7 +64,7 @@ impl LinkManager {
         futures.collect().await
     }
 
-    pub(crate) async fn call_node<'a, F, T>(node: &Node, f: F) -> ClusterCallOutput<T>
+    pub(crate) async fn call_node<F, T>(node: &Node, f: F) -> ClusterCallOutput<T>
     where
         F: FnOnce(&'_ BobClient) -> ClusterCallFuture<'_, T> + Send + Clone,
         T: Send,

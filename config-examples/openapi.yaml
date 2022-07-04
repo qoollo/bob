@@ -15,33 +15,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Node"
-        default:
-          $ref: "#/components/responses/DefaultError"
   /status/space:
     get:
       summary: Get space info
       operationId: getSpaceInfo
-      response:
+      responses:
         "200":
           description: "Space info"
           content:
             application/json:
               schema:
-                ref: "#components/schemas/DiskSpace"
-        "503":
-          description: "Space info not available"
+                $ref: "#/components/schemas/SpaceInfo"
+  /metrics:
+    get:
+      summary: Get metrics
+      operationId: getMetrics
+      responses:
+        "200":
+          description: "Metrics"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetricsSnapshotModel"
   /version:
     get:
       summary: Returns server version
       operationId: getVersion
       responses:
         "200":
-          description: "Version string"
+          description: "Version info"
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-                example: 1.6.1-cb85dca16f40567b262c393abff15be01d4a2df5
+                $ref: "#/components/schemas/VersionInfo"
   /nodes:
     get:
       summary: Returns a list of known nodes
@@ -55,11 +61,11 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Node"
-        default:
-          $ref: "#/components/responses/DefaultError"
+        "403":
+          description: "Permission denied"
   /metadata/distrfunc:
     get:
-      summary: Return information about key distribution function
+      summary: Returns information about key distribution function
       operationId: distributionFunction
       responses:
         "200":
@@ -68,6 +74,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DistrFunc"
+        "403":
+          description: "Permission denied"
   /vdisks:
     get:
       summary: Returns a list of vdisks
@@ -81,8 +89,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/VDisk"
-        default:
-          $ref: "#/components/responses/DefaultError"
+        "403":
+          description: "Permission denied"
   /vdisks/{VDiskId}:
     get:
       summary: Returns a vdisk info by ID
@@ -96,8 +104,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VDisk"
-        default:
-          $ref: "#/components/responses/DefaultError"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /vdisks/{VDiskId}/records/count:
     get:
       summary: Returns count of records of this on node
@@ -111,8 +129,18 @@ paths:
             application/json:
               schema:
                 type: integer
-        default:
-          $ref: "#/components/responses/DefaultError"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /vdisks/{VDiskId}/partitions:
     get:
       summary: Returns a list of partitions
@@ -126,8 +154,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VDiskPartitions"
-        default:
-          $ref: "#/components/responses/DefaultError"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /vdisks/{VDiskId}/partitions/{partitionId}:
     get:
       summary: Returns a partition info by ID
@@ -145,9 +183,19 @@ paths:
           content:
             application/json:
               schema:
-                type: string
-        default:
-          $ref: "#/components/responses/DefaultError"
+                $ref: "#/components/schemas/Partition"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /vdisks/{VDiskId}/partitions/by_timestamp/{timestamp}:
     delete:
       summary: Delete partitions by timestamp
@@ -164,11 +212,27 @@ paths:
           content:
             application/json:
               schema:
-                type: string
-        default:
-          $ref: "#/components/responses/DefaultError"
+                $ref: "#/components/schemas/StatusExt"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "400":
+          description: "Bad request (partitions with the timestamp not found on the vdisk or it is active)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /vdisks/{VDiskId}/partitions/by_timestamp/{timestamp}/{action}:
-    put:
+    post:
       summary: Attach/Detach a partition by timestamp
       parameters:
         - $ref: "#/components/parameters/VDiskIdParam"
@@ -176,7 +240,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            type: integer
         - in: path
           name: action
           schema:
@@ -191,9 +255,19 @@ paths:
           content:
             application/json:
               schema:
-                type: string
-        default:
-          $ref: "#/components/responses/DefaultError"
+                $ref: "#/components/schemas/StatusExt"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /disks/list:
     get:
       summary: Returns the list of disks with their states
@@ -207,8 +281,12 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/DiskState"
-        default:
-          $ref: "#/components/responses/DefaultError"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /disks/<disk_name>/stop:
     post:
       summary: Stops all disks controller for disk
@@ -220,9 +298,19 @@ paths:
           content:
             application/json:
               schema:
-                type: string
-        default:
-          $ref: "#/components/responses/DefaultError"
+                $ref: "#/components/schemas/StatusExt"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "406":
+          description: "Not acceptable backend"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /disks/<disk_name>/start:
     post:
       summary: Trying to start all disk controllers for disk
@@ -234,9 +322,21 @@ paths:
           content:
             application/json:
               schema:
-                type: string
-        default:
-          $ref: "#/components/responses/DefaultError"
+                type: array
+                items:
+                  $ref: "#/components/schemas/StatusExt"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "406":
+          description: "Not acceptable backend"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /vdisks/<vdisk_id>/remount:
     post:
       summary: Remount partitions on vdisk
@@ -248,33 +348,43 @@ paths:
           content:
             application/json:
               schema:
-                type: string
-        default:
-          $ref: "#/components/responses/DefaultError"
+                $ref: "#/components/schemas/StatusExt"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /blobs/outdated:
     delete:
       summary: Close active blobs of holders not used recently
       operationId: finalizeOldBlobs
       responses:
         "200":
-          description: "Successfully finalized blobs"
-        default:
-          $ref: "#/components/responses/DefaultError"
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "403":
+          description: "Permission denied"
   /alien:
     get:
       summary: Returns an alien dir info
       operationId: getAlien
       responses:
         "200":
-          description: "A JSON array with alien Node names info"
+          description: "Alien Node name"
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: string
-        default:
-          $ref: "#/components/responses/DefaultError"
+                type: string
   /configuration:
     get:
       summary: Returns configuration of the node
@@ -285,9 +395,9 @@ paths:
           content:
             application/json:
               schema:
-                ref: "#/components/schemas/NodeConfiguration"
-        default:
-          $ref: "#/components/responses/DefaultError"
+                $ref: "#/components/schemas/NodeConfiguration"
+        "403":
+          description: "Permission denied"
   /alien/detach:
     post:
       summary: Detach alien partitions
@@ -295,8 +405,22 @@ paths:
       responses:
         "200":
           description: Successfully deatched alien partitions
-        default:
-          $ref: "#/components/responses/DefaultError"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "406":
+          description: "Not acceptable backend"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /alien/dir:
     get:
       summary: Return directory of alien
@@ -307,9 +431,19 @@ paths:
           content:
             application/json:
               schema:
-                ref: "#/components/schemas/Dir"
-        default:
-          $ref: "#/components/responses/DefaultError"
+                $ref: "#/components/schemas/Dir"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "406":
+          description: "Not acceptable backend"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
 
   /vdisks/<vdisk_id>/replicas/local/dirs:
     get:
@@ -320,11 +454,22 @@ paths:
           description: "A JSON array with dirs"
           content:
             application/json:
-              type: array
-              items:
-                ref: "#/components/schemas/Dir"
-        default:
-          $ref: "#/components/responses/DefaultError"
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Dir"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /data/<key>:
     get:
       summary: Returns data by key
@@ -334,8 +479,24 @@ paths:
       responses:
         "200":
           description: "Binary data with inferred content type"
-        default:
-          $ref: "#/components/responses/DefaultError"
+        "400":
+          description: "Bad request (invalid key)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
     post:
       summary: Add data to storage by key
       operationId: postDataByKey
@@ -347,8 +508,22 @@ paths:
       responses:
         "200":
           description: "Data successfully added"
-        default:
-          $ref: "#/components/responses/DefaultError"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "400":
+          description: "Bad request (invalid key)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
     delete:
       summary: Delete data from storage by key
       operationId: deleteDataByKey
@@ -357,8 +532,22 @@ paths:
       responses:
         "200":
           description: "Successfully deleted"
-        default:
-          $ref: "#/components/responses/DefaultError"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "400":
+          description: "Bad request (invalid key)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
 
 components:
   responses:
@@ -395,7 +584,7 @@ components:
         address:
           type: string
         vdisks:
-          type: string
+          type: array
           items:
             $ref: "#/components/schemas/VDisk"
       required:
@@ -449,13 +638,15 @@ components:
             type: string
     Partition:
       properties:
-        vdisk:
+        vdisk_id:
           type: integer
-        node:
+        node_name:
           type: string
-        disk:
+        disk_name:
           type: string
         timestamp:
+          type: integer
+        records_count:
           type: integer
     Error:
       type: object
@@ -496,11 +687,9 @@ components:
       type: object
       properties:
         bobversion:
-          type:
-            $ref: "#/components/schemas/Version"
+          $ref: "#/components/schemas/Version"
         pearlversion:
-          type:
-            $ref: "#/components/schemas/Version"
+          $ref: "#/components/schemas/Version"
     NodeConfiguration:
       type: object
       properties:
@@ -523,3 +712,31 @@ components:
           type: object
           additional_properties:
             type: integer
+    MetricsEntryModel:
+      type: object
+      properties:
+        value:
+          type: integer
+        timestamp:
+          type: integer
+    MetricsMap:
+      type: object
+      properties:
+        metric1:
+          $ref: "#/components/schemas/MetricsEntryModel"
+        metric2:
+          $ref: "#/components/schemas/MetricsEntryModel"
+    MetricsSnapshotModel:
+      type: object
+      properties:
+        metrics:
+          $ref: "#/components/schemas/MetricsMap"
+    StatusExt:
+      type: object
+      properties:
+        status:
+          type: integer
+        ok:
+          type: boolean
+        msg:
+          type: string

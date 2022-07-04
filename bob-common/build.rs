@@ -12,5 +12,5 @@ fn main() {
         .map_or(Ok(8), str::parse)
         .expect("Could not parse BOB_KEY_SIZE");
 
-    write!(&mut f, "pub const BOB_KEY_SIZE: usize = {};", key_size).expect("Could not write file");
+    write!(f, "pub const BOB_KEY_SIZE: usize = {};", key_size).expect("Could not write file");
 }

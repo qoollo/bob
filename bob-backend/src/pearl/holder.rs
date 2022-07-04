@@ -98,37 +98,41 @@ impl Holder {
         ts > self.end_timestamp
     }
 
+    pub fn is_older_than(&self, secs: u64) -> bool {
+        let ts = Self::get_current_ts();
+        (ts - secs) > self.end_timestamp
+    }
+
     pub async fn no_writes_recently(&self) -> bool {
         let ts = Self::get_current_ts();
         let last_write_ts = *self.last_write_ts.read().await;
         ts - last_write_ts > MAX_TIME_SINCE_LAST_WRITE_SEC
     }
 
-    pub async fn active_blob_is_empty(&self) -> bool {
-        let active = self
-            .storage()
-            .read()
-            .await
-            .active_blob_records_count()
-            .await as u64;
-        active == 0
+    pub async fn has_active_blob(&self) -> bool {
+        self.storage().read().await.has_active_blob().await
     }
 
-    pub async fn active_blob_is_small(&self) -> bool {
-        let active = self
-            .storage()
+    pub async fn active_blob_is_empty(&self) -> Option<bool> {
+        self.storage()
             .read()
             .await
             .active_blob_records_count()
-            .await as u64;
-        active * SMALL_RECORDS_COUNT_MUL < self.config.max_data_in_blob()
+            .await
+            .map(|c| c == 0)
+    }
+
+    pub async fn active_blob_is_small(&self) -> Option<bool> {
+        self.storage()
+            .read()
+            .await
+            .active_blob_records_count()
+            .await
+            .map(|c| c as u64 * SMALL_RECORDS_COUNT_MUL < self.config.max_data_in_blob())
     }
 
     fn get_current_ts() -> u64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("current time is before unix epoch")
-            .as_secs()
+        coarsetime::Clock::now_since_epoch().as_secs()
     }
 
     pub async fn close_active_blob(&self) {
@@ -528,15 +532,16 @@ impl PearlSync {
         self.storage().index_memory().await
     }
 
-    pub async fn active_blob_records_count(&self) -> usize {
-        self.storage()
-            .records_count_in_active_blob()
-            .await
-            .unwrap_or_default()
+    pub async fn active_blob_records_count(&self) -> Option<usize> {
+        self.storage().records_count_in_active_blob().await
     }
 
     pub async fn blobs_count(&self) -> usize {
         self.storage().blobs_count().await
+    }
+
+    pub async fn has_active_blob(&self) -> bool {
+        self.storage().has_active_blob().await
     }
 
     #[inline]
