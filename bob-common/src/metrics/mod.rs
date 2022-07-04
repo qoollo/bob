@@ -100,7 +100,7 @@ pub const DESCRIPTORS_AMOUNT: &str = "hardware.descr_amount";
 
 pub const CPU_LOAD: &str = "hardware.cpu_load";
 pub const CPU_IOWAIT: &str = "hardware.cpu_iowait";
-pub const FREE_RAM: &str = "hardware.free_ram";
+pub const AVAILABLE_RAM: &str = "hardware.available_ram";
 pub const USED_RAM: &str = "hardware.used_ram";
 pub const TOTAL_RAM: &str = "hardware.total_ram";
 pub const BOB_RAM: &str = "hardware.bob_ram";

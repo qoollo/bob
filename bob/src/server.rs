@@ -1,5 +1,6 @@
 use std::net::IpAddr;
 
+use bob_access::{Authenticator, CredentialsHolder};
 use tokio::{runtime::Handle, task::block_in_place};
 
 use crate::prelude::*;
@@ -9,20 +10,30 @@ use bob_common::metrics::SharedMetricsSnapshot;
 
 /// Struct contains `Grinder` and receives incomming GRPC requests
 #[derive(Clone, Debug)]
-pub struct Server {
+pub struct Server<A: Authenticator> {
     handle: Handle,
     grinder: Arc<Grinder>,
     shared_metrics: SharedMetricsSnapshot,
+    auth: A,
 }
 
-impl Server {
+impl<A> Server<A>
+where
+    A: Authenticator,
+{
     /// Creates new bob server
     #[must_use]
-    pub fn new(grinder: Grinder, handle: Handle, shared_metrics: SharedMetricsSnapshot) -> Self {
+    pub fn new(
+        grinder: Grinder,
+        handle: Handle,
+        shared_metrics: SharedMetricsSnapshot,
+        auth: A,
+    ) -> Self {
         Self {
             handle,
             grinder: Arc::new(grinder),
             shared_metrics,
+            auth,
         }
     }
 
@@ -40,7 +51,7 @@ impl Server {
 
     /// Call to run HTTP API server, not required for normal functioning
     pub fn run_api_server(&self, address: IpAddr, port: u16) {
-        crate::api::http::spawn(self.clone(), address, port);
+        crate::api::spawn(self.clone(), address, port);
     }
 
     /// Start backend component, required before starting bob service
@@ -65,6 +76,10 @@ impl Server {
         let backend = self.grinder.backend().clone();
         backend.shutdown().await;
     }
+
+    pub fn auth(&self) -> &A {
+        &self.auth
+    }
 }
 
 fn put_extract(req: PutRequest) -> Option<(BobKey, Vec<u8>, u64, Option<PutOptions>)> {
@@ -84,8 +99,15 @@ fn get_extract(req: GetRequest) -> Option<(BobKey, Option<GetOptions>)> {
 type ApiResult<T> = Result<Response<T>, Status>;
 
 #[tonic::async_trait]
-impl BobApi for Server {
+impl<A> BobApi for Server<A>
+where
+    A: Authenticator,
+{
     async fn put(&self, req: Request<PutRequest>) -> ApiResult<OpStatus> {
+        let creds: CredentialsHolder<A> = (&req).into();
+        if !self.auth.check_credentials_grpc(creds.into())?.has_write() {
+            return Err(Status::permission_denied("WRITE permission required"));
+        }
         trace!("- - - - - SERVER PUT START - - - - -");
         let sw = Stopwatch::start_new();
         trace!(
@@ -144,6 +166,10 @@ impl BobApi for Server {
     }
 
     async fn get(&self, req: Request<GetRequest>) -> ApiResult<Blob> {
+        let creds: CredentialsHolder<A> = (&req).into();
+        if !self.auth.check_credentials_grpc(creds.into())?.has_read() {
+            return Err(Status::permission_denied("READ permission required"));
+        }
         trace!("- - - - - SERVER GET START - - - - -");
         let sw = Stopwatch::start_new();
         trace!(
@@ -196,6 +222,10 @@ impl BobApi for Server {
     }
 
     async fn exist(&self, req: Request<ExistRequest>) -> ApiResult<ExistResponse> {
+        let creds: CredentialsHolder<A> = (&req).into();
+        if !self.auth.check_credentials_grpc(creds.into())?.has_read() {
+            return Err(Status::permission_denied("READ permission required"));
+        }
         let sw = Stopwatch::start_new();
         let req = req.into_inner();
         let ExistRequest { keys, options } = req;

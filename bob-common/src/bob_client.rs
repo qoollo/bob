@@ -16,6 +16,7 @@ pub mod b_client {
         time::Duration,
     };
     use tonic::{
+        metadata::MetadataValue,
         transport::{Channel, Endpoint},
         Request, Response, Status,
     };
@@ -74,13 +75,14 @@ pub mod b_client {
                 data: Some(blob),
                 options: Some(options),
             };
-            let mut request = Request::new(message);
-            self.set_timeout(&mut request);
+            let mut req = Request::new(message);
+            self.set_credentials(&mut req);
+            self.set_timeout(&mut req);
             self.metrics.put_count();
             let timer = BobClientMetrics::start_timer();
             let mut client = self.client.clone();
             let node_name = self.node.name().to_owned();
-            match client.put(request).await {
+            match client.put(req).await {
                 Ok(_) => {
                     self.metrics.put_timer_stop(timer);
                     Ok(NodeOutput::new(node_name, ()))
@@ -104,9 +106,10 @@ pub mod b_client {
                 key: Some(BlobKey { key: key.into() }),
                 options: Some(options),
             };
-            let mut request = Request::new(message);
-            self.set_timeout(&mut request);
-            match client.get(request).await {
+            let mut req = Request::new(message);
+            self.set_credentials(&mut req);
+            self.set_timeout(&mut req);
+            match client.get(req).await {
                 Ok(data) => {
                     self.metrics.get_timer_stop(timer);
                     let ans = data.into_inner();
@@ -126,6 +129,7 @@ pub mod b_client {
         pub async fn ping(&self) -> PingResult {
             let mut client = self.client.clone();
             let mut req = Request::new(Null {});
+            self.set_credentials(&mut req);
             self.set_timeout(&mut req);
             match client.ping(req).await {
                 Ok(_) => Ok(NodeOutput::new(self.node.name().to_owned(), ())),
@@ -147,6 +151,7 @@ pub mod b_client {
                 options: Some(options),
             };
             let mut req = Request::new(message);
+            self.set_credentials(&mut req);
             self.set_timeout(&mut req);
             let exist_response = client.exist(req).await;
             let result = Self::get_exist_result(self.node.name().to_owned(), exist_response);
@@ -177,6 +182,7 @@ pub mod b_client {
                 options: Some(options),
             };
             let mut req = Request::new(message);
+            self.set_credentials(&mut req);
             self.set_timeout(&mut req);
             self.metrics.delete_timer_stop(timer);
             if client.delete(req).await.is_ok() {
@@ -185,6 +191,12 @@ pub mod b_client {
                 self.metrics.delete_error_count();
                 Err(NodeOutput::new(node_name, Error::timeout()))
             }
+        }
+
+        fn set_credentials<T>(&self, req: &mut Request<T>) {
+            let val = MetadataValue::from_str(self.node.name())
+                .expect("failed to create metadata value from node name");
+            req.metadata_mut().insert("node_name", val);
         }
 
         fn set_timeout<T>(&self, r: &mut Request<T>) {

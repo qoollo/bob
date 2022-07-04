@@ -1,0 +1,25 @@
+---
+roles:
+  admin:
+    read: true
+    write: true
+    read_rest: true
+    write_rest: true
+  reader:
+    read: true
+    read_rest: true
+  data_manipulator:
+    write: true
+    read: true
+    read_rest: true
+
+users:
+  - username: admin
+    password: password
+    role: admin
+  - username: readonly
+    password: password
+    role: reader
+  - username: user
+    password: password
+    role: data_manipulator

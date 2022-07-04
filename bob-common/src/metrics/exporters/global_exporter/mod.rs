@@ -6,6 +6,7 @@ at least one recorder is expected\
 recorder without any local exporters)";
 
 mod rate_processor;
+
 use rate_processor::RateProcessor;
 
 pub(crate) struct GlobalRecorder {

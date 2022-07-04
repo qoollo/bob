@@ -126,7 +126,17 @@ fn get_key_value(matches: &'_ ArgMatches<'_>) -> Vec<u8> {
         .to_string()
         .parse()
         .expect("key must be u64");
-    let max_allowed_key = 256_u64.pow(key_size as u32) - 1;
+    info!(
+        "key size: {}, as u32: {}, u64::MAX: {}",
+        key_size,
+        key_size as u32,
+        u64::MAX
+    );
+    let max_allowed_key = if key_size >= 8 {
+        u64::MAX
+    } else {
+        256_u64.pow(key_size as u32) - 1
+    };
     if key > max_allowed_key {
         panic!(
             "Key {} is not allowed by keysize {} (max allowed key is {})",
