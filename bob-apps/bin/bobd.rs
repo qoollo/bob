@@ -2,9 +2,14 @@ use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
     VirtualMapper, BackendType,
 };
+use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap, AuthenticationType};
 use clap::{crate_version, App, Arg, ArgMatches};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use tokio::runtime::Handle;
+use std::{
+    collections::HashMap,
+    error::Error as ErrorTrait,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+};
+use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::Server;
 use std::path::PathBuf;
 use std::fs::create_dir;
@@ -18,13 +23,13 @@ async fn main() {
 
     if matches.value_of("cluster").is_none() {
         eprintln!("Expect cluster config");
-        eprintln!("use -h for help");
+        eprintln!("use --help");
         return;
     }
 
     if matches.value_of("node").is_none() {
         eprintln!("Expect node config");
-        eprintln!("use -h for help");
+        eprintln!("use --help");
         return;
     }
 
@@ -32,9 +37,9 @@ async fn main() {
     println!("Cluster config: {:?}", cluster_config);
     let cluster = ClusterConfig::try_get(cluster_config).await.unwrap();
 
-    let node_config = matches.value_of("node").unwrap();
-    println!("Node config: {:?}", node_config);
-    let node = cluster.get(node_config).await.unwrap();
+    let node_config_file = matches.value_of("node").unwrap();
+    println!("Node config: {:?}", node_config_file);
+    let node = cluster.get(node_config_file).await.unwrap();
 
     log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
         .expect("can't find log config");
@@ -83,36 +88,93 @@ async fn main() {
     }
     warn!("Start listening on: {:?}", addr);
 
-    let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
-
-    let handle = Handle::current();
-    let bob = BobServer::new(Grinder::new(mapper, &node).await, handle, shared_metrics);
-
-    info!("Start backend");
-    bob.run_backend().await.unwrap();
     info!("Start API server");
     let http_api_port = matches
         .value_of("http_api_port")
         .and_then(|v| v.parse().ok())
-        .unwrap_or(node.http_api_port());
+        .unwrap_or_else(|| node.http_api_port());
     let http_api_address = matches
         .value_of("http_api_address")
         .and_then(|v| v.parse().ok())
-        .unwrap_or(node.http_api_address());
-    bob.run_api_server(http_api_address, http_api_port);
+        .unwrap_or_else(|| node.http_api_address());
 
-    create_signal_handlers(&bob).unwrap();
+    let authentication_type = node.authentication_type();
+    match authentication_type {
+        AuthenticationType::None => {
+            let users_storage =
+                UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
+            let authenticator = StubAuthenticator::new(users_storage);
+            run_server(node, authenticator, mapper, http_api_address, http_api_port, addr).await;
+        }
+        AuthenticationType::Basic => {
+            let users_storage =
+                UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
+            let mut authenticator = BasicAuthenticator::new(users_storage);
+            let nodes_credentials = nodes_credentials_from_cluster_config(&cluster).await;
+            authenticator
+                .set_nodes_credentials(nodes_credentials)
+                .expect("failed to gen nodes credentials from cluster config");
+            run_server(node, authenticator, mapper, http_api_address, http_api_port, addr).await;
+        }
+        _ => {
+            warn!("valid authentication type not provided");
+        }
+    }
+}
 
+async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
+    let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
+    let handle = Handle::current();
     let factory = Factory::new(node.operation_timeout(), metrics);
-    bob.run_periodic_tasks(factory);
-    let new_service = BobApiServer::new(bob);
 
+    let bob = BobServer::new(
+        Grinder::new(mapper, &node).await,
+        handle,
+        shared_metrics,
+        authenticator,
+    );
+    info!("Start backend");
+    bob.run_backend().await.unwrap();
+    create_signal_handlers(&bob).unwrap();
+    bob.run_periodic_tasks(factory);
+    bob.run_api_server(address, port);
+
+    let bob_service = BobApiServer::new(bob);
     Server::builder()
         .tcp_nodelay(true)
-        .add_service(new_service)
+        .add_service(bob_service)
         .serve(addr)
         .await
         .unwrap();
+}
+
+async fn nodes_credentials_from_cluster_config(
+    cluster_config: &ClusterConfig,
+) -> HashMap<IpAddr, Credentials> {
+    let mut nodes_creds = HashMap::new();
+    for node in cluster_config.nodes() {
+        let address = &node.address();
+        let address = if let Ok(address) = address.parse() {
+            address
+        } else {
+            match lookup_host(address).await {
+                Ok(mut address) => address
+                    .next()
+                    .expect("failed to resolve hostname: dns returned empty ip list"),
+                Err(e) => {
+                    error!("expected SocketAddr/hostname, found: {}", address);
+                    error!("{}", e);
+                    panic!("failed to resolve hostname")
+                }
+            }
+        };
+        let creds = Credentials::builder()
+            .with_nodename(node.name())
+            .with_address(Some(address))
+            .build();
+        nodes_creds.insert(creds.ip().expect("node missing ip"), creds);
+    }
+    nodes_creds
 }
 
 fn bind_all_interfaces(port: u16) -> SocketAddr {
@@ -124,8 +186,9 @@ fn port_from_address(addr: &str) -> Option<u16> {
         .and_then(|(_, port)| port.parse::<u16>().ok())
 }
 
-fn create_signal_handlers(server: &BobServer) -> Result<(), Box<dyn std::error::Error>> {
-    use tokio::signal::unix::SignalKind;
+fn create_signal_handlers<A: Authenticator>(
+    server: &BobServer<A>,
+) -> Result<(), Box<dyn ErrorTrait>> {
     let signals = [SignalKind::terminate(), SignalKind::interrupt()];
     for s in signals.iter() {
         spawn_signal_handler(server, *s)?;
@@ -133,8 +196,8 @@ fn create_signal_handlers(server: &BobServer) -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
-fn spawn_signal_handler(
-    server: &BobServer,
+fn spawn_signal_handler<A: Authenticator>(
+    server: &BobServer<A>,
     s: tokio::signal::unix::SignalKind,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use tokio::signal::unix::signal;
@@ -188,7 +251,7 @@ fn check_folders(node: &NodeConfig, init_flag: bool) {
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
-    let ver = format!("{}\n{}", crate_version!(), BuildInfo::new());
+    let ver = format!("{}\n{}", crate_version!(), BuildInfo::default());
     App::new("bobd")
         .version(ver.as_str())
         .arg(
@@ -211,14 +274,6 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .takes_value(true)
                 .short("a")
                 .long("name"),
-        )
-        .arg(
-            Arg::with_name("threads")
-                .help("count threads")
-                .takes_value(true)
-                .short("t")
-                .long("threads")
-                .default_value("4"),
         )
         .arg(
             Arg::with_name("http_api_address")

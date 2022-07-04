@@ -1,15 +1,18 @@
 use crate::prelude::*;
 use bob_common::metrics::{
-    BOB_RAM, CPU_IOWAIT, CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, HW_DISKS_FOLDER,
+    BOB_RAM, CPU_IOWAIT, CPU_LOAD, DESCRIPTORS_AMOUNT, AVAILABLE_RAM, FREE_SPACE, HW_DISKS_FOLDER,
     TOTAL_RAM, TOTAL_SPACE, USED_RAM, USED_SPACE,
 };
 use libc::statvfs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
+use std::fs::read_to_string;
 use sysinfo::{DiskExt, ProcessExt, RefreshKind, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
+const CPU_STAT_FILE: &str = "/proc/stat";
+const DISK_STAT_FILE: &str = "/proc/diskstats";
 
 pub(crate) struct DiskSpaceMetrics {
     pub(crate) total_space: u64,
@@ -102,10 +105,11 @@ impl HWMetricsCollector {
             }
 
             let _ = Self::update_space_metrics_from_disks(&disks);
-            let used_mem = kb_to_b(sys.used_memory());
-            debug!("used mem in bytes: {}", used_mem);
+            let available_mem = kb_to_b(sys.available_memory());
+            let used_mem = total_mem - available_mem;
+            debug!("used mem in bytes: {} | available mem in bytes: {}", used_mem, available_mem);
             gauge!(USED_RAM, used_mem as f64);
-            gauge!(FREE_RAM, (total_mem - used_mem) as f64);
+            gauge!(AVAILABLE_RAM, available_mem as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
 
             if let Err(CommandError::Primary(e)) = disk_s_c.collect_and_send_metrics() {
@@ -179,53 +183,136 @@ enum CommandError {
     Primary(String),
 }
 struct CPUStatCollector {
-    iostat_avl: bool,
+    procfs_avl: bool,
 }
 
 impl CPUStatCollector {
     fn new() -> CPUStatCollector {
-        CPUStatCollector { iostat_avl: true }
+        CPUStatCollector {
+            procfs_avl: true
+        }
     }
 
-    fn parse_iostat_result(iostat_str: &str) -> Result<f64, std::num::ParseFloatError> {
-        iostat_str.replace(',', ".").parse()
+    fn stat_cpu_line() -> Result<String, String> {
+        let lines = file_contents(CPU_STAT_FILE)?;
+        for stat_line in lines {
+            if stat_line.starts_with("cpu") {
+                return Ok(stat_line);
+            }
+        }
+        Err(format!("Can't find cpu stat line in {}", CPU_STAT_FILE))
     }
 
     fn iowait(&mut self) -> Result<f64, CommandError> {
-        if !self.iostat_avl {
+        if !self.procfs_avl {
             return Err(CommandError::Unavailable);
         }
 
-        match parse_command_output(Command::new("iostat").arg("-c")) {
-            Ok(output) => {
-                // find avg-cpu headers line
-                let mut lines = output
-                    .lines()
-                    .skip_while(|line| line.find("avg-cpu:").is_none());
-                // find iowait column on the next line
-                if let Some(line) = lines.next() {
-                    let mut values = line.split_whitespace();
-                    // iowait is in 3d column
-                    if let Some(iowait_str) = values.nth(3) {
-                        if let Ok(iowait) = Self::parse_iostat_result(iowait_str) {
-                            return Ok(iowait);
+        const CPU_IOWAIT_COLUMN: usize = 5;
+        let mut err = None;
+        match Self::stat_cpu_line() {
+            Ok(line) => {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() > CPU_IOWAIT_COLUMN {
+                    let mut sum = 0.;
+                    let mut f_iowait = 0.;
+                    for i in 1..parts.len() {
+                        match parts[i].parse::<f64>() {
+                            Ok(val) => {
+                                sum += val;
+                                if i == CPU_IOWAIT_COLUMN {
+                                    f_iowait = val;
+                                }
+                            },
+                            Err(_) => {
+                                let msg = format!("Can't parse {}", CPU_STAT_FILE);
+                                err = Some(msg);
+                                break;
+                            }
                         }
                     }
+                    if err.is_none() {
+                        return Ok(f_iowait * 100. / sum);
+                    }
+                } else {
+                    let msg = format!("CPU stat format in {} changed", CPU_STAT_FILE);
+                    err = Some(msg);
                 }
-            }
+            },
             Err(e) => {
-                self.iostat_avl = false;
-                return Err(CommandError::Primary(e));
+                err = Some(e);
             }
         }
-        self.iostat_avl = false;
-        Err(CommandError::Primary("Failed to get iowait from iostat".to_string()))
+        self.procfs_avl = false;
+        Err(CommandError::Primary(err.unwrap()))
     }
 }
 
+const DIFFCONTAINER_THRESHOLD: Duration = Duration::from_millis(500);
+
+struct DiffContainer<T> {
+    last: Option<T>,
+}
+
+impl<T> DiffContainer<T>
+where T: std::ops::Sub<Output = T> +
+         Copy,
+{
+    fn new() -> Self {
+        Self {
+            last: None,
+        }
+    }
+
+    fn diff(&mut self, new: T) -> Option<T> {
+        if let Some(last) = self.last {
+            let diff = new - last;
+            self.last = Some(new);
+            Some(diff)
+        } else {
+            self.last = Some(new);
+            None
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct DiskStats {
+    reads: u64,
+    writes: u64,
+    io_time: u64,
+    extended: bool,
+}
+
+impl std::ops::Sub for DiskStats {
+    type Output = DiskStats;
+    fn sub(self, rhs: DiskStats) -> DiskStats {
+        DiskStats {
+            reads: self.reads.wrapping_sub(rhs.reads),
+            writes: self.writes.wrapping_sub(rhs.writes),
+            io_time: self.io_time.wrapping_sub(rhs.io_time),
+            extended: self.extended && rhs.extended,
+        }
+    }
+}
+
+struct DiskStatsContainer {
+    prefix: String,
+    stats: DiffContainer<DiskStats>,
+}
+
+impl  DiskStatsContainer {
+    fn new(prefix: String) -> Self {
+        Self {
+            prefix,
+            stats: DiffContainer::new(),
+        }
+    }
+}
 struct DiskStatCollector {
-    iostat_avl: bool,
-    disk_metric_data: HashMap<String, String>,
+    procfs_avl: bool,
+    disk_metric_data: HashMap<String, DiskStatsContainer>,
+    upd_timestamp: Instant,
 }
 
 impl DiskStatCollector {
@@ -235,54 +322,82 @@ impl DiskStatCollector {
             let path_str = path.as_os_str().to_str().unwrap();
             if let Ok(dev_name) = Self::dev_name(path_str) {
                 let metric_prefix = format!("{}.{}", HW_DISKS_FOLDER, disk_name);
-                disk_metric_data.insert(dev_name, metric_prefix);
+                disk_metric_data.insert(dev_name, DiskStatsContainer::new(metric_prefix));
             } else {
                 warn!("Device name of disk {} is unknown", disk_name);
             }
         }
 
         DiskStatCollector {
-            iostat_avl: true,
+            procfs_avl: true,
             disk_metric_data,
+            upd_timestamp: Instant::now(),
         }
     }
 
-    fn collect_and_send_metrics(&mut self) -> Result<(), CommandError> {
-        let iostat_lines = self.collect_iostat()?;
-        for i in iostat_lines {
-            let lsp: Vec<&str> = i.split_whitespace().collect();
-            if lsp.len() == 21 {
-                if let Some(metric_prefix) = self.disk_metric_data.get(lsp[0]) {
-                    if let (Ok(rs), Ok(ws)) = (
-                        // readops per s count is in 1st column
-                        Self::parse_iostat_result(lsp[1]),
-                        // writeops per s count is in 7th column
-                        Self::parse_iostat_result(lsp[7]),
-                    ) {
-                        let iops = rs + ws;
-
-                        let gauge_name = format!("{}_iops", metric_prefix);
-                        gauge!(gauge_name, iops);
-                    } else {
-                        return Err(CommandError::Primary("Can't parse iostat output into float".to_string()));
-                    }
-
-                    if let (Ok(rwait), Ok(wwait)) = (
-                        // readops wait time is in 5th column
-                        Self::parse_iostat_result(lsp[5]),
-                        // writeops wait time is in 11th column
-                        Self::parse_iostat_result(lsp[11]),
-                    ) {
-                        let iowait = rwait + wwait;
-
-                        let gauge_name = format!("{}_iowait", metric_prefix);
-                        gauge!(gauge_name, iowait);
-                    } else {
-                        return Err(CommandError::Primary("Can't parse iostat output into float".to_string()));
-                    }
+    fn parse_stat_line(parts: Vec<&str>) -> Result<DiskStats, CommandError> {
+        let mut new_ds = DiskStats {
+            reads: 0,
+            writes: 0,
+            io_time: 0,
+            extended: parts.len() >= 12,
+        };
+        if let (Ok(r_ios), Ok(w_ios)) = (
+            // successfull reads count is in 3rd column
+            parts[3].parse::<u64>(),
+            // successfull writes count is in 7th column
+            parts[7].parse::<u64>(),
+        ) {
+            new_ds.reads = r_ios;
+            new_ds.writes = w_ios;  
+            if new_ds.extended {
+                // time spend doing i/o operations is in 12th column
+                if let Ok(io_time) = parts[12].parse::<u64>() {
+                    new_ds.io_time = io_time;
+                } else {
+                    let msg = format!("Can't parse {} values to unsigned int", DISK_STAT_FILE);
+                    return Err(CommandError::Primary(msg));
                 }
-            } else if lsp.len() > 0 {
-                return Err(CommandError::Primary("iostat output format changed, update this code".to_string()));
+            }
+        } else {
+            let msg = format!("Can't parse {} values to unsigned int", DISK_STAT_FILE);
+            return Err(CommandError::Primary(msg));
+        }
+        Ok(new_ds)
+    }
+
+    fn collect_and_send_metrics(&mut self) -> Result<(), CommandError> {
+        let diskstats = self.diskstats()?;
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.upd_timestamp);
+        if elapsed > DIFFCONTAINER_THRESHOLD {
+            self.upd_timestamp = now;
+            let elapsed = elapsed.as_secs_f64();
+            for i in diskstats {
+                let lsp: Vec<&str> = i.split_whitespace().collect();
+                if lsp.len() >= 8 {
+                    // compare device name from 2nd column with disk device names
+                    if let Some(ds) = self.disk_metric_data.get_mut(lsp[2]) {
+                        let new_ds = Self::parse_stat_line(lsp)?;
+                        
+                        if let Some(diff) = ds.stats.diff(new_ds) {
+                            let iops = (diff.reads + diff.writes) as f64 / elapsed;
+                            let gauge_name = format!("{}_iops", ds.prefix);
+                            gauge!(gauge_name, iops);
+
+                            if diff.extended {
+                                // disk util in %
+                                let util = diff.io_time as f64 / elapsed / 10.;
+                                let gauge_name = format!("{}_util", ds.prefix);
+                                gauge!(gauge_name, util);
+                            }
+                        }
+                    }
+                } else {
+                    self.procfs_avl = false;
+                    let msg = format!("Not enough diskstat info in {} for metrics calculation", DISK_STAT_FILE);
+                    return Err(CommandError::Primary(msg));
+                }
             }
         }
         Ok(())
@@ -309,27 +424,26 @@ impl DiskStatCollector {
         Err("Error occured in dev_name getter".to_string())
     }
 
-    fn parse_iostat_result(iostat_str: &str) -> Result<f64, std::num::ParseFloatError> {
-        iostat_str.replace(',', ".").parse()
-    }
-
-    fn collect_iostat(&mut self) -> Result<Vec<String>, CommandError> {
-        if !self.iostat_avl {
+    fn diskstats(&mut self) -> Result<Vec<String>, CommandError> {
+        if !self.procfs_avl {
             return Err(CommandError::Unavailable);
         }
 
-        match parse_command_output(Command::new("iostat").arg("-dx")) {
-            Ok(output) => {
-                let line_iter = output.lines();
-                // skip headers
-                let line_iter = line_iter.skip(3);
-                Ok(line_iter.map(|line| line.to_string()).collect())
-            }
+        match file_contents(DISK_STAT_FILE) {
+            Ok(lines) => Ok(lines),
             Err(e) => {
-                self.iostat_avl = false;
+                self.procfs_avl = false;
                 Err(CommandError::Primary(e))
             }
         }
+    }
+}
+
+fn file_contents(path: &str) -> Result<Vec<String>, String> {
+    if let Ok(contents) = read_to_string(path) {
+        Ok(contents.lines().map(|l| l.to_string()).collect())
+    } else {
+        Err(format!("Can't read file {}", path))
     }
 }
 

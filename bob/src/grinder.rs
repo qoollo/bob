@@ -36,6 +36,7 @@ impl Grinder {
             config.open_blobs_soft(),
             config.hard_open_blobs(),
             config.bloom_filter_memory_limit(),
+            config.index_memory_limit(),
         );
         let cleaner = Arc::new(cleaner);
         let hw_counter = Arc::new(HWMetricsCollector::new(
