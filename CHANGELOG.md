@@ -5,6 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Memory limit for indexes (#466)
+- Add support for logstash (#243)
 - Access management (#217)
   - Nodes authentication. (#318)
   - Authorization parameters in bobp (#425)
