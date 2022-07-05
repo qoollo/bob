@@ -1,23 +1,27 @@
 use crate::{pearl::utils::get_current_timestamp, prelude::*};
 
-use super::{hooks::NoopHooks, utils::StartTimestampConfig, Holder, Hooks};
+use super::{data::Key, hooks::NoopHooks, utils::StartTimestampConfig, Holder, Hooks};
 use crate::{
     core::Operation,
     pearl::{core::BackendResult, settings::Settings, utils::Utils},
 };
 use futures::Future;
+use pearl::BloomProvider;
 use ring::digest::{digest, SHA256};
+
+pub type HoldersContainer =
+    HierarchicalFilters<Key, <Holder as BloomProvider<Key>>::Filter, Holder>;
 
 #[derive(Clone, Debug)]
 pub struct Group {
-    holders: Arc<RwLock<Vec<Holder>>>,
+    holders: Arc<RwLock<HoldersContainer>>,
     settings: Arc<Settings>,
     directory_path: PathBuf,
     vdisk_id: VDiskId,
     node_name: String,
     disk_name: String,
     owner_node_name: String,
-    created_holder_indexes: Arc<RwLock<HashMap<u64, usize>>>,
+    created_holder_indexes: Arc<RwLock<HashMap<u64, ChildId>>>,
     dump_sem: Arc<Semaphore>,
 }
 
@@ -32,7 +36,10 @@ impl Group {
         dump_sem: Arc<Semaphore>,
     ) -> Self {
         Self {
-            holders: Arc::new(RwLock::new(vec![])),
+            holders: Arc::new(RwLock::new(HoldersContainer::new(
+                settings.holder_group_size(),
+                2,
+            ))),
             settings,
             vdisk_id,
             node_name,
@@ -86,25 +93,25 @@ impl Group {
     }
 
     async fn run_pearls(&self, pp: impl Hooks) -> AnyResult<()> {
-        let holders = self.holders.write().await;
+        let mut holders = self.holders.write().await;
 
         for holder in holders.iter() {
             holder.prepare_storage().await?;
             pp.storage_prepared(holder).await;
             debug!("backend pearl group run pearls storage prepared");
         }
+        holders.reload().await;
         Ok(())
     }
 
-    pub async fn add(&self, holder: Holder) -> usize {
+    pub async fn add(&self, holder: Holder) -> ChildId {
         let mut holders = self.holders.write().await;
-        holders.push(holder);
-        holders.len() - 1
+        holders.push(holder).await
     }
 
     pub async fn add_range(&self, new: Vec<Holder>) {
         let mut holders = self.holders.write().await;
-        holders.extend(new);
+        holders.extend(new).await;
     }
 
     pub(crate) async fn for_each_holder<F, Fut>(&self, f: F)
@@ -127,7 +134,7 @@ impl Group {
         &self,
         data: &BobData,
         timestamp_config: StartTimestampConfig,
-    ) -> Result<Holder, Error> {
+    ) -> Result<(ChildId, Holder), Error> {
         self.find_actual_holder(data)
             .or_else(|e| {
                 debug!("cannot find pearl: {}", e);
@@ -137,16 +144,18 @@ impl Group {
     }
 
     // find in all pearls actual pearl
-    async fn find_actual_holder(&self, data: &BobData) -> BackendResult<Holder> {
+    async fn find_actual_holder(&self, data: &BobData) -> BackendResult<(ChildId, Holder)> {
         let holders = self.holders.read().await;
-        let mut holders_for_time: Vec<_> = holders
+        let mut holders_for_time: Vec<(usize, &Holder)> = holders
             .iter()
-            .filter(|h| h.gets_into_interval(data.meta().timestamp()))
+            .enumerate()
+            .filter(|h| h.1.gets_into_interval(data.meta().timestamp()))
             .collect();
 
         if !holders_for_time.is_empty() {
-            holders_for_time.sort_by_key(|h| h.start_timestamp());
-            Ok(holders_for_time.pop().unwrap().clone())
+            holders_for_time.sort_by_key(|h| h.1.start_timestamp());
+            let (id, holder) = holders_for_time.pop().expect("not empty");
+            Ok((id, holder.clone()))
         } else {
             Err(Error::failed(format!(
                 "cannot find actual pearl folder. meta: {}",
@@ -160,7 +169,7 @@ impl Group {
         &self,
         ts: u64,
         timestamp_config: StartTimestampConfig,
-    ) -> Result<Holder, Error> {
+    ) -> Result<(ChildId, Holder), Error> {
         let mut indexes = self.created_holder_indexes.write().await;
         let created_holder_index = indexes.get(&ts).copied();
         let index = if let Some(exisiting_index) = created_holder_index {
@@ -175,25 +184,34 @@ impl Group {
                     self.settings.config().settings().create_pearl_wait_delay(),
                 )
                 .await?;
-            debug!("group create write pearl holder index {}", new_index);
+            debug!("group create write pearl holder index {:?}", new_index);
             indexes.insert(ts, new_index);
             debug!("group create write pearl holder inserted");
             new_index
         };
-        Ok(self.holders.read().await[index].clone())
+        Ok((
+            index,
+            self.holders
+                .read()
+                .await
+                .get_child(index)
+                .expect("should be added")
+                .data
+                .clone(),
+        ))
     }
 
     async fn try_create_write_pearl(
         &self,
         timestamp: u64,
         timestamp_config: &StartTimestampConfig,
-    ) -> Result<usize, Error> {
+    ) -> Result<ChildId, Error> {
         info!("creating pearl for timestamp {}", timestamp);
         let pearl = self.create_pearl_by_timestamp(timestamp, timestamp_config);
         self.save_pearl(pearl.clone()).await
     }
 
-    async fn save_pearl(&self, holder: Holder) -> Result<usize, Error> {
+    async fn save_pearl(&self, holder: Holder) -> Result<ChildId, Error> {
         holder.prepare_storage().await?;
         debug!("backend pearl group save pearl storage prepared");
         Ok(self.add(holder).await)
@@ -206,10 +224,15 @@ impl Group {
         timestamp_config: StartTimestampConfig,
     ) -> Result<(), Error> {
         let holder = self.get_actual_holder(&data, timestamp_config).await?;
-        Self::put_common(holder, key, data).await
+        let res = Self::put_common(&holder.1, key, data).await?;
+        self.holders
+            .write()
+            .await
+            .add_to_parents(holder.0, &Key::from(key));
+        Ok(res)
     }
 
-    async fn put_common(holder: Holder, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put_common(holder: &Holder, key: BobKey, data: BobData) -> Result<(), Error> {
         let result = holder.write(key, data).await;
         if let Err(e) = result {
             // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
@@ -231,8 +254,11 @@ impl Group {
         let holders = self.holders.read().await;
         let mut has_error = false;
         let mut results = vec![];
-        for holder in holders.iter().rev() {
-            let get = Self::get_common(holder.clone(), key).await;
+        for holder in holders
+            .iter_possible_childs_rev(&Key::from(key))
+            .map(|(_, x)| &x.data)
+        {
+            let get = Self::get_common(&holder, key).await;
             match get {
                 Ok(data) => {
                     trace!("get data: {:?} from: {:?}", data, holder);
@@ -263,7 +289,7 @@ impl Group {
         }
     }
 
-    async fn get_common(holder: Holder, key: BobKey) -> Result<BobData, Error> {
+    async fn get_common(holder: &Holder, key: BobKey) -> Result<BobData, Error> {
         let result = holder.read(key).await;
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {
@@ -279,7 +305,8 @@ impl Group {
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
-            for holder in holders.iter() {
+            for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
+            {
                 if !exist[ind] {
                     exist[ind] = holder.exist(key).await.unwrap_or(false);
                 }
@@ -288,7 +315,7 @@ impl Group {
         exist
     }
 
-    pub fn holders(&self) -> Arc<RwLock<Vec<Holder>>> {
+    pub fn holders(&self) -> Arc<RwLock<HoldersContainer>> {
         self.holders.clone()
     }
 
@@ -308,7 +335,8 @@ impl Group {
         let holders = self.holders.read().await;
         if holders
             .iter()
-            .any(|holder| holder.start_timestamp() == start_timestamp)
+            .map(|x| x.start_timestamp())
+            .any(|timestamp| timestamp == start_timestamp)
         {
             let msg = format!("pearl:{} already exists", start_timestamp);
             warn!("{}", msg);
@@ -327,10 +355,12 @@ impl Group {
         let ts = get_current_timestamp();
         let mut removed = vec![];
         for ind in 0..holders.len() {
-            if holders[ind].start_timestamp() == start_timestamp
-                && !holders[ind].gets_into_interval(ts)
-            {
-                removed.push(holders.remove(ind));
+            if let Some(holder) = holders.get_child(ind) {
+                if holder.data.start_timestamp() == start_timestamp
+                    && !holder.data.gets_into_interval(ts)
+                {
+                    removed.push(holders.remove(ind).expect("should be presented"));
+                }
             }
         }
         if removed.is_empty() {
@@ -343,8 +373,7 @@ impl Group {
 
     pub async fn detach_all(&self) -> BackendResult<()> {
         let mut holders_lock = self.holders.write().await;
-        let len = holders_lock.len();
-        let holders: Vec<_> = holders_lock.drain(0..len).collect();
+        let holders: Vec<_> = holders_lock.clear_and_get_values();
         close_holders(holders.iter()).await;
         Ok(())
     }
@@ -445,6 +474,28 @@ impl Group {
         String::from_utf8(hex).unwrap()
     }
 
+    pub(crate) async fn find_oldest_inactive_holder(&self) -> Option<Holder> {
+        let holders_lock = self.holders();
+        let holders = holders_lock.read().await;
+        let mut result: Option<Holder> = None;
+        let period = self.settings.timestamp_period_as_secs() / 2 + 10;
+        for holder in holders.iter() {
+            if holder.has_active_blob().await {
+                if holder.is_outdated() && holder.is_older_than(period) {
+                    if holder.end_timestamp()
+                        < result
+                            .as_ref()
+                            .map(|h| h.end_timestamp())
+                            .unwrap_or(u64::MAX)
+                    {
+                        result = Some(holder.clone());
+                    }
+                }
+            }
+        }
+        result
+    }
+
     pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
         let holders_lock = self.holders();
         let holders = holders_lock.read().await;
@@ -452,7 +503,7 @@ impl Group {
         let mut total_open_blobs = 0;
         let mut close = vec![];
         for h in holders.iter() {
-            if !h.active_blob_is_empty().await {
+            if h.has_active_blob().await {
                 total_open_blobs += 1;
                 if h.is_outdated() && h.no_writes_recently().await {
                     close.push(h);
@@ -469,7 +520,7 @@ impl Group {
 
         let mut is_small = vec![];
         for h in &close {
-            is_small.push(h.active_blob_is_small().await);
+            is_small.push(h.active_blob_is_small().await.unwrap_or_default());
         }
 
         let mut close: Vec<_> = close.into_iter().enumerate().collect();
@@ -497,15 +548,42 @@ impl Group {
         });
     }
 
+    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
+        let holders = self.holders.read().await;
+        let mut total_count = 0;
+        for holder in holders.iter() {
+            let delete = Self::delete_common(holder.clone(), key).await;
+            match delete {
+                Ok(count) => {
+                    trace!("delete data: {:?} from: {:?}", count, holder);
+                    total_count += count;
+                }
+                Err(err) => {
+                    if err.is_key_not_found() {
+                        debug!("{} not found in {:?}", key, holder)
+                    } else {
+                        error!("delete error: {}, from : {:?}", err, holder);
+                    }
+                }
+            }
+        }
+        Ok(total_count)
+    }
+
+    async fn delete_common(holder: Holder, key: BobKey) -> Result<u64, Error> {
+        let result = holder.delete(key).await;
+        if let Err(e) = &result {
+            if !e.is_key_not_found() && !e.is_not_ready() {
+                holder.try_reinit().await?;
+                holder.prepare_storage().await?;
+                debug!("backend pearl group delete common storage prepared");
+            }
+        }
+        result
+    }
+
     pub(crate) async fn filter_memory_allocated(&self) -> usize {
-        self.holders
-            .read()
-            .await
-            .iter()
-            .map(|h| h.filter_memory_allocated())
-            .collect::<FuturesUnordered<_>>()
-            .fold(0, |acc, x| async move { acc + x })
-            .await
+        self.holders.read().await.filter_memory_allocated().await
     }
 }
 

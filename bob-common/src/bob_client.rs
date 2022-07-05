@@ -15,7 +15,6 @@ pub mod b_client {
         fmt::{Debug, Formatter, Result as FmtResult},
         time::Duration,
     };
-    use tokio::time::timeout;
     use tonic::{
         metadata::MetadataValue,
         transport::{Channel, Endpoint},
@@ -76,19 +75,23 @@ pub mod b_client {
                 data: Some(blob),
                 options: Some(options),
             };
-            let request = Request::new(message);
+            let mut req = Request::new(message);
+            self.set_credentials(&mut req);
+            self.set_timeout(&mut req);
             self.metrics.put_count();
             let timer = BobClientMetrics::start_timer();
             let mut client = self.client.clone();
             let node_name = self.node.name().to_owned();
-            let future = client.put(request);
-            if timeout(self.operation_timeout, future).await.is_ok() {
-                self.metrics.put_timer_stop(timer);
-                Ok(NodeOutput::new(node_name, ()))
-            } else {
-                self.metrics.put_error_count();
-                self.metrics.put_timer_stop(timer);
-                Err(NodeOutput::new(node_name, Error::timeout()))
+            match client.put(req).await {
+                Ok(_) => {
+                    self.metrics.put_timer_stop(timer);
+                    Ok(NodeOutput::new(node_name, ()))
+                },
+                Err(e) => {
+                    self.metrics.put_error_count();
+                    self.metrics.put_timer_stop(timer);
+                    Err(NodeOutput::new(node_name,  e.into()))
+                },
             }
         }
 
@@ -103,41 +106,34 @@ pub mod b_client {
                 key: Some(BlobKey { key: key.into() }),
                 options: Some(options),
             };
-            let request = Request::new(message);
-            let result = timeout(self.operation_timeout, client.get(request)).await;
-            match result {
-                Ok(Ok(data)) => {
+            let mut req = Request::new(message);
+            self.set_credentials(&mut req);
+            self.set_timeout(&mut req);
+            match client.get(req).await {
+                Ok(data) => {
                     self.metrics.get_timer_stop(timer);
                     let ans = data.into_inner();
                     let meta = BobMeta::new(ans.meta.expect("get blob meta").timestamp);
                     let inner = BobData::new(ans.data, meta);
                     Ok(NodeOutput::new(node_name.clone(), inner))
                 }
-                Ok(Err(e)) => {
+                Err(e) => {
                     self.metrics.get_error_count();
                     self.metrics.get_timer_stop(timer);
-                    Err(NodeOutput::new(node_name, Error::from(e)))
+                    Err(NodeOutput::new(node_name, e.into()))
                 }
-                Err(_) => Err(NodeOutput::new(node_name.clone(), Error::timeout())),
             }
         }
 
         #[allow(dead_code)]
         pub async fn ping(&self) -> PingResult {
             let mut client = self.client.clone();
-            let mut request = Request::new(Null {});
-            self.set_credentials(&mut request);
-            let result = timeout(self.operation_timeout, client.ping(request)).await;
-            match result {
-                Ok(Ok(_)) => Ok(NodeOutput::new(self.node.name().to_owned(), ())),
-                Ok(Err(e)) => Err(NodeOutput::new(self.node.name().to_owned(), Error::from(e))),
-                Err(_) => {
-                    warn!("node {} ping timeout, reset connection", self.node.name());
-                    Err(NodeOutput::new(
-                        self.node.name().to_owned(),
-                        Error::timeout(),
-                    ))
-                }
+            let mut req = Request::new(Null {});
+            self.set_credentials(&mut req);
+            self.set_timeout(&mut req);
+            match client.ping(req).await {
+                Ok(_) => Ok(NodeOutput::new(self.node.name().to_owned(), ())),
+                Err(e) => Err(NodeOutput::new(self.node.name().to_owned(), Error::from(e))),
             }
         }
 
@@ -154,7 +150,9 @@ pub mod b_client {
                 keys,
                 options: Some(options),
             };
-            let req = Request::new(message);
+            let mut req = Request::new(message);
+            self.set_credentials(&mut req);
+            self.set_timeout(&mut req);
             let exist_response = client.exist(req).await;
             let result = Self::get_exist_result(self.node.name().to_owned(), exist_response);
             self.metrics.exist_timer_stop(timer);
@@ -170,16 +168,18 @@ pub mod b_client {
         ) -> ExistResult {
             match exist_response {
                 Ok(response) => Ok(NodeOutput::new(node_name, response.into_inner().exist)),
-                Err(error) => Err(NodeOutput::new(node_name, Error::from(error))),
+                Err(error) => Err(NodeOutput::new(node_name, error.into())),
             }
         }
 
         fn set_credentials<T>(&self, req: &mut Request<T>) {
             let val = MetadataValue::from_str(self.node.name())
                 .expect("failed to create metadata value from node name");
-            req.metadata_mut().insert("username", val);
-            let val = MetadataValue::from_str("").expect("failed to create metadata value");
-            req.metadata_mut().insert("password", val);
+            req.metadata_mut().insert("node_name", val);
+        }
+
+        fn set_timeout<T>(&self, r: &mut Request<T>) {
+            r.set_timeout(self.operation_timeout);
         }
     }
 
@@ -221,14 +221,13 @@ use std::{
     time::Duration,
 };
 
-// cfg_if::cfg_if! {
-//     if #[cfg(any(feature = "testing", test))] {
-//          pub use self::b_client::MockBobClient as BobClient;
-//     } else {
-//         pub use self::b_client::BobClient;
-//     }
-// }
-pub use self::b_client::BobClient;
+cfg_if::cfg_if! {
+    if #[cfg(feature = "testing")] {
+        pub use self::b_client::MockBobClient as BobClient;
+    } else {
+        pub use self::b_client::BobClient;
+    }
+}
 
 pub type PutResult = Result<NodeOutput<()>, NodeOutput<Error>>;
 

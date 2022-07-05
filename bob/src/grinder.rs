@@ -8,6 +8,9 @@ use crate::{
     link_manager::LinkManager,
 };
 
+use bob_common::metrics::{
+    CLIENT_DELETE_COUNTER, CLIENT_DELETE_ERROR_COUNT_COUNTER, CLIENT_DELETE_TIMER,
+};
 use metrics::histogram as timing;
 
 /// Struct for cooperation backend, link manager and cluster
@@ -33,6 +36,7 @@ impl Grinder {
             config.open_blobs_soft(),
             config.hard_open_blobs(),
             config.bloom_filter_memory_limit(),
+            config.index_memory_limit(),
         );
         let cleaner = Arc::new(cleaner);
         let hw_counter = Arc::new(HWMetricsCollector::new(
@@ -62,6 +66,10 @@ impl Grinder {
 
     pub(crate) fn node_config(&self) -> &NodeConfig {
         &self.node_config
+    }
+
+    pub(crate) fn hw_counter(&self) -> &HWMetricsCollector {
+        &self.hw_counter
     }
 
     pub(crate) async fn put(
@@ -198,6 +206,27 @@ impl Grinder {
         self.cleaner.spawn_task(self.backend.clone());
         self.counter.spawn_task(self.backend.clone());
         self.hw_counter.spawn_task();
+    }
+
+    pub(crate) async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<u64, Error> {
+        trace!(">>>- - - - - GRINDER DELETE START - - - - -");
+        counter!(CLIENT_DELETE_COUNTER, 1);
+        let sw = Stopwatch::start_new();
+        trace!(
+            "pass request to backend, /{:.3}ms/",
+            sw.elapsed().as_secs_f64() * 1000.0
+        );
+        let result = self.backend.delete(key, with_aliens).await;
+        trace!(
+            "backend processed delete, /{:.3}ms/",
+            sw.elapsed().as_secs_f64() * 1000.0
+        );
+        if result.is_err() {
+            counter!(CLIENT_DELETE_ERROR_COUNT_COUNTER, 1);
+        }
+        timing!(CLIENT_DELETE_TIMER, sw.elapsed().as_nanos() as f64);
+        trace!(">>>- - - - - GRINDER DELETE FINISHED - - - - -");
+        result
     }
 }
 

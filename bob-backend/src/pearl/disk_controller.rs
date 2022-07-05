@@ -111,6 +111,7 @@ impl DiskController {
     async fn monitor_task(self: Arc<Self>) {
         let mut check_interval = interval(CHECK_INTERVAL);
         Self::monitor_wait(self.state.clone(), &mut check_interval).await;
+        let mut ready_log = false;
         loop {
             check_interval.tick().await;
             let _permit = self.monitor_sem.acquire().await.expect("Sem is closed");
@@ -122,14 +123,19 @@ impl DiskController {
                             "Work dir is available, but disk is not running ({:?})",
                             self.disk
                         );
+                        ready_log = false;
                     }
                     GroupsState::Ready => {
-                        info!("Disk is available: {:?}", self.disk);
+                        if !ready_log {
+                            info!("Disk is available: {:?}", self.disk);
+                        }
+                        ready_log = true;
                     }
                 }
             } else {
                 error!("Disk is unavailable: {:?}", self.disk);
                 self.change_state(GroupsState::NotReady).await;
+                ready_log = false;
             }
             self.update_metrics().await;
         }
@@ -516,7 +522,7 @@ impl DiskController {
 
     pub(crate) async fn blobs_count(&self) -> usize {
         let cnt = if *self.state.read().await == GroupsState::Ready {
-            let mut cnt = 0;
+            let mut cnt: usize = 0;
             for group in self.groups.read().await.iter() {
                 let holders_guard = group.holders();
                 let holders = holders_guard.read().await;
@@ -552,6 +558,63 @@ impl DiskController {
         let groups = self.groups.read().await;
         for group in groups.iter() {
             group.close_unneeded_active_blobs(soft, hard).await;
+        }
+    }
+
+    pub(crate) async fn find_oldest_inactive_holder(&self) -> Option<Holder> {
+        let groups = self.groups.read().await;
+        let mut result: Option<Holder> = None;
+        for group in groups.iter() {
+            if let Some(holder) = group.find_oldest_inactive_holder().await {
+                if holder.end_timestamp()
+                    < result
+                        .as_ref()
+                        .map(|h| h.end_timestamp())
+                        .unwrap_or(u64::MAX)
+                {
+                    result = Some(holder);
+                }
+            }
+        }
+        result
+    }
+
+    pub(crate) async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+        if *self.state.read().await == GroupsState::Ready {
+            debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
+            let vdisk_group = self
+                .groups
+                .read()
+                .await
+                .iter()
+                .find(|g| g.can_process_operation(&op))
+                .cloned();
+            if let Some(group) = vdisk_group {
+                group.delete(key).await
+            } else {
+                error!("DELETE[{}] Cannot find storage, operation: {:?}", key, op);
+                Err(Error::vdisk_not_found(op.vdisk_id()))
+            }
+        } else {
+            Err(Error::dc_is_not_available())
+        }
+    }
+
+    pub(crate) async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+        if *self.state.read().await == GroupsState::Ready {
+            let vdisk_group = self.find_group(&op).await;
+            if let Ok(group) = vdisk_group {
+                group.delete(key).await
+            } else {
+                warn!(
+                    "DELETE[alien][{}] No alien group has been created for vdisk #{}",
+                    key,
+                    op.vdisk_id()
+                );
+                Err(Error::key_not_found(key))
+            }
+        } else {
+            Err(Error::dc_is_not_available())
         }
     }
 

@@ -23,13 +23,3 @@ users:
   - username: user
     password: password
     role: data_manipulator
-  - username: custom_user
-    password: password
-    role: reader
-    claims:
-      write: true
-  - username: special_user
-    password: password
-    claims:
-      write_rest: true
-      read_rest: true

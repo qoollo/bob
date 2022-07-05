@@ -2,6 +2,7 @@ pub mod core;
 pub mod mem_backend;
 pub mod pearl;
 pub mod stub_backend;
+pub mod interval_logger;
 
 #[cfg(test)]
 pub mod mem_tests;
@@ -30,8 +31,9 @@ pub(crate) mod prelude {
     pub use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
     pub use futures::{stream::FuturesUnordered, StreamExt, TryFutureExt};
     pub use pearl::{
-        filter::Config as BloomConfig, rio, Builder, Error as PearlError,
-        ErrorKind as PearlErrorKind, Key as KeyTrait, Storage,
+        filter::hierarchical::*, filter::traits::*, filter::Config as BloomConfig, rio, Builder,
+        Error as PearlError, ErrorKind as PearlErrorKind, Key as KeyTrait, RefKey as RefKeyTrait,
+        Storage,
     };
     pub use std::{
         collections::{hash_map::Entry, HashMap},

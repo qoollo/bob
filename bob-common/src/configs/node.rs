@@ -3,6 +3,7 @@ use super::{
     node::Node as NodeConfig,
     reader::{Validatable, YamlBobConfig},
 };
+use bob_access::AuthenticationType;
 use crate::data::DiskPath;
 use futures::Future;
 use humantime::Duration as HumanDuration;
@@ -16,6 +17,8 @@ use std::{
 use std::{net::IpAddr, sync::atomic::Ordering};
 use std::{net::Ipv4Addr, sync::Arc};
 use tokio::time::sleep;
+
+use ubyte::ByteUnit;
 
 const AIO_FLAG_ORDERING: Ordering = Ordering::Relaxed;
 
@@ -243,7 +246,7 @@ impl Validatable for MetricsConfig {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Pearl {
     #[serde(default = "Pearl::default_max_blob_size")]
-    max_blob_size: u64,
+    max_blob_size: ByteUnit,
     #[serde(default = "Pearl::default_max_data_in_blob")]
     max_data_in_blob: u64,
     #[serde(default = "Pearl::default_blob_file_name_prefix")]
@@ -330,12 +333,12 @@ impl Pearl {
         self.max_data_in_blob
     }
 
-    fn default_max_blob_size() -> u64 {
-        1_000_000
+    fn default_max_blob_size() -> ByteUnit {
+        ByteUnit::MB
     }
 
     pub fn max_blob_size(&self) -> u64 {
-        self.max_blob_size
+        self.max_blob_size.as_u64()
     }
 
     fn default_hash_chars_count() -> u32 {
@@ -483,7 +486,8 @@ pub struct Node {
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
-    bloom_filter_memory_limit: Option<usize>,
+    bloom_filter_memory_limit: Option<ByteUnit>,
+    index_memory_limit: Option<ByteUnit>,
     #[serde(default = "Node::default_init_par_degree")]
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
@@ -493,6 +497,11 @@ pub struct Node {
     #[serde(default = "Node::default_http_api_address")]
     http_api_address: IpAddr,
     bind_to_ip_address: Option<SocketAddr>,
+    #[serde(default = "NodeConfig::default_holder_group_size")]
+    holder_group_size: usize,
+
+    #[serde(default = "NodeConfig::default_authentication_type")]
+    authentication_type: AuthenticationType,
 }
 
 impl NodeConfig {
@@ -579,6 +588,14 @@ impl NodeConfig {
         self.backend_result().expect("clone backend type")
     }
 
+    pub fn authentication_type(&self) -> AuthenticationType {
+        self.authentication_type
+    }
+
+    fn default_authentication_type() -> AuthenticationType {
+        AuthenticationType::None
+    }
+
     pub fn backend_result(&self) -> Result<BackendType, String> {
         match self.backend_type.as_str() {
             "in_memory" => Ok(BackendType::InMemory),
@@ -620,34 +637,35 @@ impl NodeConfig {
             .into()
     }
 
-    pub fn open_blobs_soft(&self) -> usize {
-        self.open_blobs_soft_limit
-            .and_then(|i| {
-                if i == 0 {
-                    error!("soft open blobs limit can't be less than 1");
-                    None
-                } else {
-                    Some(i)
-                }
-            })
-            .unwrap_or(1)
+    pub fn open_blobs_soft(&self) -> Option<usize> {
+        self.open_blobs_soft_limit.and_then(|i| {
+            if i == 0 {
+                error!("soft open blobs limit can't be less than 1");
+                None
+            } else {
+                Some(i)
+            }
+        })
     }
 
-    pub fn hard_open_blobs(&self) -> usize {
-        self.open_blobs_hard_limit
-            .and_then(|i| {
-                if i == 0 {
-                    error!("hard open blobs limit can't be less than 1");
-                    None
-                } else {
-                    Some(i)
-                }
-            })
-            .unwrap_or(10)
+    pub fn hard_open_blobs(&self) -> Option<usize> {
+        self.open_blobs_hard_limit.and_then(|i| {
+            if i == 0 {
+                error!("hard open blobs limit can't be less than 1");
+                None
+            } else {
+                Some(i)
+            }
+        })
     }
 
     pub fn bloom_filter_memory_limit(&self) -> Option<usize> {
         self.bloom_filter_memory_limit
+            .map(|bu| bu.as_u64() as usize)
+    }
+
+    pub fn index_memory_limit(&self) -> Option<usize> {
+        self.index_memory_limit.map(|bu| bu.as_u64() as usize)
     }
 
     #[inline]
@@ -658,6 +676,11 @@ impl NodeConfig {
     #[inline]
     pub fn disk_access_par_degree(&self) -> usize {
         self.disk_access_par_degree
+    }
+
+    #[inline]
+    pub fn holder_group_size(&self) -> usize {
+        self.holder_group_size
     }
 
     fn check_unset(&self) -> Result<(), String> {
@@ -703,6 +726,10 @@ impl NodeConfig {
 
     fn default_http_api_address() -> IpAddr {
         IpAddr::V4(Ipv4Addr::UNSPECIFIED)
+    }
+
+    pub fn default_holder_group_size() -> usize {
+        8
     }
 }
 
@@ -760,6 +787,7 @@ impl Validatable for NodeConfig {
 
 pub mod tests {
     use crate::configs::node::Node as NodeConfig;
+    use bob_access::AuthenticationType;
 
     use std::sync::Arc;
 
@@ -787,6 +815,9 @@ pub mod tests {
             http_api_address: NodeConfig::default_http_api_address(),
             bind_to_ip_address: None,
             bloom_filter_memory_limit: None,
+            index_memory_limit: None,
+            holder_group_size: 8,
+            authentication_type: AuthenticationType::None,
         }
     }
 }
