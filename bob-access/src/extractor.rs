@@ -1,117 +1,123 @@
-use std::net::SocketAddr;
-
-use crate::{credentials::Credentials, error::Error};
+use crate::{credentials::{Credentials, CredentialsBuilder}, error::Error, AuthenticationType};
 use axum::extract::RequestParts;
-use http::{Extensions, HeaderMap, Request};
+use http::Request;
 use tonic::{transport::server::TcpConnectInfo, Request as TonicRequest};
 
 pub trait Extractor {
-    fn headers(&self) -> Option<&HeaderMap>;
-    fn extensions(&self) -> Option<&Extensions>;
+    fn get_header(&self, header: &str) -> Result<Option<&str>, Error>;
+    fn get_extension<T: Send + Sync + 'static>(&self) -> Option<&T>;
 }
 
 pub trait ExtractorExt {
-    fn extract(&self) -> Result<Credentials, Error>;
-    fn extract_basic(
-        &self,
-        _header_map: &HeaderMap,
-        _addr: Option<SocketAddr>,
-    ) -> Result<Option<Credentials>, Error> {
-        Ok(None)
-    }
-    fn extract_token(
-        &self,
-        _header_map: &HeaderMap,
-        _addr: Option<SocketAddr>,
-    ) -> Result<Option<Credentials>, Error> {
-        Ok(None)
-    }
+    fn extract(&self, cred_type: AuthenticationType) -> Result<Credentials, Error>;
+    fn extract_basic(&self) -> Result<Credentials, Error>;
+    fn extract_token(&self) -> Result<Credentials, Error>;
+}
+
+fn prepare_builder<T: Extractor>(slf: &T) -> Result<CredentialsBuilder, Error> {
+    let addr = slf
+        .get_extension::<TcpConnectInfo>()
+        .and_then(|ext| ext.remote_addr());
+    let mut builder = Credentials::builder();
+    builder.with_address(addr);
+    Ok(builder)
 }
 
 impl<T: Extractor> ExtractorExt for T {
-    fn extract(&self) -> Result<Credentials, Error> {
-        let header_map = if let Some(header_map) = self.headers() {
-            header_map
-        } else {
-            return Ok(Credentials::default());
-        };
-        let addr = self
-            .extensions()
-            .and_then(|ext| ext.get::<TcpConnectInfo>()?.remote_addr());
-        let basic_credentials = self.extract_basic(header_map, addr)?;
-        let token_credentials = self.extract_token(header_map, addr)?;
-        match (basic_credentials, token_credentials) {
-            (Some(_), Some(_)) => Err(Error::MultipleCredentialsTypes),
-            (Some(basic_credentials), None) => Ok(basic_credentials),
-            (None, Some(token_credentials)) => Ok(token_credentials),
-            _ => Ok(Credentials::builder()
-                // .with_address(req.remote_addr())
-                .build()),
+    fn extract(&self, cred_type: AuthenticationType) -> Result<Credentials, Error> {
+        match cred_type {
+            AuthenticationType::None => {
+                return Ok(Credentials::default());
+            },
+            AuthenticationType::Basic => {
+                return self.extract_basic();
+            },
+            AuthenticationType::Token => {
+                return self.extract_token();
+            },
         }
     }
 
-    fn extract_basic(
-        &self,
-        header_map: &HeaderMap,
-        addr: Option<SocketAddr>,
-    ) -> Result<Option<Credentials>, Error> {
-        let username = if let Some(username) = header_map.get("username") {
-            username.to_str().map_err(Error::ConversionError)?
+    fn extract_basic(&self) -> Result<Credentials, Error> {
+        let mut builder = prepare_builder(self)?;
+        if let (Some(username), Some(password)) = 
+            (self.get_header("username")?,
+            self.get_header("password")?)
+        {
+            let creds = builder
+                .with_username_password(username, password)
+                .build();
+            Ok(creds)
         } else {
-            return Ok(None);
-        };
-        let password = if let Some(password) = header_map.get("password") {
-            password.to_str().map_err(Error::ConversionError)?
-        } else {
-            return Ok(None);
-        };
-        let creds = Credentials::builder()
-            .with_username_password(username, password)
-            .with_address(addr)
-            .build();
-        Ok(Some(creds))
+            if let Some(node_name) = self.get_header("node_name")? {
+                let creds = builder
+                    .with_nodename(node_name)
+                    .build();
+                Ok(creds)
+            } else {
+                Err(Error::CredentialsNotProvided("missing username or password".into()))
+            }
+        }
     }
 
-    fn extract_token(
-        &self,
-        header_map: &HeaderMap,
-        addr: Option<SocketAddr>,
-    ) -> Result<Option<Credentials>, Error> {
-        let token = if let Some(token) = header_map.get("token") {
-            token.to_str().map_err(Error::ConversionError)?
+    fn extract_token(&self) -> Result<Credentials, Error> {
+        let mut builder = prepare_builder(self)?;
+        if let Some(token) = self.get_header("token")? {
+            let creds = builder
+                .with_token(token)
+                .build();
+            Ok(creds)
         } else {
-            return Ok(None);
-        };
-        let creds = Credentials::builder()
-            .with_token(token)
-            .with_address(addr)
-            .build();
-        Ok(Some(creds))
-    }
-}
-
-impl<T> ExtractorExt for TonicRequest<T> {
-    fn extract(&self) -> Result<Credentials, Error> {
-        todo!()
+            if let Some(node_name) = self.get_header("node_name")? {
+                let creds = builder
+                    .with_nodename(node_name)
+                    .build();
+                Ok(creds)
+            } else {
+                Err(Error::CredentialsNotProvided("missing token".into()))
+            }
+        }
     }
 }
 
 impl<B> Extractor for RequestParts<B> {
-    fn headers(&self) -> Option<&HeaderMap> {
-        self.headers()
+    fn get_header(&self, header: &str) -> Result<Option<&str>, Error> {
+        if let Some(Some(v)) = self.headers().map(|hs| hs.get(header)) {
+            v.to_str().map_err(|e| Error::ConversionError(e.to_string())).map(|r| Some(r))
+        } else {
+            Ok(None)
+        }
     }
 
-    fn extensions(&self) -> Option<&Extensions> {
-        self.extensions()
+    fn get_extension<M: Send + Sync + 'static>(&self) -> Option<&M> {
+        self.extensions().and_then(|ext| ext.get::<M>())
     }
 }
 
 impl<T> Extractor for Request<T> {
-    fn headers(&self) -> Option<&HeaderMap> {
-        Some(self.headers())
+    fn get_header(&self, header: &str) -> Result<Option<&str>, Error> {
+        if let Some(v) = self.headers().get(header) {
+            v.to_str().map_err(|e| Error::ConversionError(e.to_string())).map(|r| Some(r))
+        } else {
+            Ok(None)
+        }
     }
 
-    fn extensions(&self) -> Option<&Extensions> {
-        Some(self.extensions())
+    fn get_extension<M: Send + Sync + 'static>(&self) -> Option<&M> {
+        self.extensions().get::<M>()
+    }
+}
+
+impl<T> Extractor for TonicRequest<T> {
+    fn get_header(&self, header: &str) -> Result<Option<&str>, Error> {
+        if let Some(v) = self.metadata().get(header) {
+            v.to_str().map_err(|e| Error::ConversionError(e.to_string())).map(|r| Some(r))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn get_extension<M: Send + Sync + 'static>(&self) -> Option<&M> {
+        self.extensions().get::<M>()
     }
 }

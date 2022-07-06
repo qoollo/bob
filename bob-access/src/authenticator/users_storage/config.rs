@@ -52,11 +52,10 @@ pub(super) fn parse_users(
 ) -> Result<HashMap<String, User>, Error> {
     let mut users = HashMap::new();
     yaml_users.into_iter().try_for_each(|u| {
-        let mut perms = 
-        if let Some(role) = u.role {
+        let mut perms = if let Some(role) = u.role {
             *(roles
-            .get(&role)
-            .ok_or_else(|| Error::Validation(format!("Can't find role {}", role)))?)
+                .get(&role)
+                .ok_or_else(|| Error::Validation(format!("Can't find role {}", role)))?)
         } else {
             Perms::new(false, false, false, false)
         };
