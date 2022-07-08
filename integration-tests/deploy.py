@@ -41,7 +41,7 @@ if not 'cluster.yaml.bobnet' in os.listdir(good_path):
 try:
     os.chmod(path='../ccg', mode=0o771)
     os.chmod(path='../bobp', mode=0o771)
-except e as OSError:
+except OSError as e:
     print(e)
 
 try:
