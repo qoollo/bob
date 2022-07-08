@@ -1,5 +1,6 @@
 
 log_config: {{ log_config }}    # logger config file
+users_config: {{  }}
 name: local_node_{{ node_number }}        # node name, required to match with cluster config
 quorum: {{ quorum }}         # min count of successful operations on replicas to consider operation successful
 operation_timeout: {{ operation_timeout }}           # timeout for every GRPC operation, eg: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
@@ -11,6 +12,9 @@ open_blobs_soft_limit: {{ open_blobs_soft_limit }}           # soft limit for co
 open_blobs_hard_limit: {{ open_blobs_hard_limit }}           # hard limit for count of max blobs to remain in ram
 init_par_degree: 4   # degree of parallelism in disks initialization
 http_api_port: 8000
+bloom_filter_memory_limit: {{ bloom_filter_memory_limit }}
+authentication_type: {{ auth_type }}
+index_memory_limit: {{ index_memory_limit }}
 
 pearl:                              # used only for 'backend_type: pearl'
   enable_aio: {{ enable_aio }}                  # optional, default = true, enables linux AIO

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 from re import T
-import shutil, argparse, os, sys
+import shutil, argparse, os, sys, json
 from jinja2 import Template
 
 def pathified(string):
@@ -10,6 +10,7 @@ parser = argparse.ArgumentParser(description='This script generates dockerfile a
 parser.add_argument('-a', dest='amount_of_nodes', type=int, required=True, help='sets the amount of nodes to create.')
 parser.add_argument('-v', dest='version', type=str, required=True, help='sets docker image version (qoollo/bob:x.x.x.y.z)')
 parser.add_argument('--log-config', dest='log_config', type=str, default='/bob/configs/logger.bobnet.yaml', help='logger config file.')
+parser.add_argument('--users-config', dest='users_config', type=str, default='/bob/configs/users.bobnet.yaml', help='logger config file.')
 parser.add_argument('-q', dest='quorum', type=int, default=2, help='min count of successful operations on replicas to consider operation successful.')
 parser.add_argument('--operation-timeout', dest='operation_timeout', type=str, default='3sec', help='timeout for every GRPC operation.')
 parser.add_argument('--check-interval', dest='check_interval', type=str, default='5000ms', help='interval for checking connections.')
@@ -19,6 +20,8 @@ parser.add_argument('--cleanup-interval', dest='cleanup_interval', type=str, def
 parser.add_argument('--open-blobs-soft-limit', dest='open_blobs_soft_limit', type=int, default=2, help='soft limit for count of max blobs to remain in ram.')
 parser.add_argument('--open-blobs-hard-limit', dest='open_blobs_hard_limit', type=int, default=10, help='hard limit for count of max blobs to remain in ram.')
 parser.add_argument('-l', dest='bloom_filter_memory_limit', type=str, default='8GiB', help='memory limit for all bloom filters. Unlimited if not specified.')
+parser.add_argument('-u', dest='auth_type', type=str, default='None', choices=['Basic', 'None'], help='auth type for bob')
+parser.add_argument('--index-memory-limit', dest='index_memory_limit', type=str, default='8 GiB', help='memory limit for all indexes')
 parser.add_argument('--enable-aio', dest='enable_aio', type=str, default='true', choices=['true', 'false'], help='enables linux AIO.')
 parser.add_argument('-p', dest='disks_events_logfile', type=str, default='/bob/log/bob_events.csv', help='path to logfile with info about disks states switches.')
 parser.add_argument('-b', dest='max_blob_size', type=str, default='100mb')
@@ -73,11 +76,13 @@ for item in range(args.amount_of_nodes):
     f.write(template.render(node_number=item, version=args.version, log_config=args.log_config, quorum=args.quorum, 
     operation_timeout=args.operation_timeout, check_interval=args.check_interval, cluster_policy=args.cluster_policy, 
     backend_type=args.backend_type, cleanup_interval=args.cleanup_interval, open_blobs_soft_limit=args.open_blobs_soft_limit,
-    open_blobs_hard_limit=args.open_blobs_hard_limit, bloom_filter_memory_limit=args.bloom_filter_memory_limit,
-    enable_aio=args.enable_aio, disks_events_logfile=args.disks_events_logfile, max_blob_size=args.max_blob_size,
-    allow_duplicates=args.allow_duplicates, max_data_in_blob=args.max_data_in_blob, blob_file_name_prefix=args.blob_file_name_prefix,
-    fail_retry_timeout=args.fail_retry_timeout, alien_disk=args.alien_disk, bloom_filter_max_buf_bits_count=args.bloom_filter_max_buf_bits_count,
-    root_dir_name=args.root_dir_name, alien_root_dir_name=args.alien_root_dir_name, timestamp_period=args.timestamp_period,
+    open_blobs_hard_limit=args.open_blobs_hard_limit, bloom_filter_memory_limit=args.bloom_filter_memory_limit, 
+    auth_type=args.auth_type, index_memory_limit=args.index_memory_limit, enable_aio=args.enable_aio, 
+    disks_events_logfile=args.disks_events_logfile, max_blob_size=args.max_blob_size, allow_duplicates=args.allow_duplicates, 
+    max_data_in_blob=args.max_data_in_blob, blob_file_name_prefix=args.blob_file_name_prefix,
+    fail_retry_timeout=args.fail_retry_timeout, alien_disk=args.alien_disk, 
+    bloom_filter_max_buf_bits_count=args.bloom_filter_max_buf_bits_count, root_dir_name=args.root_dir_name, 
+    alien_root_dir_name=args.alien_root_dir_name, timestamp_period=args.timestamp_period,
     create_pearl_wait_delay=args.create_pearl_wait_delay, metrics_name=args.metrics_name, graphite_enabled=args.graphite_enabled,
     prometheus_enabled=args.prometheus_enabled))
     f.close
@@ -95,3 +100,9 @@ template = Template(logger)
 f = open(f"{path}/logger.bobnet.yaml", "w")
 f.write(template.render(path="/bob/log"))
 f.close
+
+#generate users config
+users = open("Templates/users_template.yml.j2").read()
+template = Template(users)
+f = open(f"{path}/users.bobnet.yaml", "w")
+f.write(template.render())
