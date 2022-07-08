@@ -1,6 +1,5 @@
-
 log_config: {{ log_config }}    # logger config file
-users_config: {{  }}
+users_config: {{ users_config }}
 name: local_node_{{ node_number }}        # node name, required to match with cluster config
 quorum: {{ quorum }}         # min count of successful operations on replicas to consider operation successful
 operation_timeout: {{ operation_timeout }}           # timeout for every GRPC operation, eg: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
