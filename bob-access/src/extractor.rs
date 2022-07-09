@@ -40,23 +40,28 @@ impl<T: Extractor> ExtractorExt for T {
 
     fn extract_basic(&self) -> Result<Credentials, Error> {
         let mut builder = prepare_builder(self)?;
-        if let (Some(username), Some(password)) = 
-            (self.get_header("username")?,
-            self.get_header("password")?)
-        {
+
+        if let Some(node_name) = self.get_header("node_name")? {
             let creds = builder
-                .with_username_password(username, password)
+                .with_nodename(node_name)
                 .build();
-            Ok(creds)
-        } else {
-            if let Some(node_name) = self.get_header("node_name")? {
+            return Ok(creds);
+        }
+
+        match (self.get_header("username")?, self.get_header("password")?) {
+            (Some(username), Some(password)) => {
                 let creds = builder
-                    .with_nodename(node_name)
+                    .with_username_password(username, password)
                     .build();
                 Ok(creds)
-            } else {
-                Err(Error::CredentialsNotProvided("missing username or password".into()))
-            }
+            },
+            (None, None) => {
+                let creds = builder
+                    .with_username_password("default", "")
+                    .build();
+                Ok(creds)
+            },
+            _ => Err(Error::CredentialsNotProvided("missing username or password".into()))
         }
     }
 
