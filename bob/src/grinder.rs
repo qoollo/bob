@@ -36,6 +36,7 @@ impl Grinder {
             config.open_blobs_soft(),
             config.hard_open_blobs(),
             config.bloom_filter_memory_limit(),
+            config.index_memory_limit(),
         );
         let cleaner = Arc::new(cleaner);
         let hw_counter = Arc::new(HWMetricsCollector::new(
@@ -65,6 +66,10 @@ impl Grinder {
 
     pub(crate) fn node_config(&self) -> &NodeConfig {
         &self.node_config
+    }
+
+    pub(crate) fn hw_counter(&self) -> &HWMetricsCollector {
+        &self.hw_counter
     }
 
     pub(crate) async fn put(
