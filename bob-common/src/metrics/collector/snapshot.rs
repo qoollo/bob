@@ -44,8 +44,7 @@ impl MetricsSnapshot {
             entry.measurements_amount = 0;
             entry.summary_time = 0;
         }
-        let res = self.clone();
-        res
+        self.to_owned()
     }
 }
 
