@@ -6,6 +6,7 @@ use axum::{
     extract::{FromRequest, RequestParts},
 };
 use tonic::Request;
+
 use crate::{error::Error, extractor::ExtractorExt, Authenticator};
 
 #[derive(Debug, Default, Clone)]

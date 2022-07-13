@@ -8,6 +8,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, put, MethodRouter},
 };
+
 use bob_access::{Authenticator, CredentialsHolder};
 use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions},
@@ -125,7 +126,6 @@ impl IntoResponse for GetObjectOutput {
     }
 }
 
-
 // GET /s3/default/:key
 async fn get_object<A>(
     Extension(bob): Extension<&BobServer<A>>,
@@ -158,7 +158,6 @@ where
     }
     Ok(GetObjectOutput { data, content_type })
 }
-
 
 // PUT /s3/default/:key
 async fn put_object<A>(
