@@ -29,6 +29,7 @@ Bob versions changelog
 - Add special cmp for keys with sizes aligned with word (#496)
 - Publish available ram metric instead of calculated free ram, used ram is now calculated (#508)
 - Log about disk availability would be written once (#499)
+- Move files for linux packages into separate directory (#534)
 
 #### Fixed
 
