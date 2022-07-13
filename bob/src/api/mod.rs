@@ -6,6 +6,7 @@ use axum::{
     routing::{delete, get, post, MethodRouter},
     Json, Router, Server,
 };
+
 pub(crate) use bob_access::Error as AuthError;
 use bob_access::{Authenticator, CredentialsHolder};
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
