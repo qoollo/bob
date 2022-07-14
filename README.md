@@ -7,7 +7,15 @@ Bob is a distributed storage system designed for byte data such as photos. It ha
 
 More information can be found on [wiki](https://github.com/qoollo/bob/wiki).
 
-# Api
+# Installation
+For Linux x86_64, you can use RPM or DEB packages from the [releases](https://github.com/qoollo/bob/releases) page.
+There is also a ZIP archive with compiled x64 binaries.
+
+Docker images can be found on DockerHub [qoollo/bob](https://hub.docker.com/r/qoollo/bob/).
+
+Additionally, you can build Bob from sources. Instruction can be found [here](https://github.com/qoollo/bob/wiki/Build-from-source).
+
+# API
 Bob uses gRPC API with the following proto file: [bob.proto](bob-grpc/proto/bob.proto).
 This means that you can automatically generate a protocol implementation for any platform. 
 Detailed gRPC API description can be found on [wiki](https://github.com/qoollo/bob/wiki/gRPC-API).
@@ -15,7 +23,7 @@ Detailed gRPC API description can be found on [wiki](https://github.com/qoollo/b
 There is also a rich client for .NET: [https://github.com/qoollo/bob-client-net](https://github.com/qoollo/bob-client-net).
 
 # Tools
-You can use [bobc](https://github.com/qoollo/bob/blob/master/bob-apps/bin/bobc.rs) and [bobp](https://github.com/qoollo/bob/wiki/Tools#bob-benchmark-tool-bobp) to access cluster. `brt` can be used to check and recover corrupted BLOBs.
+You can use [bobc](https://github.com/qoollo/bob/blob/master/bob-apps/bin/bobc.rs) and [bobp](https://github.com/qoollo/bob/wiki/Tools#bob-benchmark-tool-bobp) to access data on a cluster. `brt` can be used to check and recover corrupted BLOBs.
 
 There are also tools for removing old partitions, recovering aliens, expanding cluster and more, that can be found in [bob-tools](https://github.com/qoollo/bob-tools) repository.
 
