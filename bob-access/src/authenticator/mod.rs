@@ -4,7 +4,7 @@ mod users_storage;
 
 use crate::{credentials::Credentials, error::Error, permissions::Permissions};
 
-pub use users_storage::{User, UsersMap};
+pub use users_storage::{User, UsersMap, ConfigUsers};
 
 pub trait Authenticator: Clone + Send + Sync + 'static {
     fn check_credentials_rest(&self, credentials: Credentials) -> Result<Permissions, Error>;

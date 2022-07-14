@@ -10,13 +10,15 @@ use sha2::{Digest, Sha512};
 pub struct Basic<Storage: UsersStorage> {
     users_storage: Storage,
     nodes: HashMap<IpAddr, Credentials>,
+    password_salt: String,
 }
 
 impl<Storage: UsersStorage> Basic<Storage> {
-    pub fn new(users_storage: Storage) -> Self {
+    pub fn new(users_storage: Storage, password_salt: String) -> Self {
         Self {
             users_storage,
             nodes: HashMap::new(),
+            password_salt,
         }
     }
 
@@ -69,7 +71,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
                         Err(Error::UnauthorizedRequest)
                     }
                 } else if let Some(usr_hash) = user.password_hash() {
-                    let hash_str = format!("{}bob", password);
+                    let hash_str = format!("{}{}", password, self.password_salt);
                     let mut hasher = Sha512::new();
                     hasher.update(&hash_str.into_bytes());
                     let hash = hasher.finalize();

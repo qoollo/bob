@@ -13,6 +13,9 @@ roles:
     read: true
     read_rest: true
 
+# optional salt for password_hashes, "bob" by default
+password_salt: bob
+
 users:
   - username: admin
     password: password

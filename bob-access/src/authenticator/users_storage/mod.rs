@@ -4,6 +4,7 @@ mod hash_map;
 use crate::error::Error;
 
 pub use hash_map::UsersMap;
+pub use config::ConfigUsers;
 
 #[derive(Debug, PartialEq, Copy, Clone, Deserialize, Default)]
 pub struct Perms {

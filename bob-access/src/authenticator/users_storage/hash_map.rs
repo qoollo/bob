@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::File};
+use std::collections::HashMap;
 
 use crate::error::Error;
 
@@ -13,13 +13,8 @@ pub struct UsersMap {
 }
 
 impl UsersMap {
-    pub fn from_file(filename: &str) -> Result<Self, Error> {
-        let f = File::open(filename)
-            .map_err(|e| Error::Os(format!("Can't open file {} (reason: {})", filename, e)))?;
-        let users_config: ConfigUsers = serde_yaml::from_reader(f).map_err(|e| {
-            Error::Validation(format!("Can't parse users config file (reason: {})", e))
-        })?;
-        let inner = parse_users(users_config.users, users_config.roles)?;
+    pub fn from_config(config: ConfigUsers) -> Result<Self, Error> {
+        let inner = parse_users(config.users, config.roles)?;
         Ok(Self { inner })
     }
 }
