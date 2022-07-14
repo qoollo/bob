@@ -4,10 +4,13 @@ use crate::error::Error;
 
 use super::{Perms, User};
 
+use hex::FromHex;
+
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct ConfigUser {
     pub(super) username: String,
-    pub(super) password: String,
+    pub(super) password: Option<String>,
+    pub(super) password_hash: Option<String>,
     pub(super) role: String,
 }
 
@@ -26,7 +29,8 @@ pub(super) fn parse_users(
         let &perms = roles
             .get(&u.role)
             .ok_or_else(|| Error::Validation(format!("Can't find role {}", u.role)))?;
-        let user = User::new(u.username.clone(), u.password, perms);
+        let hash = u.password_hash.map(|h| Vec::from_hex(h).expect("Invalid sha512 hash"));
+        let user = User::new(u.username.clone(), u.password, hash, perms);
         users.insert(u.username, user).map_or(Ok(()), |user| {
             Err(Error::Validation(format!(
                 "Users with the same username (first: {:?})",

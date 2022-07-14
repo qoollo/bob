@@ -31,21 +31,27 @@ impl Perms {
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct User {
     _username: String,
-    password: String,
+    password: Option<String>,
+    password_hash: Option<Vec<u8>>,
     perms: Perms,
 }
 
 impl User {
-    pub fn new(_username: String, password: String, perms: Perms) -> Self {
+    pub fn new(_username: String, password: Option<String>, password_hash: Option<Vec<u8>>, perms: Perms) -> Self {
         Self {
             _username,
             password,
+            password_hash,
             perms,
         }
     }
 
-    pub fn password(&self) -> &str {
+    pub fn password(&self) -> &Option<String> {
         &self.password
+    }
+
+    pub fn password_hash(&self) -> &Option<Vec<u8>> {
+        &self.password_hash
     }
 
     pub fn can_read(&self) -> bool {
