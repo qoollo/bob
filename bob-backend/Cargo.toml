@@ -1,6 +1,6 @@
 [package]
 name = "bob-backend"
-version = "2.1.0-alpha.3"
+version = "2.1.0-alpha.4"
 authors = [
     "Kirill Bushminkin <kb@qoollo.com>",
     "Pavel Iakushin <pyakushin@qoollo.com>",
@@ -43,3 +43,10 @@ version = "0.12.0"
 version = "1.14"
 default-features = false
 features = []
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "key_cmp_benchmark"
+harness = false

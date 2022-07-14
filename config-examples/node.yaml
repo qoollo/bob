@@ -31,6 +31,8 @@
 
 # [file] logger config file
 log_config: config-examples/logger.yaml
+# [file] config with users permissions.
+users_config: config-examples/users.yaml
 # [str] node name, required to match with cluster config
 name: local_node
 # [uint] min count of successful operations on replicas to consider operation successful
@@ -55,6 +57,8 @@ http_api_port: 8000
 http_api_address: 0.0.0.0
 # [size] memory limit for all bloom filters. Unlimited if not specified
 bloom_filter_memory_limit: 8 GiB
+# [None, Basic] type of request authentication
+authentication_type: Basic
 # [size] memory limit for all indexes. Unlimited if not specified
 index_memory_limit: 8 GiB
 

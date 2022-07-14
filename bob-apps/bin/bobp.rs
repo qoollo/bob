@@ -19,6 +19,7 @@ use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
+use tonic::metadata::{Ascii, MetadataValue};
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request, Status};
 
@@ -87,6 +88,8 @@ struct TaskConfig {
     mode: Mode,
     measure_time: bool,
     key_size: usize,
+    basic_username: Option<String>,
+    basic_password: Option<String>,
     packet_size: u64,
 }
 
@@ -119,7 +122,10 @@ impl TaskConfig {
                 );
             }
         }
+        let basic_username = matches.value_of("user").map(|s| s.to_string());
+        let basic_password = matches.value_of("password").map(|s| s.to_string());
         let packet_size = matches.value_or_default("packet_size");
+
         Self {
             low_idx,
             count,
@@ -128,6 +134,8 @@ impl TaskConfig {
             mode,
             measure_time: false,
             key_size,
+            basic_username,
+            basic_password,
             packet_size,
         }
     }
@@ -167,6 +175,29 @@ impl TaskConfig {
         let mut data = key.to_le_bytes().to_vec();
         data.resize(self.key_size, 0);
         data
+    }
+
+    fn get_request_creator<T>(&self) -> impl Fn(T) -> Request<T> {
+        let do_basic_auth = self.basic_username.is_some() && self.basic_password.is_some();
+        let basic_username = self.basic_username.clone().unwrap_or_default();
+        let basic_password = self.basic_password.clone().unwrap_or_default();
+
+        let basic_username = basic_username
+            .parse::<MetadataValue<Ascii>>()
+            .expect("can not parse username into header");
+        let basic_password = basic_password
+            .parse::<MetadataValue<Ascii>>()
+            .expect("can not parse password into header");
+
+        move |a| {
+            let mut request = Request::new(a);
+            if do_basic_auth {
+                let req_md = request.metadata_mut();
+                req_md.insert("username", basic_username.clone());
+                req_md.insert("password", basic_password.clone());
+            }
+            request
+        }
     }
 
     fn prepare_exist_keys(&self) -> Vec<Vec<u64>> {
@@ -606,7 +637,7 @@ fn print_periodic_stat(
             let exist_count_spd = d_exist * 1000 / period_ms;
             let cur_st_exist_time = exist_time_st.get_diff() as f64;
             let cur_st_exist_count = exist_count_st.get_diff() as f64;
-            let exist_error = stat.get_error_count.load(Ordering::Relaxed);
+            let exist_error = stat.exist_error_count.load(Ordering::Relaxed);
             let exist_spd = exist_size.get_diff() as f64 / 1024.0 / sec;
             println!("exist: {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
                 exist_count_spd,
@@ -647,13 +678,16 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     } else {
         Box::new(task_conf.low_idx..upper_idx)
     };
+
+    let request_creator = task_conf.get_request_creator::<GetRequest>();
     for key in iterator {
-        let request = Request::new(GetRequest {
+        let request = request_creator(GetRequest {
             key: Some(BlobKey {
                 key: task_conf.get_proper_key(key),
             }),
             options: options.clone(),
         });
+
         let res = if measure_time {
             let start = Instant::now();
             let res = client.get(request).await;
@@ -677,6 +711,8 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
 async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = net_conf.build_client().await;
 
+    let request_creator = task_conf.get_request_creator::<PutRequest>();
+
     let options: Option<PutOptions> = task_conf.find_put_options();
     let measure_time = task_conf.is_time_measurement_thread();
     let upper_idx = task_conf.low_idx + task_conf.count;
@@ -685,18 +721,19 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         let key = BlobKey {
             key: task_conf.get_proper_key(i),
         };
-        let req = Request::new(PutRequest {
+        let request = request_creator(PutRequest {
             key: Some(key),
             data: Some(blob),
             options: options.clone(),
         });
+
         let res = if measure_time {
             let start = Instant::now();
-            let res = client.put(req).await;
+            let res = client.put(request).await;
             stat.save_single_thread_put_time(&start.elapsed());
             res
         } else {
-            client.put(req).await
+            client.put(request).await
         };
         if let Err(status) = res {
             stat.save_put_error(status).await;
@@ -724,6 +761,8 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
 async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = net_conf.build_client().await;
 
+    let request_creator = task_conf.get_request_creator::<ExistRequest>();
+
     let options = task_conf.find_get_options();
     let send_size_bytes = task_conf.packet_size * (task_conf.key_size as u64);
     let measure_time = task_conf.is_time_measurement_thread();
@@ -736,7 +775,7 @@ async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat
             BlobKey {
                 key: task_conf.get_proper_key(*key),
             }).collect();
-        let request = Request::new(ExistRequest {
+        let request = request_creator(ExistRequest {
             keys,
             options: options.clone(),
         });
@@ -775,6 +814,9 @@ async fn test_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stati
 async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = net_conf.build_client().await;
 
+    let get_request_creator = task_conf.get_request_creator::<GetRequest>();
+    let put_request_creator = task_conf.get_request_creator::<PutRequest>();
+
     let get_options = task_conf.find_get_options();
     let put_options = task_conf.find_put_options();
     let measure_time = task_conf.is_time_measurement_thread();
@@ -784,7 +826,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
         let key = BlobKey {
             key: task_conf.get_proper_key(i),
         };
-        let put_request = Request::new(PutRequest {
+        let put_request = put_request_creator(PutRequest {
             key: Some(key.clone()),
             data: Some(blob),
             options: put_options.clone(),
@@ -801,7 +843,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
             stat.save_put_error(status).await;
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
-        let get_request = Request::new(GetRequest {
+        let get_request = get_request_creator(GetRequest {
             key: Some(key),
             options: get_options.clone(),
         });
@@ -844,6 +886,8 @@ fn spawn_workers(
                 mode: task_conf.mode.clone(),
                 measure_time: i == 0,
                 key_size: task_conf.key_size,
+                basic_username: task_conf.basic_username.clone(),
+                basic_password: task_conf.basic_password.clone(),
                 packet_size: task_conf.packet_size,
             };
             match benchmark_conf.behavior {
@@ -1001,6 +1045,18 @@ fn get_matches() -> ArgMatches<'static> {
                 .long("keysize")
                 .short("k")
                 .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8")),
+        )
+        .arg(
+            Arg::with_name("user")
+                .help("username for auth")
+                .takes_value(true)
+                .long("user"),
+        )
+        .arg(
+            Arg::with_name("password")
+                .help("password for auth")
+                .takes_value(true)
+                .long("password"),
         )
         .arg(
             Arg::with_name("packet_size")

@@ -2,6 +2,8 @@ use crate::prelude::*;
 
 include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
 
+const BOB_KEY_SIZE_USIZE: usize = BOB_KEY_SIZE as usize;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Key(Vec<u8>);
 
@@ -48,12 +50,36 @@ impl<'a> From<&'a [u8]> for RefKey<'a> {
     }
 }
 
-fn le_cmp_keys(x: &[u8], y: &[u8]) -> std::cmp::Ordering {
+pub fn le_cmp_keys(x: &[u8], y: &[u8]) -> std::cmp::Ordering {
     use std::cmp::Ordering;
-    for i in (0..(Key::LEN as usize)).rev() {
-        let ord = x[i].cmp(&y[i]);
-        if ord != Ordering::Equal {
-            return ord;
+    if BOB_KEY_SIZE_USIZE == std::mem::size_of::<usize>() {
+        let x_part: usize = usize::from_le_bytes(x.try_into().unwrap());
+        let y_part: usize = usize::from_le_bytes(y.try_into().unwrap());
+        return x_part.cmp(&y_part);
+    } else if BOB_KEY_SIZE_USIZE % std::mem::size_of::<usize>() == 0 {
+        let len = BOB_KEY_SIZE_USIZE / std::mem::size_of::<usize>();
+        for i in (0..len).rev() {
+            let x_part: usize = usize::from_le_bytes(
+                x[i * std::mem::size_of::<usize>()..(i + 1) * std::mem::size_of::<usize>()]
+                    .try_into()
+                    .unwrap(),
+            );
+            let y_part: usize = usize::from_le_bytes(
+                y[i * std::mem::size_of::<usize>()..(i + 1) * std::mem::size_of::<usize>()]
+                    .try_into()
+                    .unwrap(),
+            );
+            let ord = x_part.cmp(&y_part);
+            if ord != Ordering::Equal {
+                return ord;
+            }
+        }
+    } else {
+        for i in (0..BOB_KEY_SIZE_USIZE).rev() {
+            let ord = x[i].cmp(&y[i]);
+            if ord != Ordering::Equal {
+                return ord;
+            }
         }
     }
     Ordering::Equal
