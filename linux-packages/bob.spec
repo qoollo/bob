@@ -33,9 +33,9 @@ cp %{_builddir}/%{name}-%{version}/ccg %{buildroot}/usr/bin/
 cp %{_builddir}/%{name}-%{version}/config-examples/cluster.yaml %{buildroot}/etc/bob/
 cp %{_builddir}/%{name}-%{version}/config-examples/node.yaml %{buildroot}/etc/bob/
 cp %{_builddir}/%{name}-%{version}/config-examples/logger.yaml %{buildroot}/etc/bob/
-cp packages/bob.service %{buildroot}/etc/systemd/system/
-cp packages/bob.service %{buildroot}/lib/systemd/system/
-cp packages/bob_limits.conf %{buildroot}/etc/security/limits.d/bob.conf
+cp linux-packages/bob.service %{buildroot}/etc/systemd/system/
+cp linux-packages/bob.service %{buildroot}/lib/systemd/system/
+cp linux-packages/bob_limits.conf %{buildroot}/etc/security/limits.d/bob.conf
 
 %clean
 rm -rf %{buildroot}
