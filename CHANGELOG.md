@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- If no credentials provided and default user specified in config, then request will have default user permissions (#437)
 
 #### Changed
 
