@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- "CredentialsNotProvided" now has "Unauthenticated" code (#528)
 
 #### Changed
 
