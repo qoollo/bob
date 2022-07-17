@@ -63,7 +63,7 @@ impl Error {
             Os(_) => Code::Internal,
             UserNotFound => Code::PermissionDenied,
             ConversionError(_) => Code::InvalidArgument,
-            CredentialsNotProvided(_) => Code::InvalidArgument,
+            CredentialsNotProvided(_) => Code::Unauthenticated,
             MultipleCredentialsTypes => Code::InvalidArgument,
             UnauthorizedRequest => Code::PermissionDenied,
             PermissionDenied => Code::PermissionDenied,
