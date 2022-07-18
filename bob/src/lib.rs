@@ -1,4 +1,5 @@
 #![type_length_limit = "3245934"]
+#![feature(proc_macro_hygiene, decl_macro, drain_filter)]
 #![allow(clippy::used_underscore_binding)]
 #![warn(missing_debug_implementations)]
 // #![warn(clippy::pedantic)]
@@ -6,6 +7,8 @@
 
 //! Library requires tokio runtime.
 
+#[macro_use]
+extern crate log;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
@@ -16,12 +19,10 @@ extern crate async_trait;
 extern crate metrics;
 
 pub mod api;
-pub mod build_info;
 pub mod cleaner;
 pub mod cluster;
 pub mod counter;
 pub mod grinder;
-pub mod hw_metrics_collector;
 pub mod link_manager;
 pub mod server;
 
@@ -32,7 +33,6 @@ pub use bob_common::{
         Cluster as ClusterConfig, Node as ClusterNodeConfig, Rack as ClusterRackConfig,
         Replica as ReplicaConfig, VDisk as VDiskConfig,
     },
-    data::BOB_KEY_SIZE,
     mapper::Virtual as VirtualMapper,
     metrics::init_counters,
 };

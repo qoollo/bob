@@ -1,12 +1,11 @@
 use crate::prelude::*;
 
 use super::{
-    core::BackendResult,
-    disk_controller::logger::DisksEventsLogger,
-    disk_controller::DiskController,
-    group::Group,
-    utils::{StartTimestampConfig, Utils},
+    core::BackendResult, disk_controller::logger::DisksEventsLogger,
+    disk_controller::DiskController, group::Group, stuff::Stuff,
 };
+use crate::core::Operation;
+
 const DEFAULT_ALIEN_DISK_NAME: &str = "alien_disk";
 
 #[derive(Debug)]
@@ -16,12 +15,10 @@ pub struct Settings {
     timestamp_period: Duration,
     config: PearlConfig,
     mapper: Arc<Virtual>,
-    holder_group_size: usize,
 }
 
 impl Settings {
     pub fn new(config: &NodeConfig, mapper: Arc<Virtual>) -> Self {
-        let holder_group_size = config.holder_group_size();
         let config = config.pearl().clone();
         let alien_folder = if let Some(alien_disk) = config.alien_disk() {
             let disk_path = mapper
@@ -39,16 +36,11 @@ impl Settings {
             timestamp_period: config.settings().timestamp_period(),
             mapper,
             config,
-            holder_group_size,
         }
     }
 
     pub fn config(&self) -> &PearlConfig {
         &self.config
-    }
-
-    pub fn holder_group_size(&self) -> usize {
-        self.holder_group_size
     }
 
     pub(crate) async fn read_group_from_disk(
@@ -110,7 +102,6 @@ impl Settings {
         self: Arc<Self>,
         disk_name: String,
         dump_sem: Arc<Semaphore>,
-        owner_node_name: &str,
     ) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
         let node_names = Self::get_all_subdirectories(&self.alien_folder).await?;
@@ -128,7 +119,7 @@ impl Settings {
                             node_name.clone(),
                             disk_name.clone(),
                             entry.path(),
-                            format!("a{}", owner_node_name),
+                            node_name.clone(),
                             dump_sem.clone(),
                         );
                         result.push(group);
@@ -144,16 +135,18 @@ impl Settings {
         Ok(result)
     }
 
-    pub async fn create_alien_group(
+    pub async fn create_group(
         self: Arc<Self>,
-        remote_node_name: &str,
-        vdisk_id: u32,
+        operation: &Operation,
         node_name: &str,
         dump_sem: Arc<Semaphore>,
     ) -> BackendResult<Group> {
-        let path = self.alien_path(vdisk_id, remote_node_name);
+        let remote_node_name = operation
+            .remote_node_name()
+            .expect("no remote node name in operation");
+        let path = self.alien_path(operation.vdisk_id(), remote_node_name);
 
-        Utils::check_or_create_directory(&path).await?;
+        Stuff::check_or_create_directory(&path).await?;
 
         let disk_name = self
             .config
@@ -161,7 +154,7 @@ impl Settings {
             .map_or_else(String::new, str::to_owned);
         let group = Group::new(
             self,
-            vdisk_id,
+            operation.vdisk_id(),
             remote_node_name.to_owned(),
             disk_name,
             path,
@@ -172,7 +165,7 @@ impl Settings {
     }
 
     pub async fn get_all_subdirectories(path: &Path) -> BackendResult<Vec<DirEntry>> {
-        Utils::check_or_create_directory(path).await?;
+        Stuff::check_or_create_directory(path).await?;
 
         let mut dir = read_dir(path).await.map_err(|e| {
             let msg = format!("couldn't process path: {:?}, error: {:?} ", path, e);
@@ -274,11 +267,7 @@ impl Settings {
 
     #[inline]
     pub fn get_actual_timestamp_start(&self) -> u64 {
-        Utils::get_start_timestamp_by_std_time(
-            self.timestamp_period,
-            SystemTime::now(),
-            &StartTimestampConfig::default(),
-        )
+        Stuff::get_start_timestamp_by_std_time(self.timestamp_period, SystemTime::now())
     }
 
     #[inline]

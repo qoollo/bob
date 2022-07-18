@@ -2,8 +2,7 @@
 FROM rust:1.47.0 as cargo-build
 
 # rust toolchain version
-ARG RUST_TC_VER=stable
-ARG KEY_SIZE=8
+ARG RUST_TC_VER=nightly-2021-06-23
 
 RUN rustup install $RUST_TC_VER \
   && rustup default $RUST_TC_VER \
@@ -31,7 +30,6 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/bobp.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/ccg.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/dcr.rs \
-  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/brt.rs \
   && cargo build --release --target=x86_64-unknown-linux-gnu
 
 
@@ -45,11 +43,10 @@ RUN cargo build --release --target=x86_64-unknown-linux-gnu \
 
 # final build
 COPY . .
-ENV BOB_KEY_SIZE=${KEY_SIZE}
 RUN cargo build --release --target=x86_64-unknown-linux-gnu
 
 # bobd image
-FROM ubuntu:20.04
+FROM ubuntu:20.10
 
 # SSH
 ENV NOTVISIBLE "in users profile"
@@ -71,35 +68,29 @@ RUN apt-get update \
 WORKDIR /home/bob/bin/
 COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-gnu/release/bobd .
 RUN chown bobd:bobd bobd \
-  && mkdir /bob/log -p && chown bobd:bobd /bob/log -R \
-  && mkdir /bob/data -p && chown bobd:bobd /bob/data -R \
-  && mkdir /bob/configs -p && chown bobd:bobd /bob/configs -R \
   && mkdir ~/.ssh \
   && chmod 600 -R ~/.ssh \
   && echo "#!/bin/bash\n\
-  cp /local_ssh/* ~/.ssh\n\
-  chown -R root ~/.ssh\n\
-  eval $(ssh-agent)\n\
-  ssh-add ~/.ssh/id_rsa\n\
-  /usr/sbin/sshd -D &" >> prep.sh \
+    cp /local_ssh/* ~/.ssh\n\
+    chown -R root ~/.ssh\n\
+    eval $(ssh-agent)\n\
+    ssh-add ~/.ssh/id_rsa\n\
+    /usr/sbin/sshd -D &" >> prep.sh \
   && chmod +x prep.sh \
   && echo "#!/bin/bash\n\
-  trap 'kill -TERM \$! && wait' SIGTERM\n\
-  ./bobd -c /bob/configs/\$1 -n /bob/configs/\$2 &\n\
-  wait" >> bobd.sh \
+    trap 'kill -TERM \$! && wait' SIGTERM\n\
+    ./bobd -c /configs/\$1 -n /configs/\$2 &\n\
+    wait" >> bobd.sh \
   && chmod +x bobd.sh \
   && echo "#!/bin/bash\n\
-  trap 'kill -TERM \$! && wait' SIGTERM\n\
-  echo 'bobd' | sudo -S ./prep.sh\n\
-  ./bobd.sh \$1 \$2 & \n\
-  wait" >> run.sh \
+    trap 'kill -TERM \$! && wait' SIGTERM\n\
+    echo 'bobd' | sudo -S ./prep.sh\n\
+    ./bobd.sh \$1 \$2 & \n\
+    wait" >> run.sh \
   && chmod +x run.sh
-
-COPY dockerfiles/default-configs/ /bob/configs
 
 EXPOSE 80
 EXPOSE 22
 EXPOSE 20000
 USER bobd
 ENTRYPOINT ["./run.sh"]
-CMD ["cluster.yaml", "node.yaml"]

@@ -46,7 +46,7 @@ impl Error {
         Self::new(Kind::Timeout)
     }
 
-    pub fn key_not_found(key: BobKey) -> Self {
+    pub fn key_not_found(key: u64) -> Self {
         Self::new(Kind::KeyNotFound(key))
     }
 

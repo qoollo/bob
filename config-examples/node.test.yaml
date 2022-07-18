@@ -1,0 +1,29 @@
+log_config: logger.yaml            # logger config file
+name: node1                        # node name, required to match with cluster config
+quorum: 1                          # min count of successful operations on replicas to consider operation successful
+operation_timeout: 3sec            # timeout for every GRPC operation, eg: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
+check_interval: 5000ms             # interval for checking connections , eg: [1y 2M 4w 8d 16h 32min 64s 128ms 256us]
+cluster_policy: simple             # simple - without checking status [simple, quorum]
+backend_type: pearl                # type of the backend [in_memory, stub, pearl]
+cleanup_interval: 1h            # interval for checking for blobs cleanup
+open_blobs_soft_limit: 2           # soft limit for count of max blobs to remain in ram
+open_blobs_hard_limit: 10          # hard limit for count of max blobs to remain in ram
+init_par_degree: 1                 # degree of parallelism in disks initialization
+
+pearl:                             # used only for 'backend_type: pearl'
+  max_blob_size: 1000000           # size in bytes. required for 'pearl'
+  allow_duplicates: true           # optional, required for 'pearl', disables search for existing keys before write
+  max_data_in_blob: 10000          # optional
+  blob_file_name_prefix: bob       # optional
+  hash_chars_count: 10             # count of chars in node name hash
+  fail_retry_timeout: 100ms        # mls, retry to reinit pearl backend after fail. required for 'pearl'
+  alien_disk: disk1                # required for 'pearl'  
+  settings:                        # describes how create and manage bob directories. required for 'pearl'
+    root_dir_name: bob             # root dir for bob storage. required for 'pearl'
+    alien_root_dir_name: alien     # root dir for alien storage in 'alien_disk'. required for 'pearl'
+    timestamp_period: 1d           # period when new pearl directory created. required for 'pearl'
+    create_pearl_wait_delay: 100ms # each thread will wait this period if another thread creating pearl. required for 'pearl'
+
+metrics:                           # optional, send metrics
+  name: bob                        # optional, add base name for metrics
+  graphite: 127.0.0.1:2003         # optional, send metrics to graphite

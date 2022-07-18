@@ -17,18 +17,6 @@ paths:
                 $ref: "#/components/schemas/Node"
         default:
           $ref: "#/components/responses/DefaultError"
-  /version:
-    get:
-      summary: Returns server version
-      operationId: getVersion
-      responses:
-        "200":
-          description: "Version string"
-          content:
-            text/plain:
-              schema:
-                type: string
-                example: 1.6.1-cb85dca16f40567b262c393abff15be01d4a2df5
   /nodes:
     get:
       summary: Returns a list of known nodes
@@ -262,28 +250,6 @@ paths:
                   type: string
         default:
           $ref: "#/components/responses/DefaultError"
-  /configuration:
-    get:
-      summary: Returns configuration of the node
-      operationId: getConfiguration
-      responses:
-        "200":
-          description: Configuration object
-          content:
-            application/json:
-              schema:
-                ref: "#/components/schemas/NodeConfiguration"
-        default:
-          $ref: "#/components/responses/DefaultError"
-  /alien/detach:
-    post:
-      summary: Detach alien partitions
-      operationId: detachAlienPartitions
-      responses:
-        "200":
-          description: Successfully deatched alien partitions
-        default:
-          $ref: "#/components/responses/DefaultError"
   /alien/dir:
     get:
       summary: Return directory of alien
@@ -297,7 +263,6 @@ paths:
                 ref: "#/components/schemas/Dir"
         default:
           $ref: "#/components/responses/DefaultError"
-
   /vdisks/<vdisk_id>/replicas/local/dirs:
     get:
       summary: Returns directories of local replicas of vdisk
@@ -472,24 +437,3 @@ components:
           type: string
           enum:
             - Mod
-    Version:
-      type: object
-      properties:
-        version:
-          type: string
-        build_time:
-          type: string
-    VersionInfo:
-      type: object
-      properties:
-        bobversion:
-          type:
-            $ref: "#/components/schemas/Version"
-        pearlversion:
-          type:
-            $ref: "#/components/schemas/Version"
-    NodeConfiguration:
-      type: object
-      properties:
-        blob_file_name_prefix:
-          type: string

@@ -1,26 +1,16 @@
 use crate::prelude::*;
 
-include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
-
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct Key(Vec<u8>);
 
-impl<T: Into<Vec<u8>>> From<T> for Key {
-    fn from(t: T) -> Self {
-        let mut v = t.into();
-        v.resize(Self::LEN as usize, 0);
-        Self(v)
+impl From<u64> for Key {
+    fn from(key: u64) -> Self {
+        Self(key.to_be_bytes().to_vec())
     }
 }
 
 impl KeyTrait for Key {
-    const LEN: u16 = BOB_KEY_SIZE;
-}
-
-impl Default for Key {
-    fn default() -> Self {
-        Self(vec![0_u8; Self::LEN as usize])
-    }
+    const LEN: u16 = 8;
 }
 
 impl AsRef<[u8]> for Key {
@@ -32,25 +22,6 @@ impl AsRef<[u8]> for Key {
 impl AsRef<Key> for Key {
     fn as_ref(&self) -> &Key {
         self
-    }
-}
-
-impl PartialOrd for Key {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        use std::cmp::Ordering;
-        for i in (0..(Key::LEN as usize)).rev() {
-            let ord = self.0[i].cmp(&other.0[i]);
-            if ord != Ordering::Equal {
-                return Some(ord);
-            }
-        }
-        Some(Ordering::Equal)
-    }
-}
-
-impl Ord for Key {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
     }
 }
 

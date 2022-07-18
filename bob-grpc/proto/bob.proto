@@ -33,7 +33,7 @@ message ExistRequest {
 
 // Blob id
 message BlobKey {
-    bytes key = 1; //Inner id representation
+    uint64 key = 1; //Inner id representation
 }
 
 // Data blob

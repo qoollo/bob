@@ -4,7 +4,7 @@ build:
 				cargo build --release
 
 test: build
-				cargo test --features testing
+				cargo test
 
 clean:
 				rm -r target

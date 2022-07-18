@@ -23,8 +23,8 @@ ENV RUSTUP_HOME=/rust
 ENV CARGO_HOME=/cargo 
 ENV PATH=/cargo/bin:/rust/bin:$PATH
 
-RUN echo "(curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable --no-modify-path) \
-    && rustup default stable \
+RUN echo "(curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-2021-03-25 --no-modify-path) \
+    && rustup default nightly-2021-03-25 \
     && rustup component add rust-analysis \
     && rustup component add rust-src \
     && rustup component add rls" | sh

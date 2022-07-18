@@ -1,17 +1,14 @@
-use crate::{pearl::utils::get_current_timestamp, prelude::*};
+use crate::prelude::*;
 
 use super::{
     core::{BackendResult, PearlStorage},
     data::{Data, Key},
-    utils::Utils,
+    stuff::Stuff,
 };
 use bob_common::metrics::pearl::{
-    PEARL_GET_BYTES_COUNTER, PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER,
-    PEARL_PUT_BYTES_COUNTER, PEARL_PUT_COUNTER, PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
+    PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_COUNTER,
+    PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
 };
-use pearl::error::{AsPearlError, ValidationErrorKind};
-use pearl::BloomProvider;
-use pearl::FilterResult;
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
@@ -70,10 +67,6 @@ impl Holder {
         &self.storage
     }
 
-    pub fn cloned_storage(&self) -> Arc<RwLock<PearlSync>> {
-        self.storage.clone()
-    }
-
     pub async fn blobs_count(&self) -> usize {
         let storage = self.storage.read().await;
         storage.blobs_count().await
@@ -82,6 +75,10 @@ impl Holder {
     pub async fn index_memory(&self) -> usize {
         let storage = self.storage.read().await;
         storage.index_memory().await
+    }
+
+    pub fn is_actual(&self, current_start: u64) -> bool {
+        self.start_timestamp == current_start
     }
 
     pub async fn records_count(&self) -> usize {
@@ -131,24 +128,10 @@ impl Holder {
             .as_secs()
     }
 
-    pub async fn close_active_blob(&self) {
-        // NOTE: during active blob dump (no matter sync or async close) Pearl (~Holder) storage is
-        // partly blocked in the same way, the only difference is:
-        // 1 [sync case]. Operations will be done one by one, so only one holder would be blocked
-        //   at every moment (cleaner will work longer + if there would be a query for not existing
-        //   records (so all holders should be checked) bob will be able to fetch records only
-        //   between one by one active blob dump queue, because at every moment one holder will be
-        //   blocked)
-        // 2 [async case]. Operations will be done concurrently, so more holders would be blocked
-        //   at every moment, but the whole operation will be performed faster (but remember about
-        //   disk_sem and other things, which may slow down this concurrent dump)
+    pub async fn close_active_blob(&mut self) {
         let storage = self.storage.write().await;
-        storage.storage().close_active_blob_in_background().await;
+        storage.storage().close_active_blob().await;
         warn!("Active blob of {} closed", self.get_id());
-    }
-
-    pub async fn filter_memory_allocated(&self) -> usize {
-        self.storage.read().await.filter_memory_allocated().await
     }
 
     pub async fn update(&self, storage: Storage<Key>) {
@@ -175,42 +158,30 @@ impl Holder {
         }
     }
 
-    // NOTE: stack + heap size (in fact that's serialized size)
-    // NOTE: can be calculated like `Data::from(data).len()`, but that's less efficient
-    fn calc_data_size(data: &BobData) -> u64 {
-        (std::mem::size_of::<BobData>() + std::mem::size_of_val(data.inner())) as u64
-    }
-
     // @TODO remove redundant return result
     #[allow(clippy::cast_possible_truncation)]
     async fn write_disk(storage: PearlStorage, key: Key, data: BobData) -> BackendResult<()> {
         counter!(PEARL_PUT_COUNTER, 1);
-        let data_size = Self::calc_data_size(&data);
         let timer = Instant::now();
-        let res = storage.write(key, Data::from(data).to_vec()).await;
-        let res = match res {
-            Err(e) => {
+        let res = storage
+            .write(key, Data::from(data).to_vec())
+            .await
+            .map_err(|e| {
                 counter!(PEARL_PUT_ERROR_COUNTER, 1);
                 error!("error on write: {:?}", e);
                 // on pearl level before write in storage it performs `contain` check which
                 // may fail with OS error (that also means that disk is possibly disconnected)
-                let new_e = e.as_pearl_error().map_or(
-                    Error::possible_disk_disconnection(),
-                    |err| match err.kind() {
-                        PearlErrorKind::WorkDirUnavailable { .. } => {
-                            Error::possible_disk_disconnection()
+                e.downcast_ref::<PearlError>()
+                    .map_or(Error::possible_disk_disconnection(), |err| {
+                        match err.kind() {
+                            PearlErrorKind::WorkDirUnavailable { .. } => {
+                                Error::possible_disk_disconnection()
+                            }
+                            _ => Error::internal(),
                         }
-                        _ => Error::internal(),
-                    },
-                );
+                    })
                 //TODO check duplicate
-                Err(new_e)
-            }
-            Ok(()) => {
-                counter!(PEARL_PUT_BYTES_COUNTER, data_size);
-                Ok(())
-            }
-        };
+            });
         counter!(PEARL_PUT_TIMER, timer.elapsed().as_nanos() as u64);
         res
     }
@@ -226,10 +197,7 @@ impl Holder {
             let res = storage
                 .read(Key::from(key))
                 .await
-                .map(|r| {
-                    counter!(PEARL_GET_BYTES_COUNTER, r.len() as u64);
-                    Data::from_bytes(&r)
-                })
+                .map(|r| Data::from_bytes(&r))
                 .map_err(|e| {
                     counter!(PEARL_GET_ERROR_COUNTER, 1);
                     trace!("error on read: {:?}", e);
@@ -296,13 +264,6 @@ impl Holder {
             .await
             .map_err(|e| {
                 let storage_error = Error::storage("Failed to init holder");
-                if let Some(err) = e.as_pearl_error() {
-                    if let PearlErrorKind::Validation { kind, cause: _ } = err.kind() {
-                        if matches!(kind, ValidationErrorKind::BlobVersion) {
-                            panic!("unsupported pearl blob file version: {:#}", err);
-                        }
-                    }
-                }
                 e.downcast_ref::<IOError>().map_or(
                     e.downcast_ref::<Error>()
                         .cloned()
@@ -318,7 +279,7 @@ impl Holder {
     }
 
     async fn init_holder(&self) -> AnyResult<()> {
-        let f = || Utils::check_or_create_directory(&self.disk_path);
+        let f = || Stuff::check_or_create_directory(&self.disk_path);
         self.config
             .try_multiple_times_async(
                 f,
@@ -329,7 +290,7 @@ impl Holder {
 
         self.config
             .try_multiple_times_async(
-                || Utils::drop_pearl_lock_file(&self.disk_path),
+                || Stuff::drop_pearl_lock_file(&self.disk_path),
                 &format!("cannot delete lock file: {:?}", self.disk_path),
                 self.config.fail_retry_timeout(),
             )
@@ -350,13 +311,7 @@ impl Holder {
     }
 
     async fn init_pearl(&self, mut storage: Storage<Key>) -> Result<(), Error> {
-        let ts = get_current_timestamp();
-        let res = if self.gets_into_interval(ts) {
-            storage.init().await
-        } else {
-            storage.init_lazy().await
-        };
-        match res {
+        match storage.init().await {
             Ok(_) => {
                 self.update(storage).await;
                 Ok(())
@@ -366,7 +321,7 @@ impl Holder {
     }
 
     pub async fn drop_directory(&self) -> BackendResult<()> {
-        Utils::drop_directory(&self.disk_path).await
+        Stuff::drop_directory(&self.disk_path).await
     }
 
     fn init_pearl_by_path(&self) -> AnyResult<PearlStorage> {
@@ -400,7 +355,6 @@ impl Holder {
                 Err(e) => {
                     warn!("bob will start with standard sync fs io api");
                     warn!("can't start with AIO, cause: {}", e);
-                    self.config.set_aio(false);
                     builder
                 }
             }
@@ -433,65 +387,6 @@ impl Holder {
         } else {
             trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
             Err(Error::vdisk_is_not_ready())
-        }
-    }
-
-    pub async fn close_storage(&self) {
-        let lck = self.storage();
-        let pearl_sync = lck.write().await;
-        let storage = pearl_sync.storage().clone();
-        if let Err(e) = storage.fsyncdata().await {
-            warn!("pearl fsync error: {:?}", e);
-        }
-        if let Err(e) = storage.close().await {
-            warn!("pearl close error: {:?}", e);
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl BloomProvider<Key> for Holder {
-    type Filter = <Storage<Key> as BloomProvider<Key>>::Filter;
-    async fn check_filter(&self, item: &Key) -> FilterResult {
-        let storage = self.storage().read().await;
-        if let Some(storage) = &storage.storage {
-            return BloomProvider::check_filter(storage, item).await;
-        }
-        FilterResult::NeedAdditionalCheck
-    }
-
-    fn check_filter_fast(&self, _item: &Key) -> FilterResult {
-        FilterResult::NeedAdditionalCheck
-    }
-
-    async fn offload_buffer(&mut self, needed_memory: usize, level: usize) -> usize {
-        let mut storage = self.storage().write().await;
-        if let Some(storage) = &mut storage.storage {
-            storage.offload_buffer(needed_memory, level).await
-        } else {
-            0
-        }
-    }
-
-    async fn get_filter(&self) -> Option<pearl::Bloom> {
-        let storage = self.storage().read().await;
-        if let Some(storage) = &storage.storage {
-            storage.get_filter().await
-        } else {
-            None
-        }
-    }
-
-    fn get_filter_fast(&self) -> Option<&pearl::Bloom> {
-        None
-    }
-
-    async fn filter_memory_allocated(&self) -> usize {
-        let storage = self.storage().read().await;
-        if let Some(storage) = &storage.storage {
-            storage.filter_memory_allocated().await
-        } else {
-            0
         }
     }
 }
@@ -568,22 +463,6 @@ impl PearlSync {
     #[inline]
     pub fn get(&self) -> PearlStorage {
         self.storage.clone().expect("cloned storage")
-    }
-
-    pub async fn filter_memory_allocated(&self) -> usize {
-        if let Some(storage) = &self.storage {
-            storage.filter_memory_allocated().await
-        } else {
-            0
-        }
-    }
-
-    pub async fn offload_buffer(&mut self, needed_memory: usize, level: usize) -> usize {
-        if let Some(storage) = &mut self.storage {
-            storage.offload_buffer(needed_memory, level).await
-        } else {
-            0
-        }
     }
 }
 

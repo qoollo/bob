@@ -21,41 +21,11 @@ appenders:
 
   # An appender named "requests" that writes to a file with a custom pattern encoder
   requests:
-    kind: rolling_file
+    kind: file
     # [path] to the log file
-    path: "./log/info.log"
+    path: "./log/logs.log"
     encoder:
       pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {l} {m}{n}"
-    policy:
-      kind: compound
-      trigger:
-        kind: size
-        limit: 20 mb
-      roller:
-        kind: fixed_window
-        pattern: "./log/archive/info.{}.log"
-        count: 10
-    filters:
-    - kind: threshold
-      level: info
-
-  requests_error:
-    kind: rolling_file
-    path: "./log/error.log"
-    encoder:
-      pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {l} {m}{n}"
-    policy:
-      kind: compound
-      trigger:
-        kind: size
-        limit: 20 mb
-      roller:
-        kind: fixed_window
-        pattern: "./log/archive/error.{}.log"
-        count: 10
-    filters:
-    - kind: threshold
-      level: error
 
 # root logger sets the default global logging level attach appenders to the root
 # Other loggers use this parameters as default
@@ -74,7 +44,6 @@ loggers:
     level: info
     appenders:
       - requests
-      - requests_error
       - stdout
     # [bool] if true, logger won't delete existing configs on start
     additive: false
@@ -83,7 +52,6 @@ loggers:
     level: info
     appenders:
       - requests
-      - requests_error
       - stdout
     additive: false
   bob_common:
@@ -91,15 +59,13 @@ loggers:
     level: info
     appenders:
       - requests
-      - requests_error
       - stdout
     additive: false
-  bob_apps:
+  bob_tools:
     # level applies only to bob-tools
     level: info
     appenders:
       - requests
-      - requests_error
       - stdout
     additive: false
   bob_grpc:
@@ -107,7 +73,6 @@ loggers:
     level: info
     appenders:
       - requests
-      - requests_error
       - stdout
     additive: false
   # pearl - low level IO lib
@@ -116,7 +81,6 @@ loggers:
     level: error
     appenders:
       - requests
-      - requests_error
       - stdout
     additive: false
   h2:

@@ -38,12 +38,10 @@ impl Virtual {
             .expect("found node with name")
             .address()
             .to_string();
-        let disks = config.disks();
-        let disks_read = disks.lock().expect("mutex");
         Self {
             local_node_name,
             local_node_address,
-            disks: disks_read.clone(),
+            disks: config.disks().clone(),
             vdisks,
             nodes,
             distribution_func: cluster.distribution_func(),
@@ -138,16 +136,10 @@ impl Virtual {
 
     pub fn vdisk_id_from_key(&self, key: BobKey) -> VDiskId {
         match self.distribution_func {
-            DistributionFunc::Mod => (Self::get_vdisk_id_by_mod(key, self.vdisks.len()))
+            DistributionFunc::Mod => (key % self.vdisks.len() as u64)
                 .try_into()
-                .expect("usize to u32"),
+                .expect("u64 to u32"),
         }
-    }
-
-    fn get_vdisk_id_by_mod(key: BobKey, len: usize) -> usize {
-        key.iter().fold([0, 1], |[rem, bmult], &byte| {
-            [(rem + bmult * byte as usize) % len, (bmult << 8) % len]
-        })[0]
     }
 
     /// Returns ref to `VDisk` with given ID

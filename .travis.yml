@@ -6,7 +6,7 @@ cache: cargo
 
 matrix:
   include:
-  - rust: stable
+  - rust: nightly
     env: RUSTFMT=0
 
 before_script:
