@@ -1,4 +1,4 @@
-       use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
+use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
 use clap::{App, Arg, ArgMatches};
 use http::Uri;
 use lazy_static::lazy_static;
@@ -11,7 +11,8 @@ use stopwatch::Stopwatch;
 use tonic::{transport::Channel, Request};
 
 const URI_ARG_NAME: &str = "uri";
-const MAX_ID_ARG_NAME: &str = "id";
+const START_ID_ARG_NAME: &str = "start_id";
+const END_ID_ARG_NAME: &str = "end_id";
 const MAX_SIZE_ARG_NAME: &str = "size";
 const COUNT_ARG_NAME: &str = "key";
 
@@ -332,7 +333,8 @@ impl Client {
 #[derive(Debug)]
 struct Settings {
     count: u64,
-    max_id: u64,
+    start_id: u64,
+    end_id: u64,
     max_size: usize,
     uri: Uri,
 }
@@ -342,9 +344,10 @@ impl Settings {
         let matches = get_matches();
         Self {
             count: Self::get_count(&matches),
-            uri: Self::get_uri(&matches),
-            max_id: Self::get_max_id(&matches),
+            start_id: Self::get_start_id(&matches),
+            end_id: Self::get_end_id(&matches),
             max_size: Self::get_max_size(&matches),
+            uri: Self::get_uri(&matches),
         }
     }
 
@@ -364,9 +367,17 @@ impl Settings {
             .expect("should be usize")
     }
 
-    fn get_max_id(matches: &ArgMatches) -> u64 {
+    fn get_start_id(matches: &ArgMatches) -> u64 {
         matches
-            .value_of(MAX_ID_ARG_NAME)
+            .value_of(START_ID_ARG_NAME)
+            .expect("has default")
+            .parse()
+            .expect("should be u64")
+    }
+
+    fn get_end_id(matches: &ArgMatches) -> u64 {
+        matches
+            .value_of(END_ID_ARG_NAME)
             .expect("has default")
             .parse()
             .expect("should be u64")
@@ -387,26 +398,31 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .long("count")
         .takes_value(true)
         .required(true);
+    let start_id_arg = Arg::with_name(START_ID_ARG_NAME)
+        .long("start-id")
+        .takes_value(true)
+        .default_value("0");
+    let end_id_arg = Arg::with_name(END_ID_ARG_NAME)
+        .short("e")
+        .long("end-id")
+        .takes_value(true)
+        .default_value("100000");
+    let size_arg = Arg::with_name(MAX_SIZE_ARG_NAME)
+        .short("s")
+        .long("max-size")
+        .takes_value(true)
+        .default_value("100000");
     let uri_arg = Arg::with_name(URI_ARG_NAME)
         .short("a")
         .long("address")
         .takes_value(true)
         .default_value("http://localhost:20000");
-    let size_arg = Arg::with_name(MAX_ID_ARG_NAME)
-        .short("i")
-        .long("max-id")
-        .takes_value(true)
-        .default_value("100000");
-    let id_arg = Arg::with_name(MAX_SIZE_ARG_NAME)
-        .short("s")
-        .long("max-size")
-        .takes_value(true)
-        .default_value("100000");
     App::new("bobc")
         .arg(count_arg)
-        .arg(uri_arg)
+        .arg(start_id_arg)
+        .arg(end_id_arg)
         .arg(size_arg)
-        .arg(id_arg)
+        .arg(uri_arg)
         .get_matches()
 }
  
