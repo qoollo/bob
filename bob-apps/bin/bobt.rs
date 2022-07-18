@@ -16,6 +16,7 @@ const END_ID_ARG_NAME: &str = "end-id";
 const MAX_SIZE_ARG_NAME: &str = "size";
 const COUNT_ARG_NAME: &str = "key";
 const KEY_SIZE_ARG_NAME: &str = "key-size";
+const API_ADDRESS_ARG_NAME: &str = "api-address";
 
 #[tokio::main]
 async fn main() {
@@ -228,7 +229,7 @@ impl Client {
             meta: Some(meta),
         };
         let message = PutRequest {
-            key: Some(BlobKey { key: self.settings.get_proper_key(key) }),
+            key: Some(BlobKey { key: self.settings.convert_key(key) }),
             data: Some(blob),
             options: None,
         };
@@ -250,7 +251,7 @@ impl Client {
 
     async fn get(&mut self, key: u64) -> Result<usize, String> {
         let message = GetRequest {
-            key: Some(BlobKey { key: self.settings.get_proper_key(key) }),
+            key: Some(BlobKey { key: self.settings.convert_key(key) }),
             options: None,
         };
         let get_req = Request::new(message);
@@ -272,7 +273,7 @@ impl Client {
 
     async fn delete(&mut self, key: u64) -> Result<usize, String> {
         let message = GetRequest {
-            key: Some(BlobKey { key: self.settings.get_proper_key(key) }),
+            key: Some(BlobKey { key: self.settings.convert_key(key) }),
             options: None,
         };
         let get_req = Request::new(message.clone());
@@ -285,7 +286,7 @@ impl Client {
         log::debug!("Delete {} with size {}", key, size);
         let req = self
             .http_client
-            .delete(format!("http://127.0.0.1:8001/data/{}", key))
+            .delete(format!("{}/data/{}", self.settings.api_uri, key))
             .build()
             .map_err(|e| e.to_string())?;
         let sw = Stopwatch::new();
@@ -317,6 +318,7 @@ struct Settings {
     max_size: usize,
     key_size: usize,
     uri: Uri,
+    api_uri: Uri,
 }
 
 impl Settings {
@@ -329,6 +331,7 @@ impl Settings {
             end_id: Self::get_end_id(&matches),
             max_size: Self::get_max_size(&matches),
             key_size: Self::get_key_size(&matches),
+            api_uri: Self::get_api_uri(&matches),
         }
     }
 
@@ -380,7 +383,15 @@ impl Settings {
             .expect("wrong format of url")
     }
 
-    fn get_proper_key(&self, key: u64) -> Vec<u8> {
+    fn get_api_uri(matches: &ArgMatches) -> Uri {
+        matches
+            .value_of(API_ADDRESS_ARG_NAME)
+            .expect("has default value")
+            .parse()
+            .expect("wrong format of url")
+    }
+
+    fn convert_key(&self, key: u64) -> Vec<u8> {
         let mut data = key.to_le_bytes().to_vec();
         data.resize(self.key_size, 0);
         data
@@ -415,6 +426,10 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .long("key-size")
         .takes_value(true)
         .default_value("8");
+    let api_uri_arg = Arg::with_name(API_ADDRESS_ARG_NAME)
+        .long("api-address")
+        .takes_value(true)
+        .default_value("http://localhost:8000");
     App::new("bobt")
         .arg(count_arg)
         .arg(uri_arg)
@@ -422,5 +437,6 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .arg(start_id_arg)
         .arg(end_id_arg)
         .arg(key_size_arg)
+        .arg(api_uri_arg)
         .get_matches()
 }
