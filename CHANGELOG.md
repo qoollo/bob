@@ -5,14 +5,28 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Add occupied disk space to api and metrics (#501)
-- Memory limit for indexes (#466)
-- Access management (#217)
-  - Nodes authentication. (#318)
-  - Authorization parameters in bobp (#425)
-  - Http API authentication. (#217)
+
 
 #### Changed
-- Rocket replaced with axum. (#217)
+
+
+#### Fixed
+
+
+#### Updated
+
+
+## [2.1.0-alpha.4] - 2022-07-04
+#### Added
+- Memory limit for indexes (#466)
+- Add support for logstash (#243)
+- Access management (#217)
+  - Nodes authentication (#318)
+  - Authorization parameters in bobp (#425)
+  - Http API authentication (#217)
+
+#### Changed
+- Rocket replaced with axum (#217)
 - Add special cmp for keys with sizes aligned with word (#496)
 - Publish available ram metric instead of calculated free ram, used ram is now calculated (#508)
 - Log about disk availability would be written once (#499)

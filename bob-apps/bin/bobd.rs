@@ -41,7 +41,8 @@ async fn main() {
     println!("Node config: {:?}", node_config_file);
     let node = cluster.get(node_config_file).await.unwrap();
 
-    log4rs::init_file(node.log_config(), Default::default()).expect("can't find log config");
+    log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
+        .expect("can't find log config");
 
     check_folders(&node, matches.is_present("init_folders"));
 
@@ -206,6 +207,7 @@ fn spawn_signal_handler<A: Authenticator>(
         task.recv().await;
         debug!("Got signal {:?}", s);
         server.shutdown().await;
+        log::logger().flush();
         std::process::exit(0);
     });
     Ok(())
