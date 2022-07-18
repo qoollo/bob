@@ -1,6 +1,5 @@
-use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
+       use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
 use clap::{App, Arg, ArgMatches};
-use futures::executor::block_on;
 use http::Uri;
 use lazy_static::lazy_static;
 use rand::distributions::Uniform;
@@ -45,7 +44,7 @@ impl Operation {
 }
 
 struct Tester {
-    storage: BTreeMap<u64, (usize, u64)>,
+    storage: BTreeMap<u64, usize>,
     client: Client,
     settings: Settings,
     rng: rand::rngs::ThreadRng,
@@ -79,7 +78,7 @@ impl Tester {
         match res {
             Ok(size) => {
                 if let Some(expected) = self.storage.get(&key) {
-                    if expected.0 == size {
+                    if *expected == size {
                         true
                     } else {
                         log::warn!("Get size error: expected {} != actual {}", expected.0, size);
@@ -116,7 +115,7 @@ impl Tester {
                         return true;
                     }
                 }
-                self.storage.insert(key, (size, timestamp));
+                self.storage.insert(key, size);
                 true
             }
             Err(e) => {
@@ -410,3 +409,4 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .arg(id_arg)
         .get_matches()
 }
+ 
