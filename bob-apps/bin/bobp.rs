@@ -1,3 +1,5 @@
+use rand::prelude::*;
+
 use bob::{
     Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetOptions, GetRequest, GetSource,
     PutOptions, PutRequest,
@@ -27,7 +29,6 @@ struct NetConfig {
     port: u16,
     target: String,
 }
-
 impl NetConfig {
     fn get_uri(&self) -> http::Uri {
         http::Uri::builder()
@@ -70,23 +71,60 @@ impl Debug for NetConfig {
     }
 }
 
+#[derive(Clone, PartialEq)]
+enum Mode {
+    Normal,
+    Random,
+}
+
 #[derive(Clone)]
 struct TaskConfig {
     low_idx: u64,
     count: u64,
     payload_size: u64,
     direct: bool,
+    mode: Mode,
     measure_time: bool,
+    key_size: usize,
+}
+
+impl FromStr for Mode {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "normal" => Ok(Mode::Normal),
+            "random" => Ok(Mode::Random),
+            _ => Err("Failed to parse mode, only 'random' and 'normal' available"),
+        }
+    }
 }
 
 impl TaskConfig {
     fn from_matches(matches: &ArgMatches) -> Self {
+        let mode_string: String = matches.value_or_default("normal");
+        let mode = Mode::from_str(&mode_string).unwrap_or(Mode::Normal);
+        let key_size = matches.value_or_default("keysize");
+        let low_idx = matches.value_or_default("first");
+        let count = matches.value_or_default("count");
+        if key_size < std::mem::size_of::<u64>() {
+            let max_allowed = 256_u64.pow(key_size as u32) - 1;
+            if low_idx + count > max_allowed {
+                panic!(
+                    "max possible index for keysize={} is {}, but task includes keys up to {}",
+                    key_size,
+                    max_allowed,
+                    low_idx + count
+                );
+            }
+        }
         Self {
-            low_idx: matches.value_or_default("first"),
-            count: matches.value_or_default("count"),
+            low_idx,
+            count,
             payload_size: matches.value_or_default("payload"),
             direct: matches.is_present("direct"),
+            mode,
             measure_time: false,
+            key_size,
         }
     }
 
@@ -115,6 +153,16 @@ impl TaskConfig {
 
     fn is_time_measurement_thread(&self) -> bool {
         self.measure_time
+    }
+
+    fn is_random(&self) -> bool {
+        self.mode == Mode::Random
+    }
+
+    fn get_proper_key(&self, key: u64) -> Vec<u8> {
+        let mut data = key.to_le_bytes().to_vec();
+        data.resize(self.key_size, 0);
+        data
     }
 }
 
@@ -450,9 +498,18 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let options = task_conf.find_get_options();
     let upper_idx = task_conf.low_idx + task_conf.count;
     let measure_time = task_conf.is_time_measurement_thread();
-    for i in task_conf.low_idx..upper_idx {
+    let iterator: Box<dyn Send + Iterator<Item = u64>> = if task_conf.is_random() {
+        Box::new(task_conf.low_idx..upper_idx)
+    } else {
+        let mut keys: Vec<_> = (task_conf.low_idx..upper_idx).collect();
+        keys.shuffle(&mut thread_rng());
+        Box::new(keys.into_iter())
+    };
+    for key in iterator {
         let request = Request::new(GetRequest {
-            key: Some(BlobKey { key: i }),
+            key: Some(BlobKey {
+                key: task_conf.get_proper_key(key),
+            }),
             options: options.clone(),
         });
         let res = if measure_time {
@@ -483,7 +540,9 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
         let blob = create_blob(&task_conf);
-        let key = BlobKey { key: i };
+        let key = BlobKey {
+            key: task_conf.get_proper_key(i),
+        };
         let req = Request::new(PutRequest {
             key: Some(key),
             data: Some(blob),
@@ -504,7 +563,9 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     }
     let req = Request::new(ExistRequest {
         keys: (task_conf.low_idx..upper_idx)
-            .map(|i| BlobKey { key: i })
+            .map(|i| BlobKey {
+                key: task_conf.get_proper_key(i),
+            })
             .collect(),
         options: task_conf.find_get_options(),
     });
@@ -532,7 +593,9 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
         let blob = create_blob(&task_conf);
-        let key = BlobKey { key: i };
+        let key = BlobKey {
+            key: task_conf.get_proper_key(i),
+        };
         let put_request = Request::new(PutRequest {
             key: Some(key.clone()),
             data: Some(blob),
@@ -590,7 +653,9 @@ fn spawn_workers(
                 count,
                 payload_size: task_conf.payload_size,
                 direct: task_conf.direct,
+                mode: task_conf.mode.clone(),
                 measure_time: i == 0,
+                key_size: task_conf.key_size,
             };
             match benchmark_conf.behavior {
                 Behavior::Put => tokio::spawn(put_worker(nc, tc, stat_inner)),
@@ -706,6 +771,21 @@ fn get_matches() -> ArgMatches<'static> {
                 .help("verify results of put requests")
                 .takes_value(false)
                 .long("verify"),
+        )
+        .arg(
+            Arg::with_name("mode")
+                .help("random (keys in get operation are shuffled) or normal")
+                .takes_value(true)
+                .default_value("normal")
+                .long("mode"),
+        )
+        .arg(
+            Arg::with_name("keysize")
+                .help("size of the binary key")
+                .takes_value(true)
+                .long("keysize")
+                .short("k")
+                .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8")),
         )
         .get_matches()
 }
