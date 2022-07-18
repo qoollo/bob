@@ -11,10 +11,11 @@ use stopwatch::Stopwatch;
 use tonic::{transport::Channel, Request};
 
 const URI_ARG_NAME: &str = "uri";
-const START_ID_ARG_NAME: &str = "start_id";
-const END_ID_ARG_NAME: &str = "end_id";
+const START_ID_ARG_NAME: &str = "start-id";
+const END_ID_ARG_NAME: &str = "end-id";
 const MAX_SIZE_ARG_NAME: &str = "size";
 const COUNT_ARG_NAME: &str = "key";
+const KEY_SIZE_ARG_NAME: &str = "key-size";
 
 #[tokio::main]
 async fn main() {
@@ -57,9 +58,9 @@ impl Tester {
     async fn new(settings: Settings) -> Tester {
         Self {
             storage: Default::default(),
-            client: Client::new(settings.uri.clone()).await,
+            client: Client::new(settings.clone()).await,
             rng: rand::thread_rng(),
-            id_distribution: Uniform::new(0, settings.max_id),
+            id_distribution: Uniform::new(settings.start_id, settings.end_id),
             size_distribution: Uniform::new(0, settings.max_size),
             settings,
         }
@@ -82,7 +83,7 @@ impl Tester {
                     if *expected == size {
                         true
                     } else {
-                        log::warn!("Get size error: expected {} != actual {}", expected.0, size);
+                        log::warn!("Get size error: expected {} != actual {}", expected, size);
                         false
                     }
                 } else {
@@ -104,18 +105,9 @@ impl Tester {
     async fn put(&mut self) -> bool {
         let key = self.rand_id();
         let size = self.rand_size();
-        let block_timestamp = self.storage.get(&key).map(|x| x.1);
-        if block_timestamp.is_some() {
-            return true;
-        }
-        let res = self.client.put(key, size, block_timestamp).await;
+        let res = self.client.put(key, size).await;
         match res {
-            Ok(timestamp) => {
-                if let Some(block_timestamp) = block_timestamp {
-                    if timestamp == block_timestamp {
-                        return true;
-                    }
-                }
+            Ok(_) => {
                 self.storage.insert(key, size);
                 true
             }
@@ -133,12 +125,12 @@ impl Tester {
         match res {
             Ok(size) => {
                 if let Some(expected) = value {
-                    if expected.0 == size {
+                    if expected == size {
                         true
                     } else {
                         log::warn!(
                             "Deletion size error: expected {} != actual {}",
-                            expected.0,
+                            expected,
                             size
                         );
                         false
@@ -183,6 +175,7 @@ impl Tester {
 struct Client {
     client: BobApiClient<Channel>,
     http_client: reqwest::Client,
+    settings: Settings,
     put_time: Duration,
     put_count: u64,
     get_count: u64,
@@ -192,10 +185,11 @@ struct Client {
 }
 
 impl Client {
-    async fn new(addr: Uri) -> Self {
+    async fn new(settings: Settings) -> Self {
         Self {
-            client: BobApiClient::connect(addr).await.unwrap(),
+            client: BobApiClient::connect(settings.uri.clone()).await.unwrap(),
             http_client: reqwest::ClientBuilder::default().build().unwrap(),
+            settings,
             put_count: 0,
             put_time: Duration::ZERO,
             get_count: 0,
@@ -223,40 +217,25 @@ impl Client {
         log::info!("DELETE: count: {}, latency: {}", self.delete_count, latency);
     }
 
-    async fn put(
-        &mut self,
-        key: u64,
-        size: usize,
-        block_timestamp: Option<u64>,
-    ) -> Result<u64, String> {
+    async fn put(&mut self, key: u64, size: usize) -> Result<(), String> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("msg: &str")
             .as_secs();
-        if let Some(block_timestamp) = block_timestamp {
-            if timestamp == block_timestamp {
-                return Ok(timestamp);
-            }
-        }
         let meta = BlobMeta { timestamp };
         let blob = Blob {
             data: vec![1; size],
             meta: Some(meta),
         };
         let message = PutRequest {
-            key: Some(BlobKey { key }),
+            key: Some(BlobKey { key: self.settings.get_proper_key(key) }),
             data: Some(blob),
             options: None,
         };
         let put_req = Request::new(message);
 
         let sw = Stopwatch::new();
-        let res = self
-            .client
-            .put(put_req)
-            .await
-            .map(|_| timestamp)
-            .map_err(|e| e.to_string());
+        let res = self.client.put(put_req).await.map_err(|e| e.to_string())?;
         log::debug!(
             "Put[{}] {} with size {} result: {:?}",
             timestamp,
@@ -266,12 +245,12 @@ impl Client {
         );
         self.put_time += sw.elapsed();
         self.put_count += 1;
-        res
+        Ok(())
     }
 
     async fn get(&mut self, key: u64) -> Result<usize, String> {
         let message = GetRequest {
-            key: Some(BlobKey { key }),
+            key: Some(BlobKey { key: self.settings.get_proper_key(key) }),
             options: None,
         };
         let get_req = Request::new(message);
@@ -293,7 +272,7 @@ impl Client {
 
     async fn delete(&mut self, key: u64) -> Result<usize, String> {
         let message = GetRequest {
-            key: Some(BlobKey { key }),
+            key: Some(BlobKey { key: self.settings.get_proper_key(key) }),
             options: None,
         };
         let get_req = Request::new(message.clone());
@@ -330,12 +309,13 @@ impl Client {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Settings {
     count: u64,
     start_id: u64,
     end_id: u64,
     max_size: usize,
+    key_size: usize,
     uri: Uri,
 }
 
@@ -344,10 +324,11 @@ impl Settings {
         let matches = get_matches();
         Self {
             count: Self::get_count(&matches),
+            uri: Self::get_uri(&matches),
             start_id: Self::get_start_id(&matches),
             end_id: Self::get_end_id(&matches),
             max_size: Self::get_max_size(&matches),
-            uri: Self::get_uri(&matches),
+            key_size: Self::get_key_size(&matches),
         }
     }
 
@@ -390,6 +371,20 @@ impl Settings {
             .parse()
             .expect("wrong format of url")
     }
+
+    fn get_key_size(matches: &ArgMatches) -> usize {
+        matches
+            .value_of(KEY_SIZE_ARG_NAME)
+            .expect("has default value")
+            .parse()
+            .expect("wrong format of url")
+    }
+
+    fn get_proper_key(&self, key: u64) -> Vec<u8> {
+        let mut data = key.to_le_bytes().to_vec();
+        data.resize(self.key_size, 0);
+        data
+    }
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
@@ -398,12 +393,16 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .long("count")
         .takes_value(true)
         .required(true);
+    let uri_arg = Arg::with_name(URI_ARG_NAME)
+        .short("a")
+        .long("address")
+        .takes_value(true)
+        .default_value("http://localhost:20000");
     let start_id_arg = Arg::with_name(START_ID_ARG_NAME)
         .long("start-id")
         .takes_value(true)
         .default_value("0");
     let end_id_arg = Arg::with_name(END_ID_ARG_NAME)
-        .short("e")
         .long("end-id")
         .takes_value(true)
         .default_value("100000");
@@ -412,17 +411,16 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .long("max-size")
         .takes_value(true)
         .default_value("100000");
-    let uri_arg = Arg::with_name(URI_ARG_NAME)
-        .short("a")
-        .long("address")
+    let key_size_arg = Arg::with_name(KEY_SIZE_ARG_NAME)
+        .long("key-size")
         .takes_value(true)
-        .default_value("http://localhost:20000");
-    App::new("bobc")
+        .default_value("8");
+    App::new("bobt")
         .arg(count_arg)
+        .arg(uri_arg)
+        .arg(size_arg)
         .arg(start_id_arg)
         .arg(end_id_arg)
-        .arg(size_arg)
-        .arg(uri_arg)
+        .arg(key_size_arg)
         .get_matches()
 }
- 
