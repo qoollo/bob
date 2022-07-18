@@ -61,11 +61,11 @@ impl Error {
             InvalidToken(_) => Code::InvalidArgument,
             Validation(_) => Code::InvalidArgument,
             Os(_) => Code::Internal,
-            UserNotFound => Code::PermissionDenied,
+            UserNotFound => Code::Unauthenticated,
             ConversionError(_) => Code::InvalidArgument,
             CredentialsNotProvided(_) => Code::Unauthenticated,
             MultipleCredentialsTypes => Code::InvalidArgument,
-            UnauthorizedRequest => Code::PermissionDenied,
+            UnauthorizedRequest => Code::Unauthenticated,
             PermissionDenied => Code::PermissionDenied,
         }
     }
