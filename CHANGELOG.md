@@ -4,13 +4,13 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- "CredentialsNotProvided", "UserNotFound", "UnauthorizedRequest" now have "Unauthenticated" code (#528)
+
 
 #### Changed
 
 
 #### Fixed
-
+- "CredentialsNotProvided", "UserNotFound", "UnauthorizedRequest" now have "Unauthenticated" code (#528)
 
 #### Updated
 
