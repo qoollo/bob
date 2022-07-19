@@ -60,14 +60,10 @@ impl<Storage: UsersStorage> Basic<Storage> {
                 );
         
                 let user = self.users_storage.get_user(&username)?;
-                if username == "default" {
+                if user.password() == password {
                     Ok(user.into())
                 } else {
-                    if user.password() == password {
-                        Ok(user.into())
-                    } else {
-                        Err(Error::UnauthorizedRequest)
-                    }
+                    Err(Error::UnauthorizedRequest)
                 }
             },
             None => {

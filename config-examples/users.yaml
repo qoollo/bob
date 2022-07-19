@@ -24,5 +24,4 @@ users:
     password: password
     role: data_manipulator
   - username: default
-    password: 
     role: reader

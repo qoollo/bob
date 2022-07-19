@@ -7,8 +7,15 @@ use super::{Perms, User};
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct ConfigUser {
     pub(super) username: String,
+    #[serde(default = "ConfigUser::default_password")]
     pub(super) password: String,
     pub(super) role: String,
+}
+
+impl ConfigUser {
+    fn default_password() -> String {
+        "".into()
+    }
 }
 
 #[derive(Debug, Deserialize)]
