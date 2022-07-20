@@ -7,6 +7,7 @@ Bob versions changelog
 
 
 #### Changed
+- Move files for linux packages into separate directory (#534)
 
 
 #### Fixed
