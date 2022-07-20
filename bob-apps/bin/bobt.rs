@@ -1,9 +1,10 @@
 use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
 use clap::{App, Arg, ArgMatches};
-use http::Uri;
+use http::{Uri, StatusCode};
 use lazy_static::lazy_static;
 use rand::distributions::Uniform;
 use rand::prelude::*;
+use reqwest::Url;
 use std::collections::BTreeMap;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -219,30 +220,27 @@ impl Client {
     }
 
     async fn put(&mut self, key: u64, size: usize) -> Result<(), String> {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("msg: &str")
-            .as_secs();
-        let meta = BlobMeta { timestamp };
-        let blob = Blob {
-            data: vec![1; size],
-            meta: Some(meta),
-        };
-        let message = PutRequest {
-            key: Some(BlobKey { key: self.settings.convert_key(key) }),
-            data: Some(blob),
-            options: None,
-        };
-        let put_req = Request::new(message);
-
+        let data = vec![1; size];
+        let mut url = Url::parse(&self.settings.api_uri.to_string()).unwrap();
+        url.set_path(&format!("/data/{}", self.settings.convert_key(key)));
+        let addr = url.to_string();
+        log::info!("Put to {}", addr);
         let sw = Stopwatch::new();
-        let res = self.client.put(put_req).await.map_err(|e| e.to_string())?;
-        log::debug!(
-            "Put[{}] {} with size {} result: {:?}",
-            timestamp,
+        let req = self.http_client
+            .post(addr)
+            .body(data)
+            .header("username", "admin")
+            .header("password", "password")
+            .build()
+            .map_err(|e| e.to_string())?;
+        let res = self.http_client.execute(req).await.map_err(|e| e.to_string())?;
+        if !res.status().is_success() {
+            log::warn!("Put resulted in error code: {:?}", res.status());
+        }
+        log::info!(
+            "Put {} with size {}",
             key,
             size,
-            res
         );
         self.put_time += sw.elapsed();
         self.put_count += 1;
@@ -250,43 +248,37 @@ impl Client {
     }
 
     async fn get(&mut self, key: u64) -> Result<usize, String> {
-        let message = GetRequest {
-            key: Some(BlobKey { key: self.settings.convert_key(key) }),
-            options: None,
-        };
-        let get_req = Request::new(message);
+        let mut url = Url::parse(&self.settings.api_uri.to_string()).unwrap();
+        url.set_path(&format!("/data/{}", self.settings.convert_key(key)));
+        let addr = url.to_string();//format!("{}/data/{}", self.settings.api_uri, self.settings.convert_key(key));
+        let req = self.http_client
+            .get(addr)
+            .header("username", "admin")
+            .header("password", "password")
+            .build()
+            .map_err(|e| e.to_string())?;
         let sw = Stopwatch::new();
-        let res = self.client.get(get_req).await;
-        let meta = if let Ok(r) = &res {
-            r.get_ref().meta.clone()
-        } else {
-            Default::default()
-        };
-        let res = res
-            .map(|r| r.get_ref().data.len())
-            .map_err(|e| e.to_string());
-        log::debug!("Get[{:?}] {} result: {:?}", meta, key, res);
+        let res = self.http_client.execute(req).await.map_err(|e| e.to_string())?;
+        let status = res.status();
+        if !status.is_success() {
+            if status != StatusCode::NOT_FOUND {
+                log::warn!("Get resulted in error code: {:?}", res.status());
+            }
+            return Err(status.to_string());
+        }
         self.get_time += sw.elapsed();
         self.get_count += 1;
-        res
+        log::debug!("Get {} result: {:?}", key, res);
+        let bytes = res.bytes().await;
+        bytes.map(|b| b.len()).map_err(|e| e.to_string())
     }
 
     async fn delete(&mut self, key: u64) -> Result<usize, String> {
-        let message = GetRequest {
-            key: Some(BlobKey { key: self.settings.convert_key(key) }),
-            options: None,
-        };
-        let get_req = Request::new(message.clone());
-        let size = self
-            .client
-            .get(get_req)
-            .await
-            .map(|r| r.get_ref().data.len())
-            .map_err(|e| e.to_string())?;
+        let size = self.get(key).await?;
         log::debug!("Delete {} with size {}", key, size);
         let req = self
             .http_client
-            .delete(format!("{}/data/{}", self.settings.api_uri, key))
+            .delete(format!("{}/data/{}", self.settings.api_uri, self.settings.convert_key(key)))
             .build()
             .map_err(|e| e.to_string())?;
         let sw = Stopwatch::new();
@@ -297,12 +289,7 @@ impl Client {
             .map_err(|e| e.to_string());
         self.delete_time += sw.elapsed();
         self.delete_count += 1;
-        let get_req = Request::new(message);
-        let res = self
-            .client
-            .get(get_req)
-            .await
-            .map(|r| r.get_ref().data.len());
+        let res = self.get(key).await;
         match res {
             Ok(new_size) => Err(format!("{} => {}", size, new_size)),
             Err(_) => Ok(size),
@@ -391,10 +378,15 @@ impl Settings {
             .expect("wrong format of url")
     }
 
-    fn convert_key(&self, key: u64) -> Vec<u8> {
+    fn convert_key(&self, key: u64) -> String {
         let mut data = key.to_le_bytes().to_vec();
         data.resize(self.key_size, 0);
-        data
+        let mut result = String::with_capacity(data.len() * 2 + 2);
+        result.push_str("0x");
+        for b in data {
+            result.push_str(&format!("{:X?}", b));
+        }
+        result
     }
 }
 
