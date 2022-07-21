@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fs::File;
 
 use crate::error::Error;
 
@@ -8,7 +7,7 @@ use super::{Perms, User};
 use hex::FromHex;
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct ConfigUser {
+pub(super) struct ConfigUser {
     pub(super) username: String,
     pub(super) password: Option<String>,
     pub(super) password_hash: Option<String>,
@@ -16,24 +15,16 @@ pub struct ConfigUser {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ConfigUsers {
+pub(super) struct ConfigUsers {
     pub(super) roles: HashMap<String, Perms>,
     pub(super) users: Vec<ConfigUser>,
     #[serde(default = "ConfigUsers::default_password_salt")]
-    pub password_salt: String,
+    pub(super) password_salt: String,
 }
 
 impl ConfigUsers {
     fn default_password_salt() -> String {
         "bob".into()
-    }
-
-    pub fn from_file(path: &str) -> Result<Self, Error> {
-        let f = File::open(path)
-            .map_err(|e| Error::Os(format!("Can't open file {} (reason: {})", path, e)))?;
-        serde_yaml::from_reader(f).map_err(|e| {
-            Error::Validation(format!("Can't parse users config file (reason: {})", e))
-        })
     }
 }
 

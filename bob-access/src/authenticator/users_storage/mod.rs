@@ -4,7 +4,6 @@ mod hash_map;
 use crate::error::Error;
 
 pub use hash_map::UsersMap;
-pub use config::ConfigUsers;
 
 #[derive(Debug, PartialEq, Copy, Clone, Deserialize, Default)]
 pub struct Perms {
@@ -78,4 +77,5 @@ impl User {
 
 pub trait UsersStorage: Default + Clone + Send + Sync + 'static {
     fn get_user<'a>(&'a self, username: &str) -> Result<&'a User, Error>;
+    fn get_password_salt<'a>(&'a self) -> &'a str;
 }
