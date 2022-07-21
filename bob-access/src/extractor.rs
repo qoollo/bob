@@ -54,6 +54,7 @@ impl<T: Extractor> ExtractorExt for T {
                         .build();
                     return Ok(creds);
                 }
+                // Fallback to special "default" user, when no credentials were provided
                 let creds = builder
                     .with_username_password("default", "")
                     .build();
