@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- User's permissions can be set via role and/or claims (#408)
 
 #### Changed
 - Move files for linux packages into separate directory (#534)
