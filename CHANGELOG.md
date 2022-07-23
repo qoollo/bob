@@ -5,12 +5,14 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - SHA512 hash of password with salt 'bob' can be specified instead of password (#304)
+- User's permissions can be set via role and/or claims (#408)
 
 #### Changed
+- Move files for linux packages into separate directory (#534)
 
 
 #### Fixed
-
+- "CredentialsNotProvided", "UserNotFound", "UnauthorizedRequest" now have "Unauthenticated" code (#528)
 
 #### Updated
 

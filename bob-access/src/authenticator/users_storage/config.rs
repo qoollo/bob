@@ -6,12 +6,38 @@ use super::{Perms, User};
 
 use hex::FromHex;
 
+#[derive(Debug, PartialEq, Copy, Clone, Deserialize, Default)]
+pub struct ClaimPerms {
+    read: Option<bool>,
+    write: Option<bool>,
+    read_rest: Option<bool>,
+    write_rest: Option<bool>,
+}
+
+impl ClaimPerms {
+    fn update_perms(&self, p: &mut Perms) {
+        if let Some(read) = self.read {
+            p.read = read;
+        }
+        if let Some(write) = self.write {
+            p.write = write;
+        }
+        if let Some(read_rest) = self.read_rest {
+            p.read_rest = read_rest;
+        }
+        if let Some(write_rest) = self.write_rest {
+            p.write_rest = write_rest;
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct ConfigUser {
     pub(super) username: String,
     pub(super) password: Option<String>,
     pub(super) password_hash: Option<String>,
-    pub(super) role: String,
+    pub(super) role: Option<String>,
+    pub(super) claims: Option<ClaimPerms>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,9 +60,16 @@ pub(super) fn parse_users(
 ) -> Result<HashMap<String, User>, Error> {
     let mut users = HashMap::new();
     yaml_users.into_iter().try_for_each(|u| {
-        let &perms = roles
-            .get(&u.role)
-            .ok_or_else(|| Error::Validation(format!("Can't find role {}", u.role)))?;
+        let mut perms = if let Some(role) = u.role {
+            *(roles
+                .get(&role)
+                .ok_or_else(|| Error::Validation(format!("Can't find role {}", role)))?)
+        } else {
+            Perms::new(false, false, false, false)
+        };
+        if let Some(claims) = u.claims {
+            claims.update_perms(&mut perms);
+        }
         let hash = u.password_hash.map(|h| Vec::from_hex(h).expect("Invalid sha512 hash"));
         let user = User::new(u.username.clone(), u.password, hash, perms);
         users.insert(u.username, user).map_or(Ok(()), |user| {
