@@ -65,12 +65,12 @@ jobs:
       - name: build rpm
         run: |
           echo Version:${{ env.VERSION }}
-          sed -i "s/current_version/${{ env.VERSION }}/" bob.spec
-          sed -i "s/release_number/${{ github.run_id }}/" bob.spec
+          sed -i "s/current_version/${{ env.VERSION }}/" linux-packages/bob.spec
+          sed -i "s/release_number/${{ github.run_id }}/" linux-packages/bob.spec
           cur_dir_name=${PWD##*/}
           mkdir -p ./rpmbuild/{SOURCES,BUILD,RPMS,SPECS,SRPMS}
-          tar czf ./rpmbuild/SOURCES/bob-${{ env.VERSION }}.tar.gz ../${cur_dir_name}/{bobd,bobp,brt,ccg,bob_limits.conf,bob.service} ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml --transform s/${cur_dir_name}/bob-${{ env.VERSION }}/
-          rpmbuild -ba --define "_topdir ${PWD}/rpmbuild" bob.spec
+          tar czf ./rpmbuild/SOURCES/bob-${{ env.VERSION }}.tar.gz ../${cur_dir_name}/{bobd,bobp,brt,ccg,linux-packages/bob_limits.conf,linux-packages/bob.service} ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml --transform s/${cur_dir_name}/bob-${{ env.VERSION }}/
+          rpmbuild -ba --define "_topdir ${PWD}/rpmbuild" linux-packages/bob.spec
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
@@ -124,14 +124,14 @@ jobs:
         run: |
           echo Version:${{ env.VERSION }}
           mkdir -p bob_${{ env.VERSION }}_amd64/{DEBIAN,usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
-          cp {control,postinst} bob_${{ env.VERSION }}_amd64/DEBIAN/
+          cp linux-packages/{control,postinst} bob_${{ env.VERSION }}_amd64/DEBIAN/
           chmod +x bob_${{ env.VERSION }}_amd64/DEBIAN/postinst
           cp {bobd,bobp,brt,ccg} bob_${{ env.VERSION }}_amd64/usr/bin/
           chmod +x bob_${{ env.VERSION }}_amd64/usr/bin/{bobd,bobp,brt,ccg}
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}_amd64/etc/bob/
-          cp bob.service bob_${{ env.VERSION }}_amd64/etc/systemd/system/
-          cp bob.service bob_${{ env.VERSION }}_amd64/lib/systemd/system/
-          cp bob_limits.conf bob_${{ env.VERSION }}_amd64/etc/security/limits.d/bob.conf
+          cp linux-packages/bob.service bob_${{ env.VERSION }}_amd64/etc/systemd/system/
+          cp linux-packages/bob.service bob_${{ env.VERSION }}_amd64/lib/systemd/system/
+          cp linux-packages/bob_limits.conf bob_${{ env.VERSION }}_amd64/etc/security/limits.d/bob.conf
           sed -i "s/current_version/${{ env.VERSION }}/" bob_${{ env.VERSION }}_amd64/DEBIAN/control
           dpkg-deb --build ./bob_${{ env.VERSION }}_amd64
       - name: Upload artifact
@@ -190,9 +190,9 @@ jobs:
           cp {bobd,bobp,brt,ccg} bob_${{ env.VERSION }}/usr/bin/
           chmod +x bob_${{ env.VERSION }}/usr/bin/{bobd,bobp,brt,ccg}
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}/etc/bob/
-          cp bob.service bob_${{ env.VERSION }}/etc/systemd/system/
-          cp bob.service bob_${{ env.VERSION }}/lib/systemd/system/
-          cp bob_limits.conf bob_${{ env.VERSION }}/etc/security/limits.d/bob.conf
+          cp linux-packages/bob.service bob_${{ env.VERSION }}/etc/systemd/system/
+          cp linux-packages/bob.service bob_${{ env.VERSION }}/lib/systemd/system/
+          cp linux-packages/bob_limits.conf bob_${{ env.VERSION }}/etc/security/limits.d/bob.conf
           zip -r bob_${{ env.VERSION }}.zip bob_${{ env.VERSION }}
       - name: Upload artifact
         uses: actions/upload-artifact@v2
