@@ -225,12 +225,12 @@ impl Client {
             .execute(req)
             .await
             .map_err(|e| e.to_string())?;
+        self.put_time += sw.elapsed();
+        self.put_count += 1;
         if !res.status().is_success() {
             log::warn!("Put resulted in error code: {:?}", res.status());
         }
         log::info!("Put {} with size {}", key, size,);
-        self.put_time += sw.elapsed();
-        self.put_count += 1;
         Ok(())
     }
 
