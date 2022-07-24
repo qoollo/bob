@@ -5,7 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - User's permissions can be set via role and/or claims (#408)
-- Check correctness tool, bobt (#331)
+- Check correctness tool, bobt (#542)
 
 #### Changed
 - Move files for linux packages into separate directory (#534)
