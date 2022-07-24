@@ -230,7 +230,7 @@ impl Client {
         if !res.status().is_success() {
             log::warn!("Put resulted in error code: {:?}", res.status());
         }
-        log::info!("Put {} with size {}", key, size,);
+        log::debug!("Put {} with size {}, result: {:?}", key, size, res);
         Ok(())
     }
 
@@ -251,7 +251,7 @@ impl Client {
             }
             return Err(status.to_string());
         }
-        log::debug!("Get {} result: {:?}", key, res);
+        log::debug!("Get {}, result: {:?}", key, res);
         let bytes = res.bytes().await;
         bytes.map(|b| b.len()).map_err(|e| e.to_string())
     }
@@ -269,6 +269,7 @@ impl Client {
         self.delete_time += sw.elapsed();
         self.delete_count += 1;
         let res = self.get(key).await;
+        log::debug!("Delete {}, result: {:?}", key, res);
         match res {
             Ok(new_size) => Err(format!("{} => {}", size, new_size)),
             Err(_) => Ok(size),
@@ -400,7 +401,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .default_value("http://localhost:8000");
     let username_arg = Arg::with_name(USERNAME_ARG_NAME)
         .short("u")
-        .long("username")
+        .long("user")
         .takes_value(true)
         .required(true);
     let password_arg = Arg::with_name(PASSWORD_ARG_NAME)
