@@ -4,13 +4,14 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- User's permissions can be set via role and/or claims (#408)
 
 #### Changed
+- Move files for linux packages into separate directory (#534)
 
 
 #### Fixed
-
+- "CredentialsNotProvided", "UserNotFound", "UnauthorizedRequest" now have "Unauthenticated" code (#528)
 
 #### Updated
 
