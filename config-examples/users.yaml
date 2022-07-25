@@ -17,6 +17,8 @@ roles:
 password_salt: bob
 
 users:
+  - username: default
+    role: reader
   - username: admin
     password: password
     role: admin
@@ -26,8 +28,6 @@ users:
   - username: user
     password: password
     role: data_manipulator
-  - username: default
-    role: reader
   - username: custom_user
     password: password
     role: reader
