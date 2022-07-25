@@ -17,6 +17,8 @@ roles:
 password_salt: bob
 
 users:
+  - username: default
+    role: reader
   - username: admin
     password: password
     role: admin
