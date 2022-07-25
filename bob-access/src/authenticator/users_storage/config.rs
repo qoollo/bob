@@ -4,6 +4,8 @@ use crate::error::Error;
 
 use super::{Perms, User};
 
+use hex::FromHex;
+
 #[derive(Debug, PartialEq, Copy, Clone, Deserialize, Default)]
 pub struct ClaimPerms {
     read: Option<bool>,
@@ -32,8 +34,8 @@ impl ClaimPerms {
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct ConfigUser {
     pub(super) username: String,
-    #[serde(default = "ConfigUser::default_password")]
-    pub(super) password: String,
+    pub(super) password: Option<String>,
+    pub(super) password_hash: Option<String>,
     pub(super) role: Option<String>,
     pub(super) claims: Option<ClaimPerms>,
 }
@@ -48,6 +50,14 @@ impl ConfigUser {
 pub(super) struct ConfigUsers {
     pub(super) roles: HashMap<String, Perms>,
     pub(super) users: Vec<ConfigUser>,
+    #[serde(default = "ConfigUsers::default_password_salt")]
+    pub(super) password_salt: String,
+}
+
+impl ConfigUsers {
+    fn default_password_salt() -> String {
+        "bob".into()
+    }
 }
 
 pub(super) fn parse_users(
@@ -66,7 +76,19 @@ pub(super) fn parse_users(
         if let Some(claims) = u.claims {
             claims.update_perms(&mut perms);
         }
-        let user = User::new(u.username.clone(), u.password, perms);
+        let hash = u.password_hash.map(|h| Vec::from_hex(h).expect("Invalid sha512 hash"));
+        if let Some(false) = hash.as_ref().map(|hash| hash.len() == 64) {
+            return Err(Error::Validation(format!(
+                "User's {} password_hash size is not 512 bits",
+                u.username
+            )));
+        }
+        let password = if hash.is_none() && u.password.is_none() {
+            Some(ConfigUser::default_password())
+        } else {
+            u.password
+        };
+        let user = User::new(u.username.clone(), password, hash, perms);
         users.insert(u.username, user).map_or(Ok(()), |user| {
             Err(Error::Validation(format!(
                 "Users with the same username (first: {:?})",
