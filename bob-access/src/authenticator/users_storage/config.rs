@@ -40,6 +40,12 @@ pub(super) struct ConfigUser {
     pub(super) claims: Option<ClaimPerms>,
 }
 
+impl ConfigUser {
+    fn default_password() -> String {
+        "".into()
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub(super) struct ConfigUsers {
     pub(super) roles: HashMap<String, Perms>,
@@ -77,7 +83,12 @@ pub(super) fn parse_users(
                 u.username
             )));
         }
-        let user = User::new(u.username.clone(), u.password, hash, perms);
+        let password = if hash.is_none() && u.password.is_none() {
+            Some(ConfigUser::default_password())
+        } else {
+            u.password
+        };
+        let user = User::new(u.username.clone(), password, hash, perms);
         users.insert(u.username, user).map_or(Ok(()), |user| {
             Err(Error::Validation(format!(
                 "Users with the same username (first: {:?})",
