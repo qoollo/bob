@@ -155,7 +155,7 @@ impl Tester {
     async fn run_test(&mut self) {
         let mut total_succ: u64 = 0;
         for i in 0..self.settings.count {
-            if i % 10000 == 0 {
+            if i % 10000 == 0 || i == self.settings.count - 1 {
                 log::info!("Summary: {}/{}", total_succ, i);
                 self.client.print_summary();
                 self.client.reset_metrics();
