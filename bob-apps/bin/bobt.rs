@@ -363,7 +363,7 @@ impl Settings {
         key: u64,
         f: impl FnOnce(String) -> RequestBuilder,
     ) -> Result<reqwest::Request, String> {
-        let addr = format!("{}/data/{}", self.api_uri, key);
+        let addr = format!("{}data/{}", self.api_uri, key);
         self.append_request_headers(f(addr))
             .build()
             .map_err(|e| e.to_string())
