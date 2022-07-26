@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use tokio::sync::Mutex;
 
 pub(crate) struct Cleaner {
     old_blobs_check_timeout: Duration,
@@ -6,6 +7,7 @@ pub(crate) struct Cleaner {
     hard_open_blobs: Option<usize>,
     bloom_filter_memory_limit: Option<usize>,
     index_memory_limit: Option<usize>,
+    index_cleanup_requested: Mutex<bool>,
 }
 
 impl Cleaner {
@@ -22,27 +24,74 @@ impl Cleaner {
             hard_open_blobs,
             bloom_filter_memory_limit,
             index_memory_limit,
+            index_cleanup_requested: Mutex::new(false),
         }
     }
 
-    pub(crate) fn spawn_task(&self, backend: Arc<Backend>) {
+    pub(crate) fn spawn_task(&self, cleaner: Arc<Cleaner>, backend: Arc<Backend>) {
         tokio::spawn(Self::task(
-            backend,
+            cleaner.clone(),
+            backend.clone(),
             self.old_blobs_check_timeout,
             self.soft_open_blobs,
             self.hard_open_blobs,
             self.bloom_filter_memory_limit,
-            self.index_memory_limit,
+        ));
+        tokio::spawn(Self::fast_cleaner_task(
+            cleaner,
+            backend,
+            Duration::from_secs(30),
+            self.index_memory_limit
         ));
     }
 
+    pub(crate) async fn request_index_cleanup(&self) {
+        let mut lock = self.index_cleanup_requested.lock().await;
+        *lock = true;
+    }
+
+    async fn fast_cleaner_task(
+        cleaner: Arc<Cleaner>,
+        backend: Arc<Backend>,
+        t: Duration,
+        index_memory_limit: Option<usize>,
+    ) {
+        let mut interval = interval(t);
+        loop {
+            interval.tick().await;
+            if let Some(limit) = index_memory_limit {
+                let mut should_clean_up = false;
+                {
+                    let mut lock = cleaner.index_cleanup_requested.lock().await;
+                    if *lock {
+                        *lock = false;
+                        should_clean_up = true;
+                    }
+                }
+                if should_clean_up {
+                    let mut memory = backend.index_memory().await;
+                    info!("Memory before closing old active blobs: {:?}", memory);
+                    while memory > limit {
+                        if let Some(freed) = backend.close_oldest_active_blob().await {
+                            memory = memory - freed;
+                            debug!("closed index, freeing {:?} bytes", freed);
+                        } else {
+                            break;
+                        }
+                    }
+                    info!("Memory after closing old active blobs: {:?}", memory);
+                }
+            }
+        }
+    }
+
     async fn task(
+        cleaner: Arc<Cleaner>,
         backend: Arc<Backend>,
         t: Duration,
         soft: Option<usize>,
         hard: Option<usize>,
         bloom_filter_memory_limit: Option<usize>,
-        index_memory_limit: Option<usize>,
     ) {
         let mut interval = interval(t);
         loop {
@@ -52,19 +101,7 @@ impl Cleaner {
                 let hard = hard.unwrap_or(10);
                 backend.close_unneeded_active_blobs(soft, hard).await;
             }
-            if let Some(limit) = index_memory_limit {
-                let mut memory = backend.index_memory().await;
-                info!("Memory before closing old active blobs: {:?}", memory);
-                while memory > limit {
-                    if let Some(freed) = backend.close_oldest_active_blob().await {
-                        memory = memory - freed;
-                        debug!("closed index, freeing {:?} bytes", freed);
-                    } else {
-                        break;
-                    }
-                }
-                info!("Memory after closing old active blobs: {:?}", memory);
-            }
+            cleaner.request_index_cleanup().await;
             if let Some(limit) = bloom_filter_memory_limit {
                 backend.offload_old_filters(limit).await;
             }
