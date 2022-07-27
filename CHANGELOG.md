@@ -10,6 +10,7 @@ Bob versions changelog
 
 #### Changed
 - Move files for linux packages into separate directory (#534)
+- Defer index offload on deletion (#363)
 
 
 #### Fixed
