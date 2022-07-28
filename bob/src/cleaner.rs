@@ -7,7 +7,7 @@ pub(crate) struct Cleaner {
     hard_open_blobs: Option<usize>,
     bloom_filter_memory_limit: Option<usize>,
     index_memory_limit: Option<usize>,
-    index_cleanup_requested: Notify,
+    index_cleanup_notification: Notify,
 }
 
 impl Cleaner {
@@ -24,7 +24,7 @@ impl Cleaner {
             hard_open_blobs,
             bloom_filter_memory_limit,
             index_memory_limit,
-            index_cleanup_requested: Notify::new(),
+            index_cleanup_notification: Notify::new(),
         }
     }
 
@@ -45,7 +45,7 @@ impl Cleaner {
     }
 
     pub(crate) fn request_index_cleanup(&self) {
-        self.index_cleanup_requested.notify_waiters();
+        self.index_cleanup_notification.notify_waiters();
     }
 
     async fn fast_cleaner_task(
@@ -56,7 +56,7 @@ impl Cleaner {
         if let Some(limit) = index_memory_limit {
             let mut interval = interval(Duration::from_secs(5));
             loop {
-                cleaner.index_cleanup_requested.notified().await;
+                cleaner.index_cleanup_notification.notified().await;
                 interval.tick().await;
                 let baseline_memory = backend.index_memory().await;
                 debug!(
