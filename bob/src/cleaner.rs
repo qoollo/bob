@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use tokio::sync::Notify;
+use tokio::sync::{Mutex, Notify};
 
 pub(crate) struct Cleaner {
     old_blobs_check_timeout: Duration,
@@ -9,6 +9,7 @@ pub(crate) struct Cleaner {
     index_memory_limit: Option<usize>,
     index_memory_limit_soft: Option<usize>,
     index_cleanup_notification: Notify,
+    cleaning_lock: Mutex<()>,
 }
 
 impl Cleaner {
@@ -29,6 +30,7 @@ impl Cleaner {
             index_memory_limit_soft: index_memory_limit_soft
                 .or(index_memory_limit.map(|l| l * 10 / 9)),
             index_cleanup_notification: Notify::new(),
+            cleaning_lock: Mutex::new(()),
         }
     }
 
@@ -40,6 +42,7 @@ impl Cleaner {
             self.soft_open_blobs,
             self.hard_open_blobs,
             self.bloom_filter_memory_limit,
+            self.index_memory_limit_soft,
         ));
         tokio::spawn(Self::fast_cleaner_task(
             cleaner,
@@ -62,24 +65,8 @@ impl Cleaner {
             loop {
                 cleaner.index_cleanup_notification.notified().await;
                 interval.tick().await;
-                let baseline_memory = backend.index_memory().await;
-                debug!(
-                    "Memory before closing old active blobs: {:?}",
-                    baseline_memory
-                );
-                let mut memory = baseline_memory;
-                while memory > limit {
-                    if let Some(freed) = backend.close_oldest_active_blob().await {
-                        memory = memory - freed;
-                        debug!("closed index, freeing {:?} bytes", freed);
-                    } else {
-                        break;
-                    }
-                }
-                info!(
-                    "Memory change closing old active blobs: {:?} -> {:?}",
-                    baseline_memory, memory
-                );
+                let _lck = cleaner.cleaning_lock.lock().await;
+                index_cleanup(&backend, limit).await;
             }
         }
     }
@@ -91,6 +78,7 @@ impl Cleaner {
         soft: Option<usize>,
         hard: Option<usize>,
         bloom_filter_memory_limit: Option<usize>,
+        index_memory_limit: Option<usize>,
     ) {
         let mut interval = interval(t);
         loop {
@@ -98,12 +86,41 @@ impl Cleaner {
             if soft.is_some() || hard.is_some() {
                 let soft = soft.unwrap_or(1);
                 let hard = hard.unwrap_or(10);
-                backend.close_unneeded_active_blobs(soft, hard).await;
+                let _lck = cleaner.cleaning_lock.lock().await;
+                old_index_cleanup(&backend, soft, hard).await;
             }
-            cleaner.request_index_cleanup();
+            if let Some(limit) = index_memory_limit {
+                let _lck = cleaner.cleaning_lock.lock().await;
+                index_cleanup(&backend, limit).await;
+            }
             if let Some(limit) = bloom_filter_memory_limit {
                 backend.offload_old_filters(limit).await;
             }
         }
     }
+}
+
+async fn old_index_cleanup(backend: &Arc<Backend>, soft: usize, hard: usize) {
+    backend.close_unneeded_active_blobs(soft, hard).await;
+}
+
+async fn index_cleanup(backend: &Arc<Backend>, limit: usize) {
+    let baseline_memory = backend.index_memory().await;
+    debug!(
+        "Memory before closing old active blobs: {:?}",
+        baseline_memory
+    );
+    let mut memory = baseline_memory;
+    while memory > limit {
+        if let Some(freed) = backend.close_oldest_active_blob().await {
+            memory = memory - freed;
+            debug!("closed index, freeing {:?} bytes", freed);
+        } else {
+            break;
+        }
+    }
+    info!(
+        "Memory change closing old active blobs: {:?} -> {:?}",
+        baseline_memory, memory
+    );
 }
