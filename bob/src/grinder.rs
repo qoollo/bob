@@ -226,7 +226,7 @@ impl Grinder {
         }
         timing!(CLIENT_DELETE_TIMER, sw.elapsed().as_nanos() as f64);
         trace!(">>>- - - - - GRINDER DELETE FINISHED - - - - -");
-        self.cleaner.request_index_cleanup().await;
+        self.cleaner.request_index_cleanup();
         result
     }
 }
