@@ -41,7 +41,7 @@ impl Cleaner {
             cleaner,
             backend,
             Duration::from_secs(30),
-            self.index_memory_limit
+            self.index_memory_limit,
         ));
     }
 
@@ -69,8 +69,12 @@ impl Cleaner {
                     }
                 }
                 if should_clean_up {
-                    let mut memory = backend.index_memory().await;
-                    info!("Memory before closing old active blobs: {:?}", memory);
+                    let baseline_memory = backend.index_memory().await;
+                    debug!(
+                        "Memory before closing old active blobs: {:?}",
+                        baseline_memory
+                    );
+                    let mut memory = baseline_memory;
                     while memory > limit {
                         if let Some(freed) = backend.close_oldest_active_blob().await {
                             memory = memory - freed;
@@ -79,7 +83,10 @@ impl Cleaner {
                             break;
                         }
                     }
-                    info!("Memory after closing old active blobs: {:?}", memory);
+                    info!(
+                        "Memory change closing old active blobs: {:?} -> {:?}",
+                        baseline_memory, memory
+                    );
                 }
             }
         }
