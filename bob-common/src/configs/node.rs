@@ -488,6 +488,7 @@ pub struct Node {
     open_blobs_hard_limit: Option<usize>,
     bloom_filter_memory_limit: Option<ByteUnit>,
     index_memory_limit: Option<ByteUnit>,
+    index_memory_limit_soft: Option<ByteUnit>,
     #[serde(default = "Node::default_init_par_degree")]
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
@@ -668,6 +669,10 @@ impl NodeConfig {
         self.index_memory_limit.map(|bu| bu.as_u64() as usize)
     }
 
+    pub fn index_memory_limit_soft(&self) -> Option<usize> {
+        self.index_memory_limit_soft.map(|bu| bu.as_u64() as usize)
+    }
+
     #[inline]
     pub fn init_par_degree(&self) -> usize {
         self.init_par_degree
@@ -816,6 +821,7 @@ pub mod tests {
             bind_to_ip_address: None,
             bloom_filter_memory_limit: None,
             index_memory_limit: None,
+            index_memory_limit_soft: None,
             holder_group_size: 8,
             authentication_type: AuthenticationType::None,
         }

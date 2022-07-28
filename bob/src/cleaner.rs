@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::Notify;
 
 pub(crate) struct Cleaner {
     old_blobs_check_timeout: Duration,
@@ -7,6 +7,7 @@ pub(crate) struct Cleaner {
     hard_open_blobs: Option<usize>,
     bloom_filter_memory_limit: Option<usize>,
     index_memory_limit: Option<usize>,
+    index_memory_limit_soft: Option<usize>,
     index_cleanup_notification: Notify,
 }
 
@@ -17,6 +18,7 @@ impl Cleaner {
         hard_open_blobs: Option<usize>,
         bloom_filter_memory_limit: Option<usize>,
         index_memory_limit: Option<usize>,
+        index_memory_limit_soft: Option<usize>,
     ) -> Self {
         Self {
             old_blobs_check_timeout,
@@ -24,6 +26,8 @@ impl Cleaner {
             hard_open_blobs,
             bloom_filter_memory_limit,
             index_memory_limit,
+            index_memory_limit_soft: index_memory_limit_soft
+                .or(index_memory_limit.map(|l| l * 10 / 9)),
             index_cleanup_notification: Notify::new(),
         }
     }
