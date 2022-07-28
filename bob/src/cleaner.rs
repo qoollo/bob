@@ -40,7 +40,6 @@ impl Cleaner {
         tokio::spawn(Self::fast_cleaner_task(
             cleaner,
             backend,
-            Duration::from_secs(30),
             self.index_memory_limit,
         ));
     }
@@ -52,11 +51,10 @@ impl Cleaner {
     async fn fast_cleaner_task(
         cleaner: Arc<Cleaner>,
         backend: Arc<Backend>,
-        t: Duration,
         index_memory_limit: Option<usize>,
     ) {
         if let Some(limit) = index_memory_limit {
-            let mut interval = interval(t);
+            let mut interval = interval(Duration::from_secs(5));
             loop {
                 cleaner.index_cleanup_requested.notified().await;
                 interval.tick().await;
