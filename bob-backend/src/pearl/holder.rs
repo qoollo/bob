@@ -79,9 +79,9 @@ impl Holder {
         storage.blobs_count().await
     }
 
-    pub async fn index_memory(&self) -> usize {
+    pub async fn active_index_memory(&self) -> usize {
         let storage = self.storage.read().await;
-        storage.index_memory().await
+        storage.active_index_memory().await
     }
 
     pub async fn records_count(&self) -> usize {
@@ -523,8 +523,8 @@ impl PearlSync {
         self.storage().records_count().await
     }
 
-    pub async fn index_memory(&self) -> usize {
-        self.storage().index_memory().await
+    pub async fn active_index_memory(&self) -> usize {
+        self.storage().active_index_memory().await
     }
 
     pub async fn active_blob_records_count(&self) -> Option<usize> {

@@ -101,7 +101,7 @@ impl MetricsProducer for Pearl {
             .iter()
             .chain(once(&self.alien_disk_controller))
             .cloned()
-            .map(|dc| async move { dc.index_memory().await })
+            .map(|dc| async move { dc.active_index_memory().await })
             .collect();
         let cnt = futs.fold(0, |cnt, dc_cnt| ready(cnt + dc_cnt)).await;
         cnt
@@ -242,7 +242,7 @@ impl BackendStorage for Pearl {
         }
 
         if let Some(h) = oldest {
-            let memory = h.index_memory().await;
+            let memory = h.active_index_memory().await;
             h.close_active_blob().await;
             Some(memory)
         } else {
