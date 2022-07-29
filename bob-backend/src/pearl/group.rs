@@ -496,6 +496,25 @@ impl Group {
         result
     }
 
+    pub(crate) async fn find_least_modified_freeable_holder(&self) -> Option<Holder> {
+        let holders_lock = self.holders();
+        let holders = holders_lock.read().await;
+        let mut result: Option<Holder> = None;
+        let mut min_modification = u64::MAX;
+        let period = self.settings.timestamp_period_as_secs() / 2 + 10;
+        for holder in holders.iter() {
+            if holder.is_outdated() && holder.is_older_than(period) {
+                let freeable_memory = holder.freeable_resources_memory().await;
+                let last_modification = holder.last_modification().await;
+                if freeable_memory > 0 && last_modification < min_modification {
+                    min_modification = last_modification;
+                    result = Some(holder.clone());
+                }
+            }
+        }
+        result
+    }
+
     pub(crate) async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
         let holders_lock = self.holders();
         let holders = holders_lock.read().await;
@@ -505,7 +524,7 @@ impl Group {
         for h in holders.iter() {
             if h.has_active_blob().await {
                 total_open_blobs += 1;
-                if h.is_outdated() && h.no_writes_recently().await {
+                if h.is_outdated() && h.no_modifications_recently().await {
                     close.push(h);
                 }
             }
