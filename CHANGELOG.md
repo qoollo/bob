@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Fixed internode authorization error (#530)
 
 #### Updated
 
