@@ -20,14 +20,14 @@ impl LinkManager {
         }
     }
 
-    async fn checker_task(factory: Factory, nodes: Arc<[Node]>, period: Duration) {
+    async fn checker_task(factory: Factory, nodes: Arc<[Node]>, period: Duration, local_node_name: String) {
         let mut interval = interval(period);
         loop {
             interval.tick().await;
             let mut err_cnt = 0;
             let mut status = String::from("Node status: ");
             for node in nodes.iter() {
-                if let Err(e) = node.check(&factory).await {
+                if let Err(e) = node.check(&factory, &local_node_name).await {
                     error!(
                         "No connection to {}:[{}] - {}",
                         node.name(),
@@ -46,9 +46,9 @@ impl LinkManager {
         }
     }
 
-    pub(crate) fn spawn_checker(&self, factory: Factory) {
+    pub(crate) fn spawn_checker(&self, factory: Factory, local_node_name: String) {
         let nodes = self.nodes.clone();
-        tokio::spawn(Self::checker_task(factory, nodes, self.check_interval));
+        tokio::spawn(Self::checker_task(factory, nodes, self.check_interval, local_node_name));
     }
 
     pub(crate) async fn call_nodes<F, T>(

@@ -202,7 +202,7 @@ impl Grinder {
 
     #[inline]
     pub(crate) fn run_periodic_tasks(&self, client_factory: Factory) {
-        self.link_manager.spawn_checker(client_factory);
+        self.link_manager.spawn_checker(client_factory, self.node_config.name().into());
         self.cleaner.spawn_task(self.backend.clone());
         self.counter.spawn_task(self.backend.clone());
         self.hw_counter.spawn_task();
