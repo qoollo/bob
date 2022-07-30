@@ -156,6 +156,7 @@ impl From<Status> for Error {
                 "Failed" => Some(Self::failed(rest_words(words, length))),
                 "Internal" => Some(Self::internal()),
                 "PearlChangeState" => Some(Self::pearl_change_state(rest_words(words, length))),
+                "Unauthorized" => Some(Self::internal()),
                 _ => None,
             },
         }
