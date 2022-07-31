@@ -160,6 +160,11 @@ impl Holder {
         warn!("Active blob of {} closed", self.get_id());
     }
 
+    pub async fn free_freeable_resources(&self) {
+        let storage = self.storage.read().await;
+        storage.storage().free_freeable_resources().await;
+    }
+
     pub async fn filter_memory_allocated(&self) -> usize {
         self.storage.read().await.filter_memory_allocated().await
     }

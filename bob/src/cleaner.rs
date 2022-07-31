@@ -66,7 +66,24 @@ impl Cleaner {
                 cleaner.index_cleanup_notification.notified().await;
                 interval.tick().await;
                 let _lck = cleaner.cleaning_lock.lock().await;
-                index_cleanup(&backend, limit).await;
+                let baseline_memory = backend.index_memory().await;
+                debug!(
+                    "Index memory before closing old active blobs: {:?}",
+                    baseline_memory
+                );
+                let mut memory = baseline_memory;
+                while memory > limit {
+                    if let Some(freed) = backend.free_least_used_holder_resources().await {
+                        memory = memory - freed;
+                        debug!("freed resources, freeing {:?} bytes", freed);
+                    } else {
+                        break;
+                    }
+                }
+                info!(
+                    "Memory change closing old active blobs: {:?} -> {:?}",
+                    baseline_memory, memory
+                );
             }
         }
     }

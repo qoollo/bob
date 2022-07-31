@@ -123,6 +123,9 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
     async fn close_oldest_active_blob(&self) -> Option<usize> {
         None
     }
+    async fn free_least_used_resources(&self) -> Option<usize> {
+        None
+    }
 
     async fn offload_old_filters(&self, _limit: usize) {}
 
@@ -424,6 +427,10 @@ impl Backend {
 
     pub async fn close_oldest_active_blob(&self) -> Option<usize> {
         self.inner.close_oldest_active_blob().await
+    }
+
+    pub async fn free_least_used_holder_resources(&self) -> Option<usize> {
+        self.inner.free_least_used_resources().await
     }
 
     pub async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<u64, Error> {

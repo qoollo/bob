@@ -250,6 +250,28 @@ impl BackendStorage for Pearl {
         }
     }
 
+    async fn free_least_used_resources(&self) -> Option<usize> {
+        let mut least_modified: Option<Holder> = None;
+        let mut min_modification = u64::MAX;
+        for dc in self.disk_controllers.iter() {
+            if let Some(holder) = dc.find_least_modified_freeable_holder().await {
+                let modification = holder.last_modification().await;
+                if modification < min_modification {
+                    least_modified = Some(holder);
+                    min_modification = modification;
+                }
+            }
+        }
+
+        if let Some(h) = least_modified {
+            let memory = h.freeable_resources_memory().await;
+            h.free_freeable_resources().await;
+            Some(memory)
+        } else {
+            None
+        }
+    }
+
     async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
         debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
         let dc_option = self

@@ -579,6 +579,22 @@ impl DiskController {
         result
     }
 
+    pub(crate) async fn find_least_modified_freeable_holder(&self) -> Option<Holder> {
+        let groups = self.groups.read().await;
+        let mut result: Option<Holder> = None;
+        let mut min_modification = u64::MAX;
+        for group in groups.iter() {
+            if let Some(holder) = group.find_least_modified_freeable_holder().await {
+                let modification = holder.last_modification().await;
+                if modification < min_modification {
+                    result = Some(holder);
+                    min_modification = modification;
+                }
+            }
+        }
+        result
+    }
+
     pub(crate) async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
         if *self.state.read().await == GroupsState::Ready {
             debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
