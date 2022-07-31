@@ -245,6 +245,7 @@ pub type ExistResult = Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>;
 pub struct Factory {
     operation_timeout: Duration,
     metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
+    local_node_name: String,
 }
 
 impl Factory {
@@ -253,15 +254,17 @@ impl Factory {
     pub fn new(
         operation_timeout: Duration,
         metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
+        local_node_name: String,
     ) -> Self {
         Factory {
             operation_timeout,
             metrics,
+            local_node_name,
         }
     }
-    pub async fn produce(&self, node: Node, local_node_name: String) -> Result<BobClient, String> {
+    pub async fn produce(&self, node: Node) -> Result<BobClient, String> {
         let metrics = self.metrics.clone().get_metrics(&node.counter_display());
-        BobClient::create(node, self.operation_timeout, metrics, local_node_name).await
+        BobClient::create(node, self.operation_timeout, metrics, self.local_node_name.clone()).await
     }
 }
 
