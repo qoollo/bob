@@ -67,21 +67,17 @@ impl Cleaner {
                 interval.tick().await;
                 let _lck = cleaner.cleaning_lock.lock().await;
                 let baseline_memory = backend.index_memory().await;
-                debug!(
-                    "Index memory before closing old active blobs: {:?}",
-                    baseline_memory
-                );
                 let mut memory = baseline_memory;
                 while memory > limit {
                     if let Some(freed) = backend.free_least_used_holder_resources().await {
                         memory = memory - freed;
-                        debug!("freed resources, freeing {:?} bytes", freed);
+                        debug!("freed resources, {:?} bytes", freed);
                     } else {
                         break;
                     }
                 }
                 info!(
-                    "Memory change closing old active blobs: {:?} -> {:?}",
+                    "Memory change freeing resources: {:?} -> {:?}",
                     baseline_memory, memory
                 );
             }
@@ -124,20 +120,20 @@ async fn old_index_cleanup(backend: &Arc<Backend>, soft: usize, hard: usize) {
 async fn index_cleanup(backend: &Arc<Backend>, limit: usize) {
     let baseline_memory = backend.index_memory().await;
     debug!(
-        "Memory before closing old active blobs: {:?}",
+        "Memory before closing old active blob indexes: {:?}",
         baseline_memory
     );
     let mut memory = baseline_memory;
     while memory > limit {
         if let Some(freed) = backend.close_oldest_active_blob().await {
             memory = memory - freed;
-            debug!("closed index, freeing {:?} bytes", freed);
+            debug!("closed index for active blob, freeing {:?} bytes", freed);
         } else {
             break;
         }
     }
     info!(
-        "Memory change closing old active blobs: {:?} -> {:?}",
+        "Memory change closing old active blob indexes: {:?} -> {:?}",
         baseline_memory, memory
     );
 }
