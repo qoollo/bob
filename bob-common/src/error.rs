@@ -42,6 +42,10 @@ impl Error {
         Self::new(Kind::Internal)
     }
 
+    pub fn unauthorized() -> Self {
+        Self::new(Kind::Unauthorized)
+    }
+
     pub fn timeout() -> Self {
         Self::new(Kind::Timeout)
     }
@@ -134,7 +138,8 @@ impl From<Error> for Status {
             )),
             Kind::DisksEventsLogger(msg) => {
                 Self::internal(format!("disk events logger error: {}", msg))
-            }
+            },
+            Kind::Unauthorized => Self::unauthenticated("Unauthorized"),
         }
     }
 }
@@ -156,7 +161,7 @@ impl From<Status> for Error {
                 "Failed" => Some(Self::failed(rest_words(words, length))),
                 "Internal" => Some(Self::internal()),
                 "PearlChangeState" => Some(Self::pearl_change_state(rest_words(words, length))),
-                "Unauthorized" => Some(Self::internal()),
+                "Unauthorized" => Some(Self::unauthorized()),
                 _ => None,
             },
         }
@@ -190,4 +195,5 @@ pub enum Kind {
     PearlChangeState(String),
     RequestFailedCompletely(String),
     DisksEventsLogger(String),
+    Unauthorized,
 }
