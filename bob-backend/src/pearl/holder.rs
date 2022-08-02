@@ -84,9 +84,9 @@ impl Holder {
         storage.active_index_memory().await
     }
 
-    pub async fn freeable_resources_memory(&self) -> usize {
+    pub async fn index_memory(&self) -> usize {
         let storage = self.storage.read().await;
-        storage.freeable_resources_memory().await
+        storage.index_memory().await
     }
 
     pub async fn records_count(&self) -> usize {
@@ -160,9 +160,9 @@ impl Holder {
         warn!("Active blob of {} closed", self.get_id());
     }
 
-    pub async fn free_freeable_resources(&self) {
+    pub async fn free_excess_resources(&self) {
         let storage = self.storage.read().await;
-        storage.storage().free_freeable_resources().await;
+        storage.storage().free_excess_resources().await;
     }
 
     pub async fn filter_memory_allocated(&self) -> usize {
@@ -542,8 +542,8 @@ impl PearlSync {
         self.storage().active_index_memory().await
     }
 
-    pub async fn freeable_resources_memory(&self) -> usize {
-        self.storage().freeable_resources_memory().await
+    pub async fn index_memory(&self) -> usize {
+        self.storage().index_memory().await
     }
 
     pub async fn active_blob_records_count(&self) -> Option<usize> {

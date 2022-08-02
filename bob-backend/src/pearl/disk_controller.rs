@@ -538,14 +538,14 @@ impl DiskController {
         cnt
     }
 
-    pub(crate) async fn active_index_memory(&self) -> usize {
+    pub(crate) async fn index_memory(&self) -> usize {
         if *self.state.read().await == GroupsState::Ready {
             let mut cnt = 0;
             for group in self.groups.read().await.iter() {
                 let holders_guard = group.holders();
                 let holders = holders_guard.read().await;
                 for holder in holders.iter() {
-                    cnt += holder.active_index_memory().await;
+                    cnt += holder.index_memory().await;
                 }
             }
             cnt

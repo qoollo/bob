@@ -101,7 +101,7 @@ impl MetricsProducer for Pearl {
             .iter()
             .chain(once(&self.alien_disk_controller))
             .cloned()
-            .map(|dc| async move { dc.active_index_memory().await })
+            .map(|dc| async move { dc.index_memory().await })
             .collect();
         let cnt = futs.fold(0, |cnt, dc_cnt| ready(cnt + dc_cnt)).await;
         cnt
@@ -264,8 +264,8 @@ impl BackendStorage for Pearl {
         }
 
         if let Some(h) = least_modified {
-            let memory = h.freeable_resources_memory().await;
-            h.free_freeable_resources().await;
+            let memory = h.index_memory().await;
+            h.free_excess_resources().await;
             Some(memory)
         } else {
             None
