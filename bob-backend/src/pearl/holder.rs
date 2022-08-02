@@ -89,6 +89,10 @@ impl Holder {
         storage.index_memory().await
     }
 
+    pub async fn has_excess_resources(&self) -> bool {
+        self.index_memory().await > 0
+    }
+
     pub async fn records_count(&self) -> usize {
         let storage = self.storage.read().await;
         storage.records_count().await

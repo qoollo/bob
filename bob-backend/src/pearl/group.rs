@@ -504,9 +504,8 @@ impl Group {
         let period = self.settings.timestamp_period_as_secs() / 2 + 10;
         for holder in holders.iter() {
             if holder.is_outdated() && holder.is_older_than(period) {
-                let index_memory = holder.index_memory().await;
                 let last_modification = holder.last_modification().await;
-                if index_memory > 0 && last_modification < min_modification {
+                if holder.has_excess_resources().await && last_modification < min_modification {
                     min_modification = last_modification;
                     result = Some(holder.clone());
                 }
