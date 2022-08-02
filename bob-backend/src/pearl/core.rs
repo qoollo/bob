@@ -264,9 +264,8 @@ impl BackendStorage for Pearl {
         }
 
         if let Some(h) = least_modified {
-            let memory = h.index_memory().await;
-            h.free_excess_resources().await;
-            Some(memory)
+            let freed = h.free_excess_resources().await;
+            Some(freed)
         } else {
             None
         }
