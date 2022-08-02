@@ -255,7 +255,7 @@ impl BackendStorage for Pearl {
         let mut min_modification = u64::MAX;
         for dc in self.disk_controllers.iter() {
             if let Some(holder) = dc.find_least_modified_freeable_holder().await {
-                let modification = holder.last_modification().await;
+                let modification = holder.last_modification();
                 if modification < min_modification {
                     least_modified = Some(holder);
                     min_modification = modification;

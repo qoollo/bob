@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use crate::{pearl::utils::get_current_timestamp, prelude::*};
 
 use super::{
@@ -25,7 +27,7 @@ pub struct Holder {
     disk_path: PathBuf,
     config: PearlConfig,
     storage: Arc<RwLock<PearlSync>>,
-    last_modification: Arc<RwLock<u64>>,
+    last_modification: Arc<AtomicU64>,
     dump_sem: Arc<Semaphore>,
 }
 
@@ -45,7 +47,7 @@ impl Holder {
             disk_path,
             config,
             storage: Arc::new(RwLock::new(PearlSync::default())),
-            last_modification: Arc::new(RwLock::new(0)),
+            last_modification: Arc::new(AtomicU64::new(0)),
             dump_sem,
         }
     }
@@ -114,12 +116,16 @@ impl Holder {
 
     pub async fn no_modifications_recently(&self) -> bool {
         let ts = Self::get_current_ts();
-        let last_modification = *self.last_modification.read().await;
+        let last_modification = self.last_modification();
         ts - last_modification > MAX_TIME_SINCE_LAST_WRITE_SEC
     }
 
-    pub async fn last_modification(&self) -> u64 {
-        *self.last_modification.read().await
+    pub fn last_modification(&self) -> u64 {
+        self.last_modification.load(Ordering::SeqCst)
+    }
+
+    fn update_last_modification(&self) {
+        self.last_modification.store(Self::get_current_ts(), Ordering::SeqCst);
     }
 
     pub async fn has_active_blob(&self) -> bool {
@@ -188,7 +194,7 @@ impl Holder {
 
         if state.is_ready() {
             let storage = state.get();
-            *self.last_modification.write().await = Self::get_current_ts();
+            self.update_last_modification();
             trace!("Vdisk: {}, write key: {}", self.vdisk, key);
             Self::write_disk(storage, Key::from(key), data.clone()).await
         } else {
@@ -451,7 +457,7 @@ impl Holder {
                         _ => Error::storage(e.to_string()),
                     }
                 });
-            *self.last_modification.write().await = Self::get_current_ts();
+            self.update_last_modification();
             res
         } else {
             trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);

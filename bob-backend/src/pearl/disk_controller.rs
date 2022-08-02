@@ -585,7 +585,7 @@ impl DiskController {
         let mut min_modification = u64::MAX;
         for group in groups.iter() {
             if let Some(holder) = group.find_least_modified_freeable_holder().await {
-                let modification = holder.last_modification().await;
+                let modification = holder.last_modification();
                 if modification < min_modification {
                     result = Some(holder);
                     min_modification = modification;
