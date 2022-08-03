@@ -2,7 +2,7 @@
 name = "bob-access"
 version = "2.1.0-alpha.4"
 authors = ["Pavel Iakushin <pyakushin@qoollo.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 axum = "0.4"

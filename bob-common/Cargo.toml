@@ -2,7 +2,7 @@
 name = "bob-common"
 version = "2.1.0-alpha.4"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
