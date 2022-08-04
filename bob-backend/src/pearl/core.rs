@@ -257,9 +257,30 @@ impl BackendStorage for Pearl {
         }
 
         if let Some(h) = oldest {
-            let memory = h.index_memory().await;
+            let memory = h.active_index_memory().await;
             h.close_active_blob().await;
             Some(memory)
+        } else {
+            None
+        }
+    }
+
+    async fn free_least_used_resources(&self) -> Option<usize> {
+        let mut least_modified: Option<Holder> = None;
+        let mut min_modification = u64::MAX;
+        for dc in self.disk_controllers.iter() {
+            if let Some(holder) = dc.find_least_modified_freeable_holder().await {
+                let modification = holder.last_modification();
+                if modification < min_modification {
+                    least_modified = Some(holder);
+                    min_modification = modification;
+                }
+            }
+        }
+
+        if let Some(h) = least_modified {
+            let freed = h.free_excess_resources().await;
+            Some(freed)
         } else {
             None
         }
