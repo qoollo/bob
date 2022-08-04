@@ -11,6 +11,7 @@ Bob versions changelog
 
 #### Changed
 - Move files for linux packages into separate directory (#534)
+- Update rust edition to 2021 (#484)
 
 
 #### Fixed
