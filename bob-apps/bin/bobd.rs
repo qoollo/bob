@@ -101,9 +101,7 @@ async fn main() {
     let authentication_type = node.authentication_type();
     match authentication_type {
         AuthenticationType::None => {
-            let users_storage =
-                UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
-            let authenticator = StubAuthenticator::new(users_storage);
+            let authenticator = StubAuthenticator::new();
             run_server(node, authenticator, mapper, http_api_address, http_api_port, addr).await;
         }
         AuthenticationType::Basic => {
@@ -125,7 +123,7 @@ async fn main() {
 async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
     let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
     let handle = Handle::current();
-    let factory = Factory::new(node.operation_timeout(), metrics);
+    let factory = Factory::new(node.operation_timeout(), metrics, node.name().into());
 
     let bob = BobServer::new(
         Grinder::new(mapper, &node).await,

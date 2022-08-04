@@ -4,6 +4,8 @@ use crate::{credentials::{Credentials, CredentialsKind}, AuthenticationType, err
 
 use super::{users_storage::UsersStorage, Authenticator};
 
+use sha2::{Digest, Sha512};
+
 #[derive(Debug, Default, Clone)]
 pub struct Basic<Storage: UsersStorage> {
     users_storage: Storage,
@@ -60,8 +62,22 @@ impl<Storage: UsersStorage> Basic<Storage> {
                 );
         
                 let user = self.users_storage.get_user(&username)?;
-                if user.password() == password {
-                    Ok(user.into())
+                if let Some(usr_password) = user.password() {
+                    if usr_password == password {
+                        Ok(user.into())
+                    } else {
+                        Err(Error::UnauthorizedRequest)
+                    }
+                } else if let Some(usr_hash) = user.password_hash() {
+                    let hash_str = format!("{}{}", password, self.users_storage.get_password_salt());
+                    let mut hasher = Sha512::new();
+                    hasher.update(&hash_str.into_bytes());
+                    let hash = hasher.finalize();
+                    if hash[..] == usr_hash[..] {
+                        Ok(user.into())
+                    } else {
+                        Err(Error::UnauthorizedRequest)
+                    }
                 } else {
                     Err(Error::UnauthorizedRequest)
                 }

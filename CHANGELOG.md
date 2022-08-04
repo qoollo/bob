@@ -5,13 +5,18 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Add occupied disk space to api and metrics (#501)
-
+- If no credentials provided and default user specified in config, then request will have default user permissions (#437)
+- SHA512 hash of password with salt 'bob' can be specified instead of password (#304)
+- User's permissions can be set via role and/or claims (#408)
+- Check correctness tool, bobt (#542)
 
 #### Changed
-
+- Move files for linux packages into separate directory (#534)
 
 #### Fixed
-
+- Fixed internode authorization error (#530)
+- "CredentialsNotProvided", "UserNotFound", "UnauthorizedRequest" now have "Unauthenticated" code (#528)
+- Added conversion of "unauthorized" status into internal error (#540)
 
 #### Updated
 
