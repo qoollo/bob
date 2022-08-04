@@ -92,7 +92,8 @@ impl Holder {
     }
 
     pub async fn has_excess_resources(&self) -> bool {
-        self.index_memory().await > 0
+        let storage = self.storage.read().await;
+        storage.inactive_index_memory().await > 0
     }
 
     pub async fn records_count(&self) -> usize {
@@ -550,6 +551,10 @@ impl PearlSync {
 
     pub async fn active_index_memory(&self) -> usize {
         self.storage().active_index_memory().await
+    }
+
+    pub async fn inactive_index_memory(&self) -> usize {
+        self.storage().inactive_index_memory().await
     }
 
     pub async fn index_memory(&self) -> usize {
