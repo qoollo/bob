@@ -122,11 +122,12 @@ impl Holder {
     }
 
     pub fn last_modification(&self) -> u64 {
-        self.last_modification.load(Ordering::SeqCst)
+        self.last_modification.load(Ordering::Acquire)
     }
 
     fn update_last_modification(&self) {
-        self.last_modification.store(Self::get_current_ts(), Ordering::SeqCst);
+        self.last_modification
+            .store(Self::get_current_ts(), Ordering::Release);
     }
 
     pub async fn has_active_blob(&self) -> bool {
@@ -171,7 +172,7 @@ impl Holder {
         warn!("Active blob of {} closed", self.get_id());
     }
 
-    pub async fn free_excess_resources(&self) -> usize{
+    pub async fn free_excess_resources(&self) -> usize {
         let storage = self.storage.read().await;
         storage.storage().free_excess_resources().await
     }
