@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.5] - 2022-08-04
+#### Added
 - Add occupied disk space to api and metrics (#501)
 - If no credentials provided and default user specified in config, then request will have default user permissions (#437)
 - SHA512 hash of password with salt 'bob' can be specified instead of password (#304)
@@ -20,6 +34,7 @@ Bob versions changelog
 - Added conversion of "unauthorized" status into internal error (#540)
 
 #### Updated
+- Pearl updated to v0.13.0
 
 
 ## [2.1.0-alpha.4] - 2022-07-04
