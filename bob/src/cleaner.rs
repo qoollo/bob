@@ -100,11 +100,11 @@ impl Cleaner {
                 let soft = soft.unwrap_or(1);
                 let hard = hard.unwrap_or(10);
                 let _lck = cleaner.cleaning_lock.lock().await;
-                old_index_cleanup(&backend, soft, hard).await;
+                index_cleanup_by_active_count_limit(&backend, soft, hard).await;
             }
             if let Some(limit) = index_memory_limit {
                 let _lck = cleaner.cleaning_lock.lock().await;
-                index_cleanup(&backend, limit).await;
+                index_cleanup_by_memory_limit(&backend, limit).await;
             }
             if let Some(limit) = bloom_filter_memory_limit {
                 backend.offload_old_filters(limit).await;
@@ -113,11 +113,11 @@ impl Cleaner {
     }
 }
 
-async fn old_index_cleanup(backend: &Arc<Backend>, soft: usize, hard: usize) {
+async fn index_cleanup_by_active_count_limit(backend: &Arc<Backend>, soft: usize, hard: usize) {
     backend.close_unneeded_active_blobs(soft, hard).await;
 }
 
-async fn index_cleanup(backend: &Arc<Backend>, limit: usize) {
+async fn index_cleanup_by_memory_limit(backend: &Arc<Backend>, limit: usize) {
     let baseline_memory = backend.index_memory().await;
     debug!(
         "Memory before closing old active blob indexes: {:?}",
