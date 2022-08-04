@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use std::{
     collections::HashMap,
-    fmt::{Display, Formatter, Result as FMTResult},
+    fmt::{Display, Formatter, Result as FMTResult}, hash::Hash,
 };
 
 use crate::{
@@ -147,6 +147,10 @@ pub trait MetricsProducer: Send + Sync {
     async fn index_memory(&self) -> usize {
         0
     }
+
+    async fn disk_used_by_disk(&self) -> HashMap<DiskPath, u64> {
+        HashMap::new()
+    }
 }
 
 #[derive(Hash, PartialEq, Eq, Debug)]
@@ -214,6 +218,10 @@ impl Backend {
 
     pub async fn index_memory(&self) -> usize {
         self.inner.index_memory().await
+    }
+
+    pub async fn disk_used_by_disk(&self) -> HashMap<DiskPath, u64> {
+        self.inner.disk_used_by_disk().await
     }
 
     pub fn mapper(&self) -> &Virtual {

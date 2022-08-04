@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use bob_common::metrics::{ACTIVE_DISKS_COUNT, BLOOM_FILTERS_RAM};
+use bob_common::metrics::{ACTIVE_DISKS_COUNT, BLOOM_FILTERS_RAM, DISK_USED};
 
 pub(crate) struct Counter {
     count_interval: Duration,
@@ -28,6 +28,12 @@ impl Counter {
             gauge!(ACTIVE_DISKS_COUNT, active_disks as f64);
             let index_memory = backend.index_memory().await;
             gauge!(INDEX_MEMORY, index_memory as f64);
+            let disk_used = backend.disk_used_by_disk().await;
+            gauge!(DISK_USED, disk_used.values().sum::<u64>() as f64);
+
+            for (disk, used) in disk_used {
+                gauge!(format!("{}.{}", DISK_USED, disk.name()), used as f64);
+            }
 
             if normal_blobs != cached_normal_blobs || alien_blobs != cached_alien_blobs {
                 let bf_ram = backend.filter_memory_allocated().await;

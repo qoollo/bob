@@ -114,6 +114,21 @@ impl MetricsProducer for Pearl {
         }
         cnt
     }
+
+    async fn disk_used_by_disk(&self) -> HashMap<DiskPath, u64> {
+        let futs: FuturesUnordered<_> = self
+            .disk_controllers
+            .iter()
+            .chain(once(&self.alien_disk_controller))
+            .cloned()
+            .map(|dc| async move { (dc.disk().clone(), dc.disk_used().await) })
+            .collect();
+        futs.fold(HashMap::new(), |mut m, (n, u)| {
+            m.entry(n).and_modify(|s| *s = *s + u).or_insert(u);
+            ready(m)
+        })
+        .await
+    }
 }
 
 #[async_trait]

@@ -578,7 +578,7 @@ components:
         type: string
   schemas:
     Node:
-      properties: 
+      properties:
         name:
           type: string
         address:
@@ -706,6 +706,12 @@ components:
           type: integer
         used_disk_space_bytes:
           type: integer
+        occupied_disk_space_bytes:
+          type: integer
+        occupied_disk_space_by_disk:
+          type: object
+          additional_properties:
+            type: integer
     MetricsEntryModel:
       type: object
       properties:
@@ -734,4 +740,3 @@ components:
           type: boolean
         msg:
           type: string
-
