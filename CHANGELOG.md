@@ -14,6 +14,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Fixed internode authorization error (#530)
 - "CredentialsNotProvided", "UserNotFound", "UnauthorizedRequest" now have "Unauthenticated" code (#528)
 - Added conversion of "unauthorized" status into internal error (#540)
 
