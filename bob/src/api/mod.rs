@@ -23,7 +23,7 @@ use std::{
     io::{Error as IoError, ErrorKind},
     net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
-    str::FromStr,
+    str::FromStr, collections::HashMap,
 };
 use tokio::fs::{read_dir, ReadDir};
 use uuid::Uuid;
