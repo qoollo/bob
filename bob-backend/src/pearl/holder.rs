@@ -451,6 +451,11 @@ impl Holder {
             warn!("pearl close error: {:?}", e);
         }
     }
+
+    pub async fn disk_used(&self) -> u64 {
+        let storage = self.storage.read().await;
+        storage.storage().disk_used().await
+    }
 }
 
 #[async_trait::async_trait]
