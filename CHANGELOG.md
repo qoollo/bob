@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Internode auth works properly with nodes on same ip (#548)
 
 #### Updated
 
