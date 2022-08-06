@@ -8,9 +8,11 @@ use std::{
     collections::HashMap,
     error::Error as ErrorTrait,
     net::{IpAddr, Ipv4Addr, SocketAddr},
+    io::{Read, BufReader},
+    fs::File,
 };
 use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
-use tonic::transport::Server;
+use tonic::transport::{Server, ServerTlsConfig, Identity};
 use std::path::PathBuf;
 use std::fs::create_dir;
 
@@ -120,10 +122,53 @@ async fn main() {
     }
 }
 
+fn load_tls_certificate(path: &str) -> Vec<u8> {
+    let f = File::open(path).expect("can not open tls certificate file");
+    let mut reader = BufReader::new(f);
+    let mut buffer = Vec::new();
+    reader.read_to_end(&mut buffer).expect("can not read tls certificate from file");
+    buffer
+}
+
+fn load_tls_pkey(path: &str) -> Vec<u8> {
+    let f = File::open(path).expect("can not open tls private key file");
+    let mut reader = BufReader::new(f);
+    let mut buffer = Vec::new();
+    reader.read_to_end(&mut buffer).expect("can not read tls private key from file");
+    buffer
+}
+
 async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
     let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
     let handle = Handle::current();
-    let factory = Factory::new(node.operation_timeout(), metrics, node.name().into());
+    let factory = if node.tls() {
+        if let Some(node_tls_config) = node.tls_config() {
+            let ca_cert_path = node_tls_config.ca_cert_path.clone();
+            Factory::new(node.operation_timeout(), metrics, Some(ca_cert_path), node.name().into())
+        } else {
+            error!("tls enabed, but not specified, add \"tls:\" to node config");
+            panic!("tls enabed, but not specified, add \"tls:\" to node config");
+        }
+    } else {
+        Factory::new(node.operation_timeout(), metrics, None, node.name().into())
+    };
+
+    let mut server_builder = Server::builder();
+    if node.tls() {
+        if let Some(node_tls_config) = node.tls_config() {
+            let cert_path = node_tls_config.cert_path.as_ref().expect("no certificate path specified");
+            let cert_bin = load_tls_certificate(cert_path);
+            let pkey_path = node_tls_config.pkey_path.as_ref().expect("no private key path specified");
+            let key_bin = load_tls_pkey(pkey_path);
+            let identity = Identity::from_pem(cert_bin.clone(), key_bin);
+
+            let tls_config = ServerTlsConfig::new().identity(identity);
+            server_builder = server_builder.tls_config(tls_config).expect("grpc tls config");
+        } else {
+            error!("tls enabed, but not specified, add \"tls:\" to node config");
+            panic!("tls enabed, but not specified, add \"tls:\" to node config");
+        }
+    }
 
     let bob = BobServer::new(
         Grinder::new(mapper, &node).await,
@@ -135,10 +180,10 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
     bob.run_backend().await.unwrap();
     create_signal_handlers(&bob).unwrap();
     bob.run_periodic_tasks(factory);
-    bob.run_api_server(address, port);
+    bob.run_api_server(node.tls_config(), address, port).await;
 
     let bob_service = BobApiServer::new(bob);
-    Server::builder()
+    server_builder
         .tcp_nodelay(true)
         .add_service(bob_service)
         .serve(addr)

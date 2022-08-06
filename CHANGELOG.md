@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- TLS support, TLS for grpc or rest can be enabled via cluster & node config (#303)
 
 #### Changed
 

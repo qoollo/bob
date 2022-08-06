@@ -454,6 +454,14 @@ impl Validatable for Pearl {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TLSConfig {
+    pub rest: Option<bool>,
+    pub ca_cert_path: String,
+    pub cert_path: Option<String>,
+    pub pkey_path: Option<String>,
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum BackendType {
     InMemory = 0,
@@ -477,11 +485,14 @@ pub struct Node {
     backend_type: String,
     pearl: Option<Pearl>,
     metrics: Option<MetricsConfig>,
+    tls: Option<TLSConfig>,
 
     #[serde(skip)]
     bind_ref: Arc<Mutex<String>>,
     #[serde(skip)]
     disks_ref: Arc<Mutex<Vec<DiskPath>>>,
+    #[serde(skip)]
+    tls_enabled: Arc<Mutex<bool>>,
 
     cleanup_interval: String,
     open_blobs_soft_limit: Option<usize>,
@@ -533,6 +544,14 @@ impl NodeConfig {
 
     pub fn metrics(&self) -> &MetricsConfig {
         self.metrics.as_ref().expect("metrics config")
+    }
+
+    pub fn tls_config(&self) -> &Option<TLSConfig> {
+        &self.tls
+    }
+
+    pub fn tls(&self) -> bool {
+        *(self.tls_enabled.lock().expect("mutex"))
     }
 
     /// Get log config file path.
@@ -611,6 +630,12 @@ impl NodeConfig {
             let mut lck = self.bind_ref.lock().expect("mutex");
             *lck = node.address().to_owned();
         }
+
+        {
+            let mut lck = self.tls_enabled.lock().expect("mutex");
+            *lck = node.tls();
+        }
+
         let t = node
             .disks()
             .iter()
@@ -808,8 +833,10 @@ pub mod tests {
             backend_type: "in_memory".to_string(),
             pearl: None,
             metrics: None,
+            tls: None,
             bind_ref: Arc::default(),
             disks_ref: Arc::default(),
+            tls_enabled: Arc::default(),
             cleanup_interval: "1d".to_string(),
             open_blobs_soft_limit: None,
             open_blobs_hard_limit: None,
