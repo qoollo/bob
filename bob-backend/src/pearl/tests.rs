@@ -52,6 +52,7 @@ pearl:                             # used only for 'backend_type: pearl'
 nodes:
     - name: local_node
       address: 127.0.0.1:20000
+      tls: false
       disks:
         - name: disk1
           path: /tmp/d1

@@ -11,11 +11,13 @@ mod tests {
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
-          path: /tmp/d1
+          path: /tmp/d1F
     - name: n2
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name:
@@ -35,11 +37,13 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
           path: /tmp/d1
     - name: n2
+      tls: false
       address: 0.0.0.0:111
       disks:
         - path: /tmp/d1
@@ -57,6 +61,7 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -78,6 +83,7 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -101,6 +107,7 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -128,6 +135,7 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -135,6 +143,7 @@ nodes:
         - name: disk2
           path: /tmp/d1
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -156,6 +165,7 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -179,11 +189,13 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
           path: /tmp/d1
     - name: n2
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: 123
@@ -201,11 +213,13 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
           path: /tmp/d1
     - name: n2
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: 123
@@ -225,11 +239,13 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
           path: /tmp/d1
     - name:
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: 123
@@ -249,11 +265,13 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
           path: /tmp/d1
     - name: name
+      tls: false
       address:     #empty
       disks:
         - name: 123
@@ -273,6 +291,7 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -292,6 +311,7 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -311,6 +331,7 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -333,6 +354,7 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -370,6 +392,7 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -384,6 +407,7 @@ nodes:
         let s = "
 nodes:
     - name: other_name
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -403,6 +427,7 @@ vdisks:
         let s = "
 nodes:
     - name: some_name
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1123123123123123
@@ -422,6 +447,7 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -429,6 +455,7 @@ nodes:
         - name: disk2
           path: /tmp/d2
     - name: n2
+      tls: false
       address: 0.0.0.0:1111
       disks:
         - name: disk1
@@ -464,6 +491,7 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:111
       disks:
         - name: disk1
@@ -486,6 +514,7 @@ vdisks:
         let s = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:11111111
       disks:
         - name: disk1
@@ -667,6 +696,7 @@ cleanup_interval: 1d
         let s1 = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:11111111
       disks:
         - name: disk1
@@ -718,6 +748,7 @@ cleanup_interval: 1d
         let s1 = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:11111111
       disks:
         - name: disk1
@@ -752,6 +783,7 @@ cleanup_interval: 1d
         let s1 = "
 nodes:
     - name: n1
+      tls: false
       address: 0.0.0.0:11111111
       disks:
         - name: disk1
