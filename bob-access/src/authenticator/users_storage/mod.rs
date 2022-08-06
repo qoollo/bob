@@ -32,16 +32,16 @@ impl Perms {
 pub struct User {
     _username: String,
     password: Option<String>,
-    hash: Option<Vec<u8>>,
+    password_hash: Option<Vec<u8>>,
     perms: Perms,
 }
 
 impl User {
-    pub fn new(_username: String, password: Option<String>, hash: Option<Vec<u8>>, perms: Perms) -> Self {
+    pub fn new(_username: String, password: Option<String>, password_hash: Option<Vec<u8>>, perms: Perms) -> Self {
         Self {
             _username,
             password,
-            hash,
+            password_hash,
             perms,
         }
     }
@@ -50,8 +50,8 @@ impl User {
         &self.password
     }
 
-    pub fn hash(&self) -> &Option<Vec<u8>> {
-        &self.hash
+    pub fn password_hash(&self) -> &Option<Vec<u8>> {
+        &self.password_hash
     }
 
     pub fn can_read(&self) -> bool {
@@ -77,4 +77,5 @@ impl User {
 
 pub trait UsersStorage: Default + Clone + Send + Sync + 'static {
     fn get_user<'a>(&'a self, username: &str) -> Result<&'a User, Error>;
+    fn get_password_salt<'a>(&'a self) -> &'a str;
 }

@@ -35,15 +35,29 @@ impl ClaimPerms {
 pub(super) struct ConfigUser {
     pub(super) username: String,
     pub(super) password: Option<String>,
-    pub(super) hash: Option<String>,
+    pub(super) password_hash: Option<String>,
     pub(super) role: Option<String>,
     pub(super) claims: Option<ClaimPerms>,
+}
+
+impl ConfigUser {
+    fn default_password() -> String {
+        "".into()
+    }
 }
 
 #[derive(Debug, Deserialize)]
 pub(super) struct ConfigUsers {
     pub(super) roles: HashMap<String, Perms>,
     pub(super) users: Vec<ConfigUser>,
+    #[serde(default = "ConfigUsers::default_password_salt")]
+    pub(super) password_salt: String,
+}
+
+impl ConfigUsers {
+    fn default_password_salt() -> String {
+        "bob".into()
+    }
 }
 
 pub(super) fn parse_users(
@@ -52,19 +66,29 @@ pub(super) fn parse_users(
 ) -> Result<HashMap<String, User>, Error> {
     let mut users = HashMap::new();
     yaml_users.into_iter().try_for_each(|u| {
-        let mut perms = 
-        if let Some(role) = u.role {
+        let mut perms = if let Some(role) = u.role {
             *(roles
-            .get(&role)
-            .ok_or_else(|| Error::Validation(format!("Can't find role {}", role)))?)
+                .get(&role)
+                .ok_or_else(|| Error::Validation(format!("Can't find role {}", role)))?)
         } else {
             Perms::new(false, false, false, false)
         };
         if let Some(claims) = u.claims {
             claims.update_perms(&mut perms);
         }
-        let hash = u.hash.map(|h| Vec::from_hex(h).expect("Invalid sha512 hash"));
-        let user = User::new(u.username.clone(), u.password, hash, perms);
+        let hash = u.password_hash.map(|h| Vec::from_hex(h).expect("Invalid sha512 hash"));
+        if let Some(false) = hash.as_ref().map(|hash| hash.len() == 64) {
+            return Err(Error::Validation(format!(
+                "User's {} password_hash size is not 512 bits",
+                u.username
+            )));
+        }
+        let password = if hash.is_none() && u.password.is_none() {
+            Some(ConfigUser::default_password())
+        } else {
+            u.password
+        };
+        let user = User::new(u.username.clone(), password, hash, perms);
         users.insert(u.username, user).map_or(Ok(()), |user| {
             Err(Error::Validation(format!(
                 "Users with the same username (first: {:?})",

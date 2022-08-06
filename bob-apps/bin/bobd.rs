@@ -1,8 +1,8 @@
 use bob::{
-    build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, Factory, Grinder,
-    VirtualMapper,
+    build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
+    VirtualMapper, BackendType,
 };
-use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap};
+use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap, AuthenticationType};
 use clap::{crate_version, App, Arg, ArgMatches};
 use std::{
     collections::HashMap,
@@ -13,6 +13,8 @@ use std::{
 };
 use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::{Server, ServerTlsConfig, Identity};
+use std::path::PathBuf;
+use std::fs::create_dir;
 
 #[macro_use]
 extern crate log;
@@ -41,7 +43,10 @@ async fn main() {
     println!("Node config: {:?}", node_config_file);
     let node = cluster.get(node_config_file).await.unwrap();
 
-    log4rs::init_file(node.log_config(), Default::default()).expect("can't find log config");
+    log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
+        .expect("can't find log config");
+
+    check_folders(&node, matches.is_present("init_folders"));
 
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
 
@@ -85,10 +90,6 @@ async fn main() {
     }
     warn!("Start listening on: {:?}", addr);
 
-    let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
-
-    let handle = Handle::current();
-
     info!("Start API server");
     let http_api_port = matches
         .value_of("http_api_port")
@@ -99,59 +100,13 @@ async fn main() {
         .and_then(|v| v.parse().ok())
         .unwrap_or_else(|| node.http_api_address());
 
-    let factory = if node.tls() {
-        if let Some(node_tls_config) = node.tls_config() {
-            let ca_cert_path = node_tls_config.ca_cert_path.clone();
-            Factory::new(node.operation_timeout(), metrics, Some(ca_cert_path))
-        } else {
-            error!("tls enabed, but not specified, add \"tls:\" to node config");
-            panic!("tls enabed, but not specified, add \"tls:\" to node config");
-        }
-    } else {
-        Factory::new(node.operation_timeout(), metrics, None)
-    };
-    let grinder = Grinder::new(mapper.clone(), &node).await;
-    let authentication_type = matches.value_of("authentication_type").unwrap();
-
-    let mut server_builder = Server::builder();
-
-    if node.tls() {
-        if let Some(node_tls_config) = node.tls_config() {
-            let cert_path = node_tls_config.cert_path.as_ref().expect("no certificate path specified");
-            let cert_bin = load_tls_certificate(cert_path);
-            let pkey_path = node_tls_config.pkey_path.as_ref().expect("no private key path specified");
-            let key_bin = load_tls_pkey(pkey_path);
-            let identity = Identity::from_pem(cert_bin.clone(), key_bin);
-            
-            let tls_config = ServerTlsConfig::new().identity(identity);
-            server_builder = server_builder.tls_config(tls_config).expect("grpc tls config");
-        } else {
-            error!("tls enabed, but not specified, add \"tls:\" to node config");
-            panic!("tls enabed, but not specified, add \"tls:\" to node config");
-        }
-    }
-
+    let authentication_type = node.authentication_type();
     match authentication_type {
-        "stub" => {
-            let users_storage =
-                UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
-            let authenticator = StubAuthenticator::new(users_storage);
-            let bob = BobServer::new(grinder, handle, shared_metrics, authenticator);
-            info!("Start backend");
-            bob.run_backend().await.unwrap();
-            create_signal_handlers(&bob).unwrap();
-            bob.run_periodic_tasks(factory);
-            bob.run_api_server(node.tls_config(), http_api_address, http_api_port).await;
-
-            let bob_service = BobApiServer::new(bob);
-            server_builder
-                .tcp_nodelay(true)
-                .add_service(bob_service)
-                .serve(addr)
-                .await
-                .unwrap();
+        AuthenticationType::None => {
+            let authenticator = StubAuthenticator::new();
+            run_server(node, authenticator, mapper, http_api_address, http_api_port, addr).await;
         }
-        "basic" => {
+        AuthenticationType::Basic => {
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let mut authenticator = BasicAuthenticator::new(users_storage);
@@ -159,25 +114,7 @@ async fn main() {
             authenticator
                 .set_nodes_credentials(nodes_credentials)
                 .expect("failed to gen nodes credentials from cluster config");
-            let bob = BobServer::new(
-                Grinder::new(mapper, &node).await,
-                handle,
-                shared_metrics,
-                authenticator,
-            );
-            info!("Start backend");
-            bob.run_backend().await.unwrap();
-            create_signal_handlers(&bob).unwrap();
-            bob.run_periodic_tasks(factory);
-            bob.run_api_server(node.tls_config(), http_api_address, http_api_port).await;
-
-            let bob_service = BobApiServer::new(bob);
-            server_builder
-                .tcp_nodelay(true)
-                .add_service(bob_service)
-                .serve(addr)
-                .await
-                .unwrap();
+            run_server(node, authenticator, mapper, http_api_address, http_api_port, addr).await;
         }
         _ => {
             warn!("valid authentication type not provided");
@@ -201,6 +138,59 @@ fn load_tls_pkey(path: &str) -> Vec<u8> {
     buffer
 }
 
+async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
+    let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
+    let handle = Handle::current();
+    let factory = if node.tls() {
+        if let Some(node_tls_config) = node.tls_config() {
+            let ca_cert_path = node_tls_config.ca_cert_path.clone();
+            Factory::new(node.operation_timeout(), metrics, Some(ca_cert_path), node.name().into())
+        } else {
+            error!("tls enabed, but not specified, add \"tls:\" to node config");
+            panic!("tls enabed, but not specified, add \"tls:\" to node config");
+        }
+    } else {
+        Factory::new(node.operation_timeout(), metrics, None, node.name().into())
+    };
+
+    let mut server_builder = Server::builder();
+    if node.tls() {
+        if let Some(node_tls_config) = node.tls_config() {
+            let cert_path = node_tls_config.cert_path.as_ref().expect("no certificate path specified");
+            let cert_bin = load_tls_certificate(cert_path);
+            let pkey_path = node_tls_config.pkey_path.as_ref().expect("no private key path specified");
+            let key_bin = load_tls_pkey(pkey_path);
+            let identity = Identity::from_pem(cert_bin.clone(), key_bin);
+            
+            let tls_config = ServerTlsConfig::new().identity(identity);
+            server_builder = server_builder.tls_config(tls_config).expect("grpc tls config");
+        } else {
+            error!("tls enabed, but not specified, add \"tls:\" to node config");
+            panic!("tls enabed, but not specified, add \"tls:\" to node config");
+        }
+    }
+
+    let bob = BobServer::new(
+        Grinder::new(mapper, &node).await,
+        handle,
+        shared_metrics,
+        authenticator,
+    );
+    info!("Start backend");
+    bob.run_backend().await.unwrap();
+    create_signal_handlers(&bob).unwrap();
+    bob.run_periodic_tasks(factory);
+    bob.run_api_server(node.tls_config(), address, port).await;
+
+    let bob_service = BobApiServer::new(bob);
+    server_builder
+        .tcp_nodelay(true)
+        .add_service(bob_service)
+        .serve(addr)
+        .await
+        .unwrap();
+}
+
 async fn nodes_credentials_from_cluster_config(
     cluster_config: &ClusterConfig,
 ) -> HashMap<IpAddr, Credentials> {
@@ -222,7 +212,7 @@ async fn nodes_credentials_from_cluster_config(
             }
         };
         let creds = Credentials::builder()
-            .with_username_password(node.name(), "")
+            .with_nodename(node.name())
             .with_address(Some(address))
             .build();
         nodes_creds.insert(creds.ip().expect("node missing ip"), creds);
@@ -260,9 +250,47 @@ fn spawn_signal_handler<A: Authenticator>(
         task.recv().await;
         debug!("Got signal {:?}", s);
         server.shutdown().await;
+        log::logger().flush();
         std::process::exit(0);
     });
     Ok(())
+}
+
+fn check_folders(node: &NodeConfig, init_flag: bool) {
+    if let BackendType::Pearl = node.backend_type() {
+        let root_dir = node.pearl().settings().root_dir_name();
+        let alien_dir = node.pearl().settings().alien_root_dir_name();
+
+        let p_mutex = node.disks();
+        let paths = p_mutex.lock().expect("node disks mutex");
+        for i in 0..paths.len() {
+            let mut bob_path = PathBuf::from(paths[i].path());
+            bob_path.push(root_dir);
+            let bob_path = bob_path.as_path();
+            if !bob_path.is_dir() {
+                if init_flag {
+                    create_dir(bob_path).expect("Failed to create bob folder");
+                } else {
+                    let bob_path_str = bob_path.to_str().unwrap();
+                    error!("{} folder doesn't exist, try to use --init_folders flag", bob_path_str);
+                    panic!("{} folder doesn't exist, try to use --init_folders flag", bob_path_str);
+                }
+            }
+
+            let mut alien_path = PathBuf::from(paths[i].path());
+            alien_path.push(alien_dir);
+            let alien_path = alien_path.as_path();
+            if !alien_path.is_dir() {
+                if init_flag {
+                    create_dir(alien_path).expect("Failed to create alien folder");
+                } else {
+                    let alien_path_str = alien_path.to_str().unwrap();
+                    error!("{} folder doesn't exist, try to use --init_folders flag", alien_path_str);
+                    panic!("{} folder doesn't exist, try to use --init_folders flag", alien_path_str);
+                }
+            }
+        }
+    }
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
@@ -291,14 +319,6 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .long("name"),
         )
         .arg(
-            Arg::with_name("threads")
-                .help("count threads")
-                .takes_value(true)
-                .short("t")
-                .long("threads")
-                .default_value("4"),
-        )
-        .arg(
             Arg::with_name("http_api_address")
                 .help("http api address")
                 .short("h")
@@ -313,11 +333,10 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("authentication_type")
-                .default_value("stub")
-                .long("auth")
-                .possible_values(&["stub", "basic"])
-                .takes_value(true),
+            Arg::with_name("init_folders")
+                .help("Initializes bob and alien folders")
+                .long("init_folders")
+                .takes_value(false),
         )
         .get_matches()
 }

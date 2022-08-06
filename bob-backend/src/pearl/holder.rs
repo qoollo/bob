@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use crate::{pearl::utils::get_current_timestamp, prelude::*};
 
 use super::{
@@ -25,7 +27,7 @@ pub struct Holder {
     disk_path: PathBuf,
     config: PearlConfig,
     storage: Arc<RwLock<PearlSync>>,
-    last_write_ts: Arc<RwLock<u64>>,
+    last_modification: Arc<AtomicU64>,
     dump_sem: Arc<Semaphore>,
 }
 
@@ -45,7 +47,7 @@ impl Holder {
             disk_path,
             config,
             storage: Arc::new(RwLock::new(PearlSync::default())),
-            last_write_ts: Arc::new(RwLock::new(0)),
+            last_modification: Arc::new(AtomicU64::new(0)),
             dump_sem,
         }
     }
@@ -79,9 +81,19 @@ impl Holder {
         storage.blobs_count().await
     }
 
+    pub async fn active_index_memory(&self) -> usize {
+        let storage = self.storage.read().await;
+        storage.active_index_memory().await
+    }
+
     pub async fn index_memory(&self) -> usize {
         let storage = self.storage.read().await;
         storage.index_memory().await
+    }
+
+    pub async fn has_excess_resources(&self) -> bool {
+        let storage = self.storage.read().await;
+        storage.inactive_index_memory().await > 0
     }
 
     pub async fn records_count(&self) -> usize {
@@ -98,37 +110,50 @@ impl Holder {
         ts > self.end_timestamp
     }
 
-    pub async fn no_writes_recently(&self) -> bool {
+    pub fn is_older_than(&self, secs: u64) -> bool {
         let ts = Self::get_current_ts();
-        let last_write_ts = *self.last_write_ts.read().await;
-        ts - last_write_ts > MAX_TIME_SINCE_LAST_WRITE_SEC
+        (ts - secs) > self.end_timestamp
     }
 
-    pub async fn active_blob_is_empty(&self) -> bool {
-        let active = self
-            .storage()
+    pub async fn no_modifications_recently(&self) -> bool {
+        let ts = Self::get_current_ts();
+        let last_modification = self.last_modification();
+        ts - last_modification > MAX_TIME_SINCE_LAST_WRITE_SEC
+    }
+
+    pub fn last_modification(&self) -> u64 {
+        self.last_modification.load(Ordering::Acquire)
+    }
+
+    fn update_last_modification(&self) {
+        self.last_modification
+            .store(Self::get_current_ts(), Ordering::Release);
+    }
+
+    pub async fn has_active_blob(&self) -> bool {
+        self.storage().read().await.has_active_blob().await
+    }
+
+    pub async fn active_blob_is_empty(&self) -> Option<bool> {
+        self.storage()
             .read()
             .await
             .active_blob_records_count()
-            .await as u64;
-        active == 0
+            .await
+            .map(|c| c == 0)
     }
 
-    pub async fn active_blob_is_small(&self) -> bool {
-        let active = self
-            .storage()
+    pub async fn active_blob_is_small(&self) -> Option<bool> {
+        self.storage()
             .read()
             .await
             .active_blob_records_count()
-            .await as u64;
-        active * SMALL_RECORDS_COUNT_MUL < self.config.max_data_in_blob()
+            .await
+            .map(|c| c as u64 * SMALL_RECORDS_COUNT_MUL < self.config.max_data_in_blob())
     }
 
     fn get_current_ts() -> u64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("current time is before unix epoch")
-            .as_secs()
+        coarsetime::Clock::now_since_epoch().as_secs()
     }
 
     pub async fn close_active_blob(&self) {
@@ -145,6 +170,11 @@ impl Holder {
         let storage = self.storage.write().await;
         storage.storage().close_active_blob_in_background().await;
         warn!("Active blob of {} closed", self.get_id());
+    }
+
+    pub async fn free_excess_resources(&self) -> usize {
+        let storage = self.storage.read().await;
+        storage.storage().free_excess_resources().await
     }
 
     pub async fn filter_memory_allocated(&self) -> usize {
@@ -166,7 +196,7 @@ impl Holder {
 
         if state.is_ready() {
             let storage = state.get();
-            *self.last_write_ts.write().await = Self::get_current_ts();
+            self.update_last_modification();
             trace!("Vdisk: {}, write key: {}", self.vdisk, key);
             Self::write_disk(storage, Key::from(key), data.clone()).await
         } else {
@@ -429,6 +459,7 @@ impl Holder {
                         _ => Error::storage(e.to_string()),
                     }
                 });
+            self.update_last_modification();
             res
         } else {
             trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
@@ -446,6 +477,11 @@ impl Holder {
         if let Err(e) = storage.close().await {
             warn!("pearl close error: {:?}", e);
         }
+    }
+
+    pub async fn disk_used(&self) -> u64 {
+        let storage = self.storage.read().await;
+        storage.storage().disk_used().await
     }
 }
 
@@ -473,7 +509,7 @@ impl BloomProvider<Key> for Holder {
         }
     }
 
-    async fn get_filter(&self) -> Option<pearl::Bloom> {
+    async fn get_filter(&self) -> Option<Self::Filter> {
         let storage = self.storage().read().await;
         if let Some(storage) = &storage.storage {
             storage.get_filter().await
@@ -482,7 +518,7 @@ impl BloomProvider<Key> for Holder {
         }
     }
 
-    fn get_filter_fast(&self) -> Option<&pearl::Bloom> {
+    fn get_filter_fast(&self) -> Option<&Self::Filter> {
         None
     }
 
@@ -519,19 +555,28 @@ impl PearlSync {
         self.storage().records_count().await
     }
 
+    pub async fn active_index_memory(&self) -> usize {
+        self.storage().active_index_memory().await
+    }
+
+    pub async fn inactive_index_memory(&self) -> usize {
+        self.storage().inactive_index_memory().await
+    }
+
     pub async fn index_memory(&self) -> usize {
         self.storage().index_memory().await
     }
 
-    pub async fn active_blob_records_count(&self) -> usize {
-        self.storage()
-            .records_count_in_active_blob()
-            .await
-            .unwrap_or_default()
+    pub async fn active_blob_records_count(&self) -> Option<usize> {
+        self.storage().records_count_in_active_blob().await
     }
 
     pub async fn blobs_count(&self) -> usize {
         self.storage().blobs_count().await
+    }
+
+    pub async fn has_active_blob(&self) -> bool {
+        self.storage().has_active_blob().await
     }
 
     #[inline]

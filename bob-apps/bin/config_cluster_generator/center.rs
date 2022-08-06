@@ -524,10 +524,6 @@ fn get_used_nodes_names(replicas: &[Replica]) -> Vec<NodeName> {
     replicas.iter().map(|r| r.node().to_string()).collect()
 }
 
-pub fn get_pairs_count(nodes: &[ClusterNode]) -> usize {
-    nodes.iter().fold(0, |acc, n| acc + n.disks().len())
-}
-
 pub fn get_new_disks(
     old_nodes: &[ClusterNode],
     new_nodes: &[ClusterNode],

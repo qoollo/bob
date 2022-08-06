@@ -111,6 +111,7 @@ impl DiskController {
     async fn monitor_task(self: Arc<Self>) {
         let mut check_interval = interval(CHECK_INTERVAL);
         Self::monitor_wait(self.state.clone(), &mut check_interval).await;
+        let mut ready_log = false;
         loop {
             check_interval.tick().await;
             let _permit = self.monitor_sem.acquire().await.expect("Sem is closed");
@@ -122,14 +123,19 @@ impl DiskController {
                             "Work dir is available, but disk is not running ({:?})",
                             self.disk
                         );
+                        ready_log = false;
                     }
                     GroupsState::Ready => {
-                        info!("Disk is available: {:?}", self.disk);
+                        if !ready_log {
+                            info!("Disk is available: {:?}", self.disk);
+                        }
+                        ready_log = true;
                     }
                 }
             } else {
                 error!("Disk is unavailable: {:?}", self.disk);
                 self.change_state(GroupsState::NotReady).await;
+                ready_log = false;
             }
             self.update_metrics().await;
         }
@@ -555,6 +561,40 @@ impl DiskController {
         }
     }
 
+    pub(crate) async fn find_oldest_inactive_holder(&self) -> Option<Holder> {
+        let groups = self.groups.read().await;
+        let mut result: Option<Holder> = None;
+        for group in groups.iter() {
+            if let Some(holder) = group.find_oldest_inactive_holder().await {
+                if holder.end_timestamp()
+                    < result
+                        .as_ref()
+                        .map(|h| h.end_timestamp())
+                        .unwrap_or(u64::MAX)
+                {
+                    result = Some(holder);
+                }
+            }
+        }
+        result
+    }
+
+    pub(crate) async fn find_least_modified_freeable_holder(&self) -> Option<Holder> {
+        let groups = self.groups.read().await;
+        let mut result: Option<Holder> = None;
+        let mut min_modification = u64::MAX;
+        for group in groups.iter() {
+            if let Some(holder) = group.find_least_modified_freeable_holder().await {
+                let modification = holder.last_modification();
+                if modification < min_modification {
+                    result = Some(holder);
+                    min_modification = modification;
+                }
+            }
+        }
+        result
+    }
+
     pub(crate) async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
         if *self.state.read().await == GroupsState::Ready {
             debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
@@ -607,5 +647,16 @@ impl DiskController {
 
     pub(crate) fn groups(&self) -> Arc<RwLock<Vec<Group>>> {
         self.groups.clone()
+    }
+
+    pub async fn disk_used(&self) -> u64 {
+        self.groups
+            .read()
+            .await
+            .iter()
+            .map(|h| h.disk_used())
+            .collect::<FuturesUnordered<_>>()
+            .fold(0, |acc, x| async move { acc + x })
+            .await
     }
 }

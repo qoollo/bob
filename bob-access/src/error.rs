@@ -5,7 +5,7 @@ use axum::{
 use http::StatusCode;
 use serde_json::json;
 use std::{error::Error as StdError, fmt::Display};
-use tonic::{codegen::http::header::ToStrError, Code, Status};
+use tonic::{Code, Status};
 
 #[derive(Debug)]
 pub enum Error {
@@ -14,7 +14,7 @@ pub enum Error {
     Validation(String),
     Os(String),
     UserNotFound,
-    ConversionError(ToStrError),
+    ConversionError(String),
     CredentialsNotProvided(String),
     MultipleCredentialsTypes,
     UnauthorizedRequest,
@@ -29,7 +29,7 @@ impl Error {
             InvalidToken(_) => "Invalid token",
             Validation(_) => "Validation error",
             Os(_) => "Os error",
-            UserNotFound => "User not found",
+            UserNotFound => "Unauthorized request",
             ConversionError(_) => "Conversion error",
             CredentialsNotProvided(_) => "Credentials not provided",
             MultipleCredentialsTypes => "Multiple credentials type",
@@ -45,12 +45,12 @@ impl Error {
             InvalidToken(_) => StatusCode::BAD_REQUEST,
             Validation(_) => StatusCode::BAD_REQUEST,
             Os(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            UserNotFound => StatusCode::FORBIDDEN,
+            UserNotFound => StatusCode::UNAUTHORIZED,
             ConversionError(_) => StatusCode::BAD_REQUEST,
             CredentialsNotProvided(_) => StatusCode::UNAUTHORIZED,
             MultipleCredentialsTypes => StatusCode::BAD_REQUEST,
             UnauthorizedRequest => StatusCode::UNAUTHORIZED,
-            PermissionDenied => StatusCode::UNAUTHORIZED,
+            PermissionDenied => StatusCode::FORBIDDEN,
         }
     }
 
@@ -61,11 +61,11 @@ impl Error {
             InvalidToken(_) => Code::InvalidArgument,
             Validation(_) => Code::InvalidArgument,
             Os(_) => Code::Internal,
-            UserNotFound => Code::PermissionDenied,
+            UserNotFound => Code::Unauthenticated,
             ConversionError(_) => Code::InvalidArgument,
-            CredentialsNotProvided(_) => Code::InvalidArgument,
+            CredentialsNotProvided(_) => Code::Unauthenticated,
             MultipleCredentialsTypes => Code::InvalidArgument,
-            UnauthorizedRequest => Code::PermissionDenied,
+            UnauthorizedRequest => Code::Unauthenticated,
             PermissionDenied => Code::PermissionDenied,
         }
     }

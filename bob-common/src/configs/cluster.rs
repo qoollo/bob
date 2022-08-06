@@ -180,7 +180,7 @@ impl Replica {
     }
 
     #[must_use]
-    fn disk(&self) -> &str {
+    pub fn disk(&self) -> &str {
         &self.disk
     }
 }

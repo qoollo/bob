@@ -88,24 +88,25 @@ impl Node {
         self.conn.read().await.clone()
     }
 
-    pub async fn check(&self, client_fatory: &Factory) -> Result<(), String> {
+    pub async fn check(&self, client_factory: &Factory) -> Result<(), String> {
         if let Some(conn) = self.get_connection().await {
-            if let Err(e) = conn.ping().await {
-                debug!("Got broken connection to node {:?}", self);
-                self.clear_connection().await;
-                Err(format!("{:?}", e))
-            } else {
-                debug!("All good with pinging node {:?}", self);
-                Ok(())
-            }
+            self.ping(&conn).await
         } else {
             debug!("will connect to {:?}", self);
-            let client = client_fatory.produce(self.clone()).await;
-            if let Err(e) = &client {
-                println!("errar: {}", e);
-            }
-            let client = client?;
+            let client = client_factory.produce(self.clone()).await?;
+            self.ping(&client).await?;
             self.set_connection(client).await;
+            Ok(())
+        }
+    }
+
+    pub async fn ping(&self, conn: &BobClient) -> Result<(), String> {
+        if let Err(e) = conn.ping().await {
+            debug!("Got broken connection to node {:?}", self);
+            self.clear_connection().await;
+            Err(format!("{:?}", e))
+        } else {
+            debug!("All good with pinging node {:?}", self);
             Ok(())
         }
     }

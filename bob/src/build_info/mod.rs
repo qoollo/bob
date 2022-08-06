@@ -68,5 +68,5 @@ impl Display for BuildInfo {
 
 #[test]
 fn print_build_info() {
-    println!("{}", BuildInfo::new());
+    println!("{}", BuildInfo::default());
 }
