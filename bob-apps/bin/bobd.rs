@@ -123,7 +123,7 @@ async fn main() {
 async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
     let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
     let handle = Handle::current();
-    let factory = Factory::new(node.operation_timeout(), metrics);
+    let factory = Factory::new(node.operation_timeout(), metrics, node.name().into());
 
     let bob = BobServer::new(
         Grinder::new(mapper, &node).await,
