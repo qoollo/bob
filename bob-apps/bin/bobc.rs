@@ -8,6 +8,8 @@ use log::LevelFilter;
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 use tonic::Request;
 
 struct NetConfig {
@@ -108,6 +110,22 @@ async fn get(key: Vec<u8>, filename: &str, addr: Uri) {
             info!("OK");
             info!("response meta: {:?})", res.metadata());
             info!("data len: {}, meta: {:?}", data.data.len(), data.meta);
+            let file = File::create(filename).await;
+            match file {
+                Ok(mut file) => match file.write_all(&data.data).await {
+                    Ok(()) => {
+                        info!("OK");
+                    }
+                    Err(e) => {
+                        info!("ERR");
+                        info!("{:?}", e);
+                    }
+                },
+                Err(err) => {
+                    info!("ERR");
+                    info!("{:?}", err);
+                }
+            }
         }
         Err(res) => {
             info!("ERR");
