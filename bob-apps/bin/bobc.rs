@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncWriteExt, AsyncReadExt};
 use tonic::Request;
 
 struct NetConfig {
@@ -72,26 +72,44 @@ async fn main() {
 }
 
 async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
-    let mut client = BobApiClient::connect(addr).await.unwrap();
+    let file = File::open(filename).await;
 
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("msg: &str")
-        .as_secs();
-    let meta = BlobMeta { timestamp };
-    let blob = Blob {
-        data: vec![1; 9],
-        meta: Some(meta),
-    };
-    let message = PutRequest {
-        key: Some(BlobKey { key }),
-        data: Some(blob),
-        options: None,
-    };
-    let put_req = Request::new(message);
+    match file {
+        Err(e) => {
+            error!("{:?}", e);
+        },
+        Ok(mut f) => {
+            let mut client = BobApiClient::connect(addr).await.unwrap();
 
-    let res = client.put(put_req).await;
-    info!("{:#?}", res);
+            let timestamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("msg: &str")
+                .as_secs();
+            let meta = BlobMeta { timestamp };
+            
+            let mut data = Vec::new();
+            match f.read_to_end(&mut data).await {
+                Ok(_) => {},
+                Err(e) => {
+                    error!("{:?}", e);
+                    return;
+                }
+            }
+            let blob = Blob {
+                data: data,
+                meta: Some(meta),
+            };
+            let message = PutRequest {
+                key: Some(BlobKey { key }),
+                data: Some(blob),
+                options: None,
+            };
+            let put_req = Request::new(message);
+
+            let res = client.put(put_req).await;
+            info!("{:#?}", res);
+        }
+    }
 }
 
 async fn get(key: Vec<u8>, filename: &str, addr: Uri) {
@@ -107,29 +125,23 @@ async fn get(key: Vec<u8>, filename: &str, addr: Uri) {
         Ok(res) => {
             let res: tonic::Response<_> = res;
             let data: &Blob = res.get_ref();
-            info!("OK");
             info!("response meta: {:?})", res.metadata());
             info!("data len: {}, meta: {:?}", data.data.len(), data.meta);
             let file = File::create(filename).await;
             match file {
                 Ok(mut file) => match file.write_all(&data.data).await {
-                    Ok(()) => {
-                        info!("OK");
-                    }
+                    Ok(()) => {},
                     Err(e) => {
-                        info!("ERR");
-                        info!("{:?}", e);
+                        error!("{:?}", e);
                     }
                 },
                 Err(err) => {
-                    info!("ERR");
-                    info!("{:?}", err);
+                    error!("{:?}", err);
                 }
             }
         }
         Err(res) => {
-            info!("ERR");
-            info!("{:?}", res);
+            error!("{:?}", res);
         }
     }
 }
