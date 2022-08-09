@@ -32,31 +32,44 @@ impl NetConfig {
     }
 }
 
+const KEY_ARG: &str = "key";
+const KEY_SIZE_ARG: &str = "keysize";
+const HOST_ARG: &str = "host";
+const PORT_ARG: &str = "port";
+const FILE_ARG: &str = "file";
+
+const PUT_SC: &str = "put";
+const GET_SC: &str = "get";
+
 #[tokio::main]
 async fn main() {
     env_logger::builder().filter_level(LevelFilter::Info).init();
     let matches = get_matches();
     if let (sc, Some(sub_mathes)) = matches.subcommand() {
         let key = get_key_value(sub_mathes);
+        let addr = NetConfig::from_matches(&sub_mathes).get_uri();
+        let filename = sub_mathes.value_of(FILE_ARG).unwrap();
         match sc {
-            "put" => {
-                let value = sub_mathes.value_of("size").unwrap();
-                let size = value.parse().expect("size must be usize");
-                let addr = NetConfig::from_matches(&sub_mathes).get_uri();
-                info!("PUT key: \"{:?}\" size: \"{}\" to \"{}\"", key, size, addr);
-                put(key, size, addr).await;
+            PUT_SC => {
+                info!(
+                    "PUT key: \"{:?}\" to \"{}\" from file \"{}\"",
+                    key, addr, filename
+                );
+                put(key, filename, addr).await;
             }
-            "get" => {
-                let addr = NetConfig::from_matches(&sub_mathes).get_uri();
-                info!("GET key:\"{:?}\" from  \"{}\"", key, addr);
-                get(key, addr).await;
+            GET_SC => {
+                info!(
+                    "GET key:\"{:?}\" from  \"{}\" to file \"{}\"",
+                    key, addr, filename
+                );
+                get(key, filename, addr).await;
             }
             _ => {}
         }
     }
 }
 
-async fn put(key: Vec<u8>, size: usize, addr: Uri) {
+async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
     let mut client = BobApiClient::connect(addr).await.unwrap();
 
     let timestamp = SystemTime::now()
@@ -65,7 +78,7 @@ async fn put(key: Vec<u8>, size: usize, addr: Uri) {
         .as_secs();
     let meta = BlobMeta { timestamp };
     let blob = Blob {
-        data: vec![1; size],
+        data: vec![1; 9],
         meta: Some(meta),
     };
     let message = PutRequest {
@@ -79,7 +92,7 @@ async fn put(key: Vec<u8>, size: usize, addr: Uri) {
     info!("{:#?}", res);
 }
 
-async fn get(key: Vec<u8>, addr: Uri) {
+async fn get(key: Vec<u8>, filename: &str, addr: Uri) {
     let mut client = BobApiClient::connect(addr).await.unwrap();
 
     let message = GetRequest {
@@ -104,41 +117,41 @@ async fn get(key: Vec<u8>, addr: Uri) {
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
-    let key_arg = Arg::with_name("key")
+    let key_arg = Arg::with_name(KEY_ARG)
         .short("k")
         .long("key")
         .value_name("KEY")
         .takes_value(true)
         .required(true);
-    let key_size_arg = Arg::with_name("size")
+    let key_size_arg = Arg::with_name(KEY_SIZE_ARG)
         .help("Size of the binary key")
         .takes_value(true)
         .long("size")
         .short("s")
         .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8"));
-    let host_arg = Arg::with_name("host")
+    let host_arg = Arg::with_name(HOST_ARG)
         .long("host")
         .value_name("HOST")
         .takes_value(true)
         .default_value("127.0.0.1");
-    let port_arg = Arg::with_name("port")
+    let port_arg = Arg::with_name(PORT_ARG)
         .long("port")
         .value_name("PORT")
         .takes_value(true)
         .default_value("20000");
-    let file_arg = Arg::with_name("file")
+    let file_arg = Arg::with_name(FILE_ARG)
         .short("f")
         .long("file")
         .takes_value(true)
         .value_name("FILE")
         .required(true);
-    let put_sc = SubCommand::with_name("put")
+    let put_sc = SubCommand::with_name(PUT_SC)
         .arg(&key_arg)
         .arg(&key_size_arg)
         .arg(&host_arg)
         .arg(&port_arg)
         .arg(file_arg.clone().help("Input file"));
-    let get_sc = SubCommand::with_name("get")
+    let get_sc = SubCommand::with_name(GET_SC)
         .arg(key_arg)
         .arg(key_size_arg)
         .arg(host_arg)
@@ -151,9 +164,9 @@ fn get_matches<'a>() -> ArgMatches<'a> {
 }
 
 fn get_key_value(matches: &'_ ArgMatches<'_>) -> Vec<u8> {
-    let key_size = matches.value_or_default("size");
+    let key_size = matches.value_or_default(KEY_SIZE_ARG);
     let key = matches
-        .value_of("key")
+        .value_of(KEY_ARG)
         .expect("key arg is required")
         .to_string()
         .parse()
