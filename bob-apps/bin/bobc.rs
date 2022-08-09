@@ -10,6 +10,28 @@ use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tonic::Request;
 
+struct NetConfig {
+    port: u16,
+    target: String,
+}
+impl NetConfig {
+    fn get_uri(&self) -> http::Uri {
+        http::Uri::builder()
+            .scheme("http")
+            .authority(format!("{}:{}", self.target, self.port).as_str())
+            .path_and_query("/")
+            .build()
+            .unwrap()
+    }
+
+    fn from_matches(matches: &ArgMatches) -> Self {
+        Self {
+            port: matches.value_or_default("port"),
+            target: matches.value_or_default("host"),
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     env_logger::builder().filter_level(LevelFilter::Info).init();
@@ -20,20 +42,12 @@ async fn main() {
             "put" => {
                 let value = sub_mathes.value_of("size").unwrap();
                 let size = value.parse().expect("size must be usize");
-                let addr = sub_mathes
-                    .value_of("uri")
-                    .expect("has default value")
-                    .parse()
-                    .expect("wrong format of url");
+                let addr = NetConfig::from_matches(&sub_mathes).get_uri();
                 info!("PUT key: \"{:?}\" size: \"{}\" to \"{}\"", key, size, addr);
                 put(key, size, addr).await;
             }
             "get" => {
-                let addr = sub_mathes
-                    .value_of("uri")
-                    .expect("has default value")
-                    .parse()
-                    .expect("wrong format of url");
+                let addr = NetConfig::from_matches(&sub_mathes).get_uri();
                 info!("GET key:\"{:?}\" from  \"{}\"", key, addr);
                 get(key, addr).await;
             }
@@ -90,28 +104,46 @@ async fn get(key: Vec<u8>, addr: Uri) {
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
-    let key_arg = Arg::with_name("key").takes_value(true).required(true);
-    let uri_arg = Arg::with_name("uri")
-        .takes_value(true)
-        .default_value("http://localhost:20000");
-    let size_arg = Arg::with_name("size")
-        .takes_value(true)
-        .default_value("90000");
-    let key_size_arg = Arg::with_name("keysize")
-        .help("size of the binary key")
-        .takes_value(true)
-        .long("keysize")
+    let key_arg = Arg::with_name("key")
         .short("k")
+        .long("key")
+        .value_name("KEY")
+        .takes_value(true)
+        .required(true);
+    let key_size_arg = Arg::with_name("size")
+        .help("Size of the binary key")
+        .takes_value(true)
+        .long("size")
+        .short("s")
         .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8"));
+    let host_arg = Arg::with_name("host")
+        .long("host")
+        .value_name("HOST")
+        .takes_value(true)
+        .default_value("127.0.0.1");
+    let port_arg = Arg::with_name("port")
+        .long("port")
+        .value_name("PORT")
+        .takes_value(true)
+        .default_value("20000");
+    let file_arg = Arg::with_name("file")
+        .short("f")
+        .long("file")
+        .takes_value(true)
+        .value_name("FILE")
+        .required(true);
     let put_sc = SubCommand::with_name("put")
         .arg(&key_arg)
-        .arg(size_arg)
-        .arg(&uri_arg)
-        .arg(&key_size_arg);
+        .arg(&key_size_arg)
+        .arg(&host_arg)
+        .arg(&port_arg)
+        .arg(file_arg.clone().help("Input file"));
     let get_sc = SubCommand::with_name("get")
         .arg(key_arg)
-        .arg(uri_arg)
-        .arg(key_size_arg);
+        .arg(key_size_arg)
+        .arg(host_arg)
+        .arg(port_arg)
+        .arg(file_arg.help("Output file"));
     App::new("bobc")
         .subcommand(put_sc)
         .subcommand(get_sc)
@@ -119,7 +151,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
 }
 
 fn get_key_value(matches: &'_ ArgMatches<'_>) -> Vec<u8> {
-    let key_size = matches.value_or_default("keysize");
+    let key_size = matches.value_or_default("size");
     let key = matches
         .value_of("key")
         .expect("key arg is required")
