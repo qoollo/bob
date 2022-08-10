@@ -156,12 +156,12 @@ async fn get_from_pattern(file_pattern: &str, key_size: usize) -> Vec<KeyName> {
         p if p == Path::new("") => Path::new("."),
         p => p,
     };
-    // TODO: async read_dir
-    let dir = std::fs::read_dir(dir);
+    
+    let mut dir = read_dir(dir).await.unwrap();
 
     let mut keys_names = Vec::new();
-    for entry in dir.unwrap() {
-        let path = entry.unwrap().path();
+    while let Some(entry) = dir.next_entry().await.unwrap() {
+        let path = entry.path();
         if !path.is_dir() && re_path.is_match(path.to_str().unwrap()) {
             let name = path.to_str().unwrap().to_owned();
             let key = &re_path.captures(&name).unwrap()[1];
