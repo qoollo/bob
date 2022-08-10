@@ -8,12 +8,12 @@ use log::LevelFilter;
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::fs::File;
+use tokio::fs::{read_dir, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tonic::Request;
 
 use regex::Regex;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 struct NetConfig {
     port: u16,
@@ -47,6 +47,7 @@ const PUT_SC: &str = "put";
 const GET_SC: &str = "get";
 const EXISTS_SC: &str = "exists";
 
+#[derive(Debug)]
 struct KeyName {
     key: Vec<u8>,
     name: String,
@@ -60,13 +61,10 @@ async fn main() {
         match sc {
             PUT_SC | GET_SC => {
                 let file_pattern = sub_mathes.value_of(FILE_ARG).unwrap();
+                let key_size = sub_mathes.value_or_default(KEY_SIZE_ARG);
 
-                let mut keys_names = Vec::new();
-
-                match parse_filename(file_pattern) {
+                let keys_names = match parse_file_pattern(file_pattern) {
                     ParsedFile::WithoutRE => {
-                        info!("no re");
-                        let key_size = sub_mathes.value_or_default(KEY_SIZE_ARG);
                         let key = match sub_mathes.value_of(KEY_ARG) {
                             None => {
                                 error!("Key arg is required if not using file pattern");
@@ -81,20 +79,19 @@ async fn main() {
                             },
                         };
                         let key = get_key_value(key, key_size);
-                        keys_names.push(KeyName {
+                        vec![KeyName {
                             key,
                             name: file_pattern.to_string(),
-                        });
+                        }]
                     }
                     ParsedFile::WithRE => {
-                        info!("re");
-
                         if sub_mathes.is_present(KEY_ARG) {
-                            error!("Either file pattern or key argument must be used")
+                            error!("Either file pattern or key argument must be used");
+                            return;
                         }
-                        return;
+                        get_from_pattern(file_pattern, key_size).await
                     }
-                }
+                };
 
                 let addr = NetConfig::from_matches(&sub_mathes).get_uri();
                 match sc {
@@ -106,15 +103,14 @@ async fn main() {
                             );
                             put(kn.key, &kn.name, addr.clone()).await;
                         }
-
                     }
                     GET_SC => {
                         for kn in keys_names {
                             info!(
-                            "GET key:\"{:?}\" from  \"{}\" to file \"{}\"",
-                            kn.key, addr, &kn.name
+                                "GET key:\"{:?}\" from  \"{}\" to file \"{}\"",
+                                kn.key, addr, &kn.name
                             );
-                        get(kn.key, &kn.name, addr.clone()).await;
+                            get(kn.key, &kn.name, addr.clone()).await;
                         }
                     }
                     _ => {}
@@ -133,7 +129,7 @@ enum ParsedFile {
     WithoutRE,
 }
 
-fn parse_filename(filename: &str) -> ParsedFile {
+fn parse_file_pattern(filename: &str) -> ParsedFile {
     let path = PathBuf::from(filename);
     let name = path.file_name().unwrap().to_str().unwrap();
 
@@ -145,6 +141,36 @@ fn parse_filename(filename: &str) -> ParsedFile {
     } else {
         ParsedFile::WithoutRE
     }
+}
+
+async fn get_from_pattern(file_pattern: &str, key_size: usize) -> Vec<KeyName> {
+    let re1 = Regex::new("\\\\\\{key\\\\\\}").unwrap();
+    let st = re1
+        .replace(&regex::escape(file_pattern), "(\\d+)")
+        .into_owned();
+    let re_path = Regex::new(&st).unwrap();
+
+    let path = PathBuf::from(file_pattern);
+
+    let dir = match path.parent().unwrap() {
+        p if p == Path::new("") => Path::new("."),
+        p => p,
+    };
+    // TODO: async read_dir
+    let dir = std::fs::read_dir(dir);
+
+    let mut keys_names = Vec::new();
+    for entry in dir.unwrap() {
+        let path = entry.unwrap().path();
+        if !path.is_dir() && re_path.is_match(path.to_str().unwrap()) {
+            let name = path.to_str().unwrap().to_owned();
+            let key = &re_path.captures(&name).unwrap()[1];
+            let key = get_key_value(key.parse().unwrap(), key_size);
+            keys_names.push(KeyName { key, name });
+        }
+    }
+    info!("{:?}", keys_names);
+    keys_names
 }
 
 async fn put(key: Vec<u8>, filename: &str, addr: Uri) {

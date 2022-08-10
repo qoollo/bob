@@ -31,6 +31,7 @@ log4rs = "1.0"
 metrics = { version = "0.17", features = ["std"] }
 mockall = "0.10"
 prost = "0.9"
+regex = "1.6.0"
 ring = "0.16"
 serde = "1.0"
 serde_derive = "1.0"
