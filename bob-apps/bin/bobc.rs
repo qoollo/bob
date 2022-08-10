@@ -9,8 +9,11 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs::File;
-use tokio::io::{AsyncWriteExt, AsyncReadExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tonic::Request;
+
+use regex::Regex;
+use std::path::PathBuf;
 
 struct NetConfig {
     port: u16,
@@ -44,31 +47,103 @@ const PUT_SC: &str = "put";
 const GET_SC: &str = "get";
 const EXISTS_SC: &str = "exists";
 
+struct KeyName {
+    key: Vec<u8>,
+    name: String,
+}
+
 #[tokio::main]
 async fn main() {
     env_logger::builder().filter_level(LevelFilter::Info).init();
     let matches = get_matches();
     if let (sc, Some(sub_mathes)) = matches.subcommand() {
-        let key = get_key_value(sub_mathes);
-        let addr = NetConfig::from_matches(&sub_mathes).get_uri();
-        let filename = sub_mathes.value_of(FILE_ARG).unwrap();
         match sc {
-            PUT_SC => {
-                info!(
-                    "PUT key: \"{:?}\" to \"{}\" from file \"{}\"",
-                    key, addr, filename
-                );
-                put(key, filename, addr).await;
+            PUT_SC | GET_SC => {
+                let file_pattern = sub_mathes.value_of(FILE_ARG).unwrap();
+
+                let mut keys_names = Vec::new();
+
+                match parse_filename(file_pattern) {
+                    ParsedFile::WithoutRE => {
+                        info!("no re");
+                        let key_size = sub_mathes.value_or_default(KEY_SIZE_ARG);
+                        let key = match sub_mathes.value_of(KEY_ARG) {
+                            None => {
+                                error!("Key arg is required if not using file pattern");
+                                return;
+                            }
+                            Some(k) => match k.to_string().parse() {
+                                Ok(k) => k,
+                                Err(e) => {
+                                    error!("{:?}", e);
+                                    return;
+                                }
+                            },
+                        };
+                        let key = get_key_value(key, key_size);
+                        keys_names.push(KeyName {
+                            key,
+                            name: file_pattern.to_string(),
+                        });
+                    }
+                    ParsedFile::WithRE => {
+                        info!("re");
+
+                        if sub_mathes.is_present(KEY_ARG) {
+                            error!("Either file pattern or key argument must be used")
+                        }
+                        return;
+                    }
+                }
+
+                let addr = NetConfig::from_matches(&sub_mathes).get_uri();
+                match sc {
+                    PUT_SC => {
+                        for kn in keys_names {
+                            info!(
+                                "PUT key: \"{:?}\" to \"{}\" from file \"{}\"",
+                                kn.key, addr, &kn.name
+                            );
+                            put(kn.key, &kn.name, addr.clone()).await;
+                        }
+
+                    }
+                    GET_SC => {
+                        for kn in keys_names {
+                            info!(
+                            "GET key:\"{:?}\" from  \"{}\" to file \"{}\"",
+                            kn.key, addr, &kn.name
+                            );
+                        get(kn.key, &kn.name, addr.clone()).await;
+                        }
+                    }
+                    _ => {}
+                }
             }
-            GET_SC => {
-                info!(
-                    "GET key:\"{:?}\" from  \"{}\" to file \"{}\"",
-                    key, addr, filename
-                );
-                get(key, filename, addr).await;
+            EXISTS_SC => {
+                info!("exists cmd")
             }
             _ => {}
         }
+    }
+}
+
+enum ParsedFile {
+    WithRE,
+    WithoutRE,
+}
+
+fn parse_filename(filename: &str) -> ParsedFile {
+    let path = PathBuf::from(filename);
+    let name = path.file_name().unwrap().to_str().unwrap();
+
+    let re = Regex::new("\\{key\\}").unwrap();
+    let two_or_more = Regex::new(".*\\{key\\}.*\\{key\\}.*").unwrap();
+
+    if re.is_match(name) && !two_or_more.is_match(name) {
+        ParsedFile::WithRE
+    } else {
+        ParsedFile::WithoutRE
     }
 }
 
@@ -78,7 +153,7 @@ async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
     match file {
         Err(e) => {
             error!("{:?}", e);
-        },
+        }
         Ok(mut f) => {
             let mut client = BobApiClient::connect(addr).await.unwrap();
 
@@ -87,17 +162,17 @@ async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
                 .expect("msg: &str")
                 .as_secs();
             let meta = BlobMeta { timestamp };
-            
+
             let mut data = Vec::new();
             match f.read_to_end(&mut data).await {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => {
                     error!("{:?}", e);
                     return;
                 }
             }
             let blob = Blob {
-                data: data,
+                data,
                 meta: Some(meta),
             };
             let message = PutRequest {
@@ -131,7 +206,7 @@ async fn get(key: Vec<u8>, filename: &str, addr: Uri) {
             let file = File::create(filename).await;
             match file {
                 Ok(mut file) => match file.write_all(&data.data).await {
-                    Ok(()) => {},
+                    Ok(()) => {}
                     Err(e) => {
                         error!("{:?}", e);
                     }
@@ -199,14 +274,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .get_matches()
 }
 
-fn get_key_value(matches: &'_ ArgMatches<'_>) -> Vec<u8> {
-    let key_size = matches.value_or_default(KEY_SIZE_ARG);
-    let key = matches
-        .value_of(KEY_ARG)
-        .expect("key arg is required")
-        .to_string()
-        .parse()
-        .expect("key must be u64");
+fn get_key_value(key: u64, key_size: usize) -> Vec<u8> {
     info!(
         "key size: {}, as u32: {}, u64::MAX: {}",
         key_size,
