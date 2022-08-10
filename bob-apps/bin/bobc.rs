@@ -42,6 +42,7 @@ const FILE_ARG: &str = "file";
 
 const PUT_SC: &str = "put";
 const GET_SC: &str = "get";
+const EXISTS_SC: &str = "exists";
 
 #[tokio::main]
 async fn main() {
@@ -151,8 +152,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .short("k")
         .long("key")
         .value_name("KEY")
-        .takes_value(true)
-        .required(true);
+        .takes_value(true);
     let key_size_arg = Arg::with_name(KEY_SIZE_ARG)
         .help("Size of the binary key")
         .takes_value(true)
@@ -182,14 +182,20 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .arg(&port_arg)
         .arg(file_arg.clone().help("Input file"));
     let get_sc = SubCommand::with_name(GET_SC)
-        .arg(key_arg)
+        .arg(&key_arg)
+        .arg(&key_size_arg)
+        .arg(&host_arg)
+        .arg(&port_arg)
+        .arg(file_arg.help("Output file"));
+    let exists_sc = SubCommand::with_name(EXISTS_SC)
+        .arg(key_arg.required(true))
         .arg(key_size_arg)
         .arg(host_arg)
-        .arg(port_arg)
-        .arg(file_arg.help("Output file"));
+        .arg(port_arg);
     App::new("bobc")
         .subcommand(put_sc)
         .subcommand(get_sc)
+        .subcommand(exists_sc)
         .get_matches()
 }
 
