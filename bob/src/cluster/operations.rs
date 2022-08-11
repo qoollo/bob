@@ -104,7 +104,7 @@ pub(crate) async fn delete_at_least(
     .await
 }
 
-pub(crate) async fn call_at_least(
+async fn call_at_least(
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
     f: impl Fn(Node) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>,
