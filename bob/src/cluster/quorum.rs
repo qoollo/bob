@@ -93,9 +93,7 @@ impl Quorum {
         }
 
         debug!("DELETE[{}] ~~~DELETE TO REMOTE NODES~~~", key);
-        let (tasks, errors) = self
-            .delete_at_remote_nodes(key, with_aliens)
-            .await;
+        let (tasks, errors) = self.delete_at_remote_nodes(key, with_aliens).await;
         let all_count = self.mapper.get_target_nodes_for_key(key).len();
         remote_ok_count += all_count - errors.len() - tasks.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
@@ -192,14 +190,24 @@ impl Quorum {
         with_aliens: bool,
     ) -> (Tasks, Vec<NodeOutput<Error>>) {
         let local_node = self.mapper.local_node_name();
-        let target_nodes = self.mapper.get_target_nodes_for_key(key);
+        let mut target_nodes = vec![];
+        if with_aliens {
+            target_nodes.extend(self.mapper.nodes().values());
+        } else {
+            target_nodes.extend(self.mapper.get_target_nodes_for_key(key))
+        };
         debug!(
             "DELETE[{}] cluster quorum put remote nodes {} total target nodes",
             key,
             target_nodes.len(),
         );
-        let count = target_nodes.iter().filter(|n| n.name() != local_node).count();
-        let target_nodes = target_nodes.iter().filter(|node| node.name() != local_node);
+        let count = target_nodes
+            .iter()
+            .filter(|n| n.name() != local_node)
+            .count();
+        let target_nodes = target_nodes
+            .into_iter()
+            .filter(|node| node.name() != local_node);
         delete_at_least(
             key,
             target_nodes,
