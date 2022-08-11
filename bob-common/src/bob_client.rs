@@ -173,7 +173,6 @@ pub mod b_client {
         }
 
         pub async fn delete(&self, key: BobKey, options: DeleteOptions) -> DeleteResult {
-            let node_name = self.node().name().to_owned();
             let mut client = self.client.clone();
             self.metrics.delete_count();
             let timer = BobClientMetrics::start_timer();
@@ -185,12 +184,12 @@ pub mod b_client {
             self.set_credentials(&mut req);
             self.set_timeout(&mut req);
             self.metrics.delete_timer_stop(timer);
-            if client.delete(req).await.is_ok() {
-                Ok(NodeOutput::new(node_name, ()))
-            } else {
-                self.metrics.delete_error_count();
-                Err(NodeOutput::new(node_name, Error::timeout()))
-            }
+            let res = client.delete(req).await;
+            res.map(|_| NodeOutput::new(self.node().name().to_owned(), ()))
+                .map_err(|e| {
+                    self.metrics.delete_error_count();
+                    NodeOutput::new(self.node().name().to_owned(), e.into())
+                })
         }
 
         fn set_credentials<T>(&self, req: &mut Request<T>) {

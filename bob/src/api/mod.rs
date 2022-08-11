@@ -967,7 +967,7 @@ where
     let key = DataKey::from_str(&key)?.0;
     bob.block_on(bob.grinder().delete(key, DeleteOptions::new_all(true)))
         .map_err(|e| internal(e.to_string()))
-        .map(|res| StatusExt::new(Status::Ok, true, format!("Done")))
+        .map(|_| StatusExt::new(StatusCode::OK, true, format!("Done")))
 }
 
 fn internal(message: String) -> StatusExt {
