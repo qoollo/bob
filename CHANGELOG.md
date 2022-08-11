@@ -10,6 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Fix response in delete request (#558)
 
 
 #### Updated
