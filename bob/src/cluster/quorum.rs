@@ -82,7 +82,6 @@ impl Quorum {
         debug!("DELETE[{}] ~~~DELETE LOCAL NODE FIRST~~~", key);
         let mut local_put_ok = 0_usize;
         let mut remote_ok_count = 0_usize;
-        let mut at_least = self.quorum;
         let mut failed_nodes = Vec::new();
         let res = delete_at_local_node(&self.backend, key, with_aliens).await;
         if let Err(e) = res {
@@ -90,17 +89,12 @@ impl Quorum {
             failed_nodes.push(self.mapper.local_node_name().to_owned());
         } else {
             local_put_ok += 1;
-            at_least -= 1;
             debug!("DELETE[{}] local node delete successful", key);
         }
-        debug!(
-            "DELETE[{}] need at least {} additional deletes",
-            key, at_least
-        );
 
         debug!("DELETE[{}] ~~~DELETE TO REMOTE NODES~~~", key);
         let (tasks, errors) = self
-            .delete_at_remote_nodes(key, with_aliens, at_least)
+            .delete_at_remote_nodes(key, with_aliens)
             .await;
         let all_count = self.mapper.get_target_nodes_for_key(key).len();
         remote_ok_count += all_count - errors.len() - tasks.len() - local_put_ok;
@@ -196,7 +190,6 @@ impl Quorum {
         &self,
         key: BobKey,
         with_aliens: bool,
-        at_least: usize,
     ) -> (Tasks, Vec<NodeOutput<Error>>) {
         let local_node = self.mapper.local_node_name();
         let target_nodes = self.mapper.get_target_nodes_for_key(key);
@@ -205,11 +198,12 @@ impl Quorum {
             key,
             target_nodes.len(),
         );
+        let count = target_nodes.iter().filter(|n| n.name() != local_node).count();
         let target_nodes = target_nodes.iter().filter(|node| node.name() != local_node);
         delete_at_least(
             key,
             target_nodes,
-            at_least,
+            count,
             DeleteOptions::new_local(with_aliens),
         )
         .await
