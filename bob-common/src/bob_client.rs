@@ -183,8 +183,8 @@ pub mod b_client {
             let mut req = Request::new(message);
             self.set_credentials(&mut req);
             self.set_timeout(&mut req);
-            self.metrics.delete_timer_stop(timer);
             let res = client.delete(req).await;
+            self.metrics.delete_timer_stop(timer);
             res.map(|_| NodeOutput::new(self.node().name().to_owned(), ()))
                 .map_err(|e| {
                     self.metrics.delete_error_count();
