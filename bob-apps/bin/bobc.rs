@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
+use bob::{Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetRequest, PutRequest};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use http::Uri;
 use lazy_static::lazy_static;
@@ -283,7 +283,21 @@ async fn main() {
             }
         }
         EXISTS_SC => {
-            todo!()
+            match app_args.key_pattern {
+                Some(KeyPattern::Single(val)) => {
+                    // TODO: get proper key + exist() call
+                    todo!()
+                }
+                Some(KeyPattern::Range(range)) => {
+                    // TODO: interator 1 + exist() call
+                    todo!()
+                }
+                Some(KeyPattern::Multiple(vec)) => {
+                    // TODO: iterator 2 + exist() call
+                    todo!()
+                }
+                None => unreachable!()
+            }
         }
         _ => unreachable!(),
     }
@@ -388,6 +402,26 @@ async fn get(key: Vec<u8>, filename: &str, addr: Uri) {
         }
         Err(res) => {
             error!("{:?}", res);
+        }
+    }
+}
+
+async fn exist(keys: Vec<Vec<u8>>, addr: Uri) {
+    let mut client = BobApiClient::connect(addr).await.unwrap();
+
+    let keys = keys.into_iter().map(|key| BlobKey { key }).collect();
+    let message = ExistRequest {
+        keys,
+        options: None,
+    };
+    let request = Request::new(message);
+    let res = client.exist(request).await;
+    match res {
+        Ok(res) => {
+            info!("{:?}", res);
+        }
+        Err(e) => {
+            error!("{:?}", e);
         }
     }
 }
