@@ -30,10 +30,10 @@ impl NetConfig {
             .unwrap()
     }
 
-    fn from_matches(matches: &ArgMatches) -> Self {
+    fn from_args(args: &AppArgs) -> Self {
         Self {
-            port: matches.value_or_default("port"),
-            target: matches.value_or_default("host"),
+            port: args.port,
+            target: args.host.clone(),
         }
     }
 }
@@ -59,9 +59,9 @@ struct AppArgs<'a> {
     subcommand: &'a str,
     file_pattern: Option<FilePattern<'a>>,
     key_pattern: Option<KeyPattern>,
-    keysize: u64,
+    keysize: usize,
     host: String,
-    port: u64,
+    port: u16,
 }
 
 impl<'a> AppArgs<'a> {
@@ -72,14 +72,14 @@ impl<'a> AppArgs<'a> {
             None => None,
             Some(p) => match Self::parse_file_pattern(p) {
                 Ok(val) => Some(val),
-                Err(e) => panic!("{:?}", e),
+                Err(e) => panic!("{:?}", e), // should send an error to the caller
             },
         };
         let key_pattern = match sub_matches.value_of(KEY_ARG) {
             None => None,
             Some(p) => match Self::parse_key_pattern(p) {
                 Ok(val) => Some(val),
-                Err(e) => panic!("{:?}", e),
+                Err(e) => panic!("{:?}", e), // again
             },
         };
 
@@ -103,19 +103,16 @@ impl<'a> AppArgs<'a> {
             if two_or_more.is_match(name) {
                 Err(ParseError::FilePattern)
             } else {
-                let re1 = Regex::new("\\\\\\{key\\\\\\}").unwrap();
-                let st = re1
-                    .replace(&regex::escape(file_pattern), "(\\d+)")
-                    .into_owned();
-                let re_path = Regex::new(&st).unwrap();
-
                 let path = PathBuf::from(file_pattern);
 
                 let dir = match path.parent().unwrap() {
                     p if p == Path::new("") => Path::new("."),
                     p => p,
                 };
-                Ok(FilePattern::WithRE(re_path, dir.to_owned()))
+                Ok(FilePattern::WithRE(
+                    RePattern::new(file_pattern),
+                    dir.to_owned(),
+                ))
             }
         } else {
             Ok(FilePattern::WithoutRE(file_pattern))
@@ -148,11 +145,31 @@ impl<'a> AppArgs<'a> {
 
 #[derive(Debug)]
 enum FilePattern<'a> {
-    WithRE(Regex, PathBuf),
+    WithRE(RePattern<'a>, PathBuf),
     WithoutRE(&'a str),
 }
 
 #[derive(Debug)]
+struct RePattern<'a> {
+    inner: &'a str,
+}
+
+impl<'a> RePattern<'a> {
+    fn new(f: &'a str) -> Self {
+        Self { inner: f }
+    }
+
+    fn get_regex(&self) -> Regex {
+        let re1 = Regex::new("\\\\\\{key\\\\\\}").unwrap();
+        let st = re1
+            .replace(&regex::escape(self.inner), "(\\d+)")
+            .into_owned();
+        Regex::new(&st).unwrap()
+    }
+    // fn get_filenames(&self, keys: &KeyPattern) -> Vec<String> {}
+}
+
+#[derive(Debug, PartialEq)]
 enum KeyPattern {
     Single(u64),
     Range(Range<u64>),
@@ -172,8 +189,44 @@ async fn main() {
     let app_args = AppArgs::from_matches(&matches);
     info!("{:?}", app_args);
 
+    let addr = NetConfig::from_args(&app_args).get_uri();
     match app_args.subcommand {
-        _ => todo!(),
+        PUT_SC => {
+            let keys_names = match app_args.file_pattern {
+                Some(FilePattern::WithRE(re, dir)) => {
+                    // maybe create filenames from pattern AND keys and try to send them?
+                    if app_args.key_pattern != None {
+                        return error!("Either file pattern or key argument must be used");
+                    }
+                    prepare_from_pattern(&re.get_regex(), &dir, app_args.keysize).await
+                }
+                Some(FilePattern::WithoutRE(path)) => match app_args.key_pattern {
+                    None => {
+                        return error!("Key arg is required if not using file pattern");
+                    }
+                    Some(p) => match p {
+                        KeyPattern::Single(key) => {
+                            let key = get_key_value(key, app_args.keysize);
+                            vec![KeyName {
+                                key,
+                                name: path.to_string(),
+                            }]
+                        }
+                        _ => return error!("Multiple keys are not allowed without pattern"),
+                    },
+                },
+
+                None => return error!("Unknown error"),
+            };
+            for kn in keys_names {
+                info!(
+                    "PUT key: \"{:?}\" to \"{}\" from file \"{}\"",
+                    kn.key, addr, &kn.name
+                );
+                put(kn.key, &kn.name, addr.clone()).await;
+            }
+        }
+        _ => error!("Unknown command"),
     }
 
     // if let (sc, Some(sub_mathes)) = matches.subcommand() {
@@ -279,24 +332,22 @@ async fn main() {
     // }
 }
 
-// async fn put_with_pattern(file_pattern: &str, key_size: usize) -> Vec<KeyName> {
-//     let (re_path, dir) = prepare_file_regexp(file_pattern);
+async fn prepare_from_pattern(re_path: &Regex, dir: &PathBuf, key_size: usize) -> Vec<KeyName> {
+    let mut dir_iter = read_dir(dir).await.unwrap();
 
-//     let mut dir_iter = read_dir(dir).await.unwrap();
-
-//     let mut keys_names = Vec::new();
-//     while let Some(entry) = dir_iter.next_entry().await.unwrap() {
-//         let file = entry.path();
-//         if !file.is_dir() && re_path.is_match(file.to_str().unwrap()) {
-//             let name = file.to_str().unwrap().to_owned();
-//             let key = &re_path.captures(&name).unwrap()[1];
-//             let key = get_key_value(key.parse().unwrap(), key_size);
-//             keys_names.push(KeyName { key, name });
-//         }
-//     }
-//     info!("{:?}", keys_names);
-//     keys_names
-// }
+    let mut keys_names = Vec::new();
+    while let Some(entry) = dir_iter.next_entry().await.unwrap() {
+        let file = entry.path();
+        if !file.is_dir() && re_path.is_match(file.to_str().unwrap()) {
+            let name = file.to_str().unwrap().to_owned();
+            let key = &re_path.captures(&name).unwrap()[1];
+            let key = get_key_value(key.parse().unwrap(), key_size);
+            keys_names.push(KeyName { key, name });
+        }
+    }
+    info!("{:?}", keys_names);
+    keys_names
+}
 
 async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
     let file = File::open(filename).await;
