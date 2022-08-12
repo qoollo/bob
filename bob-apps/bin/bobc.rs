@@ -182,7 +182,7 @@ impl<'a> RePattern<'a> {
                 vec![(*val, RE.replace(self.inner, val.to_string()).into_owned())]
             }
             KeyPattern::Range(r) => {
-                r.clone() // idk how to use map without moving out a value
+                r.clone() // idk how to use map Range without moving out a value
                     .map(|n| (n, RE.replace(self.inner, n.to_string()).into_owned()))
                     .collect()
             }
@@ -241,14 +241,14 @@ async fn main() {
                     },
                 },
 
-                None => return error!("Unknown error"),
+                None => unreachable!(),
             };
             for kn in keys_names {
                 info!(
                     "PUT key: \"{:?}\" to \"{}\" from file \"{}\"",
                     kn.key, addr, &kn.name
                 );
-                put(kn.key, &kn.name, addr.clone()).await;
+                put(kn.key, &kn.name, addr.clone()).await; // i dont like this clone() but BobApiClient::connect requires owning
             }
         }
         GET_SC => {
@@ -259,78 +259,34 @@ async fn main() {
                     }
 
                     let files = re.get_filenames(&app_args.key_pattern.unwrap());
-                    let keys_names = prepare_get_from_pattern(files, app_args.keysize);
+                    let keys_names = prepare_get(files, app_args.keysize);
                     info!("{:?}", keys_names);
                     keys_names
                 }
-                _ => todo!(),
+                Some(FilePattern::WithoutRE(path)) => match app_args.key_pattern {
+                    Some(KeyPattern::Single(val)) => {
+                        prepare_get(vec![(val, path.to_string())], app_args.keysize)
+                    }
+                    Some(KeyPattern::Range(_)) | Some(KeyPattern::Multiple(_)) => {
+                        return error!("Multiple keys are not allowed without pattern")
+                    }
+                    None => unreachable!(),
+                },
+                None => unreachable!(),
             };
             for kn in keys_names {
                 info!(
                     "GET key:\"{:?}\" from  \"{}\" to file \"{}\"",
                     kn.key, addr, &kn.name
                 );
-                get(kn.key, &kn.name, addr.clone()).await;
+                get(kn.key, &kn.name, addr.clone()).await; // i dont like this clone()...
             }
         }
-
-        _ => error!("Unknown command"),
+        EXISTS_SC => {
+            todo!()
+        }
+        _ => unreachable!(),
     }
-
-    // if let (sc, Some(sub_mathes)) = matches.subcommand() {
-    //     match sc {
-    //         GET_SC => {
-    //             let file_pattern = sub_mathes.value_of(FILE_ARG).unwrap();
-    //             let key_size = sub_mathes.value_or_default(KEY_SIZE_ARG);
-
-    //             let keys_names = match parse_file_pattern(file_pattern) {
-    //                 ParsedPattern::WithoutRE => {
-    //                     let key = match sub_mathes.value_of(KEY_ARG) {
-    //                         None => {
-    //                             error!("Key arg is required if not using file pattern");
-    //                             return;
-    //                         }
-    //                         Some(k) => match k.to_string().parse() {
-    //                             Ok(k) => k,
-    //                             Err(e) => {
-    //                                 error!("{:?}", e);
-    //                                 return;
-    //                             }
-    //                         },
-    //                     };
-    //                     let key = get_key_value(key, key_size);
-    //                     vec![KeyName {
-    //                         key,
-    //                         name: file_pattern.to_string(),
-    //                     }]
-    //                 }
-    //                 ParsedPattern::WithRE => {
-    //                     // TODO: get with pattern
-    //                     prepare_keys(sub_mathes.value_of(KEY_ARG).expect("Key arg needed"));
-    //                     return;
-    //                 }
-    //                 ParsedPattern::Wrong => {
-    //                     error!("Wrong pattern");
-    //                     return;
-    //                 }
-    //             };
-
-    //             let addr = NetConfig::from_matches(&sub_mathes).get_uri();
-    //             for kn in keys_names {
-    //                 info!(
-    //                     "GET key:\"{:?}\" from  \"{}\" to file \"{}\"",
-    //                     kn.key, addr, &kn.name
-    //                 );
-    //                 get(kn.key, &kn.name, addr.clone()).await;
-    //             }
-    //         }
-    //         EXISTS_SC => {
-    //             info!("exists cmd");
-    //             todo!()
-    //         }
-    //         _ => {}
-    //     }
-    // }
 }
 
 async fn prepare_put_from_pattern(re_path: &Regex, dir: &PathBuf, key_size: usize) -> Vec<KeyName> {
@@ -350,7 +306,7 @@ async fn prepare_put_from_pattern(re_path: &Regex, dir: &PathBuf, key_size: usiz
     keys_names
 }
 
-fn prepare_get_from_pattern(filenames: Vec<(u64, String)>, key_size: usize) -> Vec<KeyName> {
+fn prepare_get(filenames: Vec<(u64, String)>, key_size: usize) -> Vec<KeyName> {
     let mut keys_names = Vec::with_capacity(filenames.len());
     for (i, name) in filenames {
         keys_names.push(KeyName {
