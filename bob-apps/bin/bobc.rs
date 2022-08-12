@@ -2,7 +2,7 @@
 extern crate log;
 
 use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use http::Uri;
 use log::LevelFilter;
 use std::fmt::Debug;
@@ -49,6 +49,12 @@ const GET_SC: &str = "get";
 const EXISTS_SC: &str = "exists";
 
 #[derive(Debug)]
+enum ParseError {
+    FilePattern,
+    KeyPattern,
+}
+
+#[derive(Debug)]
 struct AppArgs<'a> {
     subcommand: &'a str,
     file_pattern: Option<FilePattern<'a>>,
@@ -62,76 +68,81 @@ impl<'a> AppArgs<'a> {
     fn from_matches(matches: &'a ArgMatches<'a>) -> Self {
         let (subcommand, sub_matches) = matches.subcommand();
         let sub_matches = sub_matches.unwrap();
+        let file_pattern = match sub_matches.value_of(FILE_ARG) {
+            None => None,
+            Some(p) => match Self::parse_file_pattern(p) {
+                Ok(val) => Some(val),
+                Err(e) => panic!("{:?}", e),
+            },
+        };
+        let key_pattern = match sub_matches.value_of(KEY_ARG) {
+            None => None,
+            Some(p) => match Self::parse_key_pattern(p) {
+                Ok(val) => Some(val),
+                Err(e) => panic!("{:?}", e),
+            },
+        };
+
         Self {
             subcommand,
-            file_pattern: Self::parse_file_pattern(sub_matches.value_of(FILE_ARG)),
-            key_pattern: Self::parse_key_pattern(sub_matches.value_of(KEY_ARG)),
+            file_pattern,
+            key_pattern,
             keysize: sub_matches.value_or_default(KEY_SIZE_ARG),
             host: sub_matches.value_or_default(HOST_ARG),
             port: sub_matches.value_or_default(PORT_ARG),
         }
     }
-    fn parse_file_pattern(file_pattern: Option<&str>) -> Option<FilePattern<'_>> {
-        match file_pattern {
-            None => None,
-            Some(file_pattern) => {
+    fn parse_file_pattern(file_pattern: &str) -> Result<FilePattern<'_>, ParseError> {
+        let path = PathBuf::from(file_pattern);
+        let name = path.file_name().unwrap().to_str().unwrap();
+
+        let re = Regex::new("\\{key\\}").unwrap();
+        let two_or_more = Regex::new(".*\\{key\\}.*\\{key\\}.*").unwrap();
+
+        if re.is_match(name) {
+            if two_or_more.is_match(name) {
+                Err(ParseError::FilePattern)
+            } else {
+                let re1 = Regex::new("\\\\\\{key\\\\\\}").unwrap();
+                let st = re1
+                    .replace(&regex::escape(file_pattern), "(\\d+)")
+                    .into_owned();
+                let re_path = Regex::new(&st).unwrap();
+
                 let path = PathBuf::from(file_pattern);
-                let name = path.file_name().unwrap().to_str().unwrap();
 
-                let re = Regex::new("\\{key\\}").unwrap();
-                let two_or_more = Regex::new(".*\\{key\\}.*\\{key\\}.*").unwrap();
-
-                if re.is_match(name) {
-                    if two_or_more.is_match(name) {
-                        Some(FilePattern::Wrong)
-                    } else {
-                        let re1 = Regex::new("\\\\\\{key\\\\\\}").unwrap();
-                        let st = re1
-                            .replace(&regex::escape(file_pattern), "(\\d+)")
-                            .into_owned();
-                        let re_path = Regex::new(&st).unwrap();
-
-                        let path = PathBuf::from(file_pattern);
-
-                        let dir = match path.parent().unwrap() {
-                            p if p == Path::new("") => Path::new("."),
-                            p => p,
-                        };
-                        Some(FilePattern::WithRE(re_path, dir.to_owned()))
-                    }
-                } else {
-                    Some(FilePattern::WithoutRE(file_pattern))
-                }
+                let dir = match path.parent().unwrap() {
+                    p if p == Path::new("") => Path::new("."),
+                    p => p,
+                };
+                Ok(FilePattern::WithRE(re_path, dir.to_owned()))
             }
+        } else {
+            Ok(FilePattern::WithoutRE(file_pattern))
         }
     }
-    fn parse_key_pattern(key_arg_cont: Option<&str>) -> Option<KeyPattern> {
-        match key_arg_cont {
-            None => None,
-            Some(key_arg_cont) => {
-                if let Ok(key) = key_arg_cont.parse() {
-                    return Some(KeyPattern::Single(key));
-                }
-                if key_arg_cont.contains("-") {
-                    let v: Vec<&str> = key_arg_cont.split("-").collect();
-                    if v.len() != 2 {
-                        return Some(KeyPattern::Wrong);
-                    }
-                    let v: Vec<u64> = v.into_iter().map(|n| n.parse().unwrap()).collect();
-                    let range = v[0]..v[1];
-                    info!("{:?}", range);
-                    return Some(KeyPattern::Range(range));
-                }
-                Some(KeyPattern::Multiple(
-                    key_arg_cont
-                        .split(",")
-                        .collect::<Vec<&str>>()
-                        .into_iter()
-                        .map(|n| n.parse().unwrap())
-                        .collect(),
-                ))
-            }
+    fn parse_key_pattern(key_arg_cont: &str) -> Result<KeyPattern, ParseError> {
+        if let Ok(key) = key_arg_cont.parse() {
+            return Ok(KeyPattern::Single(key));
         }
+        if key_arg_cont.contains("-") {
+            let v: Vec<&str> = key_arg_cont.split("-").collect();
+            if v.len() != 2 {
+                return Err(ParseError::KeyPattern);
+            }
+            let v: Vec<u64> = v.into_iter().map(|n| n.parse().unwrap()).collect();
+            let range = v[0]..v[1];
+            info!("{:?}", range);
+            return Ok(KeyPattern::Range(range));
+        }
+        Ok(KeyPattern::Multiple(
+            key_arg_cont
+                .split(",")
+                .collect::<Vec<&str>>()
+                .into_iter()
+                .map(|n| n.parse().unwrap())
+                .collect(),
+        ))
     }
 }
 
@@ -139,7 +150,6 @@ impl<'a> AppArgs<'a> {
 enum FilePattern<'a> {
     WithRE(Regex, PathBuf),
     WithoutRE(&'a str),
-    Wrong,
 }
 
 #[derive(Debug)]
@@ -147,7 +157,6 @@ enum KeyPattern {
     Single(u64),
     Range(Range<u64>),
     Multiple(Vec<u64>),
-    Wrong,
 }
 
 #[derive(Debug)]
@@ -162,6 +171,11 @@ async fn main() {
     let matches = get_matches();
     let app_args = AppArgs::from_matches(&matches);
     info!("{:?}", app_args);
+
+    match app_args.subcommand {
+        _ => todo!(),
+    }
+
     // if let (sc, Some(sub_mathes)) = matches.subcommand() {
     //     match sc {
     //         PUT_SC => {
@@ -405,6 +419,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .arg(host_arg)
         .arg(port_arg);
     App::new("bobc")
+        .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(put_sc)
         .subcommand(get_sc)
         .subcommand(exists_sc)
