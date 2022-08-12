@@ -57,9 +57,7 @@ impl Pearl {
         F: Fn(&Holder) -> Fut + Clone,
         Fut: Future<Output = ()>,
     {
-        self.disk_controllers
-            .iter()
-            .chain(once(&self.alien_disk_controller))
+        self.all_disk_controllers()
             .map(|dc| dc.for_each_holder(f.clone()))
             .collect::<FuturesUnordered<_>>()
             .collect::<Vec<()>>()
@@ -79,6 +77,12 @@ impl Pearl {
         .await;
         res.into_inner()
     }
+
+    fn all_disk_controllers(&self) -> impl Iterator<Item = &Arc<DiskController>> {
+        self.disk_controllers
+            .iter()
+            .chain(once(&self.alien_disk_controller))
+    }
 }
 
 #[async_trait]
@@ -97,9 +101,7 @@ impl MetricsProducer for Pearl {
 
     async fn index_memory(&self) -> usize {
         let futs: FuturesUnordered<_> = self
-            .disk_controllers
-            .iter()
-            .chain(once(&self.alien_disk_controller))
+            .all_disk_controllers()
             .cloned()
             .map(|dc| async move { dc.index_memory().await })
             .collect();
@@ -117,9 +119,7 @@ impl MetricsProducer for Pearl {
 
     async fn disk_used_by_disk(&self) -> HashMap<DiskPath, u64> {
         let futs: FuturesUnordered<_> = self
-            .disk_controllers
-            .iter()
-            .chain(once(&self.alien_disk_controller))
+            .all_disk_controllers()
             .cloned()
             .map(|dc| async move { (dc.disk().clone(), dc.disk_used().await) })
             .collect();
@@ -219,12 +219,9 @@ impl BackendStorage for Pearl {
 
     async fn shutdown(&self) {
         use futures::stream::FuturesUnordered;
-        use std::iter::once;
         info!("begin shutdown");
         let futures = self
-            .disk_controllers
-            .iter()
-            .chain(once(&self.alien_disk_controller))
+            .all_disk_controllers()
             .map(|dc| async move { dc.shutdown().await })
             .collect::<FuturesUnordered<_>>();
         futures.collect::<()>().await;
@@ -236,14 +233,14 @@ impl BackendStorage for Pearl {
     }
 
     async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
-        for dc in self.disk_controllers.iter() {
+        for dc in self.all_disk_controllers() {
             dc.close_unneeded_active_blobs(soft, hard).await;
         }
     }
 
     async fn close_oldest_active_blob(&self) -> Option<usize> {
         let mut oldest: Option<Holder> = None;
-        for dc in self.disk_controllers.iter() {
+        for dc in self.all_disk_controllers() {
             if let Some(holder) = dc.find_oldest_inactive_holder().await {
                 if holder.end_timestamp()
                     < oldest
@@ -268,7 +265,7 @@ impl BackendStorage for Pearl {
     async fn free_least_used_resources(&self) -> Option<usize> {
         let mut least_modified: Option<Holder> = None;
         let mut min_modification = u64::MAX;
-        for dc in self.disk_controllers.iter() {
+        for dc in self.all_disk_controllers() {
             if let Some(holder) = dc.find_least_modified_freeable_holder().await {
                 let modification = holder.last_modification();
                 if modification < min_modification {
