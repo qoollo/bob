@@ -4,17 +4,17 @@ extern crate log;
 use bob::{Blob, BlobKey, BlobMeta, BobApiClient, GetRequest, PutRequest};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use http::Uri;
+use lazy_static::lazy_static;
 use log::LevelFilter;
+use regex::Regex;
 use std::fmt::Debug;
+use std::ops::Range;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs::{read_dir, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tonic::Request;
-
-use regex::Regex;
-use std::ops::Range;
-use std::path::{Path, PathBuf};
 
 struct NetConfig {
     port: u16,
@@ -128,7 +128,12 @@ impl<'a> AppArgs<'a> {
                 return Err(ParseError::KeyPattern);
             }
             let v: Vec<u64> = v.into_iter().map(|n| n.parse().unwrap()).collect();
-            let range = v[0]..v[1];
+            // do we include the most right value in range? (e.g. 3 in 1-3)
+            let range = if v[0] < v[1] {
+                v[0]..v[1] + 1 // possible overflow
+            } else {
+                v[1]..v[0] + 1
+            };
             info!("{:?}", range);
             return Ok(KeyPattern::Range(range));
         }
@@ -160,13 +165,33 @@ impl<'a> RePattern<'a> {
     }
 
     fn get_regex(&self) -> Regex {
-        let re1 = Regex::new("\\\\\\{key\\\\\\}").unwrap();
-        let st = re1
+        lazy_static! {
+            static ref RE: Regex = Regex::new("\\\\\\{key\\\\\\}").unwrap();
+        }
+        let st = RE
             .replace(&regex::escape(self.inner), "(\\d+)")
             .into_owned();
         Regex::new(&st).unwrap()
     }
-    // fn get_filenames(&self, keys: &KeyPattern) -> Vec<String> {}
+    fn get_filenames(&self, keys: &KeyPattern) -> Vec<(u64, String)> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new("\\{key\\}").unwrap();
+        }
+        match keys {
+            KeyPattern::Single(val) => {
+                vec![(*val, RE.replace(self.inner, val.to_string()).into_owned())]
+            }
+            KeyPattern::Range(r) => {
+                r.clone() // idk how to use map without moving out a value
+                    .map(|n| (n, RE.replace(self.inner, n.to_string()).into_owned()))
+                    .collect()
+            }
+            KeyPattern::Multiple(v) => v
+                .into_iter()
+                .map(|n| (*n, RE.replace(self.inner, n.to_string()).into_owned()))
+                .collect(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -198,7 +223,7 @@ async fn main() {
                     if app_args.key_pattern != None {
                         return error!("Either file pattern or key argument must be used");
                     }
-                    prepare_from_pattern(&re.get_regex(), &dir, app_args.keysize).await
+                    prepare_put_from_pattern(&re.get_regex(), &dir, app_args.keysize).await
                 }
                 Some(FilePattern::WithoutRE(path)) => match app_args.key_pattern {
                     None => {
@@ -226,58 +251,34 @@ async fn main() {
                 put(kn.key, &kn.name, addr.clone()).await;
             }
         }
+        GET_SC => {
+            let keys_names = match app_args.file_pattern {
+                Some(FilePattern::WithRE(re, _)) => {
+                    if app_args.key_pattern == None {
+                        return error!("Key arg is required when using pattern");
+                    }
+
+                    let files = re.get_filenames(&app_args.key_pattern.unwrap());
+                    let keys_names = prepare_get_from_pattern(files, app_args.keysize);
+                    info!("{:?}", keys_names);
+                    keys_names
+                }
+                _ => todo!(),
+            };
+            for kn in keys_names {
+                info!(
+                    "GET key:\"{:?}\" from  \"{}\" to file \"{}\"",
+                    kn.key, addr, &kn.name
+                );
+                get(kn.key, &kn.name, addr.clone()).await;
+            }
+        }
+
         _ => error!("Unknown command"),
     }
 
     // if let (sc, Some(sub_mathes)) = matches.subcommand() {
     //     match sc {
-    //         PUT_SC => {
-    //             let file_pattern = sub_mathes.value_of(FILE_ARG).unwrap();
-    //             let key_size = sub_mathes.value_or_default(KEY_SIZE_ARG);
-
-    //             let keys_names = match parse_file_pattern(file_pattern) {
-    //                 ParsedPattern::WithoutRE => {
-    //                     let key = match sub_mathes.value_of(KEY_ARG) {
-    //                         None => {
-    //                             error!("Key arg is required if not using file pattern");
-    //                             return;
-    //                         }
-    //                         Some(k) => match k.to_string().parse() {
-    //                             Ok(k) => k,
-    //                             Err(e) => {
-    //                                 error!("{:?}", e);
-    //                                 return;
-    //                             }
-    //                         },
-    //                     };
-    //                     let key = get_key_value(key, key_size);
-    //                     vec![KeyName {
-    //                         key,
-    //                         name: file_pattern.to_string(),
-    //                     }]
-    //                 }
-    //                 ParsedPattern::WithRE => {
-    //                     if sub_mathes.is_present(KEY_ARG) {
-    //                         error!("Either file pattern or key argument must be used");
-    //                         return;
-    //                     }
-    //                     put_with_pattern(file_pattern, key_size).await
-    //                 }
-    //                 ParsedPattern::Wrong => {
-    //                     error!("Wrong pattern");
-    //                     return;
-    //                 }
-    //             };
-
-    //             let addr = NetConfig::from_matches(&sub_mathes).get_uri();
-    //             for kn in keys_names {
-    //                 info!(
-    //                     "PUT key: \"{:?}\" to \"{}\" from file \"{}\"",
-    //                     kn.key, addr, &kn.name
-    //                 );
-    //                 put(kn.key, &kn.name, addr.clone()).await;
-    //             }
-    //         }
     //         GET_SC => {
     //             let file_pattern = sub_mathes.value_of(FILE_ARG).unwrap();
     //             let key_size = sub_mathes.value_or_default(KEY_SIZE_ARG);
@@ -332,7 +333,7 @@ async fn main() {
     // }
 }
 
-async fn prepare_from_pattern(re_path: &Regex, dir: &PathBuf, key_size: usize) -> Vec<KeyName> {
+async fn prepare_put_from_pattern(re_path: &Regex, dir: &PathBuf, key_size: usize) -> Vec<KeyName> {
     let mut dir_iter = read_dir(dir).await.unwrap();
 
     let mut keys_names = Vec::new();
@@ -346,6 +347,17 @@ async fn prepare_from_pattern(re_path: &Regex, dir: &PathBuf, key_size: usize) -
         }
     }
     info!("{:?}", keys_names);
+    keys_names
+}
+
+fn prepare_get_from_pattern(filenames: Vec<(u64, String)>, key_size: usize) -> Vec<KeyName> {
+    let mut keys_names = Vec::with_capacity(filenames.len());
+    for (i, name) in filenames {
+        keys_names.push(KeyName {
+            key: get_key_value(i, key_size),
+            name,
+        })
+    }
     keys_names
 }
 
@@ -458,6 +470,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .arg(&host_arg)
         .arg(&port_arg)
         .arg(file_arg.clone().help("Input file"));
+    let key_arg = key_arg.required(true);
     let get_sc = SubCommand::with_name(GET_SC)
         .arg(&key_arg)
         .arg(&key_size_arg)
@@ -465,7 +478,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .arg(&port_arg)
         .arg(file_arg.help("Output file"));
     let exists_sc = SubCommand::with_name(EXISTS_SC)
-        .arg(key_arg.required(true))
+        .arg(key_arg)
         .arg(key_size_arg)
         .arg(host_arg)
         .arg(port_arg);
