@@ -2,9 +2,9 @@ use crate::prelude::*;
 
 use super::{
     operations::{
-        delete_at_least, delete_at_local_node, group_keys_by_nodes, lookup_local_alien,
-        lookup_local_node, lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all,
-        put_local_node, put_sup_nodes, Tasks,
+        delete, delete_at_local_node, group_keys_by_nodes, lookup_local_alien, lookup_local_node,
+        lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all, put_local_node,
+        put_sup_nodes, Tasks,
     },
     Cluster,
 };
@@ -78,10 +78,9 @@ impl Quorum {
         }
     }
 
-    async fn delete_at_least(&self, key: BobKey, with_aliens: bool) -> Result<(), Error> {
+    async fn delete_on_nodes(&self, key: BobKey, with_aliens: bool) -> Result<(), Error> {
         debug!("DELETE[{}] ~~~DELETE LOCAL NODE FIRST~~~", key);
         let mut local_put_ok = 0_usize;
-        let mut remote_ok_count = 0_usize;
         let mut failed_nodes = Vec::new();
         let res = delete_at_local_node(&self.backend, key, with_aliens).await;
         if let Err(e) = res {
@@ -93,23 +92,20 @@ impl Quorum {
         }
 
         debug!("DELETE[{}] ~~~DELETE TO REMOTE NODES~~~", key);
-        let (tasks, errors) = self.delete_at_remote_nodes(key, with_aliens).await;
+        let errors = self.delete_at_remote_nodes(key, with_aliens).await;
         let all_count = self.mapper.get_target_nodes_for_key(key).len();
-        remote_ok_count += all_count - errors.len() - tasks.len() - local_put_ok;
+        let remote_ok_count = all_count - errors.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
-        if remote_ok_count + local_put_ok >= self.quorum {
-            debug!("DELETE[{}] spawn {} background put tasks", key, tasks.len());
-            let q = self.clone();
-            tokio::spawn(q.background_delete(tasks, key, failed_nodes));
-            Ok(())
-        } else {
+        if failed_nodes.len() > 0 {
             warn!(
-                "DELETE[{}] quorum was not reached. ok {}, quorum {}, errors: {:?}",
+                "DELETE[{}] was not successful. ok {}, failed {}, errors: {:?}",
                 key,
                 remote_ok_count + local_put_ok,
-                self.quorum,
+                errors.len(),
                 errors
             );
+            Err(Error::failed("Data was deleted not on all nodes"))
+        } else {
             Ok(())
         }
     }
@@ -144,29 +140,6 @@ impl Quorum {
         }
     }
 
-    async fn background_delete(
-        self,
-        mut rest_tasks: Tasks,
-        key: BobKey,
-        mut failed_nodes: Vec<String>,
-    ) {
-        debug!("DELETE[{}] ~~~BACKGROUND DELETE TO REMOTE NODES~~~", key);
-        while let Some(join_res) = rest_tasks.next().await {
-            match join_res {
-                Ok(Ok(output)) => debug!(
-                    "DELETE[{}] successful background delete to: {}",
-                    key,
-                    output.node_name()
-                ),
-                Ok(Err(e)) => {
-                    error!("{:?}", e);
-                    failed_nodes.push(e.node_name().to_string());
-                }
-                Err(e) => error!("{:?}", e),
-            }
-        }
-    }
-
     pub(crate) async fn put_remote_nodes(
         &self,
         key: BobKey,
@@ -188,7 +161,7 @@ impl Quorum {
         &self,
         key: BobKey,
         with_aliens: bool,
-    ) -> (Tasks, Vec<NodeOutput<Error>>) {
+    ) -> Vec<NodeOutput<Error>> {
         let local_node = self.mapper.local_node_name();
         let mut target_nodes = vec![];
         if with_aliens {
@@ -208,7 +181,7 @@ impl Quorum {
         let target_nodes = target_nodes
             .into_iter()
             .filter(|node| node.name() != local_node);
-        delete_at_least(
+        delete(
             key,
             target_nodes,
             count,
@@ -322,6 +295,6 @@ impl Cluster for Quorum {
     }
 
     async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<(), Error> {
-        self.delete_at_least(key, with_aliens).await
+        self.delete_on_nodes(key, with_aliens).await
     }
 }

@@ -92,16 +92,18 @@ pub(crate) async fn put_at_least(
     .await
 }
 
-pub(crate) async fn delete_at_least(
+pub(crate) async fn delete(
     key: BobKey,
     target_nodes: impl Iterator<Item = &Node>,
-    at_least: usize,
+    target_nodes_count: usize,
     options: DeleteOptions,
-) -> (Tasks, Vec<NodeOutput<Error>>) {
-    call_at_least(target_nodes, at_least, |n| {
+) -> Vec<NodeOutput<Error>> {
+    let (tasks, errors) = call_at_least(target_nodes, target_nodes_count, |n| {
         call_node_delete(key, options.clone(), n)
     })
-    .await
+    .await;
+    assert!(tasks.is_empty());
+    errors
 }
 
 async fn call_at_least(
