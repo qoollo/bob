@@ -23,7 +23,7 @@ use std::{
     io::{Error as IoError, ErrorKind},
     net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
-    str::FromStr,
+    str::FromStr, collections::HashMap,
 };
 use tokio::fs::{read_dir, ReadDir};
 use uuid::Uuid;
@@ -139,6 +139,8 @@ pub(crate) struct SpaceInfo {
     total_disk_space_bytes: u64,
     free_disk_space_bytes: u64,
     used_disk_space_bytes: u64,
+    occupied_disk_space_bytes: u64,
+    occupied_disk_space_by_disk: HashMap<String, u64>
 }
 
 pub(crate) fn spawn<A>(bob: BobServer<A>, address: IpAddr, port: u16)
@@ -279,10 +281,25 @@ async fn get_space_info<A: Authenticator>(bob: Extension<BobServer<A>>) -> Resul
         free_space,
     } = bob.grinder().hw_counter().update_space_metrics();
 
+    let backend = bob.grinder().backend().inner();
+    let (dcs, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    let mut map = HashMap::new();
+    for dc in dcs.iter() {
+        map.insert(dc.disk().name().to_string(), dc.disk_used().await);
+    }
+    let adc_space = adc.disk_used().await;
+    map.entry(adc.disk().name().to_string())
+        .and_modify(|s| *s = *s + adc_space)
+        .or_insert(adc_space);
+
     Ok(Json(SpaceInfo {
         total_disk_space_bytes: total_space,
         used_disk_space_bytes: used_space,
         free_disk_space_bytes: free_space,
+        occupied_disk_space_bytes: map.values().sum(),
+        occupied_disk_space_by_disk: map
     }))
 }
 

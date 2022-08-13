@@ -41,7 +41,8 @@ async fn main() {
     println!("Node config: {:?}", node_config_file);
     let node = cluster.get(node_config_file).await.unwrap();
 
-    log4rs::init_file(node.log_config(), Default::default()).expect("can't find log config");
+    log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
+        .expect("can't find log config");
 
     check_folders(&node, matches.is_present("init_folders"));
 
@@ -100,9 +101,7 @@ async fn main() {
     let authentication_type = node.authentication_type();
     match authentication_type {
         AuthenticationType::None => {
-            let users_storage =
-                UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
-            let authenticator = StubAuthenticator::new(users_storage);
+            let authenticator = StubAuthenticator::new();
             run_server(node, authenticator, mapper, http_api_address, http_api_port, addr).await;
         }
         AuthenticationType::Basic => {
@@ -124,7 +123,7 @@ async fn main() {
 async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
     let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
     let handle = Handle::current();
-    let factory = Factory::new(node.operation_timeout(), metrics);
+    let factory = Factory::new(node.operation_timeout(), metrics, node.name().into());
 
     let bob = BobServer::new(
         Grinder::new(mapper, &node).await,
@@ -206,6 +205,7 @@ fn spawn_signal_handler<A: Authenticator>(
         task.recv().await;
         debug!("Got signal {:?}", s);
         server.shutdown().await;
+        log::logger().flush();
         std::process::exit(0);
     });
     Ok(())

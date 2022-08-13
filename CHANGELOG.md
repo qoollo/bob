@@ -5,14 +5,49 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Add clusterwide delete operation (#364)
-- Memory limit for indexes (#466)
-- Access management (#217)
-  - Nodes authentication. (#318)
-  - Authorization parameters in bobp (#425)
-  - Http API authentication. (#217)
 
 #### Changed
-- Rocket replaced with axum. (#217)
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.5] - 2022-08-04
+#### Added
+- Add occupied disk space to api and metrics (#501)
+- If no credentials provided and default user specified in config, then request will have default user permissions (#437)
+- SHA512 hash of password with salt 'bob' can be specified instead of password (#304)
+- User's permissions can be set via role and/or claims (#408)
+- Check correctness tool, bobt (#542)
+
+#### Changed
+- Move files for linux packages into separate directory (#534)
+- Defer index offload on deletion (#363)
+
+#### Fixed
+- Fixed internode authorization error (#530)
+- "CredentialsNotProvided", "UserNotFound", "UnauthorizedRequest" now have "Unauthenticated" code (#528)
+- Added conversion of "unauthorized" status into internal error (#540)
+
+#### Updated
+- Pearl updated to v0.13.0
+
+
+## [2.1.0-alpha.4] - 2022-07-04
+#### Added
+- Memory limit for indexes (#466)
+- Add support for logstash (#243)
+- Access management (#217)
+  - Nodes authentication (#318)
+  - Authorization parameters in bobp (#425)
+  - Http API authentication (#217)
+
+#### Changed
+- Rocket replaced with axum (#217)
 - Add special cmp for keys with sizes aligned with word (#496)
 - Publish available ram metric instead of calculated free ram, used ram is now calculated (#508)
 - Log about disk availability would be written once (#499)
