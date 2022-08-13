@@ -312,11 +312,7 @@ impl BackendStorage for Pearl {
 
     async fn filter_memory_allocated(&self) -> usize {
         let mut memory = 0;
-        for dc in self
-            .disk_controllers
-            .iter()
-            .chain(Some(&self.alien_disk_controller))
-        {
+        for dc in self.all_disk_controllers() {
             memory += dc.filter_memory_allocated().await;
         }
         memory
