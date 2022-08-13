@@ -8,7 +8,7 @@ use lazy_static::lazy_static;
 use log::LevelFilter;
 use regex::Regex;
 use std::fmt::Debug;
-use std::ops::Range;
+use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -128,13 +128,8 @@ impl<'a> AppArgs<'a> {
                 return Err(ParseError::KeyPattern);
             }
             let v: Vec<u64> = v.into_iter().map(|n| n.parse().unwrap()).collect();
-            // do we include the most right value in range? (e.g. 3 in 1-3)
-            let range = if v[0] < v[1] {
-                v[0]..v[1] + 1 // possible overflow
-            } else {
-                v[1]..v[0] + 1
-            };
-            info!("{:?}", range);
+            // do we include the right-most value in range? (e.g. 3 in 1-3)
+            let range = v[0]..=v[1];
             return Ok(KeyPattern::Range(range));
         }
         Ok(KeyPattern::Multiple(
@@ -197,7 +192,7 @@ impl<'a> RePattern<'a> {
 #[derive(Debug, PartialEq)]
 enum KeyPattern {
     Single(u64),
-    Range(Range<u64>),
+    Range(RangeInclusive<u64>),
     Multiple(Vec<u64>),
 }
 
@@ -285,16 +280,19 @@ async fn main() {
         EXISTS_SC => {
             match app_args.key_pattern {
                 Some(KeyPattern::Single(val)) => {
-                    // TODO: get proper key + exist() call
-                    todo!()
+                    let key = get_key_value(val, app_args.keysize);
+                    exist(vec![key], addr).await;
                 }
                 Some(KeyPattern::Range(range)) => {
-                    // TODO: interator 1 + exist() call
-                    todo!()
+                    // FIXME: empty response when range is descending (14-1)
+                    let keysize = app_args.keysize;
+                    let keys = range.map(|v| get_key_value(v, keysize)).collect();
+                    exist(keys, addr).await;
                 }
                 Some(KeyPattern::Multiple(vec)) => {
-                    // TODO: iterator 2 + exist() call
-                    todo!()
+                    let keysize = app_args.keysize;
+                    let keys = vec.into_iter().map(|v| get_key_value(v, keysize)).collect();
+                    exist(keys, addr).await;
                 }
                 None => unreachable!()
             }
