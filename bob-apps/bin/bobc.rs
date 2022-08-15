@@ -204,7 +204,6 @@ async fn main() {
     env_logger::builder().filter_level(LevelFilter::Info).init();
     let matches = get_matches();
     let app_args = AppArgs::from_matches(&matches);
-    info!("{:?}", app_args);
 
     let addr = NetConfig::from_args(&app_args).get_uri();
     match app_args.subcommand {
@@ -252,7 +251,6 @@ async fn main() {
 
                     let files = re.get_filenames(&app_args.key_pattern.unwrap());
                     let keys_names = prepare_get(files, app_args.keysize);
-                    info!("{:?}", keys_names);
                     keys_names
                 }
                 FilePattern::WithoutRE(path) => match app_args.key_pattern.unwrap() {
@@ -300,14 +298,12 @@ async fn prepare_put_from_pattern(re_path: &Regex, dir: &PathBuf, key_size: usiz
     let mut keys_names = Vec::new();
     while let Some(entry) = dir_iter.next_entry().await.unwrap() {
         let file = entry.path();
-        if !file.is_dir() && re_path.is_match(file.to_str().unwrap()) {
             let name = file.to_str().unwrap().to_owned();
-            let key = &re_path.captures(&name).unwrap()[1];
-            let key = get_key_value(key.parse().unwrap(), key_size);
-            keys_names.push(KeyName { key, name });
-        }
+            if let (false, Some(cap)) = (file.is_dir(), re_path.captures(&name)) {
+                let key = get_key_value(cap[1].parse().unwrap(), key_size);
+                keys_names.push(KeyName { key, name });
+            }
     }
-    info!("{:?}", keys_names);
     keys_names
 }
 
