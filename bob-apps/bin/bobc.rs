@@ -244,8 +244,8 @@ async fn main() {
             }
         }
         GET_SC => {
-            let keys_names = match app_args.file_pattern {
-                Some(FilePattern::WithRE(re, _)) => {
+            let keys_names = match app_args.file_pattern.unwrap() {
+                FilePattern::WithRE(re, _) => {
                     if app_args.key_pattern == None {
                         return error!("Key arg is required when using pattern");
                     }
@@ -255,16 +255,14 @@ async fn main() {
                     info!("{:?}", keys_names);
                     keys_names
                 }
-                Some(FilePattern::WithoutRE(path)) => match app_args.key_pattern {
-                    Some(KeyPattern::Single(val)) => {
+                FilePattern::WithoutRE(path) => match app_args.key_pattern.unwrap() {
+                    KeyPattern::Single(val) => {
                         prepare_get(vec![(val, path.to_string())], app_args.keysize)
                     }
-                    Some(KeyPattern::Range(_)) | Some(KeyPattern::Multiple(_)) => {
+                    KeyPattern::Range(_) | KeyPattern::Multiple(_) => {
                         return error!("Multiple keys are not allowed without pattern")
                     }
-                    None => unreachable!(),
                 },
-                None => unreachable!(),
             };
             for kn in keys_names {
                 info!(
@@ -275,22 +273,21 @@ async fn main() {
             }
         }
         EXISTS_SC => {
-            match app_args.key_pattern {
-                Some(KeyPattern::Single(val)) => {
+            match app_args.key_pattern.unwrap() {
+                KeyPattern::Single(val) => {
                     let key = get_key_value(val, app_args.keysize);
                     exist(vec![key], addr).await;
                 }
-                Some(KeyPattern::Range(range)) => {
+                KeyPattern::Range(range) => {
                     let keysize = app_args.keysize;
                     let keys = range.map(|v| get_key_value(v, keysize)).collect();
                     exist(keys, addr).await;
                 }
-                Some(KeyPattern::Multiple(vec)) => {
+                KeyPattern::Multiple(vec) => {
                     let keysize = app_args.keysize;
                     let keys = vec.into_iter().map(|v| get_key_value(v, keysize)).collect();
                     exist(keys, addr).await;
                 }
-                None => unreachable!()
             }
         }
         _ => unreachable!(),
