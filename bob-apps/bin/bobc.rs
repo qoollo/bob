@@ -97,12 +97,10 @@ impl<'a> AppArgs<'a> {
         let name = path.file_name().unwrap().to_str().unwrap();
 
         let re = Regex::new("\\{key\\}").unwrap();
-        let two_or_more = Regex::new(".*\\{key\\}.*\\{key\\}.*").unwrap();
 
-        if re.is_match(name) {
-            if two_or_more.is_match(name) {
-                Err(ParseError::FilePattern)
-            } else {
+        match re.find_iter(name).count() {
+            0 => Ok(FilePattern::WithoutRE(file_pattern)),
+            1 => {
                 let path = PathBuf::from(file_pattern);
 
                 let dir = match path.parent().unwrap() {
@@ -113,9 +111,9 @@ impl<'a> AppArgs<'a> {
                     RePattern::new(file_pattern),
                     dir.to_owned(),
                 ))
-            }
-        } else {
-            Ok(FilePattern::WithoutRE(file_pattern))
+                
+            },
+            _ => Err(ParseError::FilePattern),
         }
     }
     fn parse_key_pattern(key_arg_cont: &str) -> Result<KeyPattern, ParseError> {
