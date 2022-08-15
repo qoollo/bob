@@ -125,8 +125,7 @@ impl<'a> AppArgs<'a> {
             if v.len() != 2 || v[0] >= v[1] {
                 return Err(ParseError::KeyPattern);
             }
-            let v: Vec<u64> = v.into_iter().map(|n| n.parse().unwrap()).collect();
-            let range = v[0]..=v[1];
+            let range = v[0].parse().unwrap()..=v[1].parse().unwrap();
             return Ok(KeyPattern::Range(range));
         }
         Ok(KeyPattern::Multiple(
