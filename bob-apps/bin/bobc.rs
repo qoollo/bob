@@ -124,7 +124,7 @@ impl<'a> AppArgs<'a> {
         }
         if key_arg_cont.contains("-") {
             let v: Vec<&str> = key_arg_cont.split("-").collect();
-            if v.len() != 2 {
+            if v.len() != 2 || v[0] > v[1] {
                 return Err(ParseError::KeyPattern);
             }
             let v: Vec<u64> = v.into_iter().map(|n| n.parse().unwrap()).collect();
