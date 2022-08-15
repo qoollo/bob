@@ -128,7 +128,6 @@ impl<'a> AppArgs<'a> {
                 return Err(ParseError::KeyPattern);
             }
             let v: Vec<u64> = v.into_iter().map(|n| n.parse().unwrap()).collect();
-            // do we include the right-most value in range? (e.g. 3 in 1-3)
             let range = v[0]..=v[1];
             return Ok(KeyPattern::Range(range));
         }
@@ -284,7 +283,6 @@ async fn main() {
                     exist(vec![key], addr).await;
                 }
                 Some(KeyPattern::Range(range)) => {
-                    // FIXME: empty response when range is descending (14-1)
                     let keysize = app_args.keysize;
                     let keys = range.map(|v| get_key_value(v, keysize)).collect();
                     exist(keys, addr).await;
