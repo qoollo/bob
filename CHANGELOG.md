@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Support for files, file name patterns, key ranges and a 'exists' subcommand to 'bobc' (#539)
 
 
 #### Changed
