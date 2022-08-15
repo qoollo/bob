@@ -39,7 +39,7 @@ impl NetConfig {
 }
 
 const KEY_ARG: &str = "key";
-const KEY_SIZE_ARG: &str = "keysize";
+const KEY_SIZE_ARG: &str = "key-size";
 const HOST_ARG: &str = "host";
 const PORT_ARG: &str = "port";
 const FILE_ARG: &str = "file";
@@ -425,28 +425,28 @@ async fn exist(keys: Vec<Vec<u8>>, addr: Uri) {
 fn get_matches<'a>() -> ArgMatches<'a> {
     let key_arg = Arg::with_name(KEY_ARG)
         .short("k")
-        .long("key")
+        .long(KEY_ARG)
         .value_name("KEY")
         .takes_value(true);
     let key_size_arg = Arg::with_name(KEY_SIZE_ARG)
         .help("Size of the binary key")
+        .long(KEY_SIZE_ARG)
+        .value_name("KEY-SIZE")
         .takes_value(true)
-        .long("size")
-        .short("s")
         .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8"));
     let host_arg = Arg::with_name(HOST_ARG)
-        .long("host")
+        .long(HOST_ARG)
         .value_name("HOST")
         .takes_value(true)
         .default_value("127.0.0.1");
     let port_arg = Arg::with_name(PORT_ARG)
-        .long("port")
+        .long(PORT_ARG)
         .value_name("PORT")
         .takes_value(true)
         .default_value("20000");
     let file_arg = Arg::with_name(FILE_ARG)
         .short("f")
-        .long("file")
+        .long(FILE_ARG)
         .takes_value(true)
         .value_name("FILE")
         .required(true);
