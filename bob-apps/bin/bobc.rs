@@ -134,8 +134,6 @@ impl<'a> AppArgs<'a> {
         Ok(KeyPattern::Multiple(
             key_arg_cont
                 .split(",")
-                .collect::<Vec<&str>>()
-                .into_iter()
                 .map(|n| n.parse().unwrap())
                 .collect(),
         ))
