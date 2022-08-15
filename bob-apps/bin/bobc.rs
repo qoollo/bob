@@ -334,7 +334,7 @@ async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
 
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .expect("msg: &str")
+                .unwrap()
                 .as_secs();
             let meta = BlobMeta { timestamp };
 
