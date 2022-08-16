@@ -57,9 +57,7 @@ impl Pearl {
         F: Fn(&Holder) -> Fut + Clone,
         Fut: Future<Output = ()>,
     {
-        self.disk_controllers
-            .iter()
-            .chain(once(&self.alien_disk_controller))
+        self.all_disk_controllers()
             .map(|dc| dc.for_each_holder(f.clone()))
             .collect::<FuturesUnordered<_>>()
             .collect::<Vec<()>>()
@@ -79,6 +77,12 @@ impl Pearl {
         .await;
         res.into_inner()
     }
+
+    fn all_disk_controllers(&self) -> impl Iterator<Item = &Arc<DiskController>> {
+        self.disk_controllers
+            .iter()
+            .chain(once(&self.alien_disk_controller))
+    }
 }
 
 #[async_trait]
@@ -97,9 +101,7 @@ impl MetricsProducer for Pearl {
 
     async fn index_memory(&self) -> usize {
         let futs: FuturesUnordered<_> = self
-            .disk_controllers
-            .iter()
-            .chain(once(&self.alien_disk_controller))
+            .all_disk_controllers()
             .cloned()
             .map(|dc| async move { dc.index_memory().await })
             .collect();
@@ -122,9 +124,8 @@ impl BackendStorage for Pearl {
         // vec![vec![]; n] macro requires Clone trait, and future does not implement it
         let start = Instant::now();
         let futs = FuturesUnordered::new();
-        let alien_iter = once(&self.alien_disk_controller);
         let postprocessor = BloomFilterMemoryLimitHooks::new(self.bloom_filter_memory_limit);
-        for dc in self.disk_controllers.iter().chain(alien_iter).cloned() {
+        for dc in self.all_disk_controllers().cloned() {
             let pp = postprocessor.clone();
             futs.push(async move { dc.run(pp).await });
         }
@@ -204,12 +205,9 @@ impl BackendStorage for Pearl {
 
     async fn shutdown(&self) {
         use futures::stream::FuturesUnordered;
-        use std::iter::once;
         info!("begin shutdown");
         let futures = self
-            .disk_controllers
-            .iter()
-            .chain(once(&self.alien_disk_controller))
+            .all_disk_controllers()
             .map(|dc| async move { dc.shutdown().await })
             .collect::<FuturesUnordered<_>>();
         futures.collect::<()>().await;
@@ -221,7 +219,7 @@ impl BackendStorage for Pearl {
     }
 
     async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
-        for dc in self.disk_controllers.iter() {
+        for dc in self.all_disk_controllers() {
             dc.close_unneeded_active_blobs(soft, hard).await;
         }
     }
@@ -232,11 +230,7 @@ impl BackendStorage for Pearl {
 
     async fn filter_memory_allocated(&self) -> usize {
         let mut memory = 0;
-        for dc in self
-            .disk_controllers
-            .iter()
-            .chain(Some(&self.alien_disk_controller))
-        {
+        for dc in self.all_disk_controllers() {
             memory += dc.filter_memory_allocated().await;
         }
         memory

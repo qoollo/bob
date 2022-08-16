@@ -7,7 +7,7 @@ Bob versions changelog
 
 
 #### Changed
-
+- Fix alien indexes offloading (#560)
 
 #### Fixed
 
