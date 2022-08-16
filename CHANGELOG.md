@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Remove unnecessary data clone (#506)
 
 #### Updated
 
@@ -31,7 +31,7 @@ Bob versions changelog
 - Log about disk availability would be written once (#499)
 
 #### Fixed
-- Remove unnecessary data clone (#506)
+
 
 #### Updated
 
