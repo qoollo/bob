@@ -197,31 +197,27 @@ async fn main() {
     let addr = NetConfig::from_args(&app_args).get_uri();
     match app_args.subcommand.as_str() {
         PUT_SC => {
-            let keys_names = match app_args.file_pattern {
-                Some(FilePattern::WithRE(re, dir)) => {
-                    // maybe create filenames from pattern AND keys and try to send them?
-                    if app_args.key_pattern != None {
-                        return error!("Either file pattern or key argument must be used");
-                    }
+            let keys_names = match (app_args.file_pattern.unwrap(), app_args.key_pattern) {
+                (FilePattern::WithRE(re, dir), None) => {
                     prepare_put_from_pattern(&re.get_regex(), &dir, app_args.keysize).await
                 }
-                Some(FilePattern::WithoutRE(path)) => match app_args.key_pattern {
-                    None => {
-                        return error!("Key arg is required if not using file pattern");
-                    }
-                    Some(p) => match p {
-                        KeyPattern::Single(key) => {
-                            let key = get_key_value(key, app_args.keysize);
-                            vec![KeyName {
-                                key,
-                                name: path.to_string(),
-                            }]
-                        }
-                        _ => return error!("Multiple keys are not allowed without pattern"),
-                    },
-                },
-
-                None => unreachable!(),
+                (FilePattern::WithRE(_, _), _) => {
+                    // maybe create filenames from pattern AND keys and try to send them?
+                    return error!("Either file pattern or key argument must be used");
+                }
+                (FilePattern::WithoutRE(path), Some(KeyPattern::Single(key))) => {
+                    let key = get_key_value(key, app_args.keysize);
+                    vec![KeyName {
+                        key,
+                        name: path.to_string(),
+                    }]
+                }
+                (FilePattern::WithoutRE(_), Some(_)) => {
+                    return error!("Multiple keys are not allowed without pattern")
+                }
+                (FilePattern::WithoutRE(_), None) => {
+                    return error!("Key arg is required if not using file pattern");
+                }
             };
             for kn in keys_names {
                 info!(
@@ -232,24 +228,17 @@ async fn main() {
             }
         }
         GET_SC => {
-            let keys_names = match app_args.file_pattern.unwrap() {
-                FilePattern::WithRE(re, _) => {
-                    if app_args.key_pattern == None {
-                        return error!("Key arg is required when using pattern");
-                    }
-
-                    let files = re.get_filenames(&app_args.key_pattern.unwrap());
-                    let keys_names = prepare_get(files, app_args.keysize);
-                    keys_names
+            let keys_names = match (app_args.file_pattern.unwrap(), app_args.key_pattern.unwrap()) {
+                (FilePattern::WithRE(re, _), key) => {
+                    let files = re.get_filenames(&key);
+                    prepare_get(files, app_args.keysize)
                 }
-                FilePattern::WithoutRE(path) => match app_args.key_pattern.unwrap() {
-                    KeyPattern::Single(val) => {
-                        prepare_get(Box::new(iter::once((val, path.to_string()))), app_args.keysize)
-                    }
-                    _ => {
-                        return error!("Multiple keys are not allowed without pattern")
-                    }
-                },
+                (FilePattern::WithoutRE(path), KeyPattern::Single(key)) => {
+                    prepare_get(Box::new(iter::once((key, path.to_string()))), app_args.keysize)
+                }
+                (FilePattern::WithoutRE(_), _) => {
+                    return error!("Multiple keys are not allowed without pattern")
+                }
             };
             for kn in keys_names {
                 info!(
