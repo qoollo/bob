@@ -3,9 +3,9 @@ extern crate log;
 
 use bob::{Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetRequest, PutRequest};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
-use http::Uri;
 use log::LevelFilter;
 use regex::Regex;
+use tonic::transport::Channel;
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
@@ -194,6 +194,7 @@ async fn main() {
     let app_args = AppArgs::from_matches(matches);
 
     let addr = NetConfig::from_args(&app_args).get_uri();
+    let mut client = BobApiClient::connect(addr).await.unwrap();
     match app_args.subcommand.as_str() {
         PUT_SC => {
             let keys_names = match (app_args.file_pattern.unwrap(), app_args.key_pattern) {
@@ -219,7 +220,7 @@ async fn main() {
                 }
             };
             for kn in keys_names {
-                put(kn.key, &kn.name, addr.clone()).await; // i dont like this clone() but BobApiClient::connect requires owning
+                put(kn.key, &kn.name, &mut client).await;
             }
         }
         GET_SC => {
@@ -236,24 +237,24 @@ async fn main() {
                 }
             };
             for kn in keys_names {
-                get(kn.key, &kn.name, addr.clone()).await; // i dont like this clone()...
+                get(kn.key, &kn.name, &mut client).await;
             }
         }
         EXISTS_SC => {
             match app_args.key_pattern.unwrap() {
                 KeyPattern::Single(val) => {
                     let key = get_key_value(val, app_args.keysize);
-                    exist(vec![key], addr).await;
+                    exist(vec![key], &mut client).await;
                 }
                 KeyPattern::Range(range) => {
                     let keysize = app_args.keysize;
                     let keys = range.map(|v| get_key_value(v, keysize)).collect();
-                    exist(keys, addr).await;
+                    exist(keys, &mut client).await;
                 }
                 KeyPattern::Multiple(vec) => {
                     let keysize = app_args.keysize;
                     let keys = vec.into_iter().map(|v| get_key_value(v, keysize)).collect();
-                    exist(keys, addr).await;
+                    exist(keys, &mut client).await;
                 }
             }
         }
@@ -283,11 +284,9 @@ fn prepare_get(filenames: Box<dyn Iterator<Item = (u64, String)>>, key_size: usi
     }))
 }
 
-async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
+async fn put(key: Vec<u8>, filename: &str, client: &mut BobApiClient<Channel>) {
     match fs::read(filename).await {
         Ok(data) => {
-            let mut client = BobApiClient::connect(addr).await.unwrap();
-
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
@@ -304,8 +303,10 @@ async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
             };
             let put_req = Request::new(message);
 
-            let res = client.put(put_req).await;
-            info!("{:?}", res);
+            match client.put(put_req).await {
+                Ok(_) => info!("OK"),
+                Err(e) => error!("{:?}", e)
+            }
         }
         Err(e) => {
             error!("{:?}", e)
@@ -313,9 +314,7 @@ async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
     }
 }
 
-async fn get(key: Vec<u8>, filename: &str, addr: Uri) {
-    let mut client = BobApiClient::connect(addr).await.unwrap();
-
+async fn get(key: Vec<u8>, filename: &str, client: &mut BobApiClient<Channel>) {
     let message = GetRequest {
         key: Some(BlobKey { key }),
         options: None,
@@ -326,7 +325,7 @@ async fn get(key: Vec<u8>, filename: &str, addr: Uri) {
         Ok(res) => {
             let res: tonic::Response<_> = res;
             let data: &Blob = res.get_ref();
-            info!("res: {:?})", res);
+            info!("OK");
             match fs::write(filename, &data.data).await {
                 Err(e) => error!("{:?}", e),
                 _ => {}
@@ -338,9 +337,7 @@ async fn get(key: Vec<u8>, filename: &str, addr: Uri) {
     }
 }
 
-async fn exist(keys: Vec<Vec<u8>>, addr: Uri) {
-    let mut client = BobApiClient::connect(addr).await.unwrap();
-
+async fn exist(keys: Vec<Vec<u8>>, client: &mut BobApiClient<Channel>) {
     let keys = keys.into_iter().map(|key| BlobKey { key }).collect();
     let message = ExistRequest {
         keys,
@@ -413,12 +410,6 @@ fn get_matches<'a>() -> ArgMatches<'a> {
 }
 
 fn get_key_value(key: u64, key_size: usize) -> Vec<u8> {
-    info!(
-        "key size: {}, as u32: {}, u64::MAX: {}",
-        key_size,
-        key_size as u32,
-        u64::MAX
-    );
     let max_allowed_key = if key_size >= 8 {
         u64::MAX
     } else {
