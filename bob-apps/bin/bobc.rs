@@ -201,9 +201,8 @@ async fn main() {
                 (FilePattern::WithRE(re, dir), None) => {
                     prepare_put_from_pattern(&re.get_regex(), &dir).await
                 }
-                (FilePattern::WithRE(_, _), _) => {
-                    // maybe create filenames from pattern AND keys and try to send them?
-                    return error!("Either file pattern or key argument must be used");
+                (FilePattern::WithRE(re, _), Some(key_pattern)) => {
+                    Box::new(re.get_filenames(&key_pattern).map(|(key, name)| KeyName {key,name}))
                 }
                 (FilePattern::WithoutRE(path), Some(KeyPattern::Single(key))) => {
                     Box::new(iter::once(KeyName {
