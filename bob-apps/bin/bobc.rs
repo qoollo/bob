@@ -307,11 +307,11 @@ async fn put(key: u64, key_size: usize, filename: &str, client: &mut BobApiClien
 
             match client.put(put_req).await {
                 Ok(_) => info!("key: {}, file: {}", key, filename),
-                Err(e) => error!("{:?}", e)
+                Err(e) => error!("key: {}, file: {}, error: {:?}", key, filename, e)
             }
         }
         Err(e) => {
-            error!("{:?}", e)
+            error!("key: {}, file: {}, error: {:?}", key, filename, e)
         }
     }
 }
@@ -328,13 +328,13 @@ async fn get(key: u64, key_size: usize, filename: &str, client: &mut BobApiClien
             let res: tonic::Response<_> = res;
             let data = res.get_ref();
             match fs::write(filename, &data.data).await {
-                Err(e) => error!("{:?}", e),
+                Err(e) => error!("key: {}, file: {}, error: {:?}", key, filename, e),
                 _ => info!("key: {}, file: {}", key, filename)
 
             }
         }
-        Err(res) => {
-            error!("{:?}", res);
+        Err(e) => {
+            error!("key: {}, file: {}, error: {:?}", key, filename, e)
         }
     }
 }
