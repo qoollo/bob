@@ -4,7 +4,6 @@ extern crate log;
 use bob::{Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetRequest, PutRequest};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use http::Uri;
-use lazy_static::lazy_static;
 use log::LevelFilter;
 use regex::Regex;
 use std::fmt::Debug;
@@ -12,6 +11,7 @@ use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::iter;
 use tokio::fs::{read_dir, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tonic::Request;
@@ -55,18 +55,18 @@ enum ParseError {
 }
 
 #[derive(Debug)]
-struct AppArgs<'a> {
-    subcommand: &'a str,
-    file_pattern: Option<FilePattern<'a>>,
+struct AppArgs {
+    subcommand: String,
+    file_pattern: Option<FilePattern>,
     key_pattern: Option<KeyPattern>,
     keysize: usize,
     host: String,
     port: u16,
 }
 
-impl<'a> AppArgs<'a> {
-    fn from_matches(matches: &'a ArgMatches<'a>) -> Self {
-        let (subcommand, sub_matches) = matches.subcommand();
+impl AppArgs {
+    fn from_matches(matches: ArgMatches) -> Self {
+        let (sc, sub_matches) = matches.subcommand();
         let sub_matches = sub_matches.unwrap();
         let file_pattern = match sub_matches.value_of(FILE_ARG) {
             None => None,
@@ -84,7 +84,7 @@ impl<'a> AppArgs<'a> {
         };
 
         Self {
-            subcommand,
+            subcommand: sc.to_string(),
             file_pattern,
             key_pattern,
             keysize: sub_matches.value_or_default(KEY_SIZE_ARG),
@@ -92,14 +92,14 @@ impl<'a> AppArgs<'a> {
             port: sub_matches.value_or_default(PORT_ARG),
         }
     }
-    fn parse_file_pattern(file_pattern: &str) -> Result<FilePattern<'_>, ParseError> {
+    fn parse_file_pattern(file_pattern: &str) -> Result<FilePattern, ParseError> {
         let path = PathBuf::from(file_pattern);
         let name = path.file_name().unwrap().to_str().unwrap();
 
         let re = Regex::new("\\{key\\}").unwrap();
 
         match re.find_iter(name).count() {
-            0 => Ok(FilePattern::WithoutRE(file_pattern)),
+            0 => Ok(FilePattern::WithoutRE(file_pattern.to_string())),
             1 => {
                 let path = PathBuf::from(file_pattern);
 
@@ -111,8 +111,7 @@ impl<'a> AppArgs<'a> {
                     RePattern::new(file_pattern),
                     dir.to_owned(),
                 ))
-                
-            },
+            }
             _ => Err(ParseError::FilePattern),
         }
     }
@@ -138,40 +137,40 @@ impl<'a> AppArgs<'a> {
 }
 
 #[derive(Debug)]
-enum FilePattern<'a> {
-    WithRE(RePattern<'a>, PathBuf),
-    WithoutRE(&'a str),
+enum FilePattern {
+    WithRE(RePattern, PathBuf),
+    WithoutRE(String),
 }
 
 #[derive(Debug)]
-struct RePattern<'a> {
-    inner: &'a str,
+struct RePattern {
+    inner: String,
 }
 
-impl<'a> RePattern<'a> {
-    fn new(f: &'a str) -> Self {
-        Self { inner: f }
+impl RePattern {
+    fn new(f: &str) -> Self {
+        Self {
+            inner: f.to_string(),
+        }
     }
 
     fn get_regex(&self) -> Regex {
-        let st = regex::escape(self.inner).replace("\\{key\\}", "(\\d+)");
+        let st = regex::escape(&self.inner).replace("\\{key\\}", "(\\d+)");
         Regex::new(&st).unwrap()
     }
-    fn get_filenames(&self, keys: &KeyPattern) -> Vec<(u64, String)> {
-    // Box<dyn Iterator<Item = (u64, String)>>
+    fn get_filenames(self, keys: &KeyPattern) -> Box<dyn Iterator<Item = (u64, String)>> {
         match keys {
             KeyPattern::Single(val) => {
-                vec![(*val, self.inner.replace("{key}", &val.to_string()))]
+                Box::new(iter::once((*val, self.inner.replace("{key}", &val.to_string()))))
             }
             KeyPattern::Range(r) => {
-                r.clone()
-                    .map(|n| (n, self.inner.replace("{key}", &n.to_string())))
-                    .collect()
+                Box::new(r.clone().map(move |n| (n, self.inner.replace("{key}", &n.to_string()))))
             }
-            KeyPattern::Multiple(v) => v
-                .into_iter()
-                .map(|n| (*n, self.inner.replace("{key}", &n.to_string())))
-                .collect(),
+            KeyPattern::Multiple(v) => Box::new(
+                v.clone()
+                    .into_iter()
+                    .map(move |n| (n, self.inner.replace("{key}", &n.to_string()))),
+            ),
         }
     }
 }
@@ -193,10 +192,10 @@ struct KeyName {
 async fn main() {
     env_logger::builder().filter_level(LevelFilter::Info).init();
     let matches = get_matches();
-    let app_args = AppArgs::from_matches(&matches);
+    let app_args = AppArgs::from_matches(matches);
 
     let addr = NetConfig::from_args(&app_args).get_uri();
-    match app_args.subcommand {
+    match app_args.subcommand.as_str() {
         PUT_SC => {
             let keys_names = match app_args.file_pattern {
                 Some(FilePattern::WithRE(re, dir)) => {
@@ -245,9 +244,9 @@ async fn main() {
                 }
                 FilePattern::WithoutRE(path) => match app_args.key_pattern.unwrap() {
                     KeyPattern::Single(val) => {
-                        prepare_get(vec![(val, path.to_string())], app_args.keysize)
+                        prepare_get(Box::new(iter::once((val, path.to_string()))), app_args.keysize)
                     }
-                    KeyPattern::Range(_) | KeyPattern::Multiple(_) => {
+                    _ => {
                         return error!("Multiple keys are not allowed without pattern")
                     }
                 },
@@ -297,15 +296,11 @@ async fn prepare_put_from_pattern(re_path: &Regex, dir: &PathBuf, key_size: usiz
     keys_names
 }
 
-fn prepare_get(filenames: Vec<(u64, String)>, key_size: usize) -> Vec<KeyName> {
-    let mut keys_names = Vec::with_capacity(filenames.len());
-    for (i, name) in filenames {
-        keys_names.push(KeyName {
-            key: get_key_value(i, key_size),
-            name,
-        })
-    }
-    keys_names
+fn prepare_get(filenames: Box<dyn Iterator<Item = (u64, String)>>, key_size: usize) -> Box<dyn Iterator<Item = KeyName>> {
+    Box::new(filenames.map(move |(k, name)| KeyName {
+        key: get_key_value(k, key_size),
+        name
+    }))
 }
 
 async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
