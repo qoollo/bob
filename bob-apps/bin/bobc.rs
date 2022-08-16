@@ -13,7 +13,6 @@ use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::iter;
 use tokio::fs;
-use tokio::io::AsyncWriteExt;
 use tonic::Request;
 
 struct NetConfig {
@@ -220,10 +219,6 @@ async fn main() {
                 }
             };
             for kn in keys_names {
-                info!(
-                    "PUT key: \"{:?}\" to \"{}\" from file \"{}\"",
-                    kn.key, addr, &kn.name
-                );
                 put(kn.key, &kn.name, addr.clone()).await; // i dont like this clone() but BobApiClient::connect requires owning
             }
         }
@@ -241,10 +236,6 @@ async fn main() {
                 }
             };
             for kn in keys_names {
-                info!(
-                    "GET key:\"{:?}\" from  \"{}\" to file \"{}\"",
-                    kn.key, addr, &kn.name
-                );
                 get(kn.key, &kn.name, addr.clone()).await; // i dont like this clone()...
             }
         }
@@ -314,7 +305,7 @@ async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
             let put_req = Request::new(message);
 
             let res = client.put(put_req).await;
-            info!("{:#?}", res);
+            info!("{:?}", res);
         }
         Err(e) => {
             error!("{:?}", e)
@@ -335,19 +326,10 @@ async fn get(key: Vec<u8>, filename: &str, addr: Uri) {
         Ok(res) => {
             let res: tonic::Response<_> = res;
             let data: &Blob = res.get_ref();
-            info!("response meta: {:?})", res.metadata());
-            info!("data len: {}, meta: {:?}", data.data.len(), data.meta);
-            let file = fs::File::create(filename).await;
-            match file {
-                Ok(mut file) => match file.write_all(&data.data).await {
-                    Ok(()) => {}
-                    Err(e) => {
-                        error!("{:?}", e);
-                    }
-                },
-                Err(err) => {
-                    error!("{:?}", err);
-                }
+            info!("res: {:?})", res);
+            match fs::write(filename, &data.data).await {
+                Err(e) => error!("{:?}", e),
+                _ => {}
             }
         }
         Err(res) => {
