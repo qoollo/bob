@@ -154,30 +154,23 @@ impl<'a> RePattern<'a> {
     }
 
     fn get_regex(&self) -> Regex {
-        lazy_static! {
-            static ref RE: Regex = Regex::new("\\\\\\{key\\\\\\}").unwrap();
-        }
-        let st = RE
-            .replace(&regex::escape(self.inner), "(\\d+)")
-            .into_owned();
+        let st = regex::escape(self.inner).replace("\\{key\\}", "(\\d+)");
         Regex::new(&st).unwrap()
     }
     fn get_filenames(&self, keys: &KeyPattern) -> Vec<(u64, String)> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new("\\{key\\}").unwrap();
-        }
+    // Box<dyn Iterator<Item = (u64, String)>>
         match keys {
             KeyPattern::Single(val) => {
-                vec![(*val, RE.replace(self.inner, val.to_string()).into_owned())]
+                vec![(*val, self.inner.replace("{key}", &val.to_string()))]
             }
             KeyPattern::Range(r) => {
-                r.clone() // idk how to use map Range without moving out a value
-                    .map(|n| (n, RE.replace(self.inner, n.to_string()).into_owned()))
+                r.clone()
+                    .map(|n| (n, self.inner.replace("{key}", &n.to_string())))
                     .collect()
             }
             KeyPattern::Multiple(v) => v
                 .into_iter()
-                .map(|n| (*n, RE.replace(self.inner, n.to_string()).into_owned()))
+                .map(|n| (*n, self.inner.replace("{key}", &n.to_string())))
                 .collect(),
         }
     }
