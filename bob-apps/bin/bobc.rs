@@ -12,8 +12,8 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::iter;
-use tokio::fs::{read_dir, File};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::fs;
+use tokio::io::AsyncWriteExt;
 use tonic::Request;
 
 struct NetConfig {
@@ -271,7 +271,7 @@ async fn main() {
 }
 
 async fn prepare_put_from_pattern(re_path: &Regex, dir: &PathBuf, key_size: usize) -> Vec<KeyName> {
-    let mut dir_iter = read_dir(dir).await.unwrap();
+    let mut dir_iter = fs::read_dir(dir).await.unwrap();
 
     let mut keys_names = Vec::new();
     while let Some(entry) = dir_iter.next_entry().await.unwrap() {
@@ -293,13 +293,8 @@ fn prepare_get(filenames: Box<dyn Iterator<Item = (u64, String)>>, key_size: usi
 }
 
 async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
-    let file = File::open(filename).await;
-
-    match file {
-        Err(e) => {
-            error!("{:?}", e);
-        }
-        Ok(mut f) => {
+    match fs::read(filename).await {
+        Ok(data) => {
             let mut client = BobApiClient::connect(addr).await.unwrap();
 
             let timestamp = SystemTime::now()
@@ -307,15 +302,6 @@ async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
                 .unwrap()
                 .as_secs();
             let meta = BlobMeta { timestamp };
-
-            let mut data = Vec::new();
-            match f.read_to_end(&mut data).await {
-                Ok(_) => {}
-                Err(e) => {
-                    error!("{:?}", e);
-                    return;
-                }
-            }
             let blob = Blob {
                 data,
                 meta: Some(meta),
@@ -329,6 +315,9 @@ async fn put(key: Vec<u8>, filename: &str, addr: Uri) {
 
             let res = client.put(put_req).await;
             info!("{:#?}", res);
+        }
+        Err(e) => {
+            error!("{:?}", e)
         }
     }
 }
@@ -348,7 +337,7 @@ async fn get(key: Vec<u8>, filename: &str, addr: Uri) {
             let data: &Blob = res.get_ref();
             info!("response meta: {:?})", res.metadata());
             info!("data len: {}, meta: {:?}", data.data.len(), data.meta);
-            let file = File::create(filename).await;
+            let file = fs::File::create(filename).await;
             match file {
                 Ok(mut file) => match file.write_all(&data.data).await {
                     Ok(()) => {}
