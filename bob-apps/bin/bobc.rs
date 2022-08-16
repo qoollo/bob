@@ -206,13 +206,22 @@ async fn main() {
                     return error!("Either file pattern or key argument must be used");
                 }
                 (FilePattern::WithoutRE(path), Some(KeyPattern::Single(key))) => {
-                    vec![KeyName {
+                    Box::new(iter::once(KeyName {
                         key,
-                        name: path.to_string(),
-                    }]
+                        name: path.to_string()
+                    }))
                 }
-                (FilePattern::WithoutRE(_), Some(_)) => {
-                    return error!("Multiple keys are not allowed without pattern")
+                (FilePattern::WithoutRE(path), Some(KeyPattern::Range(r))) => {
+                    Box::new(r.map(move |key| KeyName {
+                        key,
+                        name: path.to_string()
+                    }))
+                }
+                (FilePattern::WithoutRE(path), Some(KeyPattern::Multiple(v))) => {
+                    Box::new(v.into_iter().map(move |key| KeyName {
+                        key,
+                        name: path.to_string()
+                    }))
                 }
                 (FilePattern::WithoutRE(_), None) => {
                     return error!("Key arg is required if not using file pattern");
@@ -256,7 +265,7 @@ async fn main() {
     }
 }
 
-async fn prepare_put_from_pattern(re_path: &Regex, dir: &PathBuf) -> Vec<KeyName> {
+async fn prepare_put_from_pattern(re_path: &Regex, dir: &PathBuf) -> Box<dyn Iterator<Item = KeyName>> {
     let mut dir_iter = fs::read_dir(dir).await.unwrap();
 
     let mut keys_names = Vec::new();
@@ -268,7 +277,7 @@ async fn prepare_put_from_pattern(re_path: &Regex, dir: &PathBuf) -> Vec<KeyName
                 keys_names.push(KeyName { key, name });
             }
     }
-    keys_names
+    Box::new(keys_names.into_iter())
 }
 
 fn prepare_get(filenames: Box<dyn Iterator<Item = (u64, String)>>) -> Box<dyn Iterator<Item = KeyName>> {
