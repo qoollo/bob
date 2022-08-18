@@ -2,7 +2,7 @@ use crate::{pearl::utils::get_current_timestamp, prelude::*};
 
 use super::{
     core::{BackendResult, PearlStorage},
-    data::{Data, Key},
+    data::Key,
     utils::Utils,
 };
 use bob_common::metrics::pearl::{
@@ -232,7 +232,7 @@ impl Holder {
                 .await
                 .map(|r| {
                     counter!(PEARL_GET_BYTES_COUNTER, r.len() as u64);
-                    Data::from_bytes(&r)
+                    BobData::from_bytes(&r)
                 })
                 .map_err(|e| {
                     counter!(PEARL_GET_ERROR_COUNTER, 1);

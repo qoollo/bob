@@ -1,6 +1,7 @@
 use crate::{
     mapper::NodesMap,
     node::{Disk as NodeDisk, Node},
+    error::Error,
 };
 use bob_grpc::{GetOptions, GetSource, PutOptions};
 use std::{
@@ -97,6 +98,8 @@ pub struct BobData {
 }
 
 impl BobData {
+    const TIMESTAMP_LEN: usize = 8;
+    
     pub fn new(inner: Vec<u8>, meta: BobMeta) -> Self {
         BobData { inner, meta }
     }
@@ -111,6 +114,16 @@ impl BobData {
 
     pub fn meta(&self) -> &BobMeta {
         &self.meta
+    }
+
+    pub fn from_bytes(data: &[u8]) -> Result<BobData, Error> {
+        let (ts, bob_data) = data.split_at(Self::TIMESTAMP_LEN);
+        let bytes = ts
+            .try_into()
+            .map_err(|e| Error::storage(format!("parse error: {}", e)))?;
+        let timestamp = u64::from_be_bytes(bytes);
+        let meta = BobMeta::new(timestamp);
+        Ok(BobData::new(bob_data.to_vec(), meta))
     }
 }
 
