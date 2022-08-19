@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Include bobc into release builds (#569)
 
 
 #### Changed
