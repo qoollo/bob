@@ -124,33 +124,24 @@ async fn main() {
 async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
     let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
     let handle = Handle::current();
-    let factory = if node.tls() {
-        if let Some(node_tls_config) = node.tls_config() {
-            let ca_cert_path = node_tls_config.ca_cert_path.clone();
-            Factory::new(node.operation_timeout(), metrics, Some(ca_cert_path), node.name().into())
-        } else {
-            error!("tls enabed, but not specified, add \"tls:\" to node config");
-            panic!("tls enabed, but not specified, add \"tls:\" to node config");
-        }
+    let factory =
+    if let Some(node_tls_config) = node.tls_config() {
+        let ca_cert_path = node_tls_config.ca_cert_path.clone();
+        Factory::new(node.operation_timeout(), metrics, Some(ca_cert_path), node.name().into())
     } else {
         Factory::new(node.operation_timeout(), metrics, None, node.name().into())
     };
 
     let mut server_builder = Server::builder();
-    if node.tls() {
-        if let Some(node_tls_config) = node.tls_config() {
-            let cert_path = node_tls_config.cert_path.as_ref().expect("no certificate path specified");
-            let cert_bin = fs::read(cert_path).expect("can not read tls certificate from file");
-            let pkey_path = node_tls_config.pkey_path.as_ref().expect("no private key path specified");
-            let key_bin = fs::read(pkey_path).expect("can not read tls private key from file");
-            let identity = Identity::from_pem(cert_bin.clone(), key_bin);
+    if let Some(node_tls_config) = node.tls_config() {
+        let cert_path = node_tls_config.cert_path.as_ref().expect("no certificate path specified");
+        let cert_bin = fs::read(cert_path).expect("can not read tls certificate from file");
+        let pkey_path = node_tls_config.pkey_path.as_ref().expect("no private key path specified");
+        let key_bin = fs::read(pkey_path).expect("can not read tls private key from file");
+        let identity = Identity::from_pem(cert_bin.clone(), key_bin);
 
-            let tls_config = ServerTlsConfig::new().identity(identity);
-            server_builder = server_builder.tls_config(tls_config).expect("grpc tls config");
-        } else {
-            error!("tls enabed, but not specified, add \"tls:\" to node config");
-            panic!("tls enabed, but not specified, add \"tls:\" to node config");
-        }
+        let tls_config = ServerTlsConfig::new().identity(identity);
+        server_builder = server_builder.tls_config(tls_config).expect("grpc tls config");
     }
 
     let bob = BobServer::new(

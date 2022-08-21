@@ -89,7 +89,6 @@ pub struct Node {
     name: String,
     address: String,
     disks: Vec<DiskPath>,
-    tls: bool,
 }
 
 impl Node {
@@ -112,13 +111,6 @@ impl Node {
     #[must_use]
     pub fn address(&self) -> &str {
         &self.address
-    }
-
-    /// Returns node tls mode.
-    #[inline]
-    #[must_use]
-    pub fn tls(&self) -> bool {
-        self.tls
     }
 }
 
@@ -537,7 +529,6 @@ pub mod tests {
                     name: name.clone(),
                     address: "0.0.0.0:0".to_string(),
                     disks: vec![DiskPath::new(name.clone(), name)],
-                    tls: false,
                 }
             })
             .collect();

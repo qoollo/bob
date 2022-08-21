@@ -59,9 +59,8 @@ impl Virtual {
                 let index = i.try_into().expect("usize to u16");
                 let address = conf.address();
                 let name = conf.name().to_owned();
-                let tls = conf.tls();
                 async move {
-                    let node = Node::new(name, address, tls, index).await;
+                    let node = Node::new(name, address, index).await;
                     (index, node)
                 }
             })

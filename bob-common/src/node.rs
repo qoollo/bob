@@ -18,7 +18,6 @@ pub type Name = String;
 pub struct Node {
     name: Name,
     address: String,
-    tls: bool,
     index: Id,
     conn: Arc<RwLock<Option<BobClient>>>,
 }
@@ -37,11 +36,10 @@ pub struct Disk {
 }
 
 impl Node {
-    pub async fn new(name: String, address: &str, tls: bool, index: u16) -> Self {
+    pub async fn new(name: String, address: &str, index: u16) -> Self {
         Self {
             name,
             address: address.to_string(),
-            tls,
             index,
             conn: Arc::default(),
         }
@@ -57,10 +55,6 @@ impl Node {
 
     pub fn address(&self) -> &str {
         &self.address
-    }
-
-    pub fn tls(&self) -> bool {
-        self.tls
     }
 
     pub fn get_uri(&self) -> Uri {

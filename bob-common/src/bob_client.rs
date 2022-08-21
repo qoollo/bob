@@ -45,8 +45,7 @@ pub mod b_client {
             local_node_name: String,
         ) -> Result<Self, String> {
             let mut endpoint = Endpoint::from(node.get_uri());
-            if node.tls() {
-                let ca_cert_path = ca_cert_path.expect("ca certificate path");
+            if let Some(ca_cert_path) = ca_cert_path {
                 let cert_bin = fs::read(ca_cert_path).expect("can not read ca certificate from file");
                 let cert = Certificate::from_pem(cert_bin);
                 let tls_config = ClientTlsConfig::new().domain_name("bob").ca_certificate(cert);
