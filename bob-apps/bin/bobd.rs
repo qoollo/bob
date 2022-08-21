@@ -8,8 +8,7 @@ use std::{
     collections::HashMap,
     error::Error as ErrorTrait,
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    io::{Read, BufReader},
-    fs::File,
+    fs,
 };
 use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::{Server, ServerTlsConfig, Identity};
@@ -122,22 +121,6 @@ async fn main() {
     }
 }
 
-fn load_tls_certificate(path: &str) -> Vec<u8> {
-    let f = File::open(path).expect("can not open tls certificate file");
-    let mut reader = BufReader::new(f);
-    let mut buffer = Vec::new();
-    reader.read_to_end(&mut buffer).expect("can not read tls certificate from file");
-    buffer
-}
-
-fn load_tls_pkey(path: &str) -> Vec<u8> {
-    let f = File::open(path).expect("can not open tls private key file");
-    let mut reader = BufReader::new(f);
-    let mut buffer = Vec::new();
-    reader.read_to_end(&mut buffer).expect("can not read tls private key from file");
-    buffer
-}
-
 async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
     let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
     let handle = Handle::current();
@@ -157,9 +140,9 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
     if node.tls() {
         if let Some(node_tls_config) = node.tls_config() {
             let cert_path = node_tls_config.cert_path.as_ref().expect("no certificate path specified");
-            let cert_bin = load_tls_certificate(cert_path);
+            let cert_bin = fs::read(cert_path).expect("can not read tls certificate from file");
             let pkey_path = node_tls_config.pkey_path.as_ref().expect("no private key path specified");
-            let key_bin = load_tls_pkey(pkey_path);
+            let key_bin = fs::read(pkey_path).expect("can not read tls private key from file");
             let identity = Identity::from_pem(cert_bin.clone(), key_bin);
 
             let tls_config = ServerTlsConfig::new().identity(identity);

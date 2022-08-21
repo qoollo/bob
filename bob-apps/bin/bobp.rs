@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
-use std::{fs::File, io::{BufReader, Read}};
+use std::fs;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -51,20 +51,10 @@ impl NetConfig {
         }
     }
 
-    fn load_tls_certificate(path: &str) -> Vec<u8> {
-        let f = File::open(path).expect("can not open ca certificate file");
-        let mut reader = BufReader::new(f);
-        let mut buffer = Vec::new();
-        reader
-            .read_to_end(&mut buffer)
-            .expect("can not read ca certificate from file");
-        buffer
-    }
-
     async fn build_client(&self) -> BobApiClient<Channel> {
         let mut endpoint = Endpoint::from(self.get_uri()).tcp_nodelay(true);
         if let Some(ca_cert_path) = &self.ca_cert_path {
-            let cert_bin = Self::load_tls_certificate(&ca_cert_path);
+            let cert_bin = fs::read(&ca_cert_path).expect("can not read ca certificate from file");
             let cert = Certificate::from_pem(cert_bin);
             let tls_config = ClientTlsConfig::new().domain_name("bob").ca_certificate(cert);
             endpoint = endpoint.tls_config(tls_config).expect("tls config");

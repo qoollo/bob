@@ -14,8 +14,7 @@ pub mod b_client {
     use std::{
         fmt::{Debug, Formatter, Result as FmtResult},
         time::Duration,
-        fs::File,
-        io::{BufReader, Read},
+        fs,
     };
     use tonic::{
         metadata::MetadataValue,
@@ -33,16 +32,6 @@ pub mod b_client {
         local_node_name: String,
     }
 
-    fn load_tls_certificate(path: &str) -> Vec<u8> {
-        let f = File::open(path).expect("can not open ca certificate file");
-        let mut reader = BufReader::new(f);
-        let mut buffer = Vec::new();
-        reader
-            .read_to_end(&mut buffer)
-            .expect("can not read ca certificate from file");
-        buffer
-    }
-
     impl BobClient {
         /// Creates [`BobClient`] instance
         /// # Errors
@@ -57,7 +46,8 @@ pub mod b_client {
         ) -> Result<Self, String> {
             let mut endpoint = Endpoint::from(node.get_uri());
             if node.tls() {
-                let cert_bin = load_tls_certificate(ca_cert_path.expect("ca certificate path"));
+                let ca_cert_path = ca_cert_path.expect("ca certificate path");
+                let cert_bin = fs::read(ca_cert_path).expect("can not read ca certificate from file");
                 let cert = Certificate::from_pem(cert_bin);
                 let tls_config = ClientTlsConfig::new().domain_name("bob").ca_certificate(cert);
                 endpoint = endpoint.tls_config(tls_config).expect("client tls");
