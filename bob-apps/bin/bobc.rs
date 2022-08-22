@@ -200,30 +200,7 @@ impl Iterator for KeyIntoIter {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match &self.inner {
-            KeyPattern::Single(val) => {
-                if self.index == 0 {
-                    self.index += 1;
-                    Some(*val)
-                } else {
-                    None
-                }
-            }
-            KeyPattern::Multiple(vec) => {
-                let val = vec.get(self.index).cloned();
-                self.index += 1;
-                val
-            }
-            KeyPattern::Range(r) => {
-                let val = *r.start() + u64::try_from(self.index).unwrap();
-                self.index += 1;
-                if val <= *r.end() {
-                    Some(val)
-                } else {
-                    None
-                }
-            }
-        }
+        keypattern_iter_next(&self.inner, &mut self.index)
     }
 }
 
@@ -248,31 +225,36 @@ impl<'a> Iterator for KeyIter<'a> {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match &self.inner {
-            KeyPattern::Single(val) => {
-                if self.index == 0 {
-                    self.index += 1;
-                    Some(*val)
-                } else {
-                    None
-                }
+        keypattern_iter_next(self.inner, &mut self.index)
+    }
+}
+
+fn keypattern_iter_next(keyp: &KeyPattern, index: &mut usize) -> Option<u64> {
+    match keyp {
+        KeyPattern::Single(val) => {
+            if *index == 0 {
+                *index += 1;
+                Some(*val)
+            } else {
+                None
             }
-            KeyPattern::Multiple(vec) => {
-                let val = vec.get(self.index).cloned();
-                self.index += 1;
-                val
-            }
-            KeyPattern::Range(r) => {
-                let val = *r.start() + u64::try_from(self.index).unwrap();
-                self.index += 1;
-                if val <= *r.end() {
-                    Some(val)
-                } else {
-                    None
-                }
+        }
+        KeyPattern::Multiple(vec) => {
+            let val = vec.get(*index).cloned();
+            *index += 1;
+            val
+        }
+        KeyPattern::Range(r) => {
+            let val = *r.start() + u64::try_from(*index).unwrap();
+            *index += 1;
+            if val <= *r.end() {
+                Some(val)
+            } else {
+                None
             }
         }
     }
+
 }
 
 #[derive(Debug)]
