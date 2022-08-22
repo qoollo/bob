@@ -5,14 +5,15 @@ use bob::{Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetRequest, PutRe
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use log::LevelFilter;
 use regex::Regex;
-use tonic::transport::Channel;
+use std::convert::TryFrom;
 use std::fmt::Debug;
+use std::iter;
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::iter;
 use tokio::fs;
+use tonic::transport::Channel;
 use tonic::Request;
 
 struct NetConfig {
@@ -181,6 +182,54 @@ enum KeyPattern {
     Multiple(Vec<u64>),
 }
 
+impl IntoIterator for KeyPattern {
+    type Item = u64;
+    type IntoIter = KeyIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        KeyIter {
+            inner: self,
+            index: 0,
+        }
+    }
+}
+
+struct KeyIter {
+    inner: KeyPattern,
+    index: usize,
+}
+
+impl Iterator for KeyIter {
+    type Item = u64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &self.inner {
+            KeyPattern::Single(val) => {
+                if self.index == 0 {
+                    self.index += 1;
+                    Some(*val)
+                } else {
+                    None
+                }
+            }
+            KeyPattern::Multiple(vec) => {
+                let val = vec.get(self.index).cloned();
+                self.index += 1;
+                val
+            }
+            KeyPattern::Range(r) => {
+                let val = *r.start() + u64::try_from(self.index).unwrap();
+                self.index += 1;
+                if val <= *r.end() {
+                    Some(val)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 struct KeyName {
     key: u64,
@@ -201,25 +250,14 @@ async fn main() {
                 (FilePattern::WithRE(re, dir), None) => {
                     prepare_put_from_pattern(&re.get_regex(), &dir).await
                 }
-                (FilePattern::WithRE(re, _), Some(key_pattern)) => {
-                    Box::new(re.get_filenames(&key_pattern).map(|(key, name)| KeyName {key,name}))
-                }
-                (FilePattern::WithoutRE(path), Some(KeyPattern::Single(key))) => {
-                    Box::new(iter::once(KeyName {
+                (FilePattern::WithRE(re, _), Some(key_pattern)) => Box::new(
+                    re.get_filenames(&key_pattern)
+                        .map(|(key, name)| KeyName { key, name }),
+                ),
+                (FilePattern::WithoutRE(path), Some(key_pattern)) => {
+                    Box::new(key_pattern.into_iter().map(move |key| KeyName {
                         key,
-                        name: path.to_string()
-                    }))
-                }
-                (FilePattern::WithoutRE(path), Some(KeyPattern::Range(r))) => {
-                    Box::new(r.map(move |key| KeyName {
-                        key,
-                        name: path.to_string()
-                    }))
-                }
-                (FilePattern::WithoutRE(path), Some(KeyPattern::Multiple(v))) => {
-                    Box::new(v.into_iter().map(move |key| KeyName {
-                        key,
-                        name: path.to_string()
+                        name: path.to_string(),
                     }))
                 }
                 (FilePattern::WithoutRE(_), None) => {
