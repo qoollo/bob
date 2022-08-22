@@ -298,7 +298,7 @@ async fn main() {
                 }
             }
         }
-        _ => unreachable!(),
+        _ => unreachable!("unknown command"),
     }
 }
 
