@@ -46,7 +46,7 @@ const FILE_ARG: &str = "file";
 
 const PUT_SC: &str = "put";
 const GET_SC: &str = "get";
-const EXISTS_SC: &str = "exists";
+const EXIST_SC: &str = "exist";
 
 #[derive(Debug)]
 enum ParseError {
@@ -310,7 +310,7 @@ async fn main() {
                 get(kn.key, app_args.keysize, &kn.name, &mut client).await;
             }
         }
-        EXISTS_SC => {
+        EXIST_SC => {
             exist(&app_args.key_pattern.unwrap(), app_args.keysize, &mut client).await
         }
         _ => unreachable!("unknown command"),
@@ -410,28 +410,28 @@ async fn exist(keys: &KeyPattern, key_size: usize, client: &mut BobApiClient<Cha
 fn get_matches<'a>() -> ArgMatches<'a> {
     let key_arg = Arg::with_name(KEY_ARG)
         .short("k")
-        .long(KEY_ARG)
+        .long("key")
         .value_name("KEY")
         .takes_value(true);
     let key_size_arg = Arg::with_name(KEY_SIZE_ARG)
         .help("Size of the binary key")
-        .long(KEY_SIZE_ARG)
+        .long("key-size")
         .value_name("KEY-SIZE")
         .takes_value(true)
         .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8"));
     let host_arg = Arg::with_name(HOST_ARG)
-        .long(HOST_ARG)
+        .long("host")
         .value_name("HOST")
         .takes_value(true)
         .default_value("127.0.0.1");
     let port_arg = Arg::with_name(PORT_ARG)
-        .long(PORT_ARG)
+        .long("port")
         .value_name("PORT")
         .takes_value(true)
         .default_value("20000");
     let file_arg = Arg::with_name(FILE_ARG)
         .short("f")
-        .long(FILE_ARG)
+        .long("file")
         .takes_value(true)
         .value_name("FILE")
         .required(true);
@@ -448,7 +448,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .arg(&host_arg)
         .arg(&port_arg)
         .arg(file_arg.help("Output file"));
-    let exists_sc = SubCommand::with_name(EXISTS_SC)
+    let exists_sc = SubCommand::with_name(EXIST_SC)
         .arg(key_arg)
         .arg(key_size_arg)
         .arg(host_arg)
