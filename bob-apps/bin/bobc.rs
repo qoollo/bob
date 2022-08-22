@@ -121,10 +121,15 @@ impl AppArgs {
         }
         if key_arg_cont.contains("-") {
             let v: Vec<&str> = key_arg_cont.split("-").collect();
-            if v.len() != 2 || v[0] >= v[1] {
+            if v.len() != 2 {
                 return Err(ParseError::KeyPattern);
             }
-            let range = v[0].parse().unwrap()..=v[1].parse().unwrap();
+            let v0 = v[0].parse().unwrap();
+            let v1 = v[1].parse().unwrap();
+            if v0 >= v1 {
+                return Err(ParseError::KeyPattern);
+            }
+            let range = v0..=v1;
             return Ok(KeyPattern::Range(range));
         }
         Ok(KeyPattern::Multiple(
