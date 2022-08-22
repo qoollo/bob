@@ -158,20 +158,11 @@ impl RePattern {
         let st = regex::escape(&self.inner).replace("\\{key\\}", "(\\d+)");
         Regex::new(&st).unwrap()
     }
-    fn get_filenames(self, keys: &KeyPattern) -> Box<dyn Iterator<Item = (u64, String)>> {
-        match keys {
-            KeyPattern::Single(val) => {
-                Box::new(iter::once((*val, self.inner.replace("{key}", &val.to_string()))))
-            }
-            KeyPattern::Range(r) => {
-                Box::new(r.clone().map(move |n| (n, self.inner.replace("{key}", &n.to_string()))))
-            }
-            KeyPattern::Multiple(v) => Box::new(
-                v.clone()
-                    .into_iter()
-                    .map(move |n| (n, self.inner.replace("{key}", &n.to_string()))),
-            ),
-        }
+    fn get_filenames(self, keys: KeyPattern) -> Box<dyn Iterator<Item = KeyName>> {
+        Box::new(keys.into_iter().map(move |key| KeyName {
+            key,
+            name: self.inner.replace("{key}", &key.to_string()),
+        }))
     }
 }
 
@@ -251,8 +242,7 @@ async fn main() {
                     prepare_put_from_pattern(&re.get_regex(), &dir).await
                 }
                 (FilePattern::WithRE(re, _), Some(key_pattern)) => Box::new(
-                    re.get_filenames(&key_pattern)
-                        .map(|(key, name)| KeyName { key, name }),
+                    re.get_filenames(key_pattern)
                 ),
                 (FilePattern::WithoutRE(path), Some(key_pattern)) => {
                     Box::new(key_pattern.into_iter().map(move |key| KeyName {
@@ -271,11 +261,10 @@ async fn main() {
         GET_SC => {
             let keys_names = match (app_args.file_pattern.unwrap(), app_args.key_pattern.unwrap()) {
                 (FilePattern::WithRE(re, _), key) => {
-                    let files = re.get_filenames(&key);
-                    prepare_get(files)
+                    re.get_filenames(key)
                 }
                 (FilePattern::WithoutRE(path), KeyPattern::Single(key)) => {
-                    prepare_get(Box::new(iter::once((key, path.to_string()))))
+                    Box::new(iter::once(KeyName { key, name: path.to_string()}))
                 }
                 (FilePattern::WithoutRE(_), _) => {
                     return error!("Multiple keys are not allowed without pattern")
@@ -315,13 +304,6 @@ async fn prepare_put_from_pattern(re_path: &Regex, dir: &PathBuf) -> Box<dyn Ite
             }
     }
     Box::new(keys_names.into_iter())
-}
-
-fn prepare_get(filenames: Box<dyn Iterator<Item = (u64, String)>>) -> Box<dyn Iterator<Item = KeyName>> {
-    Box::new(filenames.map(|(key, name)| KeyName {
-        key,
-        name
-    }))
 }
 
 async fn put(key: u64, key_size: usize, filename: &str, client: &mut BobApiClient<Channel>) {
