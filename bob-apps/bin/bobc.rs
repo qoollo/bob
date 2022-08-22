@@ -173,9 +173,63 @@ enum KeyPattern {
     Multiple(Vec<u64>),
 }
 
+impl KeyPattern {
+    fn iter(&self) -> KeyIter {
+        self.into_iter()
+    }
+}
+
 impl IntoIterator for KeyPattern {
     type Item = u64;
-    type IntoIter = KeyIter;
+    type IntoIter = KeyIntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        KeyIntoIter {
+            inner: self,
+            index: 0,
+        }
+    }
+}
+
+struct KeyIntoIter {
+    inner: KeyPattern,
+    index: usize,
+}
+
+impl Iterator for KeyIntoIter {
+    type Item = u64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &self.inner {
+            KeyPattern::Single(val) => {
+                if self.index == 0 {
+                    self.index += 1;
+                    Some(*val)
+                } else {
+                    None
+                }
+            }
+            KeyPattern::Multiple(vec) => {
+                let val = vec.get(self.index).cloned();
+                self.index += 1;
+                val
+            }
+            KeyPattern::Range(r) => {
+                let val = *r.start() + u64::try_from(self.index).unwrap();
+                self.index += 1;
+                if val <= *r.end() {
+                    Some(val)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a KeyPattern {
+    type Item = u64;
+    type IntoIter = KeyIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
         KeyIter {
@@ -185,12 +239,12 @@ impl IntoIterator for KeyPattern {
     }
 }
 
-struct KeyIter {
-    inner: KeyPattern,
-    index: usize,
+struct KeyIter<'a> {
+    inner: &'a KeyPattern,
+    index: usize
 }
 
-impl Iterator for KeyIter {
+impl<'a> Iterator for KeyIter<'a> {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -275,17 +329,7 @@ async fn main() {
             }
         }
         EXISTS_SC => {
-            match app_args.key_pattern.unwrap() {
-                KeyPattern::Single(val) => {
-                    exist(vec![val], app_args.keysize, &mut client).await;
-                }
-                KeyPattern::Range(range) => {
-                    exist(range.collect(), app_args.keysize, &mut client).await;
-                }
-                KeyPattern::Multiple(vec) => {
-                    exist(vec, app_args.keysize, &mut client).await;
-                }
-            }
+            exist(&app_args.key_pattern.unwrap(), app_args.keysize, &mut client).await
         }
         _ => unreachable!("unknown command"),
     }
@@ -359,8 +403,8 @@ async fn get(key: u64, key_size: usize, filename: &str, client: &mut BobApiClien
     }
 }
 
-async fn exist(keys: Vec<u64>, key_size: usize, client: &mut BobApiClient<Channel>) {
-    let k = keys.iter().map(|key| BlobKey { key: get_key_value(*key, key_size) }).collect();
+async fn exist(keys: &KeyPattern, key_size: usize, client: &mut BobApiClient<Channel>) {
+    let k = keys.iter().map(|key| BlobKey { key: get_key_value(key, key_size) }).collect();
     let message = ExistRequest {
         keys: k,
         options: None,
