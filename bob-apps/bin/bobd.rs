@@ -3,7 +3,7 @@ use bob::{
     VirtualMapper, BackendType,
 };
 use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap, AuthenticationType};
-use clap::{crate_version, App, Arg, ArgMatches};
+use clap::{crate_version, App, Arg, ArgMatches, SubCommand};
 use std::{
     collections::HashMap,
     error::Error as ErrorTrait,
@@ -250,6 +250,33 @@ fn check_folders(node: &NodeConfig, init_flag: bool) {
 
 fn get_matches<'a>() -> ArgMatches<'a> {
     let ver = format!("{}\n{}", crate_version!(), BuildInfo::default());
+    let testmode_sc = SubCommand::with_name("testmode")
+        .about("Bob's test mode")
+        .arg(
+            Arg::with_name("data")
+            .help("path to bob data")
+            .takes_value(true)
+            .long("data")
+        )
+        .arg(
+            Arg::with_name("grpc-port")
+            .help("gRPC API port")
+            .takes_value(true)
+            .long("grpc-port")
+        )
+        .arg(
+            Arg::with_name("restapi-port")
+            .help("REST API port")
+            .takes_value(true)
+            .long("restapi-port")
+        )
+        .arg(
+            Arg::with_name("nodes")
+            .help("node addresses")
+            .takes_value(true)
+            .long("nodes")
+        );
+
     App::new("bobd")
         .version(ver.as_str())
         .arg(
@@ -293,5 +320,6 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .long("init_folders")
                 .takes_value(false),
         )
+        .subcommand(testmode_sc)
         .get_matches()
 }
