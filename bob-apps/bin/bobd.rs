@@ -21,31 +21,41 @@ extern crate log;
 async fn main() {
     let matches = get_matches();
 
-    if matches.value_of("cluster").is_none() {
-        eprintln!("Expect cluster config");
-        eprintln!("use --help");
+    let cluster;
+    let node;
+    if let (sc, Some(sub_matches)) = matches.subcommand() {
+        println!("This is a sub command {}, sub matches: {:?}", sc, sub_matches);
+        cluster = ClusterConfig::default();
+        node = NodeConfig::default();
+        println!("{:#?}", cluster);
+        println!("{:#?}", node);
         return;
+    } else {
+        if matches.value_of("cluster").is_none() {
+            eprintln!("Expect cluster config");
+            eprintln!("use --help");
+            return;
+        }
+
+        if matches.value_of("node").is_none() {
+            eprintln!("Expect node config");
+            eprintln!("use --help");
+            return;
+        }
+
+        let cluster_config = matches.value_of("cluster").unwrap();
+        println!("Cluster config: {:?}", cluster_config);
+        cluster = ClusterConfig::try_get(cluster_config).await.unwrap();
+
+        let node_config_file = matches.value_of("node").unwrap();
+        println!("Node config: {:?}", node_config_file);
+        node = cluster.get(node_config_file).await.unwrap();
+
+        log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
+            .expect("can't find log config");
     }
-
-    if matches.value_of("node").is_none() {
-        eprintln!("Expect node config");
-        eprintln!("use --help");
-        return;
-    }
-
-    let cluster_config = matches.value_of("cluster").unwrap();
-    println!("Cluster config: {:?}", cluster_config);
-    let cluster = ClusterConfig::try_get(cluster_config).await.unwrap();
-
-    let node_config_file = matches.value_of("node").unwrap();
-    println!("Node config: {:?}", node_config_file);
-    let node = cluster.get(node_config_file).await.unwrap();
-
-    log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
-        .expect("can't find log config");
 
     check_folders(&node, matches.is_present("init_folders"));
-
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
 
     let bind = node.bind();

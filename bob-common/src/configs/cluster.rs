@@ -425,6 +425,27 @@ impl Cluster {
     }
 }
 
+impl Default for Cluster {
+    fn default() -> Self {
+        let disk = DiskPath::new("disk1".to_string(), "data".to_string());
+        let node = Node {
+            name: "local_node".to_string(),
+            address: "127.0.0.1:20000".to_string(),
+            disks: vec![disk],
+        };
+        let replica = Replica::new(node.name().to_string(), node.disks()[0].name().to_string());
+        let mut vdisk = VDisk::new(0);
+        vdisk.push_replica(replica);
+        let dist_func = DistributionFunc::default();
+        Cluster {
+            nodes: vec![node],
+            vdisks: vec![vdisk],
+            racks: vec![],
+            distribution_func: dist_func
+        }
+    }
+}
+
 impl Validatable for Cluster {
     fn validate(&self) -> Result<(), String> {
         if self.nodes.is_empty() {
