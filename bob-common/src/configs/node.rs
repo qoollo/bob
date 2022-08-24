@@ -458,40 +458,26 @@ impl Pearl {
         }
         unreachable!()
     }
-}
 
-impl Default for Pearl {
-    fn default() -> Self {
-        let max_blob_size = Pearl::default_max_blob_size();
-        let max_data_in_blob = Pearl::default_max_data_in_blob();
-        let blob_file_name_prefix = Pearl::default_blob_file_name_prefix();
-        let fail_retry_timeout = Pearl::default_fail_retry_timeout();
-        let fail_retry_count = Pearl::default_fail_retry_count();
-        let alien_disk = Some(String::from("disk1")); // dependant on Node?
-        let allow_duplicates = Pearl::default_allow_duplicates();
-        let settings = BackendSettings {
-            root_dir_name: String::from("bob"),
-            alien_root_dir_name: String::from("alien"),
-            timestamp_period: String::from("1m"),
-            create_pearl_wait_delay: String::from("100ms")
-        };
-        let hash_chars_count = Pearl::default_hash_chars_count();
-        let enable_aio = Pearl::default_enable_aio();
-        let disks_events_logfile = Pearl::default_disks_events_logfile();
-        let bloom_filter_max_buf_bits_count = Some(10000);
+    pub fn get_testmode(alien_disk: &str) -> Self {
         Self {
-            max_blob_size,
-            max_data_in_blob,
-            blob_file_name_prefix,
-            fail_retry_timeout,
-            fail_retry_count,
-            alien_disk,
-            allow_duplicates,
-            settings,
-            hash_chars_count,
-            enable_aio,
-            disks_events_logfile,
-            bloom_filter_max_buf_bits_count
+            max_blob_size: Pearl::default_max_blob_size(),
+            max_data_in_blob: Pearl::default_max_data_in_blob(),
+            blob_file_name_prefix: Pearl::default_blob_file_name_prefix(),
+            fail_retry_timeout: Pearl::default_fail_retry_timeout(),
+            fail_retry_count: Pearl::default_fail_retry_count(),
+            alien_disk: Some(String::from(alien_disk)),
+            allow_duplicates: Pearl::default_allow_duplicates(),
+            settings: BackendSettings {
+                root_dir_name: String::from("bob"),
+                alien_root_dir_name: String::from("alien"),
+                timestamp_period: String::from("1m"),
+                create_pearl_wait_delay: String::from("100ms")
+            },
+            hash_chars_count: Pearl::default_hash_chars_count(),
+            enable_aio: Pearl::default_enable_aio(),
+            disks_events_logfile: Pearl::default_disks_events_logfile(),
+            bloom_filter_max_buf_bits_count: Some(10000),
         }
     }
 }
@@ -791,63 +777,35 @@ impl NodeConfig {
     pub fn default_holder_group_size() -> usize {
         8
     }
-}
 
-impl Default for Node {
-    fn default() -> Self {
-        let log_config = String::from("");
-        let users_config = String::from("");
-        let name = String::from("local_node"); // maybe dependant on Node?
-        let quorum = 1;
-        let operation_timeout = String::from("3sec");
-        let check_interval = String::from("5000ms");
-        let count_interval = NodeConfig::default_count_interval();
-        let cluster_policy = String::from("quorum");
-        let backend_type = String::from("pearl");
-        let pearl = Some(Pearl::default());
-        let metrics = Some(MetricsConfig::default()); 
-        let bind_ref = Arc::new(Mutex::new(String::from("127.0.0.1:20000"))); // dependant on Node?
-        let disks_ref = Arc::new(Mutex::new(vec![DiskPath::new(String::from("disk1"), String::from("data"))])); // dependant on Node?
-        let cleanup_interval = String::from("1h");
-        let open_blobs_soft_limit = Some(2);
-        let open_blobs_hard_limit = Some(10);
-        let bloom_filter_memory_limit = Some(8.gibibytes());
-        let index_memory_limit = Some(8.gibibytes());
-        let index_memory_limit_soft = None;
-        let init_par_degree = NodeConfig::default_init_par_degree();
-        let disk_access_par_degree = NodeConfig::default_disk_access_par_degree();
-        let http_api_port = Node::default_http_api_port();
-        let http_api_address = Node::default_http_api_address();
-        let bind_to_ip_address = None;
-        let holder_group_size = NodeConfig::default_holder_group_size();
-        let authentication_type = NodeConfig::default_authentication_type();
+    pub fn get_testmode(node_name: &str, disk_name: &str, rest_port: Option<u16>) -> Self {
         Self {
-            log_config,
-            users_config,
-            name,
-            quorum,
-            operation_timeout,
-            check_interval,
-            count_interval,
-            cluster_policy,
-            backend_type,
-            pearl,
-            metrics,
-            bind_ref,
-            disks_ref,
-            cleanup_interval,
-            open_blobs_soft_limit,
-            open_blobs_hard_limit,
-            bloom_filter_memory_limit,
-            index_memory_limit,
-            index_memory_limit_soft,
-            init_par_degree,
-            disk_access_par_degree,
-            http_api_port,
-            http_api_address,
-            bind_to_ip_address,
-            holder_group_size,
-            authentication_type,
+             log_config: String::from("dummy"),
+             users_config: String::from("dummy"),
+             name: String::from(node_name),
+             quorum: 1,
+             operation_timeout: String::from("3sec"),
+             check_interval: String::from("5000ms"),
+             count_interval: NodeConfig::default_count_interval(),
+             cluster_policy: String::from("quorum"),
+             backend_type: String::from("pearl"),
+             pearl: Some(Pearl::get_testmode(disk_name)),
+             metrics: Some(MetricsConfig::default()), 
+             bind_ref: Arc::default(),
+             disks_ref: Arc::default(),
+             cleanup_interval: String::from("1h"),
+             open_blobs_soft_limit: Some(2),
+             open_blobs_hard_limit: Some(10),
+             bloom_filter_memory_limit: Some(8.gibibytes()),
+             index_memory_limit: Some(8.gibibytes()),
+             index_memory_limit_soft: None,
+             init_par_degree: NodeConfig::default_init_par_degree(),
+             disk_access_par_degree: NodeConfig::default_disk_access_par_degree(),
+             http_api_port: rest_port.unwrap_or_else(|| Node::default_http_api_port()),
+             http_api_address: Node::default_http_api_address(),
+             bind_to_ip_address: None,
+             holder_group_size: NodeConfig::default_holder_group_size(),
+             authentication_type: NodeConfig::default_authentication_type(),
         }
     }
 }

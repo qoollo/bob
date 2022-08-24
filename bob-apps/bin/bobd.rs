@@ -36,10 +36,13 @@ async fn main() {
     let cluster;
     let node;
     if let (_, Some(sub_matches)) = matches.subcommand() {
-        cluster = ClusterConfig::default();
-        node = NodeConfig::default();
+        cluster = ClusterConfig::get_testmode(
+            sub_matches.value_of("data"),
+            None,
+            sub_matches.value_of("grpc-port")).unwrap();
+        node = cluster.get_testmode_node(sub_matches.value_of("restapi-port")).unwrap();
 
-        init_testmode_logger();
+        init_testmode_logger(log::LevelFilter::Info);
 
         check_folders(&node, sub_matches.is_present("init_folders"));
 
@@ -151,7 +154,7 @@ async fn main() {
     }
 }
 
-fn init_testmode_logger() {
+fn init_testmode_logger(loglevel: log::LevelFilter) {
     let stdout = ConsoleAppender::builder()
         .encoder(Box::new(PatternEncoder::new( "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {h({l})}    {m}\n")))
         .build();
@@ -172,33 +175,33 @@ fn init_testmode_logger() {
                 .appender("stdout")
                 .appender("requests_error")
                 .additive(false)
-                .build("bob", log::LevelFilter::Error))
+                .build("bob", loglevel))
         .logger(Logger::builder()
                 .appender("stdout")
                 .appender("requests_error")
                 .additive(false)
-                .build("bob_backend", log::LevelFilter::Error))
+                .build("bob_backend", loglevel))
         .logger(Logger::builder()
                 .appender("stdout")
                 .appender("requests_error")
                 .additive(false)
-                .build("bob_common", log::LevelFilter::Error))
+                .build("bob_common", loglevel))
         .logger(Logger::builder()
                 .appender("stdout")
                 .appender("requests_error")
                 .additive(false)
-                .build("bob_apps", log::LevelFilter::Error))
+                .build("bob_apps", loglevel))
         .logger(Logger::builder()
                 .appender("stdout")
                 .appender("requests_error")
                 .additive(false)
-                .build("bob_grpc", log::LevelFilter::Error))
+                .build("bob_grpc", loglevel))
         .logger(Logger::builder()
                 .appender("stdout")
                 .appender("requests_error")
                 .additive(false)
-                .build("pearl", log::LevelFilter::Error))
-        .build(Root::builder().appender("stdout").build(log::LevelFilter::Error))
+                .build("pearl", loglevel))
+        .build(Root::builder().appender("stdout").build(loglevel))
         .unwrap();
     log4rs::init_config(config).unwrap();
 }
