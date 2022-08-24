@@ -285,6 +285,12 @@ fn get_matches<'a>() -> ArgMatches<'a> {
             .help("node addresses")
             .takes_value(true)
             .long("nodes")
+        )
+        .arg(
+            Arg::with_name("init_folders")
+                .help("Initializes bob and alien folders")
+                .long("init_folders")
+                .takes_value(false),
         );
 
     App::new("bobd")
