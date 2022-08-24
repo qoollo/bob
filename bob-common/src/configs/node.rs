@@ -233,6 +233,25 @@ impl MetricsConfig {
     }
 }
 
+impl Default for MetricsConfig {
+    fn default() -> Self {
+        let name = Some(String::from("bob"));
+        let prometheus_addr = String::default();
+        let prometheus_enabled = false;
+        let graphite_enabled =  false;
+        let graphite = None;
+        let prefix = None;
+        Self {
+            name,
+            prometheus_addr,
+            prometheus_enabled,
+            graphite_enabled,
+            graphite,
+            prefix
+        }
+    }
+}
+
 impl Validatable for MetricsConfig {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
@@ -786,7 +805,7 @@ impl Default for Node {
         let cluster_policy = String::from("quorum");
         let backend_type = String::from("pearl");
         let pearl = Some(Pearl::default());
-        let metrics = None;
+        let metrics = Some(MetricsConfig::default()); 
         let bind_ref = Arc::new(Mutex::new(String::from("127.0.0.1:20000"))); // dependant on Node?
         let disks_ref = Arc::new(Mutex::new(vec![DiskPath::new(String::from("disk1"), String::from("data"))])); // dependant on Node?
         let cleanup_interval = String::from("1h");
