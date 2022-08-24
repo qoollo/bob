@@ -17,19 +17,40 @@ use std::fs::create_dir;
 #[macro_use]
 extern crate log;
 
+use log4rs::append::console::ConsoleAppender;
+use log4rs::encode::pattern::PatternEncoder;
+use log4rs::append::rolling_file::{
+    RollingFileAppender,
+    policy::compound::{
+        trigger::size::SizeTrigger,
+        roll::fixed_window::FixedWindowRoller,
+        CompoundPolicy
+    }
+};
+use log4rs::config::{Appender, Config, Logger, Root};
+
 #[tokio::main]
 async fn main() {
     let matches = get_matches();
 
     let cluster;
     let node;
-    if let (sc, Some(sub_matches)) = matches.subcommand() {
-        println!("This is a sub command {}, sub matches: {:?}", sc, sub_matches);
+    if let (_, Some(sub_matches)) = matches.subcommand() {
         cluster = ClusterConfig::default();
         node = NodeConfig::default();
-        println!("{:#?}", cluster);
-        println!("{:#?}", node);
-        return;
+
+        init_testmode_logger();
+
+        check_folders(&node, sub_matches.is_present("init_folders"));
+
+        println!("Bob has started");
+        let n = &cluster.nodes()[0];
+        println!("Data directory: {}", n.disks()[0].path());
+        println!("gRPC API available at: {}", n.address());
+        let a = node.http_api_address();
+        let p = node.http_api_port();
+        println!("REST API available at: http://{}:{}", a, p);
+        println!("REST API Put and Get available at: http://{}:{}/data", a, p);
     } else {
         if matches.value_of("cluster").is_none() {
             eprintln!("Expect cluster config");
@@ -53,9 +74,9 @@ async fn main() {
 
         log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
             .expect("can't find log config");
+        check_folders(&node, matches.is_present("init_folders"));
     }
 
-    check_folders(&node, matches.is_present("init_folders"));
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
 
     let bind = node.bind();
@@ -128,6 +149,58 @@ async fn main() {
             warn!("valid authentication type not provided");
         }
     }
+}
+
+fn init_testmode_logger() {
+    let stdout = ConsoleAppender::builder()
+        .encoder(Box::new(PatternEncoder::new( "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {h({l})}    {m}\n")))
+        .build();
+
+    let _20mb = 20000000;
+    let trigger = SizeTrigger::new(_20mb);
+    let roller = FixedWindowRoller::builder()
+        .build( "./log/archive/info.{}.log", 10).unwrap();
+    let policy = CompoundPolicy::new(Box::new(trigger), Box::new(roller));
+    let requests_error = RollingFileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {l} {m}{n}")))
+        .build( "./log/error.log", Box::new(policy)).unwrap();
+
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .appender(Appender::builder().build("requests_error", Box::new(requests_error)))
+        .logger(Logger::builder()
+                .appender("stdout")
+                .appender("requests_error")
+                .additive(false)
+                .build("bob", log::LevelFilter::Error))
+        .logger(Logger::builder()
+                .appender("stdout")
+                .appender("requests_error")
+                .additive(false)
+                .build("bob_backend", log::LevelFilter::Error))
+        .logger(Logger::builder()
+                .appender("stdout")
+                .appender("requests_error")
+                .additive(false)
+                .build("bob_common", log::LevelFilter::Error))
+        .logger(Logger::builder()
+                .appender("stdout")
+                .appender("requests_error")
+                .additive(false)
+                .build("bob_apps", log::LevelFilter::Error))
+        .logger(Logger::builder()
+                .appender("stdout")
+                .appender("requests_error")
+                .additive(false)
+                .build("bob_grpc", log::LevelFilter::Error))
+        .logger(Logger::builder()
+                .appender("stdout")
+                .appender("requests_error")
+                .additive(false)
+                .build("pearl", log::LevelFilter::Error))
+        .build(Root::builder().appender("stdout").build(log::LevelFilter::Error))
+        .unwrap();
+    log4rs::init_config(config).unwrap();
 }
 
 async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
