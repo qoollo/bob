@@ -28,6 +28,7 @@ pub mod b_client {
         operation_timeout: Duration,
         client: BobApiClient<Channel>,
         metrics: BobClientMetrics,
+        local_node_name: String,
     }
 
     impl BobClient {
@@ -39,6 +40,7 @@ pub mod b_client {
             node: Node,
             operation_timeout: Duration,
             metrics: BobClientMetrics,
+            local_node_name: String,
         ) -> Result<Self, String> {
             let endpoint = Endpoint::from(node.get_uri()).tcp_nodelay(true);
             let client = BobApiClient::connect(endpoint)
@@ -49,6 +51,7 @@ pub mod b_client {
                 operation_timeout,
                 client,
                 metrics,
+                local_node_name,
             })
         }
 
@@ -173,7 +176,7 @@ pub mod b_client {
         }
 
         fn set_credentials<T>(&self, req: &mut Request<T>) {
-            let val = MetadataValue::from_str(self.node.name())
+            let val = MetadataValue::from_str(&self.local_node_name)
                 .expect("failed to create metadata value from node name");
             req.metadata_mut().insert("node_name", val);
         }
@@ -185,7 +188,7 @@ pub mod b_client {
 
     mock! {
         pub BobClient {
-            pub async fn create(node: Node, operation_timeout: Duration, metrics: BobClientMetrics) -> Result<Self, String>;
+            pub async fn create(node: Node, operation_timeout: Duration, metrics: BobClientMetrics, local_node_name: String) -> Result<Self, String>;
             pub async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult;
             pub async fn get(&self, key: BobKey, options: GetOptions) -> GetResult;
             pub async fn ping(&self) -> PingResult;
@@ -242,6 +245,7 @@ pub type ExistResult = Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>;
 pub struct Factory {
     operation_timeout: Duration,
     metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
+    local_node_name: String,
 }
 
 impl Factory {
@@ -250,15 +254,17 @@ impl Factory {
     pub fn new(
         operation_timeout: Duration,
         metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
+        local_node_name: String,
     ) -> Self {
         Factory {
             operation_timeout,
             metrics,
+            local_node_name,
         }
     }
     pub async fn produce(&self, node: Node) -> Result<BobClient, String> {
         let metrics = self.metrics.clone().get_metrics(&node.counter_display());
-        BobClient::create(node, self.operation_timeout, metrics).await
+        BobClient::create(node, self.operation_timeout, metrics, self.local_node_name.clone()).await
     }
 }
 

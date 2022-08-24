@@ -82,12 +82,12 @@ impl Node {
         self.conn.read().await.clone()
     }
 
-    pub async fn check(&self, client_fatory: &Factory) -> Result<(), String> {
+    pub async fn check(&self, client_factory: &Factory) -> Result<(), String> {
         if let Some(conn) = self.get_connection().await {
             self.ping(&conn).await
         } else {
             debug!("will connect to {:?}", self);
-            let client = client_fatory.produce(self.clone()).await?;
+            let client = client_factory.produce(self.clone()).await?;
             self.ping(&client).await?;
             self.set_connection(client).await;
             Ok(())

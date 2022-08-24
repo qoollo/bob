@@ -10,6 +10,7 @@ use super::{
 #[derive(Default, Clone, Debug)]
 pub struct UsersMap {
     inner: HashMap<String, User>,
+    password_salt: String,
 }
 
 impl UsersMap {
@@ -20,12 +21,20 @@ impl UsersMap {
             Error::Validation(format!("Can't parse users config file (reason: {})", e))
         })?;
         let inner = parse_users(users_config.users, users_config.roles)?;
-        Ok(Self { inner })
+        let password_salt = users_config.password_salt;
+        Ok(Self {
+            inner,
+            password_salt,
+        })
     }
 }
 
 impl UsersStorage for UsersMap {
     fn get_user<'a>(&'a self, username: &str) -> Result<&'a User, Error> {
         self.inner.get(username).ok_or(Error::UserNotFound)
+    }
+
+    fn get_password_salt<'a>(&'a self) -> &'a str {
+        &self.password_salt
     }
 }
