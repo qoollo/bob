@@ -276,8 +276,8 @@ impl Holder {
             let pearl_key = Key::from(key);
             let storage = state.get();
             storage.contains(pearl_key).await.map_err(|e| {
-                error!("{}", e);
-                Error::internal()
+                error!("{:?}", e);
+                Error::storage(e.to_string())
             })
         } else {
             trace!("Vdisk: {} not ready for reading: {:?}", self.vdisk, state);
