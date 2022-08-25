@@ -29,6 +29,8 @@ use log4rs::append::rolling_file::{
 };
 use log4rs::config::{Appender, Config, Logger, Root};
 
+use network_interface::{NetworkInterface, NetworkInterfaceConfig, Addr};
+
 #[tokio::main]
 async fn main() {
     let matches = get_matches();
@@ -36,15 +38,52 @@ async fn main() {
     let cluster;
     let node;
     if let (_, Some(sub_matches)) = matches.subcommand() {
+        let mut addresses = Vec::with_capacity(1);
+        let port = match sub_matches.value_of("grpc-port") {
+            Some(v) => v.parse().unwrap(),
+            None => 2000
+        };
+        let mut n_node = None;
+        if let Some(node_list) = sub_matches.value_of("nodes") {
+            let available_ips: Vec<String> = NetworkInterface::show().unwrap().into_iter().filter_map(|itf|
+                match itf.addr.unwrap() {
+                    Addr::V4(addr) => {
+                        Some(addr.ip.to_string())
+                    },
+                    _ => None
+            }).collect();
+
+            let mut count = 0;
+            for addr in node_list.split(",") {
+                let split = &addr.split_once(":").unwrap();
+                if n_node.is_none() {
+                    for ip in available_ips.iter() {
+                        if ip == split.0 && port == split.1.parse::<u16>().unwrap() {
+                            n_node = Some(count);
+                            break;
+                        }
+                    }
+                    count += 1
+                }
+                addresses.push(String::from(addr));
+            }
+            if n_node.is_none() {
+                eprintln!("No available IPs found");
+                return;
+            }
+        } else {
+            n_node = Some(0);
+            addresses.push(format!("127.0.0.1:{}", port))
+        }
         cluster = ClusterConfig::get_testmode(
-            sub_matches.value_of("data"),
-            None,
-            sub_matches.value_of("grpc-port")).unwrap();
-        node = cluster.get_testmode_node(sub_matches.value_of("restapi-port")).unwrap();
+            sub_matches.value_of("data").unwrap_or("data").to_string(),
+            addresses).unwrap();
+        let http_api_port = sub_matches.value_of("restapi-port").and_then(|v|  Some(v.parse().unwrap()));
+        node = cluster.get_testmode_node(n_node.unwrap(), http_api_port).unwrap();
 
-        init_testmode_logger(log::LevelFilter::Info);
+        init_testmode_logger(log::LevelFilter::Info); // TODO: do not forget to change to Error
 
-        check_folders(&node, sub_matches.is_present("init_folders"));
+        check_folders(&node, true);
 
         println!("Bob has started");
         let n = &cluster.nodes()[0];
@@ -361,12 +400,6 @@ fn get_matches<'a>() -> ArgMatches<'a> {
             .help("node addresses")
             .takes_value(true)
             .long("nodes")
-        )
-        .arg(
-            Arg::with_name("init_folders")
-                .help("Initializes bob and alien folders")
-                .long("init_folders")
-                .takes_value(false),
         );
 
     App::new("bobd")

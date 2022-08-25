@@ -424,19 +424,24 @@ impl Cluster {
         }
     }
 
-    pub fn get_testmode(path: Option<&str>, addr: Option<&str>, port: Option<&str>) -> Result<Self, String> {
-        let disk = DiskPath::new("disk1".to_string(), path.unwrap_or("data").to_string());
-        let node = Node {
-            name: "local_node".to_string(),
-            address: format!("{}:{}", addr.unwrap_or("127.0.0.1"), port.unwrap_or("20000")),
-            disks: vec![disk],
-        };
-        let replica = Replica::new(node.name().to_string(), node.disks()[0].name().to_string());
+    pub fn get_testmode(path: String, addresses: Vec<String>) -> Result<Self, String> {
+        let disks = vec![DiskPath::new("disk_0".to_string(), path)];
+        let len = addresses.len();
+        let mut nodes = Vec::with_capacity(len);
         let mut vdisk = VDisk::new(0);
-        vdisk.push_replica(replica);
+        for (address, i) in addresses.into_iter().zip(0..len) {
+            let node = Node {
+                name: format!("node_{}", i),
+                address,
+                disks: disks.clone()
+            };
+            let replica = Replica::new(node.name().to_string(), node.disks()[0].name().to_string());
+            vdisk.push_replica(replica);
+            nodes.push(node)
+        }
         let dist_func = DistributionFunc::default();
         let config = Cluster {
-            nodes: vec![node],
+            nodes,
             vdisks: vec![vdisk],
             racks: vec![],
             distribution_func: dist_func
@@ -451,20 +456,15 @@ impl Cluster {
         }
     }
 
-    pub fn get_testmode_node(&self, rest_port: Option<&str>) -> AnyResult<NodeConfig> {
-        let port = if let Some(s) = rest_port {
-            Some(s.parse().unwrap())
-        } else {
-            None
-        };
-        let n = &self.nodes()[0];
-        let config = NodeConfig::get_testmode(n.name(), n.disks()[0].name(), port);
+    pub fn get_testmode_node(&self, n_node: usize, rest_port: Option<u16>) -> Result<NodeConfig, String> {
+        let node = &self.nodes()[n_node];
+        let config = NodeConfig::get_testmode(node.name(), node.disks()[0].name(), rest_port);
         if let Err(e) = config.validate() {
             debug!("config is not valid: {}", e);
-            Err(anyhow::anyhow!("config is not valid: {}", e))
+            Err("config is not valid: {}".to_string())
         } else {
             self.check(&config)
-                .map_err(|e| anyhow::anyhow!("node config check failed: {}", e))?;
+                .map_err(|e| format!("node config check failed: {}", e))?;
             Ok(config)
         }
     }
