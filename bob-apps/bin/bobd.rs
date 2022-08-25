@@ -38,61 +38,16 @@ async fn main() {
     let cluster;
     let node;
     if let (_, Some(sub_matches)) = matches.subcommand() {
-        let mut addresses = Vec::with_capacity(1);
-        let port = match sub_matches.value_of("grpc-port") {
-            Some(v) => v.parse().unwrap(),
-            None => 2000
-        };
-        let mut n_node = None;
-        if let Some(node_list) = sub_matches.value_of("nodes") {
-            let available_ips: Vec<String> = NetworkInterface::show().unwrap().into_iter().filter_map(|itf|
-                match itf.addr.unwrap() {
-                    Addr::V4(addr) => {
-                        Some(addr.ip.to_string())
-                    },
-                    _ => None
-            }).collect();
-
-            let mut count = 0;
-            for addr in node_list.split(",") {
-                let split = &addr.split_once(":").unwrap();
-                if n_node.is_none() {
-                    for ip in available_ips.iter() {
-                        if ip == split.0 && port == split.1.parse::<u16>().unwrap() {
-                            n_node = Some(count);
-                            break;
-                        }
-                    }
-                    count += 1
-                }
-                addresses.push(String::from(addr));
+        match configure_testmode(sub_matches) {
+            Ok((c, n)) => {
+                cluster = c;
+                node = n;
             }
-            if n_node.is_none() {
-                eprintln!("No available IPs found");
+            Err(e) => {
+                eprintln!("{}", e);
                 return;
             }
-        } else {
-            n_node = Some(0);
-            addresses.push(format!("127.0.0.1:{}", port))
         }
-        cluster = ClusterConfig::get_testmode(
-            sub_matches.value_of("data").unwrap_or("data").to_string(),
-            addresses).unwrap();
-        let http_api_port = sub_matches.value_of("restapi-port").and_then(|v|  Some(v.parse().unwrap()));
-        node = cluster.get_testmode_node(n_node.unwrap(), http_api_port).unwrap();
-
-        init_testmode_logger(log::LevelFilter::Info); // TODO: do not forget to change to Error
-
-        check_folders(&node, true);
-
-        println!("Bob has started");
-        let n = &cluster.nodes()[0];
-        println!("Data directory: {}", n.disks()[0].path());
-        println!("gRPC API available at: {}", n.address());
-        let a = node.http_api_address();
-        let p = node.http_api_port();
-        println!("REST API available at: http://{}:{}", a, p);
-        println!("REST API Put and Get available at: http://{}:{}/data", a, p);
     } else {
         if matches.value_of("cluster").is_none() {
             eprintln!("Expect cluster config");
@@ -191,6 +146,65 @@ async fn main() {
             warn!("valid authentication type not provided");
         }
     }
+}
+
+fn configure_testmode(sub_matches: &ArgMatches) -> Result<(ClusterConfig, NodeConfig), String> {
+    let mut addresses = Vec::with_capacity(1);
+    let port = match sub_matches.value_of("grpc-port") {
+        Some(v) => v.parse().unwrap(),
+        None => 20000
+    };
+    let mut this_node = None;
+    if let Some(node_list) = sub_matches.value_of("nodes") {
+        let available_ips: Vec<String> = NetworkInterface::show().unwrap().into_iter().filter_map(|itf|
+            match itf.addr.unwrap() {
+                Addr::V4(addr) => {
+                    Some(addr.ip.to_string())
+                },
+                _ => None
+        }).collect();
+
+        let mut index = 0;
+        for addr in node_list.split(",") {
+            let split = &addr.split_once(":").unwrap();
+            if this_node.is_none() {
+                for ip in available_ips.iter() {
+                    if ip == split.0 && port == split.1.parse::<u16>().unwrap() {
+                        this_node = Some(index);
+                        break;
+                    }
+                }
+                index += 1
+            }
+            addresses.push(String::from(addr));
+        }
+        if this_node.is_none() {
+            return Err(String::from("No available IPs found"));
+        }
+    } else {
+        this_node = Some(0);
+        addresses.push(format!("127.0.0.1:{}", port))
+    }
+    let cluster = ClusterConfig::get_testmode(
+        sub_matches.value_of("data").unwrap_or("data").to_string(),
+        addresses).unwrap();
+    let http_api_port = sub_matches.value_of("restapi-port").and_then(|v|  Some(v.parse().unwrap()));
+    let node = cluster.get_testmode_node(this_node.unwrap(), http_api_port).unwrap();
+
+    init_testmode_logger(log::LevelFilter::Info); // TODO: do not forget to change to Error
+
+    check_folders(&node, true);
+
+    println!("Bob has started");
+    let n = &cluster.nodes()[0];
+    println!("Data directory: {}", n.disks()[0].path());
+    println!("gRPC API available at: {}", n.address());
+    let a = node.http_api_address();
+    let p = node.http_api_port();
+    println!("REST API available at: http://{}:{}", a, p);
+    println!("REST API Put and Get available at: http://{}:{}/data", a, p);
+
+    Ok((cluster, node))
 }
 
 fn init_testmode_logger(loglevel: log::LevelFilter) {
