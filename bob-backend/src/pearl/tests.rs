@@ -28,6 +28,7 @@ async fn create_backend(node_config: &str, cluster_config: &str) -> BackendResul
 async fn backend() -> PearlBackend {
     let node_config = "
 log_config: logger.yaml
+users_config: users.yaml
 name: local_node
 quorum: 1
 operation_timeout: 3sec

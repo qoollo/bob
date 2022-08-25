@@ -9,6 +9,7 @@ use clap::{App, Arg, ArgMatches};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
+use std::mem::size_of;
 use std::ops::Sub;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -18,6 +19,7 @@ use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
+use tonic::metadata::{Ascii, MetadataValue};
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request, Status};
 
@@ -86,6 +88,9 @@ struct TaskConfig {
     mode: Mode,
     measure_time: bool,
     key_size: usize,
+    basic_username: Option<String>,
+    basic_password: Option<String>,
+    packet_size: u64,
 }
 
 impl FromStr for Mode {
@@ -117,6 +122,10 @@ impl TaskConfig {
                 );
             }
         }
+        let basic_username = matches.value_of("user").map(|s| s.to_string());
+        let basic_password = matches.value_of("password").map(|s| s.to_string());
+        let packet_size = matches.value_or_default("packet_size");
+
         Self {
             low_idx,
             count,
@@ -125,6 +134,9 @@ impl TaskConfig {
             mode,
             measure_time: false,
             key_size,
+            basic_username,
+            basic_password,
+            packet_size,
         }
     }
 
@@ -164,6 +176,58 @@ impl TaskConfig {
         data.resize(self.key_size, 0);
         data
     }
+
+    fn get_request_creator<T>(&self) -> impl Fn(T) -> Request<T> {
+        let do_basic_auth = self.basic_username.is_some() && self.basic_password.is_some();
+        let basic_username = self.basic_username.clone().unwrap_or_default();
+        let basic_password = self.basic_password.clone().unwrap_or_default();
+
+        let basic_username = basic_username
+            .parse::<MetadataValue<Ascii>>()
+            .expect("can not parse username into header");
+        let basic_password = basic_password
+            .parse::<MetadataValue<Ascii>>()
+            .expect("can not parse password into header");
+
+        move |a| {
+            let mut request = Request::new(a);
+            if do_basic_auth {
+                let req_md = request.metadata_mut();
+                req_md.insert("username", basic_username.clone());
+                req_md.insert("password", basic_password.clone());
+            }
+            request
+        }
+    }
+
+    fn prepare_exist_keys(&self) -> Vec<Vec<u64>> {
+        let mut keys = Vec::new();
+        let mut current_low = self.low_idx;
+        let shuffle = self.is_random();
+        let full_packets = self.count / self.packet_size;
+        let tail = self.count - full_packets * self.packet_size;
+        for _ in 0..full_packets {
+            let mut keys_portion: Vec<_> = 
+                (current_low..current_low + self.packet_size).collect();
+            if shuffle {
+                keys_portion.shuffle(&mut thread_rng());
+            }
+    
+            keys.push(keys_portion);
+    
+            current_low += self.packet_size;
+        }
+        if tail > 0 {
+            let mut keys_portion: Vec<_> = 
+                (current_low..current_low + tail).collect();
+            if shuffle {
+                keys_portion.shuffle(&mut thread_rng());
+            }
+    
+            keys.push(keys_portion);
+        }
+        keys
+    }
 }
 
 impl Debug for TaskConfig {
@@ -191,16 +255,27 @@ struct Statistics {
     get_total: AtomicU64,
     get_error_count: AtomicU64,
 
+    exist_total: AtomicU64,
+    exist_error_count: AtomicU64,
+
     put_time_ns_st: AtomicU64,
     put_count_st: AtomicU64,
 
     get_time_ns_st: AtomicU64,
     get_count_st: AtomicU64,
 
+    exist_time_ns_st: AtomicU64,
+    exist_count_st: AtomicU64,
+
     get_errors: Mutex<HashMap<CodeRepresentation, u64>>,
     put_errors: Mutex<HashMap<CodeRepresentation, u64>>,
+    exist_errors: Mutex<HashMap<CodeRepresentation, u64>>,
 
     get_size_bytes: AtomicU64,
+
+    exist_size_bytes: AtomicU64,
+
+    exist_presented_keys: AtomicU64,
 
     verified_puts: AtomicU64,
 }
@@ -216,6 +291,12 @@ impl Statistics {
         self.get_time_ns_st
             .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
         self.get_count_st.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn save_single_thread_exist_time(&self, duration: &Duration) {
+        self.exist_time_ns_st
+            .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
+        self.exist_count_st.fetch_add(1, Ordering::Relaxed);
     }
 
     async fn save_get_error(&self, status: Status) {
@@ -239,6 +320,17 @@ impl Statistics {
         self.put_error_count.fetch_add(1, Ordering::SeqCst);
         debug!("{}", status.message())
     }
+
+    async fn save_exist_error(&self, status: Status) {
+        let mut guard = self.exist_errors.lock().await;
+        guard
+            .entry(status.code() as CodeRepresentation)
+            .and_modify(|i| *i += 1)
+            .or_insert(1);
+
+        self.exist_error_count.fetch_add(1, Ordering::SeqCst);
+        debug!("{}", status.message())
+    }
 }
 
 struct BenchmarkConfig {
@@ -247,12 +339,14 @@ struct BenchmarkConfig {
     statistics: Arc<Statistics>,
     time: Option<Duration>,
     request_amount_bytes: u64,
+    keys_count: u64,
 }
 
 #[derive(Debug)]
 enum Behavior {
     Put,
     Get,
+    Exist,
     Test,
     PingPong,
 }
@@ -264,6 +358,7 @@ impl FromStr for Behavior {
         match s {
             "get" => Ok(Behavior::Get),
             "put" => Ok(Behavior::Put),
+            "exist" => Ok(Behavior::Exist),
             "test" => Ok(Behavior::Test),
             "ping_pong" => Ok(Behavior::PingPong),
             _ => Err(()),
@@ -285,6 +380,7 @@ impl BenchmarkConfig {
                 .value_of("time")
                 .map(|t| Duration::from_secs(t.parse().expect("error parsing time"))),
             request_amount_bytes: matches.value_or_default("payload"),
+            keys_count: matches.value_or_default("count"),
         }
     }
 }
@@ -362,10 +458,12 @@ async fn stat_worker(
     period_ms: u64,
     stat: Arc<Statistics>,
     request_bytes: u64,
+    keys_count: u64,
+    behavior_flags: u8,
 ) {
-    let (put_speed_values, get_speed_values, elapsed) =
-        print_periodic_stat(stop_token, period_ms, &stat, request_bytes);
-    print_averages(&stat, &put_speed_values, &get_speed_values, elapsed);
+    let (put_speed_values, get_speed_values, exist_speed_values, elapsed) =
+        print_periodic_stat(stop_token, period_ms, &stat, request_bytes, behavior_flags);
+    print_averages(&stat, &put_speed_values, &get_speed_values, &exist_speed_values, elapsed, keys_count, behavior_flags);
     print_errors_with_codes(stat).await
 }
 
@@ -384,35 +482,63 @@ async fn print_errors_with_codes(stat: Arc<Statistics>) {
             println!("{:?} = {}", Code::from(code), count);
         }
     }
+    let guard = stat.exist_errors.lock().await;
+    if !guard.is_empty() {
+        println!("exist errors:");
+        for (&code, count) in guard.iter() {
+            println!("{:?} = {}", Code::from(code), count);
+        }
+    }
 }
 
 fn print_averages(
     stat: &Arc<Statistics>,
     put_speed_values: &[f64],
     get_speed_values: &[f64],
+    exist_speed_values: &[f64],
     elapsed: Duration,
+    keys_count: u64,
+    behavior_flags: u8,
 ) {
-    println!(
-        "avg total: {} rps | total err: {}\r\n\
-        put: {:>6.2} kb/s | get: {:>6.2} kb/s\r\n\
-        put resp time, ms: {:>6.2} | get resp time, ms: {:>6.2}",
-        ((stat.put_total.load(Ordering::Relaxed) + stat.get_total.load(Ordering::Relaxed)) * 1000)
-            .checked_div(elapsed.as_millis() as u64)
-            .unwrap_or_default(),
-        stat.put_error_count.load(Ordering::Relaxed) + stat.get_error_count.load(Ordering::Relaxed),
-        average(put_speed_values),
-        average(get_speed_values),
-        finite_or_default(
+    let total_put = stat.put_total.load(Ordering::Relaxed);
+    let total_exist = stat.exist_total.load(Ordering::Relaxed);
+    let total_get = stat.get_total.load(Ordering::Relaxed);
+    let avg_total = ((total_put + total_get + total_exist) * 1000)
+                    .checked_div(elapsed.as_millis() as u64)
+                    .unwrap_or_default();
+    let total_err = stat.put_error_count.load(Ordering::Relaxed) + 
+                    stat.get_error_count.load(Ordering::Relaxed) +
+                    stat.exist_error_count.load(Ordering::Relaxed);
+    let print_put = (behavior_flags & PUT_FLAG) > 0;
+    let print_get = (behavior_flags & GET_FLAG) > 0;
+    let print_exist = (behavior_flags & EXIST_FLAG) > 0;
+    print!("avg total: {} rps | total err: {}\r\n", avg_total, total_err);
+    if print_put {
+        let put_resp_time = finite_or_default(
             (stat.put_time_ns_st.load(Ordering::Relaxed) as f64)
                 / (stat.put_count_st.load(Ordering::Relaxed) as f64)
                 / 1e9
-        ),
-        finite_or_default(
+        );
+        println!("put: {:>6.2} kb/s | resp time {:>6.2} ms", average(put_speed_values), put_resp_time);
+    }
+    if print_get {
+        let get_resp_time = finite_or_default(
             (stat.get_time_ns_st.load(Ordering::Relaxed) as f64)
                 / (stat.get_count_st.load(Ordering::Relaxed) as f64)
                 / 1e9
-        ),
-    );
+        );
+        println!("get: {:>6.2} kb/s | resp time {:>6.2} ms", average(get_speed_values), get_resp_time);
+    }
+    if print_exist {
+        let exist_resp_time = finite_or_default(
+            (stat.exist_time_ns_st.load(Ordering::Relaxed) as f64)
+                / (stat.exist_count_st.load(Ordering::Relaxed) as f64)
+                / 1e9
+        );
+        let present_keys = stat.exist_presented_keys.load(Ordering::Relaxed);
+        println!("exist: {:>6.2} kb/s | resp time {:>6.2} ms | {} of {} keys present", 
+            average(exist_speed_values), exist_resp_time, present_keys, keys_count);
+    }
     if get_matches().is_present("verify") {
         println!(
             "verified put threads: {}",
@@ -426,10 +552,12 @@ fn print_periodic_stat(
     period_ms: u64,
     stat: &Arc<Statistics>,
     request_bytes: u64,
-) -> (Vec<f64>, Vec<f64>, Duration) {
+    behavior_flags: u8,
+) -> (Vec<f64>, Vec<f64>, Vec<f64>, Duration) {
     let pause = time::Duration::from_millis(period_ms);
     let mut put_count = DiffContainer::new(Box::new(|| stat.put_total.load(Ordering::Relaxed)));
     let mut get_count = DiffContainer::new(Box::new(|| stat.get_total.load(Ordering::Relaxed)));
+    let mut exist_count = DiffContainer::new(Box::new(|| stat.exist_total.load(Ordering::Relaxed)));
     let mut put_time_st =
         DiffContainer::new(Box::new(|| stat.put_time_ns_st.load(Ordering::Relaxed)));
     let mut put_count_st =
@@ -438,46 +566,91 @@ fn print_periodic_stat(
         DiffContainer::new(Box::new(|| stat.get_time_ns_st.load(Ordering::Relaxed)));
     let mut get_count_st =
         DiffContainer::new(Box::new(|| stat.get_count_st.load(Ordering::Relaxed)));
+    let mut exist_time_st =
+        DiffContainer::new(Box::new(|| stat.exist_time_ns_st.load(Ordering::Relaxed)));
+    let mut exist_count_st =
+        DiffContainer::new(Box::new(|| stat.exist_count_st.load(Ordering::Relaxed)));
     let mut get_size = DiffContainer::new(Box::new(|| stat.get_size_bytes.load(Ordering::Relaxed)));
+    let mut exist_size = DiffContainer::new(Box::new(|| stat.exist_size_bytes.load(Ordering::Relaxed)));
     let mut put_speed_values = vec![];
     let mut get_speed_values = vec![];
-    let k = request_bytes as f64 / period_ms as f64 * 1000.0 / 1024.0;
+    let mut exist_speed_values = vec![];
+    let sec = period_ms as f64 / 1000.;
+    let k = request_bytes as f64 / 1024.0;
     let start = Instant::now();
+    let print_put = (behavior_flags & PUT_FLAG) > 0;
+    let print_get = (behavior_flags & GET_FLAG) > 0;
+    let print_exist = (behavior_flags & EXIST_FLAG) > 0;
     while !stop_token.load(Ordering::Relaxed) {
         thread::sleep(pause);
-        let put_count_spd = put_count.get_diff() * 1000 / period_ms;
-        let get_count_spd = get_count.get_diff() * 1000 / period_ms;
-        let cur_st_put_time = put_time_st.get_diff() as f64;
-        let cur_st_put_count = put_count_st.get_diff() as f64;
-        let cur_st_get_time = get_time_st.get_diff() as f64;
-        let cur_st_get_count = get_count_st.get_diff() as f64;
+        let elapsed = start.elapsed().as_secs();
+        print!("{:>5} ", elapsed);
+        let mut first_line = true;
+        if print_put {
+            if !first_line {
+                print!("{:>6}", ' ');
+            } else {
+                first_line = false;
+            }
 
-        let put_error = stat.put_error_count.load(Ordering::Relaxed);
-        let get_error = stat.get_error_count.load(Ordering::Relaxed);
-        let put_spd = put_count_spd as f64 * k;
-        let get_spd = get_size.get_diff() as f64 / 1024.0;
-        if put_spd > 0.0 {
+            let d_put = put_count.get_diff();
+            let put_count_spd = d_put * 1000 / period_ms;
+            let cur_st_put_time = put_time_st.get_diff() as f64;
+            let cur_st_put_count = put_count_st.get_diff() as f64;
+            let put_error = stat.put_error_count.load(Ordering::Relaxed);
+            let put_spd = put_count_spd as f64 * k;
+            println!("put:   {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+                put_count_spd,
+                put_error,
+                put_spd,
+                finite_or_default(cur_st_put_time / cur_st_put_count / 1e9));
+
             put_speed_values.push(put_spd);
         }
-        if get_spd > 0.0 {
+        if print_get {
+            if !first_line {
+                print!("{:>6}", ' ');
+            } else {
+                first_line = false;
+            }
+            
+            let d_get = get_count.get_diff();
+            let get_count_spd = d_get * 1000 / period_ms;
+            let cur_st_get_time = get_time_st.get_diff() as f64;
+            let cur_st_get_count = get_count_st.get_diff() as f64;
+            let get_error = stat.get_error_count.load(Ordering::Relaxed);
+            let get_spd = get_size.get_diff() as f64 / 1024. / sec;
+            println!("get:   {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+                get_count_spd,
+                get_error,
+                get_spd,
+                finite_or_default(cur_st_get_time / cur_st_get_count / 1e9));
+
             get_speed_values.push(get_spd);
         }
-        println!(
-            "put: {:>6} rps  | get {:>6} rps   | put err: {:5}     | get err: {:5}\r\n\
-            put: {:>6.2} kb/s | get: {:>6.2} kb/s | put lat: {:>6.2} ms | get lat: {:>6.2} ms",
-            put_count_spd,
-            get_count_spd,
-            put_error,
-            get_error,
-            put_spd,
-            get_spd,
-            finite_or_default(cur_st_put_time / cur_st_put_count / 1e9),
-            finite_or_default(cur_st_get_time / cur_st_get_count / 1e9)
-        );
+        if print_exist {
+            if !first_line {
+                print!("{:>6}", ' ');
+            }
+            
+            let d_exist = exist_count.get_diff();
+            let exist_count_spd = d_exist * 1000 / period_ms;
+            let cur_st_exist_time = exist_time_st.get_diff() as f64;
+            let cur_st_exist_count = exist_count_st.get_diff() as f64;
+            let exist_error = stat.exist_error_count.load(Ordering::Relaxed);
+            let exist_spd = exist_size.get_diff() as f64 / 1024.0 / sec;
+            println!("exist: {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+                exist_count_spd,
+                exist_error,
+                exist_spd,
+                finite_or_default(cur_st_exist_time / cur_st_exist_count / 1e9));
+
+            exist_speed_values.push(exist_spd);
+        }
     }
     let elapsed = start.elapsed();
     println!("Total statistics, elapsed: {:?}", elapsed);
-    (put_speed_values, get_speed_values, elapsed)
+    (put_speed_values, get_speed_values,exist_speed_values, elapsed)
 }
 
 fn average(values: &[f64]) -> f64 {
@@ -499,19 +672,22 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     let upper_idx = task_conf.low_idx + task_conf.count;
     let measure_time = task_conf.is_time_measurement_thread();
     let iterator: Box<dyn Send + Iterator<Item = u64>> = if task_conf.is_random() {
-        Box::new(task_conf.low_idx..upper_idx)
-    } else {
         let mut keys: Vec<_> = (task_conf.low_idx..upper_idx).collect();
         keys.shuffle(&mut thread_rng());
         Box::new(keys.into_iter())
+    } else {
+        Box::new(task_conf.low_idx..upper_idx)
     };
+
+    let request_creator = task_conf.get_request_creator::<GetRequest>();
     for key in iterator {
-        let request = Request::new(GetRequest {
+        let request = request_creator(GetRequest {
             key: Some(BlobKey {
                 key: task_conf.get_proper_key(key),
             }),
             options: options.clone(),
         });
+
         let res = if measure_time {
             let start = Instant::now();
             let res = client.get(request).await;
@@ -535,6 +711,8 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
 async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = net_conf.build_client().await;
 
+    let request_creator = task_conf.get_request_creator::<PutRequest>();
+
     let options: Option<PutOptions> = task_conf.find_put_options();
     let measure_time = task_conf.is_time_measurement_thread();
     let upper_idx = task_conf.low_idx + task_conf.count;
@@ -543,18 +721,19 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         let key = BlobKey {
             key: task_conf.get_proper_key(i),
         };
-        let req = Request::new(PutRequest {
+        let request = request_creator(PutRequest {
             key: Some(key),
             data: Some(blob),
             options: options.clone(),
         });
+
         let res = if measure_time {
             let start = Instant::now();
-            let res = client.put(req).await;
+            let res = client.put(request).await;
             stat.save_single_thread_put_time(&start.elapsed());
             res
         } else {
-            client.put(req).await
+            client.put(request).await
         };
         if let Err(status) = res {
             stat.save_put_error(status).await;
@@ -579,13 +758,64 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     }
 }
 
+async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
+    let mut client = net_conf.build_client().await;
+
+    let request_creator = task_conf.get_request_creator::<ExistRequest>();
+
+    let options = task_conf.find_get_options();
+    let send_size_bytes = task_conf.packet_size * (task_conf.key_size as u64);
+    let measure_time = task_conf.is_time_measurement_thread();
+
+    let keys = task_conf.prepare_exist_keys();
+    let iterator = Box::new(keys.into_iter());
+
+    for portion in iterator {
+        let keys = portion.iter().map(|key| 
+            BlobKey {
+                key: task_conf.get_proper_key(*key),
+            }).collect();
+        let request = request_creator(ExistRequest {
+            keys,
+            options: options.clone(),
+        });
+        let res = if measure_time {
+            let start = Instant::now();
+            let res = client.exist(request).await;
+            stat.save_single_thread_exist_time(&start.elapsed());
+            res
+        } else {
+            client.exist(request).await
+        };
+        stat.exist_size_bytes
+                    .fetch_add(send_size_bytes, Ordering::SeqCst);
+        match res {
+            Err(status) => stat.save_exist_error(status).await,
+            Ok(payload) => {
+                let res = payload.into_inner().exist;
+                stat.exist_size_bytes
+                    .fetch_add((res.len() * size_of::<bool>()) as u64, Ordering::SeqCst);
+
+                let present = res.iter().fold(0, |acc, flag| acc + u64::from(*flag));
+                stat.exist_presented_keys
+                    .fetch_add(present, Ordering::SeqCst);
+            }
+        }
+        stat.exist_total.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
 async fn test_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     put_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
-    get_worker(net_conf, task_conf, stat).await;
+    get_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
+    exist_worker(net_conf, task_conf, stat).await;
 }
 
 async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = net_conf.build_client().await;
+
+    let get_request_creator = task_conf.get_request_creator::<GetRequest>();
+    let put_request_creator = task_conf.get_request_creator::<PutRequest>();
 
     let get_options = task_conf.find_get_options();
     let put_options = task_conf.find_put_options();
@@ -596,7 +826,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
         let key = BlobKey {
             key: task_conf.get_proper_key(i),
         };
-        let put_request = Request::new(PutRequest {
+        let put_request = put_request_creator(PutRequest {
             key: Some(key.clone()),
             data: Some(blob),
             options: put_options.clone(),
@@ -613,7 +843,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
             stat.save_put_error(status).await;
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
-        let get_request = Request::new(GetRequest {
+        let get_request = get_request_creator(GetRequest {
             key: Some(key),
             options: get_options.clone(),
         });
@@ -656,10 +886,14 @@ fn spawn_workers(
                 mode: task_conf.mode.clone(),
                 measure_time: i == 0,
                 key_size: task_conf.key_size,
+                basic_username: task_conf.basic_username.clone(),
+                basic_password: task_conf.basic_password.clone(),
+                packet_size: task_conf.packet_size,
             };
             match benchmark_conf.behavior {
                 Behavior::Put => tokio::spawn(put_worker(nc, tc, stat_inner)),
                 Behavior::Get => tokio::spawn(get_worker(nc, tc, stat_inner)),
+                Behavior::Exist => tokio::spawn(exist_worker(nc, tc, stat_inner)),
                 Behavior::Test => tokio::spawn(test_worker(nc, tc, stat_inner)),
                 Behavior::PingPong => tokio::spawn(ping_pong_worker(nc, tc, stat_inner)),
             }
@@ -667,6 +901,9 @@ fn spawn_workers(
         .collect()
 }
 
+const EXIST_FLAG: u8 = 4;
+const PUT_FLAG: u8 = 1;
+const GET_FLAG: u8 = 2;
 fn spawn_statistics_thread(
     benchmark_conf: &BenchmarkConfig,
     stop_token: &Arc<AtomicBool>,
@@ -674,7 +911,29 @@ fn spawn_statistics_thread(
     let stop_token = stop_token.clone();
     let stat = benchmark_conf.statistics.clone();
     let bytes_amount = benchmark_conf.request_amount_bytes;
-    tokio::spawn(stat_worker(stop_token, 1000, stat, bytes_amount))
+    let keys_count = benchmark_conf.keys_count;
+    let mut behavior_flags = 0;
+    match benchmark_conf.behavior {
+        Behavior::Exist => {
+            behavior_flags |= EXIST_FLAG;
+        },
+        Behavior::Get => {
+            behavior_flags |= GET_FLAG;
+        },
+        Behavior::PingPong => {
+            behavior_flags |= GET_FLAG;
+            behavior_flags |= PUT_FLAG;
+        },
+        Behavior::Put => {
+            behavior_flags |= PUT_FLAG;
+        },
+        Behavior::Test => {
+            behavior_flags |= GET_FLAG;
+            behavior_flags |= PUT_FLAG;
+            behavior_flags |= EXIST_FLAG;
+        }
+    }
+    tokio::spawn(stat_worker(stop_token, 1000, stat, bytes_amount, keys_count, behavior_flags))
 }
 
 fn create_blob(task_conf: &TaskConfig) -> Blob {
@@ -742,7 +1001,7 @@ fn get_matches() -> ArgMatches<'static> {
         )
         .arg(
             Arg::with_name("behavior")
-                .help("put / get / test")
+                .help("put / get / exist / test")
                 .takes_value(true)
                 .short("b")
                 .long("behavior")
@@ -786,6 +1045,26 @@ fn get_matches() -> ArgMatches<'static> {
                 .long("keysize")
                 .short("k")
                 .default_value(option_env!("BOB_KEY_SIZE").unwrap_or("8")),
+        )
+        .arg(
+            Arg::with_name("user")
+                .help("username for auth")
+                .takes_value(true)
+                .long("user"),
+        )
+        .arg(
+            Arg::with_name("password")
+                .help("password for auth")
+                .takes_value(true)
+                .long("password"),
+        )
+        .arg(
+            Arg::with_name("packet_size")
+                .help("size of packet in exist request")
+                .takes_value(true)
+                .long("packet_size")
+                .short("s")
+                .default_value("1000"),
         )
         .get_matches()
 }

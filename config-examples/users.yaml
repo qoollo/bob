@@ -1,0 +1,41 @@
+---
+roles:
+  admin:
+    read: true
+    write: true
+    read_rest: true
+    write_rest: true
+  reader:
+    read: true
+    read_rest: true
+  data_manipulator:
+    write: true
+    read: true
+    read_rest: true
+
+# optional salt for password_hashes, "bob" by default
+password_salt: bob
+
+users:
+  - username: default
+    role: reader
+  - username: admin
+    password: password
+    role: admin
+  - username: readonly
+    password: password
+    role: reader
+  - username: user
+    password: password
+    role: data_manipulator
+  - username: custom_user
+    password: password
+    role: reader
+    claims:
+      write: true
+  - username: special_user
+    # SHA512 from "password" with salt "bob"
+    password_hash: a0f36ac12d76be0d3dd5230bd3ffae6f30967691ec2381407f904d6a105937d93dac605c5c7b5baf66694d96d1b1c37fbdc32095dd87624142ac48f1f549b55e
+    claims:
+      write_rest: true
+      read_rest: true

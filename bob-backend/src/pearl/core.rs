@@ -114,6 +114,21 @@ impl MetricsProducer for Pearl {
         }
         cnt
     }
+
+    async fn disk_used_by_disk(&self) -> HashMap<DiskPath, u64> {
+        let futs: FuturesUnordered<_> = self
+            .disk_controllers
+            .iter()
+            .chain(once(&self.alien_disk_controller))
+            .cloned()
+            .map(|dc| async move { (dc.disk().clone(), dc.disk_used().await) })
+            .collect();
+        futs.fold(HashMap::new(), |mut m, (n, u)| {
+            m.entry(n).and_modify(|s| *s = *s + u).or_insert(u);
+            ready(m)
+        })
+        .await
+    }
 }
 
 #[async_trait]
@@ -124,7 +139,7 @@ impl BackendStorage for Pearl {
         let futs = FuturesUnordered::new();
         let alien_iter = once(&self.alien_disk_controller);
         let postprocessor = BloomFilterMemoryLimitHooks::new(self.bloom_filter_memory_limit);
-        for dc in self.disk_controllers.iter().chain(alien_iter).cloned() {
+        for dc in self.disk_controllers.iter().chain(alien_iter) {
             let pp = postprocessor.clone();
             futs.push(async move { dc.run(pp).await });
         }
@@ -223,6 +238,51 @@ impl BackendStorage for Pearl {
     async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
         for dc in self.disk_controllers.iter() {
             dc.close_unneeded_active_blobs(soft, hard).await;
+        }
+    }
+
+    async fn close_oldest_active_blob(&self) -> Option<usize> {
+        let mut oldest: Option<Holder> = None;
+        for dc in self.disk_controllers.iter() {
+            if let Some(holder) = dc.find_oldest_inactive_holder().await {
+                if holder.end_timestamp()
+                    < oldest
+                        .as_ref()
+                        .map(|h| h.end_timestamp())
+                        .unwrap_or(u64::MAX)
+                {
+                    oldest = Some(holder);
+                }
+            }
+        }
+
+        if let Some(h) = oldest {
+            let memory = h.active_index_memory().await;
+            h.close_active_blob().await;
+            Some(memory)
+        } else {
+            None
+        }
+    }
+
+    async fn free_least_used_resources(&self) -> Option<usize> {
+        let mut least_modified: Option<Holder> = None;
+        let mut min_modification = u64::MAX;
+        for dc in self.disk_controllers.iter() {
+            if let Some(holder) = dc.find_least_modified_freeable_holder().await {
+                let modification = holder.last_modification();
+                if modification < min_modification {
+                    least_modified = Some(holder);
+                    min_modification = modification;
+                }
+            }
+        }
+
+        if let Some(h) = least_modified {
+            let freed = h.free_excess_resources().await;
+            Some(freed)
+        } else {
+            None
         }
     }
 

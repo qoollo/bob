@@ -3,6 +3,7 @@ use super::{
     node::Node as NodeConfig,
     reader::{Validatable, YamlBobConfig},
 };
+use bob_access::AuthenticationType;
 use crate::data::DiskPath;
 use futures::Future;
 use humantime::Duration as HumanDuration;
@@ -464,6 +465,7 @@ pub enum BackendType {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Node {
     log_config: String,
+    users_config: String,
     name: String,
     quorum: usize,
     operation_timeout: String,
@@ -485,6 +487,8 @@ pub struct Node {
     open_blobs_soft_limit: Option<usize>,
     open_blobs_hard_limit: Option<usize>,
     bloom_filter_memory_limit: Option<ByteUnit>,
+    index_memory_limit: Option<ByteUnit>,
+    index_memory_limit_soft: Option<ByteUnit>,
     #[serde(default = "Node::default_init_par_degree")]
     init_par_degree: usize,
     #[serde(default = "Node::default_disk_access_par_degree")]
@@ -496,6 +500,9 @@ pub struct Node {
     bind_to_ip_address: Option<SocketAddr>,
     #[serde(default = "NodeConfig::default_holder_group_size")]
     holder_group_size: usize,
+
+    #[serde(default = "NodeConfig::default_authentication_type")]
+    authentication_type: AuthenticationType,
 }
 
 impl NodeConfig {
@@ -531,6 +538,11 @@ impl NodeConfig {
     /// Get log config file path.
     pub fn log_config(&self) -> &str {
         &self.log_config
+    }
+
+    /// Get users config file path
+    pub fn users_config(&self) -> &str {
+        &self.users_config
     }
 
     pub fn cluster_policy(&self) -> &str {
@@ -577,6 +589,14 @@ impl NodeConfig {
         self.backend_result().expect("clone backend type")
     }
 
+    pub fn authentication_type(&self) -> AuthenticationType {
+        self.authentication_type
+    }
+
+    fn default_authentication_type() -> AuthenticationType {
+        AuthenticationType::None
+    }
+
     pub fn backend_result(&self) -> Result<BackendType, String> {
         match self.backend_type.as_str() {
             "in_memory" => Ok(BackendType::InMemory),
@@ -618,34 +638,39 @@ impl NodeConfig {
             .into()
     }
 
-    pub fn open_blobs_soft(&self) -> usize {
-        self.open_blobs_soft_limit
-            .and_then(|i| {
-                if i == 0 {
-                    error!("soft open blobs limit can't be less than 1");
-                    None
-                } else {
-                    Some(i)
-                }
-            })
-            .unwrap_or(1)
+    pub fn open_blobs_soft(&self) -> Option<usize> {
+        self.open_blobs_soft_limit.and_then(|i| {
+            if i == 0 {
+                error!("soft open blobs limit can't be less than 1");
+                None
+            } else {
+                Some(i)
+            }
+        })
     }
 
-    pub fn hard_open_blobs(&self) -> usize {
-        self.open_blobs_hard_limit
-            .and_then(|i| {
-                if i == 0 {
-                    error!("hard open blobs limit can't be less than 1");
-                    None
-                } else {
-                    Some(i)
-                }
-            })
-            .unwrap_or(10)
+    pub fn hard_open_blobs(&self) -> Option<usize> {
+        self.open_blobs_hard_limit.and_then(|i| {
+            if i == 0 {
+                error!("hard open blobs limit can't be less than 1");
+                None
+            } else {
+                Some(i)
+            }
+        })
     }
 
     pub fn bloom_filter_memory_limit(&self) -> Option<usize> {
-        self.bloom_filter_memory_limit.map(|bu| bu.as_u64() as usize)
+        self.bloom_filter_memory_limit
+            .map(|bu| bu.as_u64() as usize)
+    }
+
+    pub fn index_memory_limit(&self) -> Option<usize> {
+        self.index_memory_limit.map(|bu| bu.as_u64() as usize)
+    }
+
+    pub fn index_memory_limit_soft(&self) -> Option<usize> {
+        self.index_memory_limit_soft.map(|bu| bu.as_u64() as usize)
     }
 
     #[inline]
@@ -668,6 +693,7 @@ impl NodeConfig {
             || self.check_interval == PLACEHOLDER
             || self.cluster_policy == PLACEHOLDER
             || self.log_config == PLACEHOLDER
+            || self.users_config == PLACEHOLDER
             || self.name == PLACEHOLDER
             || self.operation_timeout == PLACEHOLDER
         {
@@ -744,6 +770,10 @@ impl Validatable for NodeConfig {
             let msg = "field \'cluster_policy\' for \'config\' is empty".to_string();
             error!("{}", msg);
             Err(msg)
+        } else if self.users_config.is_empty() {
+            let msg = "field \'users_config\' for \'config\' is empty".to_string();
+            error!("{}", msg);
+            Err(msg)
         } else if self.log_config.is_empty() {
             let msg = "field \'log_config\' for \'config\' is empty".to_string();
             error!("{}", msg);
@@ -762,12 +792,14 @@ impl Validatable for NodeConfig {
 
 pub mod tests {
     use crate::configs::node::Node as NodeConfig;
+    use bob_access::AuthenticationType;
 
     use std::sync::Arc;
 
     pub fn node_config(name: &str, quorum: usize) -> NodeConfig {
         NodeConfig {
             log_config: "".to_string(),
+            users_config: "".to_string(),
             name: name.to_string(),
             quorum,
             operation_timeout: "3sec".to_string(),
@@ -788,7 +820,10 @@ pub mod tests {
             http_api_address: NodeConfig::default_http_api_address(),
             bind_to_ip_address: None,
             bloom_filter_memory_limit: None,
+            index_memory_limit: None,
+            index_memory_limit_soft: None,
             holder_group_size: 8,
+            authentication_type: AuthenticationType::None,
         }
     }
 }

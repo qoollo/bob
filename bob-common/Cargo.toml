@@ -1,12 +1,14 @@
 [package]
 name = "bob-common"
-version = "2.1.0-alpha.0"
+version = "2.1.0-alpha.5"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
 [dependencies]
+anyhow = "1.0"
 async-trait = "0.1"
 bitflags = "1.3"
+bob-access = { path = "../bob-access" }
 bob-grpc = { path = "../bob-grpc" }
 bytes = "1.1"
 cfg-if = "1.0"
@@ -34,7 +36,7 @@ ubyte = { version = "0.10", features = ["serde"] }
 [dependencies.tokio]
 version = "1.14"
 default-features = false
-features = []
+features = ["fs"]
 
 [features]
 default = []

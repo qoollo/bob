@@ -36,6 +36,8 @@ impl Grinder {
             config.open_blobs_soft(),
             config.hard_open_blobs(),
             config.bloom_filter_memory_limit(),
+            config.index_memory_limit(),
+            config.index_memory_limit_soft(),
         );
         let cleaner = Arc::new(cleaner);
         let hw_counter = Arc::new(HWMetricsCollector::new(
@@ -65,6 +67,10 @@ impl Grinder {
 
     pub(crate) fn node_config(&self) -> &NodeConfig {
         &self.node_config
+    }
+
+    pub(crate) fn hw_counter(&self) -> &HWMetricsCollector {
+        &self.hw_counter
     }
 
     pub(crate) async fn put(
@@ -198,7 +204,7 @@ impl Grinder {
     #[inline]
     pub(crate) fn run_periodic_tasks(&self, client_factory: Factory) {
         self.link_manager.spawn_checker(client_factory);
-        self.cleaner.spawn_task(self.backend.clone());
+        self.cleaner.spawn_task(self.cleaner.clone(), self.backend.clone());
         self.counter.spawn_task(self.backend.clone());
         self.hw_counter.spawn_task();
     }
@@ -221,6 +227,7 @@ impl Grinder {
         }
         timing!(CLIENT_DELETE_TIMER, sw.elapsed().as_nanos() as f64);
         trace!(">>>- - - - - GRINDER DELETE FINISHED - - - - -");
+        self.cleaner.request_index_cleanup();
         result
     }
 }

@@ -9,7 +9,7 @@
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
-extern crate rocket;
+extern crate log;
 #[macro_use]
 extern crate async_trait;
 #[macro_use]
@@ -33,6 +33,7 @@ pub use bob_common::{
         Cluster as ClusterConfig, Node as ClusterNodeConfig, Rack as ClusterRackConfig,
         Replica as ReplicaConfig, VDisk as VDiskConfig,
     },
+    configs::node::{Node as NodeConfig, BackendType},
     data::BOB_KEY_SIZE,
     mapper::Virtual as VirtualMapper,
     metrics::init_counters,

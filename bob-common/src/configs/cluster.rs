@@ -8,6 +8,7 @@ use crate::{
     mapper::VDisksMap,
     node::Disk as NodeDisk,
 };
+use anyhow::Result as AnyResult;
 use http::Uri;
 use std::collections::HashMap;
 
@@ -171,7 +172,7 @@ impl Replica {
     }
 
     #[must_use]
-    fn disk(&self) -> &str {
+    pub fn disk(&self) -> &str {
         &self.disk
     }
 }
@@ -355,14 +356,17 @@ impl Cluster {
     /// Read and validate node config file.
     /// # Errors
     /// IO errors, failed validation and cluster structure check.
-    pub async fn get(&self, filename: &str) -> Result<NodeConfig, String> {
-        let config = YamlBobConfig::get::<NodeConfig>(filename).await?;
+    pub async fn get(&self, filename: &str) -> AnyResult<NodeConfig> {
+        let config = YamlBobConfig::get::<NodeConfig>(filename)
+            .await
+            .map_err(|e| anyhow::anyhow!("failed to parse NodeConfig from yaml: {}", e))?;
 
         if let Err(e) = config.validate() {
             debug!("config is not valid: {}", e);
-            Err(format!("config is not valid: {}", e))
+            Err(anyhow::anyhow!("config is not valid: {}", e))
         } else {
-            self.check(&config)?;
+            self.check(&config)
+                .map_err(|e| anyhow::anyhow!("node config check failed: {}", e))?;
             Ok(config)
         }
     }
