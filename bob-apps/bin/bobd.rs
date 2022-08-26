@@ -164,8 +164,7 @@ fn configure_testmode(sub_matches: &ArgMatches) -> Result<(ClusterConfig, NodeCo
                 _ => None
         }).collect();
 
-        let mut index = 0;
-        for addr in node_list.split(",") {
+        for (addr, index) in node_list.split(",").zip(0..usize::MAX) {
             let split = &addr.split_once(":").unwrap();
             if this_node.is_none() {
                 for ip in available_ips.iter() {
@@ -174,7 +173,6 @@ fn configure_testmode(sub_matches: &ArgMatches) -> Result<(ClusterConfig, NodeCo
                         break;
                     }
                 }
-                index += 1
             }
             addresses.push(String::from(addr));
         }
@@ -191,7 +189,7 @@ fn configure_testmode(sub_matches: &ArgMatches) -> Result<(ClusterConfig, NodeCo
     let http_api_port = sub_matches.value_of("restapi-port").and_then(|v|  Some(v.parse().unwrap()));
     let node = cluster.get_testmode_node(this_node.unwrap(), http_api_port).unwrap();
 
-    init_testmode_logger(log::LevelFilter::Info); // TODO: do not forget to change to Error
+    init_testmode_logger(log::LevelFilter::Info);
 
     check_folders(&node, true);
 
