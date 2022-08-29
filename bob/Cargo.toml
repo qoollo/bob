@@ -46,6 +46,8 @@ uuid = "0.8.2"
 
 [dependencies.pearl]
 version = "0.13.0"
+git = "https://github.com/qoollo/pearl"
+branch = "summary-collector"
 
 [dependencies.tokio]
 version = "1.14"

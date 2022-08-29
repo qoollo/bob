@@ -6,6 +6,3 @@ members = [
     "bob-common",
     "bob-access",
 ]
-
-[patch.crates-io]
-pearl = { git = "https://github.com/qoollo/pearl", branch = "summary-collector" }

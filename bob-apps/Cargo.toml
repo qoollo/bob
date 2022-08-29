@@ -53,6 +53,8 @@ features = ["signal"]
 
 [dependencies.pearl]
 version = "0.13.0"
+git = "https://github.com/qoollo/pearl"
+branch = "summary-collector"
 
 [build-dependencies]
 tonic-build = "0.6"
