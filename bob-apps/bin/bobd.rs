@@ -19,15 +19,7 @@ extern crate log;
 
 use log4rs::append::console::ConsoleAppender;
 use log4rs::encode::pattern::PatternEncoder;
-use log4rs::append::rolling_file::{
-    RollingFileAppender,
-    policy::compound::{
-        trigger::size::SizeTrigger,
-        roll::fixed_window::FixedWindowRoller,
-        CompoundPolicy
-    }
-};
-use log4rs::config::{Appender, Config, Logger, Root};
+use log4rs::config::{Appender, Config, Root};
 
 use network_interface::{NetworkInterface, NetworkInterfaceConfig, Addr};
 
@@ -222,49 +214,8 @@ fn init_testmode_logger(loglevel: log::LevelFilter) {
     let stdout = ConsoleAppender::builder()
         .encoder(Box::new(PatternEncoder::new( "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {h({l})}    {m}\n")))
         .build();
-
-    let _20mb = 20000000;
-    let trigger = SizeTrigger::new(_20mb);
-    let roller = FixedWindowRoller::builder()
-        .build( "./log/archive/info.{}.log", 10).unwrap();
-    let policy = CompoundPolicy::new(Box::new(trigger), Box::new(roller));
-    let requests_error = RollingFileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {l} {m}{n}")))
-        .build( "./log/error.log", Box::new(policy)).unwrap();
-
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .appender(Appender::builder().build("requests_error", Box::new(requests_error)))
-        .logger(Logger::builder()
-                .appender("stdout")
-                .appender("requests_error")
-                .additive(false)
-                .build("bob", loglevel))
-        .logger(Logger::builder()
-                .appender("stdout")
-                .appender("requests_error")
-                .additive(false)
-                .build("bob_backend", loglevel))
-        .logger(Logger::builder()
-                .appender("stdout")
-                .appender("requests_error")
-                .additive(false)
-                .build("bob_common", loglevel))
-        .logger(Logger::builder()
-                .appender("stdout")
-                .appender("requests_error")
-                .additive(false)
-                .build("bob_apps", loglevel))
-        .logger(Logger::builder()
-                .appender("stdout")
-                .appender("requests_error")
-                .additive(false)
-                .build("bob_grpc", loglevel))
-        .logger(Logger::builder()
-                .appender("stdout")
-                .appender("requests_error")
-                .additive(false)
-                .build("pearl", loglevel))
         .build(Root::builder().appender("stdout").build(loglevel))
         .unwrap();
     log4rs::init_config(config).unwrap();
