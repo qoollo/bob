@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
--- Bobd test mode
+- Bobd test mode (#550)
 
 
 #### Changed
