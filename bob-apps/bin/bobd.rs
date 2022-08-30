@@ -397,7 +397,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .about("Bob's test mode")
         .arg(
             Arg::with_name("data")
-            .help("path to bob data")
+            .help("Path to bob data directory")
             .takes_value(true)
             .long("data")
         )
@@ -415,7 +415,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         )
         .arg(
             Arg::with_name("nodes")
-            .help("node addresses")
+            .help("Comma separated node addresses. Example: 127.0.0.1:20000,127.0.0.1:20001")
             .takes_value(true)
             .long("nodes")
         );
@@ -424,35 +424,35 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .version(ver.as_str())
         .arg(
             Arg::with_name("cluster")
-                .help("cluster config file")
+                .help("Cluster config file")
                 .takes_value(true)
                 .short("c")
                 .long("cluster"),
         )
         .arg(
             Arg::with_name("node")
-                .help("node config file")
+                .help("Node config file")
                 .takes_value(true)
                 .short("n")
                 .long("node"),
         )
         .arg(
             Arg::with_name("name")
-                .help("node name")
+                .help("Node name")
                 .takes_value(true)
                 .short("a")
                 .long("name"),
         )
         .arg(
             Arg::with_name("http_api_address")
-                .help("http api address")
+                .help("Http api address")
                 .short("h")
                 .long("host")
                 .takes_value(true),
         )
         .arg(
             Arg::with_name("http_api_port")
-                .help("http api port")
+                .help("Http api port")
                 .short("p")
                 .long("port")
                 .takes_value(true),
