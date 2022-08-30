@@ -171,14 +171,17 @@ fn configure_testmode(sub_matches: &ArgMatches) -> AnyResult<(ClusterConfig, Nod
         }).collect();
 
         for (index, addr) in node_list.split(",").enumerate() {
-            let split = &addr.split_once(":").context("could not split --nodes")?;
+            let split = &addr.split_once(":").context("could not find address in --nodes")?;
+            let in_ip = split.0;
+            let in_port = split.1.parse::<u16>().context("could not parse port in --nodes")?;
             if this_node.is_none() {
-                for ip in available_ips.iter() {
-                    if ip == split.0 && port == split.1.parse::<u16>().context("could not parse port in --nodes")? {
-                        this_node = Some(index);
-                        break;
+                this_node = available_ips.iter().find_map(|ip| {
+                    if ip == in_ip && port == in_port {
+                        Some(index)
+                    } else {
+                        None
                     }
-                }
+                })
             }
             addresses.push(String::from(addr));
         }
