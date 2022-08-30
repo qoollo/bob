@@ -203,7 +203,7 @@ fn configure_testmode(sub_matches: &ArgMatches) -> AnyResult<(ClusterConfig, Nod
 
     check_folders(&node, true);
 
-    println!("Bob has started");
+    println!("Bob is starting");
     let n = &cluster.nodes()[this_node];
     println!("Data directory: {}", n.disks()[0].path());
     println!("gRPC API available at: {}", n.address());
