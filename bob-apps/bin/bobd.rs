@@ -39,17 +39,20 @@ async fn main() {
 
     let cluster;
     let node;
-    if let (_, Some(sub_matches)) = matches.subcommand() {
-        match configure_testmode(sub_matches) {
-            Ok((c, n)) => {
-                cluster = c;
-                node = n;
-            }
-            Err(e) => {
-                eprintln!("Initialization error: {}", e);
-                eprintln!("use --help");
-                return;
-            }
+    if let (sc, Some(sub_matches)) = matches.subcommand() {
+        match sc {
+            "testmode" => match configure_testmode(sub_matches) {
+                Ok((c, n)) => {
+                    cluster = c;
+                    node = n;
+                }
+                Err(e) => {
+                    eprintln!("Initialization error: {}", e);
+                    eprintln!("use --help");
+                    return;
+                }
+            },
+            _ => unreachable!("unknown command"),
         }
     } else {
         if matches.value_of("cluster").is_none() {
