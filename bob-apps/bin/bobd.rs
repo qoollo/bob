@@ -189,21 +189,22 @@ fn configure_testmode(sub_matches: &ArgMatches) -> AnyResult<(ClusterConfig, Nod
         this_node = Some(0);
         addresses.push(format!("127.0.0.1:{port}"))
     }
+    let this_node = this_node.unwrap();
     let cluster = ClusterConfig::get_testmode(
-        sub_matches.value_of("data").unwrap_or("data").to_string(),
+        sub_matches.value_of("data").unwrap_or(format!("data_{this_node}").as_str()).to_string(),
         addresses)?;
     let http_api_port = match sub_matches.value_of("restapi-port") {
         Some(v) => Some(v.parse().context("could not parse --restapi-port")?),
         None => None
     };
-    let node = cluster.get_testmode_node(this_node.unwrap(), http_api_port)?;
+    let node = cluster.get_testmode_node(this_node, http_api_port)?;
 
     init_testmode_logger(log::LevelFilter::Error);
 
     check_folders(&node, true);
 
     println!("Bob has started");
-    let n = &cluster.nodes()[this_node.unwrap()];
+    let n = &cluster.nodes()[this_node];
     println!("Data directory: {}", n.disks()[0].path());
     println!("gRPC API available at: {}", n.address());
     let ip = node.http_api_address();
