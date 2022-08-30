@@ -8,7 +8,7 @@ use crate::{
     mapper::VDisksMap,
     node::Disk as NodeDisk,
 };
-use anyhow::Result as AnyResult;
+use anyhow::{Result as AnyResult, anyhow};
 use http::Uri;
 use std::collections::HashMap;
 
@@ -424,14 +424,14 @@ impl Cluster {
         }
     }
 
-    pub fn get_testmode(path: String, addresses: Vec<String>) -> Result<Self, String> {
+    pub fn get_testmode(path: String, addresses: Vec<String>) -> AnyResult<Self> {
         let disks = vec![DiskPath::new("disk_0".to_string(), path)];
         let len = addresses.len();
         let mut nodes = Vec::with_capacity(len);
         let mut vdisk = VDisk::new(0);
         for (address, i) in addresses.into_iter().zip(0..len) {
             let node = Node {
-                name: format!("node_{}", i),
+                name: format!("node_{i}"),
                 address,
                 disks: disks.clone()
             };
@@ -448,23 +448,21 @@ impl Cluster {
         };
 
         if let Err(e) = config.validate() {
-            let msg = format!("config is not valid: {}", e);
-            error!("{}", msg);
-            Err(msg)
+            let msg = format!("config is not valid: {e}");
+            Err(anyhow!(msg))
         } else {
             Ok(config)
         }
     }
 
-    pub fn get_testmode_node(&self, n_node: usize, rest_port: Option<u16>) -> Result<NodeConfig, String> {
+    pub fn get_testmode_node(&self, n_node: usize, rest_port: Option<u16>) -> AnyResult<NodeConfig> {
         let node = &self.nodes()[n_node];
         let config = NodeConfig::get_testmode(node.name(), node.disks()[0].name(), rest_port);
         if let Err(e) = config.validate() {
-            debug!("config is not valid: {}", e);
-            Err("config is not valid: {}".to_string())
+            Err(anyhow!("config is not valid: {e}"))
         } else {
             self.check(&config)
-                .map_err(|e| format!("node config check failed: {}", e))?;
+                .map_err(|e| anyhow!("node config check failed: {e}"))?;
             Ok(config)
         }
     }

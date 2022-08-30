@@ -31,6 +31,8 @@ use log4rs::config::{Appender, Config, Logger, Root};
 
 use network_interface::{NetworkInterface, NetworkInterfaceConfig, Addr};
 
+use anyhow::{anyhow, Context, Result as AnyResult};
+
 #[tokio::main]
 async fn main() {
     let matches = get_matches();
@@ -44,7 +46,8 @@ async fn main() {
                 node = n;
             }
             Err(e) => {
-                eprintln!("{}", e);
+                eprintln!("Initialization error: {}", e);
+                eprintln!("use --help");
                 return;
             }
         }
@@ -148,27 +151,27 @@ async fn main() {
     }
 }
 
-fn configure_testmode(sub_matches: &ArgMatches) -> Result<(ClusterConfig, NodeConfig), String> {
+fn configure_testmode(sub_matches: &ArgMatches) -> AnyResult<(ClusterConfig, NodeConfig)> {
     let mut addresses = Vec::with_capacity(1);
     let port = match sub_matches.value_of("grpc-port") {
-        Some(v) => v.parse().unwrap(),
+        Some(v) => v.parse().context("could not parse --grpc-port")?,
         None => 20000
     };
     let mut this_node = None;
     if let Some(node_list) = sub_matches.value_of("nodes") {
-        let available_ips: Vec<String> = NetworkInterface::show().unwrap().into_iter().filter_map(|itf|
-            match itf.addr.unwrap() {
+        let available_ips: Vec<String> = NetworkInterface::show()?.into_iter().filter_map(|itf|
+            match itf.addr? {
                 Addr::V4(addr) => {
                     Some(addr.ip.to_string())
                 },
                 _ => None
         }).collect();
 
-        for (addr, index) in node_list.split(",").zip(0..usize::MAX) {
-            let split = &addr.split_once(":").unwrap();
+        for (index, addr) in node_list.split(",").enumerate() {
+            let split = &addr.split_once(":").context("could not split --nodes")?;
             if this_node.is_none() {
                 for ip in available_ips.iter() {
-                    if ip == split.0 && port == split.1.parse::<u16>().unwrap() {
+                    if ip == split.0 && port == split.1.parse::<u16>().context("could not parse port in --nodes")? {
                         this_node = Some(index);
                         break;
                     }
@@ -177,30 +180,33 @@ fn configure_testmode(sub_matches: &ArgMatches) -> Result<(ClusterConfig, NodeCo
             addresses.push(String::from(addr));
         }
         if this_node.is_none() {
-            return Err(String::from("No available IPs found"));
+            return Err(anyhow!("no available ips found"));
         }
     } else {
         this_node = Some(0);
-        addresses.push(format!("127.0.0.1:{}", port))
+        addresses.push(format!("127.0.0.1:{port}"))
     }
     let cluster = ClusterConfig::get_testmode(
         sub_matches.value_of("data").unwrap_or("data").to_string(),
-        addresses).unwrap();
-    let http_api_port = sub_matches.value_of("restapi-port").and_then(|v|  Some(v.parse().unwrap()));
-    let node = cluster.get_testmode_node(this_node.unwrap(), http_api_port).unwrap();
+        addresses)?;
+    let http_api_port = match sub_matches.value_of("restapi-port") {
+        Some(v) => Some(v.parse().context("could not parse --restapi-port")?),
+        None => None
+    };
+    let node = cluster.get_testmode_node(this_node.unwrap(), http_api_port)?;
 
-    init_testmode_logger(log::LevelFilter::Info);
+    init_testmode_logger(log::LevelFilter::Error);
 
     check_folders(&node, true);
 
     println!("Bob has started");
-    let n = &cluster.nodes()[0];
+    let n = &cluster.nodes()[this_node.unwrap()];
     println!("Data directory: {}", n.disks()[0].path());
     println!("gRPC API available at: {}", n.address());
-    let a = node.http_api_address();
+    let ip = node.http_api_address();
     let p = node.http_api_port();
-    println!("REST API available at: http://{}:{}", a, p);
-    println!("REST API Put and Get available at: http://{}:{}/data", a, p);
+    println!("REST API available at: http://{ip}:{p}");
+    println!("REST API Put and Get available at: http://{ip}:{p}/data");
 
     Ok((cluster, node))
 }
