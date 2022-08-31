@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::Mutex;
+use parking_lot::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tonic::metadata::{Ascii, MetadataValue};
@@ -299,8 +299,8 @@ impl Statistics {
         self.exist_count_st.fetch_add(1, Ordering::Relaxed);
     }
 
-    async fn save_get_error(&self, status: Status) {
-        let mut guard = self.get_errors.lock().await;
+    fn save_get_error(&self, status: Status) {
+        let mut guard = self.get_errors.lock();
         guard
             .entry(status.code() as CodeRepresentation)
             .and_modify(|i| *i += 1)
@@ -310,8 +310,8 @@ impl Statistics {
         debug!("{}", status.message())
     }
 
-    async fn save_put_error(&self, status: Status) {
-        let mut guard = self.put_errors.lock().await;
+    fn save_put_error(&self, status: Status) {
+        let mut guard = self.put_errors.lock();
         guard
             .entry(status.code() as CodeRepresentation)
             .and_modify(|i| *i += 1)
@@ -321,8 +321,8 @@ impl Statistics {
         debug!("{}", status.message())
     }
 
-    async fn save_exist_error(&self, status: Status) {
-        let mut guard = self.exist_errors.lock().await;
+    fn save_exist_error(&self, status: Status) {
+        let mut guard = self.exist_errors.lock();
         guard
             .entry(status.code() as CodeRepresentation)
             .and_modify(|i| *i += 1)
@@ -464,25 +464,25 @@ async fn stat_worker(
     let (put_speed_values, get_speed_values, exist_speed_values, elapsed) =
         print_periodic_stat(stop_token, period_ms, &stat, request_bytes, behavior_flags);
     print_averages(&stat, &put_speed_values, &get_speed_values, &exist_speed_values, elapsed, keys_count, behavior_flags);
-    print_errors_with_codes(stat).await
+    print_errors_with_codes(stat);
 }
 
-async fn print_errors_with_codes(stat: Arc<Statistics>) {
-    let guard = stat.get_errors.lock().await;
+fn print_errors_with_codes(stat: Arc<Statistics>) {
+    let guard = stat.get_errors.lock();
     if !guard.is_empty() {
         println!("get errors:");
         for (&code, count) in guard.iter() {
             println!("{:?} = {}", Code::from(code), count);
         }
     }
-    let guard = stat.put_errors.lock().await;
+    let guard = stat.put_errors.lock();
     if !guard.is_empty() {
         println!("put errors:");
         for (&code, count) in guard.iter() {
             println!("{:?} = {}", Code::from(code), count);
         }
     }
-    let guard = stat.exist_errors.lock().await;
+    let guard = stat.exist_errors.lock();
     if !guard.is_empty() {
         println!("exist errors:");
         for (&code, count) in guard.iter() {
@@ -697,7 +697,7 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
             client.get(request).await
         };
         match res {
-            Err(status) => stat.save_get_error(status).await,
+            Err(status) => stat.save_get_error(status),
             Ok(payload) => {
                 let res = payload.into_inner().data;
                 stat.get_size_bytes
@@ -736,7 +736,7 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
             client.put(request).await
         };
         if let Err(status) = res {
-            stat.save_put_error(status).await;
+            stat.save_put_error(status);
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
     }
@@ -790,7 +790,7 @@ async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat
         stat.exist_size_bytes
                     .fetch_add(send_size_bytes, Ordering::SeqCst);
         match res {
-            Err(status) => stat.save_exist_error(status).await,
+            Err(status) => stat.save_exist_error(status),
             Ok(payload) => {
                 let res = payload.into_inner().exist;
                 stat.exist_size_bytes
@@ -840,7 +840,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
             client.put(put_request).await
         };
         if let Err(status) = put_res {
-            stat.save_put_error(status).await;
+            stat.save_put_error(status);
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
         let get_request = get_request_creator(GetRequest {
@@ -856,7 +856,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
             client.get(get_request).await
         };
         if let Err(status) = get_res {
-            stat.save_get_error(status).await;
+            stat.save_get_error(status);
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
     }
