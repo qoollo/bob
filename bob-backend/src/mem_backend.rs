@@ -1,11 +1,10 @@
 use crate::prelude::*;
 
 use crate::core::{BackendStorage, MetricsProducer, Operation};
-use parking_lot::RwLock;
 
 #[derive(Clone, Debug, Default)]
 pub struct VDisk {
-    inner: Arc<RwLock<HashMap<BobKey, BobData>>>,
+    inner: Arc<PLRwLock<HashMap<BobKey, BobData>>>,
 }
 
 impl VDisk {
