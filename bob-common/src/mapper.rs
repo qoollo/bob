@@ -39,7 +39,7 @@ impl Virtual {
             .address()
             .to_string();
         let disks = config.disks();
-        let disks_read = disks.lock().expect("mutex");
+        let disks_read = disks.lock();
         Self {
             local_node_name,
             local_node_address,

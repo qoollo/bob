@@ -11,12 +11,13 @@ use std::{
     env::VarError,
     fmt::Debug,
     net::SocketAddr,
-    sync::{atomic::AtomicBool, Mutex},
+    sync::atomic::AtomicBool,
     time::Duration,
 };
 use std::{net::IpAddr, sync::atomic::Ordering};
 use std::{net::Ipv4Addr, sync::Arc};
 use tokio::time::sleep;
+use parking_lot::Mutex;
 
 use ubyte::ByteUnit;
 
@@ -608,7 +609,7 @@ impl NodeConfig {
 
     pub fn prepare(&self, node: &ClusterNodeConfig) -> Result<(), String> {
         {
-            let mut lck = self.bind_ref.lock().expect("mutex");
+            let mut lck = self.bind_ref.lock();
             *lck = node.address().to_owned();
         }
         let t = node
@@ -618,7 +619,7 @@ impl NodeConfig {
             .collect::<Vec<_>>();
 
         {
-            let mut lck = self.disks_ref.lock().expect("mutex");
+            let mut lck = self.disks_ref.lock();
             *lck = t;
         }
         self.backend_result()?;
