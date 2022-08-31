@@ -8,7 +8,7 @@ use std::{
     hash::{Hash, Hasher},
     sync::Arc,
 };
-use tokio::sync::RwLock;
+use parking_lot::RwLock;
 
 pub type Id = u16;
 
@@ -70,26 +70,26 @@ impl Node {
         self.address.to_string().replace('.', "_")
     }
 
-    pub async fn set_connection(&self, client: BobClient) {
-        *self.conn.write().await = Some(client);
+    pub fn set_connection(&self, client: BobClient) {
+        *self.conn.write() = Some(client);
     }
 
-    pub async fn clear_connection(&self) {
-        *self.conn.write().await = None;
+    pub fn clear_connection(&self) {
+        *self.conn.write() = None;
     }
 
-    pub async fn get_connection(&self) -> Option<BobClient> {
-        self.conn.read().await.clone()
+    pub fn get_connection(&self) -> Option<BobClient> {
+        self.conn.read().clone()
     }
 
     pub async fn check(&self, client_factory: &Factory) -> Result<(), String> {
-        if let Some(conn) = self.get_connection().await {
+        if let Some(conn) = self.get_connection(){
             self.ping(&conn).await
         } else {
             debug!("will connect to {:?}", self);
             let client = client_factory.produce(self.clone()).await?;
             self.ping(&client).await?;
-            self.set_connection(client).await;
+            self.set_connection(client);
             Ok(())
         }
     }
@@ -97,7 +97,7 @@ impl Node {
     pub async fn ping(&self, conn: &BobClient) -> Result<(), String> {
         if let Err(e) = conn.ping().await {
             debug!("Got broken connection to node {:?}", self);
-            self.clear_connection().await;
+            self.clear_connection();
             Err(format!("{:?}", e))
         } else {
             debug!("All good with pinging node {:?}", self);
