@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 use crate::core::{BackendStorage, MetricsProducer, Operation};
+use parking_lot::RwLock;
 
 #[derive(Clone, Debug, Default)]
 pub struct VDisk {
@@ -10,12 +11,12 @@ pub struct VDisk {
 impl VDisk {
     async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
         debug!("PUT[{}] to vdisk", key);
-        self.inner.write().await.insert(key, data);
+        self.inner.write().insert(key, data);
         Ok(())
     }
 
     async fn get(&self, key: BobKey) -> Result<BobData, Error> {
-        if let Some(data) = self.inner.read().await.get(&key) {
+        if let Some(data) = self.inner.read().get(&key) {
             debug!("GET[{}] from vdisk", key);
             Ok(data.clone())
         } else {
@@ -25,13 +26,13 @@ impl VDisk {
     }
 
     async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
-        let repo = self.inner.read().await;
+        let repo = self.inner.read();
         let result = keys.iter().map(|k| repo.get(k).is_some()).collect();
         Ok(result)
     }
 
     async fn delete(&self, key: BobKey) -> Result<u64, Error> {
-        if self.inner.write().await.remove(&key).is_some() {
+        if self.inner.write().remove(&key).is_some() {
             debug!("DELETE[{}] from vdisk", key);
             Ok(1)
         } else {
@@ -65,7 +66,7 @@ impl MemDisk {
     pub async fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Result<BobData, Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             debug!("GET[{}] from: {} for disk: {}", key, vdisk_id, self.name);
-            debug!("{:?}", *vdisk.inner.read().await);
+            debug!("{:?}", *vdisk.inner.read());
             vdisk.get(key).await
         } else {
             debug!("GET[{}] Cannot find vdisk for disk: {}", key, self.name);
