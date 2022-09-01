@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use parking_lot::RwLock;
 
 pub type SharedMetricsSnapshot = Arc<RwLock<MetricsSnapshot>>;
 

@@ -343,7 +343,7 @@ async fn find_group<A: Authenticator>(
 async fn metrics<A: Authenticator>(
     bob: Extension<BobServer<A>>,
 ) -> Json<MetricsSnapshotModel> {
-    let snapshot = bob.metrics().read().await.clone();
+    let snapshot = bob.metrics().read().clone();
     Json(snapshot.into())
 }
 
