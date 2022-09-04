@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Fixed panic in brt because of duplicate long arg name (#563)
 
 #### Updated
 
