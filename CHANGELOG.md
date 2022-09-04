@@ -10,6 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Fix response in delete request (#558)
 - Fixed panic in brt because of duplicate long arg name (#563)
 
 #### Updated
