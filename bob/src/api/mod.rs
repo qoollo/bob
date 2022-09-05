@@ -786,8 +786,10 @@ async fn drop_directories(
     vdisk_id: u32,
 ) -> Result<StatusExt, StatusExt> {
     let mut result_msg = String::new();
+    let mut is_error = false;
     for holder in holders {
         let msg = if let Some(err) = holder.drop_directory().await.err() {
+            is_error = true;
             format!(
                 "partitions with timestamp {} delete failed on vdisk {}, error: {}",
                 timestamp, vdisk_id, err
@@ -798,7 +800,7 @@ async fn drop_directories(
         result_msg.push_str(&msg);
         result_msg.push('\n');
     }
-    if result_msg.is_empty() {
+    if !is_error {
         Ok(StatusExt::new(StatusCode::OK, true, result_msg))
     } else {
         let status_ext = StatusExt::new(StatusCode::INTERNAL_SERVER_ERROR, true, result_msg);
