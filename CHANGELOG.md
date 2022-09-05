@@ -7,7 +7,7 @@ Bob versions changelog
 
 
 #### Changed
-
+- Update rust edition to 2021 (#484)
 
 #### Fixed
 - Fix response in delete request (#558)
