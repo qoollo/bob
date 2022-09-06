@@ -21,7 +21,7 @@ for (key) in final_args:
         args_str += f'{key} {final_args.get(key)} '
 
 
-binaries_dir = f'./target/{os.getenv("TARGET")}/release'
+binaries_dir = f'../target/{os.getenv("TARGET")}/release'
 
 #write/read tests
 try:

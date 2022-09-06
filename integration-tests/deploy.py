@@ -33,7 +33,7 @@ except d_err.NotFound:
 
 start_path = os.getcwdb()
 good_path = os.path.abspath(args.path)
-binaries_dir = f'./target/{os.getenv("TARGET")}/release'
+binaries_dir = f'../target/{os.getenv("TARGET")}/release'
 
 if not 'cluster.yaml.bobnet' in os.listdir(good_path):
     print('Cluster config not found in the specifed directory.')
