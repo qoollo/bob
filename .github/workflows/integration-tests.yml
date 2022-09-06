@@ -44,6 +44,10 @@ jobs:
     steps:
       - name: Checks-out repo
         uses: actions/checkout@v2
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
       - name: Setup default variables for auto runs
         run: |
           INPUT=${{ github.event.inputs.amount_of_nodes }}
@@ -60,7 +64,7 @@ jobs:
           echo "COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
-          /usr/bin/pip install -r ./requirements.txt
+          /usr/bin/pip3 install -r ./requirements.txt
         working-directory: ./integration-tests
       - name: Get version data
         run: |
