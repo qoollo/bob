@@ -166,8 +166,7 @@ where
 
     let router = router::<A>().layer(Extension(bob));
     
-    if let Some((tls_config, Some(true))) = tls_config.as_ref()
-        .map(|tls_config| (tls_config, tls_config.rest)) {
+    if let Some(tls_config) = tls_config.as_ref().and_then(|tls_config| tls_config.rest_config()) {
         let tls_server = tls_server(&tls_config, socket_addr).await;
         let task = tls_server.serve(router.into_make_service());
         tokio::spawn(task);

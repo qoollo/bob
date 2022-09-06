@@ -124,20 +124,18 @@ async fn main() {
 async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
     let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
     let handle = Handle::current();
-    let factory_tls_config = node.tls_config().as_ref().and_then(|tls_config|
-        if let Some(true) = tls_config.grpc {
+    let factory_tls_config = node.tls_config().as_ref().and_then(|tls_config| tls_config.grpc_config())
+        .map(|tls_config| {
             let ca_cert = std::fs::read(&tls_config.ca_cert_path).expect("can not read ca certificate from file");
-            Some(FactoryTlsConfig {
+            FactoryTlsConfig {
                 ca_cert,
                 tls_domain_name: tls_config.domain_name.clone(),
-            })
-        } else {
-            None
+            }
         });
     let factory = Factory::new(node.operation_timeout(), metrics, node.name().into(), factory_tls_config);
 
     let mut server_builder = Server::builder();
-    if let Some(node_tls_config) = node.tls_config() {
+    if let Some(node_tls_config) = node.tls_config().as_ref().and_then(|tls_config| tls_config.grpc_config()) {
         let cert_path = node_tls_config.cert_path.as_ref().expect("no certificate path specified");
         let cert_bin = fs::read(cert_path).expect("can not read tls certificate from file");
         let pkey_path = node_tls_config.pkey_path.as_ref().expect("no private key path specified");

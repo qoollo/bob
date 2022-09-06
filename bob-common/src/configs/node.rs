@@ -464,6 +464,26 @@ pub struct TLSConfig {
     pub pkey_path: Option<String>,
 }
 
+impl TLSConfig {
+    pub fn grpc_config(&self) -> Option<&Self> {
+        self.grpc.and_then(|rest|
+            if rest {
+                Some(self)
+            } else {
+                None
+            })
+    }
+
+    pub fn rest_config(&self) -> Option<&Self> {
+        self.rest.and_then(|rest|
+            if rest {
+                Some(self)
+            } else {
+                None
+            })
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum BackendType {
     InMemory = 0,
