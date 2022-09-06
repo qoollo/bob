@@ -2,7 +2,6 @@ use super::prelude::*;
 
 fn le_cmp_keys<const N: usize>(x: &[u8], y: &[u8]) -> std::cmp::Ordering {
     use std::cmp::Ordering;
-    use std::convert::TryInto;
 
     if N % std::mem::size_of::<usize>() == 0 {
         let len = N / std::mem::size_of::<usize>();
