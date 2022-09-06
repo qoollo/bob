@@ -196,7 +196,7 @@ pub mod b_client {
 
     mock! {
         pub BobClient {
-            pub async fn create<'a>(node: Node, operation_timeout: Duration, metrics: BobClientMetrics, ca_cert_path: Option<&'a str>, local_node_name: String) -> Result<Self, String>;
+            pub async fn create<'a>(node: Node, operation_timeout: Duration, metrics: BobClientMetrics, local_node_name: String, tls_config: Option<&'a FactoryTlsConfig>) -> Result<Self, String>;
             pub async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult;
             pub async fn get(&self, key: BobKey, options: GetOptions) -> GetResult;
             pub async fn ping(&self) -> PingResult;
