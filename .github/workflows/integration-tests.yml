@@ -45,7 +45,7 @@ jobs:
       - name: Setup default variables for auto runs
         run: |
           INPUT=${{ github.event.inputs.amount_of_nodes }}
-          echo "AMOUNT_OF_NODES=${ INPUT:-"4" }"" >> $GITHUB_ENV
+          echo "AMOUNT_OF_NODES=${ INPUT:-"4" }" >> $GITHUB_ENV
           INPUT=${{ github.event.inputs.storage_path }}
           echo "STORAGE_PATH=${ INPUT:-"/tmp" }" >> $GITHUB_ENV
           INPUT=${{ github.event.inputs.disks }}
