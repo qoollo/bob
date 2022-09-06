@@ -66,6 +66,11 @@ jobs:
         run: |
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
           echo "VERSION_NO_FORMATTING=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g')" >> $GITHUB_ENV
+      - name: Set env variables and install packages
+        run: |
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
+          echo "BOB_KEY_SIZE=${{ matrix.bob_key_size }}" >> $GITHUB_ENV
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
       - name: Install latest stable
         uses: actions-rs/toolchain@v1
         with:
