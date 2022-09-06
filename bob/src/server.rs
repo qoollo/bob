@@ -50,8 +50,8 @@ where
     }
 
     /// Call to run HTTP API server, not required for normal functioning
-    pub async fn run_api_server(&self, tls_config: &Option<TLSConfig>, address: IpAddr, port: u16) {
-        crate::api::spawn(self.clone(), tls_config, address, port).await;
+    pub async fn run_api_server(&self, address: IpAddr, port: u16, tls_config: &Option<TLSConfig>) {
+        crate::api::spawn(self.clone(), address, port, tls_config).await;
     }
 
     /// Start backend component, required before starting bob service

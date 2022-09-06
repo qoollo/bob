@@ -1,6 +1,6 @@
 use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
-    VirtualMapper, BackendType,
+    VirtualMapper, BackendType, FactoryTlsConfig,
 };
 use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap, AuthenticationType};
 use clap::{crate_version, App, Arg, ArgMatches};
@@ -124,13 +124,17 @@ async fn main() {
 async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
     let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
     let handle = Handle::current();
-    let factory =
-    if let Some(node_tls_config) = node.tls_config() {
-        let ca_cert_path = node_tls_config.ca_cert_path.clone();
-        Factory::new(node.operation_timeout(), metrics, Some(ca_cert_path), node.name().into())
-    } else {
-        Factory::new(node.operation_timeout(), metrics, None, node.name().into())
-    };
+    let factory_tls_config = node.tls_config().as_ref().and_then(|tls_config|
+        if let Some(true) = tls_config.grpc {
+            let ca_cert = std::fs::read(&tls_config.ca_cert_path).expect("can not read ca certificate from file");
+            Some(FactoryTlsConfig {
+                ca_cert,
+                tls_domain_name: tls_config.domain_name.clone(),
+            })
+        } else {
+            None
+        });
+    let factory = Factory::new(node.operation_timeout(), metrics, node.name().into(), factory_tls_config);
 
     let mut server_builder = Server::builder();
     if let Some(node_tls_config) = node.tls_config() {
@@ -154,7 +158,7 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
     bob.run_backend().await.unwrap();
     create_signal_handlers(&bob).unwrap();
     bob.run_periodic_tasks(factory);
-    bob.run_api_server(node.tls_config(), address, port).await;
+    bob.run_api_server(address, port, node.tls_config()).await;
 
     let bob_service = BobApiServer::new(bob);
     server_builder

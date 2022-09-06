@@ -1,5 +1,5 @@
 pub mod b_client {
-    use super::{ExistResult, GetResult, PingResult, PutResult};
+    use super::{ExistResult, GetResult, PingResult, PutResult, FactoryTlsConfig};
     use crate::{
         data::{BobData, BobKey, BobMeta},
         error::Error,
@@ -14,7 +14,6 @@ pub mod b_client {
     use std::{
         fmt::{Debug, Formatter, Result as FmtResult},
         time::Duration,
-        fs,
     };
     use tonic::{
         metadata::MetadataValue,
@@ -41,14 +40,13 @@ pub mod b_client {
             node: Node,
             operation_timeout: Duration,
             metrics: BobClientMetrics,
-            ca_cert_path: Option<&str>,
             local_node_name: String,
+            tls_config: Option<&FactoryTlsConfig>,
         ) -> Result<Self, String> {
             let mut endpoint = Endpoint::from(node.get_uri());
-            if let Some(ca_cert_path) = ca_cert_path {
-                let cert_bin = fs::read(ca_cert_path).expect("can not read ca certificate from file");
-                let cert = Certificate::from_pem(cert_bin);
-                let tls_config = ClientTlsConfig::new().domain_name("bob").ca_certificate(cert);
+            if let Some(tls_config) = tls_config {
+                let cert = Certificate::from_pem(&tls_config.ca_cert);
+                let tls_config = ClientTlsConfig::new().domain_name(&tls_config.tls_domain_name).ca_certificate(cert);
                 endpoint = endpoint.tls_config(tls_config).expect("client tls");
             }
             endpoint = endpoint.tcp_nodelay(true);
@@ -250,13 +248,19 @@ pub type PingResult = Result<NodeOutput<()>, NodeOutput<Error>>;
 
 pub type ExistResult = Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>;
 
+#[derive(Clone)]
+pub struct FactoryTlsConfig {
+    pub tls_domain_name: String,
+    pub ca_cert: Vec<u8>,
+}
+
 /// Bob metrics factory
 #[derive(Clone)]
 pub struct Factory {
     operation_timeout: Duration,
     metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
-    ca_cert_path: Option<String>,
     local_node_name: String,
+    tls_config: Option<FactoryTlsConfig>,
 }
 
 impl Factory {
@@ -265,19 +269,19 @@ impl Factory {
     pub fn new(
         operation_timeout: Duration,
         metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
-        ca_cert_path: Option<String>,
         local_node_name: String,
+        tls_config: Option<FactoryTlsConfig>,
     ) -> Self {
         Factory {
             operation_timeout,
             metrics,
-            ca_cert_path,
             local_node_name,
+            tls_config,
         }
     }
     pub async fn produce(&self, node: Node) -> Result<BobClient, String> {
         let metrics = self.metrics.clone().get_metrics(&node.counter_display());
-        BobClient::create(node, self.operation_timeout, metrics, self.ca_cert_path.as_deref(), self.local_node_name.clone()).await
+        BobClient::create(node, self.operation_timeout, metrics, self.local_node_name.clone(), self.tls_config.as_ref()).await
     }
 }
 

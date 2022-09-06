@@ -456,8 +456,10 @@ impl Validatable for Pearl {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TLSConfig {
-    pub rest: Option<bool>,
     pub ca_cert_path: String,
+    pub domain_name: String,
+    pub rest: Option<bool>,
+    pub grpc: Option<bool>,
     pub cert_path: Option<String>,
     pub pkey_path: Option<String>,
 }

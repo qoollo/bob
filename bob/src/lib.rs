@@ -28,7 +28,7 @@ pub mod server;
 pub use crate::{grinder::Grinder, server::Server as BobServer};
 pub use bob_backend::pearl::Key as PearlKey;
 pub use bob_common::{
-    bob_client::Factory,
+    bob_client::{Factory, FactoryTlsConfig},
     configs::cluster::{
         Cluster as ClusterConfig, Node as ClusterNodeConfig, Rack as ClusterRackConfig,
         Replica as ReplicaConfig, VDisk as VDiskConfig,

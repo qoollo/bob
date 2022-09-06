@@ -145,25 +145,20 @@ pub(crate) struct SpaceInfo {
     occupied_disk_space_by_disk: HashMap<String, u64>
 }
 
-async fn tls_server(tls_config: &Option<TLSConfig>, addr: SocketAddr) -> Option<AxumServer<RustlsAcceptor>> {
-    if let Some(tls_config) = tls_config {
-        if let Some(true) = tls_config.rest {
-            if let (Some(cert_path), Some(pkey_path)) = (&tls_config.cert_path, &tls_config.pkey_path) {
-                let config = RustlsConfig::from_pem_file(
-                    cert_path,
-                    pkey_path,
-                ).await.unwrap();
-                return Some(bind_rustls(addr, config));
-            } else {
-                error!("rest tls enabled, but certificate or private key not specified");
-                panic!("rest tls enabled, but certificate or private key not specified");
-            }
-        }
+async fn tls_server(tls_config: &TLSConfig, addr: SocketAddr) -> AxumServer<RustlsAcceptor> {
+    if let (Some(cert_path), Some(pkey_path)) = (&tls_config.cert_path, &tls_config.pkey_path) {
+        let config = RustlsConfig::from_pem_file(
+            cert_path,
+            pkey_path,
+        ).await.unwrap();
+        bind_rustls(addr, config)
+    } else {
+        error!("rest tls enabled, but certificate or private key not specified");
+        panic!("rest tls enabled, but certificate or private key not specified");
     }
-    None
 }
 
-pub(crate) async fn spawn<A>(bob: BobServer<A>, tls_config: &Option<TLSConfig>, address: IpAddr, port: u16)
+pub(crate) async fn spawn<A>(bob: BobServer<A>, address: IpAddr, port: u16, tls_config: &Option<TLSConfig>)
 where
     A: Authenticator,
 {
@@ -171,13 +166,15 @@ where
 
     let router = router::<A>().layer(Extension(bob));
     
-    if let Some(tls_server) = tls_server(tls_config, socket_addr).await {
+    if let Some((tls_config, Some(true))) = tls_config.as_ref()
+        .map(|tls_config| (tls_config, tls_config.rest)) {
+        let tls_server = tls_server(&tls_config, socket_addr).await;
         let task = tls_server.serve(router.into_make_service());
         tokio::spawn(task);
     } else {
         let task = Server::bind(&socket_addr).serve(router.into_make_service());
         tokio::spawn(task);
-    };
+    }
 
     info!("API server started, listening: {}", socket_addr);
 }

@@ -72,6 +72,10 @@ tls:
   pkey_path: server.key
   # enable tls for rest api
   rest: false
+  # enable tls for grpc
+  grpc: false
+  # specify tls domain name
+  domain_name: bob
 
 # used only for 'backend_type: pearl'
 pearl:
