@@ -45,17 +45,17 @@ jobs:
       - name: Setup default variables for auto runs
         run: |
           INPUT=${{ github.event.inputs.amount_of_nodes }}
-          AMOUNT_OF_NODES=${ INPUT:-"4" } >> $GITHUB_ENV
+          echo "AMOUNT_OF_NODES=${ INPUT:-"4" }"" >> $GITHUB_ENV
           INPUT=${{ github.event.inputs.storage_path }}
-          STORAGE_PATH=${ INPUT:-"/tmp" } >> $GITHUB_ENV
+          echo "STORAGE_PATH=${ INPUT:-"/tmp" }" >> $GITHUB_ENV
           INPUT=${{ github.event.inputs.disks }}
-          DISKS=${ INPUT:-"4" } >> $GITHUB_ENV
+          echo "DISKS=${ INPUT:-"4" }" >> $GITHUB_ENV
           INPUT=${{ github.event.inputs.replicas }}
-          REPLICAS=${ INPUT:-"2" } >> $GITHUB_ENV
+          echo "REPLICAS=${ INPUT:-"2" }" >> $GITHUB_ENV
           INPUT=${{ github.event.inputs.payload }}
-          PAYLOAD=${ INPUT:-"10240" } >> $GITHUB_ENV
+          echo "PAYLOAD=${ INPUT:-"10240" }" >> $GITHUB_ENV
           INPUT=${{ github.event.inputs.count }}
-          COUNT=${ INPUT:-"10000" } >> $GITHUB_ENV
+          echo "COUNT=${ INPUT:-"10000" }" >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
