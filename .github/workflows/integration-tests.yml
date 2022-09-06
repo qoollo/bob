@@ -4,9 +4,34 @@ on:
     branches: [ "518-implement-semi-automatic-integration-tests" ]
   pull_request:
     branches: [ "518-implement-semi-automatic-integration-tests" ]
-
-env:
-  STORAGE_PATH: "/tmp"
+  pull_request_review:
+    branches: [ "518-implement-semi-automatic-integration-tests" ]
+  workflow_dispatch:
+    inputs:
+      amount_of_nodes:
+        description: 'Amount of nodes in bob cluster for tests'
+        required: true
+        default: '4'
+      storage_path:
+        description: 'Path for test runtime files'
+        required: true
+        default: '/tmp'
+      disks:
+        description: 'Vdisks count'
+        required: true
+        default: '4'
+      replicas:
+        description: 'Amount of vdisks replicas'
+        required: true
+        default: '2'
+      payload:
+        description: 'Test payload'
+        required: true
+        default: '10240'
+      count:
+        description: 'Amount of records to process during test'
+        required: true
+        default: '10000'
 
 jobs:
   deploy-and-test:
@@ -17,18 +42,10 @@ jobs:
     steps:
       - name: Checks-out repo
         uses: actions/checkout@v2
-      - name: Install python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
         working-directory: ./integration-tests
-      - name: Install compose
-        uses: KengoTODA/actions-setup-docker-compose@main
-        with:
-          version: '2.6.0'
       - name: Get version data
         run: |
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
@@ -42,23 +59,14 @@ jobs:
           name: bob-binaries-${{ matrix.key }}
           check_artifacts:  true
       - name: Generate config files for docker and bob
-        env:
-          AMOUNT_OF_NODES: "4"
         run: |
-          ./generate_from_templates.py -a ${{ env.AMOUNT_OF_NODES }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path ${{ env.STORAGE_PATH }}
+          ./generate_from_templates.py -a ${{ github.event.inputs.amount_of_nodes }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path ${{ github.event.inputs.storage_path }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
-        env:
-          PATH_TO_CONFIGS: ${{ env.STORAGE_PATH }}/generated_configs
-          REPLICAS: "2"
-          DISKS: "4"
         run: |
-          ./deploy.py --path ${{ env.PATH_TO_CONFIGS }} -d ${{ env.DISKS }} -r ${{ env.REPLICAS }}
+          ./deploy.py --path ${{ github.event.inputs.storage_path }}/generated_configs -d ${{ github.event.inputs.disks }} -r ${{ github.event.inputs.replicas }}
         working-directory: ./integration-tests
       - name: Run write/read tests
-        env:
-          PAYLOAD: "10240"
-          COUNT: "10000"
         run: |
-          ./tests.py -l ${{ env.PAYLOAD }} -c ${{ env.COUNT }} -n 0.0.0.0 -k ${{ matrix.key }}
+          ./tests.py -l ${{ github.event.inputs.payload }} -c ${{ github.event.inputs.count }} -n 0.0.0.0 -k ${{ matrix.key }}
         working-directory: ./integration-tests
