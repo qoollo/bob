@@ -42,6 +42,20 @@ jobs:
     steps:
       - name: Checks-out repo
         uses: actions/checkout@v2
+      - name: Setup default variables for auto runs
+        run: |
+          INPUT=${{ github.event.inputs.amount_of_nodes }}
+          AMOUNT_OF_NODES=${ INPUT:-"4" } >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.storage_path }}
+          STORAGE_PATH=${ INPUT:-"/tmp" } >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.disks }}
+          DISKS=${ INPUT:-"4" } >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.replicas }}
+          REPLICAS=${ INPUT:-"2" } >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.payload }}
+          PAYLOAD=${ INPUT:-"10240" } >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.count }}
+          COUNT=${ INPUT:-"10000" } >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -60,13 +74,13 @@ jobs:
           check_artifacts:  true
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ github.event.inputs.amount_of_nodes }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path ${{ github.event.inputs.storage_path }}
+          ./generate_from_templates.py -a ${{ env.AMOUNT_OF_NODES }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path ${{ env.STORAGE_PATH }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
-          ./deploy.py --path ${{ github.event.inputs.storage_path }}/generated_configs -d ${{ github.event.inputs.disks }} -r ${{ github.event.inputs.replicas }}
+          ./deploy.py --path ${{ env.STORAGE_PATH }}/generated_configs -d ${{ env.DISKS }} -r ${{ env.REPLICAS }}
         working-directory: ./integration-tests
       - name: Run write/read tests
         run: |
-          ./tests.py -l ${{ github.event.inputs.payload }} -c ${{ github.event.inputs.count }} -n 0.0.0.0 -k ${{ matrix.key }}
+          ./tests.py -l ${{ env.PAYLOAD }} -c ${{ env.COUNT }} -n 0.0.0.0 -k ${{ matrix.key }}
         working-directory: ./integration-tests
