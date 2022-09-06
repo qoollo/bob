@@ -78,7 +78,7 @@ for item in range(args.amount_of_nodes):
     f.write(template.render(node_number=item, version=args.version, log_config=args.log_config, users_config=args.users_config, quorum=args.quorum, 
     operation_timeout=args.operation_timeout, check_interval=args.check_interval, cluster_policy=args.cluster_policy, 
     backend_type=args.backend_type, cleanup_interval=args.cleanup_interval, open_blobs_soft_limit=args.open_blobs_soft_limit,
-    open_blobs_hard_limit=args.open_blobs_hard_limit, bloom_filter_memory_limit=args.bloom_filter_memory_limit, 
+    open_blobs_hard_limit=args.open_blobs_hard_limit, http_api_port=args.http_api_port, bloom_filter_memory_limit=args.bloom_filter_memory_limit, 
     auth_type=args.auth_type, index_memory_limit=args.index_memory_limit, enable_aio=args.enable_aio, 
     disks_events_logfile=args.disks_events_logfile, max_blob_size=args.max_blob_size, allow_duplicates=args.allow_duplicates, 
     max_data_in_blob=args.max_data_in_blob, blob_file_name_prefix=args.blob_file_name_prefix,
