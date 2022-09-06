@@ -38,6 +38,8 @@ jobs:
     strategy:
       matrix:
         key: [8, 16]
+    env:
+      TARGET: "x86_64-unknown-linux-musl"
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repo
@@ -64,11 +66,17 @@ jobs:
         run: |
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
           echo "VERSION_NO_FORMATTING=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g')" >> $GITHUB_ENV
+      - name: Install latest stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ env.TARGET }}
+          default: true
       - name: build binaries
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --target=x86_64-unknown-linux-musl
+          args: --release --target=${{ env.TARGET }}
       - name: Generate config files for docker and bob
         run: |
           ./generate_from_templates.py -a ${{ env.AMOUNT_OF_NODES }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path ${{ env.STORAGE_PATH }}
