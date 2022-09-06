@@ -19,6 +19,7 @@ parser.add_argument('--backend-type', dest='backend_type', type=str, default='pe
 parser.add_argument('--cleanup-interval', dest='cleanup_interval', type=str, default='1h', help='interval for checking for blobs cleanup.')
 parser.add_argument('--open-blobs-soft-limit', dest='open_blobs_soft_limit', type=int, default=2, help='soft limit for count of max blobs to remain in ram.')
 parser.add_argument('--open-blobs-hard-limit', dest='open_blobs_hard_limit', type=int, default=10, help='hard limit for count of max blobs to remain in ram.')
+parser.add_argument('--http-api-port', dest='http_api_port', type=int, default=8000, help='http port for api.')
 parser.add_argument('-l', dest='bloom_filter_memory_limit', type=str, default='8 GiB', help='memory limit for all bloom filters. Unlimited if not specified.')
 parser.add_argument('-u', dest='auth_type', type=str, default='None', choices=['Basic', 'None'], help='auth type for bob')
 parser.add_argument('--index-memory-limit', dest='index_memory_limit', type=str, default='8 GiB', help='memory limit for all indexes')
@@ -40,6 +41,7 @@ parser.add_argument('--metrics-name', dest='metrics_name', type=str, default='bo
 parser.add_argument('--graphite-enabled', dest='graphite_enabled', type=str, default='true', choices=['true', 'false'])
 parser.add_argument('--prometheus-enabled', dest='prometheus_enabled', type=str, default='false', choices=['true', 'false'])
 parser.add_argument('--path', dest='path', type=str, help='sets path to directory where configs will be generated.', default='/tmp')
+
 
 args = parser.parse_args()
 

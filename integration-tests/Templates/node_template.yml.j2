@@ -10,7 +10,7 @@ cleanup_interval: {{ cleanup_interval }}               # interval for checking f
 open_blobs_soft_limit: {{ open_blobs_soft_limit }}           # soft limit for count of max blobs to remain in ram
 open_blobs_hard_limit: {{ open_blobs_hard_limit }}           # hard limit for count of max blobs to remain in ram
 init_par_degree: 4   # degree of parallelism in disks initialization
-http_api_port: 8000
+http_api_port: {{ http_api_port }}
 bloom_filter_memory_limit: {{ bloom_filter_memory_limit }}
 authentication_type: {{ auth_type }}
 index_memory_limit: {{ index_memory_limit }}
