@@ -11,7 +11,7 @@ parser.add_argument('-a', dest='amount_of_nodes', type=int, required=True, help=
 parser.add_argument('-v', dest='version', type=str, required=True, help='sets docker image version (qoollo/bob:x.x.x.y.z)')
 parser.add_argument('--log-config', dest='log_config', type=str, default='/bob/configs/logger.bobnet.yaml', help='logger config file.')
 parser.add_argument('--users-config', dest='users_config', type=str, default='/bob/configs/users.bobnet.yaml', help='logger config file.')
-parser.add_argument('-q', dest='quorum', type=int, default=2, help='min count of successful operations on replicas to consider operation successful.')
+parser.add_argument('-q', dest='quorum', type=str, default=2, help='min count of successful operations on replicas to consider operation successful.')
 parser.add_argument('--operation-timeout', dest='operation_timeout', type=str, default='3sec', help='timeout for every GRPC operation.')
 parser.add_argument('--check-interval', dest='check_interval', type=str, default='5000ms', help='interval for checking connections.')
 parser.add_argument('--cluster-policy', dest='cluster_policy', type=str, default='quorum', choices=['simple', 'quorum'], help='simple - without checking status.')
@@ -75,18 +75,7 @@ for item in range(args.amount_of_nodes):
     node = open("Templates/node_template.yml.j2").read()
     template = Template(node)
     f = open(f"{path}/node.yaml.bobnet{item}", 'w')
-    f.write(template.render(node_number=item, version=args.version, log_config=args.log_config, users_config=args.users_config, quorum=args.quorum, 
-    operation_timeout=args.operation_timeout, check_interval=args.check_interval, cluster_policy=args.cluster_policy, 
-    backend_type=args.backend_type, cleanup_interval=args.cleanup_interval, open_blobs_soft_limit=args.open_blobs_soft_limit,
-    open_blobs_hard_limit=args.open_blobs_hard_limit, http_api_port=args.http_api_port, bloom_filter_memory_limit=args.bloom_filter_memory_limit, 
-    auth_type=args.auth_type, index_memory_limit=args.index_memory_limit, enable_aio=args.enable_aio, 
-    disks_events_logfile=args.disks_events_logfile, max_blob_size=args.max_blob_size, allow_duplicates=args.allow_duplicates, 
-    max_data_in_blob=args.max_data_in_blob, blob_file_name_prefix=args.blob_file_name_prefix,
-    fail_retry_timeout=args.fail_retry_timeout, alien_disk=args.alien_disk, 
-    bloom_filter_max_buf_bits_count=args.bloom_filter_max_buf_bits_count, root_dir_name=args.root_dir_name, 
-    alien_root_dir_name=args.alien_root_dir_name, timestamp_period=args.timestamp_period,
-    create_pearl_wait_delay=args.create_pearl_wait_delay, metrics_name=args.metrics_name, graphite_enabled=args.graphite_enabled,
-    prometheus_enabled=args.prometheus_enabled))
+    f.write(template.render(vars(args), node_number=item))
     f.close
 
 #generate cluster config
