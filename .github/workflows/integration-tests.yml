@@ -60,7 +60,7 @@ jobs:
           echo "COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
-          /usr/bin/pip3 install -r ./requirements.txt
+          /usr/bin/pip install -r ./requirements.txt
         working-directory: ./integration-tests
       - name: Get version data
         run: |

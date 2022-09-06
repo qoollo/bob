@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 import os, argparse, sys, subprocess, shlex, docker, python_on_whales
 from time import sleep
 from python_on_whales import docker as d_cli

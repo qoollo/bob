@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 from re import T
 import shutil, argparse, os, sys, json
 from jinja2 import Template
