@@ -21,9 +21,11 @@ for (key) in final_args:
         args_str += f'{key} {final_args.get(key)} '
 
 
+binaries_dir = f'./target/{os.getenv("TARGET")}/release'
+
 #write/read tests
 try:
-    p = subprocess.check_output(shlex.split(f'../bobp -b put {args_str.rstrip()}'))
+    p = subprocess.check_output(shlex.split(f'{binaries_dir}/bobp -b put {args_str.rstrip()}'))
     print(str(p))
 except subprocess.CalledProcessError as e:
     print(e)
@@ -31,7 +33,7 @@ except subprocess.CalledProcessError as e:
 
 
 try:
-    p = subprocess.check_output(shlex.split(f'../bobp -b get {args_str.rstrip()}'))
+    p = subprocess.check_output(shlex.split(f'{binaries_dir}/bobp -b get {args_str.rstrip()}'))
     print(str(p))
 except subprocess.CalledProcessError as e:
     print(e)
