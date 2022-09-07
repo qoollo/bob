@@ -72,7 +72,6 @@ jobs:
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/brt
   build-docker-images:
     runs-on: ubuntu-latest
-    environment: prod
     strategy:
       matrix:
         bob_key_size: [8, 16]
@@ -115,7 +114,7 @@ jobs:
             /tmp/bob-images.tar
 
   deploy-and-test:
-    needs: build-binaries
+    needs: [build-binaries, build-docker-images]
     strategy:
       matrix:
         key: [8, 16]
