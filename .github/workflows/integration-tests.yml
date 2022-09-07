@@ -70,7 +70,50 @@ jobs:
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobp
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/brt
- 
+  build-docker-images:
+    runs-on: ubuntu-latest
+    environment: prod
+    strategy:
+      matrix:
+        bob_key_size: [8, 16]
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v2
+      - name: Set env
+        run: |
+          echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: qoollo/bob
+          tags: |
+            ${{ env.VERSION }}-key${{ matrix.key }}
+      - name: Build and push alpine image
+        uses: docker/build-push-action@v2
+        with:
+          outputs: type=docker,dest=/tmp/bob-images.tar
+          context: .
+          file: dockerfiles/alpine/Dockerfile
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            COMMIT_HASH=${{ env.BOB_COMMIT_HASH }}
+            KEY_SIZE=${{ matrix.bob_key_size }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: bob-images
+          path: |
+            /tmp/bob-images.tar
+
   deploy-and-test:
     needs: build-binaries
     strategy:
@@ -113,6 +156,17 @@ jobs:
         with:
           name: bob-binaries-${{ matrix.key }}
           path: ./integration-tests
+      - name: Download docker images
+        uses: actions/download-artifact@v2
+        with:
+          name: bob-images
+          path: ./integration-tests
+      - name: Load docker images
+        run: |
+          docker load --input bob-images.tar
+      - name: List availible images
+        run: |
+          docker image ls
       - name: Generate config files for docker and bob
         run: |
           ./generate_from_templates.py -a ${{ env.AMOUNT_OF_NODES }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path ${{ env.STORAGE_PATH }}
