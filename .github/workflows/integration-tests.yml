@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        bob_key_size: [8, 16]
+        key: [8, 16]
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
@@ -122,7 +122,7 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.x'
       - name: Setup default variables for auto runs
         run: |
           INPUT=${{ github.event.inputs.amount_of_nodes }}
