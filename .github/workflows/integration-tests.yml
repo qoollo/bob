@@ -72,6 +72,7 @@ jobs:
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/brt
  
   deploy-and-test:
+    needs: build-binaries
     strategy:
       matrix:
         key: [8, 16]
