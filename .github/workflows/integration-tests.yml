@@ -157,7 +157,7 @@ jobs:
           path: ./integration-tests
       - name: Load docker images
         run: |
-          docker load --input ./bob-images.tar
+          docker import ./bob-images.tar
         working-directory: ./integration-tests
       - name: List availible images
         run: |
