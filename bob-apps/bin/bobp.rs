@@ -32,6 +32,7 @@ struct NetConfig {
     port: u16,
     target: String,
     ca_cert_path: Option<String>,
+    tls_domain_name: Option<String>,
 }
 impl NetConfig {
     fn get_uri(&self) -> http::Uri {
@@ -48,6 +49,7 @@ impl NetConfig {
             port: matches.value_or_default("port"),
             target: matches.value_or_default("host"),
             ca_cert_path: matches.value_of("ca_path").map(|p| p.to_string()),
+            tls_domain_name: matches.value_of("domain_name").map(|n| n.to_string()),
         }
     }
 
@@ -56,7 +58,8 @@ impl NetConfig {
         if let Some(ca_cert_path) = &self.ca_cert_path {
             let cert_bin = fs::read(&ca_cert_path).expect("can not read ca certificate from file");
             let cert = Certificate::from_pem(cert_bin);
-            let tls_config = ClientTlsConfig::new().domain_name("bob").ca_certificate(cert);
+            let domain_name = self.tls_domain_name.as_ref().expect("domain name required");
+            let tls_config = ClientTlsConfig::new().domain_name(domain_name).ca_certificate(cert);
             endpoint = endpoint.tls_config(tls_config).expect("tls config");
         }
         loop {
@@ -1079,7 +1082,14 @@ fn get_matches() -> ArgMatches<'static> {
             Arg::with_name("ca_path")
                 .help("path to tls ca certificate")
                 .takes_value(true)
-                .long("ca_path"),
+                .long("ca_path")
+                .requires("domain_name"),
+        )
+        .arg(
+            Arg::with_name("domain_name")
+                .help("tls domain name")
+                .takes_value(true)
+                .long("domain_name"),
         )
         .get_matches()
 }
