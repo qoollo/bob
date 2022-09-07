@@ -92,7 +92,7 @@ jobs:
       - name: Build image
         uses: docker/build-push-action@v2
         with:
-          outputs: type=tar,dest=/tmp/bob-images.tar
+          outputs: type=image,name=qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }}
           context: .
           file: dockerfiles/alpine/Dockerfile
           push: false
@@ -101,6 +101,10 @@ jobs:
           build-args: |
             COMMIT_HASH=${{ env.BOB_COMMIT_HASH }}
             KEY_SIZE=${{ matrix.key}}
+      - name: Save image
+        run: |
+          docker save -o /tmp/bob-images.tar
+        working-directory: ./integration-tests
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
