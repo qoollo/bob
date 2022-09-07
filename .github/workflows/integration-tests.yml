@@ -92,7 +92,7 @@ jobs:
       - name: Build image
         uses: docker/build-push-action@v2
         with:
-          outputs: type=oci,dest=/tmp/bob-images.tar
+          outputs: type=tar,dest=/tmp/bob-images.tar
           context: .
           file: dockerfiles/alpine/Dockerfile
           push: false
