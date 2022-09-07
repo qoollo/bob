@@ -33,20 +33,19 @@ except d_err.NotFound:
 
 start_path = os.getcwdb()
 good_path = os.path.abspath(args.path)
-binaries_dir = f'../target/{os.getenv("TARGET")}/release'
 
 if not 'cluster.yaml.bobnet' in os.listdir(good_path):
     print('Cluster config not found in the specifed directory.')
     sys.exit()
 
 try:
-    os.chmod(path=f'{binaries_dir}/ccg', mode=0o771)
-    os.chmod(path=f'{binaries_dir}/bobp', mode=0o771)
+    os.chmod(path=f'./ccg', mode=0o771)
+    os.chmod(path=f'./bobp', mode=0o771)
 except OSError as e:
     print(e)
 
 try:
-    pr = subprocess.check_output(shlex.split(f'{binaries_dir}/ccg new -i {args.path}/cluster.yaml.bobnet -o {args.path}/cluster.yaml.bobnet {args_str.rstrip()}'))
+    pr = subprocess.check_output(shlex.split(f'./ccg new -i {args.path}/cluster.yaml.bobnet -o {args.path}/cluster.yaml.bobnet {args_str.rstrip()}'))
     if str(pr).find('ERROR') != -1:
         print(pr)
         sys.exit()
