@@ -100,7 +100,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             COMMIT_HASH=${{ env.BOB_COMMIT_HASH }}
-            KEY_SIZE=${{ matrix.bob_key_size }}
+            KEY_SIZE=${{ matrix.key}}
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
