@@ -239,7 +239,10 @@ impl Backend {
 
     pub async fn put(&self, key: BobKey, data: BobData, options: BobOptions) -> Result<(), Error> {
         trace!(">>>>>>- - - - - BACKEND PUT START - - - - -");
-        let sw = Stopwatch::start_new();
+        let mut sw = Stopwatch::new();
+        if log_enabled!(log::Level::Debug) {
+            sw.start()
+        }
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         trace!(
             "get operation {:?}, /{:.3}ms/",
