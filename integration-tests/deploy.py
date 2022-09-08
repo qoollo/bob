@@ -51,39 +51,44 @@ try:
         sys.exit()
 except subprocess.CalledProcessError:
     print(pr.stderr)
-    sys.exit()
+    sys.exit(1)
 
 try:
     os.chdir(good_path)
 except FileNotFoundError:
     print('The path does not exist.')
-    sys.exit()
+    sys.exit(1)
 except PermissionError:
     print(f'Access to {good_path} is denied.')
-    sys.exit()
+    sys.exit(1)
 except NotADirectoryError:
     print('The specified path is not a directory.')
-    sys.exit()
+    sys.exit(1)
 
 try:
     client.networks.get('bob_net')
     d_cli.compose.up(detach=True)
-    print('Containers are running!')
+    print('Services are initilized.')
 except d_err.NotFound:
-    print('docker network not found')
-    sys.exit()
+    print('Docker network not found')
+    sys.exit(1)
+
+if len(d_cli.container.list()) == 0:
+    print('Bob docker containers are not running.')
+    sys.exit(1)
+    
 
 try:
     os.chdir(start_path)
 except FileNotFoundError:
     print('The initial path does not exist.')
-    sys.exit()
+    sys.exit(1)
 except PermissionError:
     print(f'Access to {start_path} is denied.')
-    sys.exit()
+    sys.exit(1)
 except NotADirectoryError:
     print('The specified path is not a directory.')
-    sys.exit()
+    sys.exit(1)
 
 
 
