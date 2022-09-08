@@ -153,7 +153,9 @@ impl Group {
             .collect();
 
         if !holders_for_time.is_empty() {
-            holders_for_time.sort_by_key(|h| h.1.start_timestamp());
+            if holders_for_time.len() > 1 {
+                holders_for_time.sort_by_key(|h| h.1.start_timestamp());
+            }
             let (id, holder) = holders_for_time.pop().expect("not empty");
             Ok((id, holder.clone()))
         } else {
