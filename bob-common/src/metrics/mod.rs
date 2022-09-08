@@ -88,6 +88,8 @@ pub const ACTIVE_DISKS_COUNT: &str = "backend.active_disks";
 pub const DISKS_FOLDER: &str = "backend.disks";
 /// Directory, which contains each disks hardware metrics
 pub const HW_DISKS_FOLDER: &str = "hardware.disks";
+/// Occupied disk space by disks
+pub const DISK_USED: &str = "backend.used_disk";
 
 pub const DESCRIPTORS_AMOUNT: &str = "hardware.descr_amount";
 

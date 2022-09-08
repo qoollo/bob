@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use std::{
     collections::HashMap,
-    fmt::{Display, Formatter, Result as FMTResult},
+    fmt::{Display, Formatter, Result as FMTResult}, hash::Hash,
 };
 
 use crate::{
@@ -123,6 +123,9 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
     async fn close_oldest_active_blob(&self) -> Option<usize> {
         None
     }
+    async fn free_least_used_resources(&self) -> Option<usize> {
+        None
+    }
 
     async fn offload_old_filters(&self, _limit: usize) {}
 
@@ -143,6 +146,10 @@ pub trait MetricsProducer: Send + Sync {
 
     async fn index_memory(&self) -> usize {
         0
+    }
+
+    async fn disk_used_by_disk(&self) -> HashMap<DiskPath, u64> {
+        HashMap::new()
     }
 }
 
@@ -211,6 +218,10 @@ impl Backend {
 
     pub async fn index_memory(&self) -> usize {
         self.inner.index_memory().await
+    }
+
+    pub async fn disk_used_by_disk(&self) -> HashMap<DiskPath, u64> {
+        self.inner.disk_used_by_disk().await
     }
 
     pub fn mapper(&self) -> &Virtual {
@@ -424,6 +435,10 @@ impl Backend {
 
     pub async fn close_oldest_active_blob(&self) -> Option<usize> {
         self.inner.close_oldest_active_blob().await
+    }
+
+    pub async fn free_least_used_holder_resources(&self) -> Option<usize> {
+        self.inner.free_least_used_resources().await
     }
 
     pub async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<u64, Error> {
