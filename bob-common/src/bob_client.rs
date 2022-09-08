@@ -288,7 +288,7 @@ impl Factory {
         }
     }
     pub async fn produce(&self, node: Node) -> Result<BobClient, String> {
-        let metrics = self.metrics.clone().get_metrics(&node.counter_display());
+        let metrics = self.metrics.clone().get_metrics();
         BobClient::create(node, self.operation_timeout, metrics, self.local_node_name.clone()).await
     }
 }

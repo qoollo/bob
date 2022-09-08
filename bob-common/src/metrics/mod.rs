@@ -207,13 +207,12 @@ impl MetricsContainer {
 /// A trait for generic metrics builders
 pub trait ContainerBuilder {
     /// Initializes `BobClient` container with given name
-    fn get_metrics(&self, name: &str) -> BobClient;
+    fn get_metrics(&self) -> BobClient;
 }
 
 impl ContainerBuilder for MetricsContainer {
-    fn get_metrics(&self, name: &str) -> BobClient {
-        let prefix = self.prefix.clone() + "." + name;
-        BobClient::new(prefix)
+    fn get_metrics(&self) -> BobClient {
+        BobClient::new(self.prefix.clone())
     }
 }
 
@@ -229,7 +228,14 @@ pub async fn init_counters(
     //install_prometheus();
     //install_graphite(node_config, local_address);
     let shared = install_global(node_config, local_address).await;
-    let container = MetricsContainer::new(Duration::from_secs(1), CLIENTS_METRICS_DIR.to_owned());
+    let container = MetricsContainer::new(
+        Duration::from_secs(1),
+        format!(
+            "{}.{}",
+            CLIENTS_METRICS_DIR,
+            local_address.replace(".", "_")
+        ),
+    );
     info!(
         "metrics container initialized with update interval: {}ms",
         container.duration.as_millis()
