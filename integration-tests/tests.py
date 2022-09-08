@@ -1,6 +1,18 @@
 #!/usr/bin/python3
 
-import subprocess, argparse, shlex, sys, os
+import subprocess, argparse, shlex, sys
+
+def run_tests(behaviour):
+    try:
+        p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args_str.rstrip()}'))
+        print(str(p))
+        if str(p).__contains__(f'{behaviour} errors:'):
+            print(f'{behaviour} test failed, see output')
+            sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        print(e)
+        sys.exit(1)
+
 
 parser = argparse.ArgumentParser(description='This script launches bob tests with given configuration.')
 parser.add_argument('-c', dest='count', type=int, help='amount of entries to process', required=True)
@@ -21,19 +33,8 @@ for (key) in final_args:
         args_str += f'{key} {final_args.get(key)} '
 
 
-#write/read tests
-try:
-    p = subprocess.check_output(shlex.split(f'./bobp -b put {args_str.rstrip()}'))
-    print(str(p))
-except subprocess.CalledProcessError as e:
-    print(e)
-    sys.exit()
+#write/read/exist tests
+for item in ['put','get']:
+    run_tests(item)
 
-
-try:
-    p = subprocess.check_output(shlex.split(f'./bobp -b get {args_str.rstrip()}'))
-    print(str(p))
-except subprocess.CalledProcessError as e:
-    print(e)
-    sys.exit()
 
