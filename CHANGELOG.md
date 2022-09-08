@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Special handling of a single holder result (#595)
 
 #### Changed
 - Update rust edition to 2021 (#484)
