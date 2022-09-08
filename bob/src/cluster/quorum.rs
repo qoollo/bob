@@ -169,21 +169,16 @@ impl Quorum {
         } else {
             target_nodes.extend(self.mapper.get_target_nodes_for_key(key))
         };
+        target_nodes.retain(|n| n.name() != local_node);
         debug!(
             "DELETE[{}] cluster quorum put remote nodes {} total target nodes",
             key,
             target_nodes.len(),
         );
-        let count = target_nodes
-            .iter()
-            .filter(|n| n.name() != local_node)
-            .count();
-        let target_nodes = target_nodes
-            .into_iter()
-            .filter(|node| node.name() != local_node);
+        let count = target_nodes.len();
         delete(
             key,
-            target_nodes,
+            target_nodes.into_iter(),
             count,
             DeleteOptions::new_local(with_aliens),
         )
