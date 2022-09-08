@@ -1,40 +1,34 @@
 name: integration-tests
 on:
-  push:
-    branches: [ "518-implement-semi-automatic-integration-tests" ]
-  pull_request:
-    branches: [ "518-implement-semi-automatic-integration-tests" ]
   pull_request_review:
+    types: [submitted]
     branches: [ "518-implement-semi-automatic-integration-tests" ]
   workflow_dispatch:
     inputs:
-      amount_of_nodes:
+      bob_amount_of_nodes:
         description: 'Amount of nodes in bob cluster for tests'
         required: true
         default: '4'
-      storage_path:
-        description: 'Path for test runtime files'
-        required: true
-        default: '/tmp'
-      disks:
+      bob_disks:
         description: 'Vdisks count'
         required: true
         default: '4'
-      replicas:
+      bob_replicas:
         description: 'Amount of vdisks replicas'
         required: true
         default: '2'
-      payload:
-        description: 'Test payload'
+      bob_payload:
+        description: 'Payload size'
         required: true
         default: '10240'
-      count:
+      bob_count:
         description: 'Amount of records to process during test'
         required: true
         default: '10000'
 
 jobs:
   build-binaries:
+    if: github.event.review.state == 'approved'
     strategy:
       matrix:
         key: [8, 16]
@@ -71,6 +65,7 @@ jobs:
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/brt
   build-docker-images:
+    if: github.event.review.state == 'approved'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -113,6 +108,7 @@ jobs:
             /tmp/bob-images.tar
 
   deploy-and-test:
+    if: github.event.review.state == 'approved'
     needs: [build-binaries, build-docker-images]
     strategy:
       matrix:
@@ -129,18 +125,16 @@ jobs:
           python-version: '3.x'
       - name: Setup default variables for auto runs
         run: |
-          INPUT=${{ github.event.inputs.amount_of_nodes }}
-          echo "AMOUNT_OF_NODES=${INPUT:-"4"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.storage_path }}
-          echo "STORAGE_PATH=${INPUT:-"/tmp"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.disks }}
-          echo "DISKS=${INPUT:-"4"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.replicas }}
-          echo "REPLICAS=${INPUT:-"2"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.payload }}
-          echo "PAYLOAD=${INPUT:-"10240"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.count }}
-          echo "COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.bob_amount_of_nodes }}
+          echo "BOB_AMOUNT_OF_NODES=${INPUT:-"4"}" >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.bob_disks }}
+          echo "BOB_DISKS=${INPUT:-"4"}" >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.bob_replicas }}
+          echo "BOB_REPLICAS=${INPUT:-"2"}" >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.bob_payload }}
+          echo "BOB_PAYLOAD=${INPUT:-"10240"}" >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.bob_count }}
+          echo "BOB_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -168,13 +162,13 @@ jobs:
           docker image ls
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.AMOUNT_OF_NODES }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path ${{ env.STORAGE_PATH }}
+          ./generate_from_templates.py -a ${{ env.BOB_AMOUNT_OF_NODES }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
-          ./deploy.py --path ${{ env.STORAGE_PATH }}/generated_configs -d ${{ env.DISKS }} -r ${{ env.REPLICAS }}
+          ./deploy.py --path ${{ env.BOB_STORAGE_PATH }}/generated_configs -d ${{ env.BOB_DISKS }} -r ${{ env.BOB_REPLICAS }}
         working-directory: ./integration-tests
       - name: Run write/read tests
         run: |
-          ./tests.py -l ${{ env.PAYLOAD }} -c ${{ env.COUNT }} -n 0.0.0.0 -k ${{ matrix.key }}
+          ./tests.py -l ${{ env.BOB_PAYLOAD }} -c ${{ env.BOB_COUNT }} -n 0.0.0.0 -k ${{ matrix.key }}
         working-directory: ./integration-tests
