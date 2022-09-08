@@ -79,7 +79,10 @@ impl Grinder {
         data: BobData,
         opts: BobOptions,
     ) -> Result<(), Error> {
-        let sw = Stopwatch::start_new();
+        let mut sw = Stopwatch::new();
+        if log_enabled!(log::Level::Trace) {
+            sw.start()
+        }
         if opts.flags().contains(BobFlags::FORCE_NODE) {
             trace!(">>>- - - - - GRINDER PUT START - - - - -");
             debug!(
@@ -119,7 +122,10 @@ impl Grinder {
 
     pub(crate) async fn get(&self, key: BobKey, opts: &BobOptions) -> Result<BobData, Error> {
         trace!(">>>- - - - - GRINDER GET START - - - - -");
-        let sw = Stopwatch::start_new();
+        let mut sw = Stopwatch::new();
+        if log_enabled!(log::Level::Trace) {
+            sw.start()
+        }
         if opts.flags().contains(BobFlags::FORCE_NODE) {
             trace!(
                 "pass request to backend, /{:.3}ms/",
@@ -171,7 +177,10 @@ impl Grinder {
         keys: &[BobKey],
         opts: &BobOptions,
     ) -> Result<Vec<bool>, Error> {
-        let sw = Stopwatch::start_new();
+        let mut sw = Stopwatch::new();
+        if log_enabled!(log::Level::Trace) {
+            sw.start()
+        }
         if opts.flags().contains(BobFlags::FORCE_NODE) {
             counter!(CLIENT_EXIST_COUNTER, 1);
             let time = Instant::now();
@@ -212,7 +221,10 @@ impl Grinder {
     pub(crate) async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<u64, Error> {
         trace!(">>>- - - - - GRINDER DELETE START - - - - -");
         counter!(CLIENT_DELETE_COUNTER, 1);
-        let sw = Stopwatch::start_new();
+        let mut sw = Stopwatch::new();
+        if log_enabled!(log::Level::Trace) {
+            sw.start()
+        }
         trace!(
             "pass request to backend, /{:.3}ms/",
             sw.elapsed().as_secs_f64() * 1000.0
