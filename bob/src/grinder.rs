@@ -216,7 +216,7 @@ impl Grinder {
             counter!(CLIENT_DELETE_COUNTER, 1);
             let sw = Stopwatch::start_new();
             trace!(
-                "pass request to backend, /{:.3}ms/",
+                "pass delete request to backend, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
             let result = self.backend.delete(key, options.with_aliens).await;
