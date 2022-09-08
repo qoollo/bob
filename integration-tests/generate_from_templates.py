@@ -49,11 +49,16 @@ path = pathified(args.path) + '/generated_configs'
 
 os.makedirs(path, exist_ok=True, mode=0o777)
 
-for filename in os.listdir(path):
-    try:
-        os.remove(f"{path}/{filename}")
-    except OSError:
-        shutil.rmtree(f"{path}/{filename}")
+
+if len(os.listdir(path)) == 0:
+    for filename in os.listdir(path):
+        try:
+            os.remove(f"{path}/{filename}")
+        except OSError:
+            shutil.rmtree(f"{path}/{filename}")
+else:
+    print('Directory not empty.')
+    sys.exit(1)
 
 try:
     original_umask = os.umask(0)
