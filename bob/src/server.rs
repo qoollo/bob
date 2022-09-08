@@ -171,7 +171,10 @@ where
             return Err(Status::permission_denied("READ permission required"));
         }
         trace!("- - - - - SERVER GET START - - - - -");
-        let sw = Stopwatch::start_new();
+        let mut sw = Stopwatch::new();
+        if log_enabled!(log::Level::Debug) {
+            sw.start()
+        }
         trace!(
             "process incoming get request /{:.3}ms/",
             sw.elapsed().as_secs_f64() * 1000.0
@@ -200,8 +203,7 @@ where
                 "grinder finished request processing /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let elapsed = sw.elapsed_ms();
-            debug!("GET[{}]-OK dt: {}ms", key, elapsed);
+            debug!("GET[{}]-OK dt: {}ms", key, sw.elapsed_ms());
             let meta = Some(BlobMeta {
                 timestamp: get_res.meta().timestamp(),
             });
@@ -226,7 +228,10 @@ where
         if !self.auth.check_credentials_grpc(creds.into())?.has_read() {
             return Err(Status::permission_denied("READ permission required"));
         }
-        let sw = Stopwatch::start_new();
+        let mut sw = Stopwatch::new();
+        if log_enabled!(log::Level::Debug) {
+            sw.start()
+        }
         let req = req.into_inner();
         let ExistRequest { keys, options } = req;
         let keys = keys.into_iter().map(|k| k.key.into()).collect::<Vec<_>>();
@@ -236,8 +241,7 @@ where
             .exist(&keys, &options)
             .await
             .map_err::<Status, _>(|e| e.into())?;
-        let elapsed = sw.elapsed();
-        debug!("EXISTS-OK dt: {:?}", elapsed);
+        debug!("EXISTS-OK dt: {:?}", sw.elapsed());
         let response = ExistResponse { exist };
         let response = Response::new(response);
         Ok(response)
