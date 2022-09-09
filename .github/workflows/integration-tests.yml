@@ -100,7 +100,7 @@ jobs:
             KEY_SIZE=${{ matrix.key}}
       - name: Save image
         run: |
-          docker save -o /tmp/bob-images.tar qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }}
+          docker save -o /tmp/bob-image-key${{ matrix.key }}.tar qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }}
         working-directory: ./integration-tests
       - name: Upload artifact
         uses: actions/upload-artifact@v2
