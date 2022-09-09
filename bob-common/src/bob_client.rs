@@ -71,7 +71,7 @@ pub mod b_client {
             };
             let blob = Blob {
                 meta: Some(meta),
-                data: d.into_inner()
+                data: d.into_inner(),
             };
             let message = PutRequest {
                 key: Some(BlobKey { key: key.into() }),
