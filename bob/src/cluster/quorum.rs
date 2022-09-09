@@ -80,27 +80,27 @@ impl Quorum {
 
     async fn delete_on_nodes(&self, key: BobKey, without_aliens: bool) -> Result<(), Error> {
         debug!("DELETE[{}] ~~~DELETE LOCAL NODE FIRST~~~", key);
-        let mut local_put_ok = 0_usize;
+        let mut local_delete_ok = 0_usize;
         let mut failed_nodes = Vec::new();
         let res = delete_at_local_node(&self.backend, key, without_aliens).await;
         if let Err(e) = res {
             error!("{}", e);
             failed_nodes.push(self.mapper.local_node_name().to_owned());
         } else {
-            local_put_ok += 1;
+            local_delete_ok += 1;
             debug!("DELETE[{}] local node delete successful", key);
         }
 
         debug!("DELETE[{}] ~~~DELETE TO REMOTE NODES~~~", key);
         let errors = self.delete_at_remote_nodes(key, without_aliens).await;
         let all_count = self.mapper.get_target_nodes_for_key(key).len();
-        let remote_ok_count = all_count - errors.len() - local_put_ok;
+        let remote_ok_count = all_count - errors.len() - local_delete_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
         if failed_nodes.len() > 0 {
             warn!(
                 "DELETE[{}] was not successful. ok {}, failed {}, errors: {:?}",
                 key,
-                remote_ok_count + local_put_ok,
+                remote_ok_count + local_delete_ok,
                 errors.len(),
                 errors
             );
