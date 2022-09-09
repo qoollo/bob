@@ -15,7 +15,7 @@ def run_tests(behaviour, args):
         sys.exit(1)
 
 def get_run_args(mode, args):
-    return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}:{test_run_config.get(mode)}', '-s':args.start, '-e':args.end, '-t':args.threads, '--mode':args.mode, '-k':args.keysize}
+    return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-s':args.start, '-e':args.end, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':test_run_config.get(mode)}
 
 test_run_config = {'put':'8000', 'get':'8001'}
 
