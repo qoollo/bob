@@ -162,8 +162,8 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
 
 async fn nodes_credentials_from_cluster_config(
     cluster_config: &ClusterConfig,
-) -> HashMap<IpAddr, Credentials> {
-    let mut nodes_creds = HashMap::new();
+) -> HashMap<IpAddr, Vec<Credentials>> {
+    let mut nodes_creds: HashMap<IpAddr, Vec<Credentials>> = HashMap::new();
     for node in cluster_config.nodes() {
         let address = &node.address();
         let address = if let Ok(address) = address.parse() {
@@ -180,11 +180,20 @@ async fn nodes_credentials_from_cluster_config(
                 }
             }
         };
-        let creds = Credentials::builder()
+        let cred = Credentials::builder()
             .with_nodename(node.name())
             .with_address(Some(address))
             .build();
-        nodes_creds.insert(creds.ip().expect("node missing ip"), creds);
+        let ip = cred.ip().expect("node missing ip");
+        match nodes_creds.get_mut(&ip) {
+            Some(creds) => {
+                creds.push(cred);
+            },
+            None => {
+                let creds = vec![cred];
+                nodes_creds.insert(ip, creds);
+            }
+        }
     }
     nodes_creds
 }

@@ -7,10 +7,14 @@ Bob versions changelog
 - TLS support, TLS for grpc or rest can be enabled via cluster & node config (#303)
 
 #### Changed
-
+- Update rust edition to 2021 (#484)
 
 #### Fixed
-
+- Print full error text received from Pearl in exist function (#581)
+- Fix alien indexes offloading (#560)
+- Internode auth works properly with nodes on same ip (#548)
+- Fix response in delete request (#558)
+- Fixed panic in brt because of duplicate long arg name (#563)
 
 #### Updated
 
