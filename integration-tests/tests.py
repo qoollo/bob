@@ -4,9 +4,10 @@ import subprocess, argparse, shlex, sys
 
 def run_tests(behaviour, args):
     try:
+        print(f'Running bobp -b {str(behaviour)} {args.rstrip()}')
         p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args.rstrip()}'))
         print(str(p))
-        if str(p).__contains__(f'{behaviour} errors:'):
+        if str(p).__contains__(f'{behaviour} errors:') or str(p).__contains__(f'panicked'):
             print(f'{behaviour} test failed, see output')
             sys.exit(1)
     except subprocess.CalledProcessError as e:
