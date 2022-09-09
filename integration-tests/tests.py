@@ -10,8 +10,7 @@ def run_tests(behaviour, args):
         if str(p).__contains__(f'{behaviour} errors:') or str(p).__contains__(f'panicked'):
             sys.exit(f'{behaviour} test failed, see output')
     except subprocess.CalledProcessError as e:
-        print(e)
-        sys.exit(1)
+        sys.exit(str(e.stderr))
 
 def get_run_args(mode, args):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-s':args.start, '-e':args.end, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':test_run_config.get(mode)}
