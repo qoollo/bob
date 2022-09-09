@@ -118,16 +118,51 @@ pub type Timer = Instant;
 /// Structure contains put/get metrics for `BobClient`
 #[derive(Debug, Clone)]
 pub struct BobClient {
-    prefix: String,
+    prefixed_names: Arc<PrefixedNames>,
+}
+
+#[derive(Debug, Clone)]
+struct PrefixedNames {
+    put_count: String,
+    put_timer: String,
+    put_error_count: String,
+    get_count: String,
+    get_timer: String,
+    get_error_count: String,
+    exist_count: String,
+    exist_timer: String,
+    exist_error_count: String,
+    delete_count: String,
+    delete_timer: String,
+    delete_error_count: String,
+}
+
+impl PrefixedNames {
+    fn new(prefix: &str) -> Self {
+        Self {
+            put_count: format!("{}.put_count", prefix),
+            put_timer: format!("{}.put_timer", prefix),
+            put_error_count: format!("{}.put_error_count", prefix),
+            get_count: format!("{}.get_count", prefix),
+            get_timer: format!("{}.get_timer", prefix),
+            get_error_count: format!("{}.get_error_count", prefix),
+            exist_count: format!("{}.exist_count", prefix),
+            exist_timer: format!("{}.exist_timer", prefix),
+            exist_error_count: format!("{}.exist_error_count", prefix),
+            delete_count: format!("{}.delete_count", prefix),
+            delete_timer: format!("{}.delete_timer", prefix),
+            delete_error_count: format!("{}.delete_error_count", prefix),
+        }
+    }
 }
 
 impl BobClient {
-    fn new(prefix: String) -> Self {
-        BobClient { prefix }
+    fn new(prefixed_names: Arc<PrefixedNames>) -> Self {
+        BobClient { prefixed_names }
     }
 
     pub(crate) fn put_count(&self) {
-        counter!(self.prefix.clone() + ".put_count", 1);
+        counter!(self.prefixed_names.put_count.clone(), 1);
     }
 
     pub(crate) fn start_timer() -> Timer {
@@ -137,70 +172,74 @@ impl BobClient {
     #[allow(clippy::cast_possible_truncation)]
     pub(crate) fn put_timer_stop(&self, timer: Timer) {
         histogram!(
-            self.prefix.clone() + ".put_timer",
+            self.prefixed_names.put_timer.clone(),
             timer.elapsed().as_nanos() as f64
         );
     }
 
     pub(crate) fn put_error_count(&self) {
-        counter!(self.prefix.clone() + ".put_error_count", 1);
+        counter!(self.prefixed_names.put_error_count.clone(), 1);
     }
 
     pub(crate) fn get_count(&self) {
-        counter!(self.prefix.clone() + ".get_count", 1);
+        counter!(self.prefixed_names.get_count.clone(), 1);
     }
 
     pub(crate) fn get_timer_stop(&self, timer: Timer) {
         histogram!(
-            self.prefix.clone() + ".get_timer",
+            self.prefixed_names.get_timer.clone(),
             timer.elapsed().as_nanos() as f64
         );
     }
 
     pub(crate) fn get_error_count(&self) {
-        counter!(self.prefix.clone() + ".get_error_count", 1);
+        counter!(self.prefixed_names.get_error_count.clone(), 1);
     }
 
     pub(crate) fn exist_count(&self) {
-        counter!(self.prefix.clone() + ".exist_count", 1);
-    }
-
-    pub(crate) fn exist_error_count(&self) {
-        counter!(self.prefix.clone() + ".exist_error_count", 1);
+        counter!(self.prefixed_names.exist_count.clone(), 1);
     }
 
     pub(crate) fn exist_timer_stop(&self, timer: Timer) {
         histogram!(
-            self.prefix.clone() + ".exist_timer",
+            self.prefixed_names.exist_timer.clone(),
             timer.elapsed().as_nanos() as f64
         );
     }
 
-    pub(crate) fn delete_count(&self) {
-        counter!(self.prefix.clone() + ".delete_count", 1);
+    pub(crate) fn exist_error_count(&self) {
+        counter!(self.prefixed_names.exist_error_count.clone(), 1);
     }
 
-    pub(crate) fn delete_error_count(&self) {
-        counter!(self.prefix.clone() + ".delete_error_count", 1);
+    pub(crate) fn delete_count(&self) {
+        counter!(self.prefixed_names.delete_count.clone(), 1);
     }
 
     pub(crate) fn delete_timer_stop(&self, timer: Timer) {
         histogram!(
-            self.prefix.clone() + ".delete_timer",
+            self.prefixed_names.delete_timer.clone(),
             timer.elapsed().as_nanos() as f64
         );
+    }
+
+    pub(crate) fn delete_error_count(&self) {
+        counter!(self.prefixed_names.delete_error_count.clone(), 1);
     }
 }
 
 #[derive(Debug, Clone)]
 struct MetricsContainer {
     duration: Duration,
-    prefix: String,
+    prefixed_names: Arc<PrefixedNames>,
 }
 
 impl MetricsContainer {
     pub(crate) fn new(duration: Duration, prefix: String) -> Self {
-        MetricsContainer { duration, prefix }
+        let prefixed_names = Arc::new(PrefixedNames::new(&prefix));
+        MetricsContainer {
+            duration,
+            prefixed_names,
+        }
     }
 }
 
@@ -212,7 +251,7 @@ pub trait ContainerBuilder {
 
 impl ContainerBuilder for MetricsContainer {
     fn get_metrics(&self) -> BobClient {
-        BobClient::new(self.prefix.clone())
+        BobClient::new(self.prefixed_names.clone())
     }
 }
 
