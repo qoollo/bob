@@ -1,5 +1,7 @@
 name: integration-tests
 on:
+  push:
+    branches: [ "518-implement-semi-automatic-integration-tests" ] #REMOVE WHEN ON MASTER 
   pull_request_review:
     types: [submitted]
     branches: [ "518-implement-semi-automatic-integration-tests" ]
