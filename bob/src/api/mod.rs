@@ -982,7 +982,7 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
-    bob.block_on(bob.grinder().delete(key, DeleteOptions::new_all(true)))
+    bob.block_on(bob.grinder().delete(key, DeleteOptions::new_all(false)))
         .map_err(|e| internal(e.to_string()))
         .map(|_| StatusExt::new(StatusCode::OK, true, format!("Done")))
 }

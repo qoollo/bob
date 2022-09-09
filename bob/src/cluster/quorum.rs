@@ -78,11 +78,11 @@ impl Quorum {
         }
     }
 
-    async fn delete_on_nodes(&self, key: BobKey, with_aliens: bool) -> Result<(), Error> {
+    async fn delete_on_nodes(&self, key: BobKey, without_aliens: bool) -> Result<(), Error> {
         debug!("DELETE[{}] ~~~DELETE LOCAL NODE FIRST~~~", key);
         let mut local_put_ok = 0_usize;
         let mut failed_nodes = Vec::new();
-        let res = delete_at_local_node(&self.backend, key, with_aliens).await;
+        let res = delete_at_local_node(&self.backend, key, without_aliens).await;
         if let Err(e) = res {
             error!("{}", e);
             failed_nodes.push(self.mapper.local_node_name().to_owned());
@@ -92,7 +92,7 @@ impl Quorum {
         }
 
         debug!("DELETE[{}] ~~~DELETE TO REMOTE NODES~~~", key);
-        let errors = self.delete_at_remote_nodes(key, with_aliens).await;
+        let errors = self.delete_at_remote_nodes(key, without_aliens).await;
         let all_count = self.mapper.get_target_nodes_for_key(key).len();
         let remote_ok_count = all_count - errors.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
@@ -160,11 +160,11 @@ impl Quorum {
     pub(crate) async fn delete_at_remote_nodes(
         &self,
         key: BobKey,
-        with_aliens: bool,
+        without_aliens: bool,
     ) -> Vec<NodeOutput<Error>> {
         let local_node = self.mapper.local_node_name();
         let mut target_nodes = vec![];
-        if with_aliens {
+        if !without_aliens {
             target_nodes.extend(self.mapper.nodes().values());
         } else {
             target_nodes.extend(self.mapper.get_target_nodes_for_key(key))
@@ -180,7 +180,7 @@ impl Quorum {
             key,
             target_nodes.into_iter(),
             count,
-            DeleteOptions::new_local(with_aliens),
+            DeleteOptions::new_local(without_aliens),
         )
         .await
     }
@@ -289,7 +289,7 @@ impl Cluster for Quorum {
         Ok(exist)
     }
 
-    async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<(), Error> {
-        self.delete_on_nodes(key, with_aliens).await
+    async fn delete(&self, key: BobKey, without_aliens: bool) -> Result<(), Error> {
+        self.delete_on_nodes(key, without_aliens).await
     }
 }
