@@ -30,7 +30,7 @@ on:
 
 jobs:
   build-binaries:
-    if: github.event.review.state == 'approved'
+    # if: github.event.review.state == 'approved'
     strategy:
       matrix:
         key: [8, 16]
@@ -67,7 +67,7 @@ jobs:
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/brt
   build-docker-images:
-    if: github.event.review.state == 'approved'
+    # if: github.event.review.state == 'approved'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -110,7 +110,7 @@ jobs:
             /tmp/bob-images.tar
 
   deploy-and-test:
-    if: github.event.review.state == 'approved'
+    # if: github.event.review.state == 'approved'
     needs: [build-binaries, build-docker-images]
     strategy:
       matrix:
