@@ -168,7 +168,7 @@ jobs:
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
-          ./deploy.py --path ${{ env.BOB_STORAGE_PATH }}/generated_configs -d ${{ env.BOB_DISKS }} -r ${{ env.BOB_REPLICAS }}
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_DISKS }} -r ${{ env.BOB_REPLICAS }}
         working-directory: ./integration-tests
       - name: Run write/read tests
         run: |
