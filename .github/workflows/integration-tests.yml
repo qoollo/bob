@@ -2,9 +2,9 @@ name: integration-tests
 on:
   push:
     branches: [ "518-implement-semi-automatic-integration-tests" ] #REMOVE WHEN ON MASTER 
-  pull_request_review:
-    types: [submitted]
-    branches: [ "518-implement-semi-automatic-integration-tests" ]
+  #pull_request_review:
+  #  types: [submitted]
+  #  branches: [ "518-implement-semi-automatic-integration-tests" ]
   workflow_dispatch:
     inputs:
       bob_amount_of_nodes:
