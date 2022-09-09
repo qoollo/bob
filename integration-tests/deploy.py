@@ -78,17 +78,6 @@ if len(d_cli.container.list()) == 0:
     sys.exit(1)
     
 
-try:
-    os.chdir(start_path)
-except FileNotFoundError:
-    print('The initial path does not exist.')
-    sys.exit(1)
-except PermissionError:
-    print(f'Access to {start_path} is denied.')
-    sys.exit(1)
-except NotADirectoryError:
-    print('The specified path is not a directory.')
-    sys.exit(1)
 
 
 
