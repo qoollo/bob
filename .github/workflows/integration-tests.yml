@@ -105,9 +105,9 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
-          name: bob-images
+          name: bob-image-key${{ matrix.key }}
           path: |
-            /tmp/bob-images.tar
+            /tmp/bob-image-key${{ matrix.key }}.tar
 
   deploy-and-test:
     # if: github.event.review.state == 'approved'
@@ -153,11 +153,11 @@ jobs:
       - name: Download docker images
         uses: actions/download-artifact@v2
         with:
-          name: bob-images
+          name: bob-image-key${{ matrix.key }}
           path: ./integration-tests
       - name: Load docker images
         run: |
-          docker load -i ./bob-images.tar
+          docker load -i ./bob-image-key${{ matrix.key }}.tar
         working-directory: ./integration-tests
       - name: List availible images
         run: |
