@@ -15,8 +15,9 @@ use std::{
     time::Duration,
 };
 use std::{net::IpAddr, sync::atomic::Ordering};
-use std::{net::Ipv4Addr, sync::Arc};
+use std::{net::Ipv4Addr, sync::Arc, fs};
 use tokio::time::sleep;
+use tonic::transport::{ServerTlsConfig, Identity};
 
 use ubyte::ByteUnit;
 
@@ -466,8 +467,8 @@ pub struct TLSConfig {
 
 impl TLSConfig {
     pub fn grpc_config(&self) -> Option<&Self> {
-        self.grpc.and_then(|rest|
-            if rest {
+        self.grpc.and_then(|grpc|
+            if grpc {
                 Some(self)
             } else {
                 None
@@ -481,6 +482,16 @@ impl TLSConfig {
             } else {
                 None
             })
+    }
+
+    pub fn to_server_tls_config(&self) -> ServerTlsConfig {
+        let cert_path = self.cert_path.as_ref().expect("no certificate path specified");
+        let cert_bin = fs::read(cert_path).expect("can not read tls certificate from file");
+        let pkey_path = self.pkey_path.as_ref().expect("no private key path specified");
+        let key_bin = fs::read(pkey_path).expect("can not read tls private key from file");
+        let identity = Identity::from_pem(cert_bin.clone(), key_bin);
+
+        ServerTlsConfig::new().identity(identity)
     }
 }
 

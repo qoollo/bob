@@ -8,10 +8,9 @@ use std::{
     collections::HashMap,
     error::Error as ErrorTrait,
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    fs,
 };
 use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
-use tonic::transport::{Server, ServerTlsConfig, Identity};
+use tonic::transport::Server;
 use std::path::PathBuf;
 use std::fs::create_dir;
 
@@ -136,13 +135,7 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
 
     let mut server_builder = Server::builder();
     if let Some(node_tls_config) = node.tls_config().as_ref().and_then(|tls_config| tls_config.grpc_config()) {
-        let cert_path = node_tls_config.cert_path.as_ref().expect("no certificate path specified");
-        let cert_bin = fs::read(cert_path).expect("can not read tls certificate from file");
-        let pkey_path = node_tls_config.pkey_path.as_ref().expect("no private key path specified");
-        let key_bin = fs::read(pkey_path).expect("can not read tls private key from file");
-        let identity = Identity::from_pem(cert_bin.clone(), key_bin);
-
-        let tls_config = ServerTlsConfig::new().identity(identity);
+        let tls_config = node_tls_config.to_server_tls_config();
         server_builder = server_builder.tls_config(tls_config).expect("grpc tls config");
     }
 

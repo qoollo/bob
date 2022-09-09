@@ -150,7 +150,7 @@ async fn tls_server(tls_config: &TLSConfig, addr: SocketAddr) -> AxumServer<Rust
         let config = RustlsConfig::from_pem_file(
             cert_path,
             pkey_path,
-        ).await.unwrap();
+        ).await.expect("can not create tls config from pem file");
         bind_rustls(addr, config)
     } else {
         error!("rest tls enabled, but certificate or private key not specified");
