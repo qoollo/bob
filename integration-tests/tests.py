@@ -2,9 +2,9 @@
 
 import subprocess, argparse, shlex, sys
 
-def run_tests(behaviour):
+def run_tests(behaviour, args):
     try:
-        p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args_str.rstrip()}'))
+        p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args.rstrip()}'))
         print(str(p))
         if str(p).__contains__(f'{behaviour} errors:'):
             print(f'{behaviour} test failed, see output')
@@ -35,6 +35,6 @@ for (key) in final_args:
 
 #write/read/exist tests
 for item in ['put','get']:
-    run_tests(item)
+    run_tests(item, args_str)
 
 
