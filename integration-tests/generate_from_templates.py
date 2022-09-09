@@ -57,8 +57,7 @@ if len(os.listdir(path)) == 0:
         except OSError:
             shutil.rmtree(f"{path}/{filename}")
 else:
-    print('Directory not empty.')
-    sys.exit(1)
+    sys.exit('Directory not empty.')
 
 try:
     original_umask = os.umask(0)

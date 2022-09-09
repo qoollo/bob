@@ -34,48 +34,43 @@ except d_err.NotFound:
 start_path = os.getcwdb()
 good_path = os.path.abspath(args.path)
 
-if not 'cluster.yaml.bobnet' in os.listdir(good_path):
-    print('Cluster config not found in the specifed directory.')
-    sys.exit()
+try:
+    if not 'cluster.yaml.bobnet' in os.listdir(good_path):
+        sys.exit('Cluster config not found in the specifed directory.')
+except FileNotFoundError as e:
+    sys.exit(e)
 
 try:
     os.chmod(path=f'./ccg', mode=0o771)
     os.chmod(path=f'./bobp', mode=0o771)
 except OSError as e:
-    print(e)
+    sys.exit(e)
 
 try:
     pr = subprocess.check_output(shlex.split(f'./ccg new -i {args.path}/cluster.yaml.bobnet -o {args.path}/cluster.yaml.bobnet {args_str.rstrip()}'))
     if str(pr).find('ERROR') != -1:
-        print(pr)
-        sys.exit()
+        sys.exit(str(pr))
 except subprocess.CalledProcessError:
-    print(pr.stderr)
-    sys.exit(1)
+    sys.exit(pr.stderr)
 
 try:
     os.chdir(good_path)
 except FileNotFoundError:
-    print('The path does not exist.')
-    sys.exit(1)
+    sys.exit('The path does not exist.')
 except PermissionError:
-    print(f'Access to {good_path} is denied.')
-    sys.exit(1)
+    sys.exit(f'Access to {good_path} is denied.')
 except NotADirectoryError:
-    print('The specified path is not a directory.')
-    sys.exit(1)
+    sys.exit('The specified path is not a directory.')
 
 try:
     client.networks.get('bob_net')
     d_cli.compose.up(detach=True)
     print('Services are initilized.')
 except d_err.NotFound:
-    print('Docker network not found')
-    sys.exit(1)
+    sys.exit('Docker network not found')
 
 if len(d_cli.container.list()) == 0:
-    print('Bob docker containers are not running.')
-    sys.exit(1)
+    sys.exit('Bob docker containers are not running.')
     
 
 
