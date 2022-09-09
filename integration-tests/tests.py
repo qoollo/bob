@@ -13,6 +13,10 @@ def run_tests(behaviour, args):
         print(e)
         sys.exit(1)
 
+def get_run_args(mode, args):
+    return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}:{test_run_config.get(mode)}', '-s':args.start, '-e':args.end, '-t':args.threads, '--mode':args.mode, '-k':args.keysize}
+
+test_run_config = {'put':'8000', 'get':'8001'}
 
 parser = argparse.ArgumentParser(description='This script launches bob tests with given configuration.')
 parser.add_argument('-c', dest='count', type=int, help='amount of entries to process', required=True)
@@ -24,17 +28,14 @@ parser.add_argument('-t', dest='threads', type=int, help='amount of working thre
 parser.add_argument('--mode', dest='mode', type=str, help='random or normal', choices=['random', 'normal'], default='normal')
 parser.add_argument('-k', dest='keysize', type=int, help='size of binary key (8 or 16)', choices=[8, 16], default=8)
 
-args = parser.parse_args()
-final_args = {'-c':args.count, '-l':args.payload, '-h':args.node, '-s':args.start, '-e':args.end, '-t':args.threads, '--mode':args.mode, '-k':args.keysize}
+parsed_args = parser.parse_args()
 
-args_str = str()
-for (key) in final_args:
-    if final_args.get(key) != None:
-        args_str += f'{key} {final_args.get(key)} '
-
-
-#write/read/exist tests
+#run put/get tests
 for item in ['put','get']:
+    args_str = str()
+    run_args = get_run_args(item, parsed_args)
+    for key in run_args:
+        if run_args.get(key) != None:
+            args_str += f'{key} {run_args.get(key)} '
     run_tests(item, args_str)
-
 
