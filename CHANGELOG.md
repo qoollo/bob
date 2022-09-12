@@ -7,12 +7,39 @@ Bob versions changelog
 
 
 #### Changed
-
+- Update rust edition to 2021 (#484)
 
 #### Fixed
 - Remove unnecessary data clone (#506)
+- Print full error text received from Pearl in exist function (#581)
+- Fix alien indexes offloading (#560)
+- Internode auth works properly with nodes on same ip (#548)
+- Fix response in delete request (#558)
+- Fixed panic in brt because of duplicate long arg name (#563)
 
 #### Updated
+
+
+
+## [2.1.0-alpha.5] - 2022-08-04
+#### Added
+- Add occupied disk space to api and metrics (#501)
+- If no credentials provided and default user specified in config, then request will have default user permissions (#437)
+- SHA512 hash of password with salt 'bob' can be specified instead of password (#304)
+- User's permissions can be set via role and/or claims (#408)
+- Check correctness tool, bobt (#542)
+
+#### Changed
+- Move files for linux packages into separate directory (#534)
+- Defer index offload on deletion (#363)
+
+#### Fixed
+- Fixed internode authorization error (#530)
+- "CredentialsNotProvided", "UserNotFound", "UnauthorizedRequest" now have "Unauthenticated" code (#528)
+- Added conversion of "unauthorized" status into internal error (#540)
+
+#### Updated
+- Pearl updated to v0.13.0
 
 
 ## [2.1.0-alpha.4] - 2022-07-04
