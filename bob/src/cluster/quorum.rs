@@ -81,7 +81,7 @@ impl Quorum {
         self,
         mut rest_tasks: Tasks,
         key: BobKey,
-        data: Arc<BobData>,
+        data: BobData,
         mut failed_nodes: Vec<String>,
     ) {
         debug!("PUT[{}] ~~~BACKGROUND PUT TO REMOTE NODES~~~", key);
