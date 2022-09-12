@@ -26,7 +26,6 @@ impl Quorum {
     }
 
     async fn put_at_least(&self, key: BobKey, data: BobData) -> Result<(), Error> {
-        let data = Arc::new(data);
         debug!("PUT[{}] ~~~PUT LOCAL NODE FIRST~~~", key);
         let mut local_put_ok = 0_usize;
         let mut remote_ok_count = 0_usize;
@@ -111,7 +110,7 @@ impl Quorum {
     pub(crate) async fn put_remote_nodes(
         &self,
         key: BobKey,
-        data: Arc<BobData>,
+        data: BobData,
         at_least: usize,
     ) -> (Tasks, Vec<NodeOutput<Error>>) {
         let local_node = self.mapper.local_node_name();

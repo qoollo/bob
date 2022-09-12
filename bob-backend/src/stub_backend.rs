@@ -39,7 +39,7 @@ impl BackendStorage for StubBackend {
 
     async fn get(&self, _operation: Operation, key: BobKey) -> Result<BobData, Error> {
         debug!("GET[{}]: hi from backend", key);
-        Ok(BobData::new(vec![0], BobMeta::stub()))
+        Ok(BobData::new(vec![0].into(), BobMeta::stub()))
     }
 
     async fn get_alien(&self, operation: Operation, key: BobKey) -> Result<BobData, Error> {

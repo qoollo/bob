@@ -90,7 +90,7 @@ pub mod b_client {
                 Err(e) => {
                     self.metrics.put_error_count();
                     self.metrics.put_timer_stop(timer);
-                    Err(NodeOutput::new(node_name,  e.into()))
+                    Err(NodeOutput::new(node_name, e.into()))
                 },
             }
         }

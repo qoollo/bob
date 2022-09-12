@@ -4,6 +4,7 @@ use crate::{
     error::Error,
 };
 use bob_grpc::{GetOptions, GetSource, PutOptions};
+use bytes::Bytes;
 use std::{
     convert::TryInto,
     fmt::{Debug, Formatter, Result as FmtResult},
@@ -93,14 +94,14 @@ pub type VDiskId = u32;
 
 #[derive(Clone)]
 pub struct BobData {
-    inner: Vec<u8>,
+    inner: Bytes,
     meta: BobMeta,
 }
 
 impl BobData {
     const TIMESTAMP_LEN: usize = 8;
     
-    pub fn new(inner: Vec<u8>, meta: BobMeta) -> Self {
+    pub fn new(inner: Bytes, meta: BobMeta) -> Self {
         BobData { inner, meta }
     }
 
@@ -108,7 +109,7 @@ impl BobData {
         &self.inner
     }
 
-    pub fn into_inner(self) -> Vec<u8> {
+    pub fn into_inner(self) -> Bytes {
         self.inner
     }
 
@@ -123,7 +124,7 @@ impl BobData {
             .map_err(|e| Error::storage(format!("parse error: {}", e)))?;
         let timestamp = u64::from_be_bytes(bytes);
         let meta = BobMeta::new(timestamp);
-        Ok(BobData::new(bob_data.to_vec(), meta))
+        Ok(BobData::new(bob_data.to_vec().into(), meta))
     }
 }
 

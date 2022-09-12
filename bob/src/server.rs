@@ -1,6 +1,7 @@
 use std::net::IpAddr;
 
 use bob_access::{Authenticator, CredentialsHolder};
+use bytes::Bytes;
 use tokio::{runtime::Handle, task::block_in_place};
 
 use crate::prelude::*;
@@ -82,7 +83,7 @@ where
     }
 }
 
-fn put_extract(req: PutRequest) -> Option<(BobKey, Vec<u8>, u64, Option<PutOptions>)> {
+fn put_extract(req: PutRequest) -> Option<(BobKey, Bytes, u64, Option<PutOptions>)> {
     let key = req.key?.key;
     let blob = req.data?;
     let timestamp = blob.meta.as_ref()?.timestamp;

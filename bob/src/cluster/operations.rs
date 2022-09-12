@@ -19,13 +19,13 @@ pub(crate) async fn get_any(
 
 fn call_node_put(
     key: BobKey,
-    data: Arc<BobData>,
+    data: BobData,
     node: Node,
     options: PutOptions,
 ) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
     debug!("PUT[{}] put to {}", key, node.name());
     let task = async move {
-        LinkManager::call_node(&node, |conn| conn.put(key, data.as_ref().clone(), options).boxed()).await
+        LinkManager::call_node(&node, |conn| conn.put(key, data.clone(), options).boxed()).await
     };
     tokio::spawn(task)
 }
@@ -69,7 +69,7 @@ async fn finish_at_least_handles(
 
 pub(crate) async fn put_at_least(
     key: BobKey,
-    data: Arc<BobData>,
+    data: BobData,
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
     options: PutOptions,

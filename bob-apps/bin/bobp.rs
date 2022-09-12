@@ -944,7 +944,7 @@ fn create_blob(task_conf: &TaskConfig) -> Blob {
             .as_secs(),
     };
     Blob {
-        data: vec![0_u8; task_conf.payload_size as usize],
+        data: vec![0_u8; task_conf.payload_size as usize].into(),
         meta: Some(meta),
     }
 }

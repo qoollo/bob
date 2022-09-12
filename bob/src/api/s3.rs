@@ -177,9 +177,8 @@ where
     if headers.is_source_key_set() {
         return copy_object(bob, key, headers).await;
     }
-    let data_buf = body.to_vec();
     let data = BobData::new(
-        data_buf,
+        body,
         BobMeta::new(chrono::Local::now().timestamp() as u64),
     );
 
