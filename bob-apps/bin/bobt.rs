@@ -286,8 +286,8 @@ struct Settings {
     end_id: u64,
     max_size: usize,
     api_uri: Uri,
-    username: String,
-    password: String,
+    username: Option<String>,
+    password: Option<String>,
 }
 
 impl Settings {
@@ -344,18 +344,16 @@ impl Settings {
             .expect("wrong format of url")
     }
 
-    fn get_username(matches: &ArgMatches) -> String {
+    fn get_username(matches: &ArgMatches) -> Option<String> {
         matches
             .value_of(USERNAME_ARG_NAME)
-            .expect("required")
-            .to_string()
+            .and_then(|s| Some(s.to_string()))
     }
 
-    fn get_password(matches: &ArgMatches) -> String {
+    fn get_password(matches: &ArgMatches) -> Option<String> {
         matches
             .value_of(PASSWORD_ARG_NAME)
-            .expect("required")
-            .to_string()
+            .and_then(|s| Some(s.to_string()))
     }
 
     fn request(
@@ -370,8 +368,14 @@ impl Settings {
     }
 
     fn append_request_headers(&self, b: RequestBuilder) -> RequestBuilder {
-        b.header("username", &self.username)
-            .header("password", &self.password)
+        let mut b = b;
+        if self.username.is_some() {
+            b = b.header("username", self.username.as_ref().unwrap());
+            if self.password.is_some() {
+                b = b.header("password", self.password.as_ref().unwrap());
+            }
+        }
+        b
     }
 }
 
@@ -404,12 +408,10 @@ fn get_matches<'a>() -> ArgMatches<'a> {
     let username_arg = Arg::with_name(USERNAME_ARG_NAME)
         .short("u")
         .long("user")
-        .takes_value(true)
-        .required(true);
+        .takes_value(true);
     let password_arg = Arg::with_name(PASSWORD_ARG_NAME)
         .short("p")
         .long("password")
-        .required(true)
         .takes_value(true);
     App::new("bobt")
         .arg(count_arg)
