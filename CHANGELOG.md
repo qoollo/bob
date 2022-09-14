@@ -7,14 +7,27 @@ Bob versions changelog
 
 
 #### Changed
-- Fix alien indexes offloading (#560)
 
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.0.14-alpha.2] - 2022-09-15
+#### Added
+
+
+#### Changed
+- Fix alien indexes offloading (#560)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
 
-
 #### Updated
+
 
 
 ## [2.0.14-alpha.1] - 2022-05-31
