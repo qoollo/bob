@@ -22,7 +22,9 @@ def run_tests(behaviour, args):
                 sys.exit(f"No {behaviour} output captured, check output")
             exists = found_exist.group(0).split(' of ')
             if exists[0] != exists[1]:
-                sys.exit(f"{behaviour} test failed, see output")
+                sys.exit(f"{exists[0]} of {exists[1]} keys, {behaviour} test failed, see output")
+            else:
+                print(f"{exists[0]} of {exists[1]} keys")
         except subprocess.CalledProcessError as e:
             sys.exit(str(e.stderr))
         except Exception as e:
