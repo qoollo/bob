@@ -1,16 +1,33 @@
 #!/usr/bin/python3
 
-import subprocess, argparse, shlex, sys
+import subprocess, argparse, shlex, sys, re
 
 def run_tests(behaviour, args):
-    try:
-        print(f'Running bobp -b {str(behaviour)} {args.rstrip()}')
-        p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args.rstrip()}'))
-        print(str(p))
-        if f'{behaviour} errors:' in str(p) or f'panicked' in str(p):
-            sys.exit(f'{behaviour} test failed, see output')
-    except subprocess.CalledProcessError as e:
-        sys.exit(str(e.stderr))
+    if behaviour in {'put', 'get'}:
+        try:
+            print(f'Running bobp -b {str(behaviour)} {args.rstrip()}')
+            p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args.rstrip()}'))
+            print(str(p))
+            if f'{behaviour} errors:' in str(p) or f'panicked' in str(p):
+                sys.exit(f'{behaviour} test failed, see output')
+        except subprocess.CalledProcessError as e:
+            sys.exit(str(e.stderr))
+    elif behaviour == 'exist':
+        try:
+            args.pop('-s')
+            print(f'Running bobp -b {str(behaviour)} {args.rstrip()}')
+            p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args.rstrip()}'))
+            print(str(p))
+            found_exist = re.search(r'\b[0-9]{1,}\sof\s[0-9]{1,}\b', str(p))
+            if not found_exist:
+                sys.exit(f"No {behaviour} output captured, check output")
+            exists = found_exist.group(0).split(' of ')
+            if exists[0] != exists[1]:
+                sys.exit(f"{behaviour} test failed, see output")
+        except subprocess.CalledProcessError as e:
+            sys.exit(str(e.stderr))
+        except Exception as e:
+            sys.exit(str(e))
 
 def get_run_args(mode, args):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-s':args.start, '-e':args.end, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':test_run_config.get(mode)}
@@ -29,8 +46,8 @@ parser.add_argument('-k', dest='keysize', type=int, help='size of binary key (8 
 
 parsed_args = parser.parse_args()
 
-#run put/get tests
-for item in ['put','get']:
+#run put/get/exist tests
+for item in ['put','get','exist']:
     args_str = str()
     run_args = get_run_args(item, parsed_args)
     for key in run_args:
