@@ -14,7 +14,6 @@ def run_tests(behaviour, args):
             sys.exit(str(e.stderr))
     elif behaviour == 'exist':
         try:
-            args.pop('-s')
             print(f'Running bobp -b {str(behaviour)} {args.rstrip()}')
             p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args.rstrip()}'))
             print(str(p))
@@ -50,6 +49,8 @@ parsed_args = parser.parse_args()
 for item in ['put','get','exist']:
     args_str = str()
     run_args = get_run_args(item, parsed_args)
+    if item == 'exist':
+        run_args.pop('-s')
     for key in run_args:
         if run_args.get(key) != None:
             args_str += f'{key} {run_args.get(key)} '
