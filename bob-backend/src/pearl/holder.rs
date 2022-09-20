@@ -256,16 +256,19 @@ impl Holder {
             let res = storage
                 .read(Key::from(key))
                 .await
-                .map(|r| {
-                    counter!(PEARL_GET_BYTES_COUNTER, r.len() as u64);
-                    Data::from_bytes(&r)
-                })
                 .map_err(|e| {
                     counter!(PEARL_GET_ERROR_COUNTER, 1);
                     trace!("error on read: {:?}", e);
-                    match e.downcast_ref::<PearlError>().unwrap().kind() {
-                        PearlErrorKind::RecordNotFound => Error::key_not_found(key),
-                        _ => Error::storage(e.to_string()),
+                    Error::storage(e.to_string())
+                })
+                .and_then(|r| match r {
+                    pearl::ReadResult::Found(v) => {
+                        counter!(PEARL_GET_BYTES_COUNTER, v.len() as u64);
+                        Ok(Data::from_bytes(&v))
+                    }
+                    _ => {
+                        counter!(PEARL_GET_ERROR_COUNTER, 1);
+                        Err(Error::key_not_found(key))
                     }
                 });
             counter!(PEARL_GET_TIMER, timer.elapsed().as_nanos() as u64);
@@ -454,10 +457,7 @@ impl Holder {
                 .await
                 .map_err(|e| {
                     trace!("error on delete: {:?}", e);
-                    match e.downcast_ref::<PearlError>().unwrap().kind() {
-                        PearlErrorKind::RecordNotFound => Error::key_not_found(key),
-                        _ => Error::storage(e.to_string()),
-                    }
+                    Error::storage(e.to_string())
                 });
             self.update_last_modification();
             res
