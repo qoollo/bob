@@ -90,5 +90,4 @@ message BobError {
 // Delete operation options
 message DeleteOptions {
     bool force_node = 1; // Force operation to be served by node to which it comes
-    bool without_aliens = 2; // Do not remove data in aliens
 }

@@ -78,9 +78,9 @@ impl Quorum {
         }
     }
 
-    async fn delete_on_nodes(&self, key: BobKey, without_aliens: bool) -> Result<(), Error> {
+    async fn delete_on_nodes(&self, key: BobKey) -> Result<(), Error> {
         debug!("DELETE[{}] ~~~DELETE LOCAL NODE FIRST~~~", key);
-        let res = delete_at_local_node(&self.backend, key, without_aliens).await;
+        let res = delete_at_local_node(&self.backend, key).await;
         let local_delete_ok = if let Err(e) = res {
             error!("{}", e);
             false
@@ -90,7 +90,7 @@ impl Quorum {
         };
 
         debug!("DELETE[{}] ~~~DELETE TO REMOTE NODES~~~", key);
-        let (errors, remote_count) = self.delete_at_remote_nodes(key, without_aliens).await;
+        let (errors, remote_count) = self.delete_at_remote_nodes(key).await;
         let remote_ok_count = remote_count - errors.len();
         if errors.len() > 0 || !local_delete_ok {
             warn!(
@@ -157,16 +157,14 @@ impl Quorum {
     pub(crate) async fn delete_at_remote_nodes(
         &self,
         key: BobKey,
-        without_aliens: bool,
     ) -> (Vec<NodeOutput<Error>>, usize) {
         let local_node = self.mapper.local_node_name();
-        let mut target_nodes = vec![];
-        if !without_aliens {
-            target_nodes.extend(self.mapper.nodes().values());
-        } else {
-            target_nodes.extend(self.mapper.get_target_nodes_for_key(key))
-        };
-        target_nodes.retain(|n| n.name() != local_node);
+        let target_nodes: Vec<_> = self
+            .mapper
+            .nodes()
+            .values()
+            .filter(|n| n.name() != local_node)
+            .collect();
         debug!(
             "DELETE[{}] cluster quorum put remote nodes {} total target nodes",
             key,
@@ -178,7 +176,7 @@ impl Quorum {
                 key,
                 target_nodes.into_iter(),
                 count,
-                DeleteOptions::new_local(without_aliens),
+                DeleteOptions::new_local(),
             )
             .await,
             count,
@@ -289,7 +287,7 @@ impl Cluster for Quorum {
         Ok(exist)
     }
 
-    async fn delete(&self, key: BobKey, without_aliens: bool) -> Result<(), Error> {
-        self.delete_on_nodes(key, without_aliens).await
+    async fn delete(&self, key: BobKey) -> Result<(), Error> {
+        self.delete_on_nodes(key).await
     }
 }

@@ -219,7 +219,7 @@ impl Grinder {
                 "pass delete request to backend, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let result = self.backend.delete(key, options.without_aliens).await;
+            let result = self.backend.delete(key).await;
             trace!(
                 "backend processed delete, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
@@ -232,7 +232,7 @@ impl Grinder {
         } else {
             counter!(GRINDER_DELETE_COUNTER, 1);
             let sw = Stopwatch::start_new();
-            let result = self.cluster.delete(key, options.without_aliens).await;
+            let result = self.cluster.delete(key).await;
             trace!(
                 "cluster processed delete, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0

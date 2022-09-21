@@ -281,9 +281,8 @@ pub(crate) async fn put_local_node(
 pub(crate) async fn delete_at_local_node(
     backend: &Backend,
     key: BobKey,
-    without_aliens: bool,
 ) -> Result<(), Error> {
     debug!("local node has vdisk replica, put local");
-    backend.delete(key, without_aliens).await?;
+    backend.delete(key).await?;
     Ok(())
 }

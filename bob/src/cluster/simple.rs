@@ -44,17 +44,12 @@ impl Quorum {
         key: BobKey,
         metrics_prefix: &str,
         client_fun: F,
-        all_nodes: bool
     ) -> Result<(), Error>
     where
         F: FnMut(&'_ BobClient) -> crate::link_manager::ClusterCallFuture<'_, T> + Send + Clone,
         T: Send + Debug,
     {
-        let target_nodes = if all_nodes {
-            self.mapper.nodes().values().cloned().collect()
-        } else {
-            self.get_target_nodes(key)
-        };
+        let target_nodes: Vec<_> = self.mapper.nodes().values().cloned().collect();
 
         debug!(
             "{}[{}]: Nodes for fan out: {:?}",
@@ -96,7 +91,7 @@ impl Cluster for Quorum {
                     overwrite: false,
                 },
             ))
-        }, false)
+        })
         .await
     }
 
@@ -138,10 +133,10 @@ impl Cluster for Quorum {
         Ok(exist)
     }
 
-    async fn delete(&self, key: BobKey, without_aliens: bool) -> Result<(), Error> {
+    async fn delete(&self, key: BobKey) -> Result<(), Error> {
         self.perform_on_nodes(key, "DELETE", move |c| {
-            Box::pin(c.delete(key, DeleteOptions::new_local(without_aliens)))
-        }, !without_aliens)
+            Box::pin(c.delete(key, DeleteOptions::new_local()))
+        })
         .await
     }
 }
