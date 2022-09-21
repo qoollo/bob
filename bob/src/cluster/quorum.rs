@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 use super::{
     operations::{
-        delete, delete_at_local_node, group_keys_by_nodes, lookup_local_alien, lookup_local_node,
+        delete_at_nodes, delete_at_local_node, group_keys_by_nodes, lookup_local_alien, lookup_local_node,
         lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all, put_local_node,
         put_sup_nodes, Tasks,
     },
@@ -172,7 +172,7 @@ impl Quorum {
         );
         let count = target_nodes.len();
         (
-            delete(
+            delete_at_nodes(
                 key,
                 target_nodes.into_iter(),
                 count,

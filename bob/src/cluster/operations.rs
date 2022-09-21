@@ -92,7 +92,7 @@ pub(crate) async fn put_at_least(
     .await
 }
 
-pub(crate) async fn delete(
+pub(crate) async fn delete_at_nodes(
     key: BobKey,
     target_nodes: impl Iterator<Item = &Node>,
     target_nodes_count: usize,
