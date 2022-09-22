@@ -275,7 +275,7 @@ impl Holder {
                     }
                     ReadResult::NotFound => {
                         counter!(PEARL_GET_ERROR_COUNTER, 1);
-                        Ok(ReadResult::Deleted)
+                        Ok(ReadResult::NotFound)
                     }
                 });
             counter!(PEARL_GET_TIMER, timer.elapsed().as_nanos() as u64);
