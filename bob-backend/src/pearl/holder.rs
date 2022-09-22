@@ -11,7 +11,7 @@ use bob_common::metrics::pearl::{
     PEARL_GET_BYTES_COUNTER, PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER,
     PEARL_PUT_BYTES_COUNTER, PEARL_PUT_COUNTER, PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
 };
-use pearl::error::{AsPearlError, ValidationErrorKind};
+use pearl::{error::{AsPearlError, ValidationErrorKind}, ReadResult};
 use pearl::BloomProvider;
 use pearl::FilterResult;
 
@@ -302,7 +302,7 @@ impl Holder {
         }
     }
 
-    pub async fn exist(&self, key: BobKey) -> Result<bool, Error> {
+    pub async fn exist(&self, key: BobKey) -> Result<ReadResult<()>, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
             trace!("Vdisk: {}, check key: {}", self.vdisk, key);

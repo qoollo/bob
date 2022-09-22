@@ -6,7 +6,7 @@ use crate::{
     pearl::{core::BackendResult, settings::Settings, utils::Utils},
 };
 use futures::Future;
-use pearl::BloomProvider;
+use pearl::{BloomProvider, ReadResult};
 use ring::digest::{digest, SHA256};
 
 pub type HoldersContainer =
@@ -308,7 +308,11 @@ impl Group {
             for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
             {
                 if !exist[ind] {
-                    exist[ind] = holder.exist(key).await.unwrap_or(false);
+                    match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
+                        ReadResult::Found(_) => exist[ind] = true,
+                        ReadResult::Deleted => break,
+                        ReadResult::NotFound => continue,
+                    }
                 }
             }
         }
