@@ -11,9 +11,12 @@ use bob_common::metrics::pearl::{
     PEARL_GET_BYTES_COUNTER, PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER,
     PEARL_PUT_BYTES_COUNTER, PEARL_PUT_COUNTER, PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
 };
-use pearl::{error::{AsPearlError, ValidationErrorKind}, ReadResult};
 use pearl::BloomProvider;
 use pearl::FilterResult;
+use pearl::{
+    error::{AsPearlError, ValidationErrorKind},
+    ReadResult,
+};
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
@@ -246,7 +249,7 @@ impl Holder {
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    pub async fn read(&self, key: BobKey) -> Result<BobData, Error> {
+    pub async fn read(&self, key: BobKey) -> Result<ReadResult<BobData>, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
             let storage = state.get();
@@ -262,17 +265,21 @@ impl Holder {
                     Error::storage(e.to_string())
                 })
                 .and_then(|r| match r {
-                    pearl::ReadResult::Found(v) => {
+                    ReadResult::Found(v) => {
                         counter!(PEARL_GET_BYTES_COUNTER, v.len() as u64);
-                        Ok(Data::from_bytes(&v))
+                        Data::from_bytes(&v).map(|d| ReadResult::Found(d))
                     }
-                    _ => {
+                    ReadResult::Deleted => {
                         counter!(PEARL_GET_ERROR_COUNTER, 1);
-                        Err(Error::key_not_found(key))
+                        Ok(ReadResult::Deleted)
+                    }
+                    ReadResult::NotFound => {
+                        counter!(PEARL_GET_ERROR_COUNTER, 1);
+                        Ok(ReadResult::Deleted)
                     }
                 });
             counter!(PEARL_GET_TIMER, timer.elapsed().as_nanos() as u64);
-            res?
+            res
         } else {
             trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
             Err(Error::vdisk_is_not_ready())

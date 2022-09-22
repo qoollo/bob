@@ -252,7 +252,6 @@ impl Group {
 
     pub async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         let holders = self.holders.read().await;
-        let mut has_error = false;
         let mut results = vec![];
         for holder in holders
             .iter_possible_childs_rev(&Key::from(key))
@@ -260,28 +259,27 @@ impl Group {
         {
             let get = Self::get_common(&holder, key).await;
             match get {
-                Ok(data) => {
-                    trace!("get data: {:?} from: {:?}", data, holder);
-                    results.push(data);
-                }
-                Err(err) => {
-                    if err.is_key_not_found() {
-                        debug!("{} not found in {:?}", key, holder)
-                    } else {
-                        has_error = true;
-                        error!("get error: {}, from : {:?}", err, holder);
+                Ok(data) => match data {
+                    ReadResult::Found(data) => {
+                        trace!("get data: {:?} from: {:?}", data, holder);
+                        results.push(data);
                     }
+                    ReadResult::Deleted => {
+                        trace!("{} is deleted in {:?}", key, holder);
+                        break;
+                    }
+                    ReadResult::NotFound => {
+                        debug!("{} not found in {:?}", key, holder)
+                    }
+                },
+                Err(err) => {
+                    error!("get error: {}, from : {:?}", err, holder);
                 }
             }
         }
         if results.is_empty() {
-            if has_error {
-                debug!("cannot read from some pearls");
-                Err(Error::failed("cannot read from some pearls"))
-            } else {
-                debug!("not found in any pearl");
-                Err(Error::key_not_found(key))
-            }
+            debug!("cannot read from some pearls");
+            Err(Error::failed("cannot read from some pearls"))
         } else {
             debug!("get with max timestamp, from {} results", results.len());
             Ok(Settings::choose_most_recent_data(results)
@@ -289,7 +287,7 @@ impl Group {
         }
     }
 
-    async fn get_common(holder: &Holder, key: BobKey) -> Result<BobData, Error> {
+    async fn get_common(holder: &Holder, key: BobKey) -> Result<ReadResult<BobData>, Error> {
         let result = holder.read(key).await;
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {
