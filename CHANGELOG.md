@@ -8,6 +8,7 @@ Bob versions changelog
 
 #### Changed
 - Update rust edition to 2021 (#484)
+- Change locks to sync where possible (#472)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
