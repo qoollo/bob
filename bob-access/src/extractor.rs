@@ -19,7 +19,7 @@ fn prepare_builder<T: Extractor>(slf: &T) -> Result<CredentialsBuilder, Error> {
         .get_extension::<TcpConnectInfo>()
         .and_then(|ext| ext.remote_addr());
     let mut builder = Credentials::builder();
-    builder.with_address(addr);
+    builder.with_address(addr.map(|addr| vec![addr]));
     Ok(builder)
 }
 

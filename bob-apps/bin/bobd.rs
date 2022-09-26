@@ -9,7 +9,7 @@ use std::{
     error::Error as ErrorTrait,
     net::{IpAddr, Ipv4Addr, SocketAddr},
 };
-use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
+use tokio::{runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::Server;
 use std::path::PathBuf;
 use std::fs::create_dir;
@@ -108,9 +108,9 @@ async fn main() {
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let mut authenticator = BasicAuthenticator::new(users_storage);
-            let nodes_credentials = nodes_credentials_from_cluster_config(&cluster).await;
+            let (nodes_credentials, unresolved) = nodes_credentials_from_cluster_config(&cluster).await;
             authenticator
-                .set_nodes_credentials(nodes_credentials)
+                .set_nodes_credentials(nodes_credentials, unresolved)
                 .expect("failed to gen nodes credentials from cluster config");
             run_server(node, authenticator, mapper, http_api_address, http_api_port, addr).await;
         }
@@ -148,40 +148,27 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
 
 async fn nodes_credentials_from_cluster_config(
     cluster_config: &ClusterConfig,
-) -> HashMap<IpAddr, Vec<Credentials>> {
-    let mut nodes_creds: HashMap<IpAddr, Vec<Credentials>> = HashMap::new();
+) -> (HashMap<String, Credentials>, Vec<Credentials>) {
+    let mut nodes_creds: HashMap<String, Credentials> = HashMap::new();
+    let mut unresolved = Vec::new();
     for node in cluster_config.nodes() {
-        let address = &node.address();
-        let address = if let Ok(address) = address.parse() {
-            address
+        let address = node.address();
+        if let Ok(address) = address.parse::<SocketAddr>() {
+            let addresses = vec![address];
+            let cred = Credentials::builder()
+                .with_nodename(node.name())
+                .with_address(Some(addresses))
+                .build();
+            nodes_creds.insert(node.name().into(), cred);
         } else {
-            match lookup_host(address).await {
-                Ok(mut address) => address
-                    .next()
-                    .expect("failed to resolve hostname: dns returned empty ip list"),
-                Err(e) => {
-                    error!("expected SocketAddr/hostname, found: {}", address);
-                    error!("{}", e);
-                    panic!("failed to resolve hostname")
-                }
-            }
+            let cred = Credentials::builder()
+                .with_nodename(node.name())
+                .with_hostname(address.into())
+                .build();
+            unresolved.push(cred);
         };
-        let cred = Credentials::builder()
-            .with_nodename(node.name())
-            .with_address(Some(address))
-            .build();
-        let ip = cred.ip().expect("node missing ip");
-        match nodes_creds.get_mut(&ip) {
-            Some(creds) => {
-                creds.push(cred);
-            },
-            None => {
-                let creds = vec![cred];
-                nodes_creds.insert(ip, creds);
-            }
-        }
     }
-    nodes_creds
+    (nodes_creds, unresolved)
 }
 
 fn bind_all_interfaces(port: u16) -> SocketAddr {

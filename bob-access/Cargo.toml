@@ -18,3 +18,8 @@ jsonwebtoken = "7.2"
 serde_yaml = "0.8"
 serde_json = "1.0"
 futures = "0.3"
+
+[dependencies.tokio]
+version = "1.14"
+default-features = false
+features = []

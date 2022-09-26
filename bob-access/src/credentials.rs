@@ -1,4 +1,4 @@
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::marker::PhantomData;
 
 use axum::{
@@ -11,7 +11,8 @@ use crate::{error::Error, extractor::ExtractorExt, Authenticator};
 
 #[derive(Debug, Default, Clone)]
 pub struct Credentials {
-    address: Option<SocketAddr>,
+    address: Option<Vec<SocketAddr>>,
+    hostname: Option<String>,
     kind: Option<CredentialsKind>,
 }
 
@@ -64,8 +65,20 @@ impl Credentials {
         CredentialsBuilder::default()
     }
 
-    pub fn ip(&self) -> Option<IpAddr> {
-        Some(self.address?.ip())
+    pub fn ip(&self) -> &Option<Vec<SocketAddr>> {
+        &self.address
+    }
+
+    pub fn set_addresses(&mut self, addresses: Vec<SocketAddr>) {
+        self.address = Some(addresses);
+    }
+
+    pub fn single_ip(&self) -> Option<SocketAddr> {
+        self.address.as_ref().map(|addrs| addrs[0].clone())
+    }
+
+    pub fn hostname(&self) -> &Option<String> {
+        &self.hostname
     }
 
     pub fn is_complete(&self) -> bool {
@@ -80,7 +93,8 @@ impl Credentials {
 #[derive(Debug, Default)]
 pub struct CredentialsBuilder {
     kind: Option<CredentialsKind>,
-    address: Option<SocketAddr>,
+    address: Option<Vec<SocketAddr>>,
+    hostname: Option<String>,
 }
 
 impl CredentialsBuilder {
@@ -101,8 +115,13 @@ impl CredentialsBuilder {
         self
     }
 
-    pub fn with_address(&mut self, address: Option<SocketAddr>) -> &mut Self {
+    pub fn with_address(&mut self, address: Option<Vec<SocketAddr>>) -> &mut Self {
         self.address = address;
+        self
+    }
+
+    pub fn with_hostname(&mut self, hostname: String) -> &mut Self {
+        self.hostname = Some(hostname);
         self
     }
 
@@ -113,8 +132,9 @@ impl CredentialsBuilder {
 
     pub fn build(&self) -> Credentials {
         Credentials {
-            address: self.address,
+            address: self.address.clone(),
             kind: self.kind.clone(),
+            hostname: self.hostname.clone(),
         }
     }
 }
