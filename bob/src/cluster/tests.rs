@@ -118,7 +118,7 @@ async fn create_cluster(
             .find(|(name, _, _)| *name == node.name())
             .expect("find node with name");
         func(&mut mock_client, node.clone(), call.clone());
-        node.set_connection(mock_client).await;
+        node.set_connection(mock_client);
     }
 
     let backend = Arc::new(Backend::new(mapper.clone(), node).await);
