@@ -49,7 +49,7 @@ async fn main() {
     let mut mapper = VirtualMapper::new(&node, &cluster).await;
 
     let bind = node.bind();
-    let bind_read = bind.lock();
+    let bind_read = bind.lock().expect("mutex");
     let mut addr = match (
         node.bind_to_ip_address(),
         bind_read.parse(),
@@ -226,7 +226,7 @@ fn check_folders(node: &NodeConfig, init_flag: bool) {
         let alien_dir = node.pearl().settings().alien_root_dir_name();
 
         let p_mutex = node.disks();
-        let paths = p_mutex.lock();
+        let paths = p_mutex.lock().expect("mutex");
         for i in 0..paths.len() {
             let mut bob_path = PathBuf::from(paths[i].path());
             bob_path.push(root_dir);

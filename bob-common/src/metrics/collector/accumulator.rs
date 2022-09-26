@@ -50,7 +50,7 @@ impl MetricsAccumulator {
             }
 
             let s = self.snapshot.update_and_get_moment_snapshot();
-            *self.readable_snapshot.write() = s;
+            *self.readable_snapshot.write().expect("rwlock") = s;
         }
     }
 

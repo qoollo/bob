@@ -26,7 +26,7 @@ pub(super) async fn send_metrics(
         let mut res_string = String::new();
         let ts = chrono::Local::now().timestamp();
         {
-            let l = metrics.read();
+            let l = metrics.read().expect("rwlock");
             flush_counters(&l.counters_map, &mut res_string, &prefix, ts);
             flush_gauges(&l.gauges_map, &mut res_string, &prefix, ts);
             flush_times(&l.times_map, &mut res_string, &prefix, ts);

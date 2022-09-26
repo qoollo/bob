@@ -13,10 +13,9 @@ use std::mem::size_of;
 use std::ops::Sub;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
-use parking_lot::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tonic::metadata::{Ascii, MetadataValue};
@@ -300,7 +299,7 @@ impl Statistics {
     }
 
     fn save_get_error(&self, status: Status) {
-        let mut guard = self.get_errors.lock();
+        let mut guard = self.get_errors.lock().expect("mutex");
         guard
             .entry(status.code() as CodeRepresentation)
             .and_modify(|i| *i += 1)
@@ -311,7 +310,7 @@ impl Statistics {
     }
 
     fn save_put_error(&self, status: Status) {
-        let mut guard = self.put_errors.lock();
+        let mut guard = self.put_errors.lock().expect("mutex");
         guard
             .entry(status.code() as CodeRepresentation)
             .and_modify(|i| *i += 1)
@@ -322,7 +321,7 @@ impl Statistics {
     }
 
     fn save_exist_error(&self, status: Status) {
-        let mut guard = self.exist_errors.lock();
+        let mut guard = self.exist_errors.lock().expect("mutex");
         guard
             .entry(status.code() as CodeRepresentation)
             .and_modify(|i| *i += 1)
@@ -468,21 +467,21 @@ async fn stat_worker(
 }
 
 fn print_errors_with_codes(stat: Arc<Statistics>) {
-    let guard = stat.get_errors.lock();
+    let guard = stat.get_errors.lock().expect("mutex");
     if !guard.is_empty() {
         println!("get errors:");
         for (&code, count) in guard.iter() {
             println!("{:?} = {}", Code::from(code), count);
         }
     }
-    let guard = stat.put_errors.lock();
+    let guard = stat.put_errors.lock().expect("mutex");
     if !guard.is_empty() {
         println!("put errors:");
         for (&code, count) in guard.iter() {
             println!("{:?} = {}", Code::from(code), count);
         }
     }
-    let guard = stat.exist_errors.lock();
+    let guard = stat.exist_errors.lock().expect("mutex");
     if !guard.is_empty() {
         println!("exist errors:");
         for (&code, count) in guard.iter() {

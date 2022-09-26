@@ -6,9 +6,8 @@ use http::Uri;
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::{Hash, Hasher},
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
-use parking_lot::RwLock;
 
 pub type Id = u16;
 
@@ -71,19 +70,19 @@ impl Node {
     }
 
     pub fn set_connection(&self, client: BobClient) {
-        *self.conn.write() = Some(client);
+        *self.conn.write().expect("rwlock") = Some(client);
     }
 
     pub fn clear_connection(&self) {
-        *self.conn.write() = None;
+        *self.conn.write().expect("rwlock") = None;
     }
 
     pub fn get_connection(&self) -> Option<BobClient> {
-        self.conn.read().clone()
+        self.conn.read().expect("rwlock").clone()
     }
 
     pub async fn check(&self, client_factory: &Factory) -> Result<(), String> {
-        if let Some(conn) = self.get_connection(){
+        if let Some(conn) = self.get_connection() {
             self.ping(&conn).await
         } else {
             debug!("will connect to {:?}", self);
