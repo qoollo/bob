@@ -16,7 +16,7 @@ bob-access = { path = "../bob-access" }
 bob-backend = { path = "../bob-backend" }
 bob-common = { path = "../bob-common", features = [] }
 bob-grpc = { path = "../bob-grpc" }
-bytes = "1.1"
+bytes = "1.2"
 cfg-if = "1.0"
 chrono = "0.4"
 futures = { version = "0.3", features = ["thread-pool"] }
