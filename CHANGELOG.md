@@ -8,6 +8,7 @@ Bob versions changelog
 
 #### Changed
 - Update rust edition to 2021 (#484)
+- Hostname resolving in background tasks (#529)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
