@@ -226,7 +226,7 @@ fn check_folders(node: &NodeConfig, init_flag: bool) {
         let alien_dir = node.pearl().settings().alien_root_dir_name();
 
         let p_mutex = node.disks();
-        let paths = p_mutex.lock().expect("mutex");
+        let paths = p_mutex.lock().expect("node disks mutex");
         for i in 0..paths.len() {
             let mut bob_path = PathBuf::from(paths[i].path());
             bob_path.push(root_dir);
