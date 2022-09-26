@@ -107,7 +107,7 @@ async fn main() {
         AuthenticationType::Basic => {
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
-            let mut authenticator = BasicAuthenticator::new(users_storage);
+            let mut authenticator = BasicAuthenticator::new(users_storage, node.hostname_resolve_dur_ms());
             let (nodes_credentials, unresolved) = nodes_credentials_from_cluster_config(&cluster).await;
             authenticator
                 .set_nodes_credentials(nodes_credentials, unresolved)

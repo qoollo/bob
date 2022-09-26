@@ -14,30 +14,21 @@ use sha2::{Digest, Sha512};
 
 use tokio::net::lookup_host;
 
-#[derive(Debug, Default, Clone)]
-struct NodesCredentials {
-    credentials: HashMap<String, Credentials>,
-}
-
-impl NodesCredentials {
-    fn new() -> Self {
-        NodesCredentials {
-            credentials: HashMap::new(),
-        }
-    }
-}
+type NodesCredentials = HashMap<String, Credentials>;
 
 #[derive(Debug, Default, Clone)]
 pub struct Basic<Storage: UsersStorage> {
     users_storage: Storage,
     nodes: Arc<RwLock<NodesCredentials>>,
+    resolve_sleep_dur_ms: u64,
 }
 
 impl<Storage: UsersStorage> Basic<Storage> {
-    pub fn new(users_storage: Storage) -> Self {
+    pub fn new(users_storage: Storage, resolve_sleep_dur_ms: u64) -> Self {
         Self {
             users_storage,
-            nodes: Arc::new(RwLock::new(NodesCredentials::new())),
+            nodes: Arc::new(RwLock::new(HashMap::new())),
+            resolve_sleep_dur_ms,
         }
     }
 
@@ -64,7 +55,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
         {
             {
                 let mut nodes_creds = self.nodes.write().expect("nodes credentials lock");
-                nodes_creds.credentials = nodes;
+                *nodes_creds = nodes;
             }
             for cred in unresolved {
                 self.spawn_resolver(cred);
@@ -77,40 +68,48 @@ impl<Storage: UsersStorage> Basic<Storage> {
     }
 
     fn spawn_resolver(&self, cred: Credentials) {
-        tokio::spawn(Self::resolve_worker(self.nodes.clone(), cred));
+        tokio::spawn(Self::resolve_worker(self.nodes.clone(), cred, self.resolve_sleep_dur_ms));
     }
 
-    async fn resolve_worker(nodes: Arc<RwLock<NodesCredentials>>, mut cred: Credentials) {
+    async fn resolve_worker(nodes: Arc<RwLock<NodesCredentials>>, mut cred: Credentials, sleep_dur_ms: u64) {
         let hostname = cred.hostname().as_ref().expect("resolve worker without hostname");
-        let mut addr = None;
+        let mut addr: Option<Vec<SocketAddr>> = None;
         for _ in 0..60 {
             addr = match lookup_host(hostname).await {
                 Ok(address) => Some(address.collect()),
                 _ => None
             };
-            if addr.is_some() {
-                break;
+            if let Some(addr) = addr.as_ref() {
+                if addr.len() > 0 {
+                    break;
+                }
             }
 
             sleep(Duration::from_secs(1));
         }
 
-        if let Some(addr) = addr {
-            cred.set_addresses(addr);
-            let mut nodes = nodes.write().expect("nodes credentials lock");
-            if let Some(CredentialsKind::InterNode(nodename)) = cred.kind() {
-                nodes.credentials.insert(nodename.clone(), cred);
-            } else {
-                error!("resolved credentials are not internode");
-            }
+        while addr.is_none() || (addr.is_some() && addr.as_ref().unwrap().len() == 0) {
+            sleep(Duration::from_millis(sleep_dur_ms));
+
+            addr = match lookup_host(hostname).await {
+                Ok(address) => Some(address.collect()),
+                _ => None
+            };
+        }
+
+        let addr = addr.expect("somehow addr is none");
+        cred.set_addresses(addr);
+        let mut nodes = nodes.write().expect("nodes credentials lock");
+        if let Some(CredentialsKind::InterNode(nodename)) = cred.kind() {
+            nodes.insert(nodename.clone(), cred);
         } else {
-            //
+            error!("resolved credentials are not internode");
         }
     }
 
     fn mark_unresolved(&self, nodename: &str) {
         let mut nodes = self.nodes.write().expect("nodes credentials lock");
-        let cred = nodes.credentials.remove(nodename);
+        let cred = nodes.remove(nodename);
         cred.map(|cred| self.spawn_resolver(cred));
     }
 
@@ -119,22 +118,26 @@ impl<Storage: UsersStorage> Basic<Storage> {
         let mut unresolved = false;
         {
             let nodes = self.nodes.read().expect("nodes credentials lock");
-            if nodes.credentials.is_empty() {
+            if nodes.is_empty() {
                 warn!("nodes credentials not set");
             }
+            if ip.is_none() {
+                return false;
+            }
             let ip = ip.unwrap().ip();
-            nodes.credentials
+            nodes
                 .get(node_name)
                 .map(|cred| {
                     if let Some(CredentialsKind::InterNode(other_name)) = cred.kind() {
                         if node_name == other_name {
-                            let ips = cred.ip().as_ref().unwrap();
-                            for cred_ip in ips {
-                                if cred_ip.ip() == ip {
-                                    result = true;
-                                    break;
+                            cred.ip().as_ref().map(|ips| {
+                                for cred_ip in ips {
+                                    if cred_ip.ip() == ip {
+                                        result = true;
+                                        break;
+                                    }
                                 }
-                            }
+                            });
                             if !result {
                                 unresolved = true;
                             }
