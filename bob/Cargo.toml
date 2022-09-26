@@ -48,7 +48,7 @@ uuid = "0.8.2"
 version = "0.13.0"
 
 [dependencies.tokio]
-version = "1.14"
+version = "1.21"
 default-features = false
 features = []
 
