@@ -16,7 +16,7 @@ pub type NodesMap = HashMap<NodeId, Node>;
 
 /// Struct for managing distribution of replicas on disks and nodes.
 /// Through the virtual intermediate object, called `VDisk` - "virtual disk"
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Virtual {
     local_node_name: String,
     local_node_address: String,
