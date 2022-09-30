@@ -15,7 +15,7 @@ bob-common = { path = "../bob-common", features = [] }
 bytes = "1.1"
 cfg-if = "1.0"
 chrono = "0.4"
-coarsetime = "0.1.21"
+coarsetime = "0.1.22"
 futures = { version = "0.3", features = ["thread-pool"] }
 http = "0.2"
 humantime = "2.1"
