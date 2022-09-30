@@ -45,7 +45,7 @@ default-features = false
 features = []
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.4"
 
 [[bench]]
 name = "key_cmp_benchmark"
