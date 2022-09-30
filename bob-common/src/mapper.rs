@@ -7,7 +7,11 @@ use crate::{
     node::{Id as NodeId, Node},
 };
 use futures::{stream::FuturesUnordered, StreamExt};
-use std::{collections::HashMap, convert::TryInto};
+use std::{
+    collections::HashMap,
+    convert::TryInto,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 /// Hash map with IDs as keys and `VDisk`s as values.
 pub type VDisksMap = HashMap<VDiskId, DataVDisk>;
@@ -24,6 +28,7 @@ pub struct Virtual {
     vdisks: VDisksMap,
     nodes: NodesMap,
     distribution_func: DistributionFunc,
+    support_nodes_offset: AtomicUsize,
 }
 
 impl Virtual {
@@ -47,6 +52,7 @@ impl Virtual {
             vdisks,
             nodes,
             distribution_func: cluster.distribution_func(),
+            support_nodes_offset: AtomicUsize::new(0),
         }
     }
 
@@ -116,22 +122,24 @@ impl Virtual {
     }
 
     pub fn get_support_nodes(&self, key: BobKey, count: usize) -> Vec<&Node> {
+        debug_assert!(count < self.nodes.len());
         trace!("get target nodes for given key");
         let target_nodes = self.get_target_nodes_for_key(key);
         trace!("extract indexes of target nodes");
-        let mut target_indexes = target_nodes.iter().map(Node::index);
-        let len = target_indexes.size_hint().0;
-        debug!("iterator size lower bound: {}", len);
+        let target_indexes: Vec<_> = target_nodes.iter().map(Node::index).collect();
         trace!("nodes available: {}", self.nodes.len());
+        let offset = self.support_nodes_offset.fetch_add(1, Ordering::Relaxed);
         self.nodes
             .iter()
             .filter_map(|(id, node)| {
-                if target_indexes.all(|i| &i != id) {
+                if !target_indexes.contains(id) {
                     Some(node)
                 } else {
                     None
                 }
             })
+            .cycle()
+            .skip(offset % self.nodes.len())
             .take(count)
             .collect()
     }
