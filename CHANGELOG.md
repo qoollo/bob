@@ -18,6 +18,7 @@ Bob versions changelog
 - Make username and password args of `bobt` optional (#555)
 
 #### Updated
+- Updated versions of dependencies (#551)
 
 
 
