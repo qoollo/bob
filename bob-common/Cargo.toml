@@ -34,7 +34,7 @@ tower-service = "0.3"
 ubyte = { version = "0.10", features = ["serde"] }
 
 [dependencies.tokio]
-version = "1.14"
+version = "1.21"
 default-features = false
 features = ["fs"]
 
