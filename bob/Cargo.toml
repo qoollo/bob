@@ -42,7 +42,7 @@ sysinfo = "0.26"
 tonic = { version = "0.6", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"
-uuid = "0.8.2"
+uuid = "1.1.2"
 
 [dependencies.pearl]
 version = "0.13.0"
