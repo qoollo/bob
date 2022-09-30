@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Round robin algorithm for alien nodes selection (#570)
 
 #### Changed
 - Update rust edition to 2021 (#484)
