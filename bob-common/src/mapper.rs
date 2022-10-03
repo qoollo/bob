@@ -123,7 +123,8 @@ impl Virtual {
         let len = target_indexes.size_hint().0;
         debug!("iterator size lower bound: {}", len);
         trace!("nodes available: {}", self.nodes.len());
-        let nodes : Vec<_> =         self.nodes
+        let nodes: Vec<_> = self
+            .nodes
             .iter()
             .filter_map(|(id, node)| {
                 if target_indexes.all(|i| &i != id) {
@@ -135,13 +136,15 @@ impl Virtual {
             .collect();
         let mut result = vec![];
         for &node in nodes.iter() {
-            if node.connection_available() && result.len() < count {
+            if result.len() < count && node.connection_available() {
                 result.push(node);
             }
         }
-        for node in nodes.iter() {
-            if !result.contains(&node) && result.len() < count {
-                result.push(node);
+        if result.len() < count {
+            for node in nodes.iter() {
+                if result.len() < count && !result.contains(&node) {
+                    result.push(node);
+                }
             }
         }
         result
