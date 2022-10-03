@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Send aliens to online nodes first (#570)
 
 #### Changed
 - Update rust edition to 2021 (#484)
