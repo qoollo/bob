@@ -2,35 +2,34 @@ name: integration-tests
 on:
   push:
     branches: [ "518-implement-semi-automatic-integration-tests" ] #REMOVE WHEN ON MASTER 
-  #pull_request_review:
-  #  types: [submitted]
-  #  branches: [ "518-implement-semi-automatic-integration-tests" ]
+  pull_request_review:
+    types: [submitted]
   workflow_dispatch:
     inputs:
-      bob_amount_of_nodes:
+      bob_nodes_amount:
         description: 'Amount of nodes in bob cluster for tests'
         required: true
         default: '4'
-      bob_disks:
+      bob_vdisk_count:
         description: 'Vdisks count'
         required: true
         default: '4'
-      bob_replicas:
+      bob_replicas_amount:
         description: 'Amount of vdisks replicas'
         required: true
         default: '2'
-      bob_payload:
+      bob_payload_size:
         description: 'Payload size'
         required: true
         default: '10240'
-      bob_count:
+      bob_record_count:
         description: 'Amount of records to process during test'
         required: true
         default: '10000'
 
 jobs:
   build-binaries:
-    # if: github.event.review.state == 'approved'
+    if: github.event.review.state == 'approved' || github.event.type != 'PullRequestReviewEvent' 
     strategy:
       matrix:
         key: [8, 16]
@@ -66,8 +65,9 @@ jobs:
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobp
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/brt
+
   build-docker-images:
-    # if: github.event.review.state == 'approved'
+    if: github.event.review.state == 'approved' || github.event.type != 'PullRequestReviewEvent'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -110,7 +110,7 @@ jobs:
             /tmp/bob-image-key${{ matrix.key }}.tar
 
   deploy-and-test:
-    # if: github.event.review.state == 'approved'
+    if: github.event.review.state == 'approved' || github.event.type != 'PullRequestReviewEvent'
     needs: [build-binaries, build-docker-images]
     strategy:
       matrix:
@@ -127,16 +127,16 @@ jobs:
           python-version: '3.x'
       - name: Setup default variables for auto runs
         run: |
-          INPUT=${{ github.event.inputs.bob_amount_of_nodes }}
-          echo "BOB_AMOUNT_OF_NODES=${INPUT:-"4"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_disks }}
-          echo "BOB_DISKS=${INPUT:-"4"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_replicas }}
-          echo "BOB_REPLICAS=${INPUT:-"2"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_payload }}
-          echo "BOB_PAYLOAD=${INPUT:-"10240"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_count }}
-          echo "BOB_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.bob_nodes_amount }}
+          echo "BOB_NODES_AMOUNT=${INPUT:-"4"}" >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.bob_vdisk_count }}
+          echo "BOB_VDISK_COUNT=${INPUT:-"4"}" >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.bob_replicas_amount }}
+          echo "BOB_REPLICAS_AMOUNT=${INPUT:-"2"}" >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.bob_payload_size }}
+          echo "BOB_PAYLOAD_SIZE=${INPUT:-"10240"}" >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.bob_record_count }}
+          echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -164,13 +164,13 @@ jobs:
           docker image ls
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_AMOUNT_OF_NODES }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
-          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_DISKS }} -r ${{ env.BOB_REPLICAS }}
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }}
         working-directory: ./integration-tests
       - name: Run write/read tests
         run: |
-          ./tests.py -l ${{ env.BOB_PAYLOAD }} -c ${{ env.BOB_COUNT }} -n 0.0.0.0 -k ${{ matrix.key }}
+          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -n 0.0.0.0 -k ${{ matrix.key }}
         working-directory: ./integration-tests
