@@ -123,7 +123,7 @@ impl Virtual {
         let len = target_indexes.size_hint().0;
         debug!("iterator size lower bound: {}", len);
         trace!("nodes available: {}", self.nodes.len());
-        self.nodes
+        let nodes : Vec<_> =         self.nodes
             .iter()
             .filter_map(|(id, node)| {
                 if target_indexes.all(|i| &i != id) {
@@ -132,8 +132,19 @@ impl Virtual {
                     None
                 }
             })
-            .take(count)
-            .collect()
+            .collect();
+        let mut result = vec![];
+        for &node in nodes.iter() {
+            if node.connection_available() && result.len() < count {
+                result.push(node);
+            }
+        }
+        for node in nodes.iter() {
+            if !result.contains(&node) && result.len() < count {
+                result.push(node);
+            }
+        }
+        result
     }
 
     pub fn vdisk_id_from_key(&self, key: BobKey) -> VDiskId {
