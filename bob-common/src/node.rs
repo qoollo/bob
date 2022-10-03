@@ -6,7 +6,7 @@ use http::Uri;
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::{Hash, Hasher},
-    sync::Arc,
+    sync::{Arc, atomic::{AtomicBool, Ordering}},
 };
 use tokio::sync::RwLock;
 
@@ -20,6 +20,7 @@ pub struct Node {
     address: String,
     index: Id,
     conn: Arc<RwLock<Option<BobClient>>>,
+    conn_available: Arc<AtomicBool>,
 }
 
 #[derive(Debug)]
@@ -42,6 +43,7 @@ impl Node {
             address: address.to_string(),
             index,
             conn: Arc::default(),
+            conn_available: Arc::default(),
         }
     }
 
@@ -72,14 +74,20 @@ impl Node {
 
     pub async fn set_connection(&self, client: BobClient) {
         *self.conn.write().await = Some(client);
+        self.conn_available.store(true, Ordering::Relaxed);
     }
 
     pub async fn clear_connection(&self) {
         *self.conn.write().await = None;
+        self.conn_available.store(false, Ordering::Relaxed);
     }
 
     pub async fn get_connection(&self) -> Option<BobClient> {
         self.conn.read().await.clone()
+    }
+
+    pub fn connection_available(&self) -> bool {
+        self.conn_available.load(Ordering::Relaxed)
     }
 
     pub async fn check(&self, client_factory: &Factory) -> Result<(), String> {
