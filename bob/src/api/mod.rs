@@ -966,7 +966,7 @@ where
     let data = BobData::new(body, meta);
 
     let opts = BobOptions::new_put(None);
-    bob.grinder().put(key, data, opts).await?;
+    bob.grinder().put(key, &data, opts).await?;
     Ok(StatusCode::CREATED.into())
 }
 

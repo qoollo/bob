@@ -42,7 +42,7 @@ impl Quorum {
 
 #[async_trait]
 impl Cluster for Quorum {
-    async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put(&self, key: BobKey, data: &BobData) -> Result<(), Error> {
         let target_nodes = self.get_target_nodes(key);
 
         debug!("PUT[{}]: Nodes for fan out: {:?}", key, &target_nodes);

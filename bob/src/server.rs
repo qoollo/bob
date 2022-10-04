@@ -137,7 +137,7 @@ where
             );
             let put_result = self
                 .grinder
-                .put(key, data, BobOptions::new_put(options))
+                .put(key, &data, BobOptions::new_put(options))
                 .await;
             trace!(
                 "grinder processed put request, /{:.3}ms/",

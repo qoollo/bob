@@ -183,7 +183,7 @@ where
     );
 
     let opts = BobOptions::new_put(None);
-    bob.grinder().put(key, data, opts).await?;
+    bob.grinder().put(key, &data, opts).await?;
 
     Ok(StatusS3::from(StatusExt::from(StatusCode::CREATED)))
 }
@@ -259,7 +259,7 @@ async fn copy_object<A: Authenticator>(
     );
 
     let opts = BobOptions::new_put(None);
-    bob.grinder().put(key, data, opts).await?;
+    bob.grinder().put(key, &data, opts).await?;
 
     Ok(StatusS3::from(StatusExt::from(StatusCode::OK)))
 }

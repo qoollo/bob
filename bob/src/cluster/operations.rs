@@ -69,7 +69,7 @@ async fn finish_at_least_handles(
 
 pub(crate) async fn put_at_least(
     key: BobKey,
-    data: BobData,
+    data: &BobData,
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
     options: PutOptions,
