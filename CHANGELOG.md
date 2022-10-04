@@ -8,9 +8,9 @@ Bob versions changelog
 
 #### Changed
 - Update rust edition to 2021 (#484)
+- Remove unnecessary data clone (#506)
 
 #### Fixed
-- Remove unnecessary data clone (#506)
 - Print full error text received from Pearl in exist function (#581)
 - Fix alien indexes offloading (#560)
 - Internode auth works properly with nodes on same ip (#548)
