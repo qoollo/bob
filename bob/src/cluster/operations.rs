@@ -25,7 +25,7 @@ fn call_node_put(
 ) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
     debug!("PUT[{}] put to {}", key, node.name());
     let task = async move {
-        LinkManager::call_node(&node, |conn| conn.put(key, data.clone(), options).boxed()).await
+        LinkManager::call_node(&node, |conn| conn.put(key, data, options).boxed()).await
     };
     tokio::spawn(task)
 }
