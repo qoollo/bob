@@ -1,7 +1,7 @@
 use crate::{
+    error::Error,
     mapper::NodesMap,
     node::{Disk as NodeDisk, Node},
-    error::Error,
 };
 use bob_grpc::{GetOptions, GetSource, PutOptions};
 use bytes::Bytes;
@@ -100,7 +100,7 @@ pub struct BobData {
 
 impl BobData {
     const TIMESTAMP_LEN: usize = 8;
-    
+
     pub fn new(inner: Bytes, meta: BobMeta) -> Self {
         BobData { inner, meta }
     }
@@ -125,10 +125,9 @@ impl BobData {
     }
 
     pub fn from_serialized_bytes(data: Vec<u8>) -> Result<BobData, Error> {
-        let mut ts_bytes = Bytes::from(data);
-        let bob_data = ts_bytes.split_to(Self::TIMESTAMP_LEN);
-        let ts_bytes = &*ts_bytes;
-        let ts_bytes = ts_bytes
+        let mut bob_data = Bytes::from(data);
+        let ts_bytes = bob_data.split_to(Self::TIMESTAMP_LEN);
+        let ts_bytes = (&*ts_bytes)
             .try_into()
             .map_err(|e| Error::storage(format!("parse error: {}", e)))?;
         let timestamp = u64::from_be_bytes(ts_bytes);
