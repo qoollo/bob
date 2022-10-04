@@ -172,7 +172,7 @@ jobs:
         run: |
           ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }}
         working-directory: ./integration-tests
-      - name: Run write/read tests
+      - name: Run write/read/exist tests
         run: |
           ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -n 0.0.0.0 -k ${{ matrix.key }}
         working-directory: ./integration-tests
