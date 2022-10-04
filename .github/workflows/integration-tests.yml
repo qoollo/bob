@@ -2,8 +2,8 @@ name: integration-tests
 on:
   push:
     branches: [ "518-implement-semi-automatic-integration-tests" ] #REMOVE WHEN ON MASTER
-    tags:
-      - "v[0-9]+.[0-9]+.[0-9]+(.alpha.[0-9]+)*"
+    #tags:
+    #  - "v[0-9]+.[0-9]+.[0-9]+(.alpha.[0-9]+)*"  COMMENTED OUT FOR TESTING
   pull_request_review:
     types: [submitted]
   workflow_dispatch:
