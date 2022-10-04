@@ -118,7 +118,8 @@ impl BobData {
     }
 
     pub fn to_serialized_vec(&self) -> Vec<u8> {
-        let mut result = self.meta.timestamp.to_be_bytes().to_vec();
+        let mut result = Vec::with_capacity(Self::TIMESTAMP_LEN + self.inner.len());
+        result.extend_from_slice(&self.meta.timestamp.to_be_bytes());
         result.extend_from_slice(&self.inner);
         result
     }
