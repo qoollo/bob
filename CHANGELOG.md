@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Add clusterwide delete operation (#364)
 - TLS support, TLS for grpc or rest can be enabled via cluster & node config (#303)
 
 #### Changed

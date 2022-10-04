@@ -242,4 +242,21 @@ where
         let response = Response::new(response);
         Ok(response)
     }
+
+    async fn delete(&self, req: Request<DeleteRequest>) -> ApiResult<OpStatus> {
+        let req = req.into_inner();
+        let DeleteRequest { key, options } = req;
+        if let Some((key, options)) = key.zip(options) {
+            let sw = Stopwatch::start_new();
+            self.grinder.delete(key.key.into(), options).await?;
+            let elapsed = sw.elapsed();
+            debug!("DELETE-OK dt: {:?}", elapsed);
+            Ok(Response::new(OpStatus { error: None }))
+        } else {
+            Err(Status::new(
+                Code::InvalidArgument,
+                "Key and options are mandatory",
+            ))
+        }
+    }
 }

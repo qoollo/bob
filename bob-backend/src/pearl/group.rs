@@ -581,6 +581,7 @@ impl Group {
                         debug!("{} not found in {:?}", key, holder)
                     } else {
                         error!("delete error: {}, from : {:?}", err, holder);
+                        return Err(err);
                     }
                 }
             }

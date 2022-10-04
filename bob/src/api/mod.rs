@@ -6,6 +6,7 @@ use axum::{
     routing::{delete, get, post, MethodRouter},
     Json, Router, Server,
 };
+use bob_grpc::DeleteOptions;
 use axum_server::{bind_rustls, tls_rustls::{RustlsConfig, RustlsAcceptor}, Server as AxumServer};
 
 pub(crate) use bob_access::Error as AuthError;
@@ -1005,9 +1006,9 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
-    bob.block_on(bob.grinder().delete(key, true))
+    bob.block_on(bob.grinder().delete(key, DeleteOptions::new_all()))
         .map_err(|e| internal(e.to_string()))
-        .map(|res| StatusExt::new(StatusCode::OK, true, format!("{}", res)))
+        .map(|_| StatusExt::new(StatusCode::OK, true, format!("Done")))
 }
 
 fn internal(message: String) -> StatusExt {
