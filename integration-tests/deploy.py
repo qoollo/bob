@@ -5,7 +5,7 @@ from python_on_whales import docker as d_cli
 from docker import errors as d_err
 from docker import types as d_types
 
-
+#collect arguments
 parser = argparse.ArgumentParser(description='Deploys docker compose nodes.')
 
 parser.add_argument('--path', dest='path', type=str, required=True, help='Takes in path to generated configs.')
@@ -18,13 +18,16 @@ exclusive.add_argument('-p', dest='vdisks_per_disk', nargs='?', type=int, help='
 args = parser.parse_args()
 final_args = {'-r':args.replicas, '-d':args.vdisks_count, '-p':args.vdisks_per_disk}
 
+#transform args to a string format
 args_str = str()
 for (key) in final_args:
     if final_args.get(key) != None:
         args_str += f'{key} {final_args.get(key)} '
 
+#initilize docker client
 client = docker.from_env()
 
+#check for network existing and creating it
 try:
     bobnet = client.networks.get('bob_net')
 except d_err.NotFound:
@@ -34,24 +37,28 @@ except d_err.NotFound:
 start_path = os.getcwdb()
 good_path = os.path.abspath(args.path)
 
+#check for configs to exist
 try:
     if not 'cluster.yaml.bobnet' in os.listdir(good_path):
         sys.exit('Cluster config not found in the specifed directory.')
 except FileNotFoundError as e:
     sys.exit(e)
 
+#change execution permissions for binaries
 try:
     os.chmod(path=f'./ccg', mode=0o771)
     os.chmod(path=f'./bobp', mode=0o771)
 except OSError as e:
     sys.exit(e)
 
+#run cluster generation
 try:
     pr = subprocess.check_output(shlex.split(f'./ccg new -i {args.path}/cluster.yaml.bobnet -o {args.path}/cluster.yaml.bobnet {args_str.rstrip()}'))
     if str(pr).find('ERROR') != -1:
         sys.exit(str(pr))
 except subprocess.CalledProcessError:
     sys.exit(pr.stderr)
+
 
 try:
     os.chdir(good_path)
@@ -62,6 +69,7 @@ except PermissionError:
 except NotADirectoryError:
     sys.exit('The specified path is not a directory.')
 
+#run docker containers
 try:
     client.networks.get('bob_net')
     d_cli.compose.up(detach=True)
