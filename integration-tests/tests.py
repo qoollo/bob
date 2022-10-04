@@ -3,17 +3,14 @@
 import subprocess, argparse, shlex, sys, re
 
 def run_tests(behaviour, args):
-    if behaviour in {'put', 'get'}:
-        try:
-            print(f'Running bobp -b {str(behaviour)} {args.rstrip()}')
-            p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args.rstrip()}'))
-            print(str(p))
+    try:
+        print(f'Running bobp -b {str(behaviour)} {args.rstrip()}')
+        p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args.rstrip()}'))
+        print(str(p))
+        if behaviour in {'put', 'get'}:
             if f'{behaviour} errors:' in str(p) or f'panicked' in str(p):
                 sys.exit(f'{behaviour} test failed, see output')
-        except subprocess.CalledProcessError as e:
-            sys.exit(str(e.stderr))
-    elif behaviour == 'exist':
-        try:
+        elif behaviour == 'exist':
             print(f'Running bobp -b {str(behaviour)} {args.rstrip()}')
             p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args.rstrip()}'))
             print(str(p))
@@ -24,11 +21,11 @@ def run_tests(behaviour, args):
             if exists[0] != exists[1]:
                 sys.exit(f"{exists[0]} of {exists[1]} keys, {behaviour} test failed, see output")
             else:
-                print(f"{exists[0]} of {exists[1]} keys")
-        except subprocess.CalledProcessError as e:
-            sys.exit(str(e.stderr))
-        except Exception as e:
-            sys.exit(str(e))
+                print(f"{exists[0]} of {exists[1]} keys")        
+    except subprocess.CalledProcessError as e:
+        sys.exit(str(e.stderr))
+    except Exception as e:
+                sys.exit(str(e))
 
 def get_run_args(mode, args):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-s':args.start, '-e':args.end, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':test_run_config.get(mode)}
