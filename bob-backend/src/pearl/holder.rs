@@ -217,7 +217,7 @@ impl Holder {
         counter!(PEARL_PUT_COUNTER, 1);
         let data_size = Self::calc_data_size(&data);
         let timer = Instant::now();
-        let res = storage.write(key, data.to_vec()).await;
+        let res = storage.write(key, data.to_serialized_vec()).await;
         let res = match res {
             Err(e) => {
                 counter!(PEARL_PUT_ERROR_COUNTER, 1);
@@ -258,7 +258,7 @@ impl Holder {
                 .await
                 .map(|r| {
                     counter!(PEARL_GET_BYTES_COUNTER, r.len() as u64);
-                    BobData::from_bytes(&r)
+                    BobData::from_serialized_bytes(&r)
                 })
                 .map_err(|e| {
                     counter!(PEARL_GET_ERROR_COUNTER, 1);

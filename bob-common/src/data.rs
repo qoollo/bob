@@ -117,13 +117,13 @@ impl BobData {
         &self.meta
     }
 
-    pub fn to_vec(&self) -> Vec<u8> {
+    pub fn to_serialized_vec(&self) -> Vec<u8> {
         let mut result = self.meta.timestamp.to_be_bytes().to_vec();
         result.extend_from_slice(&self.inner);
         result
     }
 
-    pub fn from_bytes(data: &[u8]) -> Result<BobData, Error> {
+    pub fn from_serialized_bytes(data: &[u8]) -> Result<BobData, Error> {
         let (ts, bob_data) = data.split_at(Self::TIMESTAMP_LEN);
         let bytes = ts
             .try_into()
