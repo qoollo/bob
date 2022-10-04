@@ -6,7 +6,7 @@ use tokio::{runtime::Handle, task::block_in_place};
 use crate::prelude::*;
 
 use super::grinder::Grinder;
-use bob_common::metrics::SharedMetricsSnapshot;
+use bob_common::{metrics::SharedMetricsSnapshot, configs::node::TLSConfig};
 
 /// Struct contains `Grinder` and receives incomming GRPC requests
 #[derive(Clone, Debug)]
@@ -50,8 +50,8 @@ where
     }
 
     /// Call to run HTTP API server, not required for normal functioning
-    pub fn run_api_server(&self, address: IpAddr, port: u16) {
-        crate::api::spawn(self.clone(), address, port);
+    pub async fn run_api_server(&self, address: IpAddr, port: u16, tls_config: &Option<TLSConfig>) {
+        crate::api::spawn(self.clone(), address, port, tls_config).await;
     }
 
     /// Start backend component, required before starting bob service
