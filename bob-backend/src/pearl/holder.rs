@@ -258,7 +258,7 @@ impl Holder {
                 .await
                 .map(|r| {
                     counter!(PEARL_GET_BYTES_COUNTER, r.len() as u64);
-                    BobData::from_serialized_bytes(&r)
+                    BobData::from_serialized_bytes(r)
                 })
                 .map_err(|e| {
                     counter!(PEARL_GET_ERROR_COUNTER, 1);

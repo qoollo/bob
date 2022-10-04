@@ -124,14 +124,16 @@ impl BobData {
         result
     }
 
-    pub fn from_serialized_bytes(data: &[u8]) -> Result<BobData, Error> {
-        let (ts, bob_data) = data.split_at(Self::TIMESTAMP_LEN);
-        let bytes = ts
+    pub fn from_serialized_bytes(data: Vec<u8>) -> Result<BobData, Error> {
+        let mut ts_bytes = Bytes::from(data);
+        let bob_data = ts_bytes.split_to(Self::TIMESTAMP_LEN);
+        let ts_bytes = &*ts_bytes;
+        let ts_bytes = ts_bytes
             .try_into()
             .map_err(|e| Error::storage(format!("parse error: {}", e)))?;
-        let timestamp = u64::from_be_bytes(bytes);
+        let timestamp = u64::from_be_bytes(ts_bytes);
         let meta = BobMeta::new(timestamp);
-        Ok(BobData::new(bob_data.to_vec().into(), meta))
+        Ok(BobData::new(bob_data, meta))
     }
 }
 
