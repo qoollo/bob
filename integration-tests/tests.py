@@ -21,11 +21,13 @@ def run_tests(behaviour, args):
             if exists[0] != exists[1]:
                 sys.exit(f"{exists[0]} of {exists[1]} keys, {behaviour} test failed, see output")
             else:
-                print(f"{exists[0]} of {exists[1]} keys")        
+                print(f"{exists[0]} of {exists[1]} keys")   
+        else:
+            sys.exit('Unknown behaviour.')     
     except subprocess.CalledProcessError as e:
         sys.exit(str(e.stderr))
     except Exception as e:
-                sys.exit(str(e))
+        sys.exit(str(e))
 
 def get_run_args(mode, args):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-s':args.start, '-e':args.end, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':test_run_config.get(mode)}
