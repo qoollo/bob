@@ -12,7 +12,7 @@ def run_tests(behaviour, args):
                 sys.exit(f'{behaviour} test failed, see output')
         elif behaviour == 'exist':
             print(f'Running bobp -b {str(behaviour)} {args.rstrip()}')
-            p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args.rstrip()}'))
+            p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args.rstrip()}'), shell=True)
             print(str(p))
             found_exist = re.search(r'\b[0-9]{1,}\sof\s[0-9]{1,}\b', str(p))
             if not found_exist:
