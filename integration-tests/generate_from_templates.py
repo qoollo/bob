@@ -38,7 +38,7 @@ parser.add_argument('--alien-root-dir-name', dest='alien_root_dir_name', type=st
 parser.add_argument('-t', dest='timestamp_period', type=str, default='1m', help='period when new pearl directory created.')
 parser.add_argument('--create-pearl-wait-delay', dest='create_pearl_wait_delay', type=str, default='100ms', help='each thread will wait this period if another thread creating pearl.')
 parser.add_argument('--metrics-name', dest='metrics_name', type=str, default='bob', help='add base name for metrics.')
-parser.add_argument('--graphite-enabled', dest='graphite_enabled', type=str, default='true', choices=['true', 'false'])
+parser.add_argument('--graphite-enabled', dest='graphite_enabled', type=str, default='false', choices=['true', 'false'])
 parser.add_argument('--prometheus-enabled', dest='prometheus_enabled', type=str, default='false', choices=['true', 'false'])
 parser.add_argument('--path', dest='path', type=str, help='sets path to directory where configs will be generated.', default='/tmp')
 
@@ -50,13 +50,7 @@ path = pathified(args.path) + '/generated_configs'
 os.makedirs(path, exist_ok=True, mode=0o777)
 
 
-if len(os.listdir(path)) == 0:
-    for filename in os.listdir(path):
-        try:
-            os.remove(f"{path}/{filename}")
-        except OSError:
-            shutil.rmtree(f"{path}/{filename}")
-else:
+if len(os.listdir(path)) != 0:
     sys.exit('Directory not empty.')
 
 try:
