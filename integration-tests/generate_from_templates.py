@@ -45,7 +45,7 @@ parser.add_argument('--path', dest='path', type=str, help='sets path to director
 
 args = parser.parse_args()
 
-path = pathified(args.path) + '/generated_configs'
+path = os.path.join(pathified(args.path),'/generated_configs')
 
 os.makedirs(path, exist_ok=True, mode=0o777)
 
@@ -56,7 +56,7 @@ if len(os.listdir(path)) != 0:
 try:
     original_umask = os.umask(0)
     for i in range(args.amount_of_nodes):
-        os.makedirs(path + f'/data{i}/d1', exist_ok=True, mode=0o777)
+        os.makedirs(os.path.join(path, f'/data{i}/d1'), exist_ok=True, mode=0o777)
 finally:
     os.umask(original_umask)
 
@@ -64,7 +64,7 @@ finally:
 #generate compose file
 compose = open("Templates/compose_template.yml.j2").read()
 template = Template(compose)
-f = open(f"{path}/docker-compose.yml", 'w')
+f = open(os.path.join(path, '/docker-compose.yml'), 'w')
 f.write(template.render(amount_of_nodes=args.amount_of_nodes, version=args.version, path=path))
 f.close
 
@@ -72,26 +72,26 @@ f.close
 for item in range(args.amount_of_nodes):
     node = open("Templates/node_template.yml.j2").read()
     template = Template(node)
-    f = open(f"{path}/node.yaml.bobnet{item}", 'w')
+    f = open(os.path.join(path, f'/node.yaml.bobnet{item}'), 'w')
     f.write(template.render(vars(args), node_number=item))
     f.close
 
 #generate cluster config
 cluster = open("Templates/cluster_template.yml.j2").read()
 template = Template(cluster)
-f = open (f"{path}/cluster.yaml.bobnet", "w")
+f = open(os.path.join(path, 'cluster.yaml.bobnet'), 'w')
 f.write(template.render(amount_of_nodes=args.amount_of_nodes))
 f.close
 
 #generate logger config
 logger = open("Templates/logger_template.yml.j2").read()
 template = Template(logger)
-f = open(f"{path}/logger.bobnet.yaml", "w")
+f = open(os.path.join(path, '/logger.bobnet.yaml'), 'w')
 f.write(template.render(path="/bob/log"))
 f.close
 
 #generate users config
 users = open("Templates/users_template.yml.j2").read()
 template = Template(users)
-f = open(f"{path}/users.bobnet.yaml", "w")
+f = open(os.path.join(path, '/users.bobnet.yaml'), 'w')
 f.write(template.render())
