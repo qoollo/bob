@@ -32,7 +32,7 @@ def run_tests(behaviour, args):
 def get_run_args(mode, args):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-s':args.start, '-e':args.end, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':test_run_config.get(mode)}
 
-test_run_config = {'put':'20000', 'get':'20001'}
+test_run_config = {'put':'20000', 'get':'20001', 'exist':'20002'}
 
 parser = argparse.ArgumentParser(description='This script launches bob tests with given configuration.')
 parser.add_argument('-c', dest='count', type=int, help='amount of entries to process', required=True)
