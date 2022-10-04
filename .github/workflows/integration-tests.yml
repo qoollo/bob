@@ -2,8 +2,8 @@ name: integration-tests
 on:
   push:
     branches: [ "518-implement-semi-automatic-integration-tests" ] #REMOVE WHEN ON MASTER
-    #tags:
-    #  - "v[0-9]+.[0-9]+.[0-9]+(.alpha.[0-9]+)*"  COMMENTED OUT FOR TESTING
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+(.alpha.[0-9]+)*"
   pull_request_review:
     types: [submitted]
   workflow_dispatch:
@@ -31,7 +31,7 @@ on:
 
 jobs:
   build-binaries:
-    #if: ${{ github.event.review.state == 'approved' || (github.event_name != 'pull_request_review' && github.event_name != 'push') }}
+    if: ${{ github.event.review.state == 'approved' || (github.event_name != 'pull_request_review' && github.event_name != 'push') }}
     strategy:
       matrix:
         key: [8, 16]
@@ -69,7 +69,7 @@ jobs:
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/brt
 
   build-docker-images:
-    #if: ${{ github.event.review.state == 'approved' || (github.event_name != 'pull_request_review' && github.event_name != 'push') }}
+    if: ${{ github.event.review.state == 'approved' || (github.event_name != 'pull_request_review' && github.event_name != 'push') }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -112,7 +112,7 @@ jobs:
             /tmp/bob-image-key${{ matrix.key }}.tar
 
   deploy-and-test:
-    #if: ${{ github.event.review.state == 'approved' || (github.event_name != 'pull_request_review' && github.event_name != 'push') }}
+    if: ${{ github.event.review.state == 'approved' || (github.event_name != 'pull_request_review' && github.event_name != 'push') }}
     needs: [build-binaries, build-docker-images]
     strategy:
       matrix:
