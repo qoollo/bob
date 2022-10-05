@@ -8,6 +8,7 @@ Bob versions changelog
 
 #### Changed
 - Update rust edition to 2021 (#484)
+- Compare vdiskid first (#594)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
@@ -15,7 +16,6 @@ Bob versions changelog
 - Internode auth works properly with nodes on same ip (#548)
 - Fix response in delete request (#558)
 - Fixed panic in brt because of duplicate long arg name (#563)
-- Compare vdiskid first (#594)
 
 #### Updated
 
