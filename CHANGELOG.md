@@ -5,9 +5,12 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Integration tests (#518) 
+- Add clusterwide delete operation (#364)
+- TLS support, TLS for grpc or rest can be enabled via cluster & node config (#303)
 
 #### Changed
 - Update rust edition to 2021 (#484)
+- Compare vdiskid first (#594)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
@@ -15,6 +18,7 @@ Bob versions changelog
 - Internode auth works properly with nodes on same ip (#548)
 - Fix response in delete request (#558)
 - Fixed panic in brt because of duplicate long arg name (#563)
+- Make username and password args of `bobt` optional (#555)
 
 #### Updated
 
