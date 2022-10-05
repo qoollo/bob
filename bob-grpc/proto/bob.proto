@@ -8,6 +8,7 @@ service BobApi {
     rpc Get (GetRequest) returns (Blob) {}
     rpc Ping (Null) returns (Null) {}
     rpc Exist (ExistRequest) returns (ExistResponse) {}
+    rpc Delete (DeleteRequest) returns (OpStatus) {}
 }
 
 message Null {};
@@ -29,6 +30,12 @@ message GetRequest {
 message ExistRequest {
     repeated BlobKey keys = 1; // Keys to check
     GetOptions options = 2; // Options, same as in get request
+}
+
+// Delete operation parameters
+message DeleteRequest {
+    BlobKey key = 1; // Blob's key
+    DeleteOptions options = 2; // Options
 }
 
 // Blob id
@@ -78,4 +85,9 @@ message GetOptions {
 message BobError {
     int32 code = 1; // Error code in case of error
     string desc = 2; // Error desription
+}
+
+// Delete operation options
+message DeleteOptions {
+    bool force_node = 1; // Force operation to be served by node to which it comes
 }

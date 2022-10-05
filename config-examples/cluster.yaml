@@ -11,7 +11,7 @@ nodes:
       # [str] node name
     - name: local_node
       # [ip:port] node address
-      address: 127.0.0.1:20000  
+      address: 127.0.0.1:20000
       # [list] of physical node disks
       disks:
           # [str] name of disk, the node uses it to determine which vdisks belong to it
