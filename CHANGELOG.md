@@ -9,6 +9,7 @@ Bob versions changelog
 
 #### Changed
 - Update rust edition to 2021 (#484)
+- Compare vdiskid first (#594)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
