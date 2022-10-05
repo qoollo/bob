@@ -4,11 +4,13 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Add clusterwide delete operation (#364)
+- TLS support, TLS for grpc or rest can be enabled via cluster & node config (#303)
 
 #### Changed
 - Update rust edition to 2021 (#484)
 - Make delete operation recoverable (#533)
+- Compare vdiskid first (#594)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
