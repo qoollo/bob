@@ -441,15 +441,13 @@ impl Backend {
         self.inner.free_least_used_resources().await
     }
 
-    pub async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<u64, Error> {
+    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         let mut ops = vec![];
         if let Some(path) = disk_path {
             ops.push(Operation::new_local(vdisk_id, path.clone()));
         }
-        if with_aliens {
-            ops.push(Operation::new_alien(vdisk_id));
-        }
+        ops.push(Operation::new_alien(vdisk_id));
         let total_count = futures::future::join_all(ops.into_iter().map(|op| {
             trace!("DELETE[{}] try delete", key);
             self.delete_single(key, op)
