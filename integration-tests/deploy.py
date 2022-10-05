@@ -73,13 +73,12 @@ except NotADirectoryError:
 try:
     client.networks.get('bob_net')
     d_cli.compose.up(detach=True)
-    print('Services are initilized.')
+    print(f'Services are initilized:\n{d_cli.container.list()}')
 except d_err.NotFound:
     sys.exit('Docker network not found')
 
 try:
     if len(d_cli.container.list()) < os.environ['BOB_NODES_AMOUNT']:
-        print(d_cli.container.list())
         sys.exit('One or more bob docker containers are not running.')
 except KeyError:
     sys.exit('Nodes amount is not set.')
