@@ -30,6 +30,18 @@ fn call_node_put(
     tokio::spawn(task)
 }
 
+fn call_node_delete(
+    key: BobKey,
+    options: DeleteOptions,
+    node: Node,
+) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
+    debug!("DELETE[{}] delete to {}", key, node.name());
+    let task = async move {
+        LinkManager::call_node(&node, |conn| conn.delete(key, options).boxed()).await
+    };
+    tokio::spawn(task)
+}
+
 fn is_result_successful(
     join_res: Result<Result<NodeOutput<()>, NodeOutput<Error>>, JoinError>,
     errors: &mut Vec<NodeOutput<Error>>,
@@ -74,10 +86,32 @@ pub(crate) async fn put_at_least(
     at_least: usize,
     options: PutOptions,
 ) -> (Tasks, Vec<NodeOutput<Error>>) {
-    let mut handles: FuturesUnordered<_> = target_nodes
-        .cloned()
-        .map(|node| call_node_put(key, data.clone(), node, options.clone()))
-        .collect();
+    call_at_least(target_nodes, at_least, |n| {
+        call_node_put(key, data.clone(), n, options.clone())
+    })
+    .await
+}
+
+pub(crate) async fn delete_at_nodes(
+    key: BobKey,
+    target_nodes: impl Iterator<Item = &Node>,
+    target_nodes_count: usize,
+    options: DeleteOptions,
+) -> Vec<NodeOutput<Error>> {
+    let (tasks, errors) = call_at_least(target_nodes, target_nodes_count, |n| {
+        call_node_delete(key, options.clone(), n)
+    })
+    .await;
+    assert!(tasks.is_empty());
+    errors
+}
+
+async fn call_at_least(
+    target_nodes: impl Iterator<Item = &Node>,
+    at_least: usize,
+    f: impl Fn(Node) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>,
+) -> (Tasks, Vec<NodeOutput<Error>>) {
+    let mut handles: FuturesUnordered<_> = target_nodes.cloned().map(|node| f(node)).collect();
     debug!("total handles count: {}", handles.len());
     let errors = finish_at_least_handles(&mut handles, at_least).await;
     debug!("remains: {}, errors: {}", handles.len(), errors.len());
@@ -242,4 +276,13 @@ pub(crate) async fn put_local_node(
     debug!("local node has vdisk replica, put local");
     let op = Operation::new_local(vdisk_id, disk_path);
     backend.put_local(key, data, op).await
+}
+
+pub(crate) async fn delete_at_local_node(
+    backend: &Backend,
+    key: BobKey,
+) -> Result<(), Error> {
+    debug!("local node has vdisk replica, put local");
+    backend.delete(key).await?;
+    Ok(())
 }
