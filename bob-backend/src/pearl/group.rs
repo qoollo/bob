@@ -59,7 +59,7 @@ impl Group {
                 .map_or(true, |node_name| *node_name == self.node_name);
             name_matched && self.vdisk_id == operation.vdisk_id()
         } else {
-            self.disk_name == operation.disk_name_local() && self.vdisk_id == operation.vdisk_id()
+            self.vdisk_id == operation.vdisk_id() && self.disk_name == operation.disk_name_local()
         }
     }
 
@@ -581,6 +581,7 @@ impl Group {
                         debug!("{} not found in {:?}", key, holder)
                     } else {
                         error!("delete error: {}, from : {:?}", err, holder);
+                        return Err(err);
                     }
                 }
             }

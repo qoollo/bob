@@ -622,7 +622,7 @@ impl DiskController {
             if let Ok(group) = vdisk_group {
                 group.delete(key).await
             } else {
-                warn!(
+                debug!(
                     "DELETE[alien][{}] No alien group has been created for vdisk #{}",
                     key,
                     op.vdisk_id()
