@@ -66,10 +66,6 @@ impl Node {
             .expect("build uri")
     }
 
-    pub fn counter_display(&self) -> String {
-        self.address.to_string().replace('.', "_")
-    }
-
     pub async fn set_connection(&self, client: BobClient) {
         *self.conn.write().await = Some(client);
     }
