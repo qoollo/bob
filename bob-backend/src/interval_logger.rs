@@ -1,12 +1,7 @@
 use coarsetime::{Duration as CDuration, Instant as CInstant};
-use std::{
-    collections::HashMap,
-    hash::Hash,
-    cmp::Eq,
-    fmt::Display
-};
-use parking_lot::Mutex as PLMutex;
 use log::Level;
+use parking_lot::Mutex as PLMutex;
+use std::{cmp::Eq, collections::HashMap, fmt::Display, hash::Hash};
 
 #[derive(Debug)]
 pub struct IntervalLogger<E> {
@@ -48,13 +43,13 @@ impl<E: Hash + Eq + Display> IntervalLogger<E> {
 
 #[derive(Debug)]
 pub struct IntervalLoggerSafe<E> {
-    inner: PLMutex<IntervalLogger<E>>
+    inner: PLMutex<IntervalLogger<E>>,
 }
 
 impl<E: Hash + Eq + Display> IntervalLoggerSafe<E> {
     pub fn new(interval_ms: u64, level: Level) -> Self {
         Self {
-            inner: PLMutex::new(IntervalLogger::new(interval_ms, level))
+            inner: PLMutex::new(IntervalLogger::new(interval_ms, level)),
         }
     }
 

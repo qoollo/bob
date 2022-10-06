@@ -1,6 +1,11 @@
 use std::{collections::HashMap, net::IpAddr};
 
-use crate::{credentials::{Credentials, CredentialsKind}, AuthenticationType, error::Error, permissions::Permissions};
+use crate::{
+    credentials::{Credentials, CredentialsKind},
+    error::Error,
+    permissions::Permissions,
+    AuthenticationType,
+};
 
 use super::{users_storage::UsersStorage, Authenticator};
 
@@ -24,15 +29,11 @@ impl<Storage: UsersStorage> Basic<Storage> {
         &mut self,
         nodes: HashMap<IpAddr, Vec<Credentials>>,
     ) -> Result<(), Error> {
-        if nodes
-            .values()
-            .all(|creds|
-                creds
-                    .iter()
-                    .all(|cred|
-                        cred.ip().is_some() &&
-                        cred.kind().map(|k| k.is_internode()) == Some(true)))
-        {
+        if nodes.values().all(|creds| {
+            creds.iter().all(|cred| {
+                cred.ip().is_some() && cred.kind().map(|k| k.is_internode()) == Some(true)
+            })
+        }) {
             self.nodes = nodes;
             Ok(())
         } else {
@@ -45,18 +46,16 @@ impl<Storage: UsersStorage> Basic<Storage> {
         if self.nodes.is_empty() {
             warn!("nodes credentials not set");
         }
-        self.nodes
-            .get(ip.as_ref()?)
-            .map(|creds| {
-                for cred in creds {
-                    if let Some(CredentialsKind::InterNode(other_name)) = cred.kind() {
-                        if node_name == other_name {
-                            return true;
-                        }
+        self.nodes.get(ip.as_ref()?).map(|creds| {
+            for cred in creds {
+                if let Some(CredentialsKind::InterNode(other_name)) = cred.kind() {
+                    if node_name == other_name {
+                        return true;
                     }
                 }
-                false
-            })
+            }
+            false
+        })
     }
 
     fn check_credentials_common(&self, credentials: Credentials) -> Result<Permissions, Error> {
@@ -67,7 +66,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
                     credentials.ip(),
                     username
                 );
-        
+
                 let user = self.users_storage.get_user(&username)?;
                 if let Some(usr_password) = user.password() {
                     if usr_password == password {
@@ -76,7 +75,8 @@ impl<Storage: UsersStorage> Basic<Storage> {
                         Err(Error::UnauthorizedRequest)
                     }
                 } else if let Some(usr_hash) = user.password_hash() {
-                    let hash_str = format!("{}{}", password, self.users_storage.get_password_salt());
+                    let hash_str =
+                        format!("{}{}", password, self.users_storage.get_password_salt());
                     let mut hasher = Sha512::new();
                     hasher.update(&hash_str.into_bytes());
                     let hash = hasher.finalize();
@@ -88,10 +88,10 @@ impl<Storage: UsersStorage> Basic<Storage> {
                 } else {
                     Err(Error::UnauthorizedRequest)
                 }
-            },
-            None => {
-                Err(Error::CredentialsNotProvided("missing credentials".to_string()))
-            },
+            }
+            None => Err(Error::CredentialsNotProvided(
+                "missing credentials".to_string(),
+            )),
             _ => Err(Error::UnauthorizedRequest),
         }
     }
@@ -111,7 +111,7 @@ where
                 } else {
                     Err(Error::UnauthorizedRequest)
                 }
-            },
+            }
             _ => self.check_credentials_common(credentials),
         }
     }

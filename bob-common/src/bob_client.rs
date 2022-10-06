@@ -1,5 +1,5 @@
 pub mod b_client {
-    use super::{DeleteResult, ExistResult, GetResult, PingResult, PutResult, FactoryTlsConfig};
+    use super::{DeleteResult, ExistResult, FactoryTlsConfig, GetResult, PingResult, PutResult};
     use crate::{
         data::{BobData, BobKey, BobMeta},
         error::Error,
@@ -46,7 +46,9 @@ pub mod b_client {
             let mut endpoint = Endpoint::from(node.get_uri());
             if let Some(tls_config) = tls_config {
                 let cert = Certificate::from_pem(&tls_config.ca_cert);
-                let tls_config = ClientTlsConfig::new().domain_name(&tls_config.tls_domain_name).ca_certificate(cert);
+                let tls_config = ClientTlsConfig::new()
+                    .domain_name(&tls_config.tls_domain_name)
+                    .ca_certificate(cert);
                 endpoint = endpoint.tls_config(tls_config).expect("client tls");
             }
             endpoint = endpoint.tcp_nodelay(true);
@@ -306,7 +308,14 @@ impl Factory {
     }
     pub async fn produce(&self, node: Node) -> Result<BobClient, String> {
         let metrics = self.metrics.clone().get_metrics();
-        BobClient::create(node, self.operation_timeout, metrics, self.local_node_name.clone(), self.tls_config.as_ref()).await
+        BobClient::create(
+            node,
+            self.operation_timeout,
+            metrics,
+            self.local_node_name.clone(),
+            self.tls_config.as_ref(),
+        )
+        .await
     }
 }
 

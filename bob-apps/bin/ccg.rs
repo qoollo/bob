@@ -4,11 +4,11 @@ mod config_cluster_generator;
 extern crate log;
 
 use anyhow::{anyhow, Result as AnyResult};
-use bob::{ClusterConfig};
+use bob::ClusterConfig;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use config_cluster_generator::{
     center::{check_expand_configs, get_new_disks, get_new_racks, Center},
-    utils::{init_logger, ceil, read_config_from_file, write_to_file},
+    utils::{ceil, init_logger, read_config_from_file, write_to_file},
 };
 
 #[tokio::main]
@@ -183,7 +183,9 @@ fn get_replicas_count(matches: &ArgMatches) -> AnyResult<usize> {
         .map_err(|err| anyhow!("get replicas count: {}", err))
 }
 
-fn get_vdisks_total_and_per_disk(matches: &ArgMatches) -> AnyResult<(Option<usize>, Option<usize>)> {
+fn get_vdisks_total_and_per_disk(
+    matches: &ArgMatches,
+) -> AnyResult<(Option<usize>, Option<usize>)> {
     if let Some(s) = matches.value_of("vdisks_count") {
         s.parse()
             .map_err(|err| anyhow!("get vdisks count: {}", err))

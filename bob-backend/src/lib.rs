@@ -1,8 +1,8 @@
 pub mod core;
+pub mod interval_logger;
 pub mod mem_backend;
 pub mod pearl;
 pub mod stub_backend;
-pub mod interval_logger;
 
 #[cfg(test)]
 pub mod mem_tests;

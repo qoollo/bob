@@ -1,4 +1,6 @@
-use crate::{build_info::BuildInfo, server::Server as BobServer, hw_metrics_collector::DiskSpaceMetrics};
+use crate::{
+    build_info::BuildInfo, hw_metrics_collector::DiskSpaceMetrics, server::Server as BobServer,
+};
 use axum::{
     body::{self, BoxBody},
     extract::{Extension, Path as AxumPath},
@@ -6,27 +8,32 @@ use axum::{
     routing::{delete, get, post, MethodRouter},
     Json, Router, Server,
 };
+use axum_server::{
+    bind_rustls,
+    tls_rustls::{RustlsAcceptor, RustlsConfig},
+    Server as AxumServer,
+};
 use bob_grpc::DeleteOptions;
-use axum_server::{bind_rustls, tls_rustls::{RustlsConfig, RustlsAcceptor}, Server as AxumServer};
 
 pub(crate) use bob_access::Error as AuthError;
 use bob_access::{Authenticator, CredentialsHolder};
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
+    configs::node::TLSConfig,
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
     error::Error as BobError,
     node::Disk as NodeDisk,
-    configs::node::TLSConfig,
 };
 use bytes::Bytes;
 use futures::{future::BoxFuture, stream::FuturesUnordered, FutureExt, StreamExt};
 use http::{header::CONTENT_TYPE, HeaderMap, Response, StatusCode};
 use std::{
+    collections::HashMap,
     future::ready,
     io::{Error as IoError, ErrorKind},
     net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
-    str::FromStr, collections::HashMap,
+    str::FromStr,
 };
 use tokio::fs::{read_dir, ReadDir};
 use uuid::Uuid;
@@ -143,15 +150,14 @@ pub(crate) struct SpaceInfo {
     free_disk_space_bytes: u64,
     used_disk_space_bytes: u64,
     occupied_disk_space_bytes: u64,
-    occupied_disk_space_by_disk: HashMap<String, u64>
+    occupied_disk_space_by_disk: HashMap<String, u64>,
 }
 
 async fn tls_server(tls_config: &TLSConfig, addr: SocketAddr) -> AxumServer<RustlsAcceptor> {
     if let (Some(cert_path), Some(pkey_path)) = (&tls_config.cert_path, &tls_config.pkey_path) {
-        let config = RustlsConfig::from_pem_file(
-            cert_path,
-            pkey_path,
-        ).await.expect("can not create tls config from pem file");
+        let config = RustlsConfig::from_pem_file(cert_path, pkey_path)
+            .await
+            .expect("can not create tls config from pem file");
         bind_rustls(addr, config)
     } else {
         error!("rest tls enabled, but certificate or private key not specified");
@@ -159,15 +165,22 @@ async fn tls_server(tls_config: &TLSConfig, addr: SocketAddr) -> AxumServer<Rust
     }
 }
 
-pub(crate) async fn spawn<A>(bob: BobServer<A>, address: IpAddr, port: u16, tls_config: &Option<TLSConfig>)
-where
+pub(crate) async fn spawn<A>(
+    bob: BobServer<A>,
+    address: IpAddr,
+    port: u16,
+    tls_config: &Option<TLSConfig>,
+) where
     A: Authenticator,
 {
     let socket_addr = SocketAddr::new(address, port);
 
     let router = router::<A>().layer(Extension(bob));
-    
-    if let Some(tls_config) = tls_config.as_ref().and_then(|tls_config| tls_config.rest_config()) {
+
+    if let Some(tls_config) = tls_config
+        .as_ref()
+        .and_then(|tls_config| tls_config.rest_config())
+    {
         let tls_server = tls_server(&tls_config, socket_addr).await;
         let task = tls_server.serve(router.into_make_service());
         tokio::spawn(task);
@@ -296,7 +309,9 @@ async fn status<A: Authenticator>(bob: Extension<BobServer<A>>) -> Json<Node> {
 }
 
 // GET /status/space
-async fn get_space_info<A: Authenticator>(bob: Extension<BobServer<A>>) -> Result<Json<SpaceInfo>, StatusExt> {
+async fn get_space_info<A: Authenticator>(
+    bob: Extension<BobServer<A>>,
+) -> Result<Json<SpaceInfo>, StatusExt> {
     let DiskSpaceMetrics {
         total_space,
         used_space,
@@ -321,7 +336,7 @@ async fn get_space_info<A: Authenticator>(bob: Extension<BobServer<A>>) -> Resul
         used_disk_space_bytes: used_space,
         free_disk_space_bytes: free_space,
         occupied_disk_space_bytes: map.values().sum(),
-        occupied_disk_space_by_disk: map
+        occupied_disk_space_by_disk: map,
     }))
 }
 
@@ -362,9 +377,7 @@ async fn find_group<A: Authenticator>(
 }
 
 // GET /metrics
-async fn metrics<A: Authenticator>(
-    bob: Extension<BobServer<A>>,
-) -> Json<MetricsSnapshotModel> {
+async fn metrics<A: Authenticator>(bob: Extension<BobServer<A>>) -> Json<MetricsSnapshotModel> {
     let snapshot = bob.metrics().read().await.clone();
     Json(snapshot.into())
 }
@@ -402,7 +415,11 @@ async fn nodes<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_read()
+    {
         return Err(AuthError::PermissionDenied);
     }
     let mapper = bob.grinder().backend().mapper();
@@ -443,7 +460,11 @@ async fn disks_list<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_read()
+    {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -477,7 +498,11 @@ async fn distribution_function<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_read()
+    {
         return Err(AuthError::PermissionDenied);
     }
     let mapper = bob.grinder().backend().mapper().distribution_func();
@@ -493,7 +518,11 @@ async fn get_node_configuration<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_read()
+    {
         return Err(AuthError::PermissionDenied);
     }
 
@@ -514,7 +543,11 @@ async fn stop_all_disk_controllers<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_write()
+    {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -542,7 +575,11 @@ async fn start_all_disk_controllers<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_write()
+    {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -591,7 +628,11 @@ async fn vdisks<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_read()
+    {
         return Err(AuthError::PermissionDenied);
     }
     let vdisks = collect_disks_info(&bob);
@@ -606,7 +647,11 @@ async fn finalize_outdated_blobs<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_write()
+    {
         return Err(AuthError::PermissionDenied);
     }
     let backend = bob.grinder().backend();
@@ -624,7 +669,11 @@ async fn vdisk_by_id<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_read()
+    {
         return Err(AuthError::PermissionDenied.into());
     }
     get_vdisk_by_id(&bob, vdisk_id)
@@ -641,7 +690,11 @@ async fn vdisk_records_count<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_read()
+    {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(&bob, vdisk_id).await?;
@@ -663,7 +716,11 @@ async fn partitions<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_read()
+    {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(&bob, vdisk_id).await?;
@@ -695,7 +752,11 @@ async fn partition_by_id<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_read()
+    {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(&bob, vdisk_id).await?;
@@ -735,7 +796,11 @@ async fn change_partition_state<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_write()
+    {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(&bob, vdisk_id).await?;
@@ -764,7 +829,11 @@ async fn remount_vdisks_group<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_write()
+    {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(&bob, vdisk_id).await?;
@@ -786,7 +855,11 @@ async fn delete_partition<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_write()
+    {
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group(&bob, vdisk_id).await?;
@@ -843,7 +916,11 @@ async fn detach_alien_partitions<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_write()
+    {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -862,7 +939,11 @@ async fn get_alien_directory<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_read()
+    {
         return Err(AuthError::PermissionDenied.into());
     }
     let backend = bob.grinder().backend().inner();
@@ -883,7 +964,11 @@ async fn get_local_replica_directories<A>(
 where
     A: Authenticator,
 {
-    if !bob.auth().check_credentials_rest(creds.into())?.has_rest_read() {
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_read()
+    {
         return Err(AuthError::PermissionDenied.into());
     }
     let vdisk: VDisk = get_vdisk_by_id(&bob, vdisk_id).ok_or_else(|| {
@@ -1006,9 +1091,12 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
-    bob.block_on(bob.grinder().delete(key, DeleteOptions::new_all()))
-        .map_err(|e| internal(e.to_string()))
-        .map(|_| StatusExt::new(StatusCode::OK, true, format!("Done")))
+    bob.block_on(
+        bob.grinder()
+            .delete(key, BobOptions::new_delete(DeleteOptions::new_all())),
+    )
+    .map_err(|e| internal(e.to_string()))
+    .map(|_| StatusExt::new(StatusCode::OK, true, format!("Done")))
 }
 
 fn internal(message: String) -> StatusExt {

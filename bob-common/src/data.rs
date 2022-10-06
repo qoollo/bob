@@ -2,7 +2,7 @@ use crate::{
     mapper::NodesMap,
     node::{Disk as NodeDisk, Node},
 };
-use bob_grpc::{GetOptions, GetSource, PutOptions};
+use bob_grpc::{DeleteOptions, GetOptions, GetSource, PutOptions};
 use std::{
     convert::TryInto,
     fmt::{Debug, Formatter, Result as FmtResult},
@@ -185,6 +185,18 @@ impl BobOptions {
             flags,
             remote_nodes: Vec::new(),
             get_source,
+        }
+    }
+
+    pub fn new_delete(options: DeleteOptions) -> Self {
+        let mut flags = BobFlags::default();
+        if options.force_node {
+            flags |= BobFlags::FORCE_NODE;
+        };
+        BobOptions {
+            flags,
+            remote_nodes: options.remote_nodes,
+            get_source: None,
         }
     }
 

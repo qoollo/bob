@@ -205,21 +205,22 @@ impl Grinder {
     #[inline]
     pub(crate) fn run_periodic_tasks(&self, client_factory: Factory) {
         self.link_manager.spawn_checker(client_factory);
-        self.cleaner.spawn_task(self.cleaner.clone(), self.backend.clone());
+        self.cleaner
+            .spawn_task(self.cleaner.clone(), self.backend.clone());
         self.counter.spawn_task(self.backend.clone());
         self.hw_counter.spawn_task();
     }
 
-    pub(crate) async fn delete(&self, key: BobKey, options: DeleteOptions) -> Result<(), Error> {
+    pub(crate) async fn delete(&self, key: BobKey, options: BobOptions) -> Result<(), Error> {
         trace!(">>>- - - - - GRINDER DELETE START - - - - -");
-        let result = if options.force_node {
+        let result = if options.flags().contains(BobFlags::FORCE_NODE) {
             counter!(CLIENT_DELETE_COUNTER, 1);
             let sw = Stopwatch::start_new();
             trace!(
                 "pass delete request to backend, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let result = self.backend.delete(key).await;
+            let result = self.backend.delete(key, options).await;
             trace!(
                 "backend processed delete, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0

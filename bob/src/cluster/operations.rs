@@ -241,20 +241,48 @@ pub(crate) async fn put_local_all(
     }
 }
 
-pub(crate) async fn put_sup_nodes(
+#[derive(Debug)]
+pub(crate) enum Ops<'a> {
+    Put(PutOptions, &'a BobData),
+    Delete(DeleteOptions),
+}
+
+impl<'a> Ops<'a> {
+    fn remote_nodes(&self) -> &[String] {
+        match self {
+            Ops::Put(o, _) => &o.remote_nodes,
+            Ops::Delete(o) => &o.remote_nodes,
+        }
+    }
+
+    pub(crate) fn create_alien(&self, remote: String) -> Self {
+        match self {
+            Ops::Put(_, d) => Ops::Put(PutOptions::new_alien(vec![remote]), d),
+            Ops::Delete(_) => Ops::Delete(DeleteOptions::new_alien(vec![remote])),
+        }
+    }
+}
+
+pub(crate) async fn invoke_sup_nodes(
     key: BobKey,
-    data: BobData,
-    requests: &[(&Node, PutOptions)],
+    requests: &[(&Node, Ops<'_>)],
 ) -> Result<(), Vec<NodeOutput<Error>>> {
     let mut ret = vec![];
     for (node, options) in requests {
-        let result = LinkManager::call_node(node, |client| {
-            Box::pin(client.put(key, data.clone(), options.clone()))
-        })
-        .await;
+        let result = match options {
+            Ops::Put(o, d) => {
+                LinkManager::call_node(node, |client| {
+                    Box::pin(client.put(key, (*d).clone(), o.clone()))
+                })
+                .await
+            }
+            Ops::Delete(o) => {
+                LinkManager::call_node(node, |client| Box::pin(client.delete(key, o.clone()))).await
+            }
+        };
         debug!("{:?}", result);
         if let Err(e) = result {
-            let target_node = options.remote_nodes[0].to_owned();
+            let target_node = options.remote_nodes()[0].to_owned();
             ret.push(NodeOutput::new(target_node, e.into_inner()));
         }
     }
@@ -278,11 +306,8 @@ pub(crate) async fn put_local_node(
     backend.put_local(key, data, op).await
 }
 
-pub(crate) async fn delete_at_local_node(
-    backend: &Backend,
-    key: BobKey,
-) -> Result<(), Error> {
+pub(crate) async fn delete_at_local_node(backend: &Backend, key: BobKey) -> Result<(), Error> {
     debug!("local node has vdisk replica, put local");
-    backend.delete(key).await?;
+    backend.delete(key, todo!()).await?;
     Ok(())
 }

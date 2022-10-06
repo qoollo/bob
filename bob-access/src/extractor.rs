@@ -1,4 +1,8 @@
-use crate::{credentials::{Credentials, CredentialsBuilder}, error::Error, AuthenticationType};
+use crate::{
+    credentials::{Credentials, CredentialsBuilder},
+    error::Error,
+    AuthenticationType,
+};
 use axum::extract::RequestParts;
 use http::Request;
 use tonic::{transport::server::TcpConnectInfo, Request as TonicRequest};
@@ -28,13 +32,13 @@ impl<T: Extractor> ExtractorExt for T {
         match cred_type {
             AuthenticationType::None => {
                 return Ok(Credentials::default());
-            },
+            }
             AuthenticationType::Basic => {
                 return self.extract_basic();
-            },
+            }
             AuthenticationType::Token => {
                 return self.extract_token();
-            },
+            }
         }
     }
 
@@ -42,40 +46,32 @@ impl<T: Extractor> ExtractorExt for T {
         let mut builder = prepare_builder(self)?;
         match (self.get_header("username")?, self.get_header("password")?) {
             (Some(username), Some(password)) => {
-                let creds = builder
-                    .with_username_password(username, password)
-                    .build();
+                let creds = builder.with_username_password(username, password).build();
                 Ok(creds)
-            },
+            }
             (None, None) => {
                 if let Some(node_name) = self.get_header("node_name")? {
-                    let creds = builder
-                        .with_nodename(node_name)
-                        .build();
+                    let creds = builder.with_nodename(node_name).build();
                     return Ok(creds);
                 }
                 // Fallback to special "default" user, when no credentials were provided
-                let creds = builder
-                    .with_username_password("default", "")
-                    .build();
+                let creds = builder.with_username_password("default", "").build();
                 Ok(creds)
-            },
-            _ => Err(Error::CredentialsNotProvided("missing username or password".into()))
+            }
+            _ => Err(Error::CredentialsNotProvided(
+                "missing username or password".into(),
+            )),
         }
     }
 
     fn extract_token(&self) -> Result<Credentials, Error> {
         let mut builder = prepare_builder(self)?;
         if let Some(token) = self.get_header("token")? {
-            let creds = builder
-                .with_token(token)
-                .build();
+            let creds = builder.with_token(token).build();
             Ok(creds)
         } else {
             if let Some(node_name) = self.get_header("node_name")? {
-                let creds = builder
-                    .with_nodename(node_name)
-                    .build();
+                let creds = builder.with_nodename(node_name).build();
                 Ok(creds)
             } else {
                 Err(Error::CredentialsNotProvided("missing token".into()))
@@ -87,7 +83,9 @@ impl<T: Extractor> ExtractorExt for T {
 impl<B> Extractor for RequestParts<B> {
     fn get_header(&self, header: &str) -> Result<Option<&str>, Error> {
         if let Some(Some(v)) = self.headers().map(|hs| hs.get(header)) {
-            v.to_str().map_err(|e| Error::ConversionError(e.to_string())).map(|r| Some(r))
+            v.to_str()
+                .map_err(|e| Error::ConversionError(e.to_string()))
+                .map(|r| Some(r))
         } else {
             Ok(None)
         }
@@ -101,7 +99,9 @@ impl<B> Extractor for RequestParts<B> {
 impl<T> Extractor for Request<T> {
     fn get_header(&self, header: &str) -> Result<Option<&str>, Error> {
         if let Some(v) = self.headers().get(header) {
-            v.to_str().map_err(|e| Error::ConversionError(e.to_string())).map(|r| Some(r))
+            v.to_str()
+                .map_err(|e| Error::ConversionError(e.to_string()))
+                .map(|r| Some(r))
         } else {
             Ok(None)
         }
@@ -115,7 +115,9 @@ impl<T> Extractor for Request<T> {
 impl<T> Extractor for TonicRequest<T> {
     fn get_header(&self, header: &str) -> Result<Option<&str>, Error> {
         if let Some(v) = self.metadata().get(header) {
-            v.to_str().map_err(|e| Error::ConversionError(e.to_string())).map(|r| Some(r))
+            v.to_str()
+                .map_err(|e| Error::ConversionError(e.to_string()))
+                .map(|r| Some(r))
         } else {
             Ok(None)
         }

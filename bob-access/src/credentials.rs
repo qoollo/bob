@@ -1,5 +1,5 @@
-use std::net::{IpAddr, SocketAddr};
 use std::marker::PhantomData;
+use std::net::{IpAddr, SocketAddr};
 
 use axum::{
     async_trait,
@@ -43,7 +43,11 @@ impl CredentialsKind {
     }
 
     pub fn is_basic(&self) -> bool {
-        if let CredentialsKind::Basic{username: _, password: _} = self {
+        if let CredentialsKind::Basic {
+            username: _,
+            password: _,
+        } = self
+        {
             true
         } else {
             false
@@ -138,7 +142,7 @@ impl<T, A: Authenticator> From<&Request<T>> for CredentialsHolder<A> {
     fn from(req: &Request<T>) -> Self {
         let credentials = match req.extract(A::credentials_type()) {
             Ok(c) => c,
-            Err(_) => Credentials::default()
+            Err(_) => Credentials::default(),
         };
         CredentialsHolder {
             credentials,

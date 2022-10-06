@@ -37,7 +37,12 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(_username: String, password: Option<String>, password_hash: Option<Vec<u8>>, perms: Perms) -> Self {
+    pub fn new(
+        _username: String,
+        password: Option<String>,
+        password_hash: Option<Vec<u8>>,
+        perms: Perms,
+    ) -> Self {
         Self {
             _username,
             password,

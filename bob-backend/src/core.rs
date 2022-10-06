@@ -1,7 +1,8 @@
 use crate::prelude::*;
 use std::{
     collections::HashMap,
-    fmt::{Display, Formatter, Result as FMTResult}, hash::Hash,
+    fmt::{Display, Formatter, Result as FMTResult},
+    hash::Hash,
 };
 
 use crate::{
@@ -279,6 +280,24 @@ impl Backend {
         res
     }
 
+    pub async fn delete(&self, key: BobKey, options: BobOptions) -> Result<(), Error> {
+        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        if !options.remote_nodes().is_empty() {
+            for node_name in options.remote_nodes() {
+                let mut op = Operation::new_alien(vdisk_id);
+                op.set_remote_folder(node_name.to_owned());
+                self.delete_single(key, op).await?;
+            }
+            Ok(())
+        } else if let Some(path) = disk_path {
+            self.delete_single(key, Operation::new_local(vdisk_id, path))
+                .await?;
+            Ok(())
+        } else {
+            Err(Error::internal())
+        }
+    }
+
     #[inline]
     pub async fn put_local(
         &self,
@@ -439,27 +458,6 @@ impl Backend {
 
     pub async fn free_least_used_holder_resources(&self) -> Option<usize> {
         self.inner.free_least_used_resources().await
-    }
-
-    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        let mut ops = vec![];
-        if let Some(path) = disk_path {
-            ops.push(Operation::new_local(vdisk_id, path.clone()));
-        }
-        ops.push(Operation::new_alien(vdisk_id));
-        let total_count = futures::future::join_all(ops.into_iter().map(|op| {
-            trace!("DELETE[{}] try delete", key);
-            self.delete_single(key, op)
-                .map_err(|e| {
-                    debug!("DELETE[{}] delete error: {}", key, e);
-                })
-                .unwrap_or_else(|_| 0)
-        }))
-        .await
-        .iter()
-        .sum();
-        Ok(total_count)
     }
 
     async fn delete_single(&self, key: BobKey, operation: Operation) -> Result<u64, Error> {

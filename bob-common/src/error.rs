@@ -138,7 +138,7 @@ impl From<Error> for Status {
             )),
             Kind::DisksEventsLogger(msg) => {
                 Self::internal(format!("disk events logger error: {}", msg))
-            },
+            }
             Kind::Unauthorized => Self::unauthenticated("Unauthorized"),
         }
     }

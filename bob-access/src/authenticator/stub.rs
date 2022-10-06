@@ -1,6 +1,6 @@
 use crate::{credentials::Credentials, error::Error, permissions::Permissions};
 
-use super::{Authenticator, AuthenticationType};
+use super::{AuthenticationType, Authenticator};
 
 #[derive(Debug, Default, Clone)]
 pub struct Stub {}

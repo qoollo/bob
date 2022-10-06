@@ -1,9 +1,13 @@
 use bob::{
-    build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
-    VirtualMapper, BackendType, FactoryTlsConfig,
+    build_info::BuildInfo, init_counters, BackendType, BobApiServer, BobServer, ClusterConfig,
+    Factory, FactoryTlsConfig, Grinder, NodeConfig, VirtualMapper,
 };
-use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap, AuthenticationType};
+use bob_access::{
+    AuthenticationType, Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap,
+};
 use clap::{crate_version, App, Arg, ArgMatches};
+use std::fs::create_dir;
+use std::path::PathBuf;
 use std::{
     collections::HashMap,
     error::Error as ErrorTrait,
@@ -11,8 +15,6 @@ use std::{
 };
 use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::Server;
-use std::path::PathBuf;
-use std::fs::create_dir;
 
 #[macro_use]
 extern crate log;
@@ -102,7 +104,15 @@ async fn main() {
     match authentication_type {
         AuthenticationType::None => {
             let authenticator = StubAuthenticator::new();
-            run_server(node, authenticator, mapper, http_api_address, http_api_port, addr).await;
+            run_server(
+                node,
+                authenticator,
+                mapper,
+                http_api_address,
+                http_api_port,
+                addr,
+            )
+            .await;
         }
         AuthenticationType::Basic => {
             let users_storage =
@@ -112,7 +122,15 @@ async fn main() {
             authenticator
                 .set_nodes_credentials(nodes_credentials)
                 .expect("failed to gen nodes credentials from cluster config");
-            run_server(node, authenticator, mapper, http_api_address, http_api_port, addr).await;
+            run_server(
+                node,
+                authenticator,
+                mapper,
+                http_api_address,
+                http_api_port,
+                addr,
+            )
+            .await;
         }
         _ => {
             warn!("valid authentication type not provided");
@@ -120,23 +138,45 @@ async fn main() {
     }
 }
 
-async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
+async fn run_server<A: Authenticator>(
+    node: NodeConfig,
+    authenticator: A,
+    mapper: VirtualMapper,
+    address: IpAddr,
+    port: u16,
+    addr: SocketAddr,
+) {
     let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
     let handle = Handle::current();
-    let factory_tls_config = node.tls_config().as_ref().and_then(|tls_config| tls_config.grpc_config())
+    let factory_tls_config = node
+        .tls_config()
+        .as_ref()
+        .and_then(|tls_config| tls_config.grpc_config())
         .map(|tls_config| {
-            let ca_cert = std::fs::read(&tls_config.ca_cert_path).expect("can not read ca certificate from file");
+            let ca_cert = std::fs::read(&tls_config.ca_cert_path)
+                .expect("can not read ca certificate from file");
             FactoryTlsConfig {
                 ca_cert,
                 tls_domain_name: tls_config.domain_name.clone(),
             }
         });
-    let factory = Factory::new(node.operation_timeout(), metrics, node.name().into(), factory_tls_config);
+    let factory = Factory::new(
+        node.operation_timeout(),
+        metrics,
+        node.name().into(),
+        factory_tls_config,
+    );
 
     let mut server_builder = Server::builder();
-    if let Some(node_tls_config) = node.tls_config().as_ref().and_then(|tls_config| tls_config.grpc_config()) {
+    if let Some(node_tls_config) = node
+        .tls_config()
+        .as_ref()
+        .and_then(|tls_config| tls_config.grpc_config())
+    {
         let tls_config = node_tls_config.to_server_tls_config();
-        server_builder = server_builder.tls_config(tls_config).expect("grpc tls config");
+        server_builder = server_builder
+            .tls_config(tls_config)
+            .expect("grpc tls config");
     }
 
     let bob = BobServer::new(
@@ -188,7 +228,7 @@ async fn nodes_credentials_from_cluster_config(
         match nodes_creds.get_mut(&ip) {
             Some(creds) => {
                 creds.push(cred);
-            },
+            }
             None => {
                 let creds = vec![cred];
                 nodes_creds.insert(ip, creds);
@@ -250,8 +290,14 @@ fn check_folders(node: &NodeConfig, init_flag: bool) {
                     create_dir(bob_path).expect("Failed to create bob folder");
                 } else {
                     let bob_path_str = bob_path.to_str().unwrap();
-                    error!("{} folder doesn't exist, try to use --init_folders flag", bob_path_str);
-                    panic!("{} folder doesn't exist, try to use --init_folders flag", bob_path_str);
+                    error!(
+                        "{} folder doesn't exist, try to use --init_folders flag",
+                        bob_path_str
+                    );
+                    panic!(
+                        "{} folder doesn't exist, try to use --init_folders flag",
+                        bob_path_str
+                    );
                 }
             }
 
@@ -263,8 +309,14 @@ fn check_folders(node: &NodeConfig, init_flag: bool) {
                     create_dir(alien_path).expect("Failed to create alien folder");
                 } else {
                     let alien_path_str = alien_path.to_str().unwrap();
-                    error!("{} folder doesn't exist, try to use --init_folders flag", alien_path_str);
-                    panic!("{} folder doesn't exist, try to use --init_folders flag", alien_path_str);
+                    error!(
+                        "{} folder doesn't exist, try to use --init_folders flag",
+                        alien_path_str
+                    );
+                    panic!(
+                        "{} folder doesn't exist, try to use --init_folders flag",
+                        alien_path_str
+                    );
                 }
             }
         }

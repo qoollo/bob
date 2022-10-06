@@ -76,7 +76,9 @@ pub(super) fn parse_users(
         if let Some(claims) = u.claims {
             claims.update_perms(&mut perms);
         }
-        let hash = u.password_hash.map(|h| Vec::from_hex(h).expect("Invalid sha512 hash"));
+        let hash = u
+            .password_hash
+            .map(|h| Vec::from_hex(h).expect("Invalid sha512 hash"));
         if let Some(false) = hash.as_ref().map(|hash| hash.len() == 64) {
             return Err(Error::Validation(format!(
                 "User's {} password_hash size is not 512 bits",

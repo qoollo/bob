@@ -1,13 +1,13 @@
 use crate::prelude::*;
 use bob_common::metrics::{
-    BOB_RAM, CPU_IOWAIT, CPU_LOAD, DESCRIPTORS_AMOUNT, AVAILABLE_RAM, FREE_SPACE, HW_DISKS_FOLDER,
+    AVAILABLE_RAM, BOB_RAM, CPU_IOWAIT, CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_SPACE, HW_DISKS_FOLDER,
     TOTAL_RAM, TOTAL_SPACE, USED_RAM, USED_SPACE,
 };
 use libc::statvfs;
+use std::fs::read_to_string;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
-use std::fs::read_to_string;
 use sysinfo::{DiskExt, ProcessExt, RefreshKind, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
@@ -89,10 +89,10 @@ impl HWMetricsCollector {
             match cpu_s_c.iowait() {
                 Ok(iowait) => {
                     gauge!(CPU_IOWAIT, iowait);
-                },
+                }
                 Err(CommandError::Primary(e)) => {
                     warn!("Error while collecting cpu iowait: {}", e);
-                },
+                }
                 Err(CommandError::Unavailable) => (),
             }
 
@@ -107,7 +107,10 @@ impl HWMetricsCollector {
             let _ = Self::update_space_metrics_from_disks(&disks);
             let available_mem = kb_to_b(sys.available_memory());
             let used_mem = total_mem - available_mem;
-            debug!("used mem in bytes: {} | available mem in bytes: {}", used_mem, available_mem);
+            debug!(
+                "used mem in bytes: {} | available mem in bytes: {}",
+                used_mem, available_mem
+            );
             gauge!(USED_RAM, used_mem as f64);
             gauge!(AVAILABLE_RAM, available_mem as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
@@ -188,9 +191,7 @@ struct CPUStatCollector {
 
 impl CPUStatCollector {
     fn new() -> CPUStatCollector {
-        CPUStatCollector {
-            procfs_avl: true
-        }
+        CPUStatCollector { procfs_avl: true }
     }
 
     fn stat_cpu_line() -> Result<String, String> {
@@ -223,7 +224,7 @@ impl CPUStatCollector {
                                 if i == CPU_IOWAIT_COLUMN {
                                     f_iowait = val;
                                 }
-                            },
+                            }
                             Err(_) => {
                                 let msg = format!("Can't parse {}", CPU_STAT_FILE);
                                 err = Some(msg);
@@ -238,7 +239,7 @@ impl CPUStatCollector {
                     let msg = format!("CPU stat format in {} changed", CPU_STAT_FILE);
                     err = Some(msg);
                 }
-            },
+            }
             Err(e) => {
                 err = Some(e);
             }
@@ -255,13 +256,11 @@ struct DiffContainer<T> {
 }
 
 impl<T> DiffContainer<T>
-where T: std::ops::Sub<Output = T> +
-         Copy,
+where
+    T: std::ops::Sub<Output = T> + Copy,
 {
     fn new() -> Self {
-        Self {
-            last: None,
-        }
+        Self { last: None }
     }
 
     fn diff(&mut self, new: T) -> Option<T> {
@@ -301,7 +300,7 @@ struct DiskStatsContainer {
     stats: DiffContainer<DiskStats>,
 }
 
-impl  DiskStatsContainer {
+impl DiskStatsContainer {
     fn new(prefix: String) -> Self {
         Self {
             prefix,
@@ -349,7 +348,7 @@ impl DiskStatCollector {
             parts[7].parse::<u64>(),
         ) {
             new_ds.reads = r_ios;
-            new_ds.writes = w_ios;  
+            new_ds.writes = w_ios;
             if new_ds.extended {
                 // time spend doing i/o operations is in 12th column
                 if let Ok(io_time) = parts[12].parse::<u64>() {
@@ -379,7 +378,7 @@ impl DiskStatCollector {
                     // compare device name from 2nd column with disk device names
                     if let Some(ds) = self.disk_metric_data.get_mut(lsp[2]) {
                         let new_ds = Self::parse_stat_line(lsp)?;
-                        
+
                         if let Some(diff) = ds.stats.diff(new_ds) {
                             let iops = (diff.reads + diff.writes) as f64 / elapsed;
                             let gauge_name = format!("{}_iops", ds.prefix);
@@ -395,7 +394,10 @@ impl DiskStatCollector {
                     }
                 } else {
                     self.procfs_avl = false;
-                    let msg = format!("Not enough diskstat info in {} for metrics calculation", DISK_STAT_FILE);
+                    let msg = format!(
+                        "Not enough diskstat info in {} for metrics calculation",
+                        DISK_STAT_FILE
+                    );
                     return Err(CommandError::Primary(msg));
                 }
             }

@@ -51,7 +51,7 @@ default-features = false
 features = ["signal"]
 
 [dependencies.pearl]
-version = "0.13.0"
+path = "../../pearl"
 
 [build-dependencies]
 tonic-build = "0.6"
