@@ -52,12 +52,21 @@ impl GetOptions {
 impl DeleteOptions {
     pub fn new_all() -> Self {
         Self {
+            remote_nodes: vec![],
             force_node: false,
         }
     }
 
     pub fn new_local() -> Self {
         Self {
+            remote_nodes: vec![],
+            force_node: true,
+        }
+    }
+
+    pub fn new_alien(remote_nodes: Vec<String>) -> Self {
+        Self {
+            remote_nodes,
             force_node: true,
         }
     }
