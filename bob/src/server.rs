@@ -6,7 +6,7 @@ use tokio::{runtime::Handle, task::block_in_place};
 use crate::prelude::*;
 
 use super::grinder::Grinder;
-use bob_common::{metrics::SharedMetricsSnapshot, configs::node::TLSConfig};
+use bob_common::{configs::node::TLSConfig, metrics::SharedMetricsSnapshot};
 
 /// Struct contains `Grinder` and receives incomming GRPC requests
 #[derive(Clone, Debug)]
@@ -246,9 +246,11 @@ where
     async fn delete(&self, req: Request<DeleteRequest>) -> ApiResult<OpStatus> {
         let req = req.into_inner();
         let DeleteRequest { key, options } = req;
-        if let Some((key, options)) = key.zip(options) {
+        if let Some(key) = key {
             let sw = Stopwatch::start_new();
-            self.grinder.delete(key.key.into(), options).await?;
+            self.grinder
+                .delete(key.key.into(), BobOptions::new_delete(options))
+                .await?;
             let elapsed = sw.elapsed();
             debug!("DELETE-OK dt: {:?}", elapsed);
             Ok(Response::new(OpStatus { error: None }))

@@ -2,7 +2,7 @@ use crate::{
     mapper::NodesMap,
     node::{Disk as NodeDisk, Node},
 };
-use bob_grpc::{GetOptions, GetSource, PutOptions};
+use bob_grpc::{DeleteOptions, GetOptions, GetSource, PutOptions};
 use std::{
     convert::TryInto,
     fmt::{Debug, Formatter, Result as FmtResult},
@@ -158,6 +158,21 @@ pub struct BobOptions {
 
 impl BobOptions {
     pub fn new_put(options: Option<PutOptions>) -> Self {
+        let mut flags = BobFlags::default();
+        let remote_nodes = options.map_or(Vec::new(), |vopts| {
+            if vopts.force_node {
+                flags |= BobFlags::FORCE_NODE;
+            }
+            vopts.remote_nodes
+        });
+        BobOptions {
+            flags,
+            remote_nodes,
+            get_source: None,
+        }
+    }
+
+    pub fn new_delete(options: Option<DeleteOptions>) -> Self {
         let mut flags = BobFlags::default();
         let remote_nodes = options.map_or(Vec::new(), |vopts| {
             if vopts.force_node {

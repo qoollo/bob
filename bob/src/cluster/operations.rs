@@ -281,8 +281,11 @@ pub(crate) async fn put_local_node(
 pub(crate) async fn delete_at_local_node(
     backend: &Backend,
     key: BobKey,
+    vdisk_id: VDiskId,
+    disk_path: DiskPath,
 ) -> Result<(), Error> {
     debug!("local node has vdisk replica, put local");
-    backend.delete(key).await?;
+    let op = Operation::new_local(vdisk_id, disk_path);
+    backend.delete_local(key, op).await?;
     Ok(())
 }

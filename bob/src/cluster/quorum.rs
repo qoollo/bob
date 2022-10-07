@@ -2,9 +2,9 @@ use crate::prelude::*;
 
 use super::{
     operations::{
-        delete_at_nodes, delete_at_local_node, group_keys_by_nodes, lookup_local_alien, lookup_local_node,
-        lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all, put_local_node,
-        put_sup_nodes, Tasks,
+        delete_at_local_node, delete_at_nodes, group_keys_by_nodes, lookup_local_alien,
+        lookup_local_node, lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all,
+        put_local_node, put_sup_nodes, Tasks,
     },
     Cluster,
 };
@@ -80,12 +80,17 @@ impl Quorum {
 
     async fn delete_on_nodes(&self, key: BobKey) -> Result<(), Error> {
         debug!("DELETE[{}] ~~~DELETE LOCAL NODE FIRST~~~", key);
-        let res = delete_at_local_node(&self.backend, key).await;
-        let local_delete_ok = if let Err(e) = res {
-            error!("{}", e);
-            false
+        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let local_delete_ok = if let Some(disk_path) = disk_path {
+            let res = delete_at_local_node(&self.backend, key, vdisk_id, disk_path).await;
+            if let Err(e) = res {
+                error!("{}", e);
+                false
+            } else {
+                debug!("DELETE[{}] local node delete successful", key);
+                true
+            }
         } else {
-            debug!("DELETE[{}] local node delete successful", key);
             true
         };
 

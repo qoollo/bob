@@ -1,7 +1,8 @@
 use crate::prelude::*;
 use std::{
     collections::HashMap,
-    fmt::{Display, Formatter, Result as FMTResult}, hash::Hash,
+    fmt::{Display, Formatter, Result as FMTResult},
+    hash::Hash,
 };
 
 use crate::{
@@ -441,7 +442,7 @@ impl Backend {
         self.inner.free_least_used_resources().await
     }
 
-    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
+    pub async fn delete(&self, key: BobKey, options: BobOptions) -> Result<u64, Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         let mut ops = vec![];
         if let Some(path) = disk_path {
@@ -460,6 +461,10 @@ impl Backend {
         .iter()
         .sum();
         Ok(total_count)
+    }
+
+    pub async fn delete_local(&self, key: BobKey, op: Operation) -> Result<u64, Error> {
+        self.delete_single(key, op).await
     }
 
     async fn delete_single(&self, key: BobKey, operation: Operation) -> Result<u64, Error> {
