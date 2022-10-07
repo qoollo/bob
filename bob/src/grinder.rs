@@ -229,7 +229,7 @@ impl Grinder {
                 counter!(CLIENT_DELETE_ERROR_COUNT_COUNTER, 1);
             }
             timing!(CLIENT_DELETE_TIMER, sw.elapsed().as_nanos() as f64);
-            result.map(|_| ())
+            result
         } else {
             counter!(GRINDER_DELETE_COUNTER, 1);
             let sw = Stopwatch::start_new();

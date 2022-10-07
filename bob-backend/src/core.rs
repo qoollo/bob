@@ -442,25 +442,25 @@ impl Backend {
         self.inner.free_least_used_resources().await
     }
 
-    pub async fn delete(&self, key: BobKey, options: BobOptions) -> Result<u64, Error> {
+    pub async fn delete(&self, key: BobKey, options: BobOptions) -> Result<(), Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        let mut ops = vec![];
-        if let Some(path) = disk_path {
-            ops.push(Operation::new_local(vdisk_id, path.clone()));
+        if !options.remote_nodes().is_empty() {
+            for node_name in options.remote_nodes() {
+                let mut op = Operation::new_alien(vdisk_id);
+                op.set_remote_folder(node_name.to_owned());
+                self.delete_single(key, op).await?;
+            }
+            Ok(())
+        } else if let Some(path) = disk_path {
+            let op = Operation::new_local(vdisk_id, path);
+            self.delete_single(key, op).await.map(|_| ())
+        } else {
+            error!(
+                "DELETE[{}] dont now what to do with data: op: {:?}. Data is not local and alien",
+                key, options
+            );
+            Err(Error::internal())
         }
-        ops.push(Operation::new_alien(vdisk_id));
-        let total_count = futures::future::join_all(ops.into_iter().map(|op| {
-            trace!("DELETE[{}] try delete", key);
-            self.delete_single(key, op)
-                .map_err(|e| {
-                    debug!("DELETE[{}] delete error: {}", key, e);
-                })
-                .unwrap_or_else(|_| 0)
-        }))
-        .await
-        .iter()
-        .sum();
-        Ok(total_count)
     }
 
     pub async fn delete_local(&self, key: BobKey, op: Operation) -> Result<u64, Error> {
