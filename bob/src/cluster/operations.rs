@@ -241,6 +241,31 @@ pub(crate) async fn put_local_all(
     }
 }
 
+pub(crate) async fn delete_local_all(
+    backend: &Backend,
+    node_names: Vec<String>,
+    key: BobKey,
+    operation: Operation,
+) -> Result<(), PutOptions> {
+    let mut add_nodes = vec![];
+    for node_name in node_names {
+        let mut op = operation.clone();
+        op.set_remote_folder(node_name.clone());
+        debug!("DELETE[{}] delete to local alien: {:?}", key, node_name);
+
+        if let Err(e) = backend.delete_local(key, op).await {
+            debug!("DELETE[{}] local support delete result: {:?}", key, e);
+            add_nodes.push(node_name);
+        }
+    }
+
+    if add_nodes.is_empty() {
+        Ok(())
+    } else {
+        Err(PutOptions::new_alien(add_nodes))
+    }
+}
+
 pub(crate) async fn put_sup_nodes(
     key: BobKey,
     data: BobData,
@@ -252,6 +277,29 @@ pub(crate) async fn put_sup_nodes(
             Box::pin(client.put(key, data.clone(), options.clone()))
         })
         .await;
+        debug!("{:?}", result);
+        if let Err(e) = result {
+            let target_node = options.remote_nodes[0].to_owned();
+            ret.push(NodeOutput::new(target_node, e.into_inner()));
+        }
+    }
+
+    if ret.is_empty() {
+        Ok(())
+    } else {
+        Err(ret)
+    }
+}
+
+pub(crate) async fn delete_sup_nodes(
+    key: BobKey,
+    requests: &[(&Node, DeleteOptions)],
+) -> Result<(), Vec<NodeOutput<Error>>> {
+    let mut ret = vec![];
+    for (node, options) in requests {
+        let result =
+            LinkManager::call_node(node, |client| Box::pin(client.delete(key, options.clone())))
+                .await;
         debug!("{:?}", result);
         if let Err(e) = result {
             let target_node = options.remote_nodes[0].to_owned();
