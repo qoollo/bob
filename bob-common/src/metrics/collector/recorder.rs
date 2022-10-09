@@ -1,23 +1,42 @@
 use metrics::{GaugeValue, Key, Recorder};
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::{Sender, error::TrySendError};
 
 use super::snapshot::{Metric, MetricInner};
+use crate::interval_logger::IntervalLoggerSafe;
+
+const ERROR_LOG_INTERVAL_MS: u64 = 5000;
+
+struct PushMetricError {
+    err: TrySendError<Metric>,
+}
+
+impl Display for PushMetricError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FMTResult {
+        write!(
+            f,
+            "Can't send metric to thread, which processing metrics: {}",
+            self.err
+        )
+    }
+}
 
 pub(crate) struct MetricsRecorder {
     tx: Sender<Metric>,
+    error_logger: IntervalLoggerSafe<PushMetricError>
 }
 
 impl MetricsRecorder {
     pub(super) fn new(tx: Sender<Metric>) -> Self {
-        Self { tx }
+        Self {
+            tx,
+            error_logger: IntervalLoggerSafe::new(ERROR_LOG_INTERVAL_MS, log::Level::Error),
+        }
     }
 
     fn push_metric(&self, m: Metric) {
-        if let Err(e) = self.tx.try_send(m) {
-            error!(
-                "Can't send metric to thread, which processing metrics: {}",
-                e
-            );
+        if let Err(err) = self.tx.try_send(m) {
+            let action = PushMetricError {err};
+            self.error_logger.report_error(action);
         }
     }
 }
