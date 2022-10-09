@@ -1,13 +1,15 @@
 use metrics::{GaugeValue, Key, Recorder};
-use tokio::sync::mpsc::{Sender, error::TrySendError};
+use tokio::sync::mpsc::Sender;
+use std::{fmt::{Display, Formatter, Result as FMTResult}};
 
 use super::snapshot::{Metric, MetricInner};
 use crate::interval_logger::IntervalLoggerSafe;
 
 const ERROR_LOG_INTERVAL_MS: u64 = 5000;
 
+#[derive(Hash, PartialEq, Eq)]
 struct PushMetricError {
-    err: TrySendError<Metric>,
+    err: String,
 }
 
 impl Display for PushMetricError {
@@ -34,8 +36,8 @@ impl MetricsRecorder {
     }
 
     fn push_metric(&self, m: Metric) {
-        if let Err(err) = self.tx.try_send(m) {
-            let action = PushMetricError {err};
+        if let Err(e) = self.tx.try_send(m) {
+            let action = PushMetricError {err: e.to_string()};
             self.error_logger.report_error(action);
         }
     }
