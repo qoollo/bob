@@ -618,16 +618,19 @@ impl DiskController {
 
     pub(crate) async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            let vdisk_group = self.find_group(&op).await;
-            if let Ok(group) = vdisk_group {
-                group.delete(key).await
-            } else {
-                debug!(
-                    "DELETE[alien][{}] No alien group has been created for vdisk #{}",
-                    key,
-                    op.vdisk_id()
-                );
-                Err(Error::key_not_found(key))
+            let vdisk_group = self.get_or_create_pearl(&op).await;
+            match vdisk_group {
+                Ok(group) => match group.delete(key).await {
+                    Err(e) => Err(self.process_error(e).await),
+                    Ok(x) => Ok(x),
+                },
+                Err(e) => {
+                    error!(
+                        "DELETE[alien][{}] Cannot find group, op: {:?}, err: {}",
+                        key, op, e
+                    );
+                    Err(Error::vdisk_not_found(op.vdisk_id()))
+                }
             }
         } else {
             Err(Error::dc_is_not_available())
