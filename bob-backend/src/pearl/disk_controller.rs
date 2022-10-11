@@ -606,7 +606,7 @@ impl DiskController {
                 .find(|g| g.can_process_operation(&op))
                 .cloned();
             if let Some(group) = vdisk_group {
-                group.delete(key).await
+                group.delete(key, false).await
             } else {
                 error!("DELETE[{}] Cannot find storage, operation: {:?}", key, op);
                 Err(Error::vdisk_not_found(op.vdisk_id()))
@@ -620,7 +620,7 @@ impl DiskController {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = self.get_or_create_pearl(&op).await;
             match vdisk_group {
-                Ok(group) => match group.delete(key).await {
+                Ok(group) => match group.delete(key, true).await {
                     Err(e) => Err(self.process_error(e).await),
                     Ok(x) => Ok(x),
                 },

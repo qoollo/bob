@@ -253,6 +253,7 @@ impl Group {
     pub async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         let holders = self.holders.read().await;
         let mut results = vec![];
+        let mut max_ts = 0; // In case of multiple holders with same ts and delete action
         for holder in holders
             .iter_possible_childs_rev(&Key::from(key))
             .map(|(_, x)| &x.data)
@@ -262,11 +263,14 @@ impl Group {
                 Ok(data) => match data {
                     ReadResult::Found(data) => {
                         trace!("get data: {:?} from: {:?}", data, holder);
+                        max_ts = max_ts.max(data.meta().timestamp());
                         results.push(data);
                     }
-                    ReadResult::Deleted => {
-                        trace!("{} is deleted in {:?}", key, holder);
-                        break;
+                    ReadResult::Deleted(ts) => {
+                        println!("{} is deleted in {:?} at {}", key, holder, ts);
+                        if ts >= max_ts {
+                            return Err(Error::key_not_found(key));
+                        }
                     }
                     ReadResult::NotFound => {
                         debug!("{} not found in {:?}", key, holder)
@@ -303,12 +307,21 @@ impl Group {
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
+            let mut max_ts = 0; // In case of multiple holders with same ts and delete action
             for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
             {
                 if !exist[ind] {
                     match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
-                        ReadResult::Found(_) => exist[ind] = true,
-                        ReadResult::Deleted => break,
+                        ReadResult::Found(ts) => {
+                            max_ts = max_ts.max(ts);
+                            exist[ind] = true;
+                        }
+                        ReadResult::Deleted(ts) => {
+                            if ts >= max_ts {
+                                exist[ind] = false;
+                                break;
+                            }
+                        }
                         ReadResult::NotFound => continue,
                     }
                 }
@@ -568,11 +581,11 @@ impl Group {
         });
     }
 
-    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
+    pub async fn delete(&self, key: BobKey, is_alien: bool) -> Result<u64, Error> {
         let holders = self.holders.read().await;
         let mut total_count = 0;
         for holder in holders.iter() {
-            let delete = Self::delete_common(holder.clone(), key).await;
+            let delete = Self::delete_common(holder.clone(), key, false).await;
             match delete {
                 Ok(count) => {
                     trace!("delete data: {:?} from: {:?}", count, holder);
@@ -591,8 +604,8 @@ impl Group {
         Ok(total_count)
     }
 
-    async fn delete_common(holder: Holder, key: BobKey) -> Result<u64, Error> {
-        let result = holder.delete(key).await;
+    async fn delete_common(holder: Holder, key: BobKey, is_alien: bool) -> Result<u64, Error> {
+        let result = holder.delete(key, is_alien).await;
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {
                 holder.try_reinit().await?;

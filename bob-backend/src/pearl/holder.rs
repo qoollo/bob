@@ -269,9 +269,9 @@ impl Holder {
                         counter!(PEARL_GET_BYTES_COUNTER, v.len() as u64);
                         Data::from_bytes(&v).map(|d| ReadResult::Found(d))
                     }
-                    ReadResult::Deleted => {
+                    ReadResult::Deleted(ts) => {
                         counter!(PEARL_GET_ERROR_COUNTER, 1);
-                        Ok(ReadResult::Deleted)
+                        Ok(ReadResult::Deleted(ts))
                     }
                     ReadResult::NotFound => {
                         counter!(PEARL_GET_ERROR_COUNTER, 1);
@@ -309,7 +309,7 @@ impl Holder {
         }
     }
 
-    pub async fn exist(&self, key: BobKey) -> Result<ReadResult<()>, Error> {
+    pub async fn exist(&self, key: BobKey) -> Result<ReadResult<u64>, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
             trace!("Vdisk: {}, check key: {}", self.vdisk, key);
@@ -454,13 +454,13 @@ impl Holder {
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
 
-    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
+    pub async fn delete(&self, key: BobKey, is_alien: bool) -> Result<u64, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
             let storage = state.get();
             trace!("Vdisk: {}, delete key: {}", self.vdisk, key);
             let res = storage
-                .mark_all_as_deleted(Key::from(key))
+                .mark_all_as_deleted(Key::from(key), is_alien)
                 .await
                 .map_err(|e| {
                     trace!("error on delete: {:?}", e);
