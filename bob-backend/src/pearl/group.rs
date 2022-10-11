@@ -268,7 +268,7 @@ impl Group {
                         results.push(data);
                     }
                     ReadResult::Deleted(ts) => {
-                        println!("{} is deleted in {:?} at {}", key, holder, ts);
+                        trace!("{} is deleted in {:?} at {}", key, holder, ts);
                         if ts >= max_ts {
                             return Err(Error::key_not_found(key));
                         }
