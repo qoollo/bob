@@ -132,24 +132,24 @@ impl Group {
     // find in all pearls actual pearl and try create new
     async fn get_actual_holder(
         &self,
-        data: &BobData,
+        ts: u64,
         timestamp_config: StartTimestampConfig,
     ) -> Result<(ChildId, Holder), Error> {
-        self.find_actual_holder(data)
+        self.find_actual_holder(ts)
             .or_else(|e| {
                 debug!("cannot find pearl: {}", e);
-                self.create_write_pearl(data.meta().timestamp(), timestamp_config)
+                self.create_write_pearl(ts, timestamp_config)
             })
             .await
     }
 
     // find in all pearls actual pearl
-    async fn find_actual_holder(&self, data: &BobData) -> BackendResult<(ChildId, Holder)> {
+    async fn find_actual_holder(&self, ts: u64) -> BackendResult<(ChildId, Holder)> {
         let holders = self.holders.read().await;
         let mut holders_for_time: Vec<(usize, &Holder)> = holders
             .iter()
             .enumerate()
-            .filter(|h| h.1.gets_into_interval(data.meta().timestamp()))
+            .filter(|h| h.1.gets_into_interval(ts))
             .collect();
 
         if !holders_for_time.is_empty() {
@@ -159,7 +159,7 @@ impl Group {
         } else {
             Err(Error::failed(format!(
                 "cannot find actual pearl folder. meta: {}",
-                data.meta().timestamp()
+                ts
             )))
         }
     }
@@ -223,7 +223,9 @@ impl Group {
         data: BobData,
         timestamp_config: StartTimestampConfig,
     ) -> Result<(), Error> {
-        let holder = self.get_actual_holder(&data, timestamp_config).await?;
+        let holder = self
+            .get_actual_holder(data.meta().timestamp(), timestamp_config)
+            .await?;
         let res = Self::put_common(&holder.1, key, data).await?;
         self.holders
             .write()
@@ -587,27 +589,59 @@ impl Group {
         });
     }
 
-    pub async fn delete(&self, key: BobKey, is_alien: bool) -> Result<u64, Error> {
-        let holders = self.holders.read().await;
-        let mut total_count = 0;
-        for holder in holders.iter() {
+    pub async fn delete(
+        &self,
+        key: BobKey,
+        is_alien: bool,
+        timestamp_config: StartTimestampConfig,
+    ) -> Result<u64, Error> {
+        let create_new = {
+            let holders = self.holders.read().await;
+            holders.len() == 0
+        };
+        if create_new {
+            let holder = self
+                .get_actual_holder(get_current_timestamp(), timestamp_config)
+                .await?
+                .1;
             let delete = Self::delete_common(holder.clone(), key, is_alien).await;
             match delete {
                 Ok(count) => {
                     trace!("delete data: {:?} from: {:?}", count, holder);
-                    total_count += count;
+                    Ok(count)
                 }
                 Err(err) => {
                     if err.is_key_not_found() {
-                        debug!("{} not found in {:?}", key, holder)
+                        debug!("{} not found in {:?}", key, holder);
+                        Ok(0)
                     } else {
                         error!("delete error: {}, from : {:?}", err, holder);
-                        return Err(err);
+                        Err(err)
                     }
                 }
             }
+        } else {
+            let holders = self.holders.read().await;
+            let mut total_count = 0;
+            for holder in holders.iter() {
+                let delete = Self::delete_common(holder.clone(), key, is_alien).await;
+                match delete {
+                    Ok(count) => {
+                        trace!("delete data: {:?} from: {:?}", count, holder);
+                        total_count += count;
+                    }
+                    Err(err) => {
+                        if err.is_key_not_found() {
+                            debug!("{} not found in {:?}", key, holder)
+                        } else {
+                            error!("delete error: {}, from : {:?}", err, holder);
+                            return Err(err);
+                        }
+                    }
+                }
+            }
+            Ok(total_count)
         }
-        Ok(total_count)
     }
 
     async fn delete_common(holder: Holder, key: BobKey, is_alien: bool) -> Result<u64, Error> {
