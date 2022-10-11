@@ -585,7 +585,7 @@ impl Group {
         let holders = self.holders.read().await;
         let mut total_count = 0;
         for holder in holders.iter() {
-            let delete = Self::delete_common(holder.clone(), key, false).await;
+            let delete = Self::delete_common(holder.clone(), key, is_alien).await;
             match delete {
                 Ok(count) => {
                     trace!("delete data: {:?} from: {:?}", count, holder);
