@@ -254,6 +254,7 @@ impl Group {
         let holders = self.holders.read().await;
         let mut results = vec![];
         let mut max_ts = 0; // In case of multiple holders with same ts and delete action
+        let mut has_error = false;
         for holder in holders
             .iter_possible_childs_rev(&Key::from(key))
             .map(|(_, x)| &x.data)
@@ -277,13 +278,18 @@ impl Group {
                     }
                 },
                 Err(err) => {
+                    has_error = true;
                     error!("get error: {}, from : {:?}", err, holder);
                 }
             }
         }
         if results.is_empty() {
-            debug!("cannot read from some pearls");
-            Err(Error::failed("cannot read from some pearls"))
+            if has_error {
+                debug!("cannot read from some pearls");
+                Err(Error::failed("cannot read from some pearls"))
+            } else {
+                Err(Error::key_not_found(key))
+            }
         } else {
             debug!("get with max timestamp, from {} results", results.len());
             Ok(Settings::choose_most_recent_data(results)
