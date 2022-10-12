@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 
-from asyncio.subprocess import PIPE
-import subprocess, argparse, shlex, sys, re
+import subprocess, argparse, shlex, sys, re, os
+
+run_options = ['put','get','exist']
 
 def run_tests(behaviour, args):
     try:
@@ -30,8 +31,6 @@ def run_tests(behaviour, args):
 def get_run_args(mode, args):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-s':args.start, '-e':args.end, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':test_run_config.get(mode)}
 
-test_run_config = {'put':'20000', 'get':'20001', 'exist':'20002'}
-
 parser = argparse.ArgumentParser(description='This script launches bob tests with given configuration.')
 parser.add_argument('-c', dest='count', type=int, help='amount of entries to process', required=True)
 parser.add_argument('-l', dest='payload', type=int, help='payload in bytes', required=True)
@@ -44,8 +43,19 @@ parser.add_argument('-k', dest='keysize', type=int, help='size of binary key (8 
 
 parsed_args = parser.parse_args()
 
+test_run_config = dict()
+iter = 0
+try:
+    for item in ['put', 'get', 'exist']:
+        test_run_config[item]=str(20000+(iter % int(os.environ['BOB_NODES_AMOUNT'])))
+        iter += 1
+except KeyError:
+    sys.exit('Nodes amount is not set.')
+except ValueError:
+    sys.exit('Amount of nodes has unexpected value.')
+
 #run put/get/exist tests
-for item in ['put','get','exist']:
+for item in run_options:
     args_str = str()
     run_args = get_run_args(item, parsed_args)
     if item == 'exist':
