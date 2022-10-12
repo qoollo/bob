@@ -78,10 +78,12 @@ except d_err.NotFound:
     sys.exit('Docker network not found')
 
 try:
-    if len(d_cli.container.list()) < os.environ['BOB_NODES_AMOUNT']:
+    if len(d_cli.container.list()) < int(os.environ['BOB_NODES_AMOUNT']):
         sys.exit('One or more bob docker containers are not running.')
 except KeyError:
     sys.exit('Nodes amount is not set.')
+except ValueError:
+    sys.exit('Amount of nodes has unexpected value.')
 
 
 
