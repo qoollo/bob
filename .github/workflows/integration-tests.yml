@@ -117,8 +117,6 @@ jobs:
     strategy:
       matrix:
         key: [8, 16]
-    env:
-      TARGET: "x86_64-unknown-linux-musl"
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repo
