@@ -9,6 +9,7 @@ Bob versions changelog
 
 #### Changed
 - Update rust edition to 2021 (#484)
+- Remove unnecessary data clone (#506)
 - Compare vdiskid first (#594)
 - Optimize finding actual holders (#595)
 

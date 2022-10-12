@@ -222,7 +222,7 @@ impl Group {
     pub async fn put(
         &self,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
         timestamp_config: StartTimestampConfig,
     ) -> Result<(), Error> {
         let holder = self.get_actual_holder(&data, timestamp_config).await?;
@@ -234,7 +234,7 @@ impl Group {
         Ok(res)
     }
 
-    async fn put_common(holder: &Holder, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put_common(holder: &Holder, key: BobKey, data: &BobData) -> Result<(), Error> {
         let result = holder.write(key, data).await;
         if let Err(e) = result {
             // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one

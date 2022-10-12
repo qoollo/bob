@@ -51,7 +51,7 @@ async fn put(key: Vec<u8>, size: usize, addr: Uri) {
         .as_secs();
     let meta = BlobMeta { timestamp };
     let blob = Blob {
-        data: vec![1; size],
+        data: vec![1; size].into(),
         meta: Some(meta),
     };
     let message = PutRequest {
