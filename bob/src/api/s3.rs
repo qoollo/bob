@@ -177,14 +177,13 @@ where
     if headers.is_source_key_set() {
         return copy_object(bob, key, headers).await;
     }
-    let data_buf = body.to_vec();
     let data = BobData::new(
-        data_buf,
+        body,
         BobMeta::new(chrono::Local::now().timestamp() as u64),
     );
 
     let opts = BobOptions::new_put(None);
-    bob.grinder().put(key, data, opts).await?;
+    bob.grinder().put(key, &data, opts).await?;
 
     Ok(StatusS3::from(StatusExt::from(StatusCode::CREATED)))
 }
@@ -260,7 +259,7 @@ async fn copy_object<A: Authenticator>(
     );
 
     let opts = BobOptions::new_put(None);
-    bob.grinder().put(key, data, opts).await?;
+    bob.grinder().put(key, &data, opts).await?;
 
     Ok(StatusS3::from(StatusExt::from(StatusCode::OK)))
 }
