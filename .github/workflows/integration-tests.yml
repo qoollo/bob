@@ -178,5 +178,5 @@ jobs:
         working-directory: ./integration-tests
       - name: Run write/read/exist tests
         run: |
-          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f {{ env.BOB_FIRST_INDEX }} -n 0.0.0.0 -k ${{ matrix.key }}
+          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 0.0.0.0 -k ${{ matrix.key }}
         working-directory: ./integration-tests
