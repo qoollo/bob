@@ -604,44 +604,37 @@ impl Group {
                 .get_actual_holder(get_current_timestamp(), timestamp_config)
                 .await?
                 .1;
+            Self::delete_in_holders(std::iter::once(&holder), key, is_alien).await
+        } else {
+            let holders = self.holders.read().await;
+            Self::delete_in_holders(holders.iter(), key, is_alien).await
+        }
+    }
+
+    async fn delete_in_holders(
+        holders: impl Iterator<Item = &Holder>,
+        key: BobKey,
+        is_alien: bool,
+    ) -> Result<u64, Error> {
+        let mut total_count = 0;
+        for holder in holders {
             let delete = Self::delete_common(holder.clone(), key, is_alien).await;
             match delete {
                 Ok(count) => {
                     trace!("delete data: {:?} from: {:?}", count, holder);
-                    Ok(count)
+                    total_count += count;
                 }
                 Err(err) => {
                     if err.is_key_not_found() {
-                        debug!("{} not found in {:?}", key, holder);
-                        Ok(0)
+                        debug!("{} not found in {:?}", key, holder)
                     } else {
                         error!("delete error: {}, from : {:?}", err, holder);
-                        Err(err)
+                        return Err(err);
                     }
                 }
             }
-        } else {
-            let holders = self.holders.read().await;
-            let mut total_count = 0;
-            for holder in holders.iter() {
-                let delete = Self::delete_common(holder.clone(), key, is_alien).await;
-                match delete {
-                    Ok(count) => {
-                        trace!("delete data: {:?} from: {:?}", count, holder);
-                        total_count += count;
-                    }
-                    Err(err) => {
-                        if err.is_key_not_found() {
-                            debug!("{} not found in {:?}", key, holder)
-                        } else {
-                            error!("delete error: {}, from : {:?}", err, holder);
-                            return Err(err);
-                        }
-                    }
-                }
-            }
-            Ok(total_count)
         }
+        Ok(total_count)
     }
 
     async fn delete_common(holder: Holder, key: BobKey, is_alien: bool) -> Result<u64, Error> {
