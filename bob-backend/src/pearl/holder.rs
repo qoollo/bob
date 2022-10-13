@@ -269,10 +269,7 @@ impl Holder {
                         counter!(PEARL_GET_BYTES_COUNTER, v.len() as u64);
                         Data::from_bytes(&v).map(|d| ReadResult::Found(d))
                     }
-                    ReadResult::Deleted(ts) => {
-                        counter!(PEARL_GET_ERROR_COUNTER, 1);
-                        Ok(ReadResult::Deleted(ts))
-                    }
+                    ReadResult::Deleted(ts) => Ok(ReadResult::Deleted(ts)),
                     ReadResult::NotFound => {
                         counter!(PEARL_GET_ERROR_COUNTER, 1);
                         Ok(ReadResult::NotFound)
