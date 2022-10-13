@@ -623,12 +623,8 @@ impl Group {
                     total_count += count;
                 }
                 Err(err) => {
-                    if err.is_key_not_found() {
-                        debug!("{} not found in {:?}", key, holder)
-                    } else {
-                        error!("delete error: {}, from : {:?}", err, holder);
-                        return Err(err);
-                    }
+                    error!("delete error: {}, from : {:?}", err, holder);
+                    return Err(err);
                 }
             }
         }
@@ -638,7 +634,7 @@ impl Group {
     async fn delete_common(holder: Holder, key: BobKey, is_alien: bool) -> Result<u64, Error> {
         let result = holder.delete(key, is_alien).await;
         if let Err(e) = &result {
-            if !e.is_key_not_found() && !e.is_not_ready() {
+            if !e.is_not_ready() {
                 holder.try_reinit().await?;
                 holder.prepare_storage().await?;
                 debug!("backend pearl group delete common storage prepared");
