@@ -255,36 +255,36 @@ impl Group {
     pub async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         let holders = self.holders.read().await;
         let mut results = vec![];
-        let mut max_ts = 0; // In case of multiple holders with same ts and delete action
+        let mut max_delete_ts = 0; // In case of multiple holders with same ts and delete action
         let mut has_error = false;
         for holder in holders
             .iter_possible_childs_rev(&Key::from(key))
             .map(|(_, x)| &x.data)
         {
-            let get = Self::get_common(&holder, key).await;
-            match get {
-                Ok(data) => match data {
-                    ReadResult::Found(data) => {
-                        trace!("get data: {:?} from: {:?}", data, holder);
-                        max_ts = max_ts.max(data.meta().timestamp());
-                        results.push(data);
-                    }
-                    ReadResult::Deleted(ts) => {
-                        trace!("{} is deleted in {:?} at {}", key, holder, ts);
-                        if ts >= max_ts {
-                            return Err(Error::key_not_found(key));
+            if holder.end_timestamp() > max_delete_ts {
+                let get = Self::get_common(&holder, key).await;
+                match get {
+                    Ok(data) => match data {
+                        ReadResult::Found(data) => {
+                            trace!("get data: {:?} from: {:?}", data, holder);
+                            results.push(data);
                         }
+                        ReadResult::Deleted(ts) => {
+                            trace!("{} is deleted in {:?} at {}", key, holder, ts);
+                            max_delete_ts = max_delete_ts.max(ts);
+                        }
+                        ReadResult::NotFound => {
+                            debug!("{} not found in {:?}", key, holder)
+                        }
+                    },
+                    Err(err) => {
+                        has_error = true;
+                        error!("get error: {}, from : {:?}", err, holder);
                     }
-                    ReadResult::NotFound => {
-                        debug!("{} not found in {:?}", key, holder)
-                    }
-                },
-                Err(err) => {
-                    has_error = true;
-                    error!("get error: {}, from : {:?}", err, holder);
                 }
             }
         }
+        results.retain(|e| e.meta().timestamp() > max_delete_ts);
         if results.is_empty() {
             if has_error {
                 debug!("cannot read from some pearls");
@@ -315,25 +315,23 @@ impl Group {
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
-            let mut max_ts = 0; // In case of multiple holders with same ts and delete action
+            let mut max_delete_ts = 0; // In case of multiple holders with same ts and delete action
+            let mut max_ts = 0;
             for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
             {
-                if !exist[ind] {
+                if holder.end_timestamp() > max_delete_ts.max(max_ts) {
                     match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
                         ReadResult::Found(ts) => {
                             max_ts = max_ts.max(ts);
-                            exist[ind] = true;
                         }
                         ReadResult::Deleted(ts) => {
-                            if ts >= max_ts {
-                                exist[ind] = false;
-                                break;
-                            }
+                            max_delete_ts = max_delete_ts.max(ts);
                         }
                         ReadResult::NotFound => continue,
                     }
                 }
             }
+            exist[ind] = max_ts > max_delete_ts;
         }
         exist
     }
