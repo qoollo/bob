@@ -28,6 +28,10 @@ on:
         description: 'Amount of records to process during test'
         required: true
         default: '10000'
+      bob_first_index:
+        description: 'Index of the first record to proceed during tests'
+        required: true
+        default: '0'
 
 jobs:
   build-binaries:
@@ -137,6 +141,8 @@ jobs:
           echo "BOB_PAYLOAD_SIZE=${INPUT:-"10240"}" >> $GITHUB_ENV
           INPUT=${{ github.event.inputs.bob_record_count }}
           echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
+          INPUT=${{ github.event.inputs.bob_first_index }}
+          echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -172,5 +178,5 @@ jobs:
         working-directory: ./integration-tests
       - name: Run write/read/exist tests
         run: |
-          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -n 0.0.0.0 -k ${{ matrix.key }}
+          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f {{ env.BOB_FIRST_INDEX }} -n 0.0.0.0 -k ${{ matrix.key }}
         working-directory: ./integration-tests
