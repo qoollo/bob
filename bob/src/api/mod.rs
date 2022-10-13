@@ -1068,12 +1068,11 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
-    let data_buf = body.to_vec();
     let meta = BobMeta::new(chrono::Local::now().timestamp() as u64);
-    let data = BobData::new(data_buf, meta);
+    let data = BobData::new(body, meta);
 
     let opts = BobOptions::new_put(None);
-    bob.grinder().put(key, data, opts).await?;
+    bob.grinder().put(key, &data, opts).await?;
     Ok(StatusCode::CREATED.into())
 }
 

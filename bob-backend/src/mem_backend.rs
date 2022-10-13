@@ -8,9 +8,9 @@ pub struct VDisk {
 }
 
 impl VDisk {
-    async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put(&self, key: BobKey, data: &BobData) -> Result<(), Error> {
         debug!("PUT[{}] to vdisk", key);
-        self.inner.write().await.insert(key, data);
+        self.inner.write().await.insert(key, data.clone());
         Ok(())
     }
 
@@ -73,7 +73,7 @@ impl MemDisk {
         }
     }
 
-    pub async fn put(&self, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Result<(), Error> {
+    pub async fn put(&self, vdisk_id: VDiskId, key: BobKey, data: &BobData) -> Result<(), Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             debug!("PUT[{}] to vdisk: {} for: {}", key, vdisk_id, self.name);
             vdisk.put(key, data).await
@@ -135,7 +135,7 @@ impl BackendStorage for MemBackend {
         Ok(())
     }
 
-    async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put(&self, op: Operation, key: BobKey, data: &BobData) -> Result<(), Error> {
         let disk_name = op.disk_name_local();
         debug!("PUT[{}][{}] to backend", key, disk_name);
         let disk = self.disks.get(&disk_name);
@@ -147,7 +147,7 @@ impl BackendStorage for MemBackend {
         }
     }
 
-    async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put_alien(&self, op: Operation, key: BobKey, data: &BobData) -> Result<(), Error> {
         debug!("PUT[{}] to backend, foreign data", key);
         self.foreign_data.put(op.vdisk_id(), key, data).await
     }
