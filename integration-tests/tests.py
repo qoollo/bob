@@ -4,6 +4,17 @@ import subprocess, argparse, shlex, sys, re, os
 
 run_options = ['put','get','exist']
 
+test_run_config = dict()
+iter = 0
+try:
+    for item in run_options:
+        test_run_config[item]=str(20000+(iter % int(os.environ['BOB_NODES_AMOUNT']))) #used in get_run_args()
+        iter += 1
+except KeyError:
+    sys.exit('Nodes amount is not set.')
+except ValueError:
+    sys.exit('Amount of nodes has unexpected value.')
+
 def run_tests(behaviour, args):
     try:
         print(f'Running bobp -b {str(behaviour)} {args.rstrip()}')
@@ -42,17 +53,6 @@ parser.add_argument('--mode', dest='mode', type=str, help='random or normal', ch
 parser.add_argument('-k', dest='keysize', type=int, help='size of binary key (8 or 16)', choices=[8, 16], default=8)
 
 parsed_args = parser.parse_args()
-
-test_run_config = dict()
-iter = 0
-try:
-    for item in ['put', 'get', 'exist']:
-        test_run_config[item]=str(20000+(iter % int(os.environ['BOB_NODES_AMOUNT'])))
-        iter += 1
-except KeyError:
-    sys.exit('Nodes amount is not set.')
-except ValueError:
-    sys.exit('Amount of nodes has unexpected value.')
 
 #run put/get/exist tests
 for item in run_options:
