@@ -102,11 +102,11 @@ impl Quorum {
                 key, total, failed_nodes,
             );
             if let Err(err) = self.delete_aliens(failed_nodes, key).await {
-                error!("PUT[{}] smth wrong with cluster/node configuration", key);
-                error!("PUT[{}] node errors: {:?}", key, errors);
+                error!("DELETE[{}] smth wrong with cluster/node configuration", key);
+                error!("DELETE[{}] node errors: {:?}", key, errors);
                 Err(err)
             } else {
-                warn!("PUT[{}] succeed, but some data get into alien", key);
+                warn!("DELETE[{}] succeed, but some data get into alien", key);
                 Ok(())
             }
         } else {
