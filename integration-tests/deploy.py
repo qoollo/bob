@@ -85,6 +85,8 @@ except KeyError:
 except ValueError:
     sys.exit('Amount of nodes has unexpected value.')
 
+#wait for bob to initilize in containers
+sleep(5)
 
 
 
