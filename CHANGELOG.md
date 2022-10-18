@@ -6,6 +6,7 @@ Bob versions changelog
 #### Added
 - Add clusterwide delete operation (#364)
 - TLS support, TLS for grpc or rest can be enabled via cluster & node config (#303)
+- Lookup existence in aliens, separate local and remote lookup (#576, #585)
 
 #### Changed
 - Update rust edition to 2021 (#484)
