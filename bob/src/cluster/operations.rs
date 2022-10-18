@@ -118,23 +118,6 @@ async fn call_at_least(
     (handles, errors)
 }
 
-pub(crate) fn group_keys_by_nodes(
-    mapper: &Virtual,
-    keys: &[BobKey],
-) -> HashMap<Vec<Node>, (Vec<BobKey>, Vec<usize>)> {
-    let mut keys_by_nodes: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
-    for (ind, &key) in keys.iter().enumerate() {
-        keys_by_nodes
-            .entry(mapper.get_target_nodes_for_key(key).to_vec())
-            .and_modify(|(keys, indexes)| {
-                keys.push(key);
-                indexes.push(ind);
-            })
-            .or_insert_with(|| (vec![key], vec![ind]));
-    }
-    keys_by_nodes
-}
-
 pub(crate) async fn lookup_local_alien(
     backend: &Backend,
     key: BobKey,
@@ -278,11 +261,46 @@ pub(crate) async fn put_local_node(
     backend.put_local(key, data, op).await
 }
 
-pub(crate) async fn delete_at_local_node(
-    backend: &Backend,
-    key: BobKey,
-) -> Result<(), Error> {
+pub(crate) async fn delete_at_local_node(backend: &Backend, key: BobKey) -> Result<(), Error> {
     debug!("local node has vdisk replica, put local");
     backend.delete(key).await?;
     Ok(())
+}
+
+pub(crate) async fn exist_on_local_node(
+    backend: &Backend,
+    keys: &[BobKey],
+) -> Result<Vec<bool>, Error> {
+    Ok(backend
+        .exist(keys, &BobOptions::new_get(Some(GetOptions::new_local())))
+        .await?)
+}
+
+pub(crate) async fn exist_on_local_alien(
+    backend: &Backend,
+    keys: &[BobKey],
+) -> Result<Vec<bool>, Error> {
+    Ok(backend
+        .exist(keys, &BobOptions::new_get(Some(GetOptions::new_alien())))
+        .await?)
+}
+
+pub(crate) async fn exist_on_remote_nodes(
+    nodes: &[Node],
+    keys: &[BobKey],
+) -> Vec<Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>> {
+    LinkManager::call_nodes(nodes.iter(), |client| {
+        Box::pin(client.exist(keys.to_vec(), GetOptions::new_local()))
+    })
+    .await
+}
+
+pub(crate) async fn exist_on_remote_aliens(
+    nodes: &[Node],
+    keys: &[BobKey],
+) -> Vec<Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>> {
+    LinkManager::call_nodes(nodes.iter(), |client| {
+        Box::pin(client.exist(keys.to_vec(), GetOptions::new_alien()))
+    })
+    .await
 }
