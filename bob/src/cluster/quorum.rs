@@ -55,12 +55,14 @@ impl Quorum {
         remote_ok_count += all_count - errors.len() - tasks.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
         if remote_ok_count + local_put_ok >= self.quorum {
+            if tasks.is_empty() {
+                return Ok(());
+            }
+
             debug!("PUT[{}] spawn {} background put tasks", key, tasks.len());
             let q = self.clone();
             let data = data.clone();
-            tokio::spawn(async move {
-                q.background_put(tasks, key, &data, failed_nodes).await
-            });
+            tokio::spawn(async move { q.background_put(tasks, key, &data, failed_nodes).await });
             Ok(())
         } else {
             warn!(
