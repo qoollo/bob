@@ -62,8 +62,8 @@ fn is_result_successful(
     0
 }
 
-async fn finish_at_least_handles(
-    handles: &mut FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>,
+pub(crate) async fn finish_at_least_handles(
+    handles: &mut Tasks,
     at_least: usize,
 ) -> Vec<NodeOutput<Error>> {
     let mut ok_count = 0;
@@ -278,10 +278,7 @@ pub(crate) async fn put_local_node(
     backend.put_local(key, data, op).await
 }
 
-pub(crate) async fn delete_at_local_node(
-    backend: &Backend,
-    key: BobKey,
-) -> Result<(), Error> {
+pub(crate) async fn delete_at_local_node(backend: &Backend, key: BobKey) -> Result<(), Error> {
     debug!("local node has vdisk replica, put local");
     backend.delete(key).await?;
     Ok(())

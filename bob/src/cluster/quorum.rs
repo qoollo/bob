@@ -2,9 +2,9 @@ use crate::prelude::*;
 
 use super::{
     operations::{
-        delete_at_nodes, delete_at_local_node, group_keys_by_nodes, lookup_local_alien, lookup_local_node,
-        lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all, put_local_node,
-        put_sup_nodes, Tasks,
+        delete_at_local_node, delete_at_nodes, finish_at_least_handles, group_keys_by_nodes,
+        lookup_local_alien, lookup_local_node, lookup_remote_aliens, lookup_remote_nodes,
+        put_at_least, put_local_all, put_local_node, put_sup_nodes, Tasks,
     },
     Cluster,
 };
@@ -30,27 +30,34 @@ impl Quorum {
         debug!("PUT[{}] ~~~PUT LOCAL NODE FIRST~~~", key);
         let mut local_put_ok = 0_usize;
         let mut remote_ok_count = 0_usize;
-        let mut at_least = self.quorum;
+        let at_least = self.quorum;
         let mut failed_nodes = Vec::new();
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        if let Some(path) = disk_path {
+        let local_put_task = disk_path.map(|path| {
             debug!("disk path is present, try put local");
-            let res = put_local_node(&self.backend, key, data, vdisk_id, path).await;
-            if let Err(e) = res {
+            put_local_node(&self.backend, key, data, vdisk_id, path).boxed()
+        });
+        debug!(
+            "PUT[{}] need at least {} additional puts",
+            key,
+            at_least - 1
+        );
+        debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
+        let (mut tasks, mut errors) = self.put_remote_nodes(key, data, at_least - 1).await;
+        if let Some(task) = local_put_task {
+            let local_put = task.await;
+            if let Err(e) = local_put {
                 error!("{}", e);
                 failed_nodes.push(self.mapper.local_node_name().to_owned());
+                debug!("PUT[{}] local failed, put another remote", key);
             } else {
                 local_put_ok += 1;
-                at_least -= 1;
                 debug!("PUT[{}] local node put successful", key);
             }
-        } else {
-            debug!("skip local put");
+        };
+        if local_put_ok == 0 {
+            errors.extend(finish_at_least_handles(&mut tasks, 1).await.into_iter());
         }
-        debug!("PUT[{}] need at least {} additional puts", key, at_least);
-
-        debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
-        let (tasks, errors) = self.put_remote_nodes(key, data, at_least).await;
         let all_count = self.mapper.get_target_nodes_for_key(key).len();
         remote_ok_count += all_count - errors.len() - tasks.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
