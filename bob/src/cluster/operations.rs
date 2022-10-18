@@ -81,7 +81,7 @@ async fn finish_at_least_handles(
 
 pub(crate) async fn put_at_least(
     key: BobKey,
-    data: BobData,
+    data: &BobData,
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
     options: PutOptions,
@@ -202,7 +202,7 @@ pub(crate) async fn put_local_all(
     backend: &Backend,
     node_names: Vec<String>,
     key: BobKey,
-    data: BobData,
+    data: &BobData,
     operation: Operation,
 ) -> Result<(), PutOptions> {
     let mut add_nodes = vec![];
@@ -211,7 +211,7 @@ pub(crate) async fn put_local_all(
         op.set_remote_folder(node_name.clone());
         debug!("PUT[{}] put to local alien: {:?}", key, node_name);
 
-        if let Err(e) = backend.put_local(key, data.clone(), op).await {
+        if let Err(e) = backend.put_local(key, data, op).await {
             debug!("PUT[{}] local support put result: {:?}", key, e);
             add_nodes.push(node_name);
         }
@@ -226,7 +226,7 @@ pub(crate) async fn put_local_all(
 
 pub(crate) async fn put_sup_nodes(
     key: BobKey,
-    data: BobData,
+    data: &BobData,
     requests: &[(&Node, PutOptions)],
 ) -> Result<(), Vec<NodeOutput<Error>>> {
     let mut ret = vec![];
@@ -252,7 +252,7 @@ pub(crate) async fn put_sup_nodes(
 pub(crate) async fn put_local_node(
     backend: &Backend,
     key: BobKey,
-    data: BobData,
+    data: &BobData,
     vdisk_id: VDiskId,
     disk_path: DiskPath,
 ) -> Result<(), Error> {
