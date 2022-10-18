@@ -2,13 +2,13 @@ use crate::prelude::*;
 
 use super::{
     operations::{
-        delete_at_nodes, delete_at_local_node, group_keys_by_nodes, lookup_local_alien, lookup_local_node,
+        delete_at_local_node, delete_at_nodes, exist_on_local_alien, exist_on_local_node,
+        exist_on_remote_aliens, exist_on_remote_nodes, lookup_local_alien, lookup_local_node,
         lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all, put_local_node,
         put_sup_nodes, Tasks,
     },
     Cluster,
 };
-use crate::link_manager::LinkManager;
 
 #[derive(Clone)]
 pub(crate) struct Quorum {
@@ -269,21 +269,122 @@ impl Cluster for Quorum {
     }
 
     async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
-        let keys_by_nodes = group_keys_by_nodes(&self.mapper, keys);
-        debug!(
-            "EXIST Nodes for fan out: {:?}",
-            &keys_by_nodes.keys().flatten().collect::<Vec<_>>()
-        );
         let len = keys.len();
         let mut exist = vec![false; len];
-        for (nodes, (keys, indexes)) in keys_by_nodes {
-            let cluster_results = LinkManager::exist_on_nodes(&nodes, &keys).await;
-            for result in cluster_results.into_iter().flatten() {
-                for (&r, &ind) in result.inner().iter().zip(&indexes) {
+
+        // filter local keys
+        let mut indices = Vec::new();
+        let local_keys = keys
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, &key)| {
+                if self
+                    .mapper
+                    .get_target_nodes_for_key(key)
+                    .iter()
+                    .find(|node| node.name() == self.mapper.local_node_name())
+                    .is_some()
+                {
+                    indices.push(idx);
+                    Some(key)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<BobKey>>();
+        // end
+        debug!("local keys {:?}", local_keys);
+        debug!("local indices {:?}", indices);
+        let result = exist_on_local_node(&self.backend, &local_keys).await?;
+        for (idx, r) in indices.into_iter().zip(result.into_iter()) {
+            exist[idx] |= r;
+        }
+        debug!("exist after local node {:?}", exist);
+
+        // filter keys that were not found
+        let mut local_alien = Vec::new();
+        for (idx, &r) in exist.iter().enumerate() {
+            if r == false {
+                local_alien.push(keys[idx]);
+            }
+        }
+        // end
+        debug!("local alien keys {:?}", local_alien);
+        let result = exist_on_local_alien(&self.backend, &local_alien).await?;
+        let mut i = 0;
+        for r in exist.iter_mut() {
+            if *r == false {
+                *r |= result[i];
+                i += 1;
+            }
+        }
+        debug!("exist after local alien {:?}", exist);
+
+        // filter remote not found keys by nodes
+        let mut remote_keys: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
+        for (idx, &r) in exist.iter().enumerate() {
+            if r == false {
+                remote_keys
+                    .entry(self.mapper.get_target_nodes_for_key(keys[idx]).to_vec())
+                    .and_modify(|(closure_keys, indices)| {
+                        closure_keys.push(keys[idx]);
+                        indices.push(idx);
+                    })
+                    .or_insert_with(|| (vec![keys[idx]], vec![idx]));
+            }
+        }
+        // end
+
+        debug!("remote keys by nodes {:?}", remote_keys);
+        for (nodes, (keys, indices)) in remote_keys {
+            let result = exist_on_remote_nodes(&nodes, &keys).await;
+            for res in result.into_iter().flatten() {
+                for (&r, &ind) in res.inner().iter().zip(&indices) {
                     exist[ind] |= r;
                 }
             }
         }
+        debug!("exist after remote nodes {:?}", exist);
+
+        // filter remote not found keys
+        let mut remote_alien = Vec::new();
+        for (idx, &r) in exist.iter().enumerate() {
+            if r == false {
+                remote_alien.push(keys[idx]);
+            }
+        }
+        // end
+        // filter remote nodes
+        let remote_nodes = self
+            .mapper
+            .nodes()
+            .into_iter()
+            .filter_map(|(_, node)| {
+                if node.name() != self.mapper.local_node_name() {
+                    Some(node.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<Node>>();
+        // end
+        debug!("remote nodes {:?}", remote_nodes);
+
+        let result = exist_on_remote_aliens(&remote_nodes, &remote_alien).await;
+        debug!("alien result {:?}", result);
+        for res in result.into_iter() {
+            if let Ok(inner) = res {
+                debug!("inner {:?}", inner);
+                let mut i = 0;
+                for r in exist.iter_mut() {
+                    if *r == false {
+                        *r |= inner.inner()[i];
+                        i += 1;
+                    }
+                }
+            }
+        }
+
         Ok(exist)
     }
 
