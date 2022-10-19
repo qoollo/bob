@@ -298,11 +298,13 @@ impl Cluster for Quorum {
         // end
         debug!("local keys {:?}", local_keys);
         debug!("local indices {:?}", indices);
-        let result = exist_on_local_node(&self.backend, &local_keys).await?;
-        for (idx, r) in indices.into_iter().zip(result.into_iter()) {
-            exist[idx] |= r;
+        if local_keys.len() > 0 {
+            let result = exist_on_local_node(&self.backend, &local_keys).await?;
+            for (idx, r) in indices.into_iter().zip(result.into_iter()) {
+                exist[idx] |= r;
+            }
+            debug!("exist after local node {:?}", exist);
         }
-        debug!("exist after local node {:?}", exist);
 
         // filter keys that were not found
         let mut local_alien = Vec::new();
@@ -313,15 +315,17 @@ impl Cluster for Quorum {
         }
         // end
         debug!("local alien keys {:?}", local_alien);
-        let result = exist_on_local_alien(&self.backend, &local_alien).await?;
-        let mut i = 0;
-        for r in exist.iter_mut() {
-            if *r == false {
-                *r |= result[i];
-                i += 1;
+        if local_alien.len() > 0 {
+            let result = exist_on_local_alien(&self.backend, &local_alien).await?;
+            let mut i = 0;
+            for r in exist.iter_mut() {
+                if *r == false {
+                    *r |= result[i];
+                    i += 1;
+                }
             }
+            debug!("exist after local alien {:?}", exist);
         }
-        debug!("exist after local alien {:?}", exist);
 
         // filter remote not found keys by nodes
         let mut remote_keys: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
@@ -339,15 +343,17 @@ impl Cluster for Quorum {
         // end
 
         debug!("remote keys by nodes {:?}", remote_keys);
-        for (nodes, (keys, indices)) in remote_keys {
-            let result = exist_on_remote_nodes(&nodes, &keys).await;
-            for res in result.into_iter().flatten() {
-                for (&r, &ind) in res.inner().iter().zip(&indices) {
-                    exist[ind] |= r;
+        if remote_keys.len() > 0 {
+            for (nodes, (keys, indices)) in remote_keys {
+                let result = exist_on_remote_nodes(&nodes, &keys).await;
+                for res in result.into_iter().flatten() {
+                    for (&r, &ind) in res.inner().iter().zip(&indices) {
+                        exist[ind] |= r;
+                    }
                 }
             }
+            debug!("exist after remote nodes {:?}", exist);
         }
-        debug!("exist after remote nodes {:?}", exist);
 
         // filter remote not found keys
         let mut remote_alien = Vec::new();
@@ -357,32 +363,34 @@ impl Cluster for Quorum {
             }
         }
         // end
-        // filter remote nodes
-        let remote_nodes = self
-            .mapper
-            .nodes()
-            .into_iter()
-            .filter_map(|(_, node)| {
-                if node.name() != self.mapper.local_node_name() {
-                    Some(node.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<Node>>();
-        // end
-        debug!("remote nodes {:?}", remote_nodes);
+        if remote_alien.len() > 0 {
+            // filter remote nodes
+            let remote_nodes = self
+                .mapper
+                .nodes()
+                .into_iter()
+                .filter_map(|(_, node)| {
+                    if node.name() != self.mapper.local_node_name() {
+                        Some(node.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<Node>>();
+            // end
+            debug!("remote nodes {:?}", remote_nodes);
 
-        let result = exist_on_remote_aliens(&remote_nodes, &remote_alien).await;
-        debug!("alien result {:?}", result);
-        for res in result.into_iter() {
-            if let Ok(inner) = res {
-                debug!("inner {:?}", inner);
-                let mut i = 0;
-                for r in exist.iter_mut() {
-                    if *r == false {
-                        *r |= inner.inner()[i];
-                        i += 1;
+            let result = exist_on_remote_aliens(&remote_nodes, &remote_alien).await;
+            debug!("alien result {:?}", result);
+            for res in result.into_iter() {
+                if let Ok(inner) = res {
+                    debug!("inner {:?}", inner);
+                    let mut i = 0;
+                    for r in exist.iter_mut() {
+                        if *r == false {
+                            *r |= inner.inner()[i];
+                            i += 1;
+                        }
                     }
                 }
             }
