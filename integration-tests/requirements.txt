@@ -1,4 +1,7 @@
 python-on-whales
+requests
 docker
 jinja2
-retry 
+urllib3
+chardet
+retry
