@@ -1,8 +1,5 @@
 #!/usr/bin/python3
-from multiprocessing.connection import wait
 import os, argparse, sys, subprocess, shlex, docker,  requests, json
-from turtle import delay
-from time import sleep
 from python_on_whales import docker as d_cli
 from docker import errors as d_err
 from docker import types as d_types
