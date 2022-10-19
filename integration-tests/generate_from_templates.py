@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 from re import T
-import shutil, argparse, os, sys, json
+import argparse, os, sys
 from jinja2 import Template
 
 def pathified(string):
