@@ -1,16 +1,48 @@
 #!/usr/bin/python3
-import os, argparse, sys, subprocess, shlex, docker, python_on_whales
+from multiprocessing.connection import wait
+import os, argparse, sys, subprocess, shlex, docker,  requests, json
+from turtle import delay
 from time import sleep
 from python_on_whales import docker as d_cli
 from docker import errors as d_err
 from docker import types as d_types
+from retry import *
+
+
+def request_metrics(port):
+    try:
+        return requests.get(f"http://0.0.0.0:{port}/metrics")
+    except requests.RequestException:
+        sys.exit('Failed to get backend status.')
+    
+         
+@retry((UserWarning), tries=5, delay=1, backoff=2, max_delay=5)
+def ensure_backend_up():
+    try:
+        for item in range(int(os.environ['BOB_NODES_AMOUNT'])):
+            response = request_metrics(f"800{item}")
+            if response.status_code != 200:
+                print(f'Failed to get response from bob instance {item}, retrying...')
+                raise UserWarning(f'Timeout on getting response from node {item}.')
+            else:
+                metrics = json.loads(response.content.decode('ascii'))
+                if metrics['metrics']['backend.backend_state']['value'] != 1:
+                    print(f'Backend is not up on node {item}, waiting...')
+                    raise UserWarning(f'Backend is down on node {item}.')
+                else:
+                    print(f'Node {item} is ready!')
+        print('All nodes are ready!')
+    except KeyError:
+        sys.exit('Nodes amount is not set.')
+    except ValueError:
+        sys.exit('Amount of nodes has unexpected value.')
+    
 
 #collect arguments
 parser = argparse.ArgumentParser(description='Deploys docker compose nodes.')
 
 parser.add_argument('--path', dest='path', type=str, required=True, help='Takes in path to generated configs.')
 parser.add_argument('-r', dest='replicas', type=int, required=True, help='Sets amount of replicas to create in cluster.')
-
 exclusive = parser.add_mutually_exclusive_group(required=True)
 exclusive.add_argument('-d', dest='vdisks_count', nargs='?', type=int, help='min - equal to number of pairs node-disk.')
 exclusive.add_argument('-p', dest='vdisks_per_disk', nargs='?', type=int, help='number of vdisks per physical disk.')
@@ -85,8 +117,8 @@ except KeyError:
 except ValueError:
     sys.exit('Amount of nodes has unexpected value.')
 
-#wait for bob to initilize in containers
-sleep(5)
+#ensure bob initilized in container
+ensure_backend_up()
 
 
 
