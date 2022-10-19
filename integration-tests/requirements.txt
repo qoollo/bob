@@ -1,3 +1,5 @@
 python-on-whales
 docker
 jinja2
+requests
+retry
