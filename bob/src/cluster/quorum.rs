@@ -2,9 +2,9 @@ use crate::prelude::*;
 
 use super::{
     operations::{
-        delete_at_nodes, delete_at_local_node, group_keys_by_nodes, lookup_local_alien, lookup_local_node,
-        lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all, put_local_node,
-        put_sup_nodes, Tasks,
+        delete_at_local_node, delete_at_nodes, group_keys_by_nodes, lookup_local_alien,
+        lookup_local_node, lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all,
+        put_local_node, put_sup_nodes, Tasks,
     },
     Cluster,
 };
@@ -55,7 +55,7 @@ impl Quorum {
         remote_ok_count += all_count - errors.len() - tasks.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
         if remote_ok_count + local_put_ok >= self.quorum {
-            if tasks.is_empty() {
+            if tasks.is_empty() && failed_nodes.is_empty() {
                 return Ok(());
             }
 
@@ -223,14 +223,8 @@ impl Quorum {
         debug!("need additional local alien copies: {}", failed_nodes.len());
         let vdisk_id = self.mapper.vdisk_id_from_key(key);
         let operation = Operation::new_alien(vdisk_id);
-        let local_put = put_local_all(
-            &self.backend,
-            failed_nodes.clone(),
-            key,
-            data,
-            operation,
-        )
-        .await;
+        let local_put =
+            put_local_all(&self.backend, failed_nodes.clone(), key, data, operation).await;
         if let Err(e) = local_put {
             error!(
                 "PUT[{}] local put failed, smth wrong with backend: {:?}",
