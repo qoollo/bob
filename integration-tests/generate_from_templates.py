@@ -62,36 +62,38 @@ finally:
 
 
 #generate compose file
-compose = open("Templates/compose_template.yml.j2").read()
-template = Template(compose)
-f = open(os.path.join(path, 'docker-compose.yml'), 'w')
-f.write(template.render(amount_of_nodes=args.amount_of_nodes, version=args.version, path=path))
-f.close
+
+with open("Templates/compose_template.yml.j2", ) as compose:
+    template = Template(compose.read())
+    with open(os.path.join(path, 'docker-compose.yml'), 'w') as f:
+        f.write(template.render(amount_of_nodes=args.amount_of_nodes, version=args.version, path=path))
+        f.close
 
 #generate node files
 for item in range(args.amount_of_nodes):
-    node = open("Templates/node_template.yml.j2").read()
-    template = Template(node)
-    f = open(os.path.join(path, f'node.yaml.bobnet{item}'), 'w')
-    f.write(template.render(vars(args), node_number=item))
-    f.close
+    with open("Templates/node_template.yml.j2") as node: 
+        template = Template(node.read())
+        with open(os.path.join(path, f'node.yaml.bobnet{item}'), 'w') as f:
+            f.write(template.render(vars(args), node_number=item))
+            f.close
 
 #generate cluster config
-cluster = open("Templates/cluster_template.yml.j2").read()
-template = Template(cluster)
-f = open(os.path.join(path, 'cluster.yaml.bobnet'), 'w')
-f.write(template.render(amount_of_nodes=args.amount_of_nodes))
-f.close
+with open("Templates/cluster_template.yml.j2") as cluster: 
+    template = Template(cluster.read())
+    with open(os.path.join(path, 'cluster.yaml.bobnet'), 'w') as f:
+        f.write(template.render(amount_of_nodes=args.amount_of_nodes))
+        f.close
 
 #generate logger config
-logger = open("Templates/logger_template.yml.j2").read()
-template = Template(logger)
-f = open(os.path.join(path, 'logger.bobnet.yaml'), 'w')
-f.write(template.render(path="/bob/log"))
-f.close
+with open("Templates/logger_template.yml.j2") as logger:
+    template = Template(logger.read())
+    with open(os.path.join(path, 'logger.bobnet.yaml'), 'w') as f:  
+        f.write(template.render(path="/bob/log"))
+        f.close
 
 #generate users config
-users = open("Templates/users_template.yml.j2").read()
-template = Template(users)
-f = open(os.path.join(path, 'users.bobnet.yaml'), 'w')
-f.write(template.render())
+with open("Templates/users_template.yml.j2") as users:
+    template = Template(users.read())
+    with open(os.path.join(path, 'users.bobnet.yaml'), 'w') as f:
+        f.write(template.render())
+        f.close
