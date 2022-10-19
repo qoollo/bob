@@ -45,25 +45,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repository 
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Set env variables and install packages
         run: |
           echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
           echo "BOB_KEY_SIZE=${{ matrix.key }}" >> $GITHUB_ENV
           sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
       - name: Install latest stable
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v1.0.6
         with:
           toolchain: stable
           target: ${{ env.TARGET }}
           default: true
       - name: Build binaries
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.1
         with:
           command: build
           args: --release --target=${{ env.TARGET }}
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: bob-binaries-${{ matrix.key }}
           path: |
@@ -80,7 +80,7 @@ jobs:
         key: [8, 16]
     steps:
       - name: Checks-out repository 
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Set env
         run: |
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
@@ -109,7 +109,7 @@ jobs:
           docker save -o /tmp/bob-image-key${{ matrix.key }}.tar qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }}
         working-directory: ./integration-tests
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: bob-image-key${{ matrix.key }}
           path: |
@@ -124,7 +124,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup python
         uses: actions/setup-python@v4
         with:
@@ -152,12 +152,12 @@ jobs:
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
           echo "VERSION_NO_FORMATTING=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g')" >> $GITHUB_ENV
       - name: Download binaries
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: bob-binaries-${{ matrix.key }}
           path: ./integration-tests
       - name: Download docker images
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: bob-image-key${{ matrix.key }}
           path: ./integration-tests
