@@ -12,6 +12,7 @@ Bob versions changelog
 - Remove unnecessary data clone (#506)
 - Compare vdiskid first (#594)
 - Optimize finding actual holders (#595)
+- Use bytes to pass data to pearl (#597)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
