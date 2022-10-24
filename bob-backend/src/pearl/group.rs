@@ -1,6 +1,6 @@
 use crate::{pearl::utils::get_current_timestamp, prelude::*};
 
-use super::{data::Key, hooks::NoopHooks, utils::StartTimestampConfig, Holder, Hooks};
+use super::{data::Key, utils::StartTimestampConfig, Holder, Hooks};
 use crate::{
     core::Operation,
     pearl::{core::BackendResult, settings::Settings, utils::Utils},
@@ -87,10 +87,10 @@ impl Group {
         self.run_pearls(pp).await
     }
 
-    pub async fn remount(&self) -> AnyResult<()> {
+    pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
         self.holders.write().await.clear();
         self.created_holder_indexes.write().await.clear();
-        self.run(NoopHooks).await
+        self.run(pp).await
     }
 
     async fn run_pearls(&self, pp: impl Hooks) -> AnyResult<()> {
