@@ -124,7 +124,7 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
         0
     }
 
-    async fn remount_vdisk(&self, _vdisk_id: u32) -> Result<(), Error> {
+    async fn remount_vdisk(&self, _vdisk_id: u32) -> AnyResult<()> {
         Ok(())
     }
 }
