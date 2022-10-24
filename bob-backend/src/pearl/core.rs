@@ -317,20 +317,14 @@ impl BackendStorage for Pearl {
         memory
     }
 
-    async fn remount_vdisk(&self, vdisk_id: u32) -> Result<(), Error> {
+    async fn remount_vdisk(&self, vdisk_id: u32) -> AnyResult<()> {
         let (dcs, _) = self.disk_controllers().ok_or(Error::internal())?;
         let needed_dc = dcs
             .iter()
             .find(|dc| dc.vdisks().iter().any(|&vd| vd == vdisk_id))
             .ok_or(Error::vdisk_not_found(vdisk_id))?;
-        let group = needed_dc
-            .vdisk_group(vdisk_id)
-            .await
-            .map_err(|_| Error::internal())?;
+        let group = needed_dc.vdisk_group(vdisk_id).await?;
         let postprocessor = BloomFilterMemoryLimitHooks::new(self.bloom_filter_memory_limit);
-        group
-            .remount(postprocessor)
-            .await
-            .map_err(|_| Error::internal())
+        group.remount(postprocessor).await
     }
 }
