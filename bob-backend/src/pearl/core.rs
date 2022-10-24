@@ -247,6 +247,10 @@ impl BackendStorage for Pearl {
             .vdisk_group(vdisk_id)
             .await
             .map_err(|_| Error::internal())?;
-        group.remount().await.map_err(|_| Error::internal())
+        let postprocessor = BloomFilterMemoryLimitHooks::new(self.bloom_filter_memory_limit);
+        group
+            .remount(postprocessor)
+            .await
+            .map_err(|_| Error::internal())
     }
 }
