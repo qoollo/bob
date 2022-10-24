@@ -10,6 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Clear memory on remount (#636)
 
 
 #### Updated
@@ -25,6 +26,7 @@ Bob versions changelog
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
+
 
 #### Updated
 
