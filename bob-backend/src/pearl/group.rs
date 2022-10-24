@@ -89,6 +89,7 @@ impl Group {
 
     pub async fn remount(&self) -> AnyResult<()> {
         self.holders.write().await.clear();
+        self.created_holder_indexes.writer().await.clear();
         self.run(NoopHooks).await
     }
 
