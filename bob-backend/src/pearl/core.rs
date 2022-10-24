@@ -316,4 +316,17 @@ impl BackendStorage for Pearl {
         }
         memory
     }
+
+    async fn remount_vdisk(&self, vdisk_id: u32) -> Result<(), Error> {
+        let (dcs, _) = self.disk_controllers().ok_or(Error::internal())?;
+        let needed_dc = dcs
+            .iter()
+            .find(|dc| dc.vdisks().iter().any(|&vd| vd == vdisk_id))
+            .ok_or(Error::vdisk_not_found(vdisk_id))?;
+        let group = needed_dc
+            .vdisk_group(vdisk_id)
+            .await
+            .map_err(|_| Error::internal())?;
+        group.remount().await.map_err(|_| Error::internal())
+    }
 }
