@@ -6,7 +6,10 @@ use http::Uri;
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::{Hash, Hasher},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 use tokio::sync::RwLock;
 
@@ -20,6 +23,8 @@ pub struct Node {
     address: String,
     index: Id,
     conn: Arc<RwLock<Option<BobClient>>>,
+    err_count: Arc<AtomicUsize>,
+    max_sequential_errors: usize,
 }
 
 #[derive(Debug)]
@@ -36,12 +41,19 @@ pub struct Disk {
 }
 
 impl Node {
-    pub async fn new(name: String, address: &str, index: u16) -> Self {
+    pub async fn new(
+        name: String,
+        address: &str,
+        index: u16,
+        max_sequential_errors: usize,
+    ) -> Self {
         Self {
             name,
             address: address.to_string(),
             index,
             conn: Arc::default(),
+            err_count: Arc::default(),
+            max_sequential_errors,
         }
     }
 
@@ -68,6 +80,7 @@ impl Node {
 
     pub async fn set_connection(&self, client: BobClient) {
         *self.conn.write().await = Some(client);
+        self.reset_error_count();
     }
 
     pub async fn clear_connection(&self) {
@@ -76,6 +89,17 @@ impl Node {
 
     pub async fn get_connection(&self) -> Option<BobClient> {
         self.conn.read().await.clone()
+    }
+
+    pub fn reset_error_count(&self) {
+        self.err_count.store(0, Ordering::Relaxed);
+    }
+
+    pub async fn increase_error_and_clear_conn_if_needed(&self) {
+        let count = self.err_count.fetch_add(1, Ordering::Relaxed);
+        if count >= self.max_sequential_errors {
+            self.clear_connection().await;
+        }
     }
 
     pub async fn check(&self, client_factory: &Factory) -> Result<(), String> {

@@ -70,7 +70,16 @@ impl LinkManager {
         T: Send,
     {
         match node.get_connection().await {
-            Some(conn) => f(&conn).await,
+            Some(conn) => match f(&conn).await {
+                Err(e) if e.inner().is_network_error() => {
+                    node.increase_error_and_clear_conn_if_needed().await;
+                    Err(e)
+                }
+                o => {
+                    node.reset_error_count();
+                    o
+                }
+            },
             None => Err(NodeOutput::new(
                 node.name().to_owned(),
                 Error::failed(format!("No active connection {:?}", node)),

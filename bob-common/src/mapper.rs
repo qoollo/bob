@@ -60,7 +60,8 @@ impl Virtual {
                 let address = conf.address();
                 let name = conf.name().to_owned();
                 async move {
-                    let node = Node::new(name, address, index).await;
+                    let node =
+                        Node::new(name, address, index, cluster.max_sequential_errors()).await;
                     (index, node)
                 }
             })

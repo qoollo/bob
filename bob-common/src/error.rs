@@ -38,6 +38,10 @@ impl Error {
         self.ctx == Kind::PossibleDiskDisconnection
     }
 
+    pub fn is_network_error(&self) -> bool {
+        self.ctx == Kind::Timeout
+    }
+
     pub fn internal() -> Self {
         Self::new(Kind::Internal)
     }
@@ -138,7 +142,7 @@ impl From<Error> for Status {
             )),
             Kind::DisksEventsLogger(msg) => {
                 Self::internal(format!("disk events logger error: {}", msg))
-            },
+            }
             Kind::Unauthorized => Self::unauthenticated("Unauthorized"),
         }
     }
