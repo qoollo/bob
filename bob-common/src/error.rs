@@ -39,7 +39,7 @@ impl Error {
     }
 
     pub fn is_network_error(&self) -> bool {
-        self.ctx == Kind::Timeout
+        self.ctx == Kind::Timeout || matches!(self.ctx, Kind::Failed(_))
     }
 
     pub fn internal() -> Self {
