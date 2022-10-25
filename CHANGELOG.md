@@ -27,7 +27,6 @@ Bob versions changelog
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
 
-
 #### Updated
 
 
