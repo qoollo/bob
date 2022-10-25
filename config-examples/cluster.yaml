@@ -29,3 +29,6 @@ vdisks:
         - node: local_node
           #[str] disk name, to find location of the replica on the node in disks list
           disk: disk1
+
+# Number of errors that will lead to node be considered disconnected
+max_sequential_errors: 3
