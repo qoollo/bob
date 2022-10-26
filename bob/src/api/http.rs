@@ -527,12 +527,12 @@ async fn remount_vdisks_group(
         .await
         .map(|_| {
             StatusExt::new(
-                Status::OK,
+                Status::Ok,
                 true,
                 format!("vdisk {} successfully restarted", vdisk_id),
             )
         })
-        .map_err(|e| StatusExt::new(Status::OK, false, e.to_string()))
+        .map_err(|e| StatusExt::new(Status::Ok, false, e.to_string()))
 }
 
 #[delete("/vdisks/<vdisk_id>/partitions/by_timestamp/<timestamp>")]
