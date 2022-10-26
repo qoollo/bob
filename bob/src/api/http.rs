@@ -520,12 +520,6 @@ async fn remount_vdisks_group(
     bob: &State<BobServer>,
     vdisk_id: u32,
 ) -> Result<StatusExt, StatusExt> {
-    if !bob_access
-        .check_credentials_rest(creds.into())?
-        .has_rest_write()
-    {
-        return Err(AuthError::PermissionDenied.into());
-    }
     bob.grinder()
         .backend()
         .inner()
@@ -533,12 +527,12 @@ async fn remount_vdisks_group(
         .await
         .map(|_| {
             StatusExt::new(
-                StatusCode::OK,
+                Status::OK,
                 true,
                 format!("vdisk {} successfully restarted", vdisk_id),
             )
         })
-        .map_err(|e| StatusExt::new(StatusCode::OK, false, e.to_string()))
+        .map_err(|e| StatusExt::new(Status::OK, false, e.to_string()))
 }
 
 #[delete("/vdisks/<vdisk_id>/partitions/by_timestamp/<timestamp>")]
