@@ -1,6 +1,79 @@
 #!/usr/bin/python3
 
-import subprocess, argparse, shlex, sys, re, os
+import subprocess, argparse, shlex, sys, re, os, requests
+from python_on_whales import docker as d_cli
+from retry import *
+from bob_backend_timer import ensure_backend_up
 
-#get contianer ports in list and find the correlating containers by filtering
+def make_run_args(args, offset):
+    return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':str(int(args.first) + offset), '-t':args.threads, '--mode':args.mode, '-k':args.keysize,
+     '-p':str(os.environ['BOB_NODES_AMOUNT'] + 20000 - 1)}
+
+def args_to_str(args_dict):
+    bobp_args_str = str()
+    for key in args_dict: 
+        if args_dict.get(key) != None:
+            bobp_args_str += f'{key} {args_dict.get(key)} '
+    return bobp_args_str
+
+parser = argparse.ArgumentParser(description='This script launches bob tests with given configuration.')
+parser.add_argument('-c', dest='count', type=int, help='amount of entries to process', required=True)
+parser.add_argument('-l', dest='payload', type=int, help='payload in bytes', required=True)
+parser.add_argument('-n', dest='node', type=str, help='target node address', required=True)
+parser.add_argument('-f', dest='first', type=int, help='first index', default=0)
+parser.add_argument('-t', dest='threads', type=int, help='amount of working threads', default=1)
+parser.add_argument('--mode', dest='mode', type=str, help='random or normal', choices=['random', 'normal'], default='normal')
+parser.add_argument('-k', dest='keysize', type=int, help='size of binary key (8 or 16)', choices=[8, 16], default=8)
+
+parsed_args = parser.parse_args()
+
+#get container object mapping to ports
+container_dict = {}
+try:
+    for i in range(int(os.environ['BOB_NODES_AMOUNT'])):
+        port_num = str(20000+i)
+        container_dict[port_num] = d_cli.container.list(filters={'publish':f'{port_num}'})[0]
+except KeyError:
+    sys.exit('Nodes amount is not set.')
+except ValueError:
+    sys.exit('Amount of nodes has unexpected value.')
+
+#runs put and stops nodes in cycle
+written_count = 0
+try:
+    for i in range(int(os.environ['BOB_NODES_AMOUNT']) - 1):
+        #make correctly formatted args 
+        dict_args = make_run_args(parsed_args, written_count)
+        bobp_args = args_to_str(dict_args)
+        #run put
+        print(f'Running bobp -b put {bobp_args.rstrip()}')
+        p = subprocess.check_output(shlex.split(f'./bobp -b put {bobp_args.rstrip()}')).decode('ascii')
+        print(str(p))
+        if f'put errors:' in str(p) or f'panicked' in str(p):
+            sys.exit(f'Put test failed, see output.')
+        written_count += dict_args.get('-c')
+        #stops one
+        d_cli.container.stop(container_dict[str(20000 + i)])
+        print(f'Bob node {i} stopped')
+except subprocess.CalledProcessError as e:
+    sys.exit(str(e.stderr))
+
+try:
+    for key, value in container_dict:
+        d_cli.container.start(value)
+except Exception as e:
+    sys.exit(e)
+
+ensure_backend_up()
+
+try:
+    dict_args = make_run_args(parsed_args, 0)
+    dict_args['-c'] = str(written_count)
+    bobp_args = args_to_str(dict_args)
+    print(f'Running bobp -b get {bobp_args.rstrip()}')
+    p = subprocess.check_output(shlex.split(f'./bobp -b get {bobp_args.rstrip()}')).decode('ascii')
+    if f'get errors:' in str(p) or f'panicked' in str(p):
+            sys.exit(f'Get test failed, see output.')
+except subprocess.CalledProcessError as e:
+    sys.exit(str(e.stderr))
 
