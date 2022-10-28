@@ -60,7 +60,7 @@ except subprocess.CalledProcessError as e:
     sys.exit(str(e.stderr))
 
 try:
-    for key, value in container_dict:
+    for key, value in container_dict.items():
         print(f'Starting node on port {key}...')
         d_cli.container.start(value)
 except DockerException as e:
