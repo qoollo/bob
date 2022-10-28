@@ -245,3 +245,4 @@ jobs:
       - name: Run alien tests
         run: |
           ./tests-aliens.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 0.0.0.0 -k ${{ matrix.key }}
+        working-directory: ./integration-tests
