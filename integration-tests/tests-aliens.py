@@ -2,6 +2,7 @@
 
 import subprocess, argparse, shlex, sys, os
 from python_on_whales import docker as d_cli
+from python_on_whales.exceptions import *
 from retry import *
 from bob_backend_timer import ensure_backend_up
 
@@ -54,15 +55,16 @@ try:
         written_count += dict_args.get('-c')
         #stops one
         d_cli.container.stop(container_dict[str(20000 + i)])
-        print(f'Bob node {i} stopped')
+        print(f'Bob node {i} stopped.\n')
 except subprocess.CalledProcessError as e:
     sys.exit(str(e.stderr))
 
 try:
     for key, value in container_dict:
+        print(f'Starting node on port {key}...')
         d_cli.container.start(value)
-except Exception as e:
-    sys.exit(e)
+except DockerException as e:
+    sys.exit(e.stderr)
 
 ensure_backend_up()
 
