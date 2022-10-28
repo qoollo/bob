@@ -33,7 +33,7 @@ container_dict = {}
 try:
     for i in range(int(os.environ['BOB_NODES_AMOUNT'])):
         port_num = str(20000+i)
-        container_dict[port_num] = d_cli.container.list(filters={'publish':f'{port_num}'})[0]
+        container_dict[port_num] = str(d_cli.container.list(filters={'publish':f'{port_num}'})[0].id)
 except KeyError:
     sys.exit('Nodes amount is not set.')
 except ValueError:
