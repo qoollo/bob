@@ -1,13 +1,13 @@
 #!/usr/bin/python3
 
-import subprocess, argparse, shlex, sys, re, os, requests
+import subprocess, argparse, shlex, sys, os
 from python_on_whales import docker as d_cli
 from retry import *
 from bob_backend_timer import ensure_backend_up
 
 def make_run_args(args, offset):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':str(int(args.first) + offset), '-t':args.threads, '--mode':args.mode, '-k':args.keysize,
-     '-p':str(os.environ['BOB_NODES_AMOUNT'] + 20000 - 1)}
+     '-p':str(os.environ['BOB_NODES_AMOUNT'] + 20000 - 1)} 
 
 def args_to_str(args_dict):
     bobp_args_str = str()
