@@ -3,6 +3,7 @@ import os, argparse, sys, subprocess, shlex, docker
 from python_on_whales import docker as d_cli
 from docker import errors as d_err
 from docker import types as d_types
+from python_on_whales.exceptions import DockerException
 from retry import *
 from bob_backend_timer import ensure_backend_up
 
@@ -77,6 +78,8 @@ try:
     print(f'Services are initilized:\n{d_cli.container.list()}')
 except d_err.NotFound:
     sys.exit('Docker network not found')
+except DockerException:
+    sys.exit('Could not initilize docker-compose.')
 
 try:
     if len(d_cli.container.list()) < int(os.environ['BOB_NODES_AMOUNT']):
