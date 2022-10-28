@@ -5,7 +5,7 @@ def request_metrics(port):
     try:
         return requests.get(f"http://0.0.0.0:{port}/metrics")
     except requests.RequestException:
-        sys.exit('Failed to get backend status.')
+        raise UserWarning('Failed to get metrics, retrying...')
     
          
 @retry((UserWarning), tries=5, delay=1, backoff=2, max_delay=5)
