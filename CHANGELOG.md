@@ -13,6 +13,7 @@ Bob versions changelog
 - Remove unnecessary data clone (#506)
 - Compare vdiskid first (#594)
 - Optimize finding actual holders (#595)
+- Added integration tests for aliens (#642)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
