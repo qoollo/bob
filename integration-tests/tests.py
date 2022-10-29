@@ -2,13 +2,18 @@
 
 import subprocess, argparse, shlex, sys, re, os
 
+try:
+    bob_nodes_amount_string = os.environ['BOB_NODES_AMOUNT']
+except KeyError:
+    sys.exit('Nodes amount is not set.')
+
 run_options = ['put','get','exist']
 
 test_run_config = dict()
 iter = 0
 try:
     for item in run_options:
-        test_run_config[item]=str(20000+(iter % int(os.environ['BOB_NODES_AMOUNT']))) #used in get_run_args()
+        test_run_config[item]=str(20000+(iter % int(bob_nodes_amount_string))) #used in get_run_args()
         iter += 1
 except KeyError:
     sys.exit('Nodes amount is not set.')

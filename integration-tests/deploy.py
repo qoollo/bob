@@ -7,6 +7,10 @@ from python_on_whales.exceptions import DockerException
 from retry import *
 from bob_backend_timer import ensure_backend_up
 
+try:
+    bob_nodes_amount_string = os.environ['BOB_NODES_AMOUNT']
+except KeyError:
+    sys.exit('Nodes amount is not set.')
 
 #collect arguments
 parser = argparse.ArgumentParser(description='Deploys docker compose nodes.')
@@ -82,7 +86,7 @@ except DockerException:
     sys.exit('Could not initilize docker-compose.')
 
 try:
-    if len(d_cli.container.list()) < int(os.environ['BOB_NODES_AMOUNT']):
+    if len(d_cli.container.list()) < int(bob_nodes_amount_string):
         sys.exit('One or more bob docker containers are not running.')
 except KeyError:
     sys.exit('Nodes amount is not set.')

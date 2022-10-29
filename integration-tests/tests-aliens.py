@@ -6,9 +6,14 @@ from python_on_whales.exceptions import *
 from retry import *
 from bob_backend_timer import ensure_backend_up
 
+try:
+    bob_nodes_amount_string = os.environ['BOB_NODES_AMOUNT']
+except KeyError:
+    sys.exit('Nodes amount is not set.')
+
 def make_run_args(args, offset):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':str(int(args.first) + offset), '-t':args.threads, '--mode':args.mode, '-k':args.keysize,
-     '-p':str(int(os.environ['BOB_NODES_AMOUNT']) + 20000 - 1)} 
+     '-p':str(int(bob_nodes_amount_string) + 20000 - 1)} 
 
 def args_to_str(args_dict):
     bobp_args_str = str()
@@ -31,7 +36,7 @@ parsed_args = parser.parse_args()
 #get container object mapping to ports
 container_dict = {}
 try:
-    for i in range(int(os.environ['BOB_NODES_AMOUNT'])):
+    for i in range(int(bob_nodes_amount_string)):
         port_num = str(20000+i)
         container_dict[port_num] = str(d_cli.container.list(filters={'publish':f'{port_num}'})[0].id)
 except KeyError:
@@ -42,7 +47,7 @@ except ValueError:
 #runs put and stops nodes in cycle
 written_count = 0
 try:
-    for i in range(int(os.environ['BOB_NODES_AMOUNT']) - 1):
+    for i in range(int(bob_nodes_amount_string) - 1):
         #make correctly formatted args 
         dict_args = make_run_args(parsed_args, written_count)
         bobp_args = args_to_str(dict_args)
