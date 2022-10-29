@@ -88,13 +88,13 @@ except DockerException:
 try:
     if len(d_cli.container.list()) < int(bob_nodes_amount_string):
         sys.exit('One or more bob docker containers are not running.')
-except KeyError:
-    sys.exit('Nodes amount is not set.')
 except ValueError:
     sys.exit('Amount of nodes has unexpected value.')
 
 #ensure bob initilized in container
-ensure_backend_up()
-
+try:
+    ensure_backend_up(int(bob_nodes_amount_string))
+except ValueError:
+    sys.exit('Amount of nodes has unexpected value.')
 
 

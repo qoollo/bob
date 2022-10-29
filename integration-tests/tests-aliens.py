@@ -79,8 +79,10 @@ try:
 except DockerException as e:
     sys.exit(e.stderr)
 
-ensure_backend_up()
-
+try:
+    ensure_backend_up(int(bob_nodes_amount_string))
+except ValueError:
+    sys.exit('Amount of nodes has unexpected value.')
 
 try:
     dict_args = make_run_args(parsed_args, 0)
