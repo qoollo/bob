@@ -56,6 +56,10 @@ try:
         #stops one
         d_cli.container.stop(container_dict[str(20000 + i)])
         print(f'Bob node {i} stopped.\n')
+        stopped_list = d_cli.container.list(filters={"status":"exited"})
+        print('Stopped containers:\n')
+        for i in range(len(stopped_list)):
+            print(f'{stopped_list[i].id}\n') 
 except subprocess.CalledProcessError as e:
     sys.exit(str(e.stderr))
 
