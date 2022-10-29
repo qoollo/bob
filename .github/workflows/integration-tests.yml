@@ -131,17 +131,17 @@ jobs:
           python-version: '3.x'
       - name: Setup default variables for auto runs
         run: |
-          INPUT=${{ github.event.inputs.bob_nodes_amount }}
+          INPUT="${{ github.event.inputs.bob_nodes_amount }}"
           echo "BOB_NODES_AMOUNT=${INPUT:-"4"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_vdisk_count }}
+          INPUT="${{ github.event.inputs.bob_vdisk_count }}"
           echo "BOB_VDISK_COUNT=${INPUT:-"4"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_replicas_amount }}
+          INPUT="${{ github.event.inputs.bob_replicas_amount }}"
           echo "BOB_REPLICAS_AMOUNT=${INPUT:-"2"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_payload_size }}
+          INPUT="${{ github.event.inputs.bob_payload_size }}"
           echo "BOB_PAYLOAD_SIZE=${INPUT:-"10240"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_record_count }}
+          INPUT="${{ github.event.inputs.bob_record_count }}"
           echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_first_index }}
+          INPUT="${{ github.event.inputs.bob_first_index }}"
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
@@ -197,17 +197,17 @@ jobs:
           python-version: '3.x'
       - name: Setup default variables for auto runs
         run: |
-          INPUT=${{ github.event.inputs.bob_nodes_amount }}
+          INPUT="${{ github.event.inputs.bob_nodes_amount }}"
           echo "BOB_NODES_AMOUNT=${INPUT:-"4"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_vdisk_count }}
+          INPUT="${{ github.event.inputs.bob_vdisk_count }}"
           echo "BOB_VDISK_COUNT=${INPUT:-"4"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_replicas_amount }}
+          INPUT="${{ github.event.inputs.bob_replicas_amount }}"
           echo "BOB_REPLICAS_AMOUNT=${INPUT:-"2"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_payload_size }}
+          INPUT="${{ github.event.inputs.bob_payload_size }}"
           echo "BOB_PAYLOAD_SIZE=${INPUT:-"10240"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_record_count }}
+          INPUT="${{ github.event.inputs.bob_record_count }}"
           echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
-          INPUT=${{ github.event.inputs.bob_first_index }}
+          INPUT="${{ github.event.inputs.bob_first_index }}"
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
