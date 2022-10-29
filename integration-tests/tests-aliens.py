@@ -78,6 +78,12 @@ except DockerException as e:
 ensure_backend_up()
 
 try:
+    for key, value in container_dict.items():
+        print(f'Bob logs on node {key}:\n{d_cli.container.logs(value)}')
+except DockerException as e:
+    sys.exit(e.stderr)
+
+try:
     dict_args = make_run_args(parsed_args, 0)
     dict_args['-c'] = str(written_count)
     bobp_args = args_to_str(dict_args)
