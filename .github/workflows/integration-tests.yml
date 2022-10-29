@@ -144,7 +144,7 @@ jobs:
           INPUT="${{ github.event.inputs.bob_first_index }}"
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
       - name: List variables
-        run: env
+        run: env | grep BOB*
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -212,7 +212,7 @@ jobs:
           INPUT="${{ github.event.inputs.bob_first_index }}"
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
       - name: List variables
-        run: env
+        run: env | grep BOB*
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
