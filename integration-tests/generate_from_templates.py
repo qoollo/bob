@@ -11,7 +11,7 @@ parser.add_argument('-a', dest='amount_of_nodes', type=int, required=True, help=
 parser.add_argument('-v', dest='version', type=str, required=True, help='sets docker image version (qoollo/bob:x.x.x.y.z)')
 parser.add_argument('--log-config', dest='log_config', type=str, default='/bob/configs/logger.bobnet.yaml', help='logger config file.')
 parser.add_argument('--users-config', dest='users_config', type=str, default='/bob/configs/users.bobnet.yaml', help='logger config file.')
-parser.add_argument('-q', dest='quorum', type=str, default=1, help='min count of successful operations on replicas to consider operation successful.')
+parser.add_argument('-q', dest='quorum', type=str, default=2, help='min count of successful operations on replicas to consider operation successful.')
 parser.add_argument('--operation-timeout', dest='operation_timeout', type=str, default='3sec', help='timeout for every GRPC operation.')
 parser.add_argument('--check-interval', dest='check_interval', type=str, default='5000ms', help='interval for checking connections.')
 parser.add_argument('--cluster-policy', dest='cluster_policy', type=str, default='quorum', choices=['simple', 'quorum'], help='simple - without checking status.')
