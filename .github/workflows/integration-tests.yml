@@ -143,6 +143,8 @@ jobs:
           echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_first_index }}"
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
+      - name: List variables
+        run: env
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -209,6 +211,8 @@ jobs:
           echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_first_index }}"
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
+      - name: List variables
+        run: env
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
