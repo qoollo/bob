@@ -74,6 +74,7 @@ try:
     bobp_args = args_to_str(dict_args)
     print(f'Running bobp -b get {bobp_args.rstrip()}')
     p = subprocess.check_output(shlex.split(f'./bobp -b get {bobp_args.rstrip()}')).decode('ascii')
+    print(str(p))
     if f'get errors:' in str(p) or f'panicked' in str(p):
             sys.exit(f'Get test failed, see output.')
 except subprocess.CalledProcessError as e:
