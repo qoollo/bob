@@ -63,7 +63,7 @@ try:
             sys.exit(f'Put test failed, see output.')
         written_count += dict_args.get('-c')
         #stops one
-        if i != int(bob_nodes_amount_string - 1):
+        if i != int(bob_nodes_amount_string ) - 1:
             d_cli.container.stop(container_dict[str(20000 + i)])
             print(f'Bob node {i} stopped.\n')
             stopped_list = d_cli.container.list(filters={"status":"exited"})
