@@ -26,4 +26,6 @@ def ensure_backend_up(bob_nodes_amount):
         print('All nodes are ready!')
     except ValueError:
         sys.exit('Amount of nodes has unexpected value.')
+    except KeyError:
+        raise UserWarning(f'No backend state metric.')
     
