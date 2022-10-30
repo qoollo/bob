@@ -14,7 +14,7 @@ except KeyError:
 
 def make_run_args(args, offset):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':str(int(args.first) + offset), '-t':args.threads, '--mode':args.mode, '-k':args.keysize,
-     '-p':str(int(bob_nodes_amount_string) + 20000 - 1)} 
+     '-p':'20000'} 
 
 def args_to_str(args_dict):
     bobp_args_str = str()
@@ -48,15 +48,12 @@ except ValueError:
 #runs put and stops nodes in cycle
 written_count = 0
 try:
-    for i in range(int(bob_nodes_amount_string)):
+    upper_bound = int(bob_nodes_amount_string) + 1
+    for i in range(1, upper_bound):
         #make correctly formatted args 
         dict_args = make_run_args(parsed_args, written_count)
         bobp_args = args_to_str(dict_args)
         #run put
-        try:
-            print(f'Bob logs on write node:\n', re.findall(r"Node status: (local_node_\d{1,} )*local_node_\d{1,}", str(d_cli.container.logs(container_dict[dict_args['-p']]))))
-        except DockerException as e:
-            sys.exit(e.stderr)
         print(f'Running bobp -b put {bobp_args.rstrip()}')
         p = subprocess.check_output(shlex.split(f'./bobp -b put {bobp_args.rstrip()}')).decode('ascii')
         print(str(p))
@@ -64,14 +61,13 @@ try:
             sys.exit(f'Put test failed, see output.')
         written_count += dict_args.get('-c')
         #stops one
-        if i != int(bob_nodes_amount_string ) - 1:
-            sleep(30)
-            d_cli.container.stop(container_dict[str(20000 + i)])
-            print(f'Bob node {i} stopped.\n')
-            stopped_list = d_cli.container.list(filters={"status":"exited"})
-            print('Stopped containers:\n')
-            for i in range(len(stopped_list)):
-                print(f'{stopped_list[i].id}\n') 
+        sleep(30)
+        d_cli.container.stop(container_dict[str(20000 + i)])
+        print(f'Bob node {i} stopped.\n')
+        stopped_list = d_cli.container.list(filters={"status":"exited"})
+        print('Stopped containers:\n')
+        for i in range(len(stopped_list)):
+            print(f'{stopped_list[i].id}\n') 
 except subprocess.CalledProcessError as e:
     sys.exit(str(e.stderr))
 
