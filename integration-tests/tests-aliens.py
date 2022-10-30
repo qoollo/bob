@@ -48,7 +48,7 @@ except ValueError:
 #runs put and stops nodes in cycle
 written_count = 0
 try:
-    upper_bound = int(bob_nodes_amount_string) + 1
+    upper_bound = int(bob_nodes_amount_string)
     for i in range(1, upper_bound):
         #make correctly formatted args 
         dict_args = make_run_args(parsed_args, written_count)
