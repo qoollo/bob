@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import subprocess, argparse, shlex, sys, os
+import subprocess, argparse, shlex, sys, os, re
 from python_on_whales import docker as d_cli
 from python_on_whales.exceptions import *
 from retry import *
@@ -53,7 +53,7 @@ try:
         bobp_args = args_to_str(dict_args)
         #run put
         try:
-            print(f'Bob logs on write node:\n{d_cli.container.logs(container_dict[dict_args["-p"]])}')
+            print(f'Bob logs on write node:\n{re.search( r"Node status:", str(d_cli.container.logs(container_dict[dict_args["-p"]])))}')
         except DockerException as e:
             sys.exit(e.stderr)
         print(f'Running bobp -b put {bobp_args.rstrip()}')
