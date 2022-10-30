@@ -151,6 +151,10 @@ pub trait MetricsProducer: Send + Sync {
     async fn disk_used_by_disk(&self) -> HashMap<DiskPath, u64> {
         HashMap::new()
     }
+
+    async fn corrupted_blobs_count(&self) -> usize {
+        0
+    }
 }
 
 #[derive(Hash, PartialEq, Eq, Debug)]
@@ -210,6 +214,10 @@ impl Backend {
 
     pub async fn blobs_count(&self) -> (usize, usize) {
         self.inner.blobs_count().await
+    }
+
+    pub async fn corrupted_blobs_count(&self) -> usize {
+        self.inner.corrupted_blobs_count().await
     }
 
     pub async fn active_disks_count(&self) -> usize {

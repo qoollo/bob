@@ -538,6 +538,24 @@ impl DiskController {
         cnt
     }
 
+    pub(crate) async fn corrupted_blobs_count(&self) -> usize {
+        let cnt = if *self.state.read().await == GroupsState::Ready {
+            let mut cnt: usize = 0;
+            for group in self.groups.read().await.iter() {
+                let holders_guard = group.holders();
+                let holders = holders_guard.read().await;
+                for holder in holders.iter() {
+                    cnt += holder.corrupted_blobs_count().await;
+                }
+            }
+            cnt
+        } else {
+            0
+        };
+        self.blobs_count_cached.store(cnt as u64, Ordering::Release);
+        cnt
+    }
+
     pub(crate) async fn index_memory(&self) -> usize {
         if *self.state.read().await == GroupsState::Ready {
             let mut cnt = 0;

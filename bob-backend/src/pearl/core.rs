@@ -129,6 +129,17 @@ impl MetricsProducer for Pearl {
         })
         .await
     }
+
+    async fn corrupted_blobs_count(&self) -> usize {
+        let futs: FuturesUnordered<_> = self
+            .disk_controllers
+            .iter()
+            .cloned()
+            .map(|dc| async move { dc.corrupted_blobs_count().await })
+            .collect();
+        let cnt = futs.fold(0, |cnt, dc_cnt| ready(cnt + dc_cnt)).await;
+        cnt
+    }
 }
 
 #[async_trait]
