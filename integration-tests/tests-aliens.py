@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import subprocess, argparse, shlex, sys, os, re
+from time import sleep
 from python_on_whales import docker as d_cli
 from python_on_whales.exceptions import *
 from retry import *
@@ -64,6 +65,7 @@ try:
         written_count += dict_args.get('-c')
         #stops one
         if i != int(bob_nodes_amount_string ) - 1:
+            sleep(30)
             d_cli.container.stop(container_dict[str(20000 + i)])
             print(f'Bob node {i} stopped.\n')
             stopped_list = d_cli.container.list(filters={"status":"exited"})
