@@ -24,8 +24,6 @@ def ensure_backend_up(bob_nodes_amount):
                 else:
                     print(f'Node {item} is ready!')
         print('All nodes are ready!')
-    except KeyError:
-        sys.exit('Nodes amount is not set.')
     except ValueError:
         sys.exit('Amount of nodes has unexpected value.')
     
