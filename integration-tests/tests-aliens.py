@@ -53,7 +53,7 @@ try:
         bobp_args = args_to_str(dict_args)
         #run put
         try:
-            print(f'Bob logs on write node:\n' + re.findall(r"Node status: (local_node_\d{1,} )*local_node_\d{1,}", str(d_cli.container.logs(container_dict[dict_args['-p']]))))
+            print(f'Bob logs on write node:\n', re.findall(r"Node status: (local_node_\d{1,} )*local_node_\d{1,}", str(d_cli.container.logs(container_dict[dict_args['-p']]))))
         except DockerException as e:
             sys.exit(e.stderr)
         print(f'Running bobp -b put {bobp_args.rstrip()}')
