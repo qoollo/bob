@@ -22,6 +22,7 @@ Bob versions changelog
 - Fix response in delete request (#558)
 - Fixed panic in brt because of duplicate long arg name (#563)
 - Make username and password args of `bobt` optional (#555)
+- Replaced deleted Pipers crate (#646)
 
 #### Updated
 
