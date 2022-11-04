@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import subprocess, argparse, shlex, sys, re, os
+from time import sleep
 
 try:
     bob_nodes_amount_string = os.environ['BOB_NODES_AMOUNT']
@@ -28,6 +29,8 @@ def run_tests(behaviour, args):
         if behaviour in {'put', 'get'}:
             if f'{behaviour} errors:' in str(p) or f'panicked' in str(p):
                 sys.exit(f'{behaviour} test failed, see output')
+            if behaviour == 'put':
+                sleep(30)
         elif behaviour == 'exist':
             found_exist = re.search(r'\b[0-9]{1,}\sof\s[0-9]{1,}\b', str(p))
             if not found_exist:
