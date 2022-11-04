@@ -54,6 +54,7 @@ except FileNotFoundError as e:
 try:
     os.chmod(path=f'./ccg', mode=0o771)
     os.chmod(path=f'./bobp', mode=0o771)
+    os.chmod(path=f'./bobt', mode=0o771)
 except OSError as e:
     sys.exit(e)
 
