@@ -70,7 +70,7 @@ jobs:
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobp
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/brt
+            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobt
 
   build-docker-images:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
@@ -245,4 +245,69 @@ jobs:
       - name: Run alien tests
         run: |
           ./tests_aliens.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 0.0.0.0 -k ${{ matrix.key }}
+        working-directory: ./integration-tests
+  deploy-and-test-chain:
+    if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
+    needs: [build-binaries, build-docker-images]
+    strategy:
+      matrix:
+        key: [8, 16]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checks-out repo
+        uses: actions/checkout@v3
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Setup default variables for auto runs
+        run: |
+          INPUT="${{ github.event.inputs.bob_nodes_amount }}"
+          echo "BOB_NODES_AMOUNT=${INPUT:-"4"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_vdisk_count }}"
+          echo "BOB_VDISK_COUNT=${INPUT:-"4"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_replicas_amount }}"
+          echo "BOB_REPLICAS_AMOUNT=${INPUT:-"2"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_payload_size }}"
+          echo "BOB_PAYLOAD_SIZE=${INPUT:-"10240"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_record_count }}"
+          echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_first_index }}"
+          echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
+      - name: Install deps
+        run: |
+          /usr/bin/pip3 install -r ./requirements.txt
+        working-directory: ./integration-tests
+      - name: Get version data
+        run: |
+          echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+          echo "VERSION_NO_FORMATTING=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g')" >> $GITHUB_ENV
+      - name: Download binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: bob-binaries-${{ matrix.key }}
+          path: ./integration-tests
+      - name: Download docker images
+        uses: actions/download-artifact@v3
+        with:
+          name: bob-image-key${{ matrix.key }}
+          path: ./integration-tests
+      - name: Load docker images
+        run: |
+          docker load -i ./bob-image-key${{ matrix.key }}.tar
+        working-directory: ./integration-tests
+      - name: List availible images
+        run: |
+          docker image ls
+      - name: Generate config files for docker and bob
+        run: |
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp
+        working-directory: ./integration-tests
+      - name: Deploy docker containers
+        run: |
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }}
+        working-directory: ./integration-tests
+      - name: Run chained operations tests
+        run: |
+          ./tests_chain.py -c ${{ env.BOB_RECORD_COUNT }} -s ${{ env.BOB_FIRST_INDEX }}
         working-directory: ./integration-tests
