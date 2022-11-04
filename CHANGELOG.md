@@ -14,6 +14,7 @@ Bob versions changelog
 - Compare vdiskid first (#594)
 - Optimize finding actual holders (#595)
 - Added integration tests for aliens (#642)
+- Added integration tests for bobt (#648)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
