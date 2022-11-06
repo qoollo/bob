@@ -170,6 +170,7 @@ impl Tester {
                 total_succ += 1;
             }
         }
+        log::info!("Final summary: {}/{}", total_succ, self.settings.count);
     }
 }
 
