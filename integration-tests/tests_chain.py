@@ -3,7 +3,7 @@
 import subprocess, argparse, shlex, sys
 
 def make_run_args(args):
-     return {'--count':args.count, '-s':args.start, '--address':'http://127.0.0.1:8000'}
+     return {'-c':args.count, '-s':args.start, '-a':'http://127.0.0.1:8000'}
 
 def args_to_str(args_dict):
     bobp_args_str = str()
