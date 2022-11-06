@@ -32,7 +32,18 @@ on:
         description: 'Index of the first record to proceed during tests'
         required: true
         default: '0'
-
+      bob_bobt_count:
+        description: 'Amount of iterations for chain operation test'
+        required: true
+        default: '10000'
+      bob_bobt_first_index:
+        description: 'Bottom boundry for chain test'
+        required: true
+        default: '0'
+      bob_bobt_last_index:
+        description: 'Upper boundry for chain test'
+        required: true
+        default: '100000'
 jobs:
   build-binaries:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
@@ -268,12 +279,12 @@ jobs:
           echo "BOB_VDISK_COUNT=${INPUT:-"4"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_replicas_amount }}"
           echo "BOB_REPLICAS_AMOUNT=${INPUT:-"2"}" >> $GITHUB_ENV
-          INPUT="${{ github.event.inputs.bob_payload_size }}"
-          echo "BOB_PAYLOAD_SIZE=${INPUT:-"10240"}" >> $GITHUB_ENV
-          INPUT="${{ github.event.inputs.bob_record_count }}"
-          echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
-          INPUT="${{ github.event.inputs.bob_first_index }}"
-          echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_bobt_first_index }}"
+          echo "BOB_BOBT_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_bobt_last_index }}"
+          echo "BOB_BOBT_LAST_INDEX=${INPUT:-"100000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_bobt_count }}"
+          echo "BOB_BOBT_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -309,5 +320,5 @@ jobs:
         working-directory: ./integration-tests
       - name: Run chained operations tests
         run: |
-          ./tests_chain.py -c ${{ env.BOB_RECORD_COUNT }} -s ${{ env.BOB_FIRST_INDEX }}
+          ./tests_chain.py -c ${{ env.BOB_BOBT_COUNT }} -s ${{ env.BOB_BOBT_FIRST_INDEX }} -e ${{ env.BOB_BOBT_LAST_INDEX }}
         working-directory: ./integration-tests
