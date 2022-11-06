@@ -24,7 +24,7 @@ bobt_args = args_to_str(make_run_args(parsed_args))
 try:
     #run bobt
     print(f'Running bobt {bobt_args.rstrip()}')
-    p = subprocess.check_output(shlex.split(f'bobt {bobt_args.rstrip()}'), stderr=subprocess.STDOUT).decode('ascii')
+    p = subprocess.check_output(shlex.split(f'./bobt {bobt_args.rstrip()}'), stderr=subprocess.STDOUT).decode('ascii')
     print(str(p))
     #find all of summaries in output
     found_summaries = re.findall(r'\bSummary:\s[0-9]{1,}\/[0-9]{1,}\b', str(p))
