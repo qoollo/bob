@@ -7,6 +7,7 @@ Bob versions changelog
 - Add clusterwide delete operation (#364)
 - TLS support, TLS for grpc or rest can be enabled via cluster & node config (#303)
 - Integration tests (#518)
+- Final summary and return code to `bobt` (#649)
 
 #### Changed
 - Update rust edition to 2021 (#484)
