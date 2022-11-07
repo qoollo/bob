@@ -35,5 +35,7 @@ try:
     summary = found_summaries.group(0).replace('Final summary: ', '').split('/')
     if summary[0] != summary[1]:
         sys.exit('Test failed, captured summary has incomplete score.')
+    else:
+        print(f'Test succeeded: {summary[0]}/{summary[1]}')
 except subprocess.CalledProcessError as e:
     sys.exit(str(e.stderr))
