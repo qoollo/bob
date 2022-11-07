@@ -27,12 +27,12 @@ try:
     p = subprocess.check_output(shlex.split(f'./bobt {bobt_args.rstrip()}'), stderr=subprocess.STDOUT).decode('ascii')
     print(str(p))
     #find all of summaries in output
-    found_summaries = re.findall(r'\bSummary:\s[0-9]{1,}\/[0-9]{1,}\b', str(p))
+    found_summaries = re.search(r'\bFinal\ssummary:\s[0-9]{1,}\/[0-9]{1,}\b', str(p))
     #exit if no summaries
     if not found_summaries:
         sys.exit('No bobt output found.')
     #find the last Summary and get its values
-    summary = str(found_summaries[len(found_summaries) - 1]).replace('Summary: ', '').split('/')
+    summary = found_summaries.group(0).replace('Final summary: ', '').split('/')
     if summary[0] != summary[1]:
         sys.exit('Test failed, captured summary has incomplete score.')
 except subprocess.CalledProcessError as e:
