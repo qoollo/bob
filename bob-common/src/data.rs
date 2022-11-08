@@ -6,6 +6,7 @@ use crate::{
 use bob_grpc::{GetOptions, GetSource, PutOptions};
 use bytes::Bytes;
 use std::{
+    collections::HashMap,
     convert::TryInto,
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::Hash, sync::Arc,
@@ -234,7 +235,7 @@ impl BobOptions {
 #[derive(Debug, Clone)]
 pub struct VDisk {
     id: VDiskId,
-    replicas: Vec<NodeDisk>,
+    replicas: HashMap<String, Vec<NodeDisk>>,
     nodes: Vec<Node>,
 }
 
@@ -242,7 +243,7 @@ impl VDisk {
     pub fn new(id: VDiskId) -> Self {
         VDisk {
             id,
-            replicas: Vec::new(),
+            replicas: HashMap::new(),
             nodes: Vec::new(),
         }
     }
@@ -251,7 +252,7 @@ impl VDisk {
         self.id
     }
 
-    pub fn replicas(&self) -> &[NodeDisk] {
+    pub fn replicas(&self) -> &HashMap<String, Vec<NodeDisk>> {
         &self.replicas
     }
 
@@ -260,14 +261,17 @@ impl VDisk {
     }
 
     pub fn push_replica(&mut self, value: NodeDisk) {
-        self.replicas.push(value)
+        self.replicas
+            .entry(value.node_name().to_string())
+            .and_modify(|val| val.push(value.clone()))
+            .or_insert_with(|| vec![value]);
     }
 
     pub fn set_nodes(&mut self, nodes: &NodesMap) {
         nodes.values().for_each(|node| {
-            if self.replicas.iter().any(|r| r.node_name() == node.name()) {
+            if self.replicas.get(node.name()).is_some() {
                 //TODO check if some duplicates
-                self.nodes.push(node.clone());
+                self.nodes.push(node.clone())
             }
         })
     }

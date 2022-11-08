@@ -270,15 +270,18 @@ fn find_vdisk<A: Authenticator>(bob: &BobServer<A>, id: u32) -> Option<&DataVDis
     mapper.get_vdisk(id)
 }
 
-fn collect_replicas_info(replicas: &[NodeDisk]) -> Vec<Replica> {
-    replicas
-        .iter()
-        .map(|r| Replica {
-            path: r.disk_path().to_owned(),
-            disk: r.disk_name().to_owned(),
-            node: r.node_name().to_owned(),
-        })
-        .collect()
+fn collect_replicas_info(replicas: &HashMap<String, Vec<NodeDisk>>) -> Vec<Replica> {
+    let mut vec_replicas = Vec::new();
+    for (_, nodes) in replicas {
+        for disk in nodes {
+            vec_replicas.push(Replica {
+                path: disk.disk_name().to_string(),
+                disk: disk.disk_name().to_string(),
+                node: disk.node_name().to_string(),
+            })
+        }
+    }
+    vec_replicas
 }
 
 // GET /status

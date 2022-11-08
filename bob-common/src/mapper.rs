@@ -165,13 +165,12 @@ impl Virtual {
         let vdisks = self.vdisks.iter();
         vdisks
             .filter_map(|(id, vdisk)| {
-                if vdisk
-                    .replicas()
-                    .iter()
-                    .filter(|r| r.node_name() == self.local_node_name)
-                    .any(|replica| replica.disk_name() == disk)
-                {
-                    Some(*id)
+                if let Some(replicas) = vdisk.replicas().get(&self.local_node_name) {
+                    if replicas.into_iter().any(|r| r.disk_name().as_ref() == disk) {
+                        Some(*id)
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
@@ -181,13 +180,14 @@ impl Virtual {
 
     pub fn get_operation(&self, key: BobKey) -> (VDiskId, Option<DiskPath>) {
         let virt_disk = self.get_vdisk_for_key(key).expect("vdisk not found");
-        let disk = virt_disk.replicas().iter().find_map(|disk| {
-            if disk.node_name() == self.local_node_name {
-                Some(DiskPath::from(disk))
-            } else {
-                None
-            }
-        }); //TODO prepare at start?
+        debug!("replicas: {:?}", virt_disk.replicas());
+        debug!("local_node: {:?}", self.local_node_name);
+        let disk = virt_disk
+            .replicas()
+            .get(&self.local_node_name)
+            .and_then(|replicas| {
+                replicas.get(0).and_then(|replica| Some(DiskPath::from(replica)))
+            });
         if disk.is_none() {
             debug!(
                 "cannot find node: {} for vdisk: {}",
