@@ -8,7 +8,7 @@ use bytes::Bytes;
 use std::{
     convert::TryInto,
     fmt::{Debug, Formatter, Result as FmtResult},
-    hash::Hash,
+    hash::Hash, sync::Arc,
 };
 
 include!(concat!(env!("OUT_DIR"), "/key_constants.rs"));
@@ -276,15 +276,15 @@ impl VDisk {
 /// Structure represents disk on the node. Contains path to disk and name.
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize)]
 pub struct DiskPath {
-    name: String,
-    path: String,
+    name: Arc<String>,
+    path: Arc<String>,
 }
 
 impl DiskPath {
     /// Creates new `DiskPath` with disk's name and path.
     #[must_use = "memory allocation"]
     pub fn new(name: String, path: String) -> DiskPath {
-        DiskPath { name, path }
+        DiskPath { name: Arc::new(name), path: Arc::new(path) }
     }
 
     /// Returns disk name.
@@ -302,8 +302,8 @@ impl DiskPath {
 impl From<&NodeDisk> for DiskPath {
     fn from(node: &NodeDisk) -> Self {
         DiskPath {
-            name: node.disk_name().to_owned(),
-            path: node.disk_path().to_owned(),
+            name: node.disk_name().clone(),
+            path: node.disk_path().clone(),
         }
     }
 }

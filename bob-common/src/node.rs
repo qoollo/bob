@@ -31,8 +31,8 @@ pub struct Output<T> {
 #[derive(Debug, Clone)]
 pub struct Disk {
     node_name: Name,
-    disk_path: String,
-    disk_name: String,
+    disk_path: Arc<String>,
+    disk_name: Arc<String>,
 }
 
 impl Node {
@@ -151,16 +151,16 @@ impl Disk {
     pub fn new(disk_path: String, disk_name: String, node_name: Name) -> Self {
         Self {
             node_name,
-            disk_path,
-            disk_name,
+            disk_path: Arc::new(disk_path),
+            disk_name: Arc::new(disk_name),
         }
     }
 
-    pub fn disk_path(&self) -> &str {
+    pub fn disk_path(&self) -> &Arc<String> {
         &self.disk_path
     }
 
-    pub fn disk_name(&self) -> &str {
+    pub fn disk_name(&self) -> &Arc<String> {
         &self.disk_name
     }
 
