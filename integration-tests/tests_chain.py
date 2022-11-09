@@ -24,7 +24,7 @@ bobt_args = args_to_str(make_run_args(parsed_args))
 try:
     #run bobt
     print(f'Running bobt {bobt_args.rstrip()}')
-    p = subprocess.check_output(shlex.split(f'./bobt {bobt_args.rstrip()}'), stderr=subprocess.STDOUT).decode('ascii')
+    p = subprocess.run(shlex.split(f'./bobt {bobt_args.rstrip()}'), capture_output=True).stderr.decode('ascii')
     print(str(p))
     #find all of summaries in output
     found_summaries = re.search(r'\bFinal\ssummary:\s[0-9]{1,}\/[0-9]{1,}\b', str(p))
@@ -35,5 +35,7 @@ try:
     summary = found_summaries.group(0).replace('Final summary: ', '').split('/')
     if summary[0] != summary[1]:
         sys.exit('Test failed, captured summary has incomplete score.')
+    else:
+        print(f'Test succeeded: {summary[0]}/{summary[1]}')
 except subprocess.CalledProcessError as e:
     sys.exit(str(e.stderr))
