@@ -51,7 +51,7 @@ path = os.path.join(pathified(args.path),'generated_configs')
 #get the offset for bobp operations and set in as env 
 bobp_actions_offset = float(str(Quantity(args.check_interval, scale='s')).replace(' s', '')) + 1
 with open(os.getenv('GITHUB_ENV'), 'a') as file:
-    file.write(f"export BOB_BOBP_ACTIONS_OFFSET={bobp_actions_offset}")
+    file.write(f"BOB_BOBP_ACTIONS_OFFSET={bobp_actions_offset}")
 
 os.makedirs(path, exist_ok=True, mode=0o777)
 
