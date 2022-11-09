@@ -5,3 +5,4 @@ jinja2
 urllib3
 chardet
 retry
+quantiphy
