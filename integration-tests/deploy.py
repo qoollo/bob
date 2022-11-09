@@ -6,6 +6,7 @@ from docker import types as d_types
 from python_on_whales.exceptions import DockerException
 from retry import *
 from bob_backend_timer import ensure_backend_up
+from time import sleep
 
 try:
     bob_nodes_amount_string = os.environ['BOB_NODES_AMOUNT']
@@ -98,4 +99,4 @@ try:
 except ValueError:
     sys.exit('Amount of nodes has unexpected value.')
 
-
+sleep(float(os.environ["BOB_BOBP_ACTIONS_OFFSET"]))
