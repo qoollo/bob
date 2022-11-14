@@ -16,7 +16,7 @@ jobs:
         bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Set env
         run: |
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
@@ -57,7 +57,7 @@ jobs:
         bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Set env
         run: |
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV

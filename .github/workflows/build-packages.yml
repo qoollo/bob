@@ -18,7 +18,7 @@ jobs:
       BUILD_MODE: "release"
     steps:
       - name: Checks-out repository 
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Set env variables and install packages
         run: |
           echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
@@ -55,7 +55,7 @@ jobs:
         bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
@@ -86,7 +86,7 @@ jobs:
         bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
@@ -113,7 +113,7 @@ jobs:
         bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
@@ -149,7 +149,7 @@ jobs:
         bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
@@ -176,7 +176,7 @@ jobs:
         bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
@@ -209,7 +209,7 @@ jobs:
         bob_key_size: [8, 16]
     steps:
       - name: Checks-out repository 
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
