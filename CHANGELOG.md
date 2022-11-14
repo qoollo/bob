@@ -25,7 +25,7 @@ Bob versions changelog
 - Replaced deleted Pipers crate (#646)
 
 #### Updated
-- Pearl updated to v0.14.0
+- Pearl updated to v0.14.0 (#659)
 
 
 
