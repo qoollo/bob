@@ -1,5 +1,5 @@
 use clap::{App, Arg, ArgMatches};
-use env_logger::Env;
+use env_logger::{Env, Target};
 use http::{StatusCode, Uri};
 use lazy_static::lazy_static;
 use rand::distributions::Uniform;
@@ -21,7 +21,7 @@ const PASSWORD_ARG_NAME: &str = "password";
 #[tokio::main]
 async fn main() -> ExitCode {
     let env = Env::default().filter_or("RUST_LOG", "info");
-    env_logger::init_from_env(env);
+    env_logger::Builder::from_env(env).target(Target::Stdout).init();
     let settings = Settings::new();
     let mut tester = Tester::new(settings).await;
     if tester.run_test().await {
