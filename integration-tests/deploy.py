@@ -8,16 +8,12 @@ from retry import *
 from bob_backend_timer import ensure_backend_up
 from time import sleep
 
-try:
-    bob_nodes_amount_string = os.environ['BOB_NODES_AMOUNT']
-except KeyError:
-    sys.exit('Nodes amount is not set.')
-
 #collect arguments
 parser = argparse.ArgumentParser(description='Deploys docker compose nodes.')
 
 parser.add_argument('--path', dest='path', type=str, required=True, help='Takes in path to generated configs.')
 parser.add_argument('-r', dest='replicas', type=int, required=True, help='Sets amount of replicas to create in cluster.')
+parser.add_argument('-nodes_amount', dest='nodes_amount', type=int, required=True, help='Amount of bob nodes.')
 exclusive = parser.add_mutually_exclusive_group(required=True)
 exclusive.add_argument('-d', dest='vdisks_count', nargs='?', type=int, help='min - equal to number of pairs node-disk.')
 exclusive.add_argument('-p', dest='vdisks_per_disk', nargs='?', type=int, help='number of vdisks per physical disk.')
@@ -88,14 +84,14 @@ except DockerException:
     sys.exit('Could not initilize docker-compose.')
 
 try:
-    if len(d_cli.container.list()) < int(bob_nodes_amount_string):
+    if len(d_cli.container.list()) < int(args.nodes_amount):
         sys.exit('One or more bob docker containers are not running.')
 except ValueError:
     sys.exit('Amount of nodes has unexpected value.')
 
 #ensure bob initilized in container
 try:
-    ensure_backend_up(int(bob_nodes_amount_string))
+    ensure_backend_up(int(args.nodes_amount))
 except ValueError:
     sys.exit('Amount of nodes has unexpected value.')
 
