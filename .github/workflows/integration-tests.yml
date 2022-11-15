@@ -155,6 +155,8 @@ jobs:
           echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_first_index }}"
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_min_port }}"
+          echo "BOB_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -182,15 +184,15 @@ jobs:
           docker image ls
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
-          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }}
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }}
         working-directory: ./integration-tests
       - name: Run write/read/exist tests
         run: |
-          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 0.0.0.0 -k ${{ matrix.key }} --mode ${{ matrix.mode }}
+          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }} --mode ${{ matrix.mode }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -min_port ${{ env.BOB_MIN_PORT }}
         working-directory: ./integration-tests
 
   deploy-and-test-alien:
@@ -221,6 +223,8 @@ jobs:
           echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_first_index }}"
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_min_port }}"
+          echo "BOB_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -248,15 +252,15 @@ jobs:
           docker image ls
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
-          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }}
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} 
         working-directory: ./integration-tests
       - name: Run alien tests
         run: |
-          ./tests_aliens.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 0.0.0.0 -k ${{ matrix.key }}
+          ./tests_aliens.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }}
         working-directory: ./integration-tests
   deploy-and-test-chain:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
@@ -286,6 +290,8 @@ jobs:
           echo "BOB_BOBT_LAST_INDEX=${INPUT:-"100000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_bobt_count }}"
           echo "BOB_BOBT_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_min_port }}"
+          echo "BOB_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -313,11 +319,11 @@ jobs:
           docker image ls
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
-          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }}
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }}
         working-directory: ./integration-tests
       - name: Run chained operations tests
         run: |
