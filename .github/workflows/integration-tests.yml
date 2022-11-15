@@ -188,7 +188,7 @@ jobs:
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
-          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }}
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} --bobp_actions_offset ${{ env.BOB_BOBP_ACTIONS_OFFSET }} 
         working-directory: ./integration-tests
       - name: Run write/read/exist tests
         run: |
@@ -256,7 +256,7 @@ jobs:
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
-          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} 
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} --bobp_actions_offset ${{ env.BOB_BOBP_ACTIONS_OFFSET }}
         working-directory: ./integration-tests
       - name: Run alien tests
         run: |
@@ -323,7 +323,7 @@ jobs:
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
-          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }}
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} --bobp_actions_offset ${{ env.BOB_BOBP_ACTIONS_OFFSET }}
         working-directory: ./integration-tests
       - name: Run chained operations tests
         run: |
