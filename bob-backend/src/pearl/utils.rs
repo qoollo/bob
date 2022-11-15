@@ -94,7 +94,7 @@ impl Utils {
             })
             .map(|period| {
                 let time = DateTime::from_utc(
-                    NaiveDateTime::from_timestamp(time.try_into().unwrap(), 0),
+                    NaiveDateTime::from_timestamp_millis(time.try_into().unwrap()).expect("time out of range"),
                     Utc,
                 );
                 Self::get_start_timestamp(period, time, config)
@@ -112,14 +112,15 @@ impl Utils {
             return time.timestamp().try_into().unwrap();
         }
         let mut start_time = match period {
-            period if period <= ChronoDuration::days(1) => time.date().and_hms(0, 0, 0),
+            period if period <= ChronoDuration::days(1) => time.date_naive().and_hms_opt(0, 0, 0).unwrap(),
             period if period <= ChronoDuration::weeks(1) => {
-                let time = time.date().and_hms(0, 0, 0);
+                let time = time.date_naive().and_hms_opt(0, 0, 0).unwrap();
                 time - ChronoDuration::days(i64::from(time.weekday().num_days_from_monday() - 1))
             }
             _ => panic!("pearid: {} is too large", period),
         };
 
+        let time = time.naive_utc();
         while !(start_time <= time && time < start_time + period) {
             start_time = start_time + period;
         }
