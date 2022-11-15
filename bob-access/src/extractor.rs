@@ -23,6 +23,19 @@ fn prepare_builder<T: Extractor>(slf: &T) -> Result<CredentialsBuilder, Error> {
     Ok(builder)
 }
 
+fn username_password_from_credentials(credentials: &str) -> Result<(String, String), Error> {
+    let credentials = base64::decode(credentials)
+        .map_err(|e| Error::ConversionError(format!("bad base64 credentials: {}", e)))?;
+    let str_cred = String::from_utf8(credentials)
+        .map_err(|e| Error::ConversionError(format!("invalid utf8 credentials characters: {}", e)))?;
+    let mut user_pass = str_cred.split_terminator(":");
+    if let (Some(username), Some(password)) = (user_pass.next(), user_pass.next()) {
+        Ok((username.into(), password.into()))
+    } else {
+        Err(Error::CredentialsNotProvided("missing username or password".into()))
+    }
+}
+
 impl<T: Extractor> ExtractorExt for T {
     fn extract(&self, cred_type: AuthenticationType) -> Result<Credentials, Error> {
         match cred_type {
@@ -41,23 +54,14 @@ impl<T: Extractor> ExtractorExt for T {
     fn extract_basic(&self) -> Result<Credentials, Error> {
         let mut builder = prepare_builder(self)?;
         let auth_header = self.get_header("authorization")?;
-        let mut err = "missing authorization header";
         if let Some(auth_header) = auth_header {
             let mut parts = auth_header.split_whitespace();
             if let (Some("Basic"), Some(credentials)) = (parts.next(), parts.next()) {
-                let credentials = base64::decode(credentials)
-                    .map_err(|_| Error::ConversionError("bad base64 credentials".into()))?;
-                let str_cred = String::from_utf8(credentials)
-                    .map_err(|_| Error::ConversionError("invalid utf8 credentials characters".into()))?;
-                let mut user_pass = str_cred.split_terminator(":");
-                if let (Some(username), Some(password)) = (user_pass.next(), user_pass.next()) {
-                    let creds = builder
-                        .with_username_password(username, password)
-                        .build();
-                    return Ok(creds);
-                } else {
-                    err = "missing username or password";
-                }
+                let (username, password) = username_password_from_credentials(credentials)?;
+                let creds = builder
+                    .with_username_password(username, password)
+                    .build();
+                return Ok(creds);
             } else {
                 if let Some(node_name) = self.get_header("node_name")? {
                     let creds = builder
@@ -72,7 +76,7 @@ impl<T: Extractor> ExtractorExt for T {
                 return Ok(creds);
             }
         }
-        Err(Error::CredentialsNotProvided(err.into()))
+        Err(Error::CredentialsNotProvided("missing authorization header".into()))
     }
 
     fn extract_token(&self) -> Result<Credentials, Error> {
