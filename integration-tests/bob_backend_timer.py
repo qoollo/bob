@@ -3,7 +3,7 @@ from retry import *
 
 def request_metrics(port):
     try:
-        return requests.get(f"http://0.0.0.0:{port}/metrics")
+        return requests.get(f"http://127.0.0.1:{port}/metrics")
     except requests.RequestException:
         raise UserWarning('Failed to get metrics, retrying...')
     
@@ -12,7 +12,7 @@ def request_metrics(port):
 def ensure_backend_up(bob_nodes_amount):
     try:
         for item in range(bob_nodes_amount):
-            response = request_metrics(f"800{item}")
+            response = request_metrics(8000 + item)
             if response.status_code != 200:
                 print(f'Failed to get response from bob instance {item}, retrying...')
                 raise UserWarning(f'Timeout on getting response from node {item}.')
