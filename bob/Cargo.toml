@@ -46,8 +46,7 @@ tower-service = "0.3"
 uuid = "0.8.2"
 
 [dependencies.pearl]
-git = "https://github.com/qoollo/pearl"
-branch = "464-corrupted-blobs-count"
+version = "0.13.0"
 
 [dependencies.tokio]
 version = "1.14"

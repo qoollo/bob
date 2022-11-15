@@ -51,8 +51,7 @@ default-features = false
 features = ["signal"]
 
 [dependencies.pearl]
-git = "https://github.com/qoollo/pearl"
-branch = "464-corrupted-blobs-count"
+version = "0.13.0"
 
 [build-dependencies]
 tonic-build = "0.6"

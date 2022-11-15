@@ -539,7 +539,7 @@ impl DiskController {
     }
 
     pub(crate) async fn corrupted_blobs_count(&self) -> usize {
-        let cnt = if *self.state.read().await == GroupsState::Ready {
+        if *self.state.read().await == GroupsState::Ready {
             let mut cnt: usize = 0;
             for group in self.groups.read().await.iter() {
                 let holders_guard = group.holders();
@@ -551,9 +551,7 @@ impl DiskController {
             cnt
         } else {
             0
-        };
-        self.blobs_count_cached.store(cnt as u64, Ordering::Release);
-        cnt
+        }
     }
 
     pub(crate) async fn index_memory(&self) -> usize {
