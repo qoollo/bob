@@ -14,6 +14,7 @@ Bob versions changelog
 - Compare vdiskid first (#594)
 - Optimize finding actual holders (#595)
 - Logger output directed to stdout instead of stderr in bobt (#651)
+- Replaced deprecated chrono functions (#660)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
