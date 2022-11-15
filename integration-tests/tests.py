@@ -3,23 +3,7 @@
 import subprocess, argparse, shlex, sys, re, os
 from time import sleep
 
-try:
-    bob_nodes_amount_string = os.environ['BOB_NODES_AMOUNT']
-except KeyError:
-    sys.exit('Nodes amount is not set.')
-
 run_options = ['put','get','exist']
-
-test_run_config = dict()
-iter = 0
-try:
-    for item in run_options:
-        test_run_config[item]=str(20000+(iter % int(bob_nodes_amount_string))) #used in get_run_args()
-        iter += 1
-except KeyError:
-    sys.exit('Nodes amount is not set.')
-except ValueError:
-    sys.exit('Amount of nodes has unexpected value.')
 
 def run_tests(behaviour, args):
     try:
@@ -47,8 +31,8 @@ def run_tests(behaviour, args):
     except Exception as e:
         sys.exit(str(e))
 
-def get_run_args(mode, args):
-    return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':args.first, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':test_run_config.get(mode)}
+def get_run_args(mode, args, run_conf):
+    return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':args.first, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':run_conf.get(mode)}
 
 parser = argparse.ArgumentParser(description='This script launches bob tests with given configuration.')
 parser.add_argument('-c', dest='count', type=int, help='amount of entries to process', required=True)
@@ -58,13 +42,24 @@ parser.add_argument('-f', dest='first', type=int, help='first index', default=0)
 parser.add_argument('-t', dest='threads', type=int, help='amount of working threads', default=1)
 parser.add_argument('--mode', dest='mode', type=str, help='random or normal', choices=['random', 'normal'], default='normal')
 parser.add_argument('-k', dest='keysize', type=int, help='size of binary key (8 or 16)', choices=[8, 16], default=8)
+parser.add_argument('-nodes_amount', dest='nodes_amount', type=int, required=True, help='Amount of bob nodes.')
+parser.add_argument('-min_port', dest='min_port', type=int, required=True, help='Port of the first bob container.')
 
 parsed_args = parser.parse_args()
+
+test_run_config = dict()
+iter = 0
+try:
+    for item in run_options:
+        test_run_config[item]=str(parsed_args.min_port + (iter % int(parsed_args.nodes_amount))) #used in get_run_args()
+        iter += 1
+except ValueError:
+    sys.exit('Args had unexpected values.')
 
 #run put/get/exist tests
 for item in run_options:
     args_str = str()
-    run_args = get_run_args(item, parsed_args)
+    run_args = get_run_args(item, parsed_args, test_run_config)
     for key in run_args:
         if run_args.get(key) != None:
             args_str += f'{key} {run_args.get(key)} '
