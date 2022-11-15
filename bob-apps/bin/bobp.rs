@@ -16,11 +16,12 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::fs;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tonic::metadata::{Ascii, MetadataValue};
-use tonic::transport::{Channel, Endpoint};
+use tonic::transport::{Channel, Endpoint, Certificate, ClientTlsConfig};
 use tonic::{Code, Request, Status};
 
 #[macro_use]
@@ -30,6 +31,8 @@ extern crate log;
 struct NetConfig {
     port: u16,
     target: String,
+    ca_cert_path: Option<String>,
+    tls_domain_name: Option<String>,
 }
 impl NetConfig {
     fn get_uri(&self) -> http::Uri {
@@ -45,11 +48,20 @@ impl NetConfig {
         Self {
             port: matches.value_or_default("port"),
             target: matches.value_or_default("host"),
+            ca_cert_path: matches.value_of("ca_path").map(|p| p.to_string()),
+            tls_domain_name: matches.value_of("domain_name").map(|n| n.to_string()),
         }
     }
 
     async fn build_client(&self) -> BobApiClient<Channel> {
-        let endpoint = Endpoint::from(self.get_uri()).tcp_nodelay(true);
+        let mut endpoint = Endpoint::from(self.get_uri()).tcp_nodelay(true);
+        if let Some(ca_cert_path) = &self.ca_cert_path {
+            let cert_bin = fs::read(&ca_cert_path).expect("can not read ca certificate from file");
+            let cert = Certificate::from_pem(cert_bin);
+            let domain_name = self.tls_domain_name.as_ref().expect("domain name required");
+            let tls_config = ClientTlsConfig::new().domain_name(domain_name).ca_certificate(cert);
+            endpoint = endpoint.tls_config(tls_config).expect("tls config");
+        }
         loop {
             match BobApiClient::connect(endpoint.clone()).await {
                 Ok(client) => return client,
@@ -942,7 +954,7 @@ fn create_blob(task_conf: &TaskConfig) -> Blob {
             .as_secs(),
     };
     Blob {
-        data: vec![0_u8; task_conf.payload_size as usize],
+        data: vec![0_u8; task_conf.payload_size as usize].into(),
         meta: Some(meta),
     }
 }
@@ -1063,6 +1075,19 @@ fn get_matches() -> ArgMatches<'static> {
                 .long("packet_size")
                 .short("s")
                 .default_value("1000"),
+        )
+        .arg(
+            Arg::with_name("ca_path")
+                .help("path to tls ca certificate")
+                .takes_value(true)
+                .long("ca_path")
+                .requires("domain_name"),
+        )
+        .arg(
+            Arg::with_name("domain_name")
+                .help("tls domain name")
+                .takes_value(true)
+                .long("domain_name"),
         )
         .get_matches()
 }

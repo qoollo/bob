@@ -1,12 +1,13 @@
 use std::net::IpAddr;
 
 use bob_access::{Authenticator, CredentialsHolder};
+use bytes::Bytes;
 use tokio::{runtime::Handle, task::block_in_place};
 
 use crate::prelude::*;
 
 use super::grinder::Grinder;
-use bob_common::metrics::SharedMetricsSnapshot;
+use bob_common::{metrics::SharedMetricsSnapshot, configs::node::TLSConfig};
 
 /// Struct contains `Grinder` and receives incomming GRPC requests
 #[derive(Clone, Debug)]
@@ -50,8 +51,8 @@ where
     }
 
     /// Call to run HTTP API server, not required for normal functioning
-    pub fn run_api_server(&self, address: IpAddr, port: u16) {
-        crate::api::spawn(self.clone(), address, port);
+    pub async fn run_api_server(&self, address: IpAddr, port: u16, tls_config: &Option<TLSConfig>) {
+        crate::api::spawn(self.clone(), address, port, tls_config).await;
     }
 
     /// Start backend component, required before starting bob service
@@ -82,7 +83,7 @@ where
     }
 }
 
-fn put_extract(req: PutRequest) -> Option<(BobKey, Vec<u8>, u64, Option<PutOptions>)> {
+fn put_extract(req: PutRequest) -> Option<(BobKey, Bytes, u64, Option<PutOptions>)> {
     let key = req.key?.key;
     let blob = req.data?;
     let timestamp = blob.meta.as_ref()?.timestamp;
@@ -136,7 +137,7 @@ where
             );
             let put_result = self
                 .grinder
-                .put(key, data, BobOptions::new_put(options))
+                .put(key, &data, BobOptions::new_put(options))
                 .await;
             trace!(
                 "grinder processed put request, /{:.3}ms/",
@@ -241,5 +242,22 @@ where
         let response = ExistResponse { exist };
         let response = Response::new(response);
         Ok(response)
+    }
+
+    async fn delete(&self, req: Request<DeleteRequest>) -> ApiResult<OpStatus> {
+        let req = req.into_inner();
+        let DeleteRequest { key, options } = req;
+        if let Some((key, options)) = key.zip(options) {
+            let sw = Stopwatch::start_new();
+            self.grinder.delete(key.key.into(), options).await?;
+            let elapsed = sw.elapsed();
+            debug!("DELETE-OK dt: {:?}", elapsed);
+            Ok(Response::new(OpStatus { error: None }))
+        } else {
+            Err(Status::new(
+                Code::InvalidArgument,
+                "Key and options are mandatory",
+            ))
+        }
     }
 }
