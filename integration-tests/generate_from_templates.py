@@ -42,7 +42,7 @@ parser.add_argument('--metrics-name', dest='metrics_name', type=str, default='bo
 parser.add_argument('--graphite-enabled', dest='graphite_enabled', type=str, default='false', choices=['true', 'false'])
 parser.add_argument('--prometheus-enabled', dest='prometheus_enabled', type=str, default='false', choices=['true', 'false'])
 parser.add_argument('--path', dest='path', type=str, help='sets path to directory where configs will be generated.', default='/tmp')
-
+parser.add_argument('-min_port', dest='min_port', type=int, required=True, help='Port of the first bob container.')
 
 args = parser.parse_args()
 
@@ -72,7 +72,7 @@ finally:
 with open("Templates/compose_template.yml.j2", ) as compose:
     template = Template(compose.read())
     with open(os.path.join(path, 'docker-compose.yml'), 'w') as f:
-        f.write(template.render(amount_of_nodes=args.amount_of_nodes, version=args.version, path=path))
+        f.write(template.render(amount_of_nodes=args.amount_of_nodes, version=args.version, path=path, min_port=args.min_port))
         f.close
 
 #generate node files
