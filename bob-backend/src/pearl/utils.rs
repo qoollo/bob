@@ -94,7 +94,7 @@ impl Utils {
             })
             .map(|period| {
                 let time = DateTime::from_utc(
-                    NaiveDateTime::from_timestamp_millis(time.try_into().unwrap()).expect("time out of range"),
+                    NaiveDateTime::from_timestamp_opt(time.try_into().unwrap(), 0).expect("time out of range"),
                     Utc,
                 );
                 Self::get_start_timestamp(period, time, config)
