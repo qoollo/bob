@@ -2,6 +2,7 @@
 from re import T
 import argparse, os, sys
 from jinja2 import Template
+from quantiphy import Quantity
 
 def pathified(string):
     return str(os.path.abspath(rf'{string}'))
@@ -46,6 +47,11 @@ parser.add_argument('--path', dest='path', type=str, help='sets path to director
 args = parser.parse_args()
 
 path = os.path.join(pathified(args.path),'generated_configs')
+
+#get the offset for bobp operations and set in as env 
+bobp_actions_offset = float(str(Quantity(args.check_interval, scale='s')).replace(' s', '')) + 1
+with open(os.getenv('GITHUB_ENV'), 'a') as file:
+    file.write(f"BOB_BOBP_ACTIONS_OFFSET={bobp_actions_offset}")
 
 os.makedirs(path, exist_ok=True, mode=0o777)
 

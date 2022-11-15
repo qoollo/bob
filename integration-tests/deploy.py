@@ -1,39 +1,17 @@
 #!/usr/bin/python3
-import os, argparse, sys, subprocess, shlex, docker,  requests, json
+import os, argparse, sys, subprocess, shlex, docker
 from python_on_whales import docker as d_cli
 from docker import errors as d_err
 from docker import types as d_types
+from python_on_whales.exceptions import DockerException
 from retry import *
+from bob_backend_timer import ensure_backend_up
+from time import sleep
 
-
-def request_metrics(port):
-    try:
-        return requests.get(f"http://0.0.0.0:{port}/metrics")
-    except requests.RequestException:
-        sys.exit('Failed to get backend status.')
-    
-         
-@retry((UserWarning), tries=5, delay=1, backoff=2, max_delay=5)
-def ensure_backend_up():
-    try:
-        for item in range(int(os.environ['BOB_NODES_AMOUNT'])):
-            response = request_metrics(f"800{item}")
-            if response.status_code != 200:
-                print(f'Failed to get response from bob instance {item}, retrying...')
-                raise UserWarning(f'Timeout on getting response from node {item}.')
-            else:
-                metrics = json.loads(response.content.decode('ascii'))
-                if metrics['metrics']['backend.backend_state']['value'] != 1:
-                    print(f'Backend is not up on node {item}, waiting...')
-                    raise UserWarning(f'Backend is down on node {item}.')
-                else:
-                    print(f'Node {item} is ready!')
-        print('All nodes are ready!')
-    except KeyError:
-        sys.exit('Nodes amount is not set.')
-    except ValueError:
-        sys.exit('Amount of nodes has unexpected value.')
-    
+try:
+    bob_nodes_amount_string = os.environ['BOB_NODES_AMOUNT']
+except KeyError:
+    sys.exit('Nodes amount is not set.')
 
 #collect arguments
 parser = argparse.ArgumentParser(description='Deploys docker compose nodes.')
@@ -77,6 +55,7 @@ except FileNotFoundError as e:
 try:
     os.chmod(path=f'./ccg', mode=0o771)
     os.chmod(path=f'./bobp', mode=0o771)
+    os.chmod(path=f'./bobt', mode=0o771)
 except OSError as e:
     sys.exit(e)
 
@@ -105,17 +84,19 @@ try:
     print(f'Services are initilized:\n{d_cli.container.list()}')
 except d_err.NotFound:
     sys.exit('Docker network not found')
+except DockerException:
+    sys.exit('Could not initilize docker-compose.')
 
 try:
-    if len(d_cli.container.list()) < int(os.environ['BOB_NODES_AMOUNT']):
+    if len(d_cli.container.list()) < int(bob_nodes_amount_string):
         sys.exit('One or more bob docker containers are not running.')
-except KeyError:
-    sys.exit('Nodes amount is not set.')
 except ValueError:
     sys.exit('Amount of nodes has unexpected value.')
 
 #ensure bob initilized in container
-ensure_backend_up()
+try:
+    ensure_backend_up(int(bob_nodes_amount_string))
+except ValueError:
+    sys.exit('Amount of nodes has unexpected value.')
 
-
-
+sleep(float(os.environ["BOB_BOBP_ACTIONS_OFFSET"]))
