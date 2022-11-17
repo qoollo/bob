@@ -481,42 +481,43 @@ impl DescrCounter {
         if !self.lsof_enabled {
             return None;
         }
-        let lsof_str = format!(
-            "lsof -a -p {} -d ^mem -d ^cwd -d ^rtd -d ^txt -d ^DEL",
-            process::id()
-        );
-        match pipers::Pipe::new(&lsof_str).then("wc -l").finally() {
-            Ok(proc) => {
-                match proc.wait_with_output() {
-                    Ok(output) => {
-                        if output.status.success() {
-                            let count = String::from_utf8(output.stdout).unwrap();
-                            match count[..count.len() - 1].parse::<u64>() {
-                                Ok(count) => {
-                                    return Some(count - 5); // exclude stdin, stdout, stderr, lsof pipe and wc pipe
+
+        let pid_arg = process::id().to_string();
+        let cmd_lsof = Command::new("lsof")
+            .args(["-a", "-p", &pid_arg, "-d", "^mem", "-d", "^cwd", "-d", "^rtd", "-d", "^txt", "-d", "^DEL"])
+            .stdout(std::process::Stdio::piped())
+            .spawn();
+        match cmd_lsof {
+            Ok(cmd_lsof) => {
+                match cmd_lsof.stdout {
+                    Some(stdout) => {
+                        match parse_command_output(Command::new("wc").arg("-l").stdin(stdout)) {
+                            Ok(output) => {
+                                match output.trim().parse::<u64>() {
+                                    Ok(count) => {
+                                        return Some(count - 5); // exclude stdin, stdout, stderr, lsof pipe and wc pipe
+                                    }
+                                    Err(e) => {
+                                        debug!("failed to parse lsof result: {}", e);
+                                    }
                                 }
-                                Err(e) => {
-                                    debug!("failed to parse lsof result: {}", e);
-                                }
+                            },
+                            Err(e) => {
+                                debug!("can't use lsof, wc error (fs /proc will be used): {}", e);
                             }
-                        } else {
-                            debug!(
-                                "something went wrong (fs /proc will be used): {}",
-                                String::from_utf8(output.stderr).unwrap()
-                            );
                         }
-                    }
-                    Err(e) => {
-                        debug!("lsof output wait error (fs /proc will be used): {}", e);
+                    },
+                    None => {
+                        debug!("lsof has no stdout (fs /proc will be used)");
                     }
                 }
-            }
+            },
             Err(e) => {
                 debug!("can't use lsof (fs /proc will be used): {}", e);
             }
         }
         self.lsof_enabled = false;
-        return None;
+        None
     }
 
     fn count_descriptors(&mut self) -> u64 {

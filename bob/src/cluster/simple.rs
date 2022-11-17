@@ -38,34 +38,33 @@ impl Quorum {
         }
         keys_by_nodes
     }
-}
 
-#[async_trait]
-impl Cluster for Quorum {
-    async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
-        let target_nodes = self.get_target_nodes(key);
+    async fn perform_on_nodes<F, T>(
+        &self,
+        key: BobKey,
+        metrics_prefix: &str,
+        client_fun: F,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(&'_ BobClient) -> crate::link_manager::ClusterCallFuture<'_, T> + Send + Clone,
+        T: Send + Debug,
+    {
+        let target_nodes: Vec<_> = self.mapper.nodes().values().cloned().collect();
 
-        debug!("PUT[{}]: Nodes for fan out: {:?}", key, &target_nodes);
+        debug!(
+            "{}[{}]: Nodes for fan out: {:?}",
+            metrics_prefix, key, &target_nodes
+        );
 
         let l_quorum = self.quorum as usize;
-        let reqs = LinkManager::call_nodes(target_nodes.iter(), |mock_bob_client| {
-            Box::pin(mock_bob_client.put(
-                key,
-                data.clone(),
-                PutOptions {
-                    remote_nodes: vec![], //TODO check
-                    force_node: true,
-                    overwrite: false,
-                },
-            ))
-        });
+        let reqs = LinkManager::call_nodes(target_nodes.iter(), client_fun);
         let results = reqs.await;
         let total_count = results.len();
         let errors = results.iter().filter(|r| r.is_err()).collect::<Vec<_>>();
         let ok_count = total_count - errors.len();
         debug!(
-            "PUT[{}] total requests: {} ok: {} quorum: {}",
-            key, total_count, ok_count, l_quorum
+            "{}[{}] total requests: {} ok: {} quorum: {}",
+            metrics_prefix, key, total_count, ok_count, l_quorum
         );
         // TODO: send actuall list of vdisk it has been written on
         if ok_count >= l_quorum {
@@ -76,6 +75,24 @@ impl Cluster for Quorum {
                 total_count, ok_count, l_quorum, errors
             )))
         }
+    }
+}
+
+#[async_trait]
+impl Cluster for Quorum {
+    async fn put(&self, key: BobKey, data: &BobData) -> Result<(), Error> {
+        self.perform_on_nodes(key, "PUT", |c| {
+            Box::pin(c.put(
+                key,
+                data.clone(),
+                PutOptions {
+                    remote_nodes: vec![], //TODO check
+                    force_node: true,
+                    overwrite: false,
+                },
+            ))
+        })
+        .await
     }
 
     async fn get(&self, key: BobKey) -> Result<BobData, Error> {
@@ -114,5 +131,12 @@ impl Cluster for Quorum {
             }
         }
         Ok(exist)
+    }
+
+    async fn delete(&self, key: BobKey) -> Result<(), Error> {
+        self.perform_on_nodes(key, "DELETE", move |c| {
+            Box::pin(c.delete(key, DeleteOptions::new_local()))
+        })
+        .await
     }
 }
