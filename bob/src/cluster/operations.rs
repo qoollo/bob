@@ -30,6 +30,18 @@ fn call_node_put(
     tokio::spawn(task)
 }
 
+fn call_node_delete(
+    key: BobKey,
+    options: DeleteOptions,
+    node: Node,
+) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
+    debug!("DELETE[{}] delete to {}", key, node.name());
+    let task = async move {
+        LinkManager::call_node(&node, |conn| conn.delete(key, options).boxed()).await
+    };
+    tokio::spawn(task)
+}
+
 fn is_result_successful(
     join_res: Result<Result<NodeOutput<()>, NodeOutput<Error>>, JoinError>,
     errors: &mut Vec<NodeOutput<Error>>,
@@ -69,15 +81,37 @@ async fn finish_at_least_handles(
 
 pub(crate) async fn put_at_least(
     key: BobKey,
-    data: BobData,
+    data: &BobData,
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
     options: PutOptions,
 ) -> (Tasks, Vec<NodeOutput<Error>>) {
-    let mut handles: FuturesUnordered<_> = target_nodes
-        .cloned()
-        .map(|node| call_node_put(key, data.clone(), node, options.clone()))
-        .collect();
+    call_at_least(target_nodes, at_least, |n| {
+        call_node_put(key, data.clone(), n, options.clone())
+    })
+    .await
+}
+
+pub(crate) async fn delete_at_nodes(
+    key: BobKey,
+    target_nodes: impl Iterator<Item = &Node>,
+    target_nodes_count: usize,
+    options: DeleteOptions,
+) -> Vec<NodeOutput<Error>> {
+    let (tasks, errors) = call_at_least(target_nodes, target_nodes_count, |n| {
+        call_node_delete(key, options.clone(), n)
+    })
+    .await;
+    assert!(tasks.is_empty());
+    errors
+}
+
+async fn call_at_least(
+    target_nodes: impl Iterator<Item = &Node>,
+    at_least: usize,
+    f: impl Fn(Node) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>,
+) -> (Tasks, Vec<NodeOutput<Error>>) {
+    let mut handles: FuturesUnordered<_> = target_nodes.cloned().map(|node| f(node)).collect();
     debug!("total handles count: {}", handles.len());
     let errors = finish_at_least_handles(&mut handles, at_least).await;
     debug!("remains: {}, errors: {}", handles.len(), errors.len());
@@ -185,7 +219,7 @@ pub(crate) async fn put_local_all(
     backend: &Backend,
     node_names: Vec<String>,
     key: BobKey,
-    data: BobData,
+    data: &BobData,
     operation: Operation,
 ) -> Result<(), PutOptions> {
     let mut add_nodes = vec![];
@@ -194,7 +228,7 @@ pub(crate) async fn put_local_all(
         op.set_remote_folder(node_name.clone());
         debug!("PUT[{}] put to local alien: {:?}", key, node_name);
 
-        if let Err(e) = backend.put_local(key, data.clone(), op).await {
+        if let Err(e) = backend.put_local(key, data, op).await {
             debug!("PUT[{}] local support put result: {:?}", key, e);
             add_nodes.push(node_name);
         }
@@ -209,7 +243,7 @@ pub(crate) async fn put_local_all(
 
 pub(crate) async fn put_sup_nodes(
     key: BobKey,
-    data: BobData,
+    data: &BobData,
     requests: &[(&Node, PutOptions)],
 ) -> Result<(), Vec<NodeOutput<Error>>> {
     let mut ret = vec![];
@@ -235,11 +269,20 @@ pub(crate) async fn put_sup_nodes(
 pub(crate) async fn put_local_node(
     backend: &Backend,
     key: BobKey,
-    data: BobData,
+    data: &BobData,
     vdisk_id: VDiskId,
     disk_path: DiskPath,
 ) -> Result<(), Error> {
     debug!("local node has vdisk replica, put local");
     let op = Operation::new_local(vdisk_id, disk_path);
     backend.put_local(key, data, op).await
+}
+
+pub(crate) async fn delete_at_local_node(
+    backend: &Backend,
+    key: BobKey,
+) -> Result<(), Error> {
+    debug!("local node has vdisk replica, put local");
+    backend.delete(key).await?;
+    Ok(())
 }
