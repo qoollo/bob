@@ -114,41 +114,35 @@ impl<Storage: UsersStorage> Basic<Storage> {
     }
 
     fn check_node_request(&self, node_name: &String, ip: Option<SocketAddr>) -> bool {
-        let mut result = false;
         let mut unresolved = false;
         {
-            let nodes = self.nodes.read().expect("nodes credentials lock");
-            if nodes.is_empty() {
-                warn!("nodes credentials not set");
-            }
             if ip.is_none() {
                 return false;
             }
+            let nodes = self.nodes.read().expect("nodes credentials lock");
+            if nodes.is_empty() {
+                warn!("nodes credentials not set");
+                return false;
+            }
             let ip = ip.unwrap().ip();
-            nodes
-                .get(node_name)
-                .map(|cred| {
-                    if let Some(CredentialsKind::InterNode(other_name)) = cred.kind() {
-                        if node_name == other_name {
-                            cred.ip().as_ref().map(|ips| {
-                                for cred_ip in ips {
-                                    if cred_ip.ip() == ip {
-                                        result = true;
-                                        break;
-                                    }
-                                }
-                            });
-                            if !result {
-                                unresolved = true;
-                            }
+            if let Some(cred) = nodes.get(node_name) {
+                if let Some(CredentialsKind::InterNode(other_name)) = cred.kind() {
+                    if node_name == other_name {
+                        if cred.ip().as_ref().and_then(|ips| {
+                            ips.iter().find(|cred_ip| cred_ip.ip() == ip)
+                        }).is_some() {
+                            return true;
                         }
+                        
+                        unresolved = true;
                     }
-                });
+                }
+            }
         }
         if unresolved {
             self.mark_unresolved(node_name);
         }
-        result
+        false
     }
 
     fn check_credentials_common(&self, credentials: Credentials) -> Result<Permissions, Error> {
