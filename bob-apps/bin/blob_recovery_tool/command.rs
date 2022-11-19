@@ -12,6 +12,7 @@ const DELETE_OPT: &str = "index delete";
 const TARGET_VERSION_OPT: &str = "target version";
 const SKIP_WRONG_OPT: &str = "skip wrong";
 const KEY_SIZE_OPT: &str = "key size";
+const FULL_BLOB_INFO_OPT: &str = "full blob info";
 
 const VALIDATE_INDEX_COMMAND: &str = "validate-index";
 const VALIDATE_BLOB_COMMAND: &str = "validate-blob";
@@ -407,15 +408,20 @@ impl MigrateCommand {
 
 pub struct GetBlobInfoCommand {
     path: PathBuf,
+    full: bool,
 }
 
 impl GetBlobInfoCommand {
     fn run(&self) -> AnyResult<()> {
-        let collector = pearl::tools::BlobSummaryCollector::from_path(&self.path)?;
+        let collector = pearl::tools::BlobSummaryCollector::from_path(&self.path, self.full)?;
         println!("Blob summary");
         println!("Path: {:?}", self.path);
-        println!("Records count: {}", collector.records());
-        println!("Unique keys: {}", collector.unique_keys_count());
+        if self.full {
+            println!("Records count: {}", collector.records());
+            println!("Unique keys: {}", collector.unique_keys_count());
+            println!("Deleted records count: {}", collector.deleted_records());
+            println!("Unique deleted keys: {}", collector.unique_deleted_keys_count());
+        }
         println!("Header");
         println!("Version: {}", collector.header_version());
         println!(
@@ -438,11 +444,21 @@ impl GetBlobInfoCommand {
                 .short("i")
                 .long("input"),
         )
+        .arg(
+            Arg::with_name(FULL_BLOB_INFO_OPT)
+                .help("display full blob info or header only")
+                .takes_value(true)
+                .required(false)
+                .default_value("false")
+                .short("f")
+                .long("full")
+        )
     }
 
     fn from_matches(matches: &ArgMatches) -> AnyResult<Self> {
         Ok(Self {
             path: matches.value_of(INPUT_OPT).expect("Required").into(),
+            full: matches.value_of(FULL_BLOB_INFO_OPT).expect("Default value is broken").into(),
         })
     }
 }
