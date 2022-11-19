@@ -377,13 +377,13 @@ impl DiskController {
         &self,
         op: Operation,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
     ) -> Result<(), Error> {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = self.get_or_create_pearl(&op).await;
             match vdisk_group {
                 Ok(group) => match group
-                    .put(key, data.clone(), StartTimestampConfig::new(false))
+                    .put(key, data, StartTimestampConfig::new(false))
                     .await
                 {
                     Err(e) => Err(self.process_error(e).await),
@@ -402,7 +402,7 @@ impl DiskController {
         }
     }
 
-    pub(crate) async fn put(&self, op: Operation, key: BobKey, data: BobData) -> BackendResult<()> {
+    pub(crate) async fn put(&self, op: Operation, key: BobKey, data: &BobData) -> BackendResult<()> {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = {
                 let groups = self.groups.read().await;
@@ -622,7 +622,7 @@ impl DiskController {
             if let Ok(group) = vdisk_group {
                 group.delete(key).await
             } else {
-                warn!(
+                debug!(
                     "DELETE[alien][{}] No alien group has been created for vdisk #{}",
                     key,
                     op.vdisk_id()

@@ -1,8 +1,8 @@
 [package]
 name = "bob-common"
-version = "2.1.0-alpha.5"
+version = "2.1.0-alpha.6"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
@@ -28,7 +28,7 @@ serde = { version = "1.0", features = ["rc"] }
 serde_derive = "1.0"
 serde_yaml = "0.8"
 thiserror = "1.0"
-tonic = { version = "0.6", features = ["prost"] }
+tonic = { version = "0.6", features = ["prost", "tls"] }
 tower = "0.4"
 tower-service = "0.3"
 ubyte = { version = "0.10", features = ["serde"] }

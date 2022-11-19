@@ -16,6 +16,33 @@ Bob versions changelog
 
 
 
+## [2.1.0-alpha.6] - 2022-11-15
+#### Added
+- Add clusterwide delete operation (#364)
+- TLS support, TLS for grpc or rest can be enabled via cluster & node config (#303)
+- Final summary and return code to `bobt` (#649)
+
+#### Changed
+- Update rust edition to 2021 (#484)
+- Remove unnecessary data clone (#506)
+- Compare vdiskid first (#594)
+- Optimize finding actual holders (#595)
+- Logger output directed to stdout instead of stderr in bobt (#651)
+- Replaced deprecated chrono functions (#660)
+
+#### Fixed
+- Print full error text received from Pearl in exist function (#581)
+- Fix alien indexes offloading (#560)
+- Internode auth works properly with nodes on same ip (#548)
+- Fix response in delete request (#558)
+- Fixed panic in brt because of duplicate long arg name (#563)
+- Make username and password args of `bobt` optional (#555)
+- Replaced deleted Pipers crate (#646)
+
+#### Updated
+- Pearl updated to v0.14.0 (#659)
+
+
 ## [2.1.0-alpha.5] - 2022-08-04
 #### Added
 - Add occupied disk space to api and metrics (#501)

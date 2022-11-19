@@ -9,7 +9,7 @@ use sha2::{Digest, Sha512};
 #[derive(Debug, Default, Clone)]
 pub struct Basic<Storage: UsersStorage> {
     users_storage: Storage,
-    nodes: HashMap<IpAddr, Credentials>,
+    nodes: HashMap<IpAddr, Vec<Credentials>>,
 }
 
 impl<Storage: UsersStorage> Basic<Storage> {
@@ -22,13 +22,16 @@ impl<Storage: UsersStorage> Basic<Storage> {
 
     pub fn set_nodes_credentials(
         &mut self,
-        nodes: HashMap<IpAddr, Credentials>,
+        nodes: HashMap<IpAddr, Vec<Credentials>>,
     ) -> Result<(), Error> {
         if nodes
             .values()
-            .all(|cred| 
-                cred.ip().is_some() &&
-                cred.kind().map(|k| k.is_internode()) == Some(true))
+            .all(|creds|
+                creds
+                    .iter()
+                    .all(|cred|
+                        cred.ip().is_some() &&
+                        cred.kind().map(|k| k.is_internode()) == Some(true)))
         {
             self.nodes = nodes;
             Ok(())
@@ -44,12 +47,16 @@ impl<Storage: UsersStorage> Basic<Storage> {
         }
         self.nodes
             .get(ip.as_ref()?)
-            .map(|cred|
-                if let Some(CredentialsKind::InterNode(other_name)) = cred.kind() {
-                    node_name == other_name
-                } else {
-                    false
-                })
+            .map(|creds| {
+                for cred in creds {
+                    if let Some(CredentialsKind::InterNode(other_name)) = cred.kind() {
+                        if node_name == other_name {
+                            return true;
+                        }
+                    }
+                }
+                false
+            })
     }
 
     fn check_credentials_common(&self, credentials: Credentials) -> Result<Permissions, Error> {

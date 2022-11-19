@@ -1,6 +1,6 @@
 use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
-    VirtualMapper, BackendType,
+    VirtualMapper, BackendType, FactoryTlsConfig,
 };
 use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap, AuthenticationType};
 use clap::{crate_version, App, Arg, ArgMatches};
@@ -123,7 +123,21 @@ async fn main() {
 async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
     let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
     let handle = Handle::current();
-    let factory = Factory::new(node.operation_timeout(), metrics, node.name().into());
+    let factory_tls_config = node.tls_config().as_ref().and_then(|tls_config| tls_config.grpc_config())
+        .map(|tls_config| {
+            let ca_cert = std::fs::read(&tls_config.ca_cert_path).expect("can not read ca certificate from file");
+            FactoryTlsConfig {
+                ca_cert,
+                tls_domain_name: tls_config.domain_name.clone(),
+            }
+        });
+    let factory = Factory::new(node.operation_timeout(), metrics, node.name().into(), factory_tls_config);
+
+    let mut server_builder = Server::builder();
+    if let Some(node_tls_config) = node.tls_config().as_ref().and_then(|tls_config| tls_config.grpc_config()) {
+        let tls_config = node_tls_config.to_server_tls_config();
+        server_builder = server_builder.tls_config(tls_config).expect("grpc tls config");
+    }
 
     let bob = BobServer::new(
         Grinder::new(mapper, &node).await,
@@ -135,10 +149,10 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
     bob.run_backend().await.unwrap();
     create_signal_handlers(&bob).unwrap();
     bob.run_periodic_tasks(factory);
-    bob.run_api_server(address, port);
+    bob.run_api_server(address, port, node.tls_config()).await;
 
     let bob_service = BobApiServer::new(bob);
-    Server::builder()
+    server_builder
         .tcp_nodelay(true)
         .add_service(bob_service)
         .serve(addr)
@@ -148,8 +162,8 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
 
 async fn nodes_credentials_from_cluster_config(
     cluster_config: &ClusterConfig,
-) -> HashMap<IpAddr, Credentials> {
-    let mut nodes_creds = HashMap::new();
+) -> HashMap<IpAddr, Vec<Credentials>> {
+    let mut nodes_creds: HashMap<IpAddr, Vec<Credentials>> = HashMap::new();
     for node in cluster_config.nodes() {
         let address = &node.address();
         let address = if let Ok(address) = address.parse() {
@@ -166,11 +180,20 @@ async fn nodes_credentials_from_cluster_config(
                 }
             }
         };
-        let creds = Credentials::builder()
+        let cred = Credentials::builder()
             .with_nodename(node.name())
             .with_address(Some(address))
             .build();
-        nodes_creds.insert(creds.ip().expect("node missing ip"), creds);
+        let ip = cred.ip().expect("node missing ip");
+        match nodes_creds.get_mut(&ip) {
+            Some(creds) => {
+                creds.push(cred);
+            },
+            None => {
+                let creds = vec![cred];
+                nodes_creds.insert(ip, creds);
+            }
+        }
     }
     nodes_creds
 }

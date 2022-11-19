@@ -290,7 +290,7 @@ impl ValidateIndexCommand {
                     .takes_value(true)
                     .required(false)
                     .help(KEY_SIZE_HELP.as_str())
-                    .long("no-confirm"),
+                    .long("key-size"),
             )
     }
 
