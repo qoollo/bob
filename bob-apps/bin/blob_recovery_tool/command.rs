@@ -446,10 +446,9 @@ impl GetBlobInfoCommand {
         )
         .arg(
             Arg::with_name(FULL_BLOB_INFO_OPT)
-                .help("display full blob info or header only")
-                .takes_value(true)
+                .help("display full blob info")
+                .takes_value(false)
                 .required(false)
-                .default_value("false")
                 .short("f")
                 .long("full")
         )
@@ -458,7 +457,7 @@ impl GetBlobInfoCommand {
     fn from_matches(matches: &ArgMatches) -> AnyResult<Self> {
         Ok(Self {
             path: matches.value_of(INPUT_OPT).expect("Required").into(),
-            full: matches.value_of(FULL_BLOB_INFO_OPT).expect("Default value is broken").into(),
+            full: matches.is_present(FULL_BLOB_INFO_OPT),
         })
     }
 }
