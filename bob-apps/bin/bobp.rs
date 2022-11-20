@@ -729,7 +729,7 @@ fn print_periodic_stat(
             let cur_st_delete_count = delete_count_st.get_diff() as f64;
             let delete_error = stat.delete_error_count.load(Ordering::Relaxed);
             let delete_spd = delete_count_spd as f64 * k;
-            println!("delete:   {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+            println!("delete:{:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
                 delete_count_spd,
                 delete_error,
                 delete_spd,
