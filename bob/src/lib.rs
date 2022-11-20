@@ -112,7 +112,7 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn get_ok(node_name: String, timestamp: u64) -> GetResult {
-        let inner = BobData::new(vec![], BobMeta::new(timestamp));
+        let inner = BobData::new(vec![].into(), BobMeta::new(timestamp));
         Ok(NodeOutput::new(node_name, inner))
     }
 

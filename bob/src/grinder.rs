@@ -77,7 +77,7 @@ impl Grinder {
     pub(crate) async fn put(
         &self,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
         opts: BobOptions,
     ) -> Result<(), Error> {
         let sw = Stopwatch::start_new();
