@@ -2,7 +2,7 @@ use rand::prelude::*;
 
 use bob::{
     Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetOptions, GetRequest, GetSource,
-    PutOptions, PutRequest,
+    PutOptions, PutRequest, DeleteRequest, DeleteOptions,
 };
 
 use clap::{App, Arg, ArgMatches};
@@ -175,6 +175,16 @@ impl TaskConfig {
         }
     }
 
+    fn find_delete_options(&self) -> Option<DeleteOptions> {
+        if self.direct {
+            Some(DeleteOptions {
+                force_node: true,
+            })
+        } else {
+            None
+        }
+    }
+
     fn is_time_measurement_thread(&self) -> bool {
         self.measure_time
     }
@@ -270,6 +280,9 @@ struct Statistics {
     exist_total: AtomicU64,
     exist_error_count: AtomicU64,
 
+    delete_total: AtomicU64,
+    delete_error_count: AtomicU64,
+
     put_time_ns_st: AtomicU64,
     put_count_st: AtomicU64,
 
@@ -279,9 +292,13 @@ struct Statistics {
     exist_time_ns_st: AtomicU64,
     exist_count_st: AtomicU64,
 
+    delete_time_ns_st: AtomicU64,
+    delete_count_st: AtomicU64,
+
     get_errors: Mutex<HashMap<CodeRepresentation, u64>>,
     put_errors: Mutex<HashMap<CodeRepresentation, u64>>,
     exist_errors: Mutex<HashMap<CodeRepresentation, u64>>,
+    delete_errors: Mutex<HashMap<CodeRepresentation, u64>>,
 
     get_size_bytes: AtomicU64,
 
@@ -290,6 +307,8 @@ struct Statistics {
     exist_presented_keys: AtomicU64,
 
     verified_puts: AtomicU64,
+
+    verified_deletes: AtomicU64,
 }
 
 impl Statistics {
@@ -309,6 +328,12 @@ impl Statistics {
         self.exist_time_ns_st
             .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
         self.exist_count_st.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn save_single_thread_delete_time(&self, duration: &Duration) {
+        self.delete_time_ns_st
+            .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
+        self.delete_count_st.fetch_add(1, Ordering::Relaxed);
     }
 
     async fn save_get_error(&self, status: Status) {
@@ -343,6 +368,17 @@ impl Statistics {
         self.exist_error_count.fetch_add(1, Ordering::SeqCst);
         debug!("{}", status.message())
     }
+
+    async fn save_delete_error(&self, status: Status) {
+        let mut guard = self.delete_errors.lock().await;
+        guard
+            .entry(status.code() as CodeRepresentation)
+            .and_modify(|i| *i += 1)
+            .or_insert(1);
+
+        self.delete_error_count.fetch_add(1, Ordering::SeqCst);
+        debug!("{}", status.message())
+    }
 }
 
 struct BenchmarkConfig {
@@ -359,6 +395,7 @@ enum Behavior {
     Put,
     Get,
     Exist,
+    Delete,
     Test,
     PingPong,
 }
@@ -371,6 +408,7 @@ impl FromStr for Behavior {
             "get" => Ok(Behavior::Get),
             "put" => Ok(Behavior::Put),
             "exist" => Ok(Behavior::Exist),
+            "delete" => Ok(Behavior::Delete),
             "test" => Ok(Behavior::Test),
             "ping_pong" => Ok(Behavior::PingPong),
             _ => Err(()),
@@ -473,9 +511,9 @@ async fn stat_worker(
     keys_count: u64,
     behavior_flags: u8,
 ) {
-    let (put_speed_values, get_speed_values, exist_speed_values, elapsed) =
+    let (put_speed_values, get_speed_values, exist_speed_values, delete_speed_values, elapsed) =
         print_periodic_stat(stop_token, period_ms, &stat, request_bytes, behavior_flags);
-    print_averages(&stat, &put_speed_values, &get_speed_values, &exist_speed_values, elapsed, keys_count, behavior_flags);
+    print_averages(&stat, &put_speed_values, &get_speed_values, &exist_speed_values, &delete_speed_values, elapsed, keys_count, behavior_flags);
     print_errors_with_codes(stat).await
 }
 
@@ -501,6 +539,13 @@ async fn print_errors_with_codes(stat: Arc<Statistics>) {
             println!("{:?} = {}", Code::from(code), count);
         }
     }
+    let guard = stat.delete_errors.lock().await;
+    if !guard.is_empty() {
+        println!("delete errors:");
+        for (&code, count) in guard.iter() {
+            println!("{:?} = {}", Code::from(code), count);
+        }
+    }
 }
 
 fn print_averages(
@@ -508,6 +553,7 @@ fn print_averages(
     put_speed_values: &[f64],
     get_speed_values: &[f64],
     exist_speed_values: &[f64],
+    delete_speed_values: &[f64],
     elapsed: Duration,
     keys_count: u64,
     behavior_flags: u8,
@@ -515,15 +561,18 @@ fn print_averages(
     let total_put = stat.put_total.load(Ordering::Relaxed);
     let total_exist = stat.exist_total.load(Ordering::Relaxed);
     let total_get = stat.get_total.load(Ordering::Relaxed);
-    let avg_total = ((total_put + total_get + total_exist) * 1000)
+    let total_delete = stat.delete_total.load(Ordering::Relaxed);
+    let avg_total = ((total_put + total_get + total_exist + total_delete) * 1000)
                     .checked_div(elapsed.as_millis() as u64)
                     .unwrap_or_default();
     let total_err = stat.put_error_count.load(Ordering::Relaxed) + 
                     stat.get_error_count.load(Ordering::Relaxed) +
+                    stat.delete_error_count.load(Ordering::Relaxed) +
                     stat.exist_error_count.load(Ordering::Relaxed);
     let print_put = (behavior_flags & PUT_FLAG) > 0;
     let print_get = (behavior_flags & GET_FLAG) > 0;
     let print_exist = (behavior_flags & EXIST_FLAG) > 0;
+    let print_delete = (behavior_flags & DELETE_FLAG) > 0;
     print!("avg total: {} rps | total err: {}\r\n", avg_total, total_err);
     if print_put {
         let put_resp_time = finite_or_default(
@@ -541,6 +590,14 @@ fn print_averages(
         );
         println!("get: {:>6.2} kb/s | resp time {:>6.2} ms", average(get_speed_values), get_resp_time);
     }
+    if print_delete {
+        let delete_resp_time = finite_or_default(
+            (stat.delete_time_ns_st.load(Ordering::Relaxed) as f64)
+                / (stat.delete_count_st.load(Ordering::Relaxed) as f64)
+                / 1e9
+        );
+        println!("delete: {:>6.2} kb/s | resp time {:>6.2} ms", average(delete_speed_values), delete_resp_time);
+    }
     if print_exist {
         let exist_resp_time = finite_or_default(
             (stat.exist_time_ns_st.load(Ordering::Relaxed) as f64)
@@ -556,6 +613,10 @@ fn print_averages(
             "verified put threads: {}",
             stat.verified_puts.load(Ordering::Relaxed)
         );
+        println!(
+            "verified delete threads: {}",
+            stat.verified_deletes.load(Ordering::Relaxed)
+        );
     }
 }
 
@@ -565,11 +626,12 @@ fn print_periodic_stat(
     stat: &Arc<Statistics>,
     request_bytes: u64,
     behavior_flags: u8,
-) -> (Vec<f64>, Vec<f64>, Vec<f64>, Duration) {
+) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Duration) {
     let pause = time::Duration::from_millis(period_ms);
     let mut put_count = DiffContainer::new(Box::new(|| stat.put_total.load(Ordering::Relaxed)));
     let mut get_count = DiffContainer::new(Box::new(|| stat.get_total.load(Ordering::Relaxed)));
     let mut exist_count = DiffContainer::new(Box::new(|| stat.exist_total.load(Ordering::Relaxed)));
+    let mut delete_count = DiffContainer::new(Box::new(|| stat.delete_total.load(Ordering::Relaxed)));
     let mut put_time_st =
         DiffContainer::new(Box::new(|| stat.put_time_ns_st.load(Ordering::Relaxed)));
     let mut put_count_st =
@@ -582,17 +644,23 @@ fn print_periodic_stat(
         DiffContainer::new(Box::new(|| stat.exist_time_ns_st.load(Ordering::Relaxed)));
     let mut exist_count_st =
         DiffContainer::new(Box::new(|| stat.exist_count_st.load(Ordering::Relaxed)));
+    let mut delete_time_st =
+        DiffContainer::new(Box::new(|| stat.delete_time_ns_st.load(Ordering::Relaxed)));
+    let mut delete_count_st =
+        DiffContainer::new(Box::new(|| stat.delete_count_st.load(Ordering::Relaxed)));
     let mut get_size = DiffContainer::new(Box::new(|| stat.get_size_bytes.load(Ordering::Relaxed)));
     let mut exist_size = DiffContainer::new(Box::new(|| stat.exist_size_bytes.load(Ordering::Relaxed)));
     let mut put_speed_values = vec![];
     let mut get_speed_values = vec![];
     let mut exist_speed_values = vec![];
+    let mut delete_speed_values = vec![];
     let sec = period_ms as f64 / 1000.;
     let k = request_bytes as f64 / 1024.0;
     let start = Instant::now();
     let print_put = (behavior_flags & PUT_FLAG) > 0;
     let print_get = (behavior_flags & GET_FLAG) > 0;
     let print_exist = (behavior_flags & EXIST_FLAG) > 0;
+    let print_delete = (behavior_flags & DELETE_FLAG) > 0;
     while !stop_token.load(Ordering::Relaxed) {
         thread::sleep(pause);
         let elapsed = start.elapsed().as_secs();
@@ -640,6 +708,27 @@ fn print_periodic_stat(
 
             get_speed_values.push(get_spd);
         }
+        if print_delete {
+            if !first_line {
+                print!("{:>6}", ' ');
+            } else {
+                first_line = false;
+            }
+
+            let d_delete = delete_count.get_diff();
+            let delete_count_spd = d_delete * 1000 / period_ms;
+            let cur_st_delete_time = delete_time_st.get_diff() as f64;
+            let cur_st_delete_count = delete_count_st.get_diff() as f64;
+            let delete_error = stat.delete_error_count.load(Ordering::Relaxed);
+            let delete_spd = delete_count_spd as f64 * k;
+            println!("delete:   {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+                delete_count_spd,
+                delete_error,
+                delete_spd,
+                finite_or_default(cur_st_delete_time / cur_st_delete_count / 1e9));
+
+            delete_speed_values.push(delete_spd);
+        }
         if print_exist {
             if !first_line {
                 print!("{:>6}", ' ');
@@ -662,7 +751,7 @@ fn print_periodic_stat(
     }
     let elapsed = start.elapsed();
     println!("Total statistics, elapsed: {:?}", elapsed);
-    (put_speed_values, get_speed_values,exist_speed_values, elapsed)
+    (put_speed_values, get_speed_values,exist_speed_values, delete_speed_values, elapsed)
 }
 
 fn average(values: &[f64]) -> f64 {
@@ -770,6 +859,54 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
     }
 }
 
+async fn delete_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
+    let mut client = net_conf.build_client().await;
+
+    let request_creator = task_conf.get_request_creator::<DeleteRequest>();
+
+    let options = task_conf.find_delete_options();
+    let measure_time = task_conf.is_time_measurement_thread();
+    let upper_idx = task_conf.low_idx + task_conf.count;
+    for i in task_conf.low_idx..upper_idx {
+        let key = BlobKey {
+            key: task_conf.get_proper_key(i),
+        };
+        let request = request_creator(DeleteRequest {
+            key: Some(key),
+            options: options.clone(),
+        });
+
+        let res = if measure_time {
+            let start = Instant::now();
+            let res = client.delete(request).await;
+            stat.save_single_thread_delete_time(&start.elapsed());
+            res
+        } else {
+            client.delete(request).await
+        };
+        if let Err(status) = res {
+            stat.save_delete_error(status).await;
+        }
+        stat.delete_total.fetch_add(1, Ordering::SeqCst);
+    }
+    let req = Request::new(ExistRequest {
+        keys: (task_conf.low_idx..upper_idx)
+            .map(|i| BlobKey {
+                key: task_conf.get_proper_key(i),
+            })
+            .collect(),
+        options: task_conf.find_get_options(),
+    });
+    if get_matches().is_present("verify") {
+        let res = client.exist(req).await;
+        if let Ok(res) = res {
+            if res.into_inner().exist.iter().all(|b| !(*b)) {
+                stat.verified_deletes.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+    }
+}
+
 async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     let mut client = net_conf.build_client().await;
 
@@ -820,7 +957,8 @@ async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat
 async fn test_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
     put_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
     get_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
-    exist_worker(net_conf, task_conf, stat).await;
+    exist_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
+    delete_worker(net_conf, task_conf, stat).await;
 }
 
 async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
@@ -906,6 +1044,7 @@ fn spawn_workers(
                 Behavior::Put => tokio::spawn(put_worker(nc, tc, stat_inner)),
                 Behavior::Get => tokio::spawn(get_worker(nc, tc, stat_inner)),
                 Behavior::Exist => tokio::spawn(exist_worker(nc, tc, stat_inner)),
+                Behavior::Delete => tokio::spawn(delete_worker(nc, tc, stat_inner)),
                 Behavior::Test => tokio::spawn(test_worker(nc, tc, stat_inner)),
                 Behavior::PingPong => tokio::spawn(ping_pong_worker(nc, tc, stat_inner)),
             }
@@ -913,6 +1052,7 @@ fn spawn_workers(
         .collect()
 }
 
+const DELETE_FLAG: u8 = 4;
 const EXIST_FLAG: u8 = 4;
 const PUT_FLAG: u8 = 1;
 const GET_FLAG: u8 = 2;
@@ -932,6 +1072,9 @@ fn spawn_statistics_thread(
         Behavior::Get => {
             behavior_flags |= GET_FLAG;
         },
+        Behavior::Delete => {
+            behavior_flags |= DELETE_FLAG;
+        },
         Behavior::PingPong => {
             behavior_flags |= GET_FLAG;
             behavior_flags |= PUT_FLAG;
@@ -943,6 +1086,7 @@ fn spawn_statistics_thread(
             behavior_flags |= GET_FLAG;
             behavior_flags |= PUT_FLAG;
             behavior_flags |= EXIST_FLAG;
+            behavior_flags |= DELETE_FLAG;
         }
     }
     tokio::spawn(stat_worker(stop_token, 1000, stat, bytes_amount, keys_count, behavior_flags))
@@ -1013,7 +1157,7 @@ fn get_matches() -> ArgMatches<'static> {
         )
         .arg(
             Arg::with_name("behavior")
-                .help("put / get / exist / test")
+                .help("put / get / exist / delete / test")
                 .takes_value(true)
                 .short("b")
                 .long("behavior")
