@@ -176,12 +176,15 @@ impl TaskConfig {
     }
 
     fn find_delete_options(&self) -> Option<DeleteOptions> {
+        // option is mandatory for delete request to work
         if self.direct {
             Some(DeleteOptions {
                 force_node: true,
             })
         } else {
-            None
+            Some(DeleteOptions {
+                force_node: false,
+            })
         }
     }
 
@@ -573,6 +576,7 @@ fn print_averages(
     let print_get = (behavior_flags & GET_FLAG) > 0;
     let print_exist = (behavior_flags & EXIST_FLAG) > 0;
     let print_delete = (behavior_flags & DELETE_FLAG) > 0;
+    let verify = get_matches().is_present("verify");
     print!("avg total: {} rps | total err: {}\r\n", avg_total, total_err);
     if print_put {
         let put_resp_time = finite_or_default(
@@ -581,6 +585,13 @@ fn print_averages(
                 / 1e9
         );
         println!("put: {:>6.2} kb/s | resp time {:>6.2} ms", average(put_speed_values), put_resp_time);
+
+        if verify {
+            println!(
+                "verified put threads: {}",
+                stat.verified_puts.load(Ordering::Relaxed)
+            );
+        }
     }
     if print_get {
         let get_resp_time = finite_or_default(
@@ -597,6 +608,13 @@ fn print_averages(
                 / 1e9
         );
         println!("delete: {:>6.2} kb/s | resp time {:>6.2} ms", average(delete_speed_values), delete_resp_time);
+
+        if verify {
+            println!(
+                "verified delete threads: {}",
+                stat.verified_deletes.load(Ordering::Relaxed)
+            );
+        }
     }
     if print_exist {
         let exist_resp_time = finite_or_default(
@@ -607,16 +625,6 @@ fn print_averages(
         let present_keys = stat.exist_presented_keys.load(Ordering::Relaxed);
         println!("exist: {:>6.2} kb/s | resp time {:>6.2} ms | {} of {} keys present", 
             average(exist_speed_values), exist_resp_time, present_keys, keys_count);
-    }
-    if get_matches().is_present("verify") {
-        println!(
-            "verified put threads: {}",
-            stat.verified_puts.load(Ordering::Relaxed)
-        );
-        println!(
-            "verified delete threads: {}",
-            stat.verified_deletes.load(Ordering::Relaxed)
-        );
     }
 }
 
@@ -841,15 +849,17 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
     }
-    let req = Request::new(ExistRequest {
-        keys: (task_conf.low_idx..upper_idx)
-            .map(|i| BlobKey {
-                key: task_conf.get_proper_key(i),
-            })
-            .collect(),
-        options: task_conf.find_get_options(),
-    });
     if get_matches().is_present("verify") {
+        let request_creator = task_conf.get_request_creator::<ExistRequest>();
+        let req = request_creator(
+            ExistRequest {
+                keys: (task_conf.low_idx..upper_idx)
+                    .map(|i| BlobKey {
+                        key: task_conf.get_proper_key(i),
+                    })
+                    .collect(),
+                options: task_conf.find_get_options(),
+            });
         let res = client.exist(req).await;
         if let Ok(res) = res {
             if res.into_inner().exist.iter().all(|b| *b) {
@@ -889,15 +899,17 @@ async fn delete_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Sta
         }
         stat.delete_total.fetch_add(1, Ordering::SeqCst);
     }
-    let req = Request::new(ExistRequest {
-        keys: (task_conf.low_idx..upper_idx)
-            .map(|i| BlobKey {
-                key: task_conf.get_proper_key(i),
-            })
-            .collect(),
-        options: task_conf.find_get_options(),
-    });
     if get_matches().is_present("verify") {
+        let request_creator = task_conf.get_request_creator::<ExistRequest>();
+        let req = request_creator(
+            ExistRequest {
+                keys: (task_conf.low_idx..upper_idx)
+                    .map(|i| BlobKey {
+                        key: task_conf.get_proper_key(i),
+                    })
+                    .collect(),
+                options: task_conf.find_get_options(),
+            });
         let res = client.exist(req).await;
         if let Ok(res) = res {
             if res.into_inner().exist.iter().all(|b| !(*b)) {
@@ -1052,7 +1064,7 @@ fn spawn_workers(
         .collect()
 }
 
-const DELETE_FLAG: u8 = 4;
+const DELETE_FLAG: u8 = 8;
 const EXIST_FLAG: u8 = 4;
 const PUT_FLAG: u8 = 1;
 const GET_FLAG: u8 = 2;
