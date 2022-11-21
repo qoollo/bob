@@ -276,25 +276,7 @@ impl Cluster for Quorum {
         let mut exist = vec![false; len];
 
         // filter local keys
-        let mut indices = Vec::new();
-        let local_keys = keys
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, &key)| {
-                if self
-                    .mapper
-                    .get_target_nodes_for_key(key)
-                    .iter()
-                    .find(|node| node.name() == self.mapper.local_node_name())
-                    .is_some()
-                {
-                    indices.push(idx);
-                    Some(key)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<BobKey>>();
+        let (indices, local_keys) = filter_local_keys(keys, &self.mapper);
         // end
         debug!("local keys {:?}", local_keys);
         debug!("local indices {:?}", indices);
@@ -307,39 +289,17 @@ impl Cluster for Quorum {
         }
 
         // filter keys that were not found
-        let mut local_alien = Vec::new();
-        for (idx, &r) in exist.iter().enumerate() {
-            if r == false {
-                local_alien.push(keys[idx]);
-            }
-        }
+        let local_alien = filter_not_found(&exist, keys);
         // end
         debug!("local alien keys {:?}", local_alien);
         if local_alien.len() > 0 {
             let result = exist_on_local_alien(&self.backend, &local_alien).await?;
-            let mut i = 0;
-            for r in exist.iter_mut() {
-                if *r == false {
-                    *r |= result[i];
-                    i += 1;
-                }
-            }
+            update_exist(&mut exist, &result);
             debug!("exist after local alien {:?}", exist);
         }
 
         // filter remote not found keys by nodes
-        let mut remote_keys: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
-        for (idx, &r) in exist.iter().enumerate() {
-            if r == false {
-                remote_keys
-                    .entry(self.mapper.get_target_nodes_for_key(keys[idx]).to_vec())
-                    .and_modify(|(closure_keys, indices)| {
-                        closure_keys.push(keys[idx]);
-                        indices.push(idx);
-                    })
-                    .or_insert_with(|| (vec![keys[idx]], vec![idx]));
-            }
-        }
+        let remote_keys = filter_remote_not_found_by_nodes(&exist, keys, &self.mapper);
         // end
 
         debug!("remote keys by nodes {:?}", remote_keys);
@@ -356,27 +316,11 @@ impl Cluster for Quorum {
         }
 
         // filter remote not found keys
-        let mut remote_alien = Vec::new();
-        for (idx, &r) in exist.iter().enumerate() {
-            if r == false {
-                remote_alien.push(keys[idx]);
-            }
-        }
+        let remote_alien = filter_not_found(&exist, keys);
         // end
         if remote_alien.len() > 0 {
             // filter remote nodes
-            let remote_nodes = self
-                .mapper
-                .nodes()
-                .into_iter()
-                .filter_map(|(_, node)| {
-                    if node.name() != self.mapper.local_node_name() {
-                        Some(node.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<Node>>();
+            let remote_nodes = filter_remote_nodes(&self.mapper);
             // end
             debug!("remote nodes {:?}", remote_nodes);
 
@@ -385,21 +329,87 @@ impl Cluster for Quorum {
             for res in result.into_iter() {
                 if let Ok(inner) = res {
                     debug!("inner {:?}", inner);
-                    let mut i = 0;
-                    for r in exist.iter_mut() {
-                        if *r == false {
-                            *r |= inner.inner()[i];
-                            i += 1;
-                        }
-                    }
+                    update_exist(&mut exist, inner.inner());
                 }
             }
         }
-
         Ok(exist)
     }
 
     async fn delete(&self, key: BobKey) -> Result<(), Error> {
         self.delete_on_nodes(key).await
+    }
+}
+
+fn filter_local_keys(keys: &[BobKey], mapper: &Virtual) -> (Vec<usize>, Vec<BobKey>)  {
+    let mut indices = Vec::new();
+    let local_keys = keys
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, &key)| {
+            if mapper
+                .get_target_nodes_for_key(key)
+                .iter()
+                .find(|node| node.name() == mapper.local_node_name())
+                .is_some()
+            {
+                indices.push(idx);
+                Some(key)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<BobKey>>();
+    (indices, local_keys)
+}
+
+fn filter_not_found(exist: &[bool], keys: &[BobKey]) -> Vec<BobKey> {
+    let mut not_found_keys = Vec::new();
+    for (idx, &r) in exist.iter().enumerate() {
+        if r == false {
+            not_found_keys.push(keys[idx]);
+        }
+    }
+    not_found_keys
+}
+
+fn filter_remote_not_found_by_nodes(exist: &[bool], keys: &[BobKey], mapper: &Virtual) -> HashMap<Vec<Node>, (Vec<BobKey>, Vec<usize>)> {
+    let mut remote_keys: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
+    for (idx, &r) in exist.iter().enumerate() {
+        if r == false {
+            remote_keys
+                .entry(mapper.get_target_nodes_for_key(keys[idx]).to_vec())
+                .and_modify(|(closure_keys, indices)| {
+                    closure_keys.push(keys[idx]);
+                    indices.push(idx);
+                })
+                .or_insert_with(|| (vec![keys[idx]], vec![idx]));
+        }
+    }
+    remote_keys
+}
+
+fn filter_remote_nodes(mapper: &Virtual) -> Vec<Node> {
+    let remote_nodes = mapper
+        .nodes()
+        .into_iter()
+        .filter_map(|(_, node)| {
+            if node.name() != mapper.local_node_name() {
+                Some(node.clone())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<Node>>();
+    remote_nodes
+}
+
+fn update_exist(exist: &mut [bool], result: &[bool]) {
+    let mut i = 0;
+    for r in exist.iter_mut() {
+        if *r == false {
+            *r |= result[i];
+            i += 1;
+        }
     }
 }
