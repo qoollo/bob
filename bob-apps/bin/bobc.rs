@@ -125,8 +125,8 @@ impl AppArgs {
             if v.len() != 2 {
                 return Err(ParseError::KeyPattern);
             }
-            let v0 = v[0].parse().unwrap();
-            let v1 = v[1].parse().unwrap();
+            let v0 = v[0].parse().map_err(|_| ParseError::KeyPattern)?;
+            let v1 = v[1].parse().map_err(|_| ParseError::KeyPattern)?;
             if v0 >= v1 {
                 return Err(ParseError::KeyPattern);
             }
