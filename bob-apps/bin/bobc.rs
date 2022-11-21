@@ -2,6 +2,7 @@
 extern crate log;
 
 use bob::{Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetRequest, PutRequest};
+use bytes::Bytes;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use log::LevelFilter;
 use regex::Regex;
@@ -356,6 +357,7 @@ async fn put(key: u64, key_size: usize, filename: &str, client: &mut BobApiClien
                 .unwrap()
                 .as_secs();
             let meta = BlobMeta { timestamp };
+            let data = Bytes::from(data);
             let blob = Blob {
                 data,
                 meta: Some(meta),
