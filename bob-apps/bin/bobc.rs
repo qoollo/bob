@@ -340,11 +340,11 @@ async fn prepare_put_from_pattern(
     let mut keys_names = Vec::new();
     while let Some(entry) = dir_iter.next_entry().await.unwrap() {
         let file = entry.path();
-            let name = file.to_str().unwrap().to_owned();
-            if let (false, Some(cap)) = (file.is_dir(), re_path.captures(&name)) {
-                let key = cap[1].parse().unwrap();
-                keys_names.push(KeyName { key, name });
-            }
+        let name = file.to_str().unwrap().to_owned();
+        if let (false, Some(cap)) = (file.is_dir(), re_path.captures(&name)) {
+            let key = cap[1].parse().expect(&format!("cannot parse file name: {}", &cap[1]));
+            keys_names.push(KeyName { key, name });
+        }
     }
     Box::new(keys_names.into_iter())
 }
