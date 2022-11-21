@@ -347,17 +347,14 @@ fn filter_local_keys(keys: &[BobKey], mapper: &Virtual) -> (Vec<usize>, Vec<BobK
         .iter()
         .enumerate()
         .filter_map(|(idx, &key)| {
-            if mapper
-                .get_target_nodes_for_key(key)
-                .iter()
-                .find(|node| node.name() == mapper.local_node_name())
-                .is_some()
-            {
-                indices.push(idx);
-                Some(key)
-            } else {
-                None
-            }
+            mapper.get_target_nodes_for_key(key).iter().find_map(|node| {
+              if node.name() == mapper.local_node_name() {
+                  indices.push(idx);
+                  Some(key)
+              } else {
+                  None
+              }
+            })
         })
         .collect::<Vec<BobKey>>();
     (indices, local_keys)
