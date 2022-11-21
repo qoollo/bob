@@ -342,7 +342,11 @@ async fn prepare_put_from_pattern(
         let file = entry.path();
         let name = file.to_str().unwrap().to_owned();
         if let (false, Some(cap)) = (file.is_dir(), re_path.captures(&name)) {
-            let key = cap[1].parse().expect(&format!("cannot parse file name: {}", &cap[1]));
+            let key = match cap[1].parse() {
+                Ok(val) => val,
+                Err(_) => panic!("cannot parse capture group: {}", &cap[1]),
+
+            };
             keys_names.push(KeyName { key, name });
         }
     }
