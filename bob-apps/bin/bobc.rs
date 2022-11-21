@@ -223,7 +223,7 @@ impl<'a> IntoIterator for &'a KeyPattern {
 
 struct KeyIter<'a> {
     inner: &'a KeyPattern,
-    index: usize
+    index: usize,
 }
 
 impl<'a> Iterator for KeyIter<'a> {
@@ -259,7 +259,6 @@ fn keypattern_iter_next(keyp: &KeyPattern, index: &mut usize) -> Option<u64> {
             }
         }
     }
-
 }
 
 #[derive(Debug)]
@@ -282,9 +281,9 @@ async fn main() {
                 (FilePattern::WithRE(re, dir), None) => {
                     prepare_put_from_pattern(&re.get_regex(), &dir).await
                 }
-                (FilePattern::WithRE(re, _), Some(key_pattern)) => Box::new(
-                    re.get_filenames(key_pattern)
-                ),
+                (FilePattern::WithRE(re, _), Some(key_pattern)) => {
+                    Box::new(re.get_filenames(key_pattern))
+                }
                 (FilePattern::WithoutRE(path), Some(key_pattern)) => {
                     Box::new(key_pattern.into_iter().map(move |key| KeyName {
                         key,
@@ -300,12 +299,16 @@ async fn main() {
             }
         }
         GET_SC => {
-            let keys_names = match (app_args.file_pattern.unwrap(), app_args.key_pattern.unwrap()) {
-                (FilePattern::WithRE(re, _), key) => {
-                    re.get_filenames(key)
-                }
+            let keys_names = match (
+                app_args.file_pattern.unwrap(),
+                app_args.key_pattern.unwrap(),
+            ) {
+                (FilePattern::WithRE(re, _), key) => re.get_filenames(key),
                 (FilePattern::WithoutRE(path), KeyPattern::Single(key)) => {
-                    Box::new(iter::once(KeyName { key, name: path.to_string()}))
+                    Box::new(iter::once(KeyName {
+                        key,
+                        name: path.to_string(),
+                    }))
                 }
                 (FilePattern::WithoutRE(_), _) => {
                     return error!("Multiple keys are not allowed without pattern")
@@ -316,13 +319,21 @@ async fn main() {
             }
         }
         EXIST_SC => {
-            exist(&app_args.key_pattern.unwrap(), app_args.keysize, &mut client).await
+            exist(
+                &app_args.key_pattern.unwrap(),
+                app_args.keysize,
+                &mut client,
+            )
+            .await
         }
         _ => unreachable!("unknown command"),
     }
 }
 
-async fn prepare_put_from_pattern(re_path: &Regex, dir: &PathBuf) -> Box<dyn Iterator<Item = KeyName>> {
+async fn prepare_put_from_pattern(
+    re_path: &Regex,
+    dir: &PathBuf,
+) -> Box<dyn Iterator<Item = KeyName>> {
     let mut dir_iter = fs::read_dir(dir).await.unwrap();
 
     let mut keys_names = Vec::new();
@@ -350,7 +361,9 @@ async fn put(key: u64, key_size: usize, filename: &str, client: &mut BobApiClien
                 meta: Some(meta),
             };
             let message = PutRequest {
-                key: Some(BlobKey { key: get_key_value(key, key_size) }),
+                key: Some(BlobKey {
+                    key: get_key_value(key, key_size),
+                }),
                 data: Some(blob),
                 options: None,
             };
@@ -358,7 +371,7 @@ async fn put(key: u64, key_size: usize, filename: &str, client: &mut BobApiClien
 
             match client.put(put_req).await {
                 Ok(_) => info!("key: {}, file: {}", key, filename),
-                Err(e) => error!("key: {}, file: {}, error: {:?}", key, filename, e)
+                Err(e) => error!("key: {}, file: {}, error: {:?}", key, filename, e),
             }
         }
         Err(e) => {
@@ -369,7 +382,9 @@ async fn put(key: u64, key_size: usize, filename: &str, client: &mut BobApiClien
 
 async fn get(key: u64, key_size: usize, filename: &str, client: &mut BobApiClient<Channel>) {
     let message = GetRequest {
-        key: Some(BlobKey { key: get_key_value(key, key_size) }),
+        key: Some(BlobKey {
+            key: get_key_value(key, key_size),
+        }),
         options: None,
     };
     let get_req = Request::new(message);
@@ -380,8 +395,7 @@ async fn get(key: u64, key_size: usize, filename: &str, client: &mut BobApiClien
             let data = res.get_ref();
             match fs::write(filename, &data.data).await {
                 Err(e) => error!("key: {}, file: {}, error: {:?}", key, filename, e),
-                _ => info!("key: {}, file: {}", key, filename)
-
+                _ => info!("key: {}, file: {}", key, filename),
             }
         }
         Err(e) => {
@@ -391,7 +405,12 @@ async fn get(key: u64, key_size: usize, filename: &str, client: &mut BobApiClien
 }
 
 async fn exist(keys: &KeyPattern, key_size: usize, client: &mut BobApiClient<Channel>) {
-    let k = keys.iter().map(|key| BlobKey { key: get_key_value(key, key_size) }).collect();
+    let k = keys
+        .iter()
+        .map(|key| BlobKey {
+            key: get_key_value(key, key_size),
+        })
+        .collect();
     let message = ExistRequest {
         keys: k,
         options: None,
