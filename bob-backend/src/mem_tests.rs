@@ -26,7 +26,7 @@ async fn test_mem_put_wrong_disk() {
         .put(
             Operation::new_local(0, DiskPath::new("invalid name".to_owned(), "".to_owned())),
             BobKey::from(1u64),
-            BobData::new(vec![0], BobMeta::stub()),
+            &BobData::new(vec![0].into(), BobMeta::stub()),
         )
         .await;
     assert!(retval.err().unwrap().is_internal())
@@ -40,7 +40,7 @@ async fn test_mem_put_get() {
         .put(
             Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
             BobKey::from(1u64),
-            BobData::new(vec![1], BobMeta::stub()),
+            &BobData::new(vec![1].into(), BobMeta::stub()),
         )
         .await
         .unwrap();
@@ -62,7 +62,7 @@ async fn test_mem_get_wrong_disk() {
         .put(
             Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
             BobKey::from(1u64),
-            BobData::new(vec![1], BobMeta::stub()),
+            &BobData::new(vec![1].into(), BobMeta::stub()),
         )
         .await
         .unwrap();
