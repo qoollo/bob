@@ -51,7 +51,8 @@ default-features = false
 features = ["signal"]
 
 [dependencies.pearl]
-version = "0.14.0"
+# version = "0.14.0"
+git = "https://github.com/qoollo/pearl"
 
 [build-dependencies]
 tonic-build = "0.6"
