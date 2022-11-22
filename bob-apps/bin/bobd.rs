@@ -108,9 +108,9 @@ async fn main() {
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
             let mut authenticator = BasicAuthenticator::new(users_storage, node.hostname_resolve_dur_ms());
-            let (nodes_credentials, unresolved) = nodes_credentials_from_cluster_config(&cluster).await;
+            let nodes_credentials = nodes_credentials_from_cluster_config(&cluster).await;
             authenticator
-                .set_nodes_credentials(nodes_credentials, unresolved)
+                .set_nodes_credentials(nodes_credentials)
                 .expect("failed to gen nodes credentials from cluster config");
             run_server(node, authenticator, mapper, http_api_address, http_api_port, addr).await;
         }
@@ -162,27 +162,25 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
 
 async fn nodes_credentials_from_cluster_config(
     cluster_config: &ClusterConfig,
-) -> (HashMap<String, Credentials>, Vec<Credentials>) {
+) -> HashMap<String, Credentials> {
     let mut nodes_creds: HashMap<String, Credentials> = HashMap::new();
-    let mut unresolved = Vec::new();
     for node in cluster_config.nodes() {
         let address = node.address();
+        let cred = 
         if let Ok(address) = address.parse::<SocketAddr>() {
-            let addresses = vec![address];
-            let cred = Credentials::builder()
+            Credentials::builder()
                 .with_nodename(node.name())
-                .with_address(Some(addresses))
-                .build();
-            nodes_creds.insert(node.name().into(), cred);
+                .with_address(Some(vec![address]))
+                .build()
         } else {
-            let cred = Credentials::builder()
+            Credentials::builder()
                 .with_nodename(node.name())
                 .with_hostname(address.into())
-                .build();
-            unresolved.push(cred);
+                .build()
         };
+        nodes_creds.insert(node.name().into(), cred);
     }
-    (nodes_creds, unresolved)
+    nodes_creds
 }
 
 fn bind_all_interfaces(port: u16) -> SocketAddr {

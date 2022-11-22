@@ -2,7 +2,6 @@ use std::{
     collections::HashMap,
     net::SocketAddr,
     sync::{RwLock, Arc},
-    thread::sleep, 
     time::Duration,
 };
 
@@ -35,31 +34,25 @@ impl<Storage: UsersStorage> Basic<Storage> {
     fn node_creds_ok(creds: &HashMap<String, Credentials>) -> bool {
         creds.values()
             .all(|cred|
-                cred.ip().is_some() &&
-                cred.kind().map(|k| k.is_internode()) == Some(true))
-    }
-
-    fn unresolved_node_creds_ok(creds: &Vec<Credentials>) -> bool {
-        creds.iter()
-            .all(|cred|
-                cred.hostname().is_some() &&
+                (cred.ip().is_some() || cred.hostname().is_some()) &&
                 cred.kind().map(|k| k.is_internode()) == Some(true))
     }
 
     pub fn set_nodes_credentials(
         &mut self,
-        nodes: HashMap<String, Credentials>,
-        unresolved: Vec<Credentials>,
+        mut nodes: HashMap<String, Credentials>,
     ) -> Result<(), Error> {
-        if Self::node_creds_ok(&nodes) && Self::unresolved_node_creds_ok(&unresolved)
-        {
-            {
-                let mut nodes_creds = self.nodes.write().expect("nodes credentials lock");
-                *nodes_creds = nodes;
+        if Self::node_creds_ok(&nodes) {
+            let mut resolved = HashMap::new();
+            for (nodename, cred) in nodes.drain() {
+                if cred.ip().is_none() && cred.hostname().is_some() {
+                    self.spawn_resolver(cred);
+                } else {
+                    resolved.insert(nodename, cred);
+                }
             }
-            for cred in unresolved {
-                self.spawn_resolver(cred);
-            }
+            let mut nodes_creds = self.nodes.write().expect("nodes credentials lock");
+            nodes_creds.extend(resolved.drain());
             Ok(())
         } else {
             let message = "nodes credentials missing ip or node name";
@@ -85,11 +78,11 @@ impl<Storage: UsersStorage> Basic<Storage> {
                 }
             }
 
-            sleep(Duration::from_secs(1));
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
 
         while addr.is_none() || (addr.is_some() && addr.as_ref().unwrap().len() == 0) {
-            sleep(Duration::from_millis(sleep_dur_ms));
+            tokio::time::sleep(Duration::from_millis(sleep_dur_ms)).await;
 
             addr = match lookup_host(hostname).await {
                 Ok(address) => Some(address.collect()),
