@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-- Clear memory on remount (#636)
+- Clear bloom-filter memory on remount (#636)
 
 #### Updated
 - Pearl updated to v0.15.0 (#668)
