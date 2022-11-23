@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Include bobt into the zip archive attached to the release infrastructure (#669)
 
 
 #### Changed
