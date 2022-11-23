@@ -1,6 +1,6 @@
 [package]
 name = "bob-backend"
-version = "2.1.0-alpha.5"
+version = "2.1.0-alpha.6"
 authors = [
     "Kirill Bushminkin <kb@qoollo.com>",
     "Pavel Iakushin <pyakushin@qoollo.com>",
@@ -37,7 +37,7 @@ tower = "0.4"
 tower-service = "0.3"
 
 [dependencies.pearl]
-version = "0.13.0"
+version = "0.15.0"
 
 [dependencies.tokio]
 version = "1.14"
