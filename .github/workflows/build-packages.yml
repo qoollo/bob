@@ -5,6 +5,8 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
+    branches:
+      - 665-include-bobt-into-the-zip-archive
     
 jobs:
 
@@ -44,6 +46,7 @@ jobs:
           path: |
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobp
+            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobt
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
             target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/brt
  
@@ -187,8 +190,8 @@ jobs:
         run: |
           echo Version:${{ env.VERSION }}
           mkdir -p bob_${{ env.VERSION }}/{usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
-          cp {bobd,bobp,brt,ccg} bob_${{ env.VERSION }}/usr/bin/
-          chmod +x bob_${{ env.VERSION }}/usr/bin/{bobd,bobp,brt,ccg}
+          cp {bobd,bobp,bobt,brt,ccg} bob_${{ env.VERSION }}/usr/bin/
+          chmod +x bob_${{ env.VERSION }}/usr/bin/{bobd,bobp,bobt,brt,ccg}
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}/etc/bob/
           cp linux-packages/bob.service bob_${{ env.VERSION }}/etc/systemd/system/
           cp linux-packages/bob.service bob_${{ env.VERSION }}/lib/systemd/system/
