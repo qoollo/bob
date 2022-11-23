@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+- Pearl updated to v0.15.0 (#668)
+
+
+## [2.1.0-alpha.6] - 2022-11-15
+#### Added
 - Add clusterwide delete operation (#364)
 - TLS support, TLS for grpc or rest can be enabled via cluster & node config (#303)
 - Final summary and return code to `bobt` (#649)
@@ -15,6 +29,7 @@ Bob versions changelog
 - Compare vdiskid first (#594)
 - Optimize finding actual holders (#595)
 - Logger output directed to stdout instead of stderr in bobt (#651)
+- Replaced deprecated chrono functions (#660)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
@@ -27,7 +42,6 @@ Bob versions changelog
 
 #### Updated
 - Pearl updated to v0.14.0 (#659)
-
 
 
 ## [2.1.0-alpha.5] - 2022-08-04
