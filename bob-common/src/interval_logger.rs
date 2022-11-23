@@ -3,9 +3,9 @@ use std::{
     collections::HashMap,
     hash::Hash,
     cmp::Eq,
-    fmt::Display
+    fmt::Display,
+    sync::Mutex,
 };
-use parking_lot::Mutex as PLMutex;
 use log::Level;
 
 #[derive(Debug)]
@@ -48,17 +48,19 @@ impl<E: Hash + Eq + Display> IntervalLogger<E> {
 
 #[derive(Debug)]
 pub struct IntervalLoggerSafe<E> {
-    inner: PLMutex<IntervalLogger<E>>
+    inner: Mutex<IntervalLogger<E>>
 }
 
 impl<E: Hash + Eq + Display> IntervalLoggerSafe<E> {
     pub fn new(interval_ms: u64, level: Level) -> Self {
         Self {
-            inner: PLMutex::new(IntervalLogger::new(interval_ms, level))
+            inner: Mutex::new(IntervalLogger::new(interval_ms, level))
         }
     }
 
     pub fn report_error(&self, action: E) {
-        self.inner.lock().report_error(action);
+        if let Ok(mut lock) = self.inner.lock() {
+            lock.report_error(action);
+        };
     }
 }
