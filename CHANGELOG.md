@@ -10,6 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Ensure correct working when node contains multiple replicas of single vdisk (#654)
 
 
 #### Updated
