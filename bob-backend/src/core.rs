@@ -430,12 +430,12 @@ impl Backend {
         keys_by_operations
     }
 
-    fn find_operation(&self, key: BobKey, options: &BobOptions) -> Option<Operation> {
-        let (vdisk_id, path) = self.mapper.get_operation(key);
+    fn find_operation(&self, key: BobKey, options: &BobOptions) -> Option<Vec<Operation>> {
+        let (vdisk_id, paths) = self.mapper.get_operation(key);
         if options.get_normal() {
-            path.map(|path| Operation::new_local(vdisk_id, path))
+            paths.map(|paths| paths.into_iter().map(|path| Operation::new_local(vdisk_id, path)).collect())
         } else if options.get_alien() {
-            Some(Operation::new_alien(vdisk_id))
+            Some(vec![Operation::new_alien(vdisk_id)])
         } else {
             None
         }
