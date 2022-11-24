@@ -14,6 +14,8 @@ use log::Level;
 
 use bob_common::metrics::BLOOM_FILTERS_RAM;
 
+use futures::StreamExt;
+
 pub const BACKEND_STARTING: f64 = 0f64;
 pub const BACKEND_STARTED: f64 = 1f64;
 
@@ -335,15 +337,23 @@ impl Backend {
     }
 
     pub async fn get(&self, key: BobKey, options: &BobOptions) -> Result<BobData, Error> {
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
 
         // we cannot get data from alien if it belong this node
 
         if options.get_normal() {
-            if let Some(path) = disk_path {
+            if let Some(paths) = disk_paths {
                 trace!("GET[{}] try read normal", key);
-                self.get_local(key, Operation::new_local(vdisk_id, path.clone()))
-                    .await
+                let mut futures: FuturesUnordered<_> = paths.into_iter().map(|path| {
+                    self.get_local(key, Operation::new_local(vdisk_id, path))
+                }).collect();
+                while let Some(result) = futures.next().await {
+                    match result {
+                        Ok(data) => return Ok(data),
+                        Err(_) => continue,
+                    }
+                }
+                Err(Error::internal())
             } else {
                 error!("GET[{}] we read data but can't find path in config", key);
                 Err(Error::internal())
@@ -359,7 +369,7 @@ impl Backend {
         } else {
             error!(
                 "GET[{}] can't read from anywhere {:?}, {:?}",
-                key, disk_path, options
+                key, disk_paths, options
             );
             Err(Error::internal())
         }
