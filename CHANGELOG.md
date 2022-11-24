@@ -13,8 +13,8 @@ Bob versions changelog
 
 
 #### Updated
+- Pearl updated to v0.15.0 (#668)
 - Updated versions of dependencies (#551)
-
 
 
 ## [2.1.0-alpha.6] - 2022-11-15
