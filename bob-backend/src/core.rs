@@ -454,10 +454,12 @@ impl Backend {
     }
 
     pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
         let mut ops = vec![];
-        if let Some(path) = disk_path {
-            ops.push(Operation::new_local(vdisk_id, path.clone()));
+        if let Some(paths) = disk_paths {
+            for p in paths {
+                ops.push(Operation::new_local(vdisk_id, p))
+            }
         }
         ops.push(Operation::new_alien(vdisk_id));
         let total_count = futures::future::join_all(ops.into_iter().map(|op| {
