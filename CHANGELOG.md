@@ -7,11 +7,10 @@ Bob versions changelog
 
 
 #### Changed
-
+- Replaced deprecated chrono functions
 
 #### Fixed
 - Clear bloom-filter memory on remount (#636)
-
 
 #### Updated
 - Upgrade pearl to v0.9.4 (#673)
