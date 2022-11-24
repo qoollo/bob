@@ -1,7 +1,8 @@
 use crate::prelude::*;
 use std::{
     collections::HashMap,
-    fmt::{Display, Formatter, Result as FMTResult}, hash::Hash,
+    fmt::{Display, Formatter, Result as FMTResult},
+    hash::Hash,
 };
 
 use crate::{
@@ -98,8 +99,8 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
         result
     }
 
-    async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
-    async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error>;
+    async fn put(&self, op: Operation, key: BobKey, data: &BobData) -> Result<(), Error>;
+    async fn put_alien(&self, op: Operation, key: BobKey, data: &BobData) -> Result<(), Error>;
 
     async fn get(&self, op: Operation, key: BobKey) -> Result<BobData, Error>;
     async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error>;
@@ -131,6 +132,10 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
 
     async fn filter_memory_allocated(&self) -> usize {
         0
+    }
+
+    async fn remount_vdisk(&self, _vdisk_id: u32) -> AnyResult<()> {
+        Ok(())
     }
 }
 
@@ -237,7 +242,7 @@ impl Backend {
         self.inner.run().await
     }
 
-    pub async fn put(&self, key: BobKey, data: BobData, options: BobOptions) -> Result<(), Error> {
+    pub async fn put(&self, key: BobKey, data: &BobData, options: BobOptions) -> Result<(), Error> {
         trace!(">>>>>>- - - - - BACKEND PUT START - - - - -");
         let sw = Stopwatch::start_new();
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
@@ -254,7 +259,7 @@ impl Backend {
                 op.set_remote_folder(node_name.to_owned());
 
                 //TODO make it parallel?
-                self.put_single(key, data.clone(), op).await?;
+                self.put_single(key, data, op).await?;
             }
             Ok(())
         } else if let Some(path) = disk_path {
@@ -283,7 +288,7 @@ impl Backend {
     pub async fn put_local(
         &self,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
         operation: Operation,
     ) -> Result<(), Error> {
         self.put_single(key, data, operation).await
@@ -297,7 +302,7 @@ impl Backend {
     async fn put_single(
         &self,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
         operation: Operation,
     ) -> Result<(), Error> {
         if operation.is_data_alien() {
@@ -305,7 +310,7 @@ impl Backend {
             self.inner.put_alien(operation, key, data).await
         } else {
             debug!("PUT[{}] to backend: {:?}", key, operation);
-            let result = self.inner.put(operation.clone(), key, data.clone()).await;
+            let result = self.inner.put(operation.clone(), key, data).await;
             match result {
                 Err(local_err) if !local_err.is_duplicate() => {
                     debug!(
@@ -441,15 +446,13 @@ impl Backend {
         self.inner.free_least_used_resources().await
     }
 
-    pub async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<u64, Error> {
+    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         let mut ops = vec![];
         if let Some(path) = disk_path {
             ops.push(Operation::new_local(vdisk_id, path.clone()));
         }
-        if with_aliens {
-            ops.push(Operation::new_alien(vdisk_id));
-        }
+        ops.push(Operation::new_alien(vdisk_id));
         let total_count = futures::future::join_all(ops.into_iter().map(|op| {
             trace!("DELETE[{}] try delete", key);
             self.delete_single(key, op)

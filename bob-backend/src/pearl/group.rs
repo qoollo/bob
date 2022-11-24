@@ -1,6 +1,6 @@
 use crate::{pearl::utils::get_current_timestamp, prelude::*};
 
-use super::{data::Key, hooks::NoopHooks, utils::StartTimestampConfig, Holder, Hooks};
+use super::{data::Key, utils::StartTimestampConfig, Holder, Hooks};
 use crate::{
     core::Operation,
     pearl::{core::BackendResult, settings::Settings, utils::Utils},
@@ -59,7 +59,7 @@ impl Group {
                 .map_or(true, |node_name| *node_name == self.node_name);
             name_matched && self.vdisk_id == operation.vdisk_id()
         } else {
-            self.disk_name == operation.disk_name_local() && self.vdisk_id == operation.vdisk_id()
+            self.vdisk_id == operation.vdisk_id() && self.disk_name == operation.disk_name_local()
         }
     }
 
@@ -87,9 +87,10 @@ impl Group {
         self.run_pearls(pp).await
     }
 
-    pub async fn remount(&self) -> AnyResult<()> {
+    pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
         self.holders.write().await.clear();
-        self.run(NoopHooks).await
+        self.created_holder_indexes.write().await.clear();
+        self.run(pp).await
     }
 
     async fn run_pearls(&self, pp: impl Hooks) -> AnyResult<()> {
@@ -146,16 +147,18 @@ impl Group {
     // find in all pearls actual pearl
     async fn find_actual_holder(&self, data: &BobData) -> BackendResult<(ChildId, Holder)> {
         let holders = self.holders.read().await;
-        let mut holders_for_time: Vec<(usize, &Holder)> = holders
+        let mut holders_for_time = holders
             .iter()
             .enumerate()
-            .filter(|h| h.1.gets_into_interval(data.meta().timestamp()))
-            .collect();
+            .filter(|h| h.1.gets_into_interval(data.meta().timestamp()));
 
-        if !holders_for_time.is_empty() {
-            holders_for_time.sort_by_key(|h| h.1.start_timestamp());
-            let (id, holder) = holders_for_time.pop().expect("not empty");
-            Ok((id, holder.clone()))
+        if let Some(mut max) = holders_for_time.next() {
+            for elem in holders_for_time {
+                if elem.1.start_timestamp() > max.1.start_timestamp() {
+                    max = elem
+                }
+            }
+            Ok((max.0, max.1.clone()))
         } else {
             Err(Error::failed(format!(
                 "cannot find actual pearl folder. meta: {}",
@@ -220,7 +223,7 @@ impl Group {
     pub async fn put(
         &self,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
         timestamp_config: StartTimestampConfig,
     ) -> Result<(), Error> {
         let holder = self.get_actual_holder(&data, timestamp_config).await?;
@@ -232,7 +235,7 @@ impl Group {
         Ok(res)
     }
 
-    async fn put_common(holder: &Holder, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put_common(holder: &Holder, key: BobKey, data: &BobData) -> Result<(), Error> {
         let result = holder.write(key, data).await;
         if let Err(e) = result {
             // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
@@ -581,6 +584,7 @@ impl Group {
                         debug!("{} not found in {:?}", key, holder)
                     } else {
                         error!("delete error: {}, from : {:?}", err, holder);
+                        return Err(err);
                     }
                 }
             }

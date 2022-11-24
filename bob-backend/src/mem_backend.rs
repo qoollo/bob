@@ -4,18 +4,21 @@ use crate::core::{BackendStorage, MetricsProducer, Operation};
 
 #[derive(Clone, Debug, Default)]
 pub struct VDisk {
-    inner: Arc<RwLock<HashMap<BobKey, BobData>>>,
+    inner: Arc<SyncRwLock<HashMap<BobKey, BobData>>>,
 }
 
 impl VDisk {
-    async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put(&self, key: BobKey, data: &BobData) -> Result<(), Error> {
         debug!("PUT[{}] to vdisk", key);
-        self.inner.write().await.insert(key, data);
+        self.inner
+            .write()
+            .expect("rwlock")
+            .insert(key, data.clone());
         Ok(())
     }
 
     async fn get(&self, key: BobKey) -> Result<BobData, Error> {
-        if let Some(data) = self.inner.read().await.get(&key) {
+        if let Some(data) = self.inner.read().expect("rwlock").get(&key) {
             debug!("GET[{}] from vdisk", key);
             Ok(data.clone())
         } else {
@@ -25,13 +28,13 @@ impl VDisk {
     }
 
     async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
-        let repo = self.inner.read().await;
+        let repo = self.inner.read().expect("rwlock");
         let result = keys.iter().map(|k| repo.get(k).is_some()).collect();
         Ok(result)
     }
 
     async fn delete(&self, key: BobKey) -> Result<u64, Error> {
-        if self.inner.write().await.remove(&key).is_some() {
+        if self.inner.write().expect("rwlock").remove(&key).is_some() {
             debug!("DELETE[{}] from vdisk", key);
             Ok(1)
         } else {
@@ -65,7 +68,7 @@ impl MemDisk {
     pub async fn get(&self, vdisk_id: VDiskId, key: BobKey) -> Result<BobData, Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             debug!("GET[{}] from: {} for disk: {}", key, vdisk_id, self.name);
-            debug!("{:?}", *vdisk.inner.read().await);
+            debug!("{:?}", *vdisk.inner.read().expect("rwlock"));
             vdisk.get(key).await
         } else {
             debug!("GET[{}] Cannot find vdisk for disk: {}", key, self.name);
@@ -73,7 +76,7 @@ impl MemDisk {
         }
     }
 
-    pub async fn put(&self, vdisk_id: VDiskId, key: BobKey, data: BobData) -> Result<(), Error> {
+    pub async fn put(&self, vdisk_id: VDiskId, key: BobKey, data: &BobData) -> Result<(), Error> {
         if let Some(vdisk) = self.vdisks.get(&vdisk_id) {
             debug!("PUT[{}] to vdisk: {} for: {}", key, vdisk_id, self.name);
             vdisk.put(key, data).await
@@ -135,7 +138,7 @@ impl BackendStorage for MemBackend {
         Ok(())
     }
 
-    async fn put(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put(&self, op: Operation, key: BobKey, data: &BobData) -> Result<(), Error> {
         let disk_name = op.disk_name_local();
         debug!("PUT[{}][{}] to backend", key, disk_name);
         let disk = self.disks.get(&disk_name);
@@ -147,7 +150,7 @@ impl BackendStorage for MemBackend {
         }
     }
 
-    async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put_alien(&self, op: Operation, key: BobKey, data: &BobData) -> Result<(), Error> {
         debug!("PUT[{}] to backend, foreign data", key);
         self.foreign_data.put(op.vdisk_id(), key, data).await
     }

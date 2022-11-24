@@ -2,8 +2,9 @@ use crate::prelude::*;
 
 use super::{
     operations::{
-        group_keys_by_nodes, lookup_local_alien, lookup_local_node, lookup_remote_aliens,
-        lookup_remote_nodes, put_at_least, put_local_all, put_local_node, put_sup_nodes, Tasks,
+        delete_at_nodes, delete_at_local_node, group_keys_by_nodes, lookup_local_alien, lookup_local_node,
+        lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all, put_local_node,
+        put_sup_nodes, Tasks,
     },
     Cluster,
 };
@@ -25,7 +26,7 @@ impl Quorum {
         }
     }
 
-    async fn put_at_least(&self, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put_at_least(&self, key: BobKey, data: &BobData) -> Result<(), Error> {
         debug!("PUT[{}] ~~~PUT LOCAL NODE FIRST~~~", key);
         let mut local_put_ok = 0_usize;
         let mut remote_ok_count = 0_usize;
@@ -34,7 +35,7 @@ impl Quorum {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         if let Some(path) = disk_path {
             debug!("disk path is present, try put local");
-            let res = put_local_node(&self.backend, key, data.clone(), vdisk_id, path).await;
+            let res = put_local_node(&self.backend, key, data, vdisk_id, path).await;
             if let Err(e) = res {
                 error!("{}", e);
                 failed_nodes.push(self.mapper.local_node_name().to_owned());
@@ -49,14 +50,17 @@ impl Quorum {
         debug!("PUT[{}] need at least {} additional puts", key, at_least);
 
         debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
-        let (tasks, errors) = self.put_remote_nodes(key, data.clone(), at_least).await;
+        let (tasks, errors) = self.put_remote_nodes(key, data, at_least).await;
         let all_count = self.mapper.get_target_nodes_for_key(key).len();
         remote_ok_count += all_count - errors.len() - tasks.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
         if remote_ok_count + local_put_ok >= self.quorum {
             debug!("PUT[{}] spawn {} background put tasks", key, tasks.len());
             let q = self.clone();
-            tokio::spawn(q.background_put(tasks, key, data, failed_nodes));
+            let data = data.clone();
+            tokio::spawn(async move {
+                q.background_put(tasks, key, &data, failed_nodes).await
+            });
             Ok(())
         } else {
             warn!(
@@ -77,11 +81,40 @@ impl Quorum {
         }
     }
 
+    async fn delete_on_nodes(&self, key: BobKey) -> Result<(), Error> {
+        debug!("DELETE[{}] ~~~DELETE LOCAL NODE FIRST~~~", key);
+        let res = delete_at_local_node(&self.backend, key).await;
+        let local_delete_ok = if let Err(e) = res {
+            error!("{}", e);
+            false
+        } else {
+            debug!("DELETE[{}] local node delete successful", key);
+            true
+        };
+
+        debug!("DELETE[{}] ~~~DELETE TO REMOTE NODES~~~", key);
+        let (errors, remote_count) = self.delete_at_remote_nodes(key).await;
+        let remote_ok_count = remote_count - errors.len();
+        if errors.len() > 0 || !local_delete_ok {
+            warn!(
+                "DELETE[{}] was not successful. local done: {}, remote {}, failed {}, errors: {:?}",
+                key,
+                local_delete_ok,
+                remote_ok_count,
+                errors.len(),
+                errors
+            );
+            Err(Error::failed("Data was deleted not on all nodes"))
+        } else {
+            Ok(())
+        }
+    }
+
     async fn background_put(
         self,
         mut rest_tasks: Tasks,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
         mut failed_nodes: Vec<String>,
     ) {
         debug!("PUT[{}] ~~~BACKGROUND PUT TO REMOTE NODES~~~", key);
@@ -101,7 +134,7 @@ impl Quorum {
         }
         debug!("PUT[{}] ~~~PUT TO REMOTE NODES ALIEN~~~", key);
         if !failed_nodes.is_empty() {
-            if let Err(e) = self.put_aliens(failed_nodes, key, data).await {
+            if let Err(e) = self.put_aliens(failed_nodes, key, &data).await {
                 error!("{}", e);
             }
         }
@@ -110,7 +143,7 @@ impl Quorum {
     pub(crate) async fn put_remote_nodes(
         &self,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
         at_least: usize,
     ) -> (Tasks, Vec<NodeOutput<Error>>) {
         let local_node = self.mapper.local_node_name();
@@ -124,11 +157,40 @@ impl Quorum {
         put_at_least(key, data, target_nodes, at_least, PutOptions::new_local()).await
     }
 
+    pub(crate) async fn delete_at_remote_nodes(
+        &self,
+        key: BobKey,
+    ) -> (Vec<NodeOutput<Error>>, usize) {
+        let local_node = self.mapper.local_node_name();
+        let target_nodes: Vec<_> = self
+            .mapper
+            .nodes()
+            .values()
+            .filter(|n| n.name() != local_node)
+            .collect();
+        debug!(
+            "DELETE[{}] cluster quorum put remote nodes {} total target nodes",
+            key,
+            target_nodes.len(),
+        );
+        let count = target_nodes.len();
+        (
+            delete_at_nodes(
+                key,
+                target_nodes.into_iter(),
+                count,
+                DeleteOptions::new_local(),
+            )
+            .await,
+            count,
+        )
+    }
+
     pub(crate) async fn put_aliens(
         &self,
         mut failed_nodes: Vec<String>,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
     ) -> Result<(), Error> {
         debug!("PUT[{}] ~~~TRY PUT TO REMOTE ALIENS FIRST~~~", key);
         if failed_nodes.is_empty() {
@@ -148,7 +210,7 @@ impl Quorum {
             .map(|(node, remote_node)| (node, PutOptions::new_alien(vec![remote_node])))
             .collect();
         debug!("PUT[{}] additional alien requests: {:?}", key, queries);
-        if let Err(sup_nodes_errors) = put_sup_nodes(key, data.clone(), &queries).await {
+        if let Err(sup_nodes_errors) = put_sup_nodes(key, data, &queries).await {
             debug!("support nodes errors: {:?}", sup_nodes_errors);
             failed_nodes.extend(
                 sup_nodes_errors
@@ -163,7 +225,7 @@ impl Quorum {
             &self.backend,
             failed_nodes.clone(),
             key,
-            data.clone(),
+            data,
             operation,
         )
         .await;
@@ -181,7 +243,7 @@ impl Quorum {
 
 #[async_trait]
 impl Cluster for Quorum {
-    async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error> {
+    async fn put(&self, key: BobKey, data: &BobData) -> Result<(), Error> {
         self.put_at_least(key, data).await
     }
 
@@ -226,5 +288,9 @@ impl Cluster for Quorum {
             }
         }
         Ok(exist)
+    }
+
+    async fn delete(&self, key: BobKey) -> Result<(), Error> {
+        self.delete_on_nodes(key).await
     }
 }

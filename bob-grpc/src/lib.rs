@@ -49,6 +49,20 @@ impl GetOptions {
     }
 }
 
+impl DeleteOptions {
+    pub fn new_all() -> Self {
+        Self {
+            force_node: false,
+        }
+    }
+
+    pub fn new_local() -> Self {
+        Self {
+            force_node: true,
+        }
+    }
+}
+
 impl From<i32> for GetSource {
     fn from(value: i32) -> Self {
         match value {

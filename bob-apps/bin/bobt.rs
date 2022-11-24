@@ -1,11 +1,12 @@
 use clap::{App, Arg, ArgMatches};
-use env_logger::Env;
+use env_logger::{Env, Target};
 use http::{StatusCode, Uri};
 use lazy_static::lazy_static;
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use reqwest::RequestBuilder;
 use std::collections::BTreeMap;
+use std::process::ExitCode;
 use std::time::Duration;
 use stopwatch::Stopwatch;
 
@@ -18,12 +19,16 @@ const USERNAME_ARG_NAME: &str = "username";
 const PASSWORD_ARG_NAME: &str = "password";
 
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
     let env = Env::default().filter_or("RUST_LOG", "info");
-    env_logger::init_from_env(env);
+    env_logger::Builder::from_env(env).target(Target::Stdout).init();
     let settings = Settings::new();
     let mut tester = Tester::new(settings).await;
-    tester.run_test().await;
+    if tester.run_test().await {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
 }
 
 enum Operation {
@@ -152,7 +157,7 @@ impl Tester {
         }
     }
 
-    async fn run_test(&mut self) {
+    async fn run_test(&mut self) -> bool {
         let mut total_succ: u64 = 0;
         for i in 0..self.settings.count {
             if i % 10000 == 0 || i == self.settings.count - 1 {
@@ -170,6 +175,8 @@ impl Tester {
                 total_succ += 1;
             }
         }
+        log::info!("Final summary: {}/{}", total_succ, self.settings.count);
+        total_succ == self.settings.count
     }
 }
 
@@ -286,8 +293,8 @@ struct Settings {
     end_id: u64,
     max_size: usize,
     api_uri: Uri,
-    username: String,
-    password: String,
+    username: Option<String>,
+    password: Option<String>,
 }
 
 impl Settings {
@@ -344,18 +351,16 @@ impl Settings {
             .expect("wrong format of url")
     }
 
-    fn get_username(matches: &ArgMatches) -> String {
+    fn get_username(matches: &ArgMatches) -> Option<String> {
         matches
             .value_of(USERNAME_ARG_NAME)
-            .expect("required")
-            .to_string()
+            .and_then(|s| Some(s.to_string()))
     }
 
-    fn get_password(matches: &ArgMatches) -> String {
+    fn get_password(matches: &ArgMatches) -> Option<String> {
         matches
             .value_of(PASSWORD_ARG_NAME)
-            .expect("required")
-            .to_string()
+            .and_then(|s| Some(s.to_string()))
     }
 
     fn request(
@@ -370,8 +375,14 @@ impl Settings {
     }
 
     fn append_request_headers(&self, b: RequestBuilder) -> RequestBuilder {
-        b.header("username", &self.username)
-            .header("password", &self.password)
+        let mut b = b;
+        if self.username.is_some() {
+            b = b.header("username", self.username.as_ref().unwrap());
+            if self.password.is_some() {
+                b = b.header("password", self.password.as_ref().unwrap());
+            }
+        }
+        b
     }
 }
 
@@ -404,12 +415,10 @@ fn get_matches<'a>() -> ArgMatches<'a> {
     let username_arg = Arg::with_name(USERNAME_ARG_NAME)
         .short("u")
         .long("user")
-        .takes_value(true)
-        .required(true);
+        .takes_value(true);
     let password_arg = Arg::with_name(PASSWORD_ARG_NAME)
         .short("p")
         .long("password")
-        .required(true)
         .takes_value(true);
     App::new("bobt")
         .arg(count_arg)
