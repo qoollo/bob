@@ -415,14 +415,16 @@ impl Backend {
         let mut keys_by_operations: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
         for (ind, &key) in keys.iter().enumerate() {
             let operation = self.find_operation(key, options);
-            if let Some(operation) = operation {
-                keys_by_operations
-                    .entry(operation)
-                    .and_modify(|(keys, indexes)| {
-                        keys.push(key);
-                        indexes.push(ind);
-                    })
-                    .or_insert_with(|| (vec![key], vec![ind]));
+            if let Some(operations) = operation {
+                for op in operations {
+                    keys_by_operations
+                        .entry(op)
+                        .and_modify(|(keys, indexes)| {
+                            keys.push(key);
+                            indexes.push(ind);
+                        })
+                        .or_insert_with(|| (vec![key], vec![ind]));
+                }
             }
         }
         keys_by_operations
