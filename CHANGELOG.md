@@ -7,7 +7,7 @@ Bob versions changelog
 
 
 #### Changed
-- Replaced deprecated chrono functions
+- Replaced deprecated chrono functions (#674)
 
 #### Fixed
 - Clear bloom-filter memory on remount (#636)
