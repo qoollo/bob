@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Include bobc into release builds (#569)
 - Added blob-info and index-info features to brt (#356)
 - Support for files, file name patterns, key ranges and a 'exists' subcommand to 'bobc' (#539)
 
