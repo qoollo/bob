@@ -240,10 +240,10 @@ impl Backend {
     pub async fn put(&self, key: BobKey, data: &BobData, options: BobOptions) -> Result<(), Error> {
         trace!(">>>>>>- - - - - BACKEND PUT START - - - - -");
         let sw = Stopwatch::start_new();
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
         trace!(
             "get operation {:?}, /{:.3}ms/",
-            disk_path,
+            disk_paths,
             sw.elapsed().as_secs_f64() * 1000.0
         );
         let res = if !options.remote_nodes().is_empty() {
@@ -257,16 +257,16 @@ impl Backend {
                 self.put_single(key, data, op).await?;
             }
             Ok(())
-        } else if let Some(path) = disk_path {
+        } else if let Some(paths) = disk_paths {
             debug!(
                 "remote nodes is empty, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let res = self
-                .put_single(key, data, Operation::new_local(vdisk_id, path))
-                .await;
-            trace!("put single, /{:.3}ms/", sw.elapsed().as_secs_f64() * 1000.0);
-            res
+            for p in paths {
+                self.put_single(key, data, Operation::new_local(vdisk_id, p)).await?;
+                trace!("put single, /{:.3}ms/", sw.elapsed().as_secs_f64() * 1000.0);
+            }
+            Ok(())
         } else {
             error!(
                 "PUT[{}] dont now what to do with data: op: {:?}. Data is not local and alien",
