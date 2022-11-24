@@ -71,7 +71,6 @@ Bob versions changelog
 - Pearl updated to v0.13.0
 
 
-
 ## [2.1.0-alpha.4] - 2022-07-04
 #### Added
 - Memory limit for indexes (#466)
