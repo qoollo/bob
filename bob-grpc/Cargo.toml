@@ -1,6 +1,6 @@
 [package]
 name = "bob-grpc"
-version = "2.1.0-alpha.5"
+version = "2.1.0-alpha.6"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2021"
 
@@ -24,3 +24,4 @@ features = []
 
 [build-dependencies]
 tonic-build = "0.6"
+prost-build = "0.9"

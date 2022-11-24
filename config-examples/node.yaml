@@ -62,6 +62,21 @@ authentication_type: Basic
 # [size] memory limit for all indexes. Unlimited if not specified
 index_memory_limit: 8 GiB
 
+# tls parameters
+tls:
+  # [file] ca certificate to verify other tls nodes
+  ca_cert_path: my_ca.pem
+  # [file] node certificate
+  cert_path: server.pem
+  # [file] node private key
+  pkey_path: server.key
+  # enable tls for rest api
+  rest: false
+  # enable tls for grpc
+  grpc: false
+  # specify tls domain name
+  domain_name: bob
+
 # used only for 'backend_type: pearl'
 pearl:
   # optional, default = false, enables linux AIO
