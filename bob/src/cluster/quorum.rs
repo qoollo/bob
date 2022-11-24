@@ -32,17 +32,19 @@ impl Quorum {
         let mut remote_ok_count = 0_usize;
         let mut at_least = self.quorum;
         let mut failed_nodes = Vec::new();
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        if let Some(path) = disk_path {
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
+        if let Some(paths) = disk_paths {
             debug!("disk path is present, try put local");
-            let res = put_local_node(&self.backend, key, data, vdisk_id, path).await;
-            if let Err(e) = res {
-                error!("{}", e);
-                failed_nodes.push(self.mapper.local_node_name().to_owned());
-            } else {
-                local_put_ok += 1;
-                at_least -= 1;
-                debug!("PUT[{}] local node put successful", key);
+            for p in paths {
+                let res = put_local_node(&self.backend, key, data, vdisk_id, p).await;
+                if let Err(e) = res {
+                    error!("{}", e);
+                    failed_nodes.push(self.mapper.local_node_name().to_owned());
+                } else {
+                    local_put_ok += 1;
+                    at_least -= 1;
+                    debug!("PUT[{}] local node put successful", key);
+                }
             }
         } else {
             debug!("skip local put");
