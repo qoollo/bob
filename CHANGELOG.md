@@ -4,9 +4,29 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Include bobt into the zip archive attached to the release infrastructure (#669)
+- Include bobc into release builds (#569)
+- Added blob-info and index-info features to brt (#356)
+- Support for files, file name patterns, key ranges and a 'exists' subcommand to 'bobc' (#539)
+- Integration tests (#518)
+- Added integration tests for aliens (#642)
+- Added integration tests for bobt (#648)
+
+#### Changed
+- Change locks to sync where possible (#472)
+
+#### Fixed
+- Clear bloom-filter memory on remount (#636)
+
+#### Updated
+- Pearl updated to v0.15.0 (#668)
+- Updated versions of dependencies (#551)
+
+
+## [2.1.0-alpha.6] - 2022-11-15
+#### Added
 - Add clusterwide delete operation (#364)
 - TLS support, TLS for grpc or rest can be enabled via cluster & node config (#303)
-- Integration tests (#518)
 - Final summary and return code to `bobt` (#649)
 
 #### Changed
@@ -15,8 +35,7 @@ Bob versions changelog
 - Compare vdiskid first (#594)
 - Optimize finding actual holders (#595)
 - Logger output directed to stdout instead of stderr in bobt (#651)
-- Added integration tests for aliens (#642)
-- Added integration tests for bobt (#648)
+- Replaced deprecated chrono functions (#660)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
@@ -29,7 +48,6 @@ Bob versions changelog
 
 #### Updated
 - Pearl updated to v0.14.0 (#659)
-
 
 
 ## [2.1.0-alpha.5] - 2022-08-04
