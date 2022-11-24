@@ -10,6 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Error propagation for JoinHandle errors (#572)
 
 
 #### Updated

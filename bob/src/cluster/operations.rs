@@ -57,6 +57,10 @@ fn is_result_successful(
         },
         Err(e) => {
             error!("{:?}", e);
+            errors.push(NodeOutput::new(
+                "unknown".to_string(),
+                Error::failed(e.to_string()),
+            ))
         }
     }
     0
@@ -278,10 +282,7 @@ pub(crate) async fn put_local_node(
     backend.put_local(key, data, op).await
 }
 
-pub(crate) async fn delete_at_local_node(
-    backend: &Backend,
-    key: BobKey,
-) -> Result<(), Error> {
+pub(crate) async fn delete_at_local_node(backend: &Backend, key: BobKey) -> Result<(), Error> {
     debug!("local node has vdisk replica, put local");
     backend.delete(key).await?;
     Ok(())
