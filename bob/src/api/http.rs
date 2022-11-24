@@ -520,18 +520,19 @@ async fn remount_vdisks_group(
     bob: &State<BobServer>,
     vdisk_id: u32,
 ) -> Result<StatusExt, StatusExt> {
-    let group = find_group(bob, vdisk_id).await?;
-    match group.remount().await {
-        Ok(_) => {
-            info!("vdisks group {} successfully restarted", vdisk_id);
-            Ok(StatusExt::new(
+    bob.grinder()
+        .backend()
+        .inner()
+        .remount_vdisk(vdisk_id)
+        .await
+        .map(|_| {
+            StatusExt::new(
                 Status::Ok,
                 true,
-                format!("vdisks group {} successfully restarted", vdisk_id),
-            ))
-        }
-        Err(e) => Err(StatusExt::new(Status::Ok, false, e.to_string())),
-    }
+                format!("vdisk {} successfully restarted", vdisk_id),
+            )
+        })
+        .map_err(|e| StatusExt::new(Status::Ok, false, e.to_string()))
 }
 
 #[delete("/vdisks/<vdisk_id>/partitions/by_timestamp/<timestamp>")]

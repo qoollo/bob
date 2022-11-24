@@ -2,13 +2,14 @@ use crate::prelude::*;
 use std::{
     collections::HashMap,
     fmt::{Display, Formatter, Result as FMTResult},
+    hash::Hash,
 };
 
 use crate::{
+    interval_logger::IntervalLoggerSafe,
     mem_backend::MemBackend,
     pearl::{DiskController, Pearl},
     stub_backend::StubBackend,
-    interval_logger::IntervalLoggerSafe
 };
 use log::Level;
 
@@ -122,6 +123,10 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
     async fn filter_memory_allocated(&self) -> usize {
         0
     }
+
+    async fn remount_vdisk(&self, _vdisk_id: u32) -> AnyResult<()> {
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -148,8 +153,12 @@ impl Display for BackendErrorAction {
     fn fmt(&self, f: &mut Formatter<'_>) -> FMTResult {
         match self {
             BackendErrorAction::PUT(disk, error) => {
-                write!(f, "local PUT on disk {} failed with error: {:?}", disk, error)
-            },
+                write!(
+                    f,
+                    "local PUT on disk {} failed with error: {:?}",
+                    disk, error
+                )
+            }
         }
     }
 }
@@ -183,7 +192,11 @@ impl Backend {
         };
         let error_logger = IntervalLoggerSafe::new(ERROR_LOG_INTERVAL, Level::Error);
 
-        Self { inner, mapper, error_logger }
+        Self {
+            inner,
+            mapper,
+            error_logger,
+        }
     }
 
     pub async fn blobs_count(&self) -> (usize, usize) {
@@ -287,7 +300,8 @@ impl Backend {
                         operation.disk_name_local(),
                         local_err
                     );
-                    let error_to_log = BackendErrorAction::put(operation.disk_name_local(), &local_err);
+                    let error_to_log =
+                        BackendErrorAction::put(operation.disk_name_local(), &local_err);
                     self.error_logger.report(error_to_log);
 
                     // write to alien/<local name>

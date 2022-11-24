@@ -10,6 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Clear bloom-filter memory on remount (#636)
 
 
 #### Updated
