@@ -179,23 +179,27 @@ impl Virtual {
             .collect()
     }
 
-    pub fn get_operation(&self, key: BobKey) -> (VDiskId, Option<DiskPath>) {
+    pub fn get_operation(&self, key: BobKey) -> (VDiskId, Option<Vec<DiskPath>>) {
         let virt_disk = self.get_vdisk_for_key(key).expect("vdisk not found");
-        let disk = virt_disk.replicas().iter().find_map(|disk| {
+        let disks: Vec<DiskPath> = virt_disk.replicas().iter().filter_map(|disk| {
             if disk.node_name() == self.local_node_name {
                 Some(DiskPath::from(disk))
             } else {
                 None
             }
-        }); //TODO prepare at start?
-        if disk.is_none() {
+        }).collect();
+        let return_disks;
+        if disks.len() == 0 {
             debug!(
                 "cannot find node: {} for vdisk: {}",
                 self.local_node_name,
                 virt_disk.id()
             );
+            return_disks = None;
+        } else {
+            return_disks = Some(disks)
         }
-        (virt_disk.id(), disk)
+        (virt_disk.id(), return_disks)
     }
 
     pub fn is_vdisk_on_node(&self, node_name: &str, id: VDiskId) -> bool {
