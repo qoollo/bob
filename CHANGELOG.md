@@ -10,7 +10,7 @@ Bob versions changelog
 - Change locks to sync where possible (#472)
 
 #### Fixed
-
+- Clear bloom-filter memory on remount (#636)
 
 #### Updated
 - Pearl updated to v0.15.0 (#668)
