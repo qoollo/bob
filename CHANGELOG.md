@@ -7,7 +7,7 @@ Bob versions changelog
 - Added blob-info and index-info features to brt (#356)
 
 #### Changed
-
+- Change locks to sync where possible (#472)
 
 #### Fixed
 
@@ -25,7 +25,6 @@ Bob versions changelog
 
 #### Changed
 - Update rust edition to 2021 (#484)
-- Change locks to sync where possible (#472)
 - Remove unnecessary data clone (#506)
 - Compare vdiskid first (#594)
 - Optimize finding actual holders (#595)
