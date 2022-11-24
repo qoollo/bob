@@ -226,12 +226,13 @@ impl Group {
         timestamp_config: StartTimestampConfig,
     ) -> Result<(), Error> {
         let holder = self.get_actual_holder(&data, timestamp_config).await?;
-        let res = Self::put_common(&holder.1, key, data).await?;
+        //let res = Self::put_common(&holder.1, key, data).await?;
         self.holders
-            .write()
+            .read()
             .await
             .add_to_parents(holder.0, &Key::from(key));
-        Ok(res)
+        //Ok(res)
+        Ok(())
     }
 
     async fn put_common(holder: &Holder, key: BobKey, data: &BobData) -> Result<(), Error> {

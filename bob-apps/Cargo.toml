@@ -51,7 +51,8 @@ default-features = false
 features = ["signal"]
 
 [dependencies.pearl]
-version = "0.15.0"
+git = "https://github.com/qoollo/pearl"
+branch = "218-filters-inner-locks"
 
 [build-dependencies]
 tonic-build = "0.6"

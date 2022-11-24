@@ -6,7 +6,6 @@ use rand::distributions::Uniform;
 use rand::prelude::*;
 use reqwest::RequestBuilder;
 use std::collections::BTreeMap;
-use std::process::ExitCode;
 use std::time::Duration;
 use stopwatch::Stopwatch;
 
@@ -19,16 +18,14 @@ const USERNAME_ARG_NAME: &str = "username";
 const PASSWORD_ARG_NAME: &str = "password";
 
 #[tokio::main]
-async fn main() -> ExitCode {
+async fn main() {
     let env = Env::default().filter_or("RUST_LOG", "info");
-    env_logger::Builder::from_env(env).target(Target::Stdout).init();
+    env_logger::Builder::from_env(env)
+        .target(Target::Stdout)
+        .init();
     let settings = Settings::new();
     let mut tester = Tester::new(settings).await;
-    if tester.run_test().await {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::FAILURE
-    }
+    tester.run_test().await;
 }
 
 enum Operation {
