@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Added blob-info and index-info features to brt (#356)
 
 #### Changed
 
