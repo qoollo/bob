@@ -156,19 +156,17 @@ pub(crate) async fn lookup_local_node(
     backend: &Backend,
     key: BobKey,
     vdisk_id: VDiskId,
-    disk_path: Option<DiskPath>,
+    disk_path: DiskPath,
 ) -> Option<BobData> {
-    if let Some(path) = disk_path {
-        debug!("local node has vdisk replica, check local");
-        let op = Operation::new_local(vdisk_id, path);
-        match backend.get_local(key, op).await {
-            Ok(data) => {
-                debug!("GET[{}] key found in local node", key);
-                return Some(data);
-            }
-            Err(e) if e.is_key_not_found() => debug!("GET[{}] not found in local node", key),
-            Err(e) => error!("local node backend returned error: {}", e),
+    debug!("local node has vdisk replica, check local");
+    let op = Operation::new_local(vdisk_id, disk_path);
+    match backend.get_local(key, op).await {
+        Ok(data) => {
+            debug!("GET[{}] key found in local node", key);
+            return Some(data);
         }
+        Err(e) if e.is_key_not_found() => debug!("GET[{}] not found in local node", key),
+        Err(e) => error!("local node backend returned error: {}", e),
     }
     None
 }

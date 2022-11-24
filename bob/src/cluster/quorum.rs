@@ -252,9 +252,13 @@ impl Cluster for Quorum {
     //todo check no data (no error)
     async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         debug!("GET[{}] ~~~LOOKUP LOCAL NODE~~~", key);
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        if let Some(data) = lookup_local_node(&self.backend, key, vdisk_id, disk_path).await {
-            return Ok(data);
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
+        if let Some(paths) = disk_paths {
+            for p in paths {
+                if let Some(data) = lookup_local_node(&self.backend, key, vdisk_id, p).await {
+                    return Ok(data);
+                }
+            }
         }
         debug!("GET[{}] ~~~LOOKUP REMOTE NODES~~~", key);
         if let Some(data) = lookup_remote_nodes(&self.mapper, key).await {
