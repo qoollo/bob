@@ -15,7 +15,7 @@ bob-common = { path = "../bob-common", features = [] }
 bytes = "1.1"
 cfg-if = "1.0"
 chrono = "0.4"
-coarsetime = "0.1.21"
+coarsetime = "0.1.22"
 futures = { version = "0.3", features = ["thread-pool"] }
 http = "0.2"
 humantime = "2.1"
@@ -23,8 +23,8 @@ hyper = { version = "0.14", default-features = false }
 lazy_static = "1.4"
 log = "0.4"
 metrics = { version = "0.17", features = ["std"] }
-mockall = "0.10"
-prost = "0.9"
+mockall = "0.11"
+prost = "0.11"
 ring = "0.16"
 serde = "1.0"
 serde_derive = "1.0"
@@ -39,12 +39,12 @@ tower-service = "0.3"
 version = "0.15.0"
 
 [dependencies.tokio]
-version = "1.14"
+version = "1.21"
 default-features = false
 features = []
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.4"
 
 [[bench]]
 name = "key_cmp_benchmark"

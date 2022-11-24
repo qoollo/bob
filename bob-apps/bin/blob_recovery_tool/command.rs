@@ -12,17 +12,22 @@ const DELETE_OPT: &str = "index delete";
 const TARGET_VERSION_OPT: &str = "target version";
 const SKIP_WRONG_OPT: &str = "skip wrong";
 const KEY_SIZE_OPT: &str = "key size";
+const FULL_BLOB_INFO_OPT: &str = "full blob info";
 
 const VALIDATE_INDEX_COMMAND: &str = "validate-index";
 const VALIDATE_BLOB_COMMAND: &str = "validate-blob";
 const RECOVERY_COMMAND: &str = "recovery";
 const MIGRATE_COMMAND: &str = "migrate";
+const GET_INDEX_INFO_COMMAND: &str = "index-info";
+const GET_BLOB_INFO_COMMAND: &str = "blob-info";
 
 pub enum MainCommand {
     Recovery(RecoveryBlobCommand),
     Validate(ValidateBlobCommand),
     ValidateIndex(ValidateIndexCommand),
     Migrate(MigrateCommand),
+    GetBlobInfo(GetBlobInfoCommand),
+    GetIndexInfo(GetIndexInfoCommand),
 }
 
 pub struct RecoveryBlobCommand {
@@ -401,6 +406,105 @@ impl MigrateCommand {
     }
 }
 
+pub struct GetBlobInfoCommand {
+    path: PathBuf,
+    full: bool,
+}
+
+impl GetBlobInfoCommand {
+    fn run(&self) -> AnyResult<()> {
+        let collector = pearl::tools::BlobSummaryCollector::from_path(&self.path, self.full)?;
+        println!("Blob summary");
+        println!("Path: {:?}", self.path);
+        if self.full {
+            println!("Records count: {}", collector.records());
+            println!("Unique keys: {}", collector.unique_keys_count());
+            println!("Deleted records count: {}", collector.deleted_records());
+            println!("Unique deleted keys: {}", collector.unique_deleted_keys_count());
+        }
+        println!("Header");
+        println!("Version: {}", collector.header_version());
+        println!(
+            "Magic byte: {}",
+            hex::encode(bincode::serialize(&collector.header_magic_byte())?)
+        );
+        println!(
+            "Flags: {}",
+            hex::encode(bincode::serialize(&collector.header_flags())?)
+        );
+        Ok(())
+    }
+
+    fn subcommand<'a, 'b>() -> App<'a, 'b> {
+        SubCommand::with_name(GET_BLOB_INFO_COMMAND).arg(
+            Arg::with_name(INPUT_OPT)
+                .help("input blob")
+                .takes_value(true)
+                .required(true)
+                .short("i")
+                .long("input"),
+        )
+        .arg(
+            Arg::with_name(FULL_BLOB_INFO_OPT)
+                .help("display full blob info")
+                .takes_value(false)
+                .required(false)
+                .short("f")
+                .long("full")
+        )
+    }
+
+    fn from_matches(matches: &ArgMatches) -> AnyResult<Self> {
+        Ok(Self {
+            path: matches.value_of(INPUT_OPT).expect("Required").into(),
+            full: matches.is_present(FULL_BLOB_INFO_OPT),
+        })
+    }
+}
+
+pub struct GetIndexInfoCommand {
+    path: PathBuf,
+}
+
+impl GetIndexInfoCommand {
+    fn run(&self) -> AnyResult<()> {
+        let collector = pearl::tools::IndexSummaryCollector::from_path(&self.path)?;
+        println!("Index summary");
+        println!("Path: {:?}", self.path);
+        println!("Records count: {}", collector.records_readed());
+        println!("Unique keys: {}", collector.unique_keys_count());
+        println!("Header");
+        println!("Records count: {}", collector.header_records_count());
+        println!(
+            "Record header size: {}",
+            collector.header_record_header_size()
+        );
+        println!("Meta size: {}", collector.header_meta_size());
+        println!("Hash: {}", hex::encode(collector.header_hash()));
+        println!("Is written: {}", collector.header_is_written());
+        println!("Version: {}", collector.header_version());
+        println!("Key size: {}", collector.header_key_size());
+        Ok(())
+    }
+
+    fn subcommand<'a, 'b>() -> App<'a, 'b> {
+        SubCommand::with_name(GET_INDEX_INFO_COMMAND).arg(
+            Arg::with_name(INPUT_OPT)
+                .help("input index")
+                .takes_value(true)
+                .required(true)
+                .short("i")
+                .long("input"),
+        )
+    }
+
+    fn from_matches(matches: &ArgMatches) -> AnyResult<Self> {
+        Ok(Self {
+            path: matches.value_of(INPUT_OPT).expect("Required").into(),
+        })
+    }
+}
+
 impl MainCommand {
     pub fn run() -> AnyResult<()> {
         let settings = MainCommand::from_matches()?;
@@ -409,6 +513,8 @@ impl MainCommand {
             MainCommand::Validate(settings) => settings.run(),
             MainCommand::ValidateIndex(settings) => settings.run(),
             MainCommand::Migrate(settings) => settings.run(),
+            MainCommand::GetBlobInfo(settings) => settings.run(),
+            MainCommand::GetIndexInfo(settings) => settings.run(),
         }
     }
 
@@ -419,6 +525,8 @@ impl MainCommand {
             .subcommand(ValidateBlobCommand::subcommand())
             .subcommand(ValidateIndexCommand::subcommand())
             .subcommand(MigrateCommand::subcommand())
+            .subcommand(GetBlobInfoCommand::subcommand())
+            .subcommand(GetIndexInfoCommand::subcommand())
             .get_matches()
     }
 
@@ -437,6 +545,12 @@ impl MainCommand {
             (MIGRATE_COMMAND, Some(matches)) => {
                 Ok(MainCommand::Migrate(MigrateCommand::from_matches(matches)?))
             }
+            (GET_BLOB_INFO_COMMAND, Some(matches)) => Ok(MainCommand::GetBlobInfo(
+                GetBlobInfoCommand::from_matches(matches)?,
+            )),
+            (GET_INDEX_INFO_COMMAND, Some(matches)) => Ok(MainCommand::GetIndexInfo(
+                GetIndexInfoCommand::from_matches(matches)?,
+            )),
             _ => Err(anyhow::anyhow!("Unknown command")),
         }
     }

@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Added blob-info and index-info features to brt (#356)
 
 #### Changed
 
@@ -14,6 +14,7 @@ Bob versions changelog
 
 #### Updated
 - Pearl updated to v0.15.0 (#668)
+- Updated versions of dependencies (#551)
 
 
 ## [2.1.0-alpha.6] - 2022-11-15
