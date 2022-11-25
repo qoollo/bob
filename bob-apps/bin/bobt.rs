@@ -376,11 +376,7 @@ impl Settings {
 
     fn append_request_headers(&self, mut b: RequestBuilder) -> RequestBuilder {
         if let (Some(username), Some(password)) = (self.username.as_ref(), self.password.as_ref()) {
-            let credentials = format!("{}:{}", username, password);
-            let credentials = base64::encode(credentials);
-            let authorization = format!("Basic {}", credentials);
-
-            b = b.header("authorization", authorization);
+            b = b.basic_auth(username, Some(password));
         }
         b
     }
