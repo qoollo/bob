@@ -1,7 +1,8 @@
 use crate::prelude::*;
 use std::{
     collections::HashMap,
-    fmt::{Display, Formatter, Result as FMTResult}, hash::Hash,
+    fmt::{Display, Formatter, Result as FMTResult},
+    hash::Hash,
 };
 
 use crate::{
@@ -130,6 +131,10 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
 
     async fn filter_memory_allocated(&self) -> usize {
         0
+    }
+
+    async fn remount_vdisk(&self, _vdisk_id: u32) -> AnyResult<()> {
+        Ok(())
     }
 }
 

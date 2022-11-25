@@ -59,7 +59,6 @@ impl<E: Hash + Eq + Display> IntervalLoggerSafe<E> {
     }
 
     pub fn report_error(&self, action: E) {
-        let mut lock = self.inner.lock().expect("interval logger mutex");
-        lock.report_error(action);
+        self.inner.lock().expect("interval logger mutex").report_error(action);
     }
 }
