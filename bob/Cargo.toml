@@ -43,6 +43,7 @@ tonic = { version = "0.6", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"
 uuid = "1.1.2"
+coarsetime = "0.1.22"
 
 [dependencies.pearl]
 version = "0.15.0"

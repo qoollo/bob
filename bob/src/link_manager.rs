@@ -21,8 +21,23 @@ impl LinkManager {
     }
 
     async fn checker_task(factory: Factory, nodes: Arc<[Node]>, period: Duration) {
+        let now = coarsetime::Clock::now_since_epoch().as_secs();
+        Self::checker(&factory, &nodes, Duration::from_millis(100), || {
+            let ts = coarsetime::Clock::now_since_epoch().as_secs();
+            ts > now && ts - now > 60
+        })
+        .await;
+        Self::checker(&factory, &nodes, period, || false).await;
+    }
+
+    async fn checker(
+        factory: &Factory,
+        nodes: &[Node],
+        period: Duration,
+        should_stop: impl Fn() -> bool,
+    ) {
         let mut interval = interval(period);
-        loop {
+        while !should_stop() {
             interval.tick().await;
             let mut err_cnt = 0;
             let mut status = String::from("Node status: ");
