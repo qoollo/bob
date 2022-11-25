@@ -33,9 +33,10 @@ impl LinkManager {
                 let ts = coarsetime::Clock::now_since_epoch().as_secs();
                 ts > now && ts - now > FAST_PING_DURATION_SEC
             },
+            period.as_millis() as usize / FAST_PING_PERIOD_MS as usize,
         )
         .await;
-        Self::checker(&factory, &nodes, period, || false).await;
+        Self::checker(&factory, &nodes, period, || false, 1).await;
     }
 
     async fn checker(
@@ -43,29 +44,43 @@ impl LinkManager {
         nodes: &[Node],
         period: Duration,
         should_stop: impl Fn() -> bool,
+        log_iteration_div: usize,
     ) {
         let mut interval = interval(period);
+        let mut i = 1;
         while !should_stop() {
+            let log = i % log_iteration_div == 0;
+            if log {
+                i = 1;
+            } else {
+                i += 1;
+            }
             interval.tick().await;
             let mut err_cnt = 0;
             let mut status = String::from("Node status: ");
             for node in nodes.iter() {
                 if let Err(e) = node.check(&factory).await {
-                    error!(
-                        "No connection to {}:[{}] - {}",
-                        node.name(),
-                        node.address(),
-                        e
-                    );
-                    status += &format!("{}{:<10} ", color::Fg(color::Red), node.name());
+                    if log {
+                        error!(
+                            "No connection to {}:[{}] - {}",
+                            node.name(),
+                            node.address(),
+                            e
+                        );
+                        status += &format!("{}{:<10} ", color::Fg(color::Red), node.name());
+                    }
                     err_cnt += 1;
                 } else {
-                    status += &format!("{}{:<10} ", color::Fg(color::Green), node.name());
+                    if log {
+                        status += &format!("{}{:<10} ", color::Fg(color::Green), node.name());
+                    }
                 }
             }
-            info!("{}{}", status, color::Fg(color::Reset));
-            let cnt = nodes.len() - err_cnt;
-            gauge!(AVAILABLE_NODES_COUNT, cnt as f64);
+            if log {
+                info!("{}{}", status, color::Fg(color::Reset));
+                let cnt = nodes.len() - err_cnt;
+                gauge!(AVAILABLE_NODES_COUNT, cnt as f64);
+            }
         }
     }
 
