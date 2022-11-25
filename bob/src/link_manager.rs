@@ -2,6 +2,9 @@ use crate::prelude::*;
 
 use termion::color;
 
+const FAST_PING_PERIOD_MS: u64 = 100;
+const FAST_PING_DURATION_SEC: u64 = 60;
+
 #[derive(Debug)]
 pub(crate) struct LinkManager {
     nodes: Arc<[Node]>,
@@ -22,10 +25,15 @@ impl LinkManager {
 
     async fn checker_task(factory: Factory, nodes: Arc<[Node]>, period: Duration) {
         let now = coarsetime::Clock::now_since_epoch().as_secs();
-        Self::checker(&factory, &nodes, Duration::from_millis(100), || {
-            let ts = coarsetime::Clock::now_since_epoch().as_secs();
-            ts > now && ts - now > 60
-        })
+        Self::checker(
+            &factory,
+            &nodes,
+            Duration::from_millis(FAST_PING_PERIOD_MS),
+            || {
+                let ts = coarsetime::Clock::now_since_epoch().as_secs();
+                ts > now && ts - now > FAST_PING_DURATION_SEC
+            },
+        )
         .await;
         Self::checker(&factory, &nodes, period, || false).await;
     }
