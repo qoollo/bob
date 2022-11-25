@@ -36,6 +36,14 @@ fn username_password_from_credentials(credentials: &str) -> Result<(String, Stri
     }
 }
 
+fn nodename_from_credentials(credentials: &str) -> Result<String, Error> {
+    let credentials = base64::decode(credentials)
+        .map_err(|e| Error::ConversionError(format!("bad base64 credentials: {}", e)))?;
+    let nodename = String::from_utf8(credentials)
+        .map_err(|e| Error::ConversionError(format!("invalid utf8 credentials characters: {}", e)))?;
+    Ok(nodename)
+}
+
 impl<T: Extractor> ExtractorExt for T {
     fn extract(&self, cred_type: AuthenticationType) -> Result<Credentials, Error> {
         match cred_type {
@@ -56,27 +64,30 @@ impl<T: Extractor> ExtractorExt for T {
         let auth_header = self.get_header("authorization")?;
         if let Some(auth_header) = auth_header {
             let mut parts = auth_header.split_whitespace();
-            if let (Some("Basic"), Some(credentials)) = (parts.next(), parts.next()) {
-                let (username, password) = username_password_from_credentials(credentials)?;
-                let creds = builder
-                    .with_username_password(username, password)
-                    .build();
-                return Ok(creds);
-            } else {
-                if let Some(node_name) = self.get_header("node_name")? {
+            match (parts.next(), parts.next()) {
+                (Some("Basic"), Some(credentials)) => {
+                    let (username, password) = username_password_from_credentials(credentials)?;
+                    let creds = builder
+                        .with_username_password(username, password)
+                        .build();
+                    Ok(creds)
+                },
+                (Some("InterNode"), Some(credentials)) => {
+                    let node_name = nodename_from_credentials(credentials)?;
                     let creds = builder
                         .with_nodename(node_name)
                         .build();
-                    return Ok(creds);
-                }
-                // Fallback to special "default" user, when no credentials were provided
-                let creds = builder
-                    .with_username_password("default", "")
-                    .build();
-                return Ok(creds);
+                    Ok(creds)
+                },
+                _ => Err(Error::CredentialsNotProvided("bad authorization header".into())),
             }
+        } else {
+            // Fallback to special "default" user, when no credentials were provided
+            let creds = builder
+                .with_username_password("default", "")
+                .build();
+            Ok(creds)
         }
-        Err(Error::CredentialsNotProvided("missing authorization header".into()))
     }
 
     fn extract_token(&self) -> Result<Credentials, Error> {
