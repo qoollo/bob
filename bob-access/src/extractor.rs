@@ -29,10 +29,16 @@ fn username_password_from_credentials(credentials: &str) -> Result<(String, Stri
     let str_cred = String::from_utf8(credentials)
         .map_err(|e| Error::ConversionError(format!("invalid utf8 credentials characters: {}", e)))?;
     let mut user_pass = str_cred.split_terminator(":");
-    if let (Some(username), Some(password)) = (user_pass.next(), user_pass.next()) {
-        Ok((username.into(), password.into()))
-    } else {
-        Err(Error::CredentialsNotProvided("missing username or password".into()))
+    match (user_pass.next(), user_pass.next()) {
+        // (user & pass), (empty user & pass) cases
+        (Some(username), Some(password)) => {
+            Ok((username.into(), password.into()))
+        },
+        // (user & empty pass), (empty user & empty pass) cases
+        (Some(username), None) => {
+            Ok((username.into(), "".into()))
+        },
+        _ => Err(Error::CredentialsNotProvided("missing username or password".into()))
     }
 }
 
