@@ -70,20 +70,26 @@ impl<T: Extractor> ExtractorExt for T {
         let auth_header = self.get_header("authorization")?;
         if let Some(auth_header) = auth_header {
             let mut parts = auth_header.split_whitespace();
+            const BASIC: unicase::Ascii<&str> = unicase::Ascii::new("Basic");
+            const INTERNODE: unicase::Ascii<&str> = unicase::Ascii::new("InterNode");
             match (parts.next(), parts.next()) {
-                (Some("Basic"), Some(credentials)) => {
-                    let (username, password) = username_password_from_credentials(credentials)?;
-                    let creds = builder
-                        .with_username_password(username, password)
-                        .build();
-                    Ok(creds)
-                },
-                (Some("InterNode"), Some(credentials)) => {
-                    let node_name = nodename_from_credentials(credentials)?;
-                    let creds = builder
-                        .with_nodename(node_name)
-                        .build();
-                    Ok(creds)
+                (Some(auth_type), Some(credentials)) => {
+                    // match will not work here
+                    if auth_type == BASIC {
+                        let (username, password) = username_password_from_credentials(credentials)?;
+                        let creds = builder
+                            .with_username_password(username, password)
+                            .build();
+                        Ok(creds)
+                    } else if auth_type == INTERNODE {
+                        let node_name = nodename_from_credentials(credentials)?;
+                        let creds = builder
+                            .with_nodename(node_name)
+                            .build();
+                        Ok(creds)
+                    } else {
+                        Err(Error::CredentialsNotProvided("unknown authorization type".into()))
+                    }
                 },
                 _ => Err(Error::CredentialsNotProvided("bad authorization header".into())),
             }
