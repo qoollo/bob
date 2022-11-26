@@ -4,16 +4,21 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Include bobt into the zip archive attached to the release infrastructure (#669)
+- Include bobc into release builds (#569)
+- Added blob-info and index-info features to brt (#356)
+- Support for files, file name patterns, key ranges and a 'exists' subcommand to 'bobc' (#539)
 
 #### Changed
 - Hostname resolving in background tasks (#529)
+- Change locks to sync where possible (#472)
 
 #### Fixed
-
+- Clear bloom-filter memory on remount (#636)
 
 #### Updated
 - Pearl updated to v0.15.0 (#668)
+- Updated versions of dependencies (#551)
 
 
 ## [2.1.0-alpha.6] - 2022-11-15

@@ -5,7 +5,7 @@ use std::{
     cmp::Eq,
     fmt::Display
 };
-use parking_lot::Mutex as PLMutex;
+use std::sync::Mutex as SyncMutex;
 use log::Level;
 
 #[derive(Debug)]
@@ -48,17 +48,17 @@ impl<E: Hash + Eq + Display> IntervalLogger<E> {
 
 #[derive(Debug)]
 pub struct IntervalLoggerSafe<E> {
-    inner: PLMutex<IntervalLogger<E>>
+    inner: SyncMutex<IntervalLogger<E>>
 }
 
 impl<E: Hash + Eq + Display> IntervalLoggerSafe<E> {
     pub fn new(interval_ms: u64, level: Level) -> Self {
         Self {
-            inner: PLMutex::new(IntervalLogger::new(interval_ms, level))
+            inner: SyncMutex::new(IntervalLogger::new(interval_ms, level))
         }
     }
 
     pub fn report_error(&self, action: E) {
-        self.inner.lock().report_error(action);
+        self.inner.lock().expect("mutex").report_error(action);
     }
 }
