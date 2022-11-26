@@ -2,7 +2,7 @@ use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
     VirtualMapper, BackendType, FactoryTlsConfig,
 };
-use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap, AuthenticationType};
+use bob_access::{Authenticator, BasicAuthenticator, DeclaredCredentials, StubAuthenticator, UsersMap, AuthenticationType};
 use clap::{crate_version, App, Arg, ArgMatches};
 use std::{
     collections::HashMap,
@@ -162,18 +162,18 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
 
 async fn nodes_credentials_from_cluster_config(
     cluster_config: &ClusterConfig,
-) -> HashMap<String, Credentials> {
-    let mut nodes_creds: HashMap<String, Credentials> = HashMap::new();
+) -> HashMap<String, DeclaredCredentials> {
+    let mut nodes_creds: HashMap<String, DeclaredCredentials> = HashMap::new();
     for node in cluster_config.nodes() {
         let address = node.address();
         let cred = 
         if let Ok(address) = address.parse::<SocketAddr>() {
-            Credentials::builder()
+            DeclaredCredentials::builder()
                 .with_nodename(node.name())
                 .with_address(Some(vec![address]))
                 .build()
         } else {
-            Credentials::builder()
+            DeclaredCredentials::builder()
                 .with_nodename(node.name())
                 .with_hostname(address.into())
                 .build()

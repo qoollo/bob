@@ -1,4 +1,4 @@
-use crate::{credentials::{Credentials, CredentialsBuilder}, error::Error, AuthenticationType};
+use crate::{credentials::{RequestCredentials, RequestCredentialsBuilder}, error::Error, AuthenticationType};
 use axum::extract::RequestParts;
 use http::Request;
 use tonic::{transport::server::TcpConnectInfo, Request as TonicRequest};
@@ -9,25 +9,24 @@ pub trait Extractor {
 }
 
 pub trait ExtractorExt {
-    fn extract(&self, cred_type: AuthenticationType) -> Result<Credentials, Error>;
-    fn extract_basic(&self) -> Result<Credentials, Error>;
-    fn extract_token(&self) -> Result<Credentials, Error>;
+    fn extract(&self, cred_type: AuthenticationType) -> Result<RequestCredentials, Error>;
+    fn extract_basic(&self) -> Result<RequestCredentials, Error>;
+    fn extract_token(&self) -> Result<RequestCredentials, Error>;
 }
 
-fn prepare_builder<T: Extractor>(slf: &T) -> Result<CredentialsBuilder, Error> {
+fn prepare_builder<T: Extractor>(slf: &T) -> Result<RequestCredentialsBuilder, Error> {
     let addr = slf
         .get_extension::<TcpConnectInfo>()
         .and_then(|ext| ext.remote_addr());
-    let mut builder = Credentials::builder();
-    builder.with_address(addr.map(|addr| vec![addr]));
-    Ok(builder)
+    let builder = RequestCredentials::builder();
+    Ok(builder.with_address(addr))
 }
 
 impl<T: Extractor> ExtractorExt for T {
-    fn extract(&self, cred_type: AuthenticationType) -> Result<Credentials, Error> {
+    fn extract(&self, cred_type: AuthenticationType) -> Result<RequestCredentials, Error> {
         match cred_type {
             AuthenticationType::None => {
-                return Ok(Credentials::default());
+                return Ok(RequestCredentials::default());
             },
             AuthenticationType::Basic => {
                 return self.extract_basic();
@@ -38,8 +37,8 @@ impl<T: Extractor> ExtractorExt for T {
         }
     }
 
-    fn extract_basic(&self) -> Result<Credentials, Error> {
-        let mut builder = prepare_builder(self)?;
+    fn extract_basic(&self) -> Result<RequestCredentials, Error> {
+        let builder = prepare_builder(self)?;
         match (self.get_header("username")?, self.get_header("password")?) {
             (Some(username), Some(password)) => {
                 let creds = builder
@@ -64,8 +63,8 @@ impl<T: Extractor> ExtractorExt for T {
         }
     }
 
-    fn extract_token(&self) -> Result<Credentials, Error> {
-        let mut builder = prepare_builder(self)?;
+    fn extract_token(&self) -> Result<RequestCredentials, Error> {
+        let builder = prepare_builder(self)?;
         if let Some(token) = self.get_header("token")? {
             let creds = builder
                 .with_token(token)

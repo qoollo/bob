@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{credentials::{Credentials, CredentialsKind}, AuthenticationType, error::Error, permissions::Permissions};
+use crate::{credentials::{DeclaredCredentials, RequestCredentials, CredentialsKind}, AuthenticationType, error::Error, permissions::Permissions};
 
 use super::{users_storage::UsersStorage, Authenticator};
 
@@ -13,7 +13,7 @@ use sha2::{Digest, Sha512};
 
 use tokio::net::lookup_host;
 
-type NodesCredentials = HashMap<String, Credentials>;
+type NodesCredentials = HashMap<String, DeclaredCredentials>;
 
 #[derive(Debug, Default, Clone)]
 pub struct Basic<Storage: UsersStorage> {
@@ -31,7 +31,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
         }
     }
 
-    fn node_creds_ok(creds: &HashMap<String, Credentials>) -> bool {
+    fn node_creds_ok(creds: &HashMap<String, DeclaredCredentials>) -> bool {
         creds.values()
             .all(|cred|
                 (cred.ip().is_some() || cred.hostname().is_some()) &&
@@ -40,7 +40,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
 
     pub fn set_nodes_credentials(
         &mut self,
-        mut nodes: HashMap<String, Credentials>,
+        mut nodes: HashMap<String, DeclaredCredentials>,
     ) -> Result<(), Error> {
         if Self::node_creds_ok(&nodes) {
             let mut resolved = HashMap::new();
@@ -60,50 +60,45 @@ impl<Storage: UsersStorage> Basic<Storage> {
         }
     }
 
-    fn spawn_resolver(&self, cred: Credentials) {
+    fn spawn_resolver(&self, cred: DeclaredCredentials) {
         tokio::spawn(Self::resolve_worker(self.nodes.clone(), cred, self.resolve_sleep_dur_ms));
     }
 
-    async fn resolve_worker(nodes: Arc<RwLock<NodesCredentials>>, mut cred: Credentials, sleep_dur_ms: u64) {
+    async fn resolve_worker(nodes: Arc<RwLock<NodesCredentials>>, cred: DeclaredCredentials, sleep_dur_ms: u64) {
         let hostname = cred.hostname().as_ref().expect("resolve worker without hostname");
         let mut addr: Option<Vec<SocketAddr>> = None;
-        for _ in 0..60 {
-            addr = match lookup_host(hostname).await {
-                Ok(address) => Some(address.collect()),
-                _ => None
-            };
-            if let Some(addr) = addr.as_ref() {
-                if addr.len() > 0 {
-                    break;
-                }
-            }
-
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
-
+        let mut cur_sleep_dur_ms = 100;
         while addr.is_none() || (addr.is_some() && addr.as_ref().unwrap().len() == 0) {
-            tokio::time::sleep(Duration::from_millis(sleep_dur_ms)).await;
+            tokio::time::sleep(Duration::from_millis(cur_sleep_dur_ms)).await;
 
             addr = match lookup_host(hostname).await {
                 Ok(address) => Some(address.collect()),
                 _ => None
             };
+
+            cur_sleep_dur_ms = sleep_dur_ms.min(cur_sleep_dur_ms * 2);
         }
 
         let addr = addr.expect("somehow addr is none");
-        cred.set_addresses(addr);
         let mut nodes = nodes.write().expect("nodes credentials lock");
         if let Some(CredentialsKind::InterNode(nodename)) = cred.kind() {
-            nodes.insert(nodename.clone(), cred);
+            if let Some(creds) = nodes.get_mut(nodename) {
+                creds.add_addresses(addr);
+                creds.set_resolved();
+            }
         } else {
             error!("resolved credentials are not internode");
         }
     }
 
-    fn mark_unresolved(&self, nodename: &str) {
+    fn check_resolve(&self, nodename: &str, unresolved: bool) {
         let mut nodes = self.nodes.write().expect("nodes credentials lock");
-        let cred = nodes.remove(nodename);
-        cred.map(|cred| self.spawn_resolver(cred));
+        if let Some(node) = nodes.get_mut(nodename) {
+            if node.needs_resolve(unresolved) {
+                node.set_pending();
+                self.spawn_resolver(node.clone());
+            }
+        }
     }
 
     fn check_node_request(&self, node_name: &String, ip: Option<SocketAddr>) -> bool {
@@ -112,33 +107,30 @@ impl<Storage: UsersStorage> Basic<Storage> {
             if ip.is_none() {
                 return false;
             }
+            let ip = ip.unwrap().ip();
             let nodes = self.nodes.read().expect("nodes credentials lock");
             if nodes.is_empty() {
                 warn!("nodes credentials not set");
                 return false;
             }
-            let ip = ip.unwrap().ip();
             if let Some(cred) = nodes.get(node_name) {
                 if let Some(CredentialsKind::InterNode(other_name)) = cred.kind() {
-                    if node_name == other_name {
-                        if cred.ip().as_ref().and_then(|ips| {
-                            ips.iter().find(|cred_ip| cred_ip.ip() == ip)
-                        }).is_some() {
-                            return true;
-                        }
-                        
-                        unresolved = true;
+                    debug_assert!(node_name == other_name);
+                    if cred.ip().as_ref().and_then(|ips| {
+                        ips.iter().find(|cred_ip| cred_ip.ip() == ip)
+                    }).is_some() {
+                        return true;
                     }
+                    
+                    unresolved = true;
                 }
             }
         }
-        if unresolved {
-            self.mark_unresolved(node_name);
-        }
+        self.check_resolve(node_name, unresolved);
         false
     }
 
-    fn check_credentials_common(&self, credentials: Credentials) -> Result<Permissions, Error> {
+    fn check_credentials_common(&self, credentials: RequestCredentials) -> Result<Permissions, Error> {
         match credentials.kind() {
             Some(CredentialsKind::Basic { username, password }) => {
                 debug!(
@@ -180,11 +172,11 @@ impl<Storage> Authenticator for Basic<Storage>
 where
     Storage: UsersStorage,
 {
-    fn check_credentials_grpc(&self, credentials: Credentials) -> Result<Permissions, Error> {
+    fn check_credentials_grpc(&self, credentials: RequestCredentials) -> Result<Permissions, Error> {
         debug!("check {:?}", credentials);
         match credentials.kind() {
             Some(CredentialsKind::InterNode(node_name)) => {
-                if self.check_node_request(node_name, credentials.single_ip()) {
+                if self.check_node_request(node_name, credentials.ip()) {
                     debug!("request from node: {:?}", credentials.ip());
                     Ok(Permissions::all())
                 } else {
@@ -195,7 +187,7 @@ where
         }
     }
 
-    fn check_credentials_rest(&self, credentials: Credentials) -> Result<Permissions, Error> {
+    fn check_credentials_rest(&self, credentials: RequestCredentials) -> Result<Permissions, Error> {
         debug!("check {:?}", credentials);
         self.check_credentials_common(credentials)
     }
