@@ -9,19 +9,18 @@ use clap::{App, Arg, ArgMatches};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
+use std::fs;
 use std::mem::size_of;
 use std::ops::Sub;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
-use std::fs;
-use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tonic::metadata::{Ascii, MetadataValue};
-use tonic::transport::{Channel, Endpoint, Certificate, ClientTlsConfig};
+use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 use tonic::{Code, Request, Status};
 
 #[macro_use]
@@ -59,7 +58,9 @@ impl NetConfig {
             let cert_bin = fs::read(&ca_cert_path).expect("can not read ca certificate from file");
             let cert = Certificate::from_pem(cert_bin);
             let domain_name = self.tls_domain_name.as_ref().expect("domain name required");
-            let tls_config = ClientTlsConfig::new().domain_name(domain_name).ca_certificate(cert);
+            let tls_config = ClientTlsConfig::new()
+                .domain_name(domain_name)
+                .ca_certificate(cert);
             endpoint = endpoint.tls_config(tls_config).expect("tls config");
         }
         loop {
@@ -217,23 +218,21 @@ impl TaskConfig {
         let full_packets = self.count / self.packet_size;
         let tail = self.count - full_packets * self.packet_size;
         for _ in 0..full_packets {
-            let mut keys_portion: Vec<_> = 
-                (current_low..current_low + self.packet_size).collect();
+            let mut keys_portion: Vec<_> = (current_low..current_low + self.packet_size).collect();
             if shuffle {
                 keys_portion.shuffle(&mut thread_rng());
             }
-    
+
             keys.push(keys_portion);
-    
+
             current_low += self.packet_size;
         }
         if tail > 0 {
-            let mut keys_portion: Vec<_> = 
-                (current_low..current_low + tail).collect();
+            let mut keys_portion: Vec<_> = (current_low..current_low + tail).collect();
             if shuffle {
                 keys_portion.shuffle(&mut thread_rng());
             }
-    
+
             keys.push(keys_portion);
         }
         keys
@@ -309,8 +308,8 @@ impl Statistics {
         self.exist_count_st.fetch_add(1, Ordering::Relaxed);
     }
 
-    async fn save_get_error(&self, status: Status) {
-        let mut guard = self.get_errors.lock().await;
+    fn save_get_error(&self, status: Status) {
+        let mut guard = self.get_errors.lock().expect("mutex");
         guard
             .entry(status.code() as CodeRepresentation)
             .and_modify(|i| *i += 1)
@@ -320,8 +319,8 @@ impl Statistics {
         debug!("{}", status.message())
     }
 
-    async fn save_put_error(&self, status: Status) {
-        let mut guard = self.put_errors.lock().await;
+    fn save_put_error(&self, status: Status) {
+        let mut guard = self.put_errors.lock().expect("mutex");
         guard
             .entry(status.code() as CodeRepresentation)
             .and_modify(|i| *i += 1)
@@ -331,8 +330,8 @@ impl Statistics {
         debug!("{}", status.message())
     }
 
-    async fn save_exist_error(&self, status: Status) {
-        let mut guard = self.exist_errors.lock().await;
+    fn save_exist_error(&self, status: Status) {
+        let mut guard = self.exist_errors.lock().expect("mutex");
         guard
             .entry(status.code() as CodeRepresentation)
             .and_modify(|i| *i += 1)
@@ -473,26 +472,34 @@ async fn stat_worker(
 ) {
     let (put_speed_values, get_speed_values, exist_speed_values, elapsed) =
         print_periodic_stat(stop_token, period_ms, &stat, request_bytes, behavior_flags);
-    print_averages(&stat, &put_speed_values, &get_speed_values, &exist_speed_values, elapsed, keys_count, behavior_flags);
-    print_errors_with_codes(stat).await
+    print_averages(
+        &stat,
+        &put_speed_values,
+        &get_speed_values,
+        &exist_speed_values,
+        elapsed,
+        keys_count,
+        behavior_flags,
+    );
+    print_errors_with_codes(stat);
 }
 
-async fn print_errors_with_codes(stat: Arc<Statistics>) {
-    let guard = stat.get_errors.lock().await;
+fn print_errors_with_codes(stat: Arc<Statistics>) {
+    let guard = stat.get_errors.lock().expect("mutex");
     if !guard.is_empty() {
         println!("get errors:");
         for (&code, count) in guard.iter() {
             println!("{:?} = {}", Code::from(code), count);
         }
     }
-    let guard = stat.put_errors.lock().await;
+    let guard = stat.put_errors.lock().expect("mutex");
     if !guard.is_empty() {
         println!("put errors:");
         for (&code, count) in guard.iter() {
             println!("{:?} = {}", Code::from(code), count);
         }
     }
-    let guard = stat.exist_errors.lock().await;
+    let guard = stat.exist_errors.lock().expect("mutex");
     if !guard.is_empty() {
         println!("exist errors:");
         for (&code, count) in guard.iter() {
@@ -514,40 +521,56 @@ fn print_averages(
     let total_exist = stat.exist_total.load(Ordering::Relaxed);
     let total_get = stat.get_total.load(Ordering::Relaxed);
     let avg_total = ((total_put + total_get + total_exist) * 1000)
-                    .checked_div(elapsed.as_millis() as u64)
-                    .unwrap_or_default();
-    let total_err = stat.put_error_count.load(Ordering::Relaxed) + 
-                    stat.get_error_count.load(Ordering::Relaxed) +
-                    stat.exist_error_count.load(Ordering::Relaxed);
+        .checked_div(elapsed.as_millis() as u64)
+        .unwrap_or_default();
+    let total_err = stat.put_error_count.load(Ordering::Relaxed)
+        + stat.get_error_count.load(Ordering::Relaxed)
+        + stat.exist_error_count.load(Ordering::Relaxed);
     let print_put = (behavior_flags & PUT_FLAG) > 0;
     let print_get = (behavior_flags & GET_FLAG) > 0;
     let print_exist = (behavior_flags & EXIST_FLAG) > 0;
-    print!("avg total: {} rps | total err: {}\r\n", avg_total, total_err);
+    print!(
+        "avg total: {} rps | total err: {}\r\n",
+        avg_total, total_err
+    );
     if print_put {
         let put_resp_time = finite_or_default(
             (stat.put_time_ns_st.load(Ordering::Relaxed) as f64)
                 / (stat.put_count_st.load(Ordering::Relaxed) as f64)
-                / 1e9
+                / 1e9,
         );
-        println!("put: {:>6.2} kb/s | resp time {:>6.2} ms", average(put_speed_values), put_resp_time);
+        println!(
+            "put: {:>6.2} kb/s | resp time {:>6.2} ms",
+            average(put_speed_values),
+            put_resp_time
+        );
     }
     if print_get {
         let get_resp_time = finite_or_default(
             (stat.get_time_ns_st.load(Ordering::Relaxed) as f64)
                 / (stat.get_count_st.load(Ordering::Relaxed) as f64)
-                / 1e9
+                / 1e9,
         );
-        println!("get: {:>6.2} kb/s | resp time {:>6.2} ms", average(get_speed_values), get_resp_time);
+        println!(
+            "get: {:>6.2} kb/s | resp time {:>6.2} ms",
+            average(get_speed_values),
+            get_resp_time
+        );
     }
     if print_exist {
         let exist_resp_time = finite_or_default(
             (stat.exist_time_ns_st.load(Ordering::Relaxed) as f64)
                 / (stat.exist_count_st.load(Ordering::Relaxed) as f64)
-                / 1e9
+                / 1e9,
         );
         let present_keys = stat.exist_presented_keys.load(Ordering::Relaxed);
-        println!("exist: {:>6.2} kb/s | resp time {:>6.2} ms | {} of {} keys present", 
-            average(exist_speed_values), exist_resp_time, present_keys, keys_count);
+        println!(
+            "exist: {:>6.2} kb/s | resp time {:>6.2} ms | {} of {} keys present",
+            average(exist_speed_values),
+            exist_resp_time,
+            present_keys,
+            keys_count
+        );
     }
     if get_matches().is_present("verify") {
         println!(
@@ -581,7 +604,8 @@ fn print_periodic_stat(
     let mut exist_count_st =
         DiffContainer::new(Box::new(|| stat.exist_count_st.load(Ordering::Relaxed)));
     let mut get_size = DiffContainer::new(Box::new(|| stat.get_size_bytes.load(Ordering::Relaxed)));
-    let mut exist_size = DiffContainer::new(Box::new(|| stat.exist_size_bytes.load(Ordering::Relaxed)));
+    let mut exist_size =
+        DiffContainer::new(Box::new(|| stat.exist_size_bytes.load(Ordering::Relaxed)));
     let mut put_speed_values = vec![];
     let mut get_speed_values = vec![];
     let mut exist_speed_values = vec![];
@@ -609,11 +633,13 @@ fn print_periodic_stat(
             let cur_st_put_count = put_count_st.get_diff() as f64;
             let put_error = stat.put_error_count.load(Ordering::Relaxed);
             let put_spd = put_count_spd as f64 * k;
-            println!("put:   {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+            println!(
+                "put:   {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms",
                 put_count_spd,
                 put_error,
                 put_spd,
-                finite_or_default(cur_st_put_time / cur_st_put_count / 1e9));
+                finite_or_default(cur_st_put_time / cur_st_put_count / 1e9)
+            );
 
             put_speed_values.push(put_spd);
         }
@@ -623,18 +649,20 @@ fn print_periodic_stat(
             } else {
                 first_line = false;
             }
-            
+
             let d_get = get_count.get_diff();
             let get_count_spd = d_get * 1000 / period_ms;
             let cur_st_get_time = get_time_st.get_diff() as f64;
             let cur_st_get_count = get_count_st.get_diff() as f64;
             let get_error = stat.get_error_count.load(Ordering::Relaxed);
             let get_spd = get_size.get_diff() as f64 / 1024. / sec;
-            println!("get:   {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+            println!(
+                "get:   {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms",
                 get_count_spd,
                 get_error,
                 get_spd,
-                finite_or_default(cur_st_get_time / cur_st_get_count / 1e9));
+                finite_or_default(cur_st_get_time / cur_st_get_count / 1e9)
+            );
 
             get_speed_values.push(get_spd);
         }
@@ -642,25 +670,32 @@ fn print_periodic_stat(
             if !first_line {
                 print!("{:>6}", ' ');
             }
-            
+
             let d_exist = exist_count.get_diff();
             let exist_count_spd = d_exist * 1000 / period_ms;
             let cur_st_exist_time = exist_time_st.get_diff() as f64;
             let cur_st_exist_count = exist_count_st.get_diff() as f64;
             let exist_error = stat.exist_error_count.load(Ordering::Relaxed);
             let exist_spd = exist_size.get_diff() as f64 / 1024.0 / sec;
-            println!("exist: {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+            println!(
+                "exist: {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms",
                 exist_count_spd,
                 exist_error,
                 exist_spd,
-                finite_or_default(cur_st_exist_time / cur_st_exist_count / 1e9));
+                finite_or_default(cur_st_exist_time / cur_st_exist_count / 1e9)
+            );
 
             exist_speed_values.push(exist_spd);
         }
     }
     let elapsed = start.elapsed();
     println!("Total statistics, elapsed: {:?}", elapsed);
-    (put_speed_values, get_speed_values,exist_speed_values, elapsed)
+    (
+        put_speed_values,
+        get_speed_values,
+        exist_speed_values,
+        elapsed,
+    )
 }
 
 fn average(values: &[f64]) -> f64 {
@@ -707,7 +742,7 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
             client.get(request).await
         };
         match res {
-            Err(status) => stat.save_get_error(status).await,
+            Err(status) => stat.save_get_error(status),
             Ok(payload) => {
                 let res = payload.into_inner().data;
                 stat.get_size_bytes
@@ -746,7 +781,7 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
             client.put(request).await
         };
         if let Err(status) = res {
-            stat.save_put_error(status).await;
+            stat.save_put_error(status);
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
     }
@@ -781,10 +816,12 @@ async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat
     let iterator = Box::new(keys.into_iter());
 
     for portion in iterator {
-        let keys = portion.iter().map(|key| 
-            BlobKey {
+        let keys = portion
+            .iter()
+            .map(|key| BlobKey {
                 key: task_conf.get_proper_key(*key),
-            }).collect();
+            })
+            .collect();
         let request = request_creator(ExistRequest {
             keys,
             options: options.clone(),
@@ -798,9 +835,9 @@ async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat
             client.exist(request).await
         };
         stat.exist_size_bytes
-                    .fetch_add(send_size_bytes, Ordering::SeqCst);
+            .fetch_add(send_size_bytes, Ordering::SeqCst);
         match res {
-            Err(status) => stat.save_exist_error(status).await,
+            Err(status) => stat.save_exist_error(status),
             Ok(payload) => {
                 let res = payload.into_inner().exist;
                 stat.exist_size_bytes
@@ -850,7 +887,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
             client.put(put_request).await
         };
         if let Err(status) = put_res {
-            stat.save_put_error(status).await;
+            stat.save_put_error(status);
         }
         stat.put_total.fetch_add(1, Ordering::SeqCst);
         let get_request = get_request_creator(GetRequest {
@@ -866,7 +903,7 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
             client.get(get_request).await
         };
         if let Err(status) = get_res {
-            stat.save_get_error(status).await;
+            stat.save_get_error(status);
         }
         stat.get_total.fetch_add(1, Ordering::SeqCst);
     }
@@ -926,24 +963,31 @@ fn spawn_statistics_thread(
     match benchmark_conf.behavior {
         Behavior::Exist => {
             behavior_flags |= EXIST_FLAG;
-        },
+        }
         Behavior::Get => {
             behavior_flags |= GET_FLAG;
-        },
+        }
         Behavior::PingPong => {
             behavior_flags |= GET_FLAG;
             behavior_flags |= PUT_FLAG;
-        },
+        }
         Behavior::Put => {
             behavior_flags |= PUT_FLAG;
-        },
+        }
         Behavior::Test => {
             behavior_flags |= GET_FLAG;
             behavior_flags |= PUT_FLAG;
             behavior_flags |= EXIST_FLAG;
         }
     }
-    tokio::spawn(stat_worker(stop_token, 1000, stat, bytes_amount, keys_count, behavior_flags))
+    tokio::spawn(stat_worker(
+        stop_token,
+        1000,
+        stat,
+        bytes_amount,
+        keys_count,
+        behavior_flags,
+    ))
 }
 
 fn create_blob(task_conf: &TaskConfig) -> Blob {

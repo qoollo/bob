@@ -365,7 +365,7 @@ async fn find_group<A: Authenticator>(
 async fn metrics<A: Authenticator>(
     bob: Extension<BobServer<A>>,
 ) -> Json<MetricsSnapshotModel> {
-    let snapshot = bob.metrics().read().await.clone();
+    let snapshot = bob.metrics().read().expect("rwlock").clone();
     Json(snapshot.into())
 }
 
@@ -767,14 +767,19 @@ where
     if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
-    let group = find_group(&bob, vdisk_id).await?;
-    if let Some(err) = group.remount().await.err() {
-        Err(StatusExt::new(StatusCode::OK, false, err.to_string()))
-    } else {
-        info!("vdisks group {} successfully restarted", vdisk_id);
-        let msg = format!("vdisks group {} successfully restarted", vdisk_id);
-        Ok(StatusExt::new(StatusCode::OK, true, msg))
-    }
+    bob.grinder()
+        .backend()
+        .inner()
+        .remount_vdisk(vdisk_id)
+        .await
+        .map(|_| {
+            StatusExt::new(
+                StatusCode::OK,
+                true,
+                format!("vdisk {} successfully restarted", vdisk_id),
+            )
+        })
+        .map_err(|e| StatusExt::new(StatusCode::OK, false, e.to_string()))
 }
 
 // DELETE /vdisks/:vdisk_id/partitions/by_timestamp/:timestamp
