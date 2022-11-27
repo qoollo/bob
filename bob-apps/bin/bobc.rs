@@ -48,6 +48,7 @@ const FILE_ARG: &str = "file";
 const PUT_SC: &str = "put";
 const GET_SC: &str = "get";
 const EXIST_SC: &str = "exist";
+const DELETE_SC: &str = "delete";
 
 #[derive(Debug)]
 enum ParseError {
@@ -327,6 +328,14 @@ async fn main() {
             )
             .await
         }
+        DELETE_SC => {
+            delete(
+                &app_args.key_pattern.unwrap(),
+                app_args.keysize,
+                &mut client,
+            )
+            .await
+        }
         _ => unreachable!("unknown command"),
     }
 }
@@ -437,6 +446,10 @@ async fn exist(keys: &KeyPattern, key_size: usize, client: &mut BobApiClient<Cha
     }
 }
 
+async fn delete(keys: &KeyPattern, key_size: usize, client: &mut BobApiClient<Channel>) {
+    info!("delete")
+}
+
 fn get_matches<'a>() -> ArgMatches<'a> {
     let key_arg = Arg::with_name(KEY_ARG)
         .short("k")
@@ -479,6 +492,11 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .arg(&port_arg)
         .arg(file_arg.help("Output file"));
     let exists_sc = SubCommand::with_name(EXIST_SC)
+        .arg(&key_arg)
+        .arg(&key_size_arg)
+        .arg(&host_arg)
+        .arg(&port_arg);
+    let delete_sc = SubCommand::with_name(DELETE_SC)
         .arg(key_arg)
         .arg(key_size_arg)
         .arg(host_arg)
@@ -488,6 +506,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .subcommand(put_sc)
         .subcommand(get_sc)
         .subcommand(exists_sc)
+        .subcommand(delete_sc)
         .get_matches()
 }
 
