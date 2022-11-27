@@ -40,7 +40,8 @@ pub use bob_common::{
 };
 pub use bob_grpc::{
     bob_api_client::BobApiClient, bob_api_server::BobApiServer, Blob, BlobKey, BlobMeta,
-    DeleteRequest, ExistRequest, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
+    DeleteOptions, DeleteRequest, ExistRequest, GetOptions, GetRequest, GetSource, PutOptions,
+    PutRequest,
 };
 
 mod prelude {

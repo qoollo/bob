@@ -2,7 +2,8 @@
 extern crate log;
 
 use bob::{
-    Blob, BlobKey, BlobMeta, BobApiClient, DeleteRequest, ExistRequest, GetRequest, PutRequest,
+    Blob, BlobKey, BlobMeta, BobApiClient, DeleteOptions, DeleteRequest, ExistRequest, GetRequest,
+    PutRequest,
 };
 use bytes::Bytes;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
@@ -445,7 +446,22 @@ async fn exist(keys: &KeyPattern, key_size: usize, client: &mut BobApiClient<Cha
 }
 
 async fn delete(key: u64, key_size: usize, client: &mut BobApiClient<Channel>) {
-    info!("key: {key}, key size: {key_size}");
+    let message = DeleteRequest {
+        key: Some(BlobKey {
+            key: get_key_value(key, key_size),
+        }),
+        options: Some(DeleteOptions::new_all()),
+    };
+    let request = Request::new(message);
+    let res = client.delete(request).await;
+    match res {
+        Ok(_) => {
+            info!("key: {}", key);
+        }
+        Err(e) => {
+            error!("{:?}", e);
+        }
+    }
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
