@@ -1,7 +1,9 @@
 #[macro_use]
 extern crate log;
 
-use bob::{Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetRequest, PutRequest};
+use bob::{
+    Blob, BlobKey, BlobMeta, BobApiClient, DeleteRequest, ExistRequest, GetRequest, PutRequest,
+};
 use bytes::Bytes;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use log::LevelFilter;
@@ -329,12 +331,9 @@ async fn main() {
             .await
         }
         DELETE_SC => {
-            delete(
-                &app_args.key_pattern.unwrap(),
-                app_args.keysize,
-                &mut client,
-            )
-            .await
+            for key in app_args.key_pattern.unwrap().into_iter() {
+                delete(key, app_args.keysize, &mut client).await
+            }
         }
         _ => unreachable!("unknown command"),
     }
@@ -354,7 +353,6 @@ async fn prepare_put_from_pattern(
             let key = match cap[1].parse() {
                 Ok(val) => val,
                 Err(_) => panic!("cannot parse capture group: {}", &cap[1]),
-
             };
             keys_names.push(KeyName { key, name });
         }
@@ -446,8 +444,8 @@ async fn exist(keys: &KeyPattern, key_size: usize, client: &mut BobApiClient<Cha
     }
 }
 
-async fn delete(keys: &KeyPattern, key_size: usize, client: &mut BobApiClient<Channel>) {
-    info!("delete")
+async fn delete(key: u64, key_size: usize, client: &mut BobApiClient<Channel>) {
+    info!("key: {key}, key size: {key_size}");
 }
 
 fn get_matches<'a>() -> ArgMatches<'a> {
