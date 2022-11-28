@@ -7,7 +7,7 @@ use tokio::{runtime::Handle, task::block_in_place};
 use crate::prelude::*;
 
 use super::grinder::Grinder;
-use bob_common::{metrics::SharedMetricsSnapshot, configs::node::TLSConfig};
+use bob_common::{configs::node::TLSConfig, metrics::SharedMetricsSnapshot};
 
 /// Struct contains `Grinder` and receives incomming GRPC requests
 #[derive(Clone, Debug)]
@@ -68,8 +68,8 @@ where
 
     /// Spawns background tasks, required before starting bob service
     #[inline]
-    pub fn run_periodic_tasks(&self, client_factory: Factory) {
-        self.grinder.run_periodic_tasks(client_factory);
+    pub async fn run_periodic_tasks(&self, client_factory: Factory) {
+        self.grinder.run_periodic_tasks(client_factory).await;
     }
 
     /// Gracefully shutdowns bob
@@ -217,8 +217,13 @@ where
         }
     }
 
-    async fn ping(&self, _: Request<Null>) -> ApiResult<Null> {
+    async fn ping(&self, r: Request<Null>) -> ApiResult<Null> {
         debug!("PING");
+        if let Some(node_name) = r.metadata().get("node_name") {
+            if let Ok(name) = node_name.to_str() {
+                self.grinder.update_node_connection(name).await
+            }
+        }
         Ok(Response::new(Null {}))
     }
 

@@ -203,9 +203,10 @@ impl Grinder {
     }
 
     #[inline]
-    pub(crate) fn run_periodic_tasks(&self, client_factory: Factory) {
-        self.link_manager.spawn_checker(client_factory);
-        self.cleaner.spawn_task(self.cleaner.clone(), self.backend.clone());
+    pub(crate) async fn run_periodic_tasks(&self, client_factory: Factory) {
+        self.link_manager.spawn_checker(client_factory).await;
+        self.cleaner
+            .spawn_task(self.cleaner.clone(), self.backend.clone());
         self.counter.spawn_task(self.backend.clone());
         self.hw_counter.spawn_task();
     }
@@ -246,6 +247,10 @@ impl Grinder {
         trace!(">>>- - - - - GRINDER DELETE FINISHED - - - - -");
         self.cleaner.request_index_cleanup();
         result
+    }
+
+    pub(crate) async fn update_node_connection(&self, node_name: &str) {
+        self.link_manager.update_node_connection(node_name).await;
     }
 }
 
