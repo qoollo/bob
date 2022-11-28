@@ -1,23 +1,48 @@
 use metrics::{GaugeValue, Key, Recorder};
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::{Sender, error::TrySendError};
+use std::{fmt::{Display, Formatter, Result as FMTResult}};
 
 use super::snapshot::{Metric, MetricInner};
+use crate::interval_logger::IntervalLoggerSafe;
+
+const ERROR_LOG_INTERVAL_MS: u64 = 5000;
+
+#[derive(Hash, PartialEq, Eq)]
+enum PushMetricError {
+    Closed,
+    NoCapacity,
+}
+
+impl Display for PushMetricError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FMTResult {
+        match self {
+            PushMetricError::Closed =>
+                write!(f, "Can't send metric to thread, channel is closed"),
+            PushMetricError::NoCapacity =>
+                write!(f, "Can't send metric to thread, channel is full"),
+        }
+    }
+}
 
 pub(crate) struct MetricsRecorder {
     tx: Sender<Metric>,
+    error_logger: IntervalLoggerSafe<PushMetricError>
 }
 
 impl MetricsRecorder {
     pub(super) fn new(tx: Sender<Metric>) -> Self {
-        Self { tx }
+        Self {
+            tx,
+            error_logger: IntervalLoggerSafe::new(ERROR_LOG_INTERVAL_MS, log::Level::Error),
+        }
     }
 
     fn push_metric(&self, m: Metric) {
         if let Err(e) = self.tx.try_send(m) {
-            error!(
-                "Can't send metric to thread, which processing metrics: {}",
-                e
-            );
+            match e {
+                TrySendError::Closed(_) => self.error_logger.report_error(PushMetricError::Closed),
+                TrySendError::Full(_) => self.error_logger.report_error(PushMetricError::NoCapacity),
+            }
         }
     }
 }

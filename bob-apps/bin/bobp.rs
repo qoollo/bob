@@ -195,19 +195,17 @@ impl TaskConfig {
         let basic_username = self.basic_username.clone().unwrap_or_default();
         let basic_password = self.basic_password.clone().unwrap_or_default();
 
-        let basic_username = basic_username
+        let credentials = format!("{}:{}", basic_username, basic_password);
+        let credentials = base64::encode(credentials);
+        let authorization = format!("Basic {}", credentials)
             .parse::<MetadataValue<Ascii>>()
-            .expect("can not parse username into header");
-        let basic_password = basic_password
-            .parse::<MetadataValue<Ascii>>()
-            .expect("can not parse password into header");
+            .expect("can not parse authorization value");
 
         move |a| {
             let mut request = Request::new(a);
             if do_basic_auth {
                 let req_md = request.metadata_mut();
-                req_md.insert("username", basic_username.clone());
-                req_md.insert("password", basic_password.clone());
+                req_md.insert("authorization", authorization.clone());
             }
             request
         }

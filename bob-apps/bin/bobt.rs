@@ -374,13 +374,9 @@ impl Settings {
             .map_err(|e| e.to_string())
     }
 
-    fn append_request_headers(&self, b: RequestBuilder) -> RequestBuilder {
-        let mut b = b;
-        if self.username.is_some() {
-            b = b.header("username", self.username.as_ref().unwrap());
-            if self.password.is_some() {
-                b = b.header("password", self.password.as_ref().unwrap());
-            }
+    fn append_request_headers(&self, mut b: RequestBuilder) -> RequestBuilder {
+        if let (Some(username), Some(password)) = (self.username.as_ref(), self.password.as_ref()) {
+            b = b.basic_auth(username, Some(password));
         }
         b
     }

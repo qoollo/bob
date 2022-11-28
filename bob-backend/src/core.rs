@@ -6,14 +6,13 @@ use std::{
 };
 
 use crate::{
-    interval_logger::IntervalLoggerSafe,
     mem_backend::MemBackend,
     pearl::{DiskController, Pearl},
     stub_backend::StubBackend,
 };
 use log::Level;
 
-use bob_common::metrics::BLOOM_FILTERS_RAM;
+use bob_common::{metrics::BLOOM_FILTERS_RAM, interval_logger::IntervalLoggerSafe, };
 
 pub const BACKEND_STARTING: f64 = 0f64;
 pub const BACKEND_STARTED: f64 = 1f64;
