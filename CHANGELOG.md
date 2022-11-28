@@ -11,6 +11,7 @@ Bob versions changelog
 
 #### Changed
 - Using interval logger in metric exporter to reduce error log density (#592)
+- Using standard Authorization header for basic auth (#616)
 - Change locks to sync where possible (#472)
 
 #### Fixed
