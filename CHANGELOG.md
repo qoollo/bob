@@ -10,6 +10,7 @@ Bob versions changelog
 - Support for files, file name patterns, key ranges and a 'exists' subcommand to 'bobc' (#539)
 
 #### Changed
+- Using standard Authorization header for basic auth (#616)
 - Change locks to sync where possible (#472)
 
 #### Fixed
