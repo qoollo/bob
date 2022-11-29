@@ -44,6 +44,8 @@ const KEY_SIZE_ARG: &str = "key-size";
 const HOST_ARG: &str = "host";
 const PORT_ARG: &str = "port";
 const FILE_ARG: &str = "file";
+const USER_ARG: &str = "user";
+const PASSWORD_ARG: &str = "password";
 
 const PUT_SC: &str = "put";
 const GET_SC: &str = "get";
@@ -63,6 +65,8 @@ struct AppArgs {
     keysize: usize,
     host: String,
     port: u16,
+    user: Option<String>,
+    password: Option<String>,
 }
 
 impl AppArgs {
@@ -91,6 +95,8 @@ impl AppArgs {
             keysize: sub_matches.value_or_default(KEY_SIZE_ARG),
             host: sub_matches.value_or_default(HOST_ARG),
             port: sub_matches.value_or_default(PORT_ARG),
+            user: sub_matches.value_of(USER_ARG).map(String::from),
+            password: sub_matches.value_of(PASSWORD_ARG).map(String::from),
         }
     }
     fn parse_file_pattern(file_pattern: &str) -> Result<FilePattern, ParseError> {
@@ -465,24 +471,38 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .takes_value(true)
         .value_name("FILE")
         .required(true);
+    let user_arg = Arg::with_name(USER_ARG)
+        .long("user")
+        .takes_value(true)
+        .help("Username for auth");
+    let password_arg = Arg::with_name(PASSWORD_ARG)
+        .long("password")
+        .takes_value(true)
+        .help("Password for auth");
     let put_sc = SubCommand::with_name(PUT_SC)
         .arg(&key_arg)
         .arg(&key_size_arg)
         .arg(&host_arg)
         .arg(&port_arg)
-        .arg(file_arg.clone().help("Input file"));
+        .arg(file_arg.clone().help("Input file"))
+        .arg(&user_arg)
+        .arg(&password_arg);
     let key_arg = key_arg.required(true);
     let get_sc = SubCommand::with_name(GET_SC)
         .arg(&key_arg)
         .arg(&key_size_arg)
         .arg(&host_arg)
         .arg(&port_arg)
-        .arg(file_arg.help("Output file"));
+        .arg(file_arg.help("Output file"))
+        .arg(&user_arg)
+        .arg(&password_arg);
     let exists_sc = SubCommand::with_name(EXIST_SC)
         .arg(key_arg)
         .arg(key_size_arg)
         .arg(host_arg)
-        .arg(port_arg);
+        .arg(port_arg)
+        .arg(user_arg)
+        .arg(password_arg);
     App::new("bobc")
         .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(put_sc)
