@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
+use tonic::metadata::{Ascii, MetadataValue};
 use tonic::transport::Channel;
 use tonic::Request;
 
@@ -145,6 +146,26 @@ impl AppArgs {
                 .map(|n| n.parse().unwrap())
                 .collect(),
         ))
+    }
+    fn request_creator<T>(&self) -> impl Fn(T) -> Request<T> {
+        let do_auth = self.user.is_some() && self.password.is_some();
+        let credentials = format!(
+            "{}:{}",
+            self.user.clone().unwrap_or_default(),
+            self.password.clone().unwrap_or_default()
+        );
+        let credentials = base64::encode(credentials);
+        let authorization = format!("Basic {}", credentials)
+            .parse::<MetadataValue<Ascii>>()
+            .expect("can not parse authorization value");
+        move |msg| {
+            let mut request = Request::new(msg);
+            if do_auth {
+                let meta = request.metadata_mut();
+                meta.insert("authorization", authorization.clone());
+            }
+            request
+        }
     }
 }
 
@@ -284,6 +305,7 @@ async fn main() {
     let mut client = BobApiClient::connect(addr).await.unwrap();
     match app_args.subcommand.as_str() {
         PUT_SC => {
+            let request_creator = app_args.request_creator();
             let keys_names = match (app_args.file_pattern.unwrap(), app_args.key_pattern) {
                 (FilePattern::WithRE(re, dir), None) => {
                     prepare_put_from_pattern(&re.get_regex(), &dir).await
@@ -302,10 +324,18 @@ async fn main() {
                 }
             };
             for kn in keys_names {
-                put(kn.key, app_args.keysize, &kn.name, &mut client).await;
+                put(
+                    kn.key,
+                    app_args.keysize,
+                    &kn.name,
+                    &mut client,
+                    &request_creator,
+                )
+                .await;
             }
         }
         GET_SC => {
+            let request_creator = app_args.request_creator();
             let keys_names = match (
                 app_args.file_pattern.unwrap(),
                 app_args.key_pattern.unwrap(),
@@ -322,14 +352,23 @@ async fn main() {
                 }
             };
             for kn in keys_names {
-                get(kn.key, app_args.keysize, &kn.name, &mut client).await;
+                get(
+                    kn.key,
+                    app_args.keysize,
+                    &kn.name,
+                    &mut client,
+                    &request_creator,
+                )
+                .await;
             }
         }
         EXIST_SC => {
+            let request_creator = app_args.request_creator();
             exist(
                 &app_args.key_pattern.unwrap(),
                 app_args.keysize,
                 &mut client,
+                &request_creator,
             )
             .await
         }
@@ -351,7 +390,6 @@ async fn prepare_put_from_pattern(
             let key = match cap[1].parse() {
                 Ok(val) => val,
                 Err(_) => panic!("cannot parse capture group: {}", &cap[1]),
-
             };
             keys_names.push(KeyName { key, name });
         }
@@ -359,7 +397,13 @@ async fn prepare_put_from_pattern(
     Box::new(keys_names.into_iter())
 }
 
-async fn put(key: u64, key_size: usize, filename: &str, client: &mut BobApiClient<Channel>) {
+async fn put(
+    key: u64,
+    key_size: usize,
+    filename: &str,
+    client: &mut BobApiClient<Channel>,
+    request_creator: impl Fn(PutRequest) -> Request<PutRequest>,
+) {
     match fs::read(filename).await {
         Ok(data) => {
             let timestamp = SystemTime::now()
@@ -379,7 +423,7 @@ async fn put(key: u64, key_size: usize, filename: &str, client: &mut BobApiClien
                 data: Some(blob),
                 options: None,
             };
-            let put_req = Request::new(message);
+            let put_req = request_creator(message);
 
             match client.put(put_req).await {
                 Ok(_) => info!("key: {}, file: {}", key, filename),
@@ -392,14 +436,20 @@ async fn put(key: u64, key_size: usize, filename: &str, client: &mut BobApiClien
     }
 }
 
-async fn get(key: u64, key_size: usize, filename: &str, client: &mut BobApiClient<Channel>) {
+async fn get(
+    key: u64,
+    key_size: usize,
+    filename: &str,
+    client: &mut BobApiClient<Channel>,
+    request_creator: impl Fn(GetRequest) -> Request<GetRequest>,
+) {
     let message = GetRequest {
         key: Some(BlobKey {
             key: get_key_value(key, key_size),
         }),
         options: None,
     };
-    let get_req = Request::new(message);
+    let get_req = request_creator(message);
     let res = client.get(get_req).await;
     match res {
         Ok(res) => {
@@ -416,7 +466,12 @@ async fn get(key: u64, key_size: usize, filename: &str, client: &mut BobApiClien
     }
 }
 
-async fn exist(keys: &KeyPattern, key_size: usize, client: &mut BobApiClient<Channel>) {
+async fn exist(
+    keys: &KeyPattern,
+    key_size: usize,
+    client: &mut BobApiClient<Channel>,
+    request_creator: impl Fn(ExistRequest) -> Request<ExistRequest>,
+) {
     let k = keys
         .iter()
         .map(|key| BlobKey {
@@ -427,7 +482,7 @@ async fn exist(keys: &KeyPattern, key_size: usize, client: &mut BobApiClient<Cha
         keys: k,
         options: None,
     };
-    let request = Request::new(message);
+    let request = request_creator(message);
     let res = client.exist(request).await;
     match res {
         Ok(res) => {
