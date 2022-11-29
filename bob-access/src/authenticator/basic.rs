@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{credentials::{DeclaredCredentials, RequestCredentials, CredentialsKind}, AuthenticationType, error::Error, permissions::Permissions};
+use crate::{credentials::{DeclaredCredentials, DCredentialsResolveGuard, RequestCredentials, CredentialsKind}, AuthenticationType, error::Error, permissions::Permissions};
 
 use super::{users_storage::UsersStorage, Authenticator};
 
@@ -13,7 +13,14 @@ use sha2::{Digest, Sha512};
 
 use tokio::net::lookup_host;
 
-type NodesCredentials = HashMap<String, DeclaredCredentials>;
+#[inline]
+async fn lookup(hostname: &str) -> Option<Vec<SocketAddr>> {
+    lookup_host(hostname).await
+    .ok()
+    .map(|addr| addr.collect())
+}
+
+type NodesCredentials = HashMap<String, DCredentialsResolveGuard>;
 
 #[derive(Debug, Default, Clone)]
 pub struct Basic<Storage: UsersStorage> {
@@ -33,9 +40,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
 
     fn node_creds_ok(creds: &HashMap<String, DeclaredCredentials>) -> bool {
         creds.values()
-            .all(|cred|
-                (cred.ip().is_some() || cred.hostname().is_some()) &&
-                cred.kind().map(|k| k.is_internode()) == Some(true))
+            .all(|cred| cred.validate_internode())
     }
 
     pub fn set_nodes_credentials(
@@ -43,16 +48,14 @@ impl<Storage: UsersStorage> Basic<Storage> {
         mut nodes: HashMap<String, DeclaredCredentials>,
     ) -> Result<(), Error> {
         if Self::node_creds_ok(&nodes) {
-            let mut resolved = HashMap::new();
+            let mut nodes_creds = self.nodes.write().expect("nodes credentials lock");
             for (nodename, cred) in nodes.drain() {
-                if cred.ip().is_none() && cred.hostname().is_some() {
+                let guard = DCredentialsResolveGuard::new(cred.clone());
+                nodes_creds.insert(nodename, guard);
+                if cred.ip().is_empty() && cred.hostname().is_some() {
                     self.spawn_resolver(cred);
-                } else {
-                    resolved.insert(nodename, cred);
                 }
             }
-            let mut nodes_creds = self.nodes.write().expect("nodes credentials lock");
-            nodes_creds.extend(resolved.drain());
             Ok(())
         } else {
             let message = "nodes credentials missing ip or node name";
@@ -66,24 +69,21 @@ impl<Storage: UsersStorage> Basic<Storage> {
 
     async fn resolve_worker(nodes: Arc<RwLock<NodesCredentials>>, cred: DeclaredCredentials, sleep_dur_ms: u64) {
         let hostname = cred.hostname().as_ref().expect("resolve worker without hostname");
-        let mut addr: Option<Vec<SocketAddr>> = None;
+        let mut addr: Option<Vec<SocketAddr>> = lookup(hostname).await;
         let mut cur_sleep_dur_ms = 100;
         while addr.is_none() || (addr.is_some() && addr.as_ref().unwrap().len() == 0) {
             tokio::time::sleep(Duration::from_millis(cur_sleep_dur_ms)).await;
 
-            addr = match lookup_host(hostname).await {
-                Ok(address) => Some(address.collect()),
-                _ => None
-            };
+            addr = lookup(hostname).await;
 
             cur_sleep_dur_ms = sleep_dur_ms.min(cur_sleep_dur_ms * 2);
         }
 
         let addr = addr.expect("somehow addr is none");
-        let mut nodes = nodes.write().expect("nodes credentials lock");
-        if let Some(CredentialsKind::InterNode(nodename)) = cred.kind() {
+        if let CredentialsKind::InterNode(nodename) = cred.kind() {
+            let mut nodes = nodes.write().expect("nodes credentials lock");
             if let Some(creds) = nodes.get_mut(nodename) {
-                creds.add_addresses(addr);
+                creds.creds_mut().replace_addresses(addr);
                 creds.set_resolved();
             }
         } else {
@@ -91,42 +91,38 @@ impl<Storage: UsersStorage> Basic<Storage> {
         }
     }
 
-    fn check_resolve(&self, nodename: &str, unresolved: bool) {
+    fn process_auth_result(&self, nodename: &str, unresolved: bool) {
         let mut nodes = self.nodes.write().expect("nodes credentials lock");
         if let Some(node) = nodes.get_mut(nodename) {
-            if node.needs_resolve(unresolved) {
+            if node.update_resolve_state(unresolved) {
                 node.set_pending();
-                self.spawn_resolver(node.clone());
+                self.spawn_resolver(node.creds().clone());
             }
         }
     }
 
     fn check_node_request(&self, node_name: &String, ip: Option<SocketAddr>) -> bool {
-        let mut unresolved = false;
+        let mut unresolved = None;
         {
             if ip.is_none() {
                 return false;
             }
             let ip = ip.unwrap().ip();
             let nodes = self.nodes.read().expect("nodes credentials lock");
-            if nodes.is_empty() {
-                warn!("nodes credentials not set");
-                return false;
-            }
-            if let Some(cred) = nodes.get(node_name) {
-                if let Some(CredentialsKind::InterNode(other_name)) = cred.kind() {
+            if let Some(cred) = nodes.get(node_name).map(|guard| guard.creds()) {
+                unresolved = Some(false);
+                if let CredentialsKind::InterNode(other_name) = cred.kind() {
                     debug_assert!(node_name == other_name);
-                    if cred.ip().as_ref().and_then(|ips| {
-                        ips.iter().find(|cred_ip| cred_ip.ip() == ip)
-                    }).is_some() {
+                    if cred.ip().iter().find(|cred_ip| cred_ip.ip() == ip).is_some() {
                         return true;
                     }
                     
-                    unresolved = true;
+                    unresolved = Some(true);
                 }
             }
         }
-        self.check_resolve(node_name, unresolved);
+        unresolved.map(|unresolved| 
+            self.process_auth_result(node_name, unresolved));
         false
     }
 

@@ -168,13 +168,11 @@ async fn nodes_credentials_from_cluster_config(
         let address = node.address();
         let cred = 
         if let Ok(address) = address.parse::<SocketAddr>() {
-            DeclaredCredentials::builder()
-                .with_nodename(node.name())
-                .with_address(Some(vec![address]))
+            DeclaredCredentials::internode_builder(node.name())
+                .with_address(address)
                 .build()
         } else {
-            DeclaredCredentials::builder()
-                .with_nodename(node.name())
+            DeclaredCredentials::internode_builder(node.name())
                 .with_hostname(address.into())
                 .build()
         };

@@ -29,45 +29,6 @@ impl RequestCredentials {
     }
 }
 
-const RESOLVE_THRESHOLD: u8 = 3;
-
-#[derive(Debug, Clone)]
-enum ResolveState {
-    Waiting(u8),
-    Pending,
-}
-
-impl Default for ResolveState {
-    fn default() -> Self {
-        ResolveState::Waiting(0)
-    }
-}
-
-impl ResolveState {
-    fn needs_resolve(&mut self, unresolved: bool) -> bool {
-        match self {
-            ResolveState::Waiting(n) => {
-                if unresolved {
-                    *n += 1;
-                    *n >= RESOLVE_THRESHOLD
-                } else {
-                    *n = 0;
-                    false
-                }                
-            },
-            ResolveState::Pending => false,
-        }
-    }
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct DeclaredCredentials {
-    address: Option<Vec<SocketAddr>>,
-    hostname: Option<String>,
-    kind: Option<CredentialsKind>,
-    resolve_state: ResolveState,
-}
-
 pub struct CredentialsHolder<A: Authenticator> {
     credentials: RequestCredentials,
     pd: PhantomData<A>,
@@ -109,47 +70,6 @@ impl CredentialsKind {
         } else {
             false
         }
-    }
-}
-
-impl DeclaredCredentials {
-    pub fn builder() -> DeclaredCredentialsBuilder {
-        DeclaredCredentialsBuilder::default()
-    }
-
-    pub fn ip(&self) -> &Option<Vec<SocketAddr>> {
-        &self.address
-    }
-
-    pub fn add_addresses(&mut self, mut addresses: Vec<SocketAddr>) {
-        match self.address.as_mut() {
-            Some(address) => address.extend(addresses.drain(..)),
-            None => self.address = Some(addresses),
-        }
-    }
-
-    pub fn needs_resolve(&mut self, unresolved: bool) -> bool {
-        self.resolve_state.needs_resolve(unresolved)
-    }
-
-    pub fn set_resolved(&mut self) {
-        self.resolve_state = ResolveState::Waiting(0);
-    }
-
-    pub fn set_pending(&mut self) {
-        self.resolve_state = ResolveState::Pending;
-    }
-
-    pub fn hostname(&self) -> &Option<String> {
-        &self.hostname
-    }
-
-    pub fn is_complete(&self) -> bool {
-        self.address.is_some() && self.ip().is_some()
-    }
-
-    pub fn kind(&self) -> Option<&CredentialsKind> {
-        self.kind.as_ref()
     }
 }
 
@@ -195,35 +115,94 @@ impl RequestCredentialsBuilder {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct DeclaredCredentialsBuilder {
-    kind: Option<CredentialsKind>,
-    address: Option<Vec<SocketAddr>>,
+const RESOLVE_THRESHOLD: u32 = 3;
+
+#[derive(Debug, Clone)]
+enum ResolveState {
+    Waiting(u32),
+    Pending,
+}
+
+impl ResolveState {
+    fn update(&mut self, unresolved: bool) -> bool {
+        match self {
+            ResolveState::Waiting(n) => {
+                if unresolved {
+                    *n += 1;
+                    *n >= RESOLVE_THRESHOLD
+                } else {
+                    *n = 0;
+                    false
+                }                
+            },
+            ResolveState::Pending => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DeclaredCredentials {
+    address: Vec<SocketAddr>,
     hostname: Option<String>,
-    resolve_state: ResolveState,
+    kind: CredentialsKind,
+}
+
+impl DeclaredCredentials {
+    pub fn internode_builder(node_name: impl Into<String>) -> DeclaredCredentialsBuilder {
+        DeclaredCredentialsBuilder::new(CredentialsKind::InterNode(node_name.into()))
+    }
+
+    pub fn token_builder(token: impl Into<String>) -> DeclaredCredentialsBuilder {
+        DeclaredCredentialsBuilder::new(CredentialsKind::Token(token.into()))
+    }
+
+    pub fn userpass_builder(username: impl Into<String>, password: impl Into<String>,) -> DeclaredCredentialsBuilder {
+        DeclaredCredentialsBuilder::new(CredentialsKind::Basic {
+            username: username.into(),
+            password: password.into(),
+        })
+    }
+
+    pub fn ip(&self) -> &Vec<SocketAddr> {
+        &self.address
+    }
+
+    pub fn replace_addresses(&mut self, addresses: Vec<SocketAddr>) {
+        self.address = addresses;
+    }
+
+    pub fn hostname(&self) -> &Option<String> {
+        &self.hostname
+    }
+
+    pub fn validate_internode(&self) -> bool {
+        (!self.address.is_empty() || self.hostname.is_some()) &&
+        self.kind.is_internode()
+    }
+
+    pub fn kind(&self) -> &CredentialsKind {
+        &self.kind
+    }
+}
+
+#[derive(Debug)]
+pub struct DeclaredCredentialsBuilder {
+    kind: CredentialsKind,
+    address: Vec<SocketAddr>,
+    hostname: Option<String>,
 }
 
 impl DeclaredCredentialsBuilder {
-    pub fn with_username_password(
-        mut self,
-        username: impl Into<String>,
-        password: impl Into<String>,
-    ) -> Self {
-        self.kind = Some(CredentialsKind::Basic {
-            username: username.into(),
-            password: password.into(),
-        });
-        self
+    fn new(kind: CredentialsKind) -> Self {
+        Self {
+            kind,
+            address: Vec::new(),
+            hostname: None,
+        }
     }
 
-    pub fn with_token(mut self, token: impl Into<String>) -> Self {
-        self.kind = Some(CredentialsKind::Token(token.into()));
-        self
-    }
-
-    pub fn with_address(mut self, address: Option<Vec<SocketAddr>>) -> Self {
-        self.address = address;
-        self.resolve_state = ResolveState::Waiting(0);
+    pub fn with_address(mut self, address: SocketAddr) -> Self {
+        self.address.push(address);
         self
     }
 
@@ -232,18 +211,47 @@ impl DeclaredCredentialsBuilder {
         self
     }
 
-    pub fn with_nodename(mut self, node_name: impl Into<String>) -> Self {
-        self.kind = Some(CredentialsKind::InterNode(node_name.into()));
-        self
-    }
-
     pub fn build(self) -> DeclaredCredentials {
         DeclaredCredentials {
             address: self.address,
             kind: self.kind,
             hostname: self.hostname,
-            resolve_state: self.resolve_state,
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct DCredentialsResolveGuard {
+    credentials: DeclaredCredentials,
+    resolve_state: ResolveState,
+}
+
+impl DCredentialsResolveGuard {
+    pub fn new(credentials: DeclaredCredentials) -> Self {
+        Self {
+            credentials,
+            resolve_state: ResolveState::Waiting(0),
+        }
+    }
+
+    pub fn update_resolve_state(&mut self, unresolved: bool) -> bool {
+        self.resolve_state.update(unresolved)
+    }
+
+    pub fn set_resolved(&mut self) {
+        self.resolve_state = ResolveState::Waiting(0);
+    }
+
+    pub fn set_pending(&mut self) {
+        self.resolve_state = ResolveState::Pending;
+    }
+
+    pub fn creds_mut(&mut self) -> &mut DeclaredCredentials {
+        &mut self.credentials
+    }
+
+    pub fn creds(&self) -> &DeclaredCredentials {
+        &self.credentials
     }
 }
 
