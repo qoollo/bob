@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Support for authorization to `bobc` (#679)
 
 
 #### Changed
