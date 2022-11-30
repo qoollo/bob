@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::marker::PhantomData;
+use std::time::{Instant, Duration};
 
 use axum::{
     async_trait,
@@ -119,23 +120,23 @@ const RESOLVE_THRESHOLD: u32 = 3;
 
 #[derive(Debug, Clone)]
 enum ResolveState {
-    Waiting(u32),
-    Pending,
+    Resolved(u32),
+    InProgress,
 }
 
 impl ResolveState {
     fn update(&mut self, unresolved: bool) -> bool {
         match self {
-            ResolveState::Waiting(n) => {
+            ResolveState::Resolved(n) => {
                 if unresolved {
-                    *n += 1;
+                    *n = n.wrapping_add(1);
                     *n >= RESOLVE_THRESHOLD
                 } else {
                     *n = 0;
                     false
                 }                
             },
-            ResolveState::Pending => false,
+            ResolveState::InProgress => false,
         }
     }
 }
@@ -202,7 +203,7 @@ impl DeclaredCredentialsBuilder {
     }
 
     pub fn with_address(mut self, address: SocketAddr) -> Self {
-        self.address.push(address);
+        self.address = vec![address];
         self
     }
 
@@ -220,34 +221,45 @@ impl DeclaredCredentialsBuilder {
     }
 }
 
+const RESOLVE_SLEEP_DUR_MS: u64 = 1000;
+
 #[derive(Debug)]
 pub struct DCredentialsResolveGuard {
     credentials: DeclaredCredentials,
     resolve_state: ResolveState,
+    resolve_threshold: Instant,
 }
 
 impl DCredentialsResolveGuard {
     pub fn new(credentials: DeclaredCredentials) -> Self {
         Self {
             credentials,
-            resolve_state: ResolveState::Waiting(0),
+            resolve_state: ResolveState::Resolved(0),
+            resolve_threshold: Instant::now() + Duration::from_millis(RESOLVE_SLEEP_DUR_MS),
         }
     }
 
     pub fn update_resolve_state(&mut self, unresolved: bool) -> bool {
-        self.resolve_state.update(unresolved)
+        let now = Instant::now();
+        if !unresolved {
+            if now >= self.resolve_threshold {
+                self.resolve_state.update(unresolved)
+            } else {
+                false
+            }
+        } else {
+            self.resolve_threshold = now + Duration::from_millis(RESOLVE_SLEEP_DUR_MS);
+            self.resolve_state.update(unresolved)
+        }
     }
 
-    pub fn set_resolved(&mut self) {
-        self.resolve_state = ResolveState::Waiting(0);
+    pub fn set_resolved(&mut self, addresses: Vec<SocketAddr>) {
+        self.credentials.replace_addresses(addresses);
+        self.resolve_state = ResolveState::Resolved(0);
     }
 
-    pub fn set_pending(&mut self) {
-        self.resolve_state = ResolveState::Pending;
-    }
-
-    pub fn creds_mut(&mut self) -> &mut DeclaredCredentials {
-        &mut self.credentials
+    pub fn set_in_progress(&mut self) {
+        self.resolve_state = ResolveState::InProgress;
     }
 
     pub fn creds(&self) -> &DeclaredCredentials {

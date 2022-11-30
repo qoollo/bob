@@ -83,8 +83,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
         if let CredentialsKind::InterNode(nodename) = cred.kind() {
             let mut nodes = nodes.write().expect("nodes credentials lock");
             if let Some(creds) = nodes.get_mut(nodename) {
-                creds.creds_mut().replace_addresses(addr);
-                creds.set_resolved();
+                creds.set_resolved(addr);
             }
         } else {
             error!("resolved credentials are not internode");
@@ -95,7 +94,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
         let mut nodes = self.nodes.write().expect("nodes credentials lock");
         if let Some(node) = nodes.get_mut(nodename) {
             if node.update_resolve_state(unresolved) {
-                node.set_pending();
+                node.set_in_progress();
                 self.spawn_resolver(node.creds().clone());
             }
         }
@@ -121,8 +120,9 @@ impl<Storage: UsersStorage> Basic<Storage> {
                 }
             }
         }
-        unresolved.map(|unresolved| 
-            self.process_auth_result(node_name, unresolved));
+        if let Some(unresolved) = unresolved {
+            self.process_auth_result(node_name, unresolved);
+        }
         false
     }
 
