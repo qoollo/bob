@@ -28,7 +28,7 @@ pub mod b_client {
         operation_timeout: Duration,
         client: BobApiClient<Channel>,
         metrics: BobClientMetrics,
-        local_node_name: String,
+        auth_header: String,
     }
 
     impl BobClient {
@@ -54,12 +54,15 @@ pub mod b_client {
             let client = BobApiClient::connect(endpoint)
                 .await
                 .map_err(|e| e.to_string())?;
+            
+            let auth_header = format!("InterNode {}", base64::encode(local_node_name));
+
             Ok(Self {
                 node,
                 operation_timeout,
                 client,
                 metrics,
-                local_node_name,
+                auth_header,
             })
         }
 
@@ -204,9 +207,10 @@ pub mod b_client {
         }
 
         fn set_credentials<T>(&self, req: &mut Request<T>) {
-            let val = MetadataValue::from_str(&self.local_node_name)
+            let val = MetadataValue::from_str(&self.auth_header)
                 .expect("failed to create metadata value from node name");
-            req.metadata_mut().insert("node_name", val);
+            req.metadata_mut().insert("authorization", val);
+            
         }
 
         fn set_timeout<T>(&self, r: &mut Request<T>) {
