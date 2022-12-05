@@ -1,11 +1,12 @@
 use clap::{App, Arg, ArgMatches};
-use env_logger::Env;
+use env_logger::{Env, Target};
 use http::{StatusCode, Uri};
 use lazy_static::lazy_static;
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use reqwest::RequestBuilder;
 use std::collections::BTreeMap;
+use std::process::ExitCode;
 use std::time::Duration;
 use stopwatch::Stopwatch;
 
@@ -18,12 +19,16 @@ const USERNAME_ARG_NAME: &str = "username";
 const PASSWORD_ARG_NAME: &str = "password";
 
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
     let env = Env::default().filter_or("RUST_LOG", "info");
-    env_logger::init_from_env(env);
+    env_logger::Builder::from_env(env).target(Target::Stdout).init();
     let settings = Settings::new();
     let mut tester = Tester::new(settings).await;
-    tester.run_test().await;
+    if tester.run_test().await {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
 }
 
 enum Operation {
@@ -152,7 +157,7 @@ impl Tester {
         }
     }
 
-    async fn run_test(&mut self) {
+    async fn run_test(&mut self) -> bool {
         let mut total_succ: u64 = 0;
         for i in 0..self.settings.count {
             if i % 10000 == 0 || i == self.settings.count - 1 {
@@ -170,6 +175,8 @@ impl Tester {
                 total_succ += 1;
             }
         }
+        log::info!("Final summary: {}/{}", total_succ, self.settings.count);
+        total_succ == self.settings.count
     }
 }
 
@@ -367,13 +374,9 @@ impl Settings {
             .map_err(|e| e.to_string())
     }
 
-    fn append_request_headers(&self, b: RequestBuilder) -> RequestBuilder {
-        let mut b = b;
-        if self.username.is_some() {
-            b = b.header("username", self.username.as_ref().unwrap());
-            if self.password.is_some() {
-                b = b.header("password", self.password.as_ref().unwrap());
-            }
+    fn append_request_headers(&self, mut b: RequestBuilder) -> RequestBuilder {
+        if let (Some(username), Some(password)) = (self.username.as_ref(), self.password.as_ref()) {
+            b = b.basic_auth(username, Some(password));
         }
         b
     }
