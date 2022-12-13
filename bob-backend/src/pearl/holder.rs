@@ -83,7 +83,7 @@ impl Holder {
 
     pub async fn corrupted_blobs_count(&self) -> usize {
         let storage = self.storage.read().await;
-        storage.corrupted_blobs_count().await
+        storage.corrupted_blobs_count()
     }
 
     pub async fn active_index_memory(&self) -> usize {
@@ -580,7 +580,7 @@ impl PearlSync {
         self.storage().blobs_count().await
     }
 
-    pub async fn corrupted_blobs_count(&self) -> usize {
+    pub fn corrupted_blobs_count(&self) -> usize {
         self.storage().corrupted_blobs_count()
     }
 
