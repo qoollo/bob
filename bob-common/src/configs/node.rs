@@ -547,8 +547,8 @@ pub struct Node {
     #[serde(default = "NodeConfig::default_authentication_type")]
     authentication_type: AuthenticationType,
 
-    #[serde(default = "NodeConfig::default_hostname_resolve_dur_ms")]
-    hostname_resolve_dur_ms: u64,
+    #[serde(default = "NodeConfig::default_hostname_resolve_period_ms")]
+    hostname_resolve_period_ms: u64,
 }
 
 impl NodeConfig {
@@ -647,12 +647,12 @@ impl NodeConfig {
         AuthenticationType::None
     }
 
-    fn default_hostname_resolve_dur_ms() -> u64 {
+    fn default_hostname_resolve_period_ms() -> u64 {
         5000
     }
 
-    pub fn hostname_resolve_dur_ms(&self) -> u64 {
-        self.hostname_resolve_dur_ms
+    pub fn hostname_resolve_period_ms(&self) -> u64 {
+        self.hostname_resolve_period_ms
     }
 
     pub fn backend_result(&self) -> Result<BackendType, String> {
@@ -883,7 +883,7 @@ pub mod tests {
             index_memory_limit_soft: None,
             holder_group_size: 8,
             authentication_type: AuthenticationType::None,
-            hostname_resolve_dur_ms: NodeConfig::default_hostname_resolve_dur_ms(),
+            hostname_resolve_period_ms: NodeConfig::default_hostname_resolve_period_ms(),
         }
     }
 }

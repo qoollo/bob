@@ -125,15 +125,15 @@ enum ResolveState {
 }
 
 impl ResolveState {
-    fn update(&mut self, unresolved: bool) -> bool {
+    fn update(&mut self, authenticated: bool) -> bool {
         match self {
             ResolveState::Resolved(n) => {
-                if unresolved {
-                    *n = n.wrapping_add(1);
-                    *n >= RESOLVE_THRESHOLD
-                } else {
+                if authenticated {
                     *n = 0;
                     false
+                } else {
+                    *n = n.wrapping_add(1);
+                    *n >= RESOLVE_THRESHOLD
                 }                
             },
             ResolveState::InProgress => false,
@@ -221,41 +221,45 @@ impl DeclaredCredentialsBuilder {
     }
 }
 
-const RESOLVE_SLEEP_DUR_MS: u64 = 1000;
 
 #[derive(Debug)]
 pub struct DCredentialsResolveGuard {
     credentials: DeclaredCredentials,
     resolve_state: ResolveState,
     resolve_threshold: Instant,
+    resolve_protection_period_ms: u64,
 }
 
 impl DCredentialsResolveGuard {
-    pub fn new(credentials: DeclaredCredentials) -> Self {
+    pub fn new(credentials: DeclaredCredentials, resolve_protection_period_ms: u64) -> Self {
         Self {
             credentials,
             resolve_state: ResolveState::Resolved(0),
-            resolve_threshold: Instant::now() + Duration::from_millis(RESOLVE_SLEEP_DUR_MS),
+            resolve_threshold: Instant::now() + Duration::from_millis(resolve_protection_period_ms),
+            resolve_protection_period_ms,
         }
     }
 
-    pub fn update_resolve_state(&mut self, unresolved: bool) -> bool {
-        let now = Instant::now();
-        if !unresolved {
-            if now >= self.resolve_threshold {
-                self.resolve_state.update(unresolved)
+    pub fn update_resolve_state(&mut self, authenticated: bool) -> bool {
+        if self.credentials.hostname().is_none() {
+            return false;
+        }
+        
+        if authenticated {
+            self.resolve_state.update(authenticated)
+        } else {
+            if Instant::now() >= self.resolve_threshold {
+                self.resolve_state.update(authenticated)
             } else {
                 false
             }
-        } else {
-            self.resolve_threshold = now + Duration::from_millis(RESOLVE_SLEEP_DUR_MS);
-            self.resolve_state.update(unresolved)
         }
     }
 
     pub fn set_resolved(&mut self, addresses: Vec<SocketAddr>) {
         self.credentials.replace_addresses(addresses);
         self.resolve_state = ResolveState::Resolved(0);
+        self.resolve_threshold = Instant::now() + Duration::from_millis(self.resolve_protection_period_ms);
     }
 
     pub fn set_in_progress(&mut self) {

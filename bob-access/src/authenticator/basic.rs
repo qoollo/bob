@@ -26,15 +26,15 @@ type NodesCredentials = HashMap<String, DCredentialsResolveGuard>;
 pub struct Basic<Storage: UsersStorage> {
     users_storage: Storage,
     nodes: Arc<RwLock<NodesCredentials>>,
-    resolve_sleep_dur_ms: u64,
+    resolve_sleep_period_ms: u64,
 }
 
 impl<Storage: UsersStorage> Basic<Storage> {
-    pub fn new(users_storage: Storage, resolve_sleep_dur_ms: u64) -> Self {
+    pub fn new(users_storage: Storage, resolve_sleep_period_ms: u64) -> Self {
         Self {
             users_storage,
             nodes: Arc::new(RwLock::new(HashMap::new())),
-            resolve_sleep_dur_ms,
+            resolve_sleep_period_ms,
         }
     }
 
@@ -50,7 +50,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
         if Self::node_creds_ok(&nodes) {
             let mut nodes_creds = self.nodes.write().expect("nodes credentials lock");
             for (nodename, cred) in nodes.drain() {
-                let guard = DCredentialsResolveGuard::new(cred.clone());
+                let guard = DCredentialsResolveGuard::new(cred.clone(), self.resolve_sleep_period_ms);
                 nodes_creds.insert(nodename, guard);
                 if cred.ip().is_empty() && cred.hostname().is_some() {
                     self.spawn_resolver(cred);
@@ -64,19 +64,19 @@ impl<Storage: UsersStorage> Basic<Storage> {
     }
 
     fn spawn_resolver(&self, cred: DeclaredCredentials) {
-        tokio::spawn(Self::resolve_worker(self.nodes.clone(), cred, self.resolve_sleep_dur_ms));
+        tokio::spawn(Self::resolve_worker(self.nodes.clone(), cred, self.resolve_sleep_period_ms));
     }
 
-    async fn resolve_worker(nodes: Arc<RwLock<NodesCredentials>>, cred: DeclaredCredentials, sleep_dur_ms: u64) {
+    async fn resolve_worker(nodes: Arc<RwLock<NodesCredentials>>, cred: DeclaredCredentials, sleep_period_ms: u64) {
         let hostname = cred.hostname().as_ref().expect("resolve worker without hostname");
         let mut addr: Option<Vec<SocketAddr>> = lookup(hostname).await;
-        let mut cur_sleep_dur_ms = 100;
+        let mut cur_sleep_period_ms = 100;
         while addr.is_none() || (addr.is_some() && addr.as_ref().unwrap().len() == 0) {
-            tokio::time::sleep(Duration::from_millis(cur_sleep_dur_ms)).await;
+            tokio::time::sleep(Duration::from_millis(cur_sleep_period_ms)).await;
 
             addr = lookup(hostname).await;
 
-            cur_sleep_dur_ms = sleep_dur_ms.min(cur_sleep_dur_ms * 2);
+            cur_sleep_period_ms = sleep_period_ms.min(cur_sleep_period_ms * 2);
         }
 
         let addr = addr.expect("somehow addr is none");
@@ -90,10 +90,10 @@ impl<Storage: UsersStorage> Basic<Storage> {
         }
     }
 
-    fn process_auth_result(&self, nodename: &str, unresolved: bool) {
+    fn process_auth_result(&self, nodename: &str, authenticated: bool) {
         let mut nodes = self.nodes.write().expect("nodes credentials lock");
         if let Some(node) = nodes.get_mut(nodename) {
-            if node.update_resolve_state(unresolved) {
+            if node.update_resolve_state(authenticated) {
                 node.set_in_progress();
                 self.spawn_resolver(node.creds().clone());
             }
@@ -101,7 +101,7 @@ impl<Storage: UsersStorage> Basic<Storage> {
     }
 
     fn check_node_request(&self, node_name: &String, ip: Option<SocketAddr>) -> bool {
-        let mut unresolved = None;
+        let mut authenticated = None;
         {
             if ip.is_none() {
                 return false;
@@ -109,19 +109,19 @@ impl<Storage: UsersStorage> Basic<Storage> {
             let ip = ip.unwrap().ip();
             let nodes = self.nodes.read().expect("nodes credentials lock");
             if let Some(cred) = nodes.get(node_name).map(|guard| guard.creds()) {
-                unresolved = Some(false);
                 if let CredentialsKind::InterNode(other_name) = cred.kind() {
                     debug_assert!(node_name == other_name);
                     if cred.ip().iter().find(|cred_ip| cred_ip.ip() == ip).is_some() {
-                        return true;
+                        authenticated = Some(true);
+                    } else {
+                        authenticated = Some(false);
                     }
-                    
-                    unresolved = Some(true);
                 }
             }
         }
-        if let Some(unresolved) = unresolved {
-            self.process_auth_result(node_name, unresolved);
+        if let Some(authenticated) = authenticated {
+            self.process_auth_result(node_name, authenticated);
+            return authenticated;
         }
         false
     }
