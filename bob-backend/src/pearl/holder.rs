@@ -581,7 +581,7 @@ impl PearlSync {
     }
 
     pub async fn corrupted_blobs_count(&self) -> usize {
-        self.storage().corrupted_blobs_count().await
+        self.storage().corrupted_blobs_count()
     }
 
     pub async fn has_active_blob(&self) -> bool {
