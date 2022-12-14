@@ -9,19 +9,18 @@ use clap::{App, Arg, ArgMatches};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
+use std::fs;
 use std::mem::size_of;
 use std::ops::Sub;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{self, Duration, Instant, SystemTime, UNIX_EPOCH};
-use std::fs;
-use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tonic::metadata::{Ascii, MetadataValue};
-use tonic::transport::{Channel, Endpoint, Certificate, ClientTlsConfig};
+use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 use tonic::{Code, Request, Status};
 
 #[macro_use]
@@ -59,7 +58,9 @@ impl NetConfig {
             let cert_bin = fs::read(&ca_cert_path).expect("can not read ca certificate from file");
             let cert = Certificate::from_pem(cert_bin);
             let domain_name = self.tls_domain_name.as_ref().expect("domain name required");
-            let tls_config = ClientTlsConfig::new().domain_name(domain_name).ca_certificate(cert);
+            let tls_config = ClientTlsConfig::new()
+                .domain_name(domain_name)
+                .ca_certificate(cert);
             endpoint = endpoint.tls_config(tls_config).expect("tls config");
         }
         loop {
@@ -207,19 +208,17 @@ impl TaskConfig {
         let basic_username = self.basic_username.clone().unwrap_or_default();
         let basic_password = self.basic_password.clone().unwrap_or_default();
 
-        let basic_username = basic_username
+        let credentials = format!("{}:{}", basic_username, basic_password);
+        let credentials = base64::encode(credentials);
+        let authorization = format!("Basic {}", credentials)
             .parse::<MetadataValue<Ascii>>()
-            .expect("can not parse username into header");
-        let basic_password = basic_password
-            .parse::<MetadataValue<Ascii>>()
-            .expect("can not parse password into header");
+            .expect("can not parse authorization value");
 
         move |a| {
             let mut request = Request::new(a);
             if do_basic_auth {
                 let req_md = request.metadata_mut();
-                req_md.insert("username", basic_username.clone());
-                req_md.insert("password", basic_password.clone());
+                req_md.insert("authorization", authorization.clone());
             }
             request
         }
@@ -232,23 +231,21 @@ impl TaskConfig {
         let full_packets = self.count / self.packet_size;
         let tail = self.count - full_packets * self.packet_size;
         for _ in 0..full_packets {
-            let mut keys_portion: Vec<_> = 
-                (current_low..current_low + self.packet_size).collect();
+            let mut keys_portion: Vec<_> = (current_low..current_low + self.packet_size).collect();
             if shuffle {
                 keys_portion.shuffle(&mut thread_rng());
             }
-    
+
             keys.push(keys_portion);
-    
+
             current_low += self.packet_size;
         }
         if tail > 0 {
-            let mut keys_portion: Vec<_> = 
-                (current_low..current_low + tail).collect();
+            let mut keys_portion: Vec<_> = (current_low..current_low + tail).collect();
             if shuffle {
                 keys_portion.shuffle(&mut thread_rng());
             }
-    
+
             keys.push(keys_portion);
         }
         keys
@@ -415,7 +412,7 @@ struct OperationStatistics {
 
 impl OperationStatistics {
     async fn save_error(&self, status: Status) {
-        let mut guard = self.errors.lock().await;
+        let mut guard = self.errors.lock().expect("mutex");
         guard
             .entry(status.code() as CodeRepresentation)
             .and_modify(|i| *i += 1)
@@ -602,28 +599,28 @@ async fn stat_worker(
 }
 
 async fn print_errors_with_codes(stat: Arc<Statistics>) {
-    let guard = stat.get.common.errors.lock().await;
+    let guard = stat.get.common.errors.lock().expect("mutex");
     if !guard.is_empty() {
         println!("get errors:");
         for (&code, count) in guard.iter() {
             println!("{:?} = {}", Code::from(code), count);
         }
     }
-    let guard = stat.put.common.errors.lock().await;
+    let guard = stat.put.common.errors.lock().expect("mutex");
     if !guard.is_empty() {
         println!("put errors:");
         for (&code, count) in guard.iter() {
             println!("{:?} = {}", Code::from(code), count);
         }
     }
-    let guard = stat.exist.common.errors.lock().await;
+    let guard = stat.exist.common.errors.lock().expect("mutex");
     if !guard.is_empty() {
         println!("exist errors:");
         for (&code, count) in guard.iter() {
             println!("{:?} = {}", Code::from(code), count);
         }
     }
-    let guard = stat.delete.common.errors.lock().await;
+    let guard = stat.delete.common.errors.lock().expect("mutex");
     if !guard.is_empty() {
         println!("delete errors:");
         for (&code, count) in guard.iter() {
@@ -775,7 +772,13 @@ fn print_periodic_stat(
     }
     let elapsed = start.elapsed();
     println!("Total statistics, elapsed: {:?}", elapsed);
-    (put_speed_values, get_speed_values, exist_speed_values, delete_speed_values, elapsed)
+    (
+        put_speed_values,
+        get_speed_values,
+        exist_speed_values,
+        delete_speed_values,
+        elapsed,
+    )
 }
 
 fn average(values: &[f64]) -> f64 {
@@ -948,10 +951,12 @@ async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat
     let iterator = Box::new(keys.into_iter());
 
     for portion in iterator {
-        let keys = portion.iter().map(|key| 
-            BlobKey {
+        let keys = portion
+            .iter()
+            .map(|key| BlobKey {
                 key: task_conf.get_proper_key(*key),
-            }).collect();
+            })
+            .collect();
         let request = request_creator(ExistRequest {
             keys,
             options: options.clone(),
@@ -1096,7 +1101,7 @@ fn spawn_statistics_thread(
     match benchmark_conf.behavior {
         Behavior::Exist => {
             behavior_flags |= EXIST_FLAG;
-        },
+        }
         Behavior::Get => {
             behavior_flags |= GET_FLAG;
         },
@@ -1106,10 +1111,10 @@ fn spawn_statistics_thread(
         Behavior::PingPong => {
             behavior_flags |= GET_FLAG;
             behavior_flags |= PUT_FLAG;
-        },
+        }
         Behavior::Put => {
             behavior_flags |= PUT_FLAG;
-        },
+        }
         Behavior::Test => {
             behavior_flags |= GET_FLAG;
             behavior_flags |= PUT_FLAG;
@@ -1117,7 +1122,14 @@ fn spawn_statistics_thread(
             behavior_flags |= DELETE_FLAG;
         }
     }
-    tokio::spawn(stat_worker(stop_token, 1000, stat, bytes_amount, keys_count, behavior_flags))
+    tokio::spawn(stat_worker(
+        stop_token,
+        1000,
+        stat,
+        bytes_amount,
+        keys_count,
+        behavior_flags,
+    ))
 }
 
 fn create_blob(task_conf: &TaskConfig) -> Blob {
