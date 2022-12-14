@@ -245,6 +245,10 @@ where
     }
 
     async fn delete(&self, req: Request<DeleteRequest>) -> ApiResult<OpStatus> {
+        let creds: CredentialsHolder<A> = (&req).into();
+        if !self.auth.check_credentials_grpc(creds.into())?.has_write() {
+            return Err(Status::permission_denied("WRITE permission required"));
+        }
         let req = req.into_inner();
         let DeleteRequest { key, options } = req;
         if let Some((key, options)) = key.zip(options) {
