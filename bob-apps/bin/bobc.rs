@@ -377,8 +377,9 @@ async fn main() {
             .await
         }
         DELETE_SC => {
+            let request_creator = app_args.request_creator();
             for key in app_args.key_pattern.unwrap().into_iter() {
-                delete(key, app_args.keysize, &mut client).await
+                delete(key, app_args.keysize, &mut client, &request_creator).await
             }
         }
         _ => unreachable!("unknown command"),
@@ -507,14 +508,19 @@ async fn exist(
     }
 }
 
-async fn delete(key: u64, key_size: usize, client: &mut BobApiClient<Channel>) {
+async fn delete(
+    key: u64,
+    key_size: usize,
+    client: &mut BobApiClient<Channel>,
+    request_creator: impl Fn(DeleteRequest) -> Request<DeleteRequest>,
+) {
     let message = DeleteRequest {
         key: Some(BlobKey {
             key: get_key_value(key, key_size),
         }),
         options: Some(DeleteOptions::new_all()),
     };
-    let request = Request::new(message);
+    let request = request_creator(message);
     let res = client.delete(request).await;
     match res {
         Ok(_) => {
