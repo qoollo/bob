@@ -524,11 +524,7 @@ impl DiskController {
         let cnt = if *self.state.read().await == GroupsState::Ready {
             let mut cnt: usize = 0;
             for group in self.groups.read().await.iter() {
-                let holders_guard = group.holders();
-                let holders = holders_guard.read().await;
-                for holder in holders.iter() {
-                    cnt += holder.blobs_count().await;
-                }
+                cnt += group.blobs_count().await;
             }
             cnt
         } else {
@@ -542,11 +538,7 @@ impl DiskController {
         if *self.state.read().await == GroupsState::Ready {
             let mut cnt: usize = 0;
             for group in self.groups.read().await.iter() {
-                let holders_guard = group.holders();
-                let holders = holders_guard.read().await;
-                for holder in holders.iter() {
-                    cnt += holder.corrupted_blobs_count().await;
-                }
+                cnt += group.corrupted_blobs_count().await;
             }
             cnt
         } else {
@@ -558,11 +550,7 @@ impl DiskController {
         if *self.state.read().await == GroupsState::Ready {
             let mut cnt = 0;
             for group in self.groups.read().await.iter() {
-                let holders_guard = group.holders();
-                let holders = holders_guard.read().await;
-                for holder in holders.iter() {
-                    cnt += holder.index_memory().await;
-                }
+                cnt += group.index_memory().await;
             }
             cnt
         } else {
