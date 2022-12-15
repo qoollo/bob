@@ -1,7 +1,10 @@
 #[macro_use]
 extern crate log;
 
-use bob::{Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetRequest, PutRequest};
+use bob::{
+    Blob, BlobKey, BlobMeta, BobApiClient, DeleteOptions, DeleteRequest, ExistRequest, GetRequest,
+    PutRequest,
+};
 use bytes::Bytes;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use log::LevelFilter;
@@ -51,6 +54,7 @@ const PASSWORD_ARG: &str = "password";
 const PUT_SC: &str = "put";
 const GET_SC: &str = "get";
 const EXIST_SC: &str = "exist";
+const DELETE_SC: &str = "delete";
 
 #[derive(Debug)]
 enum ParseError {
@@ -372,6 +376,11 @@ async fn main() {
             )
             .await
         }
+        DELETE_SC => {
+            for key in app_args.key_pattern.unwrap().into_iter() {
+                delete(key, app_args.keysize, &mut client).await
+            }
+        }
         _ => unreachable!("unknown command"),
     }
 }
@@ -498,6 +507,25 @@ async fn exist(
     }
 }
 
+async fn delete(key: u64, key_size: usize, client: &mut BobApiClient<Channel>) {
+    let message = DeleteRequest {
+        key: Some(BlobKey {
+            key: get_key_value(key, key_size),
+        }),
+        options: Some(DeleteOptions::new_all()),
+    };
+    let request = Request::new(message);
+    let res = client.delete(request).await;
+    match res {
+        Ok(_) => {
+            info!("key: {}", key);
+        }
+        Err(e) => {
+            error!("{:?}", e);
+        }
+    }
+}
+
 fn get_matches<'a>() -> ArgMatches<'a> {
     let key_arg = Arg::with_name(KEY_ARG)
         .short("k")
@@ -552,6 +580,11 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .arg(&user_arg)
         .arg(&password_arg);
     let exists_sc = SubCommand::with_name(EXIST_SC)
+        .arg(&key_arg)
+        .arg(&key_size_arg)
+        .arg(&host_arg)
+        .arg(&port_arg);
+    let delete_sc = SubCommand::with_name(DELETE_SC)
         .arg(key_arg)
         .arg(key_size_arg)
         .arg(host_arg)
@@ -563,6 +596,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .subcommand(put_sc)
         .subcommand(get_sc)
         .subcommand(exists_sc)
+        .subcommand(delete_sc)
         .get_matches()
 }
 
