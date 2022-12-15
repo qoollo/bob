@@ -101,29 +101,31 @@ impl<Storage: UsersStorage> Basic<Storage> {
     }
 
     fn check_node_request(&self, node_name: &String, ip: Option<SocketAddr>) -> bool {
-        let mut authenticated = None;
+        let mut authenticated = false;
+        let mut needs_update = false;
         {
             if ip.is_none() {
                 return false;
             }
             let ip = ip.unwrap().ip();
             let nodes = self.nodes.read().expect("nodes credentials lock");
-            if let Some(cred) = nodes.get(node_name).map(|guard| guard.creds()) {
+            nodes.get(node_name).map(|guard| {
+                let cred = guard.creds();
                 if let CredentialsKind::InterNode(other_name) = cred.kind() {
                     debug_assert!(node_name == other_name);
                     if cred.ip().iter().find(|cred_ip| cred_ip.ip() == ip).is_some() {
-                        authenticated = Some(true);
+                        authenticated = true;
+                        needs_update = guard.needs_update(true);
                     } else {
-                        authenticated = Some(false);
+                        needs_update = guard.needs_update(false);
                     }
                 }
-            }
+            });
         }
-        if let Some(authenticated) = authenticated {
+        if needs_update {
             self.process_auth_result(node_name, authenticated);
-            return authenticated;
         }
-        false
+        authenticated
     }
 
     fn check_credentials_common(&self, credentials: RequestCredentials) -> Result<Permissions, Error> {

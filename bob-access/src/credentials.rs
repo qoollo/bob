@@ -184,6 +184,10 @@ impl DeclaredCredentials {
     pub fn kind(&self) -> &CredentialsKind {
         &self.kind
     }
+
+    pub fn is_created_with_address(&self) -> bool {
+        self.hostname.is_none() && !self.address.is_empty()
+    }
 }
 
 #[derive(Debug)]
@@ -241,7 +245,7 @@ impl DCredentialsResolveGuard {
     }
 
     pub fn update_resolve_state(&mut self, authenticated: bool) -> bool {
-        if self.credentials.hostname().is_none() {
+        if self.credentials.is_created_with_address() {
             return false;
         }
         
@@ -253,6 +257,22 @@ impl DCredentialsResolveGuard {
             } else {
                 false
             }
+        }
+    }
+
+    pub fn needs_update(&self, authenticated: bool) -> bool {
+        if self.credentials.is_created_with_address() {
+            return false;
+        }
+        if authenticated {
+            match self.resolve_state {
+                ResolveState::Resolved(n) => {
+                    n > 0
+                },
+                ResolveState::InProgress => false,
+            }
+        } else {
+            Instant::now() >= self.resolve_threshold
         }
     }
 
