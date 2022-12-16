@@ -89,7 +89,6 @@ impl Group {
 
     pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
         self.holders.write().await.clear();
-        self.created_holder_indexes.write().await.clear();
         self.run(pp).await
     }
 
