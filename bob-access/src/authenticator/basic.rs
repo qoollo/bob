@@ -109,18 +109,16 @@ impl<Storage: UsersStorage> Basic<Storage> {
             }
             let ip = ip.unwrap().ip();
             let nodes = self.nodes.read().expect("nodes credentials lock");
-            nodes.get(node_name).map(|guard| {
+            if let Some(guard) = nodes.get(node_name) {
                 let cred = guard.creds();
                 if let CredentialsKind::InterNode(other_name) = cred.kind() {
                     debug_assert!(node_name == other_name);
                     if cred.ip().iter().find(|cred_ip| cred_ip.ip() == ip).is_some() {
-                        authenticated = true;
-                        needs_update = guard.needs_update(true);
-                    } else {
-                        needs_update = guard.needs_update(false);
+                        authenticated = true;   
                     }
+                    needs_update = guard.needs_update(authenticated);
                 }
-            });
+            }
         }
         if needs_update {
             self.process_auth_result(node_name, authenticated);

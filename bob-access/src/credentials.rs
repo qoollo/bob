@@ -260,19 +260,20 @@ impl DCredentialsResolveGuard {
         }
     }
 
+    // checks update_resolve_state() conditions without actual update
     pub fn needs_update(&self, authenticated: bool) -> bool {
         if self.credentials.is_created_with_address() {
             return false;
         }
-        if authenticated {
-            match self.resolve_state {
-                ResolveState::Resolved(n) => {
+        match self.resolve_state {
+            ResolveState::Resolved(n) => {
+                if authenticated {
                     n > 0
-                },
-                ResolveState::InProgress => false,
-            }
-        } else {
-            Instant::now() >= self.resolve_threshold
+                } else {
+                    Instant::now() >= self.resolve_threshold
+                }
+            },
+            ResolveState::InProgress => false,
         }
     }
 
