@@ -7,7 +7,7 @@ Bob versions changelog
 
 
 #### Changed
-
+- Do not clear holder timestamp indexes on remount (#692)
 
 #### Fixed
 
