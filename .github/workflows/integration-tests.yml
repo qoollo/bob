@@ -1,7 +1,7 @@
 name: integration-tests
 on:
   push:
-    branches: [ "518-implement-semi-automatic-integration-tests", "642-integration-tests-add-tests-for-aliens", "648-integrationtests-add-consistency-test-for-random-putgetdelete-requests-with-bobt-tool" ] #REMOVE WHEN ON MASTER
+    branches: [ "518-implement-semi-automatic-integration-tests", "642-integration-tests-add-tests-for-aliens", "648-integrationtests-add-consistency-test-for-random-putgetdelete-requests-with-bobt-tool", '672-integrationtests-run-tests-with-and-without-authorization'] #REMOVE WHEN ON MASTER
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+(.alpha.[0-9]+)*"
   pull_request_review:
@@ -44,6 +44,18 @@ on:
         description: 'Upper boundry for chain test'
         required: true
         default: '100000'
+      bob_min_port:
+        description: 'Initial transport port for bob'
+        required: true
+        default: '20000'
+      bob_auth_user:
+        description: 'Username for bob basic authentification'
+        required: true
+        default: 'admin'
+      bob_auth_password:
+        description: 'Password for bob basic authentification'
+        required: true
+        default: 'password'
 jobs:
   build-binaries:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
@@ -133,6 +145,7 @@ jobs:
       matrix:
         key: [8, 16]
         mode: [normal, random]
+        auth: [None, Basic]
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repo
@@ -157,6 +170,10 @@ jobs:
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_min_port }}"
           echo "BOB_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_auth_user }}"
+          echo "BOB_AUTH_USER=${INPUT:-"admin"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_auth_password }}"
+          echo "BOB_AUTH_PASSWORD=${INPUT:-"password"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -182,9 +199,10 @@ jobs:
       - name: List availible images
         run: |
           docker image ls
+      #Also sets BOB_BOBP_ACTIONS_OFFSET as GITHUB_ENV from check_interval parameter (check_interval + 1s)
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }}
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }} -u ${{ matrix.auth }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
@@ -192,7 +210,7 @@ jobs:
         working-directory: ./integration-tests
       - name: Run write/read/exist tests
         run: |
-          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }} --mode ${{ matrix.mode }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -min_port ${{ env.BOB_MIN_PORT }}
+          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }} --mode ${{ matrix.mode }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -min_port ${{ env.BOB_MIN_PORT }} --user ${{ env.BOB_AUTH_USER }} --password ${{ env.BOB_AUTH_PASSWORD }}
         working-directory: ./integration-tests
 
   deploy-and-test-alien:
@@ -225,6 +243,10 @@ jobs:
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_min_port }}"
           echo "BOB_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_auth_user }}"
+          echo "BOB_AUTH_USER=${INPUT:-"admin"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_auth_password }}"
+          echo "BOB_AUTH_PASSWORD=${INPUT:-"password"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -250,9 +272,10 @@ jobs:
       - name: List availible images
         run: |
           docker image ls
+      #Also sets BOB_BOBP_ACTIONS_OFFSET as GITHUB_ENV from check_interval parameter (check_interval + 1s)
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }}
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }} -u ${{ matrix.auth }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
@@ -260,7 +283,7 @@ jobs:
         working-directory: ./integration-tests
       - name: Run alien tests
         run: |
-          ./tests_aliens.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }}
+          ./tests_aliens.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }} --user ${{ env.BOB_AUTH_USER }} --password ${{ env.BOB_AUTH_PASSWORD }}
         working-directory: ./integration-tests
   deploy-and-test-chain:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
@@ -317,6 +340,7 @@ jobs:
       - name: List availible images
         run: |
           docker image ls
+      #Also sets BOB_BOBP_ACTIONS_OFFSET as GITHUB_ENV from check_interval parameter (check_interval + 1s)
       - name: Generate config files for docker and bob
         run: |
           ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }}
