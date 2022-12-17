@@ -14,7 +14,7 @@ except KeyError:
 
 def make_run_args(args, offset):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':str(int(args.first) + offset), '-t':args.threads, '--mode':args.mode, '-k':args.keysize,
-     '-p':'20000'} 
+     '-p':'20000', '--user':args.user, '--password':args.password} 
 
 def args_to_str(args_dict):
     bobp_args_str = str()
@@ -31,6 +31,8 @@ parser.add_argument('-f', dest='first', type=int, help='first index', default=0)
 parser.add_argument('-t', dest='threads', type=int, help='amount of working threads', default=1)
 parser.add_argument('--mode', dest='mode', type=str, help='random or normal', choices=['random', 'normal'], default='normal')
 parser.add_argument('-k', dest='keysize', type=int, help='size of binary key (8 or 16)', choices=[8, 16], default=8)
+parser.add_argument('--user', dest='user', type=str, help='Username for bob basic authentification')
+parser.add_argument('--password', dest='password', type=str, help='Password for bob basic authentification')
 
 parsed_args = parser.parse_args()
 
