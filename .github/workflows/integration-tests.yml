@@ -48,14 +48,7 @@ on:
         description: 'Initial transport port for bob'
         required: true
         default: '20000'
-      bob_auth_user:
-        description: 'Username for bob basic authentification'
-        required: true
-        default: 'admin'
-      bob_auth_password:
-        description: 'Password for bob basic authentification'
-        required: true
-        default: 'password'
+
 jobs:
   build-binaries:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
