@@ -69,7 +69,7 @@ impl LinkManager {
         F: FnOnce(&'_ BobClient) -> ClusterCallFuture<'_, T> + Send + Clone,
         T: Send,
     {
-        match node.get_connection().await {
+        match node.get_connection() {
             Some(conn) => f(&conn).await,
             None => Err(NodeOutput::new(
                 node.name().to_owned(),
