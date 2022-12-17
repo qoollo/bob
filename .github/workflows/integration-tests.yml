@@ -219,6 +219,7 @@ jobs:
     strategy:
       matrix:
         key: [8, 16]
+        auth: [None, Basic]
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repo
