@@ -50,10 +50,13 @@ impl<Storage: UsersStorage> Basic<Storage> {
         if Self::node_creds_ok(&nodes) {
             let mut nodes_creds = self.nodes.write().expect("nodes credentials lock");
             for (nodename, cred) in nodes.drain() {
-                let guard = DCredentialsResolveGuard::new(cred.clone(), self.resolve_sleep_period_ms);
-                nodes_creds.insert(nodename, guard);
+                let mut guard = DCredentialsResolveGuard::new(cred.clone(), self.resolve_sleep_period_ms);
                 if cred.ip().is_empty() && cred.hostname().is_some() {
+                    guard.set_in_progress();
+                    nodes_creds.insert(nodename, guard);
                     self.spawn_resolver(cred);
+                } else {
+                    nodes_creds.insert(nodename, guard);
                 }
             }
             Ok(())
