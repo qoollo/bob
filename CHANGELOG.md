@@ -4,7 +4,8 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- 'Exists' method through HEAD request in REST API (#691)
+- Support for 'exists' method in bobt (#691)
 
 #### Changed
 
