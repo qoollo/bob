@@ -325,16 +325,14 @@ impl Group {
             let mut max_ts = 0;
             for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
             {
-                if holder.end_timestamp() > max_delete_ts.max(max_ts) {
-                    match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
-                        ReadResult::Found(ts) => {
-                            max_ts = max_ts.max(ts.into());
-                        }
-                        ReadResult::Deleted(ts) => {
-                            max_delete_ts = max_delete_ts.max(ts.into());
-                        }
-                        ReadResult::NotFound => continue,
+                match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
+                    ReadResult::Found(ts) => {
+                        max_ts = max_ts.max(ts.into());
                     }
+                    ReadResult::Deleted(ts) => {
+                        max_delete_ts = max_delete_ts.max(ts.into());
+                    }
+                    ReadResult::NotFound => continue,
                 }
             }
             exist[ind] = max_ts > max_delete_ts;
