@@ -77,7 +77,7 @@ impl RetrySocket {
                     }
                     Err(IOError::new(
                         IOErrorKind::NotConnected,
-                        "Task is still pending",
+                        "Not connected, connection establishment task is in progress",
                     ))
                 }
             },
