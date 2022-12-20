@@ -3,7 +3,7 @@ use axum::{
     body::{self, BoxBody},
     extract::{Extension, Path as AxumPath},
     response::IntoResponse,
-    routing::{delete, get, post, head, MethodRouter, head_service},
+    routing::{delete, get, post, head, MethodRouter},
     Json, Router, Server,
 };
 use bob_grpc::DeleteOptions;
