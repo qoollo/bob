@@ -3,7 +3,7 @@ use axum::{
     body::{self, BoxBody},
     extract::{Extension, Path as AxumPath},
     response::IntoResponse,
-    routing::{delete, get, post, MethodRouter, head_service},
+    routing::{delete, get, post, head, MethodRouter, head_service},
     Json, Router, Server,
 };
 use bob_grpc::DeleteOptions;
@@ -242,7 +242,8 @@ where
             "/vdisks/:vdisk_id/replicas/local/dirs",
             get(get_local_replica_directories::<A>),
         ),
-        ("/data/:key", get(get_data::<A>).head(exist_data::<A>)),
+        ("/data/:key", get(get_data::<A>)),
+        ("/data/:key", head(exist_data::<A>)),
         ("/data/:key", post(put_data::<A>)),
         ("/data/:key", delete(delete_data::<A>)),
     ]
@@ -993,7 +994,7 @@ where
 
     match result.get(0) {
         Some(true) => Ok(StatusCode::OK),
-        Some(false) => Ok(StatusCodde::NotFound),
+        Some(false) => Ok(StatusCode::NOT_FOUND),
         None => Err(StatusExt::new(StatusCode::INTERNAL_SERVER_ERROR, false, "Missing 'exist' result".to_owned()))
     }
 }
