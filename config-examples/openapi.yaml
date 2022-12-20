@@ -499,6 +499,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StatusExt"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
     head:
       summary: Checks data existance by key
       operationId: dataExistsByKey
@@ -521,6 +527,8 @@ paths:
                 $ref: "#/components/schemas/StatusExt"
         "404":
           description: "Not found"
+        "500":
+          description: "Internal server error"
           content:
             application/json:
               schema:
@@ -557,6 +565,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StatusExt"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
     delete:
       summary: Delete data from storage by key
       operationId: deleteDataByKey
@@ -577,6 +591,12 @@ paths:
                 $ref: "#/components/schemas/StatusExt"
         "403":
           description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "500":
+          description: "Internal server error"
           content:
             application/json:
               schema:
