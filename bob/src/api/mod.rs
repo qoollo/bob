@@ -1094,9 +1094,11 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
-    bob.block_on(bob.grinder().delete(key, BobOptions::new_delete(None)))
-        .map_err(|e| internal(e.to_string()))
-        .map(|_| StatusExt::new(StatusCode::OK, true, format!("Done")))
+    bob.grinder()
+        .delete(key, BobOptions::new_delete(None))
+        .await
+        .map_err(|e| internal(e.to_string()))?;
+    Ok(StatusExt::new(StatusCode::OK, true, format!("Done")))
 }
 
 fn internal(message: String) -> StatusExt {

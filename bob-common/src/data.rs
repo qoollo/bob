@@ -4,7 +4,7 @@ use crate::{
     node::{Disk as NodeDisk, Node},
 };
 use bob_grpc::{DeleteOptions, GetOptions, GetSource, PutOptions};
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use std::{
     convert::TryInto,
     fmt::{Debug, Formatter, Result as FmtResult},
@@ -122,6 +122,13 @@ impl BobData {
         result.extend_from_slice(&self.meta.timestamp.to_be_bytes());
         result.extend_from_slice(&self.inner);
         result
+    }
+
+    pub fn to_serialized_bytes(&self) -> Bytes {
+        let mut result = BytesMut::with_capacity(Self::TIMESTAMP_LEN + self.inner.len());
+        result.extend_from_slice(&self.meta.timestamp.to_be_bytes());
+        result.extend(&self.inner);
+        result.freeze()
     }
 
     pub fn from_serialized_bytes(data: Vec<u8>) -> Result<BobData, Error> {

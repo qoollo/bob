@@ -133,13 +133,13 @@ impl Group {
     // find in all pearls actual pearl and try create new
     async fn get_actual_holder(
         &self,
-        ts: u64,
+        data_timestamp: u64,
         timestamp_config: StartTimestampConfig,
     ) -> Result<(ChildId, Holder), Error> {
-        self.find_actual_holder(ts)
+        self.find_actual_holder(data_timestamp)
             .or_else(|e| {
                 debug!("cannot find pearl: {}", e);
-                self.create_write_pearl(ts, timestamp_config)
+                self.create_write_pearl(data_timestamp, timestamp_config)
             })
             .await
     }
@@ -274,7 +274,7 @@ impl Group {
                         }
                         ReadResult::Deleted(ts) => {
                             trace!("{} is deleted in {:?} at {}", key, holder, ts);
-                            max_delete_ts = max_delete_ts.max(ts);
+                            max_delete_ts = max_delete_ts.max(ts.into());
                         }
                         ReadResult::NotFound => {
                             debug!("{} not found in {:?}", key, holder)
@@ -325,10 +325,10 @@ impl Group {
                 if holder.end_timestamp() > max_delete_ts.max(max_ts) {
                     match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
                         ReadResult::Found(ts) => {
-                            max_ts = max_ts.max(ts);
+                            max_ts = max_ts.max(ts.into());
                         }
                         ReadResult::Deleted(ts) => {
-                            max_delete_ts = max_delete_ts.max(ts);
+                            max_delete_ts = max_delete_ts.max(ts.into());
                         }
                         ReadResult::NotFound => continue,
                     }
@@ -596,18 +596,14 @@ impl Group {
         is_alien: bool,
         timestamp_config: StartTimestampConfig,
     ) -> Result<u64, Error> {
-        let create_new = {
-            let holders = self.holders.read().await;
-            holders.len() == 0
-        };
-        if create_new {
+        let holders = self.holders.read().await;
+        if holders.len() == 0 {
             let holder = self
                 .get_actual_holder(get_current_timestamp(), timestamp_config)
                 .await?
                 .1;
             Self::delete_in_holders(std::iter::once(&holder), key, is_alien).await
         } else {
-            let holders = self.holders.read().await;
             Self::delete_in_holders(holders.iter(), key, is_alien).await
         }
     }

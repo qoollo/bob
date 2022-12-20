@@ -8,6 +8,7 @@ Bob versions changelog
 
 #### Changed
 - Hostname resolving in background tasks (#529)
+- Make delete operation recoverable (#533)
 
 #### Fixed
 
@@ -44,7 +45,6 @@ Bob versions changelog
 
 #### Changed
 - Update rust edition to 2021 (#484)
-- Make delete operation recoverable (#533)
 - Remove unnecessary data clone (#506)
 - Compare vdiskid first (#594)
 - Optimize finding actual holders (#595)
