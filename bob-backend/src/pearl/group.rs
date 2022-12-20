@@ -15,6 +15,7 @@ pub type HoldersContainer =
 #[derive(Clone, Debug)]
 pub struct Group {
     holders: Arc<RwLock<HoldersContainer>>,
+    reinit_lock: Arc<RwLock<()>>,
     settings: Arc<Settings>,
     directory_path: PathBuf,
     vdisk_id: VDiskId,
@@ -40,6 +41,7 @@ impl Group {
                 settings.holder_group_size(),
                 2,
             ))),
+            reinit_lock: Arc::new(RwLock::new(())),
             settings,
             vdisk_id,
             node_name,
@@ -88,6 +90,7 @@ impl Group {
     }
 
     pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
+        let _reinit_lock = self.reinit_lock.write().await;
         self.holders.write().await.clear();
         self.created_holder_indexes.write().await.clear();
         self.run(pp).await
@@ -226,6 +229,7 @@ impl Group {
         data: &BobData,
         timestamp_config: StartTimestampConfig,
     ) -> Result<(), Error> {
+        let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let holder = self.get_actual_holder(&data, timestamp_config).await?;
         let res = Self::put_common(&holder.1, key, data).await?;
         self.holders
@@ -261,6 +265,7 @@ impl Group {
             .iter_possible_childs_rev(&Key::from(key))
             .map(|(_, x)| &x.data)
         {
+            let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
             let get = Self::get_common(&holder, key).await;
             match get {
                 Ok(data) => {
@@ -305,6 +310,7 @@ impl Group {
     }
 
     pub async fn exist(&self, keys: &[BobKey]) -> Vec<bool> {
+        let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
@@ -570,6 +576,7 @@ impl Group {
     }
 
     pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
+        let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let holders = self.holders.read().await;
         let mut total_count = 0;
         for holder in holders.iter() {
