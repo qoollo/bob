@@ -18,6 +18,7 @@ services:
     networks:
       - bobnet
     deploy:
+      endpoint_mode: dnsrr
       mode: replicated
       replicas: 1
       placement:
@@ -41,6 +42,7 @@ services:
     networks:
       - bobnet
     deploy:
+      endpoint_mode: dnsrr
       mode: replicated
       replicas: 1
       placement:
@@ -64,6 +66,7 @@ services:
     networks:
       - bobnet
     deploy:
+      endpoint_mode: dnsrr
       mode: replicated
       replicas: 1
       placement:
@@ -87,6 +90,7 @@ services:
     networks:
       - bobnet
     deploy:
+      endpoint_mode: dnsrr
       mode: replicated
       replicas: 1
       placement:

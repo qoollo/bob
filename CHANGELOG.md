@@ -7,7 +7,7 @@ Bob versions changelog
 
 
 #### Changed
-
+- Hostname resolving in background tasks (#529)
 
 #### Fixed
 
