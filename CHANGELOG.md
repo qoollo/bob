@@ -8,6 +8,7 @@ Bob versions changelog
 
 #### Changed
 - Log message about the lack of connection to graphite became more understandable (#684)
+- Hostname resolving in background tasks (#529)
 
 #### Fixed
 
