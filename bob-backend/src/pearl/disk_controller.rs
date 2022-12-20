@@ -489,7 +489,7 @@ impl DiskController {
                 .find(|g| g.can_process_operation(&operation))
                 .cloned();
             if let Some(group) = group_option {
-                Ok(group.exist(keys).await)
+                group.exist(keys).await
             } else {
                 Err(Error::internal())
             }

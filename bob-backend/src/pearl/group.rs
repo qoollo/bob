@@ -309,7 +309,7 @@ impl Group {
         result
     }
 
-    pub async fn exist(&self, keys: &[BobKey]) -> Vec<bool> {
+    pub async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
         let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
@@ -321,7 +321,7 @@ impl Group {
                 }
             }
         }
-        exist
+        Ok(exist)
     }
 
     pub fn holders(&self) -> Arc<RwLock<HoldersContainer>> {
