@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Data access operations will be locked during remount (#683)
 
 #### Updated
 
