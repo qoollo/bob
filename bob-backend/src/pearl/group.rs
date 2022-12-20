@@ -257,48 +257,51 @@ impl Group {
 
     pub async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         let holders = self.holders.read().await;
-        let mut results = vec![];
-        let mut max_delete_ts = 0; // In case of multiple holders with same ts and delete action
         let mut has_error = false;
+        let mut max_timestamp = None;
+        let mut result = None;
         for holder in holders
             .iter_possible_childs_rev(&Key::from(key))
             .map(|(_, x)| &x.data)
         {
-            if holder.end_timestamp() > max_delete_ts {
-                let get = Self::get_common(&holder, key).await;
-                match get {
-                    Ok(data) => match data {
-                        ReadResult::Found(data) => {
-                            trace!("get data: {:?} from: {:?}", data, holder);
-                            results.push(data);
+            let get = Self::get_common(&holder, key).await;
+            match get {
+                Ok(data) => match data {
+                    ReadResult::Found(data) => {
+                        trace!("get data: {:?} from: {:?}", data, holder);
+                        let ts = data.meta().timestamp();
+                        if ts > max_timestamp.unwrap_or(0) {
+                            max_timestamp = Some(ts);
+                            result = Some(data);
                         }
-                        ReadResult::Deleted(ts) => {
-                            trace!("{} is deleted in {:?} at {}", key, holder, ts);
-                            max_delete_ts = max_delete_ts.max(ts.into());
-                        }
-                        ReadResult::NotFound => {
-                            debug!("{} not found in {:?}", key, holder)
-                        }
-                    },
-                    Err(err) => {
-                        has_error = true;
-                        error!("get error: {}, from : {:?}", err, holder);
                     }
+                    ReadResult::Deleted(ts) => {
+                        trace!("{} is deleted in {:?} at {}", key, holder, ts);
+                        let ts: u64 = ts.into();
+                        if ts >= max_timestamp.unwrap_or(0) {
+                            max_timestamp = Some(ts);
+                            result = None;
+                        }
+                    }
+                    ReadResult::NotFound => {
+                        debug!("{} not found in {:?}", key, holder)
+                    }
+                },
+                Err(err) => {
+                    has_error = true;
+                    error!("get error: {}, from : {:?}", err, holder);
                 }
             }
         }
-        results.retain(|e| e.meta().timestamp() > max_delete_ts);
-        if results.is_empty() {
+        if let Some(result) = result {
+            Ok(result)
+        } else {
             if has_error {
                 debug!("cannot read from some pearls");
                 Err(Error::failed("cannot read from some pearls"))
             } else {
                 Err(Error::key_not_found(key))
             }
-        } else {
-            debug!("get with max timestamp, from {} results", results.len());
-            Ok(Settings::choose_most_recent_data(results)
-                .expect("results cannot be empty, because of the previous check"))
         }
     }
 
@@ -632,14 +635,24 @@ impl Group {
 
     async fn delete_common(holder: Holder, key: BobKey, is_alien: bool) -> Result<u64, Error> {
         let result = holder.delete(key, is_alien).await;
-        if let Err(e) = &result {
-            if !e.is_not_ready() {
+        if let Err(e) = result {
+            // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
+            // holder but instead try to restart the whole disk
+            if e.is_possible_disk_disconnection() {
+                return Err(e);
+            }
+            if !e.is_duplicate() && !e.is_not_ready() {
+                error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
                 holder.prepare_storage().await?;
-                debug!("backend pearl group delete common storage prepared");
+                debug!("backend pearl group put common storage prepared");
+                Ok(0)
+            } else {
+                Err(e)
             }
+        } else {
+            result
         }
-        result
     }
 
     pub(crate) async fn filter_memory_allocated(&self) -> usize {
