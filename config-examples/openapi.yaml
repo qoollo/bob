@@ -271,7 +271,7 @@ paths:
   /disks/list:
     get:
       summary: Returns the list of disks with their states
-      operationID: getDisks
+      operationId: getDisks
       responses:
         "200":
           description: "A JSON array with disks and their states"
@@ -287,7 +287,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StatusExt"
-  /disks/<disk_name>/stop:
+  /disks/{DiskName}/stop:
     post:
       summary: Stops all disks controller for disk
       parameters:
@@ -311,7 +311,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StatusExt"
-  /disks/<disk_name>/start:
+  /disks/{DiskName}/start:
     post:
       summary: Trying to start all disk controllers for disk
       parameters:
@@ -337,7 +337,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StatusExt"
-  /vdisks/<vdisk_id>/remount:
+  /vdisks/{VDiskId}/remount:
     post:
       summary: Remount partitions on vdisk
       parameters:
@@ -445,10 +445,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatusExt"
 
-  /vdisks/<vdisk_id>/replicas/local/dirs:
+  /vdisks/{VDiskId}/replicas/local/dirs:
     get:
       summary: Returns directories of local replicas of vdisk
       operationId: getReplicasLocalDirs
+      parameters:
+        - $ref: "#/components/parameters/VDiskIdParam"
       responses:
         "200":
           description: "A JSON array with dirs"
@@ -470,7 +472,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StatusExt"
-  /data/<key>:
+  /data/{DataKey}:
     get:
       summary: Returns data by key
       operationId: getDataByKey
@@ -497,6 +499,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StatusExt"
+    head:
+      summary: Checks data existance by key
+      operationId: dataExistsByKey
+      parameters:
+        - $ref: "#/components/parameters/DataKeyParam"
+      responses:
+        "200":
+          description: "Data is presented"
+        "400":
+          description: "Bad request (invalid key)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
     post:
       summary: Add data to storage by key
       operationId: postDataByKey
@@ -505,6 +533,11 @@ paths:
       requestBody:
         description: Binary data
         required: true
+        content:
+          application/octet-stream:   
+            schema:
+              type: string
+              format: binary
       responses:
         "200":
           description: "Data successfully added"
@@ -710,7 +743,7 @@ components:
           type: integer
         occupied_disk_space_by_disk:
           type: object
-          additional_properties:
+          additionalProperties:
             type: integer
     MetricsEntryModel:
       type: object
