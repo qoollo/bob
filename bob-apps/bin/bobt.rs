@@ -308,11 +308,11 @@ impl Client {
         self.exists_time += sw.elapsed();
         self.exists_count += 1;
 
-        if (status == StatusCode::OK) {
+        if status == StatusCode::OK {
             log::debug!("Exists {}, result: {:?}", key, status);
             return Ok(true);
         }
-        else if (status == StatusCode::NOT_FOUND) {
+        else if status == StatusCode::NOT_FOUND {
             log::debug!("Exists {}, result: {:?}", key, status);
             return Ok(false);
         } 
