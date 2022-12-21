@@ -1,3 +1,5 @@
+include!("alloc/alloc.rs");
+
 use clap::{App, Arg, ArgMatches};
 use env_logger::{Env, Target};
 use http::{StatusCode, Uri};

@@ -1,3 +1,5 @@
+include!("alloc/alloc.rs");
+
 use rand::prelude::*;
 
 use bob::{

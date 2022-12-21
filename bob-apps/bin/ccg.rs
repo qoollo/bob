@@ -1,3 +1,5 @@
+include!("alloc/alloc.rs");
+
 mod config_cluster_generator;
 
 #[macro_use]

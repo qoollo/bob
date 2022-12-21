@@ -7,6 +7,10 @@ authors = [
 ]
 edition = "2021"
 
+[features]
+mimalloc = ["dep:mimalloc"]
+mimalloc-secure = ["dep:mimalloc", "mimalloc/secure"]
+
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
@@ -30,6 +34,7 @@ lazy_static = "1.4"
 log = "0.4"
 log4rs = "1.1"
 metrics = { version = "0.17", features = ["std"] }
+mimalloc = { version = "0.1", default-features = false, optional = true }
 mockall = "0.11"
 prost = "0.11"
 regex = "1.6.0"

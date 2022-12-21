@@ -1,3 +1,5 @@
+include!("alloc/alloc.rs");
+
 #[macro_use]
 extern crate log;
 
