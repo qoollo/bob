@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Added mimalloc allocator for musl target (#688)
 
 
 #### Changed
