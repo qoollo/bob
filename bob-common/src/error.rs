@@ -144,7 +144,7 @@ impl From<Error> for Status {
                 Self::internal(format!("disk events logger error: {}", msg))
             },
             Kind::Unauthorized => Self::unauthenticated("Unauthorized"),
-            Kind::HolderTemporaryUnavailable => Self::internal("HolderTemporaryUnavailable"),
+            Kind::HolderTemporaryUnavailable => Self::unavailable("HolderTemporaryUnavailable"),
         }
     }
 }

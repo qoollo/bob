@@ -258,6 +258,7 @@ impl Group {
     }
 
     pub async fn get(&self, key: BobKey) -> Result<BobData, Error> {
+        let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let holders = self.holders.read().await;
         let mut has_error = false;
         let mut results = vec![];
@@ -265,7 +266,6 @@ impl Group {
             .iter_possible_childs_rev(&Key::from(key))
             .map(|(_, x)| &x.data)
         {
-            let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
             let get = Self::get_common(&holder, key).await;
             match get {
                 Ok(data) => {
