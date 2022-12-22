@@ -158,7 +158,6 @@ impl BackendStorage for Pearl {
             disk_controller
                 .put(op, key, data)
                 .await
-                .map_err(|e| Error::failed(format!("{:#?}", e)))
         } else {
             debug!(
                 "PUT[{}] Cannot find disk_controller, operation: {:?}",
