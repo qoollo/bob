@@ -8,6 +8,7 @@ authors = [
 edition = "2021"
 
 [features]
+default = ["mimalloc"]
 mimalloc = ["dep:mimalloc"]
 mimalloc-secure = ["dep:mimalloc", "mimalloc/secure"]
 
