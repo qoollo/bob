@@ -35,7 +35,6 @@ lazy_static = "1.4"
 log = "0.4"
 log4rs = "1.1"
 metrics = { version = "0.17", features = ["std"] }
-mimalloc = { version = "0.1", default-features = false, optional = true }
 mockall = "0.11"
 prost = "0.11"
 regex = "1.6.0"
@@ -61,6 +60,9 @@ features = ["signal"]
 
 [dependencies.pearl]
 version = "0.15.0"
+
+[target.'cfg(target_env = "musl", target_arch = "x86_64", target_pointer_width = "64")'.dependencies]
+mimalloc = { version = "0.1", default-features = false, optional = true }
 
 [build-dependencies]
 tonic-build = "0.6"
