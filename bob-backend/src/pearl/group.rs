@@ -8,13 +8,14 @@ use crate::{
 use futures::Future;
 use pearl::BloomProvider;
 use ring::digest::{digest, SHA256};
+use async_std::sync::{RwLock as UgradableRwLock, RwLockUpgradableReadGuard};
 
 pub type HoldersContainer =
     HierarchicalFilters<Key, <Holder as BloomProvider<Key>>::Filter, Holder>;
 
 #[derive(Clone, Debug)]
 pub struct Group {
-    holders: Arc<RwLock<HoldersContainer>>,
+    holders: Arc<UgradableRwLock<HoldersContainer>>,
     reinit_lock: Arc<RwLock<()>>,
     settings: Arc<Settings>,
     directory_path: PathBuf,
@@ -22,7 +23,6 @@ pub struct Group {
     node_name: String,
     disk_name: String,
     owner_node_name: String,
-    created_holder_indexes: Arc<RwLock<HashMap<u64, ChildId>>>,
     dump_sem: Arc<Semaphore>,
 }
 
@@ -37,7 +37,7 @@ impl Group {
         dump_sem: Arc<Semaphore>,
     ) -> Self {
         Self {
-            holders: Arc::new(RwLock::new(HoldersContainer::new(
+            holders: Arc::new(UgradableRwLock::new(HoldersContainer::new(
                 settings.holder_group_size(),
                 2,
             ))),
@@ -48,7 +48,6 @@ impl Group {
             directory_path,
             disk_name,
             owner_node_name,
-            created_holder_indexes: Arc::default(),
             dump_sem,
         }
     }
@@ -65,10 +64,10 @@ impl Group {
         }
     }
 
-    pub async fn run(&self, pp: impl Hooks) -> AnyResult<()> {
+    async fn run_under_lock(&self, pp: impl Hooks) -> AnyResult<()> {
         debug!("{}: read holders from disk", self);
         let config = self.settings.config();
-        let holders = config
+        let new_holders = config
             .try_multiple_times_async(
                 || self.read_vdisk_directory(),
                 "can't create pearl holders",
@@ -76,24 +75,31 @@ impl Group {
             )
             .await
             .with_context(|| "backend pearl group read vdisk directory failed")?;
-        debug!("{}: count holders: {}", self, holders.len());
-        if !holders
+        debug!("{}: count holders: {}", self, new_holders.len());
+        if !new_holders
             .iter()
             .any(|holder| holder.gets_into_interval(get_current_timestamp()))
         {
             self.create_current_pearl();
         }
         debug!("{}: save holders to group", self);
-        self.add_range(holders).await;
+        {
+            let mut holders = self.holders.write().await;
+            holders.extend(new_holders).await;   
+        }
         debug!("{}: start holders", self);
         self.run_pearls(pp).await
+    }
+
+    pub async fn run(&self, pp: impl Hooks) -> AnyResult<()> {
+        let _reinit_lock = self.reinit_lock.write().await;
+        self.run_under_lock(pp).await
     }
 
     pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
         let _reinit_lock = self.reinit_lock.write().await;
         self.holders.write().await.clear();
-        self.created_holder_indexes.write().await.clear();
-        self.run(pp).await
+        self.run_under_lock(pp).await
     }
 
     async fn run_pearls(&self, pp: impl Hooks) -> AnyResult<()> {
@@ -106,16 +112,6 @@ impl Group {
         }
         holders.reload().await;
         Ok(())
-    }
-
-    pub async fn add(&self, holder: Holder) -> ChildId {
-        let mut holders = self.holders.write().await;
-        holders.push(holder).await
-    }
-
-    pub async fn add_range(&self, new: Vec<Holder>) {
-        let mut holders = self.holders.write().await;
-        holders.extend(new).await;
     }
 
     pub(crate) async fn for_each_holder<F, Fut>(&self, f: F)
@@ -139,17 +135,20 @@ impl Group {
         data: &BobData,
         timestamp_config: StartTimestampConfig,
     ) -> Result<(ChildId, Holder), Error> {
-        self.find_actual_holder(data)
-            .or_else(|e| {
-                debug!("cannot find pearl: {}", e);
-                self.create_write_pearl(data.meta().timestamp(), timestamp_config)
-            })
-            .await
+        let holder_info = {
+            let holders = self.holders.read().await;
+            Self::find_actual_holder(&holders, data).await
+        };
+        if let Err(e) = holder_info {
+            debug!("cannot find pearl: {}", e);
+            self.create_write_pearl(data, timestamp_config).await
+        } else {
+            holder_info
+        }
     }
 
     // find in all pearls actual pearl
-    async fn find_actual_holder(&self, data: &BobData) -> BackendResult<(ChildId, Holder)> {
-        let holders = self.holders.read().await;
+    async fn find_actual_holder(holders: &HoldersContainer, data: &BobData) -> BackendResult<(ChildId, Holder)> {
         let mut holders_for_time = holders
             .iter()
             .enumerate()
@@ -173,54 +172,37 @@ impl Group {
     // create pearl for current write
     async fn create_write_pearl(
         &self,
-        ts: u64,
+        data: &BobData,
         timestamp_config: StartTimestampConfig,
     ) -> Result<(ChildId, Holder), Error> {
-        let mut indexes = self.created_holder_indexes.write().await;
-        let created_holder_index = indexes.get(&ts).copied();
-        let index = if let Some(exisiting_index) = created_holder_index {
-            exisiting_index
+        let holders = self.holders.upgradable_read().await;
+        
+        let created_holder_index = Self::find_actual_holder(&holders, data).await;
+        Ok(if let Ok(index_and_holder) = created_holder_index {
+            index_and_holder
         } else {
-            let new_index = self
+            info!("creating pearl for timestamp {}", data.meta().timestamp());
+            let pearl = self.create_pearl_by_timestamp(data.meta().timestamp(), &timestamp_config);
+            self
                 .settings
                 .config()
                 .try_multiple_times_async(
-                    || self.try_create_write_pearl(ts, &timestamp_config),
+                    || pearl.prepare_storage(),
                     "pearl init failed",
                     self.settings.config().settings().create_pearl_wait_delay(),
                 )
                 .await?;
-            debug!("group create write pearl holder index {:?}", new_index);
-            indexes.insert(ts, new_index);
-            debug!("group create write pearl holder inserted");
-            new_index
-        };
-        Ok((
-            index,
-            self.holders
-                .read()
-                .await
-                .get_child(index)
+            debug!("backend pearl group save pearl storage prepared");    
+            let mut holders = RwLockUpgradableReadGuard::upgrade(holders).await;
+            let new_index = holders.push(pearl).await;
+            debug!("group create write pearl holder inserted, index {:?}", new_index);
+            let holder = holders
+                .get_child(new_index)
                 .expect("should be added")
                 .data
-                .clone(),
-        ))
-    }
-
-    async fn try_create_write_pearl(
-        &self,
-        timestamp: u64,
-        timestamp_config: &StartTimestampConfig,
-    ) -> Result<ChildId, Error> {
-        info!("creating pearl for timestamp {}", timestamp);
-        let pearl = self.create_pearl_by_timestamp(timestamp, timestamp_config);
-        self.save_pearl(pearl.clone()).await
-    }
-
-    async fn save_pearl(&self, holder: Holder) -> Result<ChildId, Error> {
-        holder.prepare_storage().await?;
-        debug!("backend pearl group save pearl storage prepared");
-        Ok(self.add(holder).await)
+                .clone();
+            (new_index, holder)
+        })
     }
 
     pub async fn put(
@@ -324,7 +306,7 @@ impl Group {
         Ok(exist)
     }
 
-    pub fn holders(&self) -> Arc<RwLock<HoldersContainer>> {
+    pub fn holders(&self) -> Arc<UgradableRwLock<HoldersContainer>> {
         self.holders.clone()
     }
 
@@ -341,7 +323,7 @@ impl Group {
     }
 
     pub async fn attach(&self, start_timestamp: u64) -> BackendResult<()> {
-        let holders = self.holders.read().await;
+        let holders = self.holders.upgradable_read().await;
         if holders
             .iter()
             .map(|x| x.start_timestamp())
@@ -353,7 +335,10 @@ impl Group {
         } else {
             let holder =
                 self.create_pearl_by_timestamp(start_timestamp, &StartTimestampConfig::default());
-            self.save_pearl(holder).await?;
+            holder.prepare_storage().await?;
+            debug!("backend pearl group save pearl storage prepared");
+            let mut holders = RwLockUpgradableReadGuard::upgrade(holders).await;
+            holders.push(holder).await;
             Ok(())
         }
     }
