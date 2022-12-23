@@ -61,7 +61,7 @@ features = ["signal"]
 [dependencies.pearl]
 version = "0.15.0"
 
-[target.'cfg(target_env = "musl", target_arch = "x86_64", target_pointer_width = "64")'.dependencies]
+[target.'cfg(all(target_env = "musl", target_arch = "x86_64", target_pointer_width = "64"))'.dependencies]
 mimalloc = { version = "0.1", default-features = false, optional = true }
 
 [build-dependencies]
