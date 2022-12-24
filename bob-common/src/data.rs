@@ -1,8 +1,10 @@
 use crate::{
+    error::Error,
     mapper::NodesMap,
     node::{Disk as NodeDisk, Node},
 };
 use bob_grpc::{GetOptions, GetSource, PutOptions};
+use bytes::Bytes;
 use std::{
     convert::TryInto,
     fmt::{Debug, Formatter, Result as FmtResult},
@@ -92,12 +94,14 @@ pub type VDiskId = u32;
 
 #[derive(Clone)]
 pub struct BobData {
-    inner: Vec<u8>,
+    inner: Bytes,
     meta: BobMeta,
 }
 
 impl BobData {
-    pub fn new(inner: Vec<u8>, meta: BobMeta) -> Self {
+    const TIMESTAMP_LEN: usize = 8;
+
+    pub fn new(inner: Bytes, meta: BobMeta) -> Self {
         BobData { inner, meta }
     }
 
@@ -105,12 +109,30 @@ impl BobData {
         &self.inner
     }
 
-    pub fn into_inner(self) -> Vec<u8> {
+    pub fn into_inner(self) -> Bytes {
         self.inner
     }
 
     pub fn meta(&self) -> &BobMeta {
         &self.meta
+    }
+
+    pub fn to_serialized_vec(&self) -> Vec<u8> {
+        let mut result = Vec::with_capacity(Self::TIMESTAMP_LEN + self.inner.len());
+        result.extend_from_slice(&self.meta.timestamp.to_be_bytes());
+        result.extend_from_slice(&self.inner);
+        result
+    }
+
+    pub fn from_serialized_bytes(data: Vec<u8>) -> Result<BobData, Error> {
+        let mut bob_data = Bytes::from(data);
+        let ts_bytes = bob_data.split_to(Self::TIMESTAMP_LEN);
+        let ts_bytes = (&*ts_bytes)
+            .try_into()
+            .map_err(|e| Error::storage(format!("parse error: {}", e)))?;
+        let timestamp = u64::from_be_bytes(ts_bytes);
+        let meta = BobMeta::new(timestamp);
+        Ok(BobData::new(bob_data, meta))
     }
 }
 

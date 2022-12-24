@@ -1,15 +1,15 @@
 use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
-    VirtualMapper, BackendType,
+    VirtualMapper, BackendType, FactoryTlsConfig,
 };
-use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap, AuthenticationType};
+use bob_access::{Authenticator, BasicAuthenticator, DeclaredCredentials, StubAuthenticator, UsersMap, AuthenticationType};
 use clap::{crate_version, App, Arg, ArgMatches};
 use std::{
     collections::HashMap,
     error::Error as ErrorTrait,
     net::{IpAddr, Ipv4Addr, SocketAddr},
 };
-use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
+use tokio::{runtime::Handle, signal::unix::SignalKind};
 use tonic::transport::Server;
 use std::path::PathBuf;
 use std::fs::create_dir;
@@ -107,7 +107,7 @@ async fn main() {
         AuthenticationType::Basic => {
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
-            let mut authenticator = BasicAuthenticator::new(users_storage);
+            let mut authenticator = BasicAuthenticator::new(users_storage, node.hostname_resolve_period_ms());
             let nodes_credentials = nodes_credentials_from_cluster_config(&cluster).await;
             authenticator
                 .set_nodes_credentials(nodes_credentials)
@@ -123,7 +123,21 @@ async fn main() {
 async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
     let (metrics, shared_metrics) = init_counters(&node, &addr.to_string()).await;
     let handle = Handle::current();
-    let factory = Factory::new(node.operation_timeout(), metrics, node.name().into());
+    let factory_tls_config = node.tls_config().as_ref().and_then(|tls_config| tls_config.grpc_config())
+        .map(|tls_config| {
+            let ca_cert = std::fs::read(&tls_config.ca_cert_path).expect("can not read ca certificate from file");
+            FactoryTlsConfig {
+                ca_cert,
+                tls_domain_name: tls_config.domain_name.clone(),
+            }
+        });
+    let factory = Factory::new(node.operation_timeout(), metrics, node.name().into(), factory_tls_config);
+
+    let mut server_builder = Server::builder();
+    if let Some(node_tls_config) = node.tls_config().as_ref().and_then(|tls_config| tls_config.grpc_config()) {
+        let tls_config = node_tls_config.to_server_tls_config();
+        server_builder = server_builder.tls_config(tls_config).expect("grpc tls config");
+    }
 
     let bob = BobServer::new(
         Grinder::new(mapper, &node).await,
@@ -135,10 +149,10 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
     bob.run_backend().await.unwrap();
     create_signal_handlers(&bob).unwrap();
     bob.run_periodic_tasks(factory);
-    bob.run_api_server(address, port);
+    bob.run_api_server(address, port, node.tls_config()).await;
 
     let bob_service = BobApiServer::new(bob);
-    Server::builder()
+    server_builder
         .tcp_nodelay(true)
         .add_service(bob_service)
         .serve(addr)
@@ -148,38 +162,21 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
 
 async fn nodes_credentials_from_cluster_config(
     cluster_config: &ClusterConfig,
-) -> HashMap<IpAddr, Vec<Credentials>> {
-    let mut nodes_creds: HashMap<IpAddr, Vec<Credentials>> = HashMap::new();
+) -> HashMap<String, DeclaredCredentials> {
+    let mut nodes_creds: HashMap<String, DeclaredCredentials> = HashMap::new();
     for node in cluster_config.nodes() {
-        let address = &node.address();
-        let address = if let Ok(address) = address.parse() {
-            address
+        let address = node.address();
+        let cred = 
+        if let Ok(address) = address.parse::<SocketAddr>() {
+            DeclaredCredentials::internode_builder(node.name())
+                .with_address(address)
+                .build()
         } else {
-            match lookup_host(address).await {
-                Ok(mut address) => address
-                    .next()
-                    .expect("failed to resolve hostname: dns returned empty ip list"),
-                Err(e) => {
-                    error!("expected SocketAddr/hostname, found: {}", address);
-                    error!("{}", e);
-                    panic!("failed to resolve hostname")
-                }
-            }
+            DeclaredCredentials::internode_builder(node.name())
+                .with_hostname(address.into())
+                .build()
         };
-        let cred = Credentials::builder()
-            .with_nodename(node.name())
-            .with_address(Some(address))
-            .build();
-        let ip = cred.ip().expect("node missing ip");
-        match nodes_creds.get_mut(&ip) {
-            Some(creds) => {
-                creds.push(cred);
-            },
-            None => {
-                let creds = vec![cred];
-                nodes_creds.insert(ip, creds);
-            }
-        }
+        nodes_creds.insert(node.name().into(), cred);
     }
     nodes_creds
 }

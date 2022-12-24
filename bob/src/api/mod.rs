@@ -3,9 +3,11 @@ use axum::{
     body::{self, BoxBody},
     extract::{Extension, Path as AxumPath},
     response::IntoResponse,
-    routing::{delete, get, post, MethodRouter},
+    routing::{delete, get, post, head, MethodRouter},
     Json, Router, Server,
 };
+use bob_grpc::DeleteOptions;
+use axum_server::{bind_rustls, tls_rustls::{RustlsConfig, RustlsAcceptor}, Server as AxumServer};
 
 pub(crate) use bob_access::Error as AuthError;
 use bob_access::{Authenticator, CredentialsHolder};
@@ -14,6 +16,7 @@ use bob_common::{
     data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
     error::Error as BobError,
     node::Disk as NodeDisk,
+    configs::node::TLSConfig,
 };
 use bytes::Bytes;
 use futures::{future::BoxFuture, stream::FuturesUnordered, FutureExt, StreamExt};
@@ -143,16 +146,35 @@ pub(crate) struct SpaceInfo {
     occupied_disk_space_by_disk: HashMap<String, u64>
 }
 
-pub(crate) fn spawn<A>(bob: BobServer<A>, address: IpAddr, port: u16)
+async fn tls_server(tls_config: &TLSConfig, addr: SocketAddr) -> AxumServer<RustlsAcceptor> {
+    if let (Some(cert_path), Some(pkey_path)) = (&tls_config.cert_path, &tls_config.pkey_path) {
+        let config = RustlsConfig::from_pem_file(
+            cert_path,
+            pkey_path,
+        ).await.expect("can not create tls config from pem file");
+        bind_rustls(addr, config)
+    } else {
+        error!("rest tls enabled, but certificate or private key not specified");
+        panic!("rest tls enabled, but certificate or private key not specified");
+    }
+}
+
+pub(crate) async fn spawn<A>(bob: BobServer<A>, address: IpAddr, port: u16, tls_config: &Option<TLSConfig>)
 where
     A: Authenticator,
 {
     let socket_addr = SocketAddr::new(address, port);
 
     let router = router::<A>().layer(Extension(bob));
-    let task = Server::bind(&socket_addr).serve(router.into_make_service());
-
-    tokio::spawn(task);
+    
+    if let Some(tls_config) = tls_config.as_ref().and_then(|tls_config| tls_config.rest_config()) {
+        let tls_server = tls_server(&tls_config, socket_addr).await;
+        let task = tls_server.serve(router.into_make_service());
+        tokio::spawn(task);
+    } else {
+        let task = Server::bind(&socket_addr).serve(router.into_make_service());
+        tokio::spawn(task);
+    }
 
     info!("API server started, listening: {}", socket_addr);
 }
@@ -221,6 +243,7 @@ where
             get(get_local_replica_directories::<A>),
         ),
         ("/data/:key", get(get_data::<A>)),
+        ("/data/:key", head(exist_data::<A>)),
         ("/data/:key", post(put_data::<A>)),
         ("/data/:key", delete(delete_data::<A>)),
     ]
@@ -343,7 +366,7 @@ async fn find_group<A: Authenticator>(
 async fn metrics<A: Authenticator>(
     bob: Extension<BobServer<A>>,
 ) -> Json<MetricsSnapshotModel> {
-    let snapshot = bob.metrics().read().await.clone();
+    let snapshot = bob.metrics().read().expect("rwlock").clone();
     Json(snapshot.into())
 }
 
@@ -745,14 +768,19 @@ where
     if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
-    let group = find_group(&bob, vdisk_id).await?;
-    if let Some(err) = group.remount().await.err() {
-        Err(StatusExt::new(StatusCode::OK, false, err.to_string()))
-    } else {
-        info!("vdisks group {} successfully restarted", vdisk_id);
-        let msg = format!("vdisks group {} successfully restarted", vdisk_id);
-        Ok(StatusExt::new(StatusCode::OK, true, msg))
-    }
+    bob.grinder()
+        .backend()
+        .inner()
+        .remount_vdisk(vdisk_id)
+        .await
+        .map(|_| {
+            StatusExt::new(
+                StatusCode::OK,
+                true,
+                format!("vdisk {} successfully restarted", vdisk_id),
+            )
+        })
+        .map_err(|e| StatusExt::new(StatusCode::OK, false, e.to_string()))
 }
 
 // DELETE /vdisks/:vdisk_id/partitions/by_timestamp/:timestamp
@@ -948,6 +976,29 @@ where
     Ok((headers, result.inner().to_owned()))
 }
 
+// HEAD /data/:key
+async fn exist_data<A>(
+    bob: Extension<BobServer<A>>,
+    AxumPath(key): AxumPath<String>,
+    creds: CredentialsHolder<A>,
+) -> Result<StatusCode, StatusExt>
+where
+    A: Authenticator,
+{
+    if !bob.auth().check_credentials_rest(creds.into())?.has_read() {
+        return Err(AuthError::PermissionDenied.into());
+    }
+    let keys = [DataKey::from_str(&key)?.0];
+    let opts = BobOptions::new_get(None);
+    let result = bob.grinder().exist(&keys, &opts).await?;
+
+    match result.get(0) {
+        Some(true) => Ok(StatusCode::OK),
+        Some(false) => Ok(StatusCode::NOT_FOUND),
+        None => Err(StatusExt::new(StatusCode::INTERNAL_SERVER_ERROR, false, "Missing 'exist' result".to_owned()))
+    }
+}
+
 // POST /data/:key
 async fn put_data<A>(
     bob: Extension<BobServer<A>>,
@@ -962,12 +1013,11 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
-    let data_buf = body.to_vec();
     let meta = BobMeta::new(chrono::Local::now().timestamp() as u64);
-    let data = BobData::new(data_buf, meta);
+    let data = BobData::new(body, meta);
 
     let opts = BobOptions::new_put(None);
-    bob.grinder().put(key, data, opts).await?;
+    bob.grinder().put(key, &data, opts).await?;
     Ok(StatusCode::CREATED.into())
 }
 
@@ -984,9 +1034,9 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
-    bob.block_on(bob.grinder().delete(key, true))
+    bob.block_on(bob.grinder().delete(key, DeleteOptions::new_all()))
         .map_err(|e| internal(e.to_string()))
-        .map(|res| StatusExt::new(StatusCode::OK, true, format!("{}", res)))
+        .map(|_| StatusExt::new(StatusCode::OK, true, format!("Done")))
 }
 
 fn internal(message: String) -> StatusExt {

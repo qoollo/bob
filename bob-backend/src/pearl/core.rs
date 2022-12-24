@@ -148,7 +148,7 @@ impl BackendStorage for Pearl {
         Ok(())
     }
 
-    async fn put(&self, op: Operation, key: BobKey, data: BobData) -> BackendResult<()> {
+    async fn put(&self, op: Operation, key: BobKey, data: &BobData) -> BackendResult<()> {
         debug!("PUT[{}] to pearl backend. operation: {:?}", key, op);
         let dc_option = self
             .disk_controllers
@@ -168,7 +168,7 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn put_alien(&self, op: Operation, key: BobKey, data: BobData) -> BackendResult<()> {
+    async fn put_alien(&self, op: Operation, key: BobKey, data: &BobData) -> BackendResult<()> {
         debug!("PUT[alien][{}] to pearl backend, operation: {:?}", key, op);
         self.alien_disk_controller.put_alien(op, key, data).await
     }
@@ -315,5 +315,16 @@ impl BackendStorage for Pearl {
             memory += dc.filter_memory_allocated().await;
         }
         memory
+    }
+
+    async fn remount_vdisk(&self, vdisk_id: u32) -> AnyResult<()> {
+        let (dcs, _) = self.disk_controllers().ok_or(Error::internal())?;
+        let needed_dc = dcs
+            .iter()
+            .find(|dc| dc.vdisks().iter().any(|&vd| vd == vdisk_id))
+            .ok_or(Error::vdisk_not_found(vdisk_id))?;
+        let group = needed_dc.vdisk_group(vdisk_id).await?;
+        let postprocessor = BloomFilterMemoryLimitHooks::new(self.bloom_filter_memory_limit);
+        group.remount(postprocessor).await
     }
 }

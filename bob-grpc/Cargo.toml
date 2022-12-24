@@ -1,12 +1,12 @@
 [package]
 name = "bob-grpc"
-version = "2.1.0-alpha.5"
+version = "2.1.0-alpha.7"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2021"
 
 [dependencies]
 async-trait = "0.1"
-bytes = "1.1"
+bytes = "1.2"
 cfg-if = "1.0"
 http = "0.2"
 hyper = { version = "0.14", default-features = false }
@@ -18,9 +18,10 @@ tower = "0.4"
 tower-service = "0.3"
 
 [dependencies.tokio]
-version = "1.14"
+version = "1.21"
 default-features = false
 features = []
 
 [build-dependencies]
 tonic-build = "0.6"
+prost-build = "0.9"
