@@ -346,10 +346,11 @@ impl Group {
     pub async fn attach(&self, start_timestamp: u64) -> BackendResult<()> {
         if {
             let holders = self.holders.read().await;
-            holders
+            let flag = holders
                 .iter()
                 .map(|x| x.start_timestamp())
-                .any(|timestamp| timestamp == start_timestamp)
+                .any(|timestamp| timestamp == start_timestamp);
+            flag
             }
         {
             let msg = format!("pearl:{} already exists", start_timestamp);
