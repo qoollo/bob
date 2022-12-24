@@ -35,17 +35,19 @@ enum Operation {
     Get,
     Put,
     Delete,
+    Exists
 }
 
 impl Operation {
     fn gen<R: Rng>(rng: &mut R) -> Self {
         lazy_static! {
-            static ref DIST: Uniform<u32> = Uniform::<u32>::new(0, 3);
+            static ref DIST: Uniform<u32> = Uniform::<u32>::new(0, 4);
         }
         match DIST.sample(rng) {
             0 => Self::Get,
             1 => Self::Put,
             2 => Self::Delete,
+            3 => Self::Exists,
             _ => Self::Get,
         }
     }
@@ -104,6 +106,26 @@ impl Tester {
                 } else {
                     true
                 }
+            }
+        }
+    }
+
+    async fn exists(&mut self) -> bool {
+        let key = self.rand_id();
+        let res = self.client.exists(key).await;
+        match res {
+            Ok(found) => {
+                let contains_key = self.storage.contains_key(&key);
+                if contains_key == found {
+                    true
+                } else {
+                    log::warn!("Exists unexpected result: expected '{}' != actual '{}'", contains_key, found);
+                    false
+                }
+            }
+            Err(e) => {
+                log::warn!("Exists unexpected error: {}", e);
+                false
             }
         }
     }
@@ -170,6 +192,7 @@ impl Tester {
                 Operation::Get => self.get().await,
                 Operation::Put => self.put().await,
                 Operation::Delete => self.delete().await,
+                Operation::Exists => self.exists().await
             };
             if success {
                 total_succ += 1;
@@ -189,6 +212,8 @@ struct Client {
     get_time: Duration,
     delete_count: u64,
     delete_time: Duration,
+    exists_count: u64,
+    exists_time: Duration
 }
 
 impl Client {
@@ -202,6 +227,8 @@ impl Client {
             get_time: Duration::ZERO,
             delete_count: 0,
             delete_time: Duration::ZERO,
+            exists_count: 0,
+            exists_time: Duration::ZERO
         }
     }
 
@@ -212,6 +239,8 @@ impl Client {
         self.get_count = 0;
         self.delete_time = Duration::ZERO;
         self.delete_count = 0;
+        self.exists_time = Duration::ZERO;
+        self.exists_count = 0;
     }
 
     fn print_summary(&self) {
@@ -221,6 +250,8 @@ impl Client {
         log::info!("PUT: count: {}, latency: {}", self.put_count, latency);
         let latency = self.delete_time.as_secs_f64() / self.delete_count as f64 * 1000.0;
         log::info!("DELETE: count: {}, latency: {}", self.delete_count, latency);
+        let latency = self.exists_time.as_secs_f64() / self.exists_count as f64 * 1000.0;
+        log::info!("EXISTS: count: {}, latency: {}", self.exists_count, latency);
     }
 
     async fn put(&mut self, key: u64, size: usize) -> Result<(), String> {
@@ -263,6 +294,32 @@ impl Client {
         log::debug!("Get {}, result: {:?}", key, res);
         let bytes = res.bytes().await;
         bytes.map(|b| b.len()).map_err(|e| e.to_string())
+    }
+
+    async fn exists(&mut self, key: u64) -> Result<bool, String> {
+        let req = self.settings.request(key, |a| self.http_client.head(a))?;
+        let sw = Stopwatch::new();
+        let res = self
+            .http_client
+            .execute(req)
+            .await
+            .map_err(|e| e.to_string())?;
+        let status = res.status();
+        self.exists_time += sw.elapsed();
+        self.exists_count += 1;
+
+        if status == StatusCode::OK {
+            log::debug!("Exists {}, result: {:?}", key, status);
+            return Ok(true);
+        }
+        else if status == StatusCode::NOT_FOUND {
+            log::debug!("Exists {}, result: {:?}", key, status);
+            return Ok(false);
+        } 
+        else {
+            log::warn!("Exists resulted in error code: {:?}", res.status());
+            return Err(status.to_string());
+        }
     }
 
     async fn delete(&mut self, key: u64) -> Result<usize, String> {

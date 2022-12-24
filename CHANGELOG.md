@@ -4,10 +4,12 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- 'Exists' method through HEAD request in REST API (#691)
+- Support for 'exists' method in bobt (#691)
 
 #### Changed
-
+- Log message about the lack of connection to graphite became more understandable (#684)
+- Hostname resolving in background tasks (#529)
 
 #### Fixed
 - Data access operations will be locked during remount (#683)
