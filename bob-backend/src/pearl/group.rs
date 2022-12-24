@@ -64,7 +64,7 @@ impl Group {
         }
     }
 
-    async fn run_under_lock(&self, pp: impl Hooks) -> AnyResult<()> {
+    async fn run_under_reinit_lock(&self, pp: impl Hooks) -> AnyResult<()> {
         debug!("{}: read holders from disk", self);
         let config = self.settings.config();
         let new_holders = config
@@ -93,13 +93,13 @@ impl Group {
 
     pub async fn run(&self, pp: impl Hooks) -> AnyResult<()> {
         let _reinit_lock = self.reinit_lock.write().await;
-        self.run_under_lock(pp).await
+        self.run_under_reinit_lock(pp).await
     }
 
     pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
         let _reinit_lock = self.reinit_lock.write().await;
         self.holders.write().await.clear();
-        self.run_under_lock(pp).await
+        self.run_under_reinit_lock(pp).await
     }
 
     async fn run_pearls(&self, pp: impl Hooks) -> AnyResult<()> {
@@ -130,29 +130,29 @@ impl Group {
     }
 
     // find in all pearls actual pearl and try create new
-    async fn get_actual_holder(
+    async fn get_or_create_actual_holder(
         &self,
-        data: &BobData,
+        data_timestamp: u64,
         timestamp_config: StartTimestampConfig,
     ) -> Result<(ChildId, Holder), Error> {
         let holder_info = {
             let holders = self.holders.read().await;
-            Self::find_actual_holder(&holders, data).await
+            Self::find_actual_holder(&holders, data_timestamp).await
         };
         if let Err(e) = holder_info {
             debug!("cannot find pearl: {}", e);
-            self.create_write_pearl(data, timestamp_config).await
+            self.get_or_create_write_pearl(data_timestamp, timestamp_config).await
         } else {
             holder_info
         }
     }
 
     // find in all pearls actual pearl
-    async fn find_actual_holder(holders: &HoldersContainer, data: &BobData) -> BackendResult<(ChildId, Holder)> {
+    async fn find_actual_holder(holders: &HoldersContainer, data_timestamp: u64) -> BackendResult<(ChildId, Holder)> {
         let mut holders_for_time = holders
             .iter()
             .enumerate()
-            .filter(|h| h.1.gets_into_interval(data.meta().timestamp()));
+            .filter(|h| h.1.gets_into_interval(data_timestamp));
 
         if let Some(mut max) = holders_for_time.next() {
             for elem in holders_for_time {
@@ -164,44 +164,46 @@ impl Group {
         } else {
             Err(Error::failed(format!(
                 "cannot find actual pearl folder. meta: {}",
-                data.meta().timestamp()
+                data_timestamp
             )))
         }
     }
 
-    // create pearl for current write
-    async fn create_write_pearl(
+    async fn create_and_init_pearl(
         &self,
-        data: &BobData,
+        data_timestamp: u64,
+        timestamp_config: &StartTimestampConfig
+    ) -> Result<Holder, Error> {
+        let pearl = self.create_pearl_by_timestamp(data_timestamp, &timestamp_config);
+        pearl.prepare_storage().await?;
+        Ok(pearl)
+    }
+
+    // create or get existing pearl for current write
+    async fn get_or_create_write_pearl(
+        &self,
+        data_timestamp: u64,
         timestamp_config: StartTimestampConfig,
     ) -> Result<(ChildId, Holder), Error> {
+        // importantly, only one thread can hold an upgradable lock at a time
         let holders = self.holders.upgradable_read().await;
         
-        let created_holder_index = Self::find_actual_holder(&holders, data).await;
+        let created_holder_index = Self::find_actual_holder(&holders, data_timestamp).await;
         Ok(if let Ok(index_and_holder) = created_holder_index {
             index_and_holder
         } else {
-            info!("creating pearl for timestamp {}", data.meta().timestamp());
-            let pearl = self.create_pearl_by_timestamp(data.meta().timestamp(), &timestamp_config);
-            self
-                .settings
-                .config()
+            info!("creating pearl for timestamp {}", data_timestamp);
+            let pearl = self.settings.config()
                 .try_multiple_times_async(
-                    || pearl.prepare_storage(),
+                    || self.create_and_init_pearl(data_timestamp, &timestamp_config),
                     "pearl init failed",
                     self.settings.config().settings().create_pearl_wait_delay(),
-                )
-                .await?;
+                ).await?;
             debug!("backend pearl group save pearl storage prepared");    
             let mut holders = RwLockUpgradableReadGuard::upgrade(holders).await;
-            let new_index = holders.push(pearl).await;
+            let new_index = holders.push(pearl.clone()).await;
             debug!("group create write pearl holder inserted, index {:?}", new_index);
-            let holder = holders
-                .get_child(new_index)
-                .expect("should be added")
-                .data
-                .clone();
-            (new_index, holder)
+            (new_index, pearl)
         })
     }
 
@@ -212,7 +214,7 @@ impl Group {
         timestamp_config: StartTimestampConfig,
     ) -> Result<(), Error> {
         let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
-        let holder = self.get_actual_holder(&data, timestamp_config).await?;
+        let holder = self.get_or_create_actual_holder(data.meta().timestamp(), timestamp_config).await?;
         let res = Self::put_common(&holder.1, key, data).await?;
         self.holders
             .write()
@@ -323,6 +325,7 @@ impl Group {
     }
 
     pub async fn attach(&self, start_timestamp: u64) -> BackendResult<()> {
+        // importantly, only one thread can hold an upgradable lock at a time
         let holders = self.holders.upgradable_read().await;
         if holders
             .iter()
