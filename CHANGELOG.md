@@ -6,6 +6,7 @@ Bob versions changelog
 #### Added
 - 'Exists' method through HEAD request in REST API (#691)
 - Support for 'exists' method in bobt (#691)
+- Added validate_data_checksum_in_index_regen field to pearl config (#215)
 
 #### Changed
 - Log message about the lack of connection to graphite became more understandable (#684)
