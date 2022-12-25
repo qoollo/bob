@@ -83,12 +83,10 @@ impl Group {
             self.create_current_pearl();
         }
         debug!("{}: save holders to group", self);
-        {
-            let mut holders = self.holders.write().await;
-            holders.extend(new_holders).await;   
-        }
+        let mut holders = self.holders.write().await;
+        holders.extend(new_holders).await;   
         debug!("{}: start holders", self);
-        self.run_pearls(pp).await
+        Self::run_pearls(&mut holders, pp).await
     }
 
     pub async fn run(&self, pp: impl Hooks) -> AnyResult<()> {
@@ -102,9 +100,7 @@ impl Group {
         self.run_under_reinit_lock(pp).await
     }
 
-    async fn run_pearls(&self, pp: impl Hooks) -> AnyResult<()> {
-        let mut holders = self.holders.write().await;
-
+    async fn run_pearls(holders: &mut HoldersContainer, pp: impl Hooks) -> AnyResult<()> {
         for holder in holders.iter() {
             holder.prepare_storage().await?;
             pp.storage_prepared(holder).await;
