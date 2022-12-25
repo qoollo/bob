@@ -344,7 +344,7 @@ impl Group {
     }
 
     pub async fn attach(&self, start_timestamp: u64) -> BackendResult<()> {
-        let holders = self.holders.write().await;
+        let mut holders = self.holders.write().await;
         if holders
             .iter()
             .map(|x| x.start_timestamp())
