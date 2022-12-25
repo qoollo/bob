@@ -313,8 +313,8 @@ impl Group {
     }
 
     pub async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
-        let mut exist = vec![false; keys.len()];
         let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
+        let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
             for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
@@ -344,14 +344,11 @@ impl Group {
     }
 
     pub async fn attach(&self, start_timestamp: u64) -> BackendResult<()> {
-        if {
-            let holders = self.holders.read().await;
-            let flag = holders
-                .iter()
-                .map(|x| x.start_timestamp())
-                .any(|timestamp| timestamp == start_timestamp);
-            flag
-            }
+        let holders = self.holders.write().await;
+        if holders
+            .iter()
+            .map(|x| x.start_timestamp())
+            .any(|timestamp| timestamp == start_timestamp)
         {
             let msg = format!("pearl:{} already exists", start_timestamp);
             warn!("{}", msg);
@@ -359,7 +356,9 @@ impl Group {
         } else {
             let holder =
                 self.create_pearl_by_timestamp(start_timestamp, &StartTimestampConfig::default());
-            self.save_pearl(holder).await?;
+            holder.prepare_storage().await?;
+            debug!("backend pearl group save pearl storage prepared");
+            holders.push(holder).await;
             Ok(())
         }
     }
