@@ -52,7 +52,6 @@ jobs:
         key: [8, 16]
     env:
       TARGET: "x86_64-unknown-linux-musl"
-      BUILD_MODE: "debug"
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repository 
@@ -72,7 +71,7 @@ jobs:
         uses: actions-rs/cargo@v1.0.1
         with:
           command: build
-          args: --release --target=${{ env.TARGET }}
+          args: --target=${{ env.TARGET }}
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
