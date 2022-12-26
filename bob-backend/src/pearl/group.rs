@@ -76,12 +76,6 @@ impl Group {
             .await
             .with_context(|| "backend pearl group read vdisk directory failed")?;
         debug!("{}: count holders: {}", self, new_holders.len());
-        if !new_holders
-            .iter()
-            .any(|holder| holder.gets_into_interval(get_current_timestamp()))
-        {
-            self.create_current_pearl();
-        }
         debug!("{}: save holders to group", self);
         let mut holders = self.holders.write().await;
         holders.extend(new_holders).await;   
