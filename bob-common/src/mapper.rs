@@ -126,22 +126,22 @@ impl Virtual {
         trace!("get target nodes for given key");
         let target_nodes = self.get_target_nodes_for_key(key);
         trace!("extract indexes of target nodes");
-        let target_indexes: Vec<_> = target_nodes.iter().map(Node::index).collect();
         trace!("nodes available: {}", self.nodes.len());
         let offset = self.support_nodes_offset.fetch_add(1, Ordering::Relaxed);
-        self.nodes
-            .iter()
-            .filter_map(|(id, node)| {
-                if !target_indexes.contains(id) {
-                    Some(node)
-                } else {
-                    None
+        let mut support_nodes = Vec::with_capacity(count);
+        for (id, node) in self.nodes.iter().skip(offset % self.nodes.len()) {
+            if target_nodes.iter().all(|i| i.index() != *id) {
+                support_nodes.push(node)
+            }
+        }
+        if support_nodes.len() < count && offset % self.nodes.len() > 0 {
+            for (id, node) in self.nodes.iter().take(offset % self.nodes.len()) {
+                if target_nodes.iter().all(|i| i.index() != *id) {
+                    support_nodes.push(node)
                 }
-            })
-            .cycle()
-            .skip(offset % self.nodes.len())
-            .take(count)
-            .collect()
+            }
+        }
+        support_nodes
     }
 
     pub fn vdisk_id_from_key(&self, key: BobKey) -> VDiskId {
