@@ -150,6 +150,7 @@ impl Virtual {
                 }
             }
         }
+        debug_assert!(support_nodes.len() <= count);
         support_nodes
     }
 
