@@ -10,6 +10,20 @@ Bob versions changelog
 
 
 #### Fixed
+
+
+#### Updated
+
+
+
+## [2.0.14-alpha.4] - 2022-12-26
+#### Added
+
+
+#### Changed
+
+
+#### Fixed
 - Data access operations will be protected during remount to prevent data loss (#683)
 
 #### Updated
