@@ -4,6 +4,22 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- 'Exists' method through HEAD request in REST API (#691)
+- Support for 'exists' method in bobt (#691)
+
+#### Changed
+- Log message about the lack of connection to graphite became more understandable (#684)
+- Hostname resolving in background tasks (#529)
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.7] - 2022-11-28
+#### Added
 - Include bobt into the zip archive attached to the release infrastructure (#669)
 - Include bobc into release builds (#569)
 - Added blob-info and index-info features to brt (#356)
