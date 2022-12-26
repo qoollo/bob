@@ -52,6 +52,7 @@ jobs:
         key: [8, 16]
     env:
       TARGET: "x86_64-unknown-linux-musl"
+      BUILD_MODE: "debug"
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repository 
