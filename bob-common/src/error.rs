@@ -91,6 +91,10 @@ impl Error {
     pub fn disk_events_logger(msg: impl Display, error: impl Display) -> Self {
         Self::new(Kind::DisksEventsLogger(format!("{}: {}", msg, error)))
     }
+
+    pub fn holder_temporary_unavailable() -> Self {
+        Self::new(Kind::HolderTemporaryUnavailable)
+    }
 }
 
 impl Display for Error {
@@ -134,7 +138,8 @@ impl From<Error> for Status {
             )),
             Kind::DisksEventsLogger(msg) => {
                 Self::internal(format!("disk events logger error: {}", msg))
-            }
+            },
+            Kind::HolderTemporaryUnavailable => Self::unavailable("HolderTemporaryUnavailable"),
         }
     }
 }
@@ -156,6 +161,7 @@ impl From<Status> for Error {
                 "Failed" => Some(Self::failed(rest_words(words, length))),
                 "Internal" => Some(Self::internal()),
                 "PearlChangeState" => Some(Self::pearl_change_state(rest_words(words, length))),
+                "HolderTemporaryUnavailable" => Some(Self::holder_temporary_unavailable()),
                 _ => None,
             },
         }
@@ -189,4 +195,5 @@ pub enum Kind {
     PearlChangeState(String),
     RequestFailedCompletely(String),
     DisksEventsLogger(String),
+    HolderTemporaryUnavailable,
 }

@@ -15,6 +15,7 @@ pub type HoldersContainer =
 #[derive(Clone, Debug)]
 pub struct Group {
     holders: Arc<RwLock<HoldersContainer>>,
+    reinit_lock: Arc<RwLock<()>>,
     settings: Arc<Settings>,
     directory_path: PathBuf,
     vdisk_id: VDiskId,
@@ -40,6 +41,7 @@ impl Group {
                 settings.holder_group_size(),
                 2,
             ))),
+            reinit_lock: Arc::new(RwLock::new(())),
             settings,
             vdisk_id,
             node_name,
@@ -63,7 +65,7 @@ impl Group {
         }
     }
 
-    pub async fn run(&self, pp: impl Hooks) -> AnyResult<()> {
+    async fn run_under_reinit_lock(&self, pp: impl Hooks) -> AnyResult<()> {
         debug!("{}: read holders from disk", self);
         let config = self.settings.config();
         let holders = config
@@ -87,10 +89,16 @@ impl Group {
         self.run_pearls(pp).await
     }
 
+    pub async fn run(&self, pp: impl Hooks) -> AnyResult<()> {
+        let _reinit_lock = self.reinit_lock.write().await;
+        self.run_under_reinit_lock(pp).await
+    }
+
     pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
+        let _reinit_lock = self.reinit_lock.write().await;
         self.holders.write().await.clear();
         self.created_holder_indexes.write().await.clear();
-        self.run(pp).await
+        self.run_under_reinit_lock(pp).await
     }
 
     async fn run_pearls(&self, pp: impl Hooks) -> AnyResult<()> {
@@ -224,6 +232,7 @@ impl Group {
         data: BobData,
         timestamp_config: StartTimestampConfig,
     ) -> Result<(), Error> {
+        let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let holder = self.get_actual_holder(&data, timestamp_config).await?;
         let res = Self::put_common(&holder.1, key, data).await?;
         self.holders
@@ -252,6 +261,7 @@ impl Group {
     }
 
     pub async fn get(&self, key: BobKey) -> Result<BobData, Error> {
+        let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let holders = self.holders.read().await;
         let mut has_error = false;
         let mut results = vec![];
@@ -302,7 +312,8 @@ impl Group {
         result
     }
 
-    pub async fn exist(&self, keys: &[BobKey]) -> Vec<bool> {
+    pub async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
+        let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
         for (ind, &key) in keys.iter().enumerate() {
@@ -313,7 +324,7 @@ impl Group {
                 }
             }
         }
-        exist
+        Ok(exist)
     }
 
     pub fn holders(&self) -> Arc<RwLock<HoldersContainer>> {
@@ -333,7 +344,7 @@ impl Group {
     }
 
     pub async fn attach(&self, start_timestamp: u64) -> BackendResult<()> {
-        let holders = self.holders.read().await;
+        let mut holders = self.holders.write().await;
         if holders
             .iter()
             .map(|x| x.start_timestamp())
@@ -345,7 +356,9 @@ impl Group {
         } else {
             let holder =
                 self.create_pearl_by_timestamp(start_timestamp, &StartTimestampConfig::default());
-            self.save_pearl(holder).await?;
+            holder.prepare_storage().await?;
+            debug!("backend pearl group save pearl storage prepared");
+            holders.push(holder).await;
             Ok(())
         }
     }

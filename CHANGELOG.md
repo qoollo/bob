@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Data access operations will be protected during remount to prevent data loss (#683)
 
 #### Updated
 

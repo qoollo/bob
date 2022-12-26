@@ -839,6 +839,7 @@ impl From<BobError> for StatusExt {
             Kind::Internal => Status::InternalServerError,
             Kind::VDiskIsNotReady => Status::InternalServerError,
             Kind::KeyNotFound(_) => Status::NotFound,
+            Kind::HolderTemporaryUnavailable => Status::ServiceUnavailable,
             _ => Status::BadRequest,
         };
         Self {
