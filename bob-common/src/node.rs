@@ -6,9 +6,8 @@ use http::Uri;
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::{Hash, Hasher},
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
-use tokio::sync::RwLock;
 
 pub type Id = u16;
 
@@ -66,26 +65,30 @@ impl Node {
             .expect("build uri")
     }
 
-    pub async fn set_connection(&self, client: BobClient) {
-        *self.conn.write().await = Some(client);
+    pub fn counter_display(&self) -> String {
+        self.address.to_string().replace('.', "_")
     }
 
-    pub async fn clear_connection(&self) {
-        *self.conn.write().await = None;
+    pub fn set_connection(&self, client: BobClient) {
+        *self.conn.write().expect("rwlock") = Some(client);
     }
 
-    pub async fn get_connection(&self) -> Option<BobClient> {
-        self.conn.read().await.clone()
+    pub fn clear_connection(&self) {
+        *self.conn.write().expect("rwlock") = None;
+    }
+
+    pub fn get_connection(&self) -> Option<BobClient> {
+        self.conn.read().expect("rwlock").clone()
     }
 
     pub async fn check(&self, client_factory: &Factory) -> Result<(), String> {
-        if let Some(conn) = self.get_connection().await {
+        if let Some(conn) = self.get_connection() {
             self.ping(&conn).await
         } else {
             debug!("will connect to {:?}", self);
             let client = client_factory.produce(self.clone()).await?;
             self.ping(&client).await?;
-            self.set_connection(client).await;
+            self.set_connection(client);
             Ok(())
         }
     }
@@ -93,7 +96,7 @@ impl Node {
     pub async fn ping(&self, conn: &BobClient) -> Result<(), String> {
         if let Err(e) = conn.ping().await {
             debug!("Got broken connection to node {:?}", self);
-            self.clear_connection().await;
+            self.clear_connection();
             Err(format!("{:?}", e))
         } else {
             debug!("All good with pinging node {:?}", self);

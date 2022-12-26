@@ -3,7 +3,7 @@ use axum::{
     body::{self, BoxBody},
     extract::{Extension, Path as AxumPath},
     response::IntoResponse,
-    routing::{delete, get, post, MethodRouter},
+    routing::{delete, get, post, head, MethodRouter},
     Json, Router, Server,
 };
 use bob_grpc::DeleteOptions;
@@ -243,6 +243,7 @@ where
             get(get_local_replica_directories::<A>),
         ),
         ("/data/:key", get(get_data::<A>)),
+        ("/data/:key", head(exist_data::<A>)),
         ("/data/:key", post(put_data::<A>)),
         ("/data/:key", delete(delete_data::<A>)),
     ]
@@ -365,7 +366,7 @@ async fn find_group<A: Authenticator>(
 async fn metrics<A: Authenticator>(
     bob: Extension<BobServer<A>>,
 ) -> Json<MetricsSnapshotModel> {
-    let snapshot = bob.metrics().read().await.clone();
+    let snapshot = bob.metrics().read().expect("rwlock").clone();
     Json(snapshot.into())
 }
 
@@ -767,14 +768,19 @@ where
     if !bob.auth().check_credentials_rest(creds.into())?.has_rest_write() {
         return Err(AuthError::PermissionDenied.into());
     }
-    let group = find_group(&bob, vdisk_id).await?;
-    if let Some(err) = group.remount().await.err() {
-        Err(StatusExt::new(StatusCode::OK, false, err.to_string()))
-    } else {
-        info!("vdisks group {} successfully restarted", vdisk_id);
-        let msg = format!("vdisks group {} successfully restarted", vdisk_id);
-        Ok(StatusExt::new(StatusCode::OK, true, msg))
-    }
+    bob.grinder()
+        .backend()
+        .inner()
+        .remount_vdisk(vdisk_id)
+        .await
+        .map(|_| {
+            StatusExt::new(
+                StatusCode::OK,
+                true,
+                format!("vdisk {} successfully restarted", vdisk_id),
+            )
+        })
+        .map_err(|e| StatusExt::new(StatusCode::OK, false, e.to_string()))
 }
 
 // DELETE /vdisks/:vdisk_id/partitions/by_timestamp/:timestamp
@@ -968,6 +974,29 @@ where
         .expect("failed to parse content type value");
     headers.insert(CONTENT_TYPE, val);
     Ok((headers, result.inner().to_owned()))
+}
+
+// HEAD /data/:key
+async fn exist_data<A>(
+    bob: Extension<BobServer<A>>,
+    AxumPath(key): AxumPath<String>,
+    creds: CredentialsHolder<A>,
+) -> Result<StatusCode, StatusExt>
+where
+    A: Authenticator,
+{
+    if !bob.auth().check_credentials_rest(creds.into())?.has_read() {
+        return Err(AuthError::PermissionDenied.into());
+    }
+    let keys = [DataKey::from_str(&key)?.0];
+    let opts = BobOptions::new_get(None);
+    let result = bob.grinder().exist(&keys, &opts).await?;
+
+    match result.get(0) {
+        Some(true) => Ok(StatusCode::OK),
+        Some(false) => Ok(StatusCode::NOT_FOUND),
+        None => Err(StatusExt::new(StatusCode::INTERNAL_SERVER_ERROR, false, "Missing 'exist' result".to_owned()))
+    }
 }
 
 // POST /data/:key

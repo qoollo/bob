@@ -4,15 +4,54 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- 'Exists' method through HEAD request in REST API (#691)
+- Support for 'exists' method in bobt (#691)
+
+#### Changed
+- Log message about the lack of connection to graphite became more understandable (#684)
+- Hostname resolving in background tasks (#529)
+- Add condition to background_put (#589)
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.7] - 2022-11-28
+#### Added
+- Include bobt into the zip archive attached to the release infrastructure (#669)
+- Include bobc into release builds (#569)
+- Added blob-info and index-info features to brt (#356)
+- Support for files, file name patterns, key ranges and a 'exists' subcommand to 'bobc' (#539)
+
+#### Changed
+- Using interval logger in metric exporter to reduce error log density (#592)
+- Using standard Authorization header for basic auth (#616)
+- Change locks to sync where possible (#472)
+
+#### Fixed
+- Clear bloom-filter memory on remount (#636)
+
+#### Updated
+- Pearl updated to v0.15.0 (#668)
+- Updated versions of dependencies (#551)
+
+
+## [2.1.0-alpha.6] - 2022-11-15
+#### Added
 - Add clusterwide delete operation (#364)
 - TLS support, TLS for grpc or rest can be enabled via cluster & node config (#303)
+- Final summary and return code to `bobt` (#649)
 
 #### Changed
 - Update rust edition to 2021 (#484)
 - Remove unnecessary data clone (#506)
 - Compare vdiskid first (#594)
 - Optimize finding actual holders (#595)
-- Add condition to background_put (#589)
+- Logger output directed to stdout instead of stderr in bobt (#651)
+- Replaced deprecated chrono functions (#660)
 
 #### Fixed
 - Print full error text received from Pearl in exist function (#581)
@@ -21,9 +60,10 @@ Bob versions changelog
 - Fix response in delete request (#558)
 - Fixed panic in brt because of duplicate long arg name (#563)
 - Make username and password args of `bobt` optional (#555)
+- Replaced deleted Pipers crate (#646)
 
 #### Updated
-
+- Pearl updated to v0.14.0 (#659)
 
 
 ## [2.1.0-alpha.5] - 2022-08-04
