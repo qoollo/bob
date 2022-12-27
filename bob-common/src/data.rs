@@ -174,6 +174,7 @@ bitflags! {
     #[derive(Default)]
     pub struct BobFlags: u8 {
         const FORCE_NODE = 0x01;
+        const FORCE_OP = 0x02;
     }
 }
 
@@ -205,6 +206,9 @@ impl BobOptions {
         let remote_nodes = options.map_or(Vec::new(), |vopts| {
             if vopts.force_node {
                 flags |= BobFlags::FORCE_NODE;
+            }
+            if vopts.force_delete {
+                flags |= BobFlags::FORCE_OP;
             }
             vopts.remote_nodes
         });

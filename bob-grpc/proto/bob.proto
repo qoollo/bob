@@ -91,4 +91,5 @@ message BobError {
 message DeleteOptions {
     repeated string remote_nodes = 1;
     bool force_node = 2; // Force operation to be served by node to which it comes
+    bool force_delete = 3; // Force add record marker to storage
 }

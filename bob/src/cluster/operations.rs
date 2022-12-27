@@ -246,6 +246,7 @@ pub(crate) async fn delete_local_aliens(
     node_names: Vec<String>,
     key: BobKey,
     operation: Operation,
+    force_delete: bool,
 ) -> Result<(), PutOptions> {
     let mut add_nodes = vec![];
     for node_name in node_names {
@@ -253,7 +254,7 @@ pub(crate) async fn delete_local_aliens(
         op.set_remote_folder(node_name.clone());
         debug!("DELETE[{}] delete to local alien: {:?}", key, node_name);
 
-        if let Err(e) = backend.delete_local(key, op).await {
+        if let Err(e) = backend.delete_local(key, op, force_delete).await {
             debug!("DELETE[{}] local support delete result: {:?}", key, e);
             add_nodes.push(node_name);
         }
@@ -331,9 +332,10 @@ pub(crate) async fn delete_at_local_node(
     key: BobKey,
     vdisk_id: VDiskId,
     disk_path: DiskPath,
+    force_delete: bool,
 ) -> Result<(), Error> {
     debug!("local node has vdisk replica, put local");
     let op = Operation::new_local(vdisk_id, disk_path);
-    backend.delete_local(key, op).await?;
+    backend.delete_local(key, op, force_delete).await?;
     Ok(())
 }

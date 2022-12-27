@@ -603,6 +603,7 @@ impl Group {
         key: BobKey,
         is_alien: bool,
         timestamp_config: StartTimestampConfig,
+        force_delete: bool,
     ) -> Result<u64, Error> {
         let is_empty = self.holders.read().await.len() == 0;
         // We keep holders unnlocked because actual holder should created exactly one holder anyway
@@ -610,11 +611,16 @@ impl Group {
             let holder = self
                 .get_actual_holder(get_current_timestamp(), timestamp_config)
                 .await?;
-            self.delete_in_holders(std::iter::once((holder.0, &holder.1)), key, is_alien)
-                .await
+            self.delete_in_holders(
+                std::iter::once((holder.0, &holder.1)),
+                key,
+                is_alien,
+                force_delete,
+            )
+            .await
         } else {
             let holders = self.holders.read().await;
-            self.delete_in_holders(holders.iter().enumerate(), key, is_alien)
+            self.delete_in_holders(holders.iter().enumerate(), key, is_alien, force_delete)
                 .await
         }
     }
@@ -624,10 +630,11 @@ impl Group {
         holders: impl Iterator<Item = (ChildId, &Holder)>,
         key: BobKey,
         is_alien: bool,
+        force_delete: bool,
     ) -> Result<u64, Error> {
         let mut total_count = 0;
         for holder in holders {
-            let delete = Self::delete_common(holder.1.clone(), key, is_alien).await;
+            let delete = Self::delete_common(holder.1.clone(), key, force_delete).await;
             if is_alien {
                 // We need to add marker record to alien regardless of record presence
                 self.holders
@@ -649,8 +656,8 @@ impl Group {
         Ok(total_count)
     }
 
-    async fn delete_common(holder: Holder, key: BobKey, is_alien: bool) -> Result<u64, Error> {
-        let result = holder.delete(key, is_alien).await;
+    async fn delete_common(holder: Holder, key: BobKey, force_delete: bool) -> Result<u64, Error> {
+        let result = holder.delete(key, force_delete).await;
         if let Err(e) = result {
             // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
             // holder but instead try to restart the whole disk

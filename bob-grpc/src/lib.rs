@@ -54,6 +54,7 @@ impl DeleteOptions {
         Self {
             remote_nodes: vec![],
             force_node: false,
+            force_delete: false,
         }
     }
 
@@ -61,6 +62,7 @@ impl DeleteOptions {
         Self {
             remote_nodes: vec![],
             force_node: true,
+            force_delete: false,
         }
     }
 
@@ -68,6 +70,15 @@ impl DeleteOptions {
         Self {
             remote_nodes,
             force_node: true,
+            force_delete: false,
+        }
+    }
+
+    pub fn new_force_alien(remote_nodes: Vec<String>) -> Self {
+        Self {
+            remote_nodes,
+            force_node: true,
+            force_delete: true,
         }
     }
 }

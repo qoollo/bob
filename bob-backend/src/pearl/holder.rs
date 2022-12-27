@@ -451,15 +451,18 @@ impl Holder {
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
 
-    pub async fn delete(&self, key: BobKey, is_alien: bool) -> Result<u64, Error> {
+    pub async fn delete(&self, key: BobKey, force_delete: bool) -> Result<u64, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
             let storage = state.get();
             trace!("Vdisk: {}, delete key: {}", self.vdisk, key);
-            let res = storage.delete(Key::from(key), is_alien).await.map_err(|e| {
-                trace!("error on delete: {:?}", e);
-                Error::storage(e.to_string())
-            });
+            let res = storage
+                .delete(Key::from(key), !force_delete)
+                .await
+                .map_err(|e| {
+                    trace!("error on delete: {:?}", e);
+                    Error::storage(e.to_string())
+                });
             self.update_last_modification();
             res
         } else {

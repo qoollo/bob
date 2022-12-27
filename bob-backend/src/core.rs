@@ -12,7 +12,7 @@ use crate::{
 };
 use log::Level;
 
-use bob_common::{metrics::BLOOM_FILTERS_RAM, interval_logger::IntervalLoggerSafe, };
+use bob_common::{interval_logger::IntervalLoggerSafe, metrics::BLOOM_FILTERS_RAM};
 
 pub const BACKEND_STARTING: f64 = 0f64;
 pub const BACKEND_STARTED: f64 = 1f64;
@@ -107,8 +107,13 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
     async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 
-    async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error>;
-    async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error>;
+    async fn delete(&self, op: Operation, key: BobKey, force_delete: bool) -> Result<u64, Error>;
+    async fn delete_alien(
+        &self,
+        op: Operation,
+        key: BobKey,
+        force_delete: bool,
+    ) -> Result<u64, Error>;
 
     async fn shutdown(&self);
 
@@ -445,18 +450,23 @@ impl Backend {
         self.inner.free_least_used_resources().await
     }
 
-    pub async fn delete(&self, key: BobKey, options: BobOptions) -> Result<(), Error> {
+    pub async fn delete(
+        &self,
+        key: BobKey,
+        options: BobOptions,
+        force_delete: bool,
+    ) -> Result<(), Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         if !options.remote_nodes().is_empty() {
             for node_name in options.remote_nodes() {
                 let mut op = Operation::new_alien(vdisk_id);
                 op.set_remote_folder(node_name.to_owned());
-                self.delete_single(key, op).await?;
+                self.delete_single(key, op, force_delete).await?;
             }
             Ok(())
         } else if let Some(path) = disk_path {
             let op = Operation::new_local(vdisk_id, path);
-            self.delete_single(key, op).await.map(|_| ())
+            self.delete_single(key, op, force_delete).await.map(|_| ())
         } else {
             error!(
                 "DELETE[{}] dont now what to do with data: op: {:?}. Data is not local and alien",
@@ -466,21 +476,31 @@ impl Backend {
         }
     }
 
-    pub async fn delete_local(&self, key: BobKey, op: Operation) -> Result<u64, Error> {
-        self.delete_single(key, op).await
+    pub async fn delete_local(
+        &self,
+        key: BobKey,
+        op: Operation,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
+        self.delete_single(key, op, force_delete).await
     }
 
-    async fn delete_single(&self, key: BobKey, operation: Operation) -> Result<u64, Error> {
+    async fn delete_single(
+        &self,
+        key: BobKey,
+        operation: Operation,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
         if operation.is_data_alien() {
             debug!("DELETE[{}] from backend, foreign data", key);
-            self.inner.delete_alien(operation, key).await
+            self.inner.delete_alien(operation, key, force_delete).await
         } else {
             debug!(
                 "DELETE[{}][{}] from backend",
                 key,
                 operation.disk_name_local()
             );
-            self.inner.delete(operation, key).await
+            self.inner.delete(operation, key, force_delete).await
         }
     }
 

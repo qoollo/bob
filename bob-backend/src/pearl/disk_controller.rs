@@ -382,10 +382,7 @@ impl DiskController {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = self.get_or_create_pearl(&op).await;
             match vdisk_group {
-                Ok(group) => match group
-                    .put(key, data, StartTimestampConfig::new(false))
-                    .await
-                {
+                Ok(group) => match group.put(key, data, StartTimestampConfig::new(false)).await {
                     Err(e) => Err(self.process_error(e).await),
                     Ok(()) => Ok(()),
                 },
@@ -402,7 +399,12 @@ impl DiskController {
         }
     }
 
-    pub(crate) async fn put(&self, op: Operation, key: BobKey, data: &BobData) -> BackendResult<()> {
+    pub(crate) async fn put(
+        &self,
+        op: Operation,
+        key: BobKey,
+        data: &BobData,
+    ) -> BackendResult<()> {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = {
                 let groups = self.groups.read().await;
@@ -595,7 +597,12 @@ impl DiskController {
         result
     }
 
-    pub(crate) async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+    pub(crate) async fn delete(
+        &self,
+        op: Operation,
+        key: BobKey,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
         if *self.state.read().await == GroupsState::Ready {
             debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
             let vdisk_group = self
@@ -607,7 +614,7 @@ impl DiskController {
                 .cloned();
             if let Some(group) = vdisk_group {
                 group
-                    .delete(key, false, StartTimestampConfig::default())
+                    .delete(key, false, StartTimestampConfig::default(), force_delete)
                     .await
             } else {
                 error!("DELETE[{}] Cannot find storage, operation: {:?}", key, op);
@@ -618,12 +625,17 @@ impl DiskController {
         }
     }
 
-    pub(crate) async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+    pub(crate) async fn delete_alien(
+        &self,
+        op: Operation,
+        key: BobKey,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = self.get_or_create_pearl(&op).await;
             match vdisk_group {
                 Ok(group) => match group
-                    .delete(key, true, StartTimestampConfig::new(false))
+                    .delete(key, true, StartTimestampConfig::new(false), force_delete)
                     .await
                 {
                     Err(e) => Err(self.process_error(e).await),

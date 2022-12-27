@@ -187,7 +187,7 @@ impl BackendStorage for MemBackend {
         self.foreign_data.exist(operation.vdisk_id(), keys).await
     }
 
-    async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+    async fn delete(&self, op: Operation, key: BobKey, _force_delete: bool) -> Result<u64, Error> {
         debug!("DELETE[{}][{}] from backend", key, op.disk_name_local());
         if let Some(mem_disk) = self.disks.get(&op.disk_name_local()) {
             mem_disk.delete(op.vdisk_id(), key).await
@@ -197,7 +197,12 @@ impl BackendStorage for MemBackend {
         }
     }
 
-    async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+    async fn delete_alien(
+        &self,
+        op: Operation,
+        key: BobKey,
+        _force_delete: bool,
+    ) -> Result<u64, Error> {
         debug!("DELETE[{}] from backend, foreign data", key);
         debug!("{:?}", self.foreign_data);
         self.foreign_data.delete(op.vdisk_id(), key).await

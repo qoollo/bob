@@ -86,7 +86,7 @@ impl Quorum {
         let mut total = 0;
         if let Some(disk_path) = disk_path {
             total += 1;
-            let res = delete_at_local_node(&self.backend, key, vdisk_id, disk_path).await;
+            let res = delete_at_local_node(&self.backend, key, vdisk_id, disk_path, true).await;
             if let Err(e) = res {
                 error!("{}", e);
                 failed_nodes.push(self.mapper.local_node_name().to_string());
@@ -206,11 +206,18 @@ impl Quorum {
             return Err(Error::internal());
         }
         trace!("selection of free nodes available for data writing");
-        let sup_nodes = self.mapper.get_support_nodes(key, failed_nodes.len());
-        debug!("PUT[{}] sup put nodes: {:?}", key, &sup_nodes);
-        let nodes_need_remote_backup: Vec<_> = failed_nodes.drain(..sup_nodes.len()).collect();
-        let queries: Vec<_> = sup_nodes
+        let (primary_sup_nodes, secondary_sup_nodes) =
+            self.mapper.get_support_nodes(key, failed_nodes.len());
+        debug!(
+            "PUT[{}] sup put nodes, primary: {:?}, secondary: {:?}",
+            key, &primary_sup_nodes, &secondary_sup_nodes
+        );
+        let nodes_need_remote_backup: Vec<_> = failed_nodes
+            .drain(..(primary_sup_nodes.len() + secondary_sup_nodes.len()))
+            .collect();
+        let queries: Vec<_> = primary_sup_nodes
             .into_iter()
+            .chain(secondary_sup_nodes)
             .zip(nodes_need_remote_backup)
             .map(|(node, remote_node)| (node, PutOptions::new_alien(vec![remote_node])))
             .collect();
@@ -252,13 +259,23 @@ impl Quorum {
             return Err(Error::internal());
         }
         trace!("selection of free nodes available for data writing");
-        let sup_nodes = self.mapper.get_support_nodes(key, failed_nodes.len());
-        debug!("DELETE[{}] sup delete nodes: {:?}", key, &sup_nodes);
-        let nodes_need_remote_backup: Vec<_> = failed_nodes.drain(..sup_nodes.len()).collect();
-        let queries: Vec<_> = sup_nodes
+        let (primary, secondary) = self.mapper.get_support_nodes(key, failed_nodes.len());
+        debug!(
+            "DELETE[{}] sup delete nodes, primary: {:?} secondary: {:?}",
+            key, &primary, &secondary
+        );
+        let primary_need_remote_backup: Vec<_> = failed_nodes.drain(..primary.len()).collect();
+        let secondary_need_remote_backup: Vec<_> = failed_nodes.drain(..secondary.len()).collect();
+        let queries: Vec<_> = primary
             .into_iter()
-            .zip(nodes_need_remote_backup)
-            .map(|(node, remote_node)| (node, DeleteOptions::new_alien(vec![remote_node])))
+            .zip(primary_need_remote_backup)
+            .map(|(node, remote_node)| (node, DeleteOptions::new_force_alien(vec![remote_node])))
+            .chain(
+                secondary
+                    .into_iter()
+                    .zip(secondary_need_remote_backup)
+                    .map(|(node, remote_node)| (node, DeleteOptions::new_alien(vec![remote_node]))),
+            )
             .collect();
         debug!("DELETE[{}] additional alien requests: {:?}", key, queries);
         if let Err(sup_nodes_errors) = delete_sup_nodes(key, &queries).await {
@@ -274,7 +291,8 @@ impl Quorum {
             let vdisk_id = self.mapper.vdisk_id_from_key(key);
             let operation = Operation::new_alien(vdisk_id);
             let local_delete =
-                delete_local_aliens(&self.backend, failed_nodes.clone(), key, operation).await;
+                delete_local_aliens(&self.backend, failed_nodes.clone(), key, operation, true)
+                    .await;
             if let Err(e) = local_delete {
                 error!(
                     "DELETE[{}] local delete failed, smth wrong with backend: {:?}",

@@ -282,7 +282,7 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+    async fn delete(&self, op: Operation, key: BobKey, force_delete: bool) -> Result<u64, Error> {
         debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
         let dc_option = self
             .disk_controllers
@@ -290,16 +290,23 @@ impl BackendStorage for Pearl {
             .find(|dc| dc.can_process_operation(&op));
 
         if let Some(disk_controller) = dc_option {
-            disk_controller.delete(op, key).await
+            disk_controller.delete(op, key, force_delete).await
         } else {
             Err(Error::dc_is_not_available())
         }
     }
 
-    async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
+    async fn delete_alien(
+        &self,
+        op: Operation,
+        key: BobKey,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
         debug!("DELETE[alien][{}] from pearl backend", key);
         if self.alien_disk_controller.can_process_operation(&op) {
-            self.alien_disk_controller.delete_alien(op, key).await
+            self.alien_disk_controller
+                .delete_alien(op, key, force_delete)
+                .await
         } else {
             Err(Error::dc_is_not_available())
         }
