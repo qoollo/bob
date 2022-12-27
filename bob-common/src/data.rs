@@ -131,8 +131,7 @@ impl BobData {
         result.freeze()
     }
 
-    pub fn from_serialized_bytes(data: Vec<u8>) -> Result<BobData, Error> {
-        let mut bob_data = Bytes::from(data);
+    pub fn from_serialized_bytes(mut bob_data: Bytes) -> Result<BobData, Error> {
         let ts_bytes = bob_data.split_to(Self::TIMESTAMP_LEN);
         let ts_bytes = (&*ts_bytes)
             .try_into()

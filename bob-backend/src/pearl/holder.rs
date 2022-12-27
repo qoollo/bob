@@ -267,7 +267,7 @@ impl Holder {
                 .and_then(|r| match r {
                     ReadResult::Found(v) => {
                         counter!(PEARL_GET_BYTES_COUNTER, v.len() as u64);
-                        BobData::from_serialized_bytes(v.to_vec()).map(|d| ReadResult::Found(d))
+                        BobData::from_serialized_bytes(v).map(|d| ReadResult::Found(d))
                     }
                     ReadResult::Deleted(ts) => Ok(ReadResult::Deleted(ts)),
                     ReadResult::NotFound => {
