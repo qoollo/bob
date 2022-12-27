@@ -78,6 +78,7 @@ impl Group {
         debug!("{}: count holders: {}", self, new_holders.len());
         debug!("{}: save holders to group", self);
         let mut holders = self.holders.write().await;
+        holders.clear();
         holders.extend(new_holders).await;   
         debug!("{}: start holders", self);
         Self::run_pearls(&mut holders, pp).await

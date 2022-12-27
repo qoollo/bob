@@ -10,10 +10,10 @@ Bob versions changelog
 #### Changed
 - Log message about the lack of connection to graphite became more understandable (#684)
 - Hostname resolving in background tasks (#529)
-- Removed holder creation from post-processing (#701)
+- Removed broken logic of holder creation from group::run function (#701)
 
 #### Fixed
-- Data access operations will be locked during remount (#683)
+- Data access operations will be protected during remount to prevent data loss (#683)
 
 #### Updated
 
