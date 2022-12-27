@@ -658,7 +658,7 @@ impl Group {
                 error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
                 holder.prepare_storage().await?;
-                debug!("backend pearl group put common storage prepared");
+                debug!("backend::pearl::group::delete_common storage prepared");
             }
             Err(e)
         } else {

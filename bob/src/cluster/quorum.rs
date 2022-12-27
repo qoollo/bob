@@ -273,9 +273,9 @@ impl Quorum {
             debug!("need additional local alien copies: {}", failed_nodes.len());
             let vdisk_id = self.mapper.vdisk_id_from_key(key);
             let operation = Operation::new_alien(vdisk_id);
-            let local_put =
+            let local_delete =
                 delete_local_aliens(&self.backend, failed_nodes.clone(), key, operation).await;
-            if let Err(e) = local_put {
+            if let Err(e) = local_delete {
                 error!(
                     "DELETE[{}] local delete failed, smth wrong with backend: {:?}",
                     key, e
