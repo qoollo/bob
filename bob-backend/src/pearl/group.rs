@@ -145,12 +145,12 @@ impl Group {
     }
 
     // find in all pearls actual pearl
-    async fn find_actual_holder(&self, ts: u64) -> BackendResult<(ChildId, Holder)> {
+    async fn find_actual_holder(&self, data_timestamp: u64) -> BackendResult<(ChildId, Holder)> {
         let holders = self.holders.read().await;
         let mut holders_for_time = holders
             .iter()
             .enumerate()
-            .filter(|h| h.1.gets_into_interval(ts));
+            .filter(|h| h.1.gets_into_interval(data_timestamp));
 
         if let Some(mut max) = holders_for_time.next() {
             for elem in holders_for_time {
@@ -162,7 +162,7 @@ impl Group {
         } else {
             Err(Error::failed(format!(
                 "cannot find actual pearl folder. meta: {}",
-                ts
+                data_timestamp
             )))
         }
     }
@@ -242,17 +242,16 @@ impl Group {
         if let Err(e) = result {
             // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
             // holder but instead try to restart the whole disk
-            if e.is_possible_disk_disconnection() {
-                return Err(e);
-            }
-            if !e.is_duplicate() && !e.is_not_ready() {
+            if !e.is_possible_disk_disconnection() && !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
                 holder.prepare_storage().await?;
                 debug!("backend pearl group put common storage prepared");
             }
+            Err(e)
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     pub async fn get(&self, key: BobKey) -> Result<BobData, Error> {
@@ -320,22 +319,30 @@ impl Group {
     pub async fn exist(&self, keys: &[BobKey]) -> Vec<bool> {
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
+        let mut max_timestamp = None;
+        let mut result = false;
         for (ind, &key) in keys.iter().enumerate() {
-            let mut max_delete_ts = 0; // In case of multiple holders with same ts and delete action
-            let mut max_ts = 0;
             for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
             {
                 match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
                     ReadResult::Found(ts) => {
-                        max_ts = max_ts.max(ts.into());
+                        let ts = ts.into();
+                        if ts > max_timestamp.unwrap_or(0) {
+                            max_timestamp = Some(ts);
+                            result = true;
+                        }
                     }
                     ReadResult::Deleted(ts) => {
-                        max_delete_ts = max_delete_ts.max(ts.into());
+                        let ts = ts.into();
+                        if ts >= max_timestamp.unwrap_or(0) {
+                            max_timestamp = Some(ts);
+                            result = false;
+                        }
                     }
                     ReadResult::NotFound => continue,
                 }
             }
-            exist[ind] = max_ts > max_delete_ts;
+            exist[ind] = result;
         }
         exist
     }
@@ -597,26 +604,37 @@ impl Group {
         is_alien: bool,
         timestamp_config: StartTimestampConfig,
     ) -> Result<u64, Error> {
-        let holders = self.holders.read().await;
-        if holders.len() == 0 {
+        let is_empty = self.holders.read().await.len() == 0;
+        // We keep holders unnlocked because actual holder should created exactly one holder anyway
+        if is_empty {
             let holder = self
                 .get_actual_holder(get_current_timestamp(), timestamp_config)
-                .await?
-                .1;
-            Self::delete_in_holders(std::iter::once(&holder), key, is_alien).await
+                .await?;
+            self.delete_in_holders(std::iter::once((holder.0, &holder.1)), key, is_alien)
+                .await
         } else {
-            Self::delete_in_holders(holders.iter(), key, is_alien).await
+            let holders = self.holders.read().await;
+            self.delete_in_holders(holders.iter().enumerate(), key, is_alien)
+                .await
         }
     }
 
     async fn delete_in_holders(
-        holders: impl Iterator<Item = &Holder>,
+        &self,
+        holders: impl Iterator<Item = (ChildId, &Holder)>,
         key: BobKey,
         is_alien: bool,
     ) -> Result<u64, Error> {
         let mut total_count = 0;
         for holder in holders {
-            let delete = Self::delete_common(holder.clone(), key, is_alien).await;
+            let delete = Self::delete_common(holder.1.clone(), key, is_alien).await;
+            if is_alien {
+                // We need to add marker record to alien regardless of record presence
+                self.holders
+                    .write()
+                    .await
+                    .add_to_parents(holder.0, &Key::from(key));
+            }
             match delete {
                 Ok(count) => {
                     trace!("delete data: {:?} from: {:?}", count, holder);
@@ -636,18 +654,13 @@ impl Group {
         if let Err(e) = result {
             // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
             // holder but instead try to restart the whole disk
-            if e.is_possible_disk_disconnection() {
-                return Err(e);
-            }
-            if !e.is_duplicate() && !e.is_not_ready() {
+            if !e.is_possible_disk_disconnection() && !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
                 holder.prepare_storage().await?;
                 debug!("backend pearl group put common storage prepared");
-                Ok(0)
-            } else {
-                Err(e)
             }
+            Err(e)
         } else {
             result
         }

@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 use super::{
     operations::{
-        delete_at_local_node, delete_at_nodes, delete_local_all, delete_sup_nodes,
+        delete_at_local_node, delete_at_nodes, delete_local_aliens, delete_sup_nodes,
         group_keys_by_nodes, lookup_local_alien, lookup_local_node, lookup_remote_aliens,
         lookup_remote_nodes, put_at_least, put_local_all, put_local_node, put_sup_nodes, Tasks,
     },
@@ -58,9 +58,7 @@ impl Quorum {
             debug!("PUT[{}] spawn {} background put tasks", key, tasks.len());
             let q = self.clone();
             let data = data.clone();
-            tokio::spawn(async move {
-                q.background_put(tasks, key, &data, failed_nodes).await
-            });
+            tokio::spawn(async move { q.background_put(tasks, key, &data, failed_nodes).await });
             Ok(())
         } else {
             warn!(
@@ -228,14 +226,8 @@ impl Quorum {
         debug!("need additional local alien copies: {}", failed_nodes.len());
         let vdisk_id = self.mapper.vdisk_id_from_key(key);
         let operation = Operation::new_alien(vdisk_id);
-        let local_put = put_local_all(
-            &self.backend,
-            failed_nodes.clone(),
-            key,
-            data,
-            operation,
-        )
-        .await;
+        let local_put =
+            put_local_all(&self.backend, failed_nodes.clone(), key, data, operation).await;
         if let Err(e) = local_put {
             error!(
                 "PUT[{}] local put failed, smth wrong with backend: {:?}",
@@ -277,19 +269,21 @@ impl Quorum {
                     .map(|err| err.node_name().to_owned()),
             )
         };
-        debug!("need additional local alien copies: {}", failed_nodes.len());
-        let vdisk_id = self.mapper.vdisk_id_from_key(key);
-        let operation = Operation::new_alien(vdisk_id);
-        let local_put = delete_local_all(&self.backend, failed_nodes.clone(), key, operation).await;
-        if let Err(e) = local_put {
-            error!(
-                "DELETE[{}] local delete failed, smth wrong with backend: {:?}",
-                key, e
-            );
-            Err(Error::internal())
-        } else {
-            Ok(())
+        if !failed_nodes.is_empty() {
+            debug!("need additional local alien copies: {}", failed_nodes.len());
+            let vdisk_id = self.mapper.vdisk_id_from_key(key);
+            let operation = Operation::new_alien(vdisk_id);
+            let local_put =
+                delete_local_aliens(&self.backend, failed_nodes.clone(), key, operation).await;
+            if let Err(e) = local_put {
+                error!(
+                    "DELETE[{}] local delete failed, smth wrong with backend: {:?}",
+                    key, e
+                );
+                return Err(Error::internal());
+            }
         }
+        Ok(())
     }
 }
 

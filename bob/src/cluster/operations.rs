@@ -241,7 +241,7 @@ pub(crate) async fn put_local_all(
     }
 }
 
-pub(crate) async fn delete_local_all(
+pub(crate) async fn delete_local_aliens(
     backend: &Backend,
     node_names: Vec<String>,
     key: BobKey,
