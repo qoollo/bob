@@ -36,8 +36,7 @@ tower = "0.4"
 tower-service = "0.3"
 
 [dependencies.pearl]
-git = "https://github.com/qoollo/pearl"
-branch = "208-return-deletion-type"
+version = "0.16.0"
 
 [dependencies.tokio]
 version = "1.21"

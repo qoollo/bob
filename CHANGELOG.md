@@ -9,6 +9,7 @@ Bob versions changelog
 - Round robin algorithm for alien nodes selection (#570)
 
 #### Changed
+- Use bytes to pass data to pearl (#597)
 - Log message about the lack of connection to graphite became more understandable (#684)
 - Hostname resolving in background tasks (#529)
 - Make delete operation recoverable (#533)
@@ -17,7 +18,7 @@ Bob versions changelog
 
 
 #### Updated
-
+- Pearl updated to v0.16.0 (#706)
 
 
 ## [2.1.0-alpha.7] - 2022-11-28
