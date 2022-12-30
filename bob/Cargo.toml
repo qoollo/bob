@@ -45,7 +45,7 @@ tower-service = "0.3"
 uuid = "1.1.2"
 
 [dependencies.pearl]
-version = "0.15.0"
+version = "0.16.0"
 
 [dependencies.tokio]
 version = "1.21"
