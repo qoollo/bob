@@ -20,3 +20,8 @@ serde_yaml = "0.8"
 serde_json = "1.0"
 futures = "0.3"
 unicase = "2.6"
+
+[dependencies.tokio]
+version = "1.21"
+default-features = false
+features = []
