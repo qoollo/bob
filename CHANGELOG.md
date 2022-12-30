@@ -9,6 +9,7 @@ Bob versions changelog
 - Round robin algorithm for alien nodes selection (#570)
 
 #### Changed
+- Use bytes to pass data to pearl (#597)
 - Log message about the lack of connection to graphite became more understandable (#684)
 - Hostname resolving in background tasks (#529)
 
