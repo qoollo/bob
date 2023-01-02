@@ -120,7 +120,7 @@ impl BobData {
     pub fn to_serialized_bytes(&self) -> Bytes {
         let mut result = BytesMut::with_capacity(Self::TIMESTAMP_LEN + self.inner.len());
         result.extend_from_slice(&self.meta.timestamp.to_be_bytes());
-        result.extend(&self.inner);
+        result.extend_from_slice(&self.inner);
         result.freeze()
     }
 
