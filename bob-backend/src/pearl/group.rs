@@ -334,7 +334,7 @@ impl Group {
                     }
                     ReadResult::Deleted(ts) => {
                         let ts = ts.into();
-                        if ts >= max_timestamp.unwrap_or(0) {
+                        if ts > max_timestamp.unwrap_or(0) {
                             max_timestamp = Some(ts);
                             result = false;
                         }
