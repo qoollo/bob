@@ -277,7 +277,7 @@ impl Group {
                     ReadResult::Deleted(ts) => {
                         trace!("{} is deleted in {:?} at {}", key, holder, ts);
                         let ts: u64 = ts.into();
-                        if ts >= max_timestamp.unwrap_or(0) {
+                        if ts > max_timestamp.unwrap_or(0) {
                             max_timestamp = Some(ts);
                             result = None;
                         }
