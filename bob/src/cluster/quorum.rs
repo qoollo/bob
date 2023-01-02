@@ -213,9 +213,8 @@ impl Quorum {
             "PUT[{}] sup put nodes, primary: {:?}, secondary: {:?}",
             key, &primary_sup_nodes, &secondary_sup_nodes
         );
-        let nodes_need_remote_backup: Vec<_> = failed_nodes
-            .drain(..(primary_sup_nodes.len() + secondary_sup_nodes.len()))
-            .collect();
+        let nodes_need_remote_backup: Vec<_> =
+            failed_nodes.drain(..primary_sup_nodes.len()).collect();
         let queries: Vec<_> = primary_sup_nodes
             .into_iter()
             .chain(secondary_sup_nodes)
