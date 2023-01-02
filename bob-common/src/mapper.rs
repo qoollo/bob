@@ -121,38 +121,37 @@ impl Virtual {
         self.vdisks.get(&id).expect("vdisk not found").nodes()
     }
 
-    pub fn get_support_nodes(&self, key: BobKey, count: usize) -> (Vec<&Node>, Vec<&Node>) {
+    pub fn get_support_nodes(&self, key: BobKey, count: usize) -> Vec<&Node> {
         debug_assert!(count <= self.nodes.len());
         if count == 0 {
-            return (vec![], vec![]);
+            return vec![];
         }
         trace!("get target nodes for given key");
         let target_nodes = self.get_target_nodes_for_key(key);
         trace!("extract indexes of target nodes");
         trace!("nodes available: {}", self.nodes.len());
         let offset = self.support_nodes_offset.fetch_add(1, Ordering::Relaxed);
-        let mut primary_support_nodes = Vec::with_capacity(count);
+        let mut support_nodes = Vec::with_capacity(count);
         for (id, node) in self.nodes.iter().skip(offset % self.nodes.len()) {
             if target_nodes.iter().all(|i| i.index() != *id) {
-                primary_support_nodes.push(node);
-                if primary_support_nodes.len() >= count {
+                support_nodes.push(node);
+                if support_nodes.len() >= count {
                     break;
                 }
             }
         }
-        let mut secondary_support_nodes = Vec::with_capacity(count);
-        if secondary_support_nodes.len() < count && offset % self.nodes.len() > 0 {
+        if support_nodes.len() < count && offset % self.nodes.len() > 0 {
             for (id, node) in self.nodes.iter().take(offset % self.nodes.len()) {
                 if target_nodes.iter().all(|i| i.index() != *id) {
-                    secondary_support_nodes.push(node);
-                    if primary_support_nodes.len() + secondary_support_nodes.len() >= count {
+                    support_nodes.push(node);
+                    if support_nodes.len() >= count {
                         break;
                     }
                 }
             }
         }
-        debug_assert!(primary_support_nodes.len() + secondary_support_nodes.len() <= count);
-        (primary_support_nodes, secondary_support_nodes)
+        debug_assert!(support_nodes.len() <= count);
+        support_nodes
     }
 
     pub fn vdisk_id_from_key(&self, key: BobKey) -> VDiskId {

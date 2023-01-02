@@ -133,9 +133,9 @@ impl Cluster for Quorum {
         Ok(exist)
     }
 
-    async fn delete(&self, key: BobKey) -> Result<(), Error> {
+    async fn delete(&self, key: BobKey, timestamp: u64) -> Result<(), Error> {
         self.perform_on_nodes(key, "DELETE", move |c| {
-            Box::pin(c.delete(key, DeleteOptions::new_local()))
+            Box::pin(c.delete(key, DeleteOptions::new_local(timestamp)))
         })
         .await
     }

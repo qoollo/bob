@@ -50,35 +50,39 @@ impl GetOptions {
 }
 
 impl DeleteOptions {
-    pub fn new_all() -> Self {
+    pub fn new_all(timestamp: u64) -> Self {
         Self {
             remote_nodes: vec![],
             force_node: false,
             force_delete: false,
+            timestamp,
         }
     }
 
-    pub fn new_local() -> Self {
+    pub fn new_local(timestamp: u64) -> Self {
         Self {
             remote_nodes: vec![],
             force_node: true,
             force_delete: false,
+            timestamp,
         }
     }
 
-    pub fn new_alien(remote_nodes: Vec<String>) -> Self {
+    pub fn new_alien(remote_nodes: Vec<String>, timestamp: u64) -> Self {
         Self {
             remote_nodes,
             force_node: true,
             force_delete: false,
+            timestamp,
         }
     }
 
-    pub fn new_force_alien(remote_nodes: Vec<String>) -> Self {
+    pub fn new_force_alien(remote_nodes: Vec<String>, timestamp: u64) -> Self {
         Self {
             remote_nodes,
             force_node: true,
             force_delete: true,
+            timestamp,
         }
     }
 }

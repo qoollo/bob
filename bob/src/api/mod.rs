@@ -5,7 +5,7 @@ use axum::{
     body::{self, BoxBody},
     extract::{Extension, Path as AxumPath},
     response::IntoResponse,
-    routing::{delete, get, post, head, MethodRouter},
+    routing::{delete, get, head, post, MethodRouter},
     Json, Router, Server,
 };
 use axum_server::{
@@ -1079,7 +1079,11 @@ where
     match result.get(0) {
         Some(true) => Ok(StatusCode::OK),
         Some(false) => Ok(StatusCode::NOT_FOUND),
-        None => Err(StatusExt::new(StatusCode::INTERNAL_SERVER_ERROR, false, "Missing 'exist' result".to_owned()))
+        None => Err(StatusExt::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            false,
+            "Missing 'exist' result".to_owned(),
+        )),
     }
 }
 
@@ -1119,7 +1123,11 @@ where
     }
     let key = DataKey::from_str(&key)?.0;
     bob.grinder()
-        .delete(key, BobOptions::new_delete(None))
+        .delete(
+            key,
+            chrono::Local::now().timestamp() as u64,
+            BobOptions::new_delete(None),
+        )
         .await
         .map_err(|e| internal(e.to_string()))?;
     Ok(StatusExt::new(StatusCode::OK, true, format!("Done")))

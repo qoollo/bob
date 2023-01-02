@@ -250,7 +250,11 @@ where
         if let Some(key) = key {
             let sw = Stopwatch::start_new();
             self.grinder
-                .delete(key.key.into(), BobOptions::new_delete(options))
+                .delete(
+                    key.key.into(),
+                    chrono::Local::now().timestamp() as u64,
+                    BobOptions::new_delete(options),
+                )
                 .await?;
             let elapsed = sw.elapsed();
             debug!("DELETE-OK dt: {:?}", elapsed);

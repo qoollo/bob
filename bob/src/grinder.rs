@@ -211,7 +211,12 @@ impl Grinder {
         self.hw_counter.spawn_task();
     }
 
-    pub(crate) async fn delete(&self, key: BobKey, options: BobOptions) -> Result<(), Error> {
+    pub(crate) async fn delete(
+        &self,
+        key: BobKey,
+        timestamp: u64,
+        options: BobOptions,
+    ) -> Result<(), Error> {
         trace!(">>>- - - - - GRINDER DELETE START - - - - -");
         let force = options.flags().contains(BobFlags::FORCE_OP);
         let result = if options.flags().contains(BobFlags::FORCE_NODE) {
@@ -234,7 +239,7 @@ impl Grinder {
         } else {
             counter!(GRINDER_DELETE_COUNTER, 1);
             let sw = Stopwatch::start_new();
-            let result = self.cluster.delete(key).await;
+            let result = self.cluster.delete(key, timestamp).await;
             trace!(
                 "cluster processed delete, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0

@@ -108,7 +108,12 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 
     async fn delete(&self, op: Operation, key: BobKey, force_delete: bool) -> Result<u64, Error>;
-    async fn delete_alien(&self, op: Operation, key: BobKey, force_delete: bool) -> Result<u64, Error>;
+    async fn delete_alien(
+        &self,
+        op: Operation,
+        key: BobKey,
+        force_delete: bool,
+    ) -> Result<u64, Error>;
 
     async fn shutdown(&self);
 

@@ -79,7 +79,7 @@ impl Quorum {
         }
     }
 
-    async fn delete_on_nodes(&self, key: BobKey) -> Result<(), Error> {
+    async fn delete_on_nodes(&self, key: BobKey, timestamp: u64) -> Result<(), Error> {
         debug!("DELETE[{}] ~~~DELETE LOCAL NODE FIRST~~~", key);
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         let mut failed_nodes = vec![];
@@ -94,7 +94,7 @@ impl Quorum {
         };
 
         debug!("DELETE[{}] ~~~DELETE TO REMOTE NODES~~~", key);
-        let (errors, remote_count) = self.delete_at_remote_nodes(key).await;
+        let (errors, remote_count) = self.delete_at_remote_nodes(key, timestamp).await;
         total += remote_count;
         failed_nodes.extend(errors.iter().map(|o| o.node_name().to_string()));
         if failed_nodes.len() > 0 {
@@ -102,7 +102,7 @@ impl Quorum {
                 "DELETE[{}] was not successful. total {}, failed {:?}",
                 key, total, failed_nodes,
             );
-            if let Err(err) = self.delete_aliens(failed_nodes, key).await {
+            if let Err(err) = self.delete_aliens(failed_nodes, key, timestamp).await {
                 error!("DELETE[{}] smth wrong with cluster/node configuration", key);
                 error!("DELETE[{}] node errors: {:?}", key, errors);
                 Err(err)
@@ -165,12 +165,13 @@ impl Quorum {
     pub(crate) async fn delete_at_remote_nodes(
         &self,
         key: BobKey,
+        timestamp: u64,
     ) -> (Vec<NodeOutput<Error>>, usize) {
         let local_node = self.mapper.local_node_name();
         let target_nodes: Vec<_> = self
             .mapper
-            .nodes()
-            .values()
+            .get_target_nodes_for_key(key)
+            .iter()
             .filter(|n| n.name() != local_node)
             .collect();
         debug!(
@@ -184,7 +185,7 @@ impl Quorum {
                 key,
                 target_nodes.into_iter(),
                 count,
-                DeleteOptions::new_local(),
+                DeleteOptions::new_local(timestamp),
             )
             .await,
             count,
@@ -206,8 +207,8 @@ impl Quorum {
             return Err(Error::internal());
         }
         trace!("selection of free nodes available for data writing");
-        let (primary_sup_nodes, secondary_sup_nodes) =
-            self.mapper.get_support_nodes(key, failed_nodes.len());
+        let primary_sup_nodes = self.mapper.get_support_nodes(key, failed_nodes.len());
+        let secondary_sup_nodes = self.get_secondary_support_nodes(&primary_sup_nodes);
         debug!(
             "PUT[{}] sup put nodes, primary: {:?}, secondary: {:?}",
             key, &primary_sup_nodes, &secondary_sup_nodes
@@ -246,10 +247,21 @@ impl Quorum {
         }
     }
 
+    fn get_secondary_support_nodes(&self, primary_sup_nodes: &Vec<&Node>) -> Vec<&Node> {
+        let secondary_sup_nodes: Vec<_> = self
+            .mapper
+            .nodes()
+            .values()
+            .filter(|n| !primary_sup_nodes.contains(n) && n.name() != self.mapper.local_node_name())
+            .collect();
+        secondary_sup_nodes
+    }
+
     pub(crate) async fn delete_aliens(
         &self,
         mut failed_nodes: Vec<String>,
         key: BobKey,
+        timestamp: u64,
     ) -> Result<(), Error> {
         if failed_nodes.is_empty() {
             warn!(
@@ -259,22 +271,32 @@ impl Quorum {
             return Err(Error::internal());
         }
         trace!("selection of free nodes available for data writing");
-        let (primary, secondary) = self.mapper.get_support_nodes(key, failed_nodes.len());
+        let primary_sup_nodes = self.mapper.get_support_nodes(key, failed_nodes.len());
+        let secondary_sup_nodes = self.get_secondary_support_nodes(&primary_sup_nodes);
         debug!(
             "DELETE[{}] sup delete nodes, primary: {:?} secondary: {:?}",
-            key, &primary, &secondary
+            key, &primary_sup_nodes, &secondary_sup_nodes
         );
-        let primary_need_remote_backup: Vec<_> = failed_nodes.drain(..primary.len()).collect();
-        let secondary_need_remote_backup: Vec<_> = failed_nodes.drain(..secondary.len()).collect();
-        let queries: Vec<_> = primary
+        let primary_need_remote_backup: Vec<_> =
+            failed_nodes.drain(..primary_sup_nodes.len()).collect();
+        let secondary_need_remote_backup: Vec<_> =
+            failed_nodes.drain(..secondary_sup_nodes.len()).collect();
+        let queries: Vec<_> = primary_sup_nodes
             .into_iter()
             .zip(primary_need_remote_backup)
-            .map(|(node, remote_node)| (node, DeleteOptions::new_force_alien(vec![remote_node])))
+            .map(|(node, remote_node)| {
+                (
+                    node,
+                    DeleteOptions::new_force_alien(vec![remote_node], timestamp),
+                )
+            })
             .chain(
-                secondary
+                secondary_sup_nodes
                     .into_iter()
                     .zip(secondary_need_remote_backup)
-                    .map(|(node, remote_node)| (node, DeleteOptions::new_alien(vec![remote_node]))),
+                    .map(|(node, remote_node)| {
+                        (node, DeleteOptions::new_alien(vec![remote_node], timestamp))
+                    }),
             )
             .collect();
         debug!("DELETE[{}] additional alien requests: {:?}", key, queries);
@@ -354,7 +376,7 @@ impl Cluster for Quorum {
         Ok(exist)
     }
 
-    async fn delete(&self, key: BobKey) -> Result<(), Error> {
-        self.delete_on_nodes(key).await
+    async fn delete(&self, key: BobKey, timestamp: u64) -> Result<(), Error> {
+        self.delete_on_nodes(key, timestamp).await
     }
 }

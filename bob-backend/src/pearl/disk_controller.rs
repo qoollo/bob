@@ -614,7 +614,7 @@ impl DiskController {
                 .cloned();
             if let Some(group) = vdisk_group {
                 group
-                    .delete(key, false, StartTimestampConfig::default(), force_delete)
+                    .delete(key, StartTimestampConfig::default(), force_delete)
                     .await
             } else {
                 error!("DELETE[{}] Cannot find storage, operation: {:?}", key, op);
@@ -635,7 +635,7 @@ impl DiskController {
             let vdisk_group = self.get_or_create_pearl(&op).await;
             match vdisk_group {
                 Ok(group) => match group
-                    .delete(key, true, StartTimestampConfig::new(false), force_delete)
+                    .delete(key, StartTimestampConfig::new(false), force_delete)
                     .await
                 {
                     Err(e) => Err(self.process_error(e).await),

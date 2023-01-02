@@ -601,41 +601,34 @@ impl Group {
     pub async fn delete(
         &self,
         key: BobKey,
-        is_alien: bool,
         timestamp_config: StartTimestampConfig,
         force_delete: bool,
     ) -> Result<u64, Error> {
-        let is_empty = self.holders.read().await.len() == 0;
-        // We keep holders unnlocked because actual holder should created exactly one holder anyway
-        if is_empty {
-            let holder = self
-                .get_actual_holder(get_current_timestamp(), timestamp_config)
-                .await?;
-            self.delete_in_holders(
-                std::iter::once((holder.0, &holder.1)),
-                key,
-                is_alien,
-                force_delete,
-            )
-            .await
-        } else {
+        {
             let holders = self.holders.read().await;
-            self.delete_in_holders(holders.iter().enumerate(), key, is_alien, force_delete)
-                .await
+            if holders.len() != 0 {
+                let copy = holders.iter().cloned().enumerate().collect();
+                drop(holders);
+                return self.delete_in_holders(copy, key, force_delete).await;
+            }
         }
+        let holder = self
+            .get_actual_holder(get_current_timestamp(), timestamp_config)
+            .await?;
+        self.delete_in_holders(vec![(holder.0, holder.1)], key, force_delete)
+            .await
     }
 
     async fn delete_in_holders(
         &self,
-        holders: impl Iterator<Item = (ChildId, &Holder)>,
+        holders: Vec<(ChildId, Holder)>,
         key: BobKey,
-        is_alien: bool,
         force_delete: bool,
     ) -> Result<u64, Error> {
         let mut total_count = 0;
         for holder in holders {
             let delete = Self::delete_common(holder.1.clone(), key, force_delete).await;
-            if is_alien {
+            if force_delete {
                 // We need to add marker record to alien regardless of record presence
                 self.holders
                     .write()
