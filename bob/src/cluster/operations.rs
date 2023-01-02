@@ -246,17 +246,18 @@ pub(crate) async fn delete_local_aliens(
     node_names: Vec<String>,
     key: BobKey,
     operation: Operation,
-    force_delete: bool,
+    all_nodes: Vec<&Node>,
 ) -> Result<(), PutOptions> {
     let mut add_nodes = vec![];
-    for node_name in node_names {
+    for node in all_nodes {
         let mut op = operation.clone();
-        op.set_remote_folder(node_name.clone());
+        let node_name = node.name().to_string();
         debug!("DELETE[{}] delete to local alien: {:?}", key, node_name);
-
+        let force_delete = node_names.contains(&node_name);
+        op.set_remote_folder(node_name);
         if let Err(e) = backend.delete_local(key, op, force_delete).await {
             debug!("DELETE[{}] local support delete result: {:?}", key, e);
-            add_nodes.push(node_name);
+            add_nodes.push(node.name().to_string());
         }
     }
 

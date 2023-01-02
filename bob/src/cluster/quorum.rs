@@ -97,20 +97,16 @@ impl Quorum {
         let (errors, remote_count) = self.delete_at_remote_nodes(key, timestamp).await;
         total += remote_count;
         failed_nodes.extend(errors.iter().map(|o| o.node_name().to_string()));
-        if failed_nodes.len() > 0 {
-            warn!(
-                "DELETE[{}] was not successful. total {}, failed {:?}",
-                key, total, failed_nodes,
-            );
-            if let Err(err) = self.delete_aliens(failed_nodes, key, timestamp).await {
-                error!("DELETE[{}] smth wrong with cluster/node configuration", key);
-                error!("DELETE[{}] node errors: {:?}", key, errors);
-                Err(err)
-            } else {
-                warn!("DELETE[{}] succeed, but some data get into alien", key);
-                Ok(())
-            }
+        warn!(
+            "DELETE[{}] was not successful. total {}, failed {:?}",
+            key, total, failed_nodes,
+        );
+        if let Err(err) = self.delete_aliens(failed_nodes, key, timestamp).await {
+            error!("DELETE[{}] smth wrong with cluster/node configuration", key);
+            error!("DELETE[{}] node errors: {:?}", key, errors);
+            Err(err)
         } else {
+            warn!("DELETE[{}] succeed, but some data get into alien", key);
             Ok(())
         }
     }
@@ -262,65 +258,52 @@ impl Quorum {
         key: BobKey,
         timestamp: u64,
     ) -> Result<(), Error> {
-        if failed_nodes.is_empty() {
-            warn!(
-                "DELETE[{}] trying to aliens, but there are no failed nodes: unreachable",
-                key
-            );
-            return Err(Error::internal());
-        }
         trace!("selection of free nodes available for data writing");
-        let primary_sup_nodes = self.mapper.get_support_nodes(key, failed_nodes.len());
-        let secondary_sup_nodes = self.get_secondary_support_nodes(&primary_sup_nodes);
-        debug!(
-            "DELETE[{}] sup delete nodes, primary: {:?} secondary: {:?}",
-            key, &primary_sup_nodes, &secondary_sup_nodes
-        );
-        let primary_need_remote_backup: Vec<_> =
-            failed_nodes.drain(..primary_sup_nodes.len()).collect();
-        let secondary_need_remote_backup: Vec<_> =
-            failed_nodes.drain(..secondary_sup_nodes.len()).collect();
-        let queries: Vec<_> = primary_sup_nodes
-            .into_iter()
-            .zip(primary_need_remote_backup)
-            .map(|(node, remote_node)| {
-                (
-                    node,
-                    DeleteOptions::new_force_alien(vec![remote_node], timestamp),
-                )
+        let all_nodes: Vec<_> = self.mapper.nodes().values().collect();
+        let desk: Vec<_> = all_nodes
+            .iter()
+            .flat_map(|n| {
+                all_nodes
+                    .iter()
+                    .filter(|n1| n.name() != n1.name())
+                    .map(move |n1| (n, n1.name().to_string()))
             })
-            .chain(
-                secondary_sup_nodes
-                    .into_iter()
-                    .zip(secondary_need_remote_backup)
-                    .map(|(node, remote_node)| {
-                        (node, DeleteOptions::new_alien(vec![remote_node], timestamp))
-                    }),
-            )
+            .collect();
+        debug!("DELETE[{}]", key);
+        let queries: Vec<_> = desk
+            .into_iter()
+            .map(|(&node, remote_node)| {
+                if failed_nodes.contains(&remote_node) {
+                    (
+                        node,
+                        DeleteOptions::new_force_alien(vec![remote_node], timestamp),
+                    )
+                } else {
+                    (node, DeleteOptions::new_alien(vec![remote_node], timestamp))
+                }
+            })
             .collect();
         debug!("DELETE[{}] additional alien requests: {:?}", key, queries);
         if let Err(sup_nodes_errors) = delete_sup_nodes(key, &queries).await {
             debug!("support nodes errors: {:?}", sup_nodes_errors);
-            failed_nodes.extend(
-                sup_nodes_errors
-                    .iter()
-                    .map(|err| err.node_name().to_owned()),
-            )
+            failed_nodes.retain(|n| sup_nodes_errors.iter().any(|e| e.node_name() == n));
         };
-        if !failed_nodes.is_empty() {
-            debug!("need additional local alien copies: {}", failed_nodes.len());
-            let vdisk_id = self.mapper.vdisk_id_from_key(key);
-            let operation = Operation::new_alien(vdisk_id);
-            let local_delete =
-                delete_local_aliens(&self.backend, failed_nodes.clone(), key, operation, true)
-                    .await;
-            if let Err(e) = local_delete {
-                error!(
-                    "DELETE[{}] local delete failed, smth wrong with backend: {:?}",
-                    key, e
-                );
-                return Err(Error::internal());
-            }
+        let vdisk_id = self.mapper.vdisk_id_from_key(key);
+        let operation = Operation::new_alien(vdisk_id);
+        let local_delete = delete_local_aliens(
+            &self.backend,
+            failed_nodes.clone(),
+            key,
+            operation,
+            all_nodes,
+        )
+        .await;
+        if let Err(e) = local_delete {
+            error!(
+                "DELETE[{}] local delete failed, smth wrong with backend: {:?}",
+                key, e
+            );
+            return Err(Error::internal());
         }
         Ok(())
     }
