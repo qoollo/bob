@@ -11,10 +11,8 @@ def run_tests(behaviour, args):
         p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args.rstrip()}')).decode('ascii')
         print(str(p))
         if behaviour in {'put', 'get'}:
-            if f'{behaviour} errors:' in str(p) or f'panicked' in str(p):
+            if not 'total err: 0' in str(p):
                 sys.exit(f'{behaviour} test failed, see output')
-            if behaviour == 'put':
-                sleep(30)
         elif behaviour == 'exist':
             found_exist = re.search(r'\b[0-9]{1,}\sof\s[0-9]{1,}\b', str(p))
             if not found_exist:
@@ -43,7 +41,7 @@ parser.add_argument('-t', dest='threads', type=int, help='amount of working thre
 parser.add_argument('--mode', dest='mode', type=str, help='random or normal', choices=['random', 'normal'], default='normal')
 parser.add_argument('-k', dest='keysize', type=int, help='size of binary key (8 or 16)', choices=[8, 16], default=8)
 parser.add_argument('-nodes_amount', dest='nodes_amount', type=int, required=True, help='Amount of bob nodes.')
-parser.add_argument('-min_port', dest='min_port', type=int, required=True, help='Port of the first bob container.')
+parser.add_argument('-transport_min_port', dest='transport_min_port', type=int, required=True, help='Port of the first bob container.')
 
 parsed_args = parser.parse_args()
 
@@ -51,7 +49,7 @@ test_run_config = dict()
 iter = 0
 try:
     for item in run_options:
-        test_run_config[item]=str(parsed_args.min_port + (iter % int(parsed_args.nodes_amount))) #used in get_run_args()
+        test_run_config[item]=str(parsed_args.transport_min_port + (iter % int(parsed_args.nodes_amount))) #used in get_run_args()
         iter += 1
 except ValueError:
     sys.exit('Args had unexpected values.')
