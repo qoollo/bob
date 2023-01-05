@@ -7,14 +7,9 @@ from python_on_whales.exceptions import *
 from retry import *
 from bob_backend_timer import ensure_backend_up
 
-try:
-    bob_nodes_amount_string = os.environ['BOB_NODES_AMOUNT']
-except KeyError:
-    sys.exit('Nodes amount is not set.')
-
 def make_run_args(args, offset):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':str(int(args.first) + offset), '-t':args.threads, '--mode':args.mode, '-k':args.keysize,
-     '-p':'20000'} 
+     '-p':args.transport_min_port} 
 
 def args_to_str(args_dict):
     bobp_args_str = str()
@@ -31,14 +26,17 @@ parser.add_argument('-f', dest='first', type=int, help='first index', default=0)
 parser.add_argument('-t', dest='threads', type=int, help='amount of working threads', default=1)
 parser.add_argument('--mode', dest='mode', type=str, help='random or normal', choices=['random', 'normal'], default='normal')
 parser.add_argument('-k', dest='keysize', type=int, help='size of binary key (8 or 16)', choices=[8, 16], default=8)
+parser.add_argument('-nodes_amount', dest='nodes_amount', type=int, required=True, help='Amount of bob nodes.')
+parser.add_argument('-rest_min_port', dest='rest_min_port', type=int, required=True, help='Rest api port for the first node.')
+parser.add_argument('-transport_min_port', dest='transport_min_port', type=int, required=True, help='Port of the first bob container.')
 
 parsed_args = parser.parse_args()
 
 #get container object mapping to ports
 container_dict = {}
 try:
-    for i in range(int(bob_nodes_amount_string)):
-        port_num = str(20000+i)
+    for i in range(parsed_args.nodes_amount):
+        port_num = str(parsed_args.transport_min_port + i)
         container_dict[port_num] = str(d_cli.container.list(filters={'publish':f'{port_num}'})[0].id)
 except KeyError:
     sys.exit('Nodes amount is not set.')
@@ -48,8 +46,7 @@ except ValueError:
 #runs put and stops nodes in cycle
 written_count = 0
 try:
-    upper_bound = int(bob_nodes_amount_string)
-    for i in range(1, upper_bound):
+    for i in range(1, parsed_args.nodes_amount):
         #make correctly formatted args 
         dict_args = make_run_args(parsed_args, written_count)
         bobp_args = args_to_str(dict_args)
@@ -57,12 +54,12 @@ try:
         print(f'Running bobp -b put {bobp_args.rstrip()}')
         p = subprocess.check_output(shlex.split(f'./bobp -b put {bobp_args.rstrip()}')).decode('ascii')
         print(str(p))
-        if f'put errors:' in str(p) or f'panicked' in str(p):
+        if not 'total err: 0' in str(p):
             sys.exit(f'Put test failed, see output.')
         written_count += dict_args.get('-c')
         #stops one
         sleep(30)
-        d_cli.container.stop(container_dict[str(20000 + i)])
+        d_cli.container.stop(container_dict[str(parsed_args.transport_min_port + i)])
         print(f'Bob node {i} stopped.\n')
         stopped_list = d_cli.container.list(filters={"status":"exited"})
         print('Stopped containers:\n')
@@ -79,7 +76,7 @@ except DockerException as e:
     sys.exit(e.stderr)
 
 try:
-    ensure_backend_up(int(bob_nodes_amount_string))
+    ensure_backend_up(parsed_args.nodes_amount, parsed_args.rest_min_port)
 except ValueError:
     sys.exit('Amount of nodes has unexpected value.')
 
@@ -90,8 +87,8 @@ try:
     print(f'Running bobp -b get {bobp_args.rstrip()}')
     p = subprocess.check_output(shlex.split(f'./bobp -b get {bobp_args.rstrip()}')).decode('ascii')
     print(str(p))
-    if f'get errors:' in str(p) or f'panicked' in str(p):
-            sys.exit(f'Get test failed, see output.')
+    if not 'total err: 0' in str(p):
+        sys.exit(f'Get test failed, see output.')
 except subprocess.CalledProcessError as e:
     sys.exit(str(e.stderr))
 
