@@ -14,7 +14,8 @@ parser = argparse.ArgumentParser(description='Deploys docker compose nodes.')
 parser.add_argument('--path', dest='path', type=str, required=True, help='Takes in path to generated configs.')
 parser.add_argument('-r', dest='replicas', type=int, required=True, help='Sets amount of replicas to create in cluster.')
 parser.add_argument('-nodes_amount', dest='nodes_amount', type=int, required=True, help='Amount of bob nodes.')
-parser.add_argument('--bobp_actions_offset', dest='bobp_actions_offset', type=float, required=True, help='Offset for bobp.')
+parser.add_argument('--cluster_start_waiting_time', dest='cluster_start_waiting_time', type=float, required=True, help='Offset for bobp.')
+parser.add_argument('-rest_min_port', dest='rest_min_port', type=int, required=True, help='Rest api port for the first node.')
 exclusive = parser.add_mutually_exclusive_group(required=True)
 exclusive.add_argument('-d', dest='vdisks_count', nargs='?', type=int, help='min - equal to number of pairs node-disk.')
 exclusive.add_argument('-p', dest='vdisks_per_disk', nargs='?', type=int, help='number of vdisks per physical disk.')
@@ -92,8 +93,8 @@ except ValueError:
 
 #ensure bob initilized in container
 try:
-    ensure_backend_up(int(args.nodes_amount))
+    ensure_backend_up(int(args.nodes_amount), args.rest_min_port)
 except ValueError:
     sys.exit('Amount of nodes has unexpected value.')
 
-sleep(args.bobp_actions_offset)
+sleep(float(args.cluster_start_waiting_time)/1000 + 1)
