@@ -186,7 +186,7 @@ jobs:
           docker image ls
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} --check-interval 5000ms
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --check-interval 5000ms
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
@@ -256,7 +256,7 @@ jobs:
           docker image ls
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} --check-interval 5000ms
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --check-interval 5000ms
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
@@ -326,7 +326,7 @@ jobs:
           docker image ls
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} --check-interval 5000ms
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --check-interval 5000ms
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
