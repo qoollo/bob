@@ -3,7 +3,7 @@
 import subprocess, argparse, shlex, sys, re
 
 def make_run_args(args):
-     return {'-c':args.count, '-s':args.start, '-e':args.end, '-a':'http://127.0.0.1:8000'}
+     return {'-c':args.count, '-s':args.start, '-e':args.end, '-a':'http://127.0.0.1:8000', '--user':args.user, '--password':args.password}
 
 def args_to_str(args_dict):
     bobp_args_str = str()
@@ -16,6 +16,8 @@ parser = argparse.ArgumentParser(description='This script launches bob tests wit
 parser.add_argument('-c', dest='count', type=int, help='amount of entries to process', required=True)
 parser.add_argument('-s', dest='start', type=int, help='starting index', default=0)
 parser.add_argument('-e', dest='end', type=int, help='last index', default=0)
+parser.add_argument('--user', dest='user', type=str, help='Username for bob basic authentification')
+parser.add_argument('--password', dest='password', type=str, help='Password for bob basic authentification')
 
 parsed_args = parser.parse_args()
 
