@@ -258,7 +258,7 @@ jobs:
       #Also sets BOB_BOBP_ACTIONS_OFFSET as GITHUB_ENV from check_interval parameter (check_interval + 1s)
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }} -u ${{ matrix.auth }}
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
@@ -331,7 +331,7 @@ jobs:
       #Also sets BOB_BOBP_ACTIONS_OFFSET as GITHUB_ENV from check_interval parameter (check_interval + 1s)
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }}
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }} -u ${{ matrix.auth }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
