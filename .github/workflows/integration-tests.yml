@@ -52,7 +52,7 @@ jobs:
         key: [8, 16]
     env:
       TARGET: "x86_64-unknown-linux-musl"
-      BUILD_MODE: "test"
+      BUILD_PROFILE: "test"
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repository 
@@ -68,20 +68,28 @@ jobs:
           toolchain: stable
           target: ${{ env.TARGET }}
           default: true
+      - name: Estimate output binaries directory
+        run: |
+          echo "BUILD_PROFILE_DIR=$(case "$BUILD_PROFILE" in\
+          ("dev") echo "debug";;\
+          ("test") echo "debug";;\
+          ("bench") echo "release";;\
+          (*) echo "$BUILD_PROFILE";;\
+          esac)" >> $GITHUB_ENV
       - name: Build binaries
         uses: actions-rs/cargo@v1.0.1
         with:
           command: build
-          args: --target=${{ env.TARGET }} --profile=${{ (env.BUILD_MODE == 'debug' && 'dev') || env.BUILD_MODE }}
+          args: --target=${{ env.TARGET }} --profile=${{ env.BUILD_PROFILE }}
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
           name: bob-binaries-${{ matrix.key }}
           path: |
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobp
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobt
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobd
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobp
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/ccg
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobt
 
   build-docker-images:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
