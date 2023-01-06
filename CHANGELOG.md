@@ -6,7 +6,6 @@ Bob versions changelog
 #### Added
 - 'Exists' method through HEAD request in REST API (#691)
 - Support for 'exists' method in bobt (#691)
-- Round robin algorithm for alien nodes selection (#570)
 
 #### Changed
 - Log message about the lack of connection to graphite became more understandable (#684)
