@@ -33,15 +33,15 @@ on:
         required: true
         default: '0'
       bob_bobt_count:
-        description: 'Amount of iterations for chain operation test'
+        description: 'Amount of iterations for bobt test'
         required: true
         default: '100000'
       bob_bobt_first_index:
-        description: 'Bottom boundry for chain test'
+        description: 'Bottom boundary for key in bobt test'
         required: true
         default: '0'
       bob_bobt_last_index:
-        description: 'Upper boundry for chain test'
+        description: 'Upper boundary for key in bobt test'
         required: true
         default: '10000'
 jobs:
