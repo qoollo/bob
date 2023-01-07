@@ -29,7 +29,7 @@ parser.add_argument('-k', dest='keysize', type=int, help='size of binary key (8 
 parser.add_argument('-nodes_amount', dest='nodes_amount', type=int, required=True, help='Amount of bob nodes.')
 parser.add_argument('-rest_min_port', dest='rest_min_port', type=int, required=True, help='Rest api port for the first node.')
 parser.add_argument('-transport_min_port', dest='transport_min_port', type=int, required=True, help='Port of the first bob container.')
-
+parser.add_argument('--cluster_start_waiting_time', dest='cluster_start_waiting_time', type=float, required=True, help='Offset for bobp.')
 parsed_args = parser.parse_args()
 
 #get container object mapping to ports
@@ -79,6 +79,8 @@ try:
     ensure_backend_up(parsed_args.nodes_amount, parsed_args.rest_min_port)
 except ValueError:
     sys.exit('Amount of nodes has unexpected value.')
+
+sleep(float(parsed_args.cluster_start_waiting_time)/1000 + 1)
 
 try:
     dict_args = make_run_args(parsed_args, 0)

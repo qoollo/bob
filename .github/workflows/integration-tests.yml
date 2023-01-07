@@ -274,7 +274,7 @@ jobs:
         working-directory: ./integration-tests
       - name: Run alien tests
         run: |
-          ./tests_aliens.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} 
+          ./tests_aliens.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --cluster_start_waiting_time 5000
         working-directory: ./integration-tests
 
   test-with-bobt:
