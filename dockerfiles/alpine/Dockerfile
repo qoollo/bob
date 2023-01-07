@@ -39,7 +39,7 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/brt.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/bobt.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-access/src/lib.rs \
-  && cargo build --release --target=x86_64-unknown-linux-musl
+  && cargo build --profile=${BUILD_PROFILE:-"release"} --target=x86_64-unknown-linux-musl
 
 
 # separate stage for proto build
@@ -47,15 +47,15 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grp
   && mkdir -p bob-grpc/proto
 COPY bob-grpc/proto/* bob-grpc/proto/
 COPY bob-grpc/build.rs bob-grpc/build.rs
-RUN cargo build --release --target=x86_64-unknown-linux-musl \
-  && rm -f target/x86_64-unknown-linux-musl/release/deps/bob* \
-  && rm -f target/x86_64-unknown-linux-musl/release/deps/libbob* 
+RUN cargo build --profile=${BUILD_PROFILE:-"release"} --target=x86_64-unknown-linux-musl \
+  && rm -f target/x86_64-unknown-linux-musl/${BUILD_PROFILE_DIR:-"release"}/deps/bob* \
+  && rm -f target/x86_64-unknown-linux-musl/${BUILD_PROFILE_DIR:-"release"}/deps/libbob* 
 
 # final build
 COPY . .
 ENV BOB_KEY_SIZE=${KEY_SIZE}
 ENV BOB_COMMIT_HASH=${COMMIT_HASH}
-RUN cargo build --release --target=x86_64-unknown-linux-musl
+RUN cargo build --profile=${BUILD_PROFILE_DIR:-"release"} --target=x86_64-unknown-linux-musl
 
 # bobd image
 FROM alpine:3.12.0
@@ -75,7 +75,7 @@ RUN apk update \
   && adduser --shell /bin/bash -G bobd -G wheel -S bobd
 
 WORKDIR /home/bob/bin/
-COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-musl/release/bobd .
+COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-musl/${BUILD_PROFILE_DIR:-"release"}/bobd .
 RUN chown bobd:bobd bobd \
   && mkdir /bob/log -p && chown bobd:bobd /bob/log -R \
   && mkdir /bob/data/d1 -p && chown bobd:bobd /bob/data/d1 -R \

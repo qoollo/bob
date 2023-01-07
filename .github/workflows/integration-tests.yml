@@ -99,6 +99,8 @@ jobs:
     strategy:
       matrix:
         key: [8, 16]
+    env:
+      BUILD_PROFILE: "test"
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v3
@@ -113,6 +115,16 @@ jobs:
           images: qoollo/bob
           tags: |
             ${{ env.VERSION }}-key${{ matrix.key }}
+      - name: Estimate output binaries directory
+        run: |
+          echo "BUILD_PROFILE_DIR=$(case "$BUILD_PROFILE" in\
+          ("dev") echo "debug";;\
+          ("test") echo "debug";;\
+          ("bench") echo "release";;\
+          (*) echo "$BUILD_PROFILE";;\
+          esac)" >> $GITHUB_ENV
+      - name: Output estimated working-directory
+        run: echo ${{ env.BUILD_PROFILE_DIR }}
       - name: Build image
         uses: docker/build-push-action@v2
         with:
@@ -125,6 +137,8 @@ jobs:
           build-args: |
             COMMIT_HASH=${{ env.BOB_COMMIT_HASH }}
             KEY_SIZE=${{ matrix.key}}
+            BUILD_PROFILE=${{ env.BUILD_PROFILE }}
+            BUILD_PROFILE_DIR=${{ env.BUILD_PROFILE_DIR }}
       - name: Save image
         run: |
           docker save -o /tmp/bob-image-key${{ matrix.key }}.tar qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }}
