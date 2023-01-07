@@ -6,3 +6,8 @@ members = [
     "bob-common",
     "bob-access",
 ]
+
+
+[profile.release-lto]
+inherits = "release"
+lto = true
