@@ -76,7 +76,8 @@ jobs:
           ("bench") echo "release";;\
           (*) echo "$BUILD_PROFILE";;\
           esac)" >> $GITHUB_ENV
-          echo "${{ env.BUILD_PROFILE_DIR }}"
+      - name: Output estimated working-directory
+        run: echo ${{ env.BUILD_PROFILE_DIR }}
       - name: Build binaries
         uses: actions-rs/cargo@v1.0.1
         with:
