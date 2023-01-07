@@ -7,6 +7,9 @@ Bob versions changelog
 - 'Exists' method through HEAD request in REST API (#691)
 - Support for 'exists' method in bobt (#691)
 - Round robin algorithm for alien nodes selection (#570)
+- Integration tests (#518)
+- Added integration tests for aliens (#642)
+- Added integration tests for bobt (#648)
 
 #### Changed
 - Use bytes to pass data to pearl (#597)
@@ -26,9 +29,6 @@ Bob versions changelog
 - Include bobc into release builds (#569)
 - Added blob-info and index-info features to brt (#356)
 - Support for files, file name patterns, key ranges and a 'exists' subcommand to 'bobc' (#539)
-- Integration tests (#518)
-- Added integration tests for aliens (#642)
-- Added integration tests for bobt (#648)
 
 #### Changed
 - Using interval logger in metric exporter to reduce error log density (#592)
