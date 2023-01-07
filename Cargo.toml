@@ -11,3 +11,7 @@ members = [
 [profile.release-lto]
 inherits = "release"
 lto = true
+
+[profile.integration-test]
+inherits = "test"
+opt-level = 1
