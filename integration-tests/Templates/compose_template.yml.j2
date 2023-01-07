@@ -10,8 +10,8 @@ services:
     command: "cluster.yaml.bobnet node.yaml.bobnet{{ item }} --init_folders"
     hostname: bob_node{{ item }}
     ports:
-      - "{{ min_port|int + item }}:20000/tcp"
-      - "{{ 8000|int + item }}:8000/tcp"
+      - "{{ transport_min_port|int + item }}:20000/tcp"
+      - "{{ rest_min_port|int + item }}:8000/tcp"
     networks:
       default:
         aliases:

@@ -42,24 +42,20 @@ parser.add_argument('--metrics-name', dest='metrics_name', type=str, default='bo
 parser.add_argument('--graphite-enabled', dest='graphite_enabled', type=str, default='false', choices=['true', 'false'])
 parser.add_argument('--prometheus-enabled', dest='prometheus_enabled', type=str, default='false', choices=['true', 'false'])
 parser.add_argument('--path', dest='path', type=str, help='sets path to directory where configs will be generated.', default='/tmp')
-parser.add_argument('-min_port', dest='min_port', type=int, required=True, help='Port of the first bob container.')
+parser.add_argument('-transport_min_port', dest='transport_min_port', type=int, required=True, help='Port of the first bob container.')
 parser.add_argument('--user', dest='auth_user', type=str, help='Username for bob basic authentification', default='admin')
 parser.add_argument('--password', dest='auth_password', type=str, help='Password for bob basic authentification', default='password')
+parser.add_argument('-rest_min_port', dest='rest_min_port', type=int, required=True, help='Rest api port for the first node.')
 
 args = parser.parse_args()
 
 path = os.path.join(pathified(args.path),'generated_configs')
 
-#get the offset for bobp operations and set in as env 
-bobp_actions_offset = float(str(Quantity(args.check_interval, scale='s')).replace(' s', '')) + 1
-with open(os.getenv('GITHUB_ENV'), 'a') as file:
-    file.write(f"BOB_BOBP_ACTIONS_OFFSET={bobp_actions_offset}")
-
 os.makedirs(path, exist_ok=True, mode=0o777)
 
 
 if len(os.listdir(path)) != 0:
-    sys.exit('Directory not empty.')
+    sys.exit(f'Directory {path} not empty.')
 
 try:
     original_umask = os.umask(0)
@@ -74,7 +70,7 @@ finally:
 with open("Templates/compose_template.yml.j2", ) as compose:
     template = Template(compose.read())
     with open(os.path.join(path, 'docker-compose.yml'), 'w') as f:
-        f.write(template.render(amount_of_nodes=args.amount_of_nodes, version=args.version, path=path, min_port=args.min_port))
+        f.write(template.render(amount_of_nodes=args.amount_of_nodes, version=args.version, path=path, transport_min_port=args.transport_min_port, rest_min_port=args.rest_min_port))
         f.close
 
 #generate node files

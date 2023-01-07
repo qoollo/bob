@@ -9,10 +9,10 @@ def request_metrics(port):
     
          
 @retry((UserWarning), tries=5, delay=1, backoff=2, max_delay=5)
-def ensure_backend_up(bob_nodes_amount):
+def ensure_backend_up(bob_nodes_amount, rest_min_port):
     try:
         for item in range(bob_nodes_amount):
-            response = request_metrics(8000 + item)
+            response = request_metrics(int(rest_min_port) + item)
             if response.status_code != 200:
                 print(f'Failed to get response from bob instance {item}, retrying...')
                 raise UserWarning(f'Timeout on getting response from node {item}.')

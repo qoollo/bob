@@ -27,7 +27,7 @@ on:
       bob_record_count:
         description: 'Amount of records to process during test'
         required: true
-        default: '10000'
+        default: '100000'
       bob_first_index:
         description: 'Index of the first record to proceed during tests'
         required: true
@@ -35,7 +35,7 @@ on:
       bob_bobt_count:
         description: 'Amount of iterations for chain operation test'
         required: true
-        default: '10000'
+        default: '100000'
       bob_bobt_first_index:
         description: 'Bottom boundry for chain test'
         required: true
@@ -43,7 +43,7 @@ on:
       bob_bobt_last_index:
         description: 'Upper boundry for chain test'
         required: true
-        default: '100000'
+        default: '10000'
 jobs:
   build-binaries:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
@@ -52,7 +52,7 @@ jobs:
         key: [8, 16]
     env:
       TARGET: "x86_64-unknown-linux-musl"
-      BUILD_MODE: "release"
+      BUILD_PROFILE: "test"
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repository 
@@ -68,20 +68,30 @@ jobs:
           toolchain: stable
           target: ${{ env.TARGET }}
           default: true
+      - name: Estimate output binaries directory
+        run: |
+          echo "BUILD_PROFILE_DIR=$(case "$BUILD_PROFILE" in\
+          ("dev") echo "debug";;\
+          ("test") echo "debug";;\
+          ("bench") echo "release";;\
+          (*) echo "$BUILD_PROFILE";;\
+          esac)" >> $GITHUB_ENV
+      - name: Output estimated working-directory
+        run: echo ${{ env.BUILD_PROFILE_DIR }}
       - name: Build binaries
         uses: actions-rs/cargo@v1.0.1
         with:
           command: build
-          args: --release --target=${{ env.TARGET }}
+          args: --target=${{ env.TARGET }} --profile=${{ env.BUILD_PROFILE }}
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
           name: bob-binaries-${{ matrix.key }}
           path: |
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobp
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobt
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobd
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobp
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/ccg
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobt
 
   build-docker-images:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
@@ -126,7 +136,7 @@ jobs:
           path: |
             /tmp/bob-image-key${{ matrix.key }}.tar
 
-  deploy-and-test:
+  test-put-get-exist:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
     needs: [build-binaries, build-docker-images]
     strategy:
@@ -156,12 +166,14 @@ jobs:
           echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_first_index }}"
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
-          INPUT="${{ github.event.inputs.bob_min_port }}"
-          echo "BOB_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_transport_min_port }}"
+          echo "BOB_TRANSPORT_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_auth_user }}"
           echo "BOB_AUTH_USER=${INPUT:-"admin"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_auth_password }}"
           echo "BOB_AUTH_PASSWORD=${INPUT:-"password"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_rest_min_port }}"
+          echo "BOB_REST_MIN_PORT=${INPUT:-"8000"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -189,18 +201,18 @@ jobs:
           docker image ls
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }} -u ${{ matrix.auth }}
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --check-interval 5000ms -u ${{ matrix.auth }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
-          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} --bobp_actions_offset ${{ env.BOB_BOBP_ACTIONS_OFFSET }} 
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --cluster_start_waiting_time 5000 
         working-directory: ./integration-tests
       - name: Run write/read/exist tests
         run: |
-          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }} --mode ${{ matrix.mode }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -min_port ${{ env.BOB_MIN_PORT }} --user ${{ env.BOB_AUTH_USER }} --password ${{ env.BOB_AUTH_PASSWORD }}
+          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }} --mode ${{ matrix.mode }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} --user ${{ env.BOB_AUTH_USER }} --password ${{ env.BOB_AUTH_PASSWORD }}
         working-directory: ./integration-tests
 
-  deploy-and-test-alien:
+  test-aliens:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
     needs: [build-binaries, build-docker-images]
     strategy:
@@ -228,8 +240,10 @@ jobs:
           echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_first_index }}"
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
-          INPUT="${{ github.event.inputs.bob_min_port }}"
-          echo "BOB_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_transport_min_port }}"
+          echo "BOB_TRANSPORT_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_rest_min_port }}"
+          echo "BOB_REST_MIN_PORT=${INPUT:-"8000"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -258,17 +272,18 @@ jobs:
       #Also sets BOB_BOBP_ACTIONS_OFFSET as GITHUB_ENV from check_interval parameter (check_interval + 1s)
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }}
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --check-interval 5000ms
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
-          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} --bobp_actions_offset ${{ env.BOB_BOBP_ACTIONS_OFFSET }}
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --cluster_start_waiting_time 5000
         working-directory: ./integration-tests
       - name: Run alien tests
         run: |
-          ./tests_aliens.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }}
+          ./tests_aliens.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --cluster_start_waiting_time 5000
         working-directory: ./integration-tests
-  deploy-and-test-chain:
+
+  test-with-bobt:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
     needs: [build-binaries, build-docker-images]
     strategy:
@@ -297,12 +312,14 @@ jobs:
           echo "BOB_BOBT_LAST_INDEX=${INPUT:-"100000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_bobt_count }}"
           echo "BOB_BOBT_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
-          INPUT="${{ github.event.inputs.bob_min_port }}"
-          echo "BOB_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_transport_min_port }}"
+          echo "BOB_TRANSPORT_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_auth_user }}"
           echo "BOB_AUTH_USER=${INPUT:-"admin"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_auth_password }}"
           echo "BOB_AUTH_PASSWORD=${INPUT:-"password"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_rest_min_port }}"
+          echo "BOB_REST_MIN_PORT=${INPUT:-"8000"}" >> $GITHUB_ENV
       - name: Install deps
         run: |
           /usr/bin/pip3 install -r ./requirements.txt
@@ -331,13 +348,13 @@ jobs:
       #Also sets BOB_BOBP_ACTIONS_OFFSET as GITHUB_ENV from check_interval parameter (check_interval + 1s)
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -min_port ${{ env.BOB_MIN_PORT }} -u ${{ matrix.auth }}
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} -u ${{ matrix.auth }} --check-interval 5000ms
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
-          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} --bobp_actions_offset ${{ env.BOB_BOBP_ACTIONS_OFFSET }}
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --cluster_start_waiting_time 5000
         working-directory: ./integration-tests
-      - name: Run chained operations tests
+      - name: Run tests with bobt
         run: |
-          ./tests_chain.py -c ${{ env.BOB_BOBT_COUNT }} -s ${{ env.BOB_BOBT_FIRST_INDEX }} -e ${{ env.BOB_BOBT_LAST_INDEX }} --user ${{ env.BOB_AUTH_USER }} --password ${{ env.BOB_AUTH_PASSWORD }}
+          ./tests_bobt.py -c ${{ env.BOB_BOBT_COUNT }} -s ${{ env.BOB_BOBT_FIRST_INDEX }} -e ${{ env.BOB_BOBT_LAST_INDEX }} --user ${{ env.BOB_AUTH_USER }} --password ${{ env.BOB_AUTH_PASSWORD }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }}
         working-directory: ./integration-tests

@@ -3,7 +3,7 @@
 import subprocess, argparse, shlex, sys, re
 
 def make_run_args(args):
-     return {'-c':args.count, '-s':args.start, '-e':args.end, '-a':'http://127.0.0.1:8000', '--user':args.user, '--password':args.password}
+     return {'-c':args.count, '-s':args.start, '-e':args.end, '-a':f'http://127.0.0.1:{args.rest_min_port}', '--user':args.user, '--password':args.password}
 
 def args_to_str(args_dict):
     bobp_args_str = str()
@@ -16,6 +16,7 @@ parser = argparse.ArgumentParser(description='This script launches bob tests wit
 parser.add_argument('-c', dest='count', type=int, help='amount of entries to process', required=True)
 parser.add_argument('-s', dest='start', type=int, help='starting index', default=0)
 parser.add_argument('-e', dest='end', type=int, help='last index', default=0)
+parser.add_argument('-rest_min_port', dest='rest_min_port', type=int, required=True, help='Rest api port for the first node.')
 parser.add_argument('--user', dest='user', type=str, help='Username for bob basic authentification')
 parser.add_argument('--password', dest='password', type=str, help='Password for bob basic authentification')
 
@@ -36,7 +37,7 @@ try:
     #find the last Summary and get its values
     summary = found_summaries.group(0).replace('Final summary: ', '').split('/')
     if summary[0] != summary[1]:
-        sys.exit('Test failed, captured summary has incomplete score.')
+        sys.exit(f'Test failed, captured summary has incomplete score: {summary[0]} of {summary[1]}')
     else:
         print(f'Test succeeded: {summary[0]}/{summary[1]}')
 except subprocess.CalledProcessError as e:
