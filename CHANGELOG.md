@@ -11,12 +11,13 @@ Bob versions changelog
 #### Changed
 - Log message about the lack of connection to graphite became more understandable (#684)
 - Hostname resolving in background tasks (#529)
+- Configurable build profiles in Dockerfiles (#717)
 
 #### Fixed
 
 
 #### Updated
-- Configurable build profiles in Dockerfiles
+
 
 
 ## [2.1.0-alpha.7] - 2022-11-28
