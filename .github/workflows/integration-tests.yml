@@ -33,15 +33,15 @@ on:
         required: true
         default: '0'
       bob_bobt_count:
-        description: 'Amount of iterations for bobt test'
+        description: 'Amount of iterations for chain operation test'
         required: true
         default: '100000'
       bob_bobt_first_index:
-        description: 'Bottom boundary for key in bobt test'
+        description: 'Bottom boundry for chain test'
         required: true
         default: '0'
       bob_bobt_last_index:
-        description: 'Upper boundary for key in bobt test'
+        description: 'Upper boundry for chain test'
         required: true
         default: '10000'
 jobs:
@@ -52,7 +52,7 @@ jobs:
         key: [8, 16]
     env:
       TARGET: "x86_64-unknown-linux-musl"
-      BUILD_PROFILE: "integration-test"
+      BUILD_PROFILE: "test"
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repository 
@@ -74,7 +74,6 @@ jobs:
           ("dev") echo "debug";;\
           ("test") echo "debug";;\
           ("bench") echo "release";;\
-          ("integration-test") echo "debug";;\
           (*) echo "$BUILD_PROFILE";;\
           esac)" >> $GITHUB_ENV
       - name: Output estimated working-directory
