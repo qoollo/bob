@@ -15,7 +15,7 @@ Bob versions changelog
 - Hostname resolving in background tasks (#529)
 
 #### Fixed
-
+- PID unsafe type conversion fixed (#719)
 
 #### Updated
 - Pearl updated to v0.16.0 (#706)
