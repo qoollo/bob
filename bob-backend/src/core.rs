@@ -246,7 +246,7 @@ impl Backend {
         self.inner.run().await
     }
 
-    pub async fn put(&self, key: BobKey, data: &BobData, options: BobOptions) -> Result<(), Error> {
+    pub async fn put(&self, key: BobKey, data: &BobData, options: BobPutOptions) -> Result<(), Error> {
         trace!(">>>>>>- - - - - BACKEND PUT START - - - - -");
         let sw = Stopwatch::start_new();
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
@@ -255,7 +255,7 @@ impl Backend {
             disk_path,
             sw.elapsed().as_secs_f64() * 1000.0
         );
-        let res = if !options.remote_nodes().is_empty() {
+        let res = if options.to_alien() {
             // write to all remote_nodes
             for node_name in options.remote_nodes() {
                 debug!("PUT[{}] core backend put remote node: {}", key, node_name);
@@ -343,7 +343,7 @@ impl Backend {
         }
     }
 
-    pub async fn get(&self, key: BobKey, options: &BobOptions) -> Result<BobData, Error> {
+    pub async fn get(&self, key: BobKey, options: &BobGetOptions) -> Result<BobData, Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
         // we cannot get data from alien if it belong this node
@@ -388,7 +388,7 @@ impl Backend {
         }
     }
 
-    pub async fn exist(&self, keys: &[BobKey], options: &BobOptions) -> Result<Vec<bool>, Error> {
+    pub async fn exist(&self, keys: &[BobKey], options: &BobGetOptions) -> Result<Vec<bool>, Error> {
         let mut exist = vec![false; keys.len()];
         let keys_by_id_and_path = self.group_keys_by_operations(keys, options);
         for (operation, (keys, indexes)) in keys_by_id_and_path {
@@ -409,7 +409,7 @@ impl Backend {
     fn group_keys_by_operations(
         &self,
         keys: &[BobKey],
-        options: &BobOptions,
+        options: &BobGetOptions,
     ) -> HashMap<Operation, (Vec<BobKey>, Vec<usize>)> {
         let mut keys_by_operations: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
         for (ind, &key) in keys.iter().enumerate() {
@@ -427,7 +427,7 @@ impl Backend {
         keys_by_operations
     }
 
-    fn find_operation(&self, key: BobKey, options: &BobOptions) -> Option<Operation> {
+    fn find_operation(&self, key: BobKey, options: &BobGetOptions) -> Option<Operation> {
         let (vdisk_id, path) = self.mapper.get_operation(key);
         if options.get_normal() {
             path.map(|path| Operation::new_local(vdisk_id, path))
@@ -453,12 +453,14 @@ impl Backend {
     pub async fn delete(
         &self,
         key: BobKey,
-        options: BobOptions,
+        options: BobDeleteOptions,
         force_delete: bool,
     ) -> Result<(), Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        if !options.remote_nodes().is_empty() {
-            for node_name in options.remote_nodes() {
+        // TODO: FIX ME
+        panic!("FIX ME");
+        if !options.force_alien_nodes().is_empty() {
+            for node_name in options.force_alien_nodes() {
                 let mut op = Operation::new_alien(vdisk_id);
                 op.set_remote_folder(node_name.to_owned());
                 self.delete_single(key, op, force_delete).await?;

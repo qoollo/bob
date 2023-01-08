@@ -163,77 +163,71 @@ impl BobMeta {
     }
 }
 
-bitflags! {
-    #[derive(Default)]
-    pub struct BobFlags: u8 {
-        const FORCE_NODE = 0x01;
-        const FORCE_OP = 0x02;
-    }
+
+#[derive(Debug)]
+pub struct BobPutOptions {
+    force_node: bool,
+    remote_nodes: Vec<String>
 }
 
 #[derive(Debug)]
-pub struct BobOptions {
-    flags: BobFlags,
-    remote_nodes: Vec<String>,
+pub struct BobGetOptions {
+    force_node: bool,
     get_source: Option<GetSource>,
 }
 
-impl BobOptions {
+#[derive(Debug)]
+pub struct BobDeleteOptions {
+    force_node: bool,
+    is_alien: bool,
+    force_alien_nodes: Vec<String>
+}
+
+impl BobPutOptions {
     pub fn new_put(options: Option<PutOptions>) -> Self {
-        let mut flags = BobFlags::default();
-        let remote_nodes = options.map_or(Vec::new(), |vopts| {
-            if vopts.force_node {
-                flags |= BobFlags::FORCE_NODE;
+        if let Some(vopts) = options {
+            BobPutOptions {
+                force_node: vopts.force_node,
+                remote_nodes: vopts.remote_nodes
             }
-            vopts.remote_nodes
-        });
-        BobOptions {
-            flags,
-            remote_nodes,
-            get_source: None,
+        } else {
+            BobPutOptions {
+                force_node: false,
+                remote_nodes: vec![]
+            }
         }
     }
 
-    pub fn new_delete(options: Option<DeleteOptions>) -> Self {
-        let mut flags = BobFlags::default();
-        let remote_nodes = options.map_or(Vec::new(), |vopts| {
-            if vopts.force_node {
-                flags |= BobFlags::FORCE_NODE;
-            }
-            if vopts.force_delete {
-                flags |= BobFlags::FORCE_OP;
-            }
-            vopts.remote_nodes
-        });
-        BobOptions {
-            flags,
-            remote_nodes,
-            get_source: None,
-        }
+    pub fn force_node(&self) -> bool {
+        self.force_node
     }
 
-    pub fn new_get(options: Option<GetOptions>) -> Self {
-        let mut flags = BobFlags::default();
-
-        let get_source = options.map(|vopts| {
-            if vopts.force_node {
-                flags |= BobFlags::FORCE_NODE;
-            }
-            GetSource::from(vopts.source)
-        });
-        BobOptions {
-            flags,
-            remote_nodes: Vec::new(),
-            get_source,
-        }
+    pub fn to_alien(&self) -> bool {
+        !self.remote_nodes.is_empty()
     }
 
     pub fn remote_nodes(&self) -> &[String] {
         &self.remote_nodes
     }
+}
 
-    pub fn flags(&self) -> BobFlags {
-        self.flags
+impl BobGetOptions {
+    pub fn new_get(options: Option<GetOptions>) -> Self {
+        if let Some(vopts) = options {
+            BobGetOptions {
+                force_node: vopts.force_node,
+                get_source: Some(GetSource::from(vopts.source))
+            }
+        } else {
+            BobGetOptions {
+                force_node: false,
+                get_source: None
+            }
+        }
+    }
+
+    pub fn force_node(&self) -> bool {
+        self.force_node
     }
 
     pub fn get_normal(&self) -> bool {
@@ -246,6 +240,37 @@ impl BobOptions {
         self.get_source.map_or(false, |value| {
             value == GetSource::All || value == GetSource::Alien
         })
+    }
+}
+
+
+impl BobDeleteOptions {
+    pub fn new_delete(options: Option<DeleteOptions>) -> Self {
+        if let Some(vopts) = options {
+            BobDeleteOptions {
+                force_node: vopts.force_node,
+                is_alien: vopts.is_alien,
+                force_alien_nodes: vopts.force_alien_nodes
+            }
+        } else {
+            BobDeleteOptions {
+                force_node: false,
+                is_alien: false,
+                force_alien_nodes: vec![]
+            }
+        }
+    }
+
+    pub fn force_node(&self) -> bool {
+        self.force_node
+    }
+
+    pub fn to_alien(&self) -> bool {
+        self.is_alien
+    }
+
+    pub fn force_alien_nodes(&self) -> &[String] {
+        &self.force_alien_nodes
     }
 }
 

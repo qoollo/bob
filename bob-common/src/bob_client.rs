@@ -188,12 +188,13 @@ pub mod b_client {
             }
         }
 
-        pub async fn delete(&self, key: BobKey, options: DeleteOptions) -> DeleteResult {
+        pub async fn delete(&self, key: BobKey, meta: BobMeta, options: DeleteOptions) -> DeleteResult {
             let mut client = self.client.clone();
             self.metrics.delete_count();
             let timer = BobClientMetrics::start_timer();
             let message = DeleteRequest {
                 key: Some(BlobKey { key: key.into() }),
+                meta: Some(BlobMeta { timestamp: meta.timestamp() }),
                 options: Some(options),
             };
             let mut req = Request::new(message);

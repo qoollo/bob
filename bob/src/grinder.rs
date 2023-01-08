@@ -78,10 +78,10 @@ impl Grinder {
         &self,
         key: BobKey,
         data: &BobData,
-        opts: BobOptions,
+        opts: BobPutOptions,
     ) -> Result<(), Error> {
         let sw = Stopwatch::start_new();
-        if opts.flags().contains(BobFlags::FORCE_NODE) {
+        if opts.force_node() {
             trace!(">>>- - - - - GRINDER PUT START - - - - -");
             debug!(
                 "PUT[{}] FORCE_NODE=true - will handle it by local node. Put params: {:?}",
@@ -118,10 +118,10 @@ impl Grinder {
         }
     }
 
-    pub(crate) async fn get(&self, key: BobKey, opts: &BobOptions) -> Result<BobData, Error> {
+    pub(crate) async fn get(&self, key: BobKey, opts: &BobGetOptions) -> Result<BobData, Error> {
         trace!(">>>- - - - - GRINDER GET START - - - - -");
         let sw = Stopwatch::start_new();
-        if opts.flags().contains(BobFlags::FORCE_NODE) {
+        if opts.force_node() {
             trace!(
                 "pass request to backend, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
@@ -170,10 +170,10 @@ impl Grinder {
     pub(crate) async fn exist(
         &self,
         keys: &[BobKey],
-        opts: &BobOptions,
+        opts: &BobGetOptions,
     ) -> Result<Vec<bool>, Error> {
         let sw = Stopwatch::start_new();
-        if opts.flags().contains(BobFlags::FORCE_NODE) {
+        if opts.force_node() {
             counter!(CLIENT_EXIST_COUNTER, 1);
             let time = Instant::now();
             let result = self.backend.exist(keys, opts).await;
@@ -215,7 +215,7 @@ impl Grinder {
         &self,
         key: BobKey,
         timestamp: u64,
-        options: BobOptions,
+        options: BobDeleteOptions,
     ) -> Result<(), Error> {
         trace!(">>>- - - - - GRINDER DELETE START - - - - -");
         let force = options.flags().contains(BobFlags::FORCE_OP);

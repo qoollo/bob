@@ -19,7 +19,7 @@ use bob_access::{Authenticator, CredentialsHolder};
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
     configs::node::TLSConfig,
-    data::{BobData, BobKey, BobMeta, BobOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
+    data::{BobData, BobKey, BobMeta, BobPutOptions, BobGetOptions, BobDeleteOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
     error::Error as BobError,
     node::Disk as NodeDisk,
 };
@@ -1040,7 +1040,7 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
-    let opts = BobOptions::new_get(None);
+    let opts = BobGetOptions::new_get(None);
     let result = bob.grinder().get(key, &opts).await?;
 
     let content_type = infer_data_type(&result);
@@ -1073,7 +1073,7 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let keys = [DataKey::from_str(&key)?.0];
-    let opts = BobOptions::new_get(None);
+    let opts = BobGetOptions::new_get(None);
     let result = bob.grinder().exist(&keys, &opts).await?;
 
     match result.get(0) {
@@ -1104,7 +1104,7 @@ where
     let meta = BobMeta::new(chrono::Local::now().timestamp() as u64);
     let data = BobData::new(body, meta);
 
-    let opts = BobOptions::new_put(None);
+    let opts = BobPutOptions::new_put(None);
     bob.grinder().put(key, &data, opts).await?;
     Ok(StatusCode::CREATED.into())
 }
@@ -1126,7 +1126,7 @@ where
         .delete(
             key,
             chrono::Local::now().timestamp() as u64,
-            BobOptions::new_delete(None),
+            BobDeleteOptions::new_delete(None),
         )
         .await
         .map_err(|e| internal(e.to_string()))?;

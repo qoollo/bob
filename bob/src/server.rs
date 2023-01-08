@@ -137,7 +137,7 @@ where
             );
             let put_result = self
                 .grinder
-                .put(key, &data, BobOptions::new_put(options))
+                .put(key, &data, BobPutOptions::new_put(options))
                 .await;
             trace!(
                 "grinder processed put request, /{:.3}ms/",
@@ -187,7 +187,7 @@ where
                 "create new bob options /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let options = BobOptions::new_get(options);
+            let options = BobGetOptions::new_get(options);
             trace!(
                 "pass request to grinder /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
@@ -231,7 +231,7 @@ where
         let req = req.into_inner();
         let ExistRequest { keys, options } = req;
         let keys = keys.into_iter().map(|k| k.key.into()).collect::<Vec<_>>();
-        let options = BobOptions::new_get(options);
+        let options = BobGetOptions::new_get(options);
         let exist = self
             .grinder
             .exist(&keys, &options)
@@ -246,14 +246,14 @@ where
 
     async fn delete(&self, req: Request<DeleteRequest>) -> ApiResult<OpStatus> {
         let req = req.into_inner();
-        let DeleteRequest { key, options } = req;
+        let DeleteRequest { key, meta, options } = req;
         if let Some(key) = key {
             let sw = Stopwatch::start_new();
             self.grinder
                 .delete(
                     key.key.into(),
                     chrono::Local::now().timestamp() as u64,
-                    BobOptions::new_delete(options),
+                    BobDeleteOptions::new_delete(options),
                 )
                 .await?;
             let elapsed = sw.elapsed();
