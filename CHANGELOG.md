@@ -13,6 +13,7 @@ Bob versions changelog
 - Use bytes to pass data to pearl (#597)
 - Log message about the lack of connection to graphite became more understandable (#684)
 - Hostname resolving in background tasks (#529)
+- Remove 'termion' crate from dependencies (#718)
 
 #### Fixed
 
