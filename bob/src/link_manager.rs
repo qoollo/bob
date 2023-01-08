@@ -1,7 +1,5 @@
 use crate::prelude::*;
 
-use termion::color;
-
 #[derive(Debug)]
 pub(crate) struct LinkManager {
     nodes: Arc<[Node]>,
@@ -34,13 +32,13 @@ impl LinkManager {
                         node.address(),
                         e
                     );
-                    status += &format!("{}{:<10} ", color::Fg(color::Red), node.name());
+                    status += &format!("{:<10} ", node.name());
                     err_cnt += 1;
                 } else {
-                    status += &format!("{}{:<10} ", color::Fg(color::Green), node.name());
+                    status += &format!("{:<10} ", node.name());
                 }
             }
-            info!("{}{}", status, color::Fg(color::Reset));
+            info!("{}", status);
             let cnt = nodes.len() - err_cnt;
             gauge!(AVAILABLE_NODES_COUNT, cnt as f64);
         }
