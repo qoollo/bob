@@ -5,8 +5,7 @@ FROM rust:1.47.0 as cargo-build
 ARG RUST_TC_VER=stable
 ARG KEY_SIZE=8
 ARG COMMIT_HASH
-ARG BUILD_PROFILE
-ARG BUILD_PROFILE_DIR
+ARG BUILD_PROFILE=release
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends musl-tools \
@@ -39,7 +38,7 @@ RUN export "BUILD_PROFILE_DIR=$(case "$BUILD_PROFILE" in\
 
 RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/lib.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-backend/src/lib.rs \
-  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-common/src/lib.rs \
+  && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-common/src/lib.rs \BUILD_PROFILE_DIR
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-grpc/src/lib.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/bobd.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/bobc.rs \
@@ -49,7 +48,7 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/brt.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/bobt.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-access/src/lib.rs \
-  && cargo build --profile=${BUILD_PROFILE:-"release"} --target=x86_64-unknown-linux-musl
+  && cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-musl
 
 
 # separate stage for proto build
@@ -57,15 +56,15 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grp
   && mkdir -p bob-grpc/proto
 COPY bob-grpc/proto/* bob-grpc/proto/
 COPY bob-grpc/build.rs bob-grpc/build.rs
-RUN cargo build --profile=${BUILD_PROFILE:-"release"} --target=x86_64-unknown-linux-musl \
-  && rm -f target/x86_64-unknown-linux-musl/${BUILD_PROFILE_DIR:-"release"}/deps/bob* \
-  && rm -f target/x86_64-unknown-linux-musl/${BUILD_PROFILE_DIR:-"release"}/deps/libbob* 
+RUN cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-musl \
+  && rm -f target/x86_64-unknown-linux-musl/${BUILD_PROFILE_DIR}/deps/bob* \
+  && rm -f target/x86_64-unknown-linux-musl/${BUILD_PROFILE_DIR}/deps/libbob* 
 
 # final build
 COPY . .
 ENV BOB_KEY_SIZE=${KEY_SIZE}
 ENV BOB_COMMIT_HASH=${COMMIT_HASH}
-RUN cargo build --profile=${BUILD_PROFILE_DIR:-"release"} --target=x86_64-unknown-linux-musl
+RUN cargo build --profile=${BUILD_PROFILE_DIR} --target=x86_64-unknown-linux-musl
 
 # bobd image
 FROM alpine:3.12.0
@@ -85,7 +84,7 @@ RUN apk update \
   && adduser --shell /bin/bash -G bobd -G wheel -S bobd
 
 WORKDIR /home/bob/bin/
-COPY --chown=bobd:bobd --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-musl/${BUILD_PROFILE_DIR:-"release"}/bobd .
+COPY --chown=bobd:bobd --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-musl/${BUILD_PROFILE_DIR}/bobd .
 RUN mkdir /bob/log -p && chown bobd:bobd /bob/log -R \
   && mkdir /bob/data/d1 -p && chown bobd:bobd /bob/data/d1 -R \
   && mkdir /bob/configs -p && chown bobd:bobd /bob/configs -R \
