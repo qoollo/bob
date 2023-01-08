@@ -5,6 +5,8 @@ FROM rust:1.47.0 as cargo-build
 ARG RUST_TC_VER=stable
 ARG KEY_SIZE=8
 ARG COMMIT_HASH
+ARG BUILD_PROFILE
+ARG BUILD_PROFILE_DIR
 
 RUN rustup install $RUST_TC_VER \
   && rustup default $RUST_TC_VER \
@@ -25,6 +27,14 @@ COPY bob-apps/Cargo.toml bob-apps/Cargo.toml
 COPY bob-access/Cargo.toml bob-access/Cargo.toml
 RUN sed -i "s|\[\[bench\]\]|\[\[bench_ignore\]\]|g" */Cargo.toml
 
+# estimate build directory
+RUN export "BUILD_PROFILE_DIR=$(case "$BUILD_PROFILE" in\
+  ("dev") echo "debug";;\
+  ("test") echo "debug";;\
+  ("bench") echo "release";;\
+  (*) echo "$BUILD_PROFILE";;\
+  esac)"
+
 RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/lib.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-backend/src/lib.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-common/src/lib.rs \
@@ -37,7 +47,7 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/brt.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/bobt.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-access/src/lib.rs \
-  && cargo build --release --target=x86_64-unknown-linux-gnu
+  && cargo build --profile=${BUILD_PROFILE:-"release"} --target=x86_64-unknown-linux-gnu
 
 
 # separate stage for proto build
@@ -45,15 +55,15 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grp
   && mkdir -p bob-grpc/proto
 COPY bob-grpc/proto/* bob-grpc/proto/
 COPY bob-grpc/build.rs bob-grpc/build.rs
-RUN cargo build --release --target=x86_64-unknown-linux-gnu \
-  && rm -f target/x86_64-unknown-linux-gnu/release/deps/bob* \
-  && rm -f target/x86_64-unknown-linux-gnu/release/deps/libbob*
+RUN cargo build --profile=${BUILD_PROFILE:-"release"} --target=x86_64-unknown-linux-gnu \
+  && rm -f target/x86_64-unknown-linux-gnu/${BUILD_PROFILE_DIR:-"release"}/deps/bob* \
+  && rm -f target/x86_64-unknown-linux-gnu/${BUILD_PROFILE_DIR:-"release"}/deps/libbob*
 
 # final build
 COPY . .
 ENV BOB_KEY_SIZE=${KEY_SIZE}
 ENV BOB_COMMIT_HASH=${COMMIT_HASH}
-RUN cargo build --release --target=x86_64-unknown-linux-gnu
+RUN cargo build --profile=${BUILD_PROFILE:-"release"} --target=x86_64-unknown-linux-gnu
 
 # bobd image
 FROM ubuntu:20.04
@@ -76,9 +86,8 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home/bob/bin/
-COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-gnu/release/bobd .
-RUN chown bobd:bobd bobd \
-  && mkdir /bob/log -p && chown bobd:bobd /bob/log -R \
+COPY --chown=bobd:bobd --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-gnu/${BUILD_PROFILE_DIR:-"release"}/bobd .
+RUN mkdir /bob/log -p && chown bobd:bobd /bob/log -R \
   && mkdir /bob/data/d1 -p && chown bobd:bobd /bob/data/d1 -R \
   && mkdir /bob/configs -p && chown bobd:bobd /bob/configs -R \
   && mkdir ~/.ssh \
@@ -104,9 +113,7 @@ RUN chown bobd:bobd bobd \
 
 COPY dockerfiles/default-configs/ /bob/configs
 
-EXPOSE 80
-EXPOSE 22
-EXPOSE 20000
+EXPOSE 22 80 20000
 USER bobd
 ENTRYPOINT ["./run.sh"]
 CMD ["cluster.yaml", "node.yaml"]
