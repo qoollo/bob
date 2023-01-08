@@ -74,7 +74,6 @@ jobs:
           ("dev") echo "debug";;\
           ("test") echo "debug";;\
           ("bench") echo "release";;\
-          ("integration-test") echo "debug";;\
           (*) echo "$BUILD_PROFILE";;\
           esac)" >> $GITHUB_ENV
       - name: Output estimated working-directory
