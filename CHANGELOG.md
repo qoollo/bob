@@ -7,6 +7,7 @@ Bob versions changelog
 - 'Exists' method through HEAD request in REST API (#691)
 - Support for 'exists' method in bobt (#691)
 - Round robin algorithm for alien nodes selection (#570)
+- 'release-lto' and 'integration-test' build profiles added (#704)
 - Integration tests (#518)
 - Added integration tests for aliens (#642)
 - Added integration tests for bobt (#648)
