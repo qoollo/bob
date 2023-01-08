@@ -5,6 +5,8 @@ FROM rust:1.47.0 as cargo-build
 ARG RUST_TC_VER=stable
 ARG KEY_SIZE=8
 ARG COMMIT_HASH
+ARG BUILD_PROFILE
+ARG BUILD_PROFILE_DIR
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends musl-tools \
@@ -26,6 +28,14 @@ COPY bob-grpc/Cargo.toml bob-grpc/Cargo.toml
 COPY bob-apps/Cargo.toml bob-apps/Cargo.toml
 COPY bob-access/Cargo.toml bob-access/Cargo.toml
 RUN sed -i "s|\[\[bench\]\]|\[\[bench_ignore\]\]|g" */Cargo.toml
+
+# estimate build directory
+RUN export "BUILD_PROFILE_DIR=$(case "$BUILD_PROFILE" in\
+  ("dev") echo "debug";;\
+  ("test") echo "debug";;\
+  ("bench") echo "release";;\
+  (*) echo "$BUILD_PROFILE";;\
+  esac)"
 
 RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/lib.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-backend/src/lib.rs \
@@ -75,9 +85,8 @@ RUN apk update \
   && adduser --shell /bin/bash -G bobd -G wheel -S bobd
 
 WORKDIR /home/bob/bin/
-COPY --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-musl/${BUILD_PROFILE_DIR:-"release"}/bobd .
-RUN chown bobd:bobd bobd \
-  && mkdir /bob/log -p && chown bobd:bobd /bob/log -R \
+COPY --chown=bobd:bobd --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-musl/${BUILD_PROFILE_DIR:-"release"}/bobd .
+RUN mkdir /bob/log -p && chown bobd:bobd /bob/log -R \
   && mkdir /bob/data/d1 -p && chown bobd:bobd /bob/data/d1 -R \
   && mkdir /bob/configs -p && chown bobd:bobd /bob/configs -R \
   && mkdir ~/.ssh \
@@ -103,9 +112,7 @@ RUN chown bobd:bobd bobd \
 
 COPY dockerfiles/default-configs/ /bob/configs
 
-EXPOSE 80
-EXPOSE 22
-EXPOSE 20000
+EXPOSE 22 80 20000
 USER bobd
 ENTRYPOINT ["/bin/bash", "./run.sh"]
 CMD ["cluster.yaml", "node.yaml"]
