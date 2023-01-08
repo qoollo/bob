@@ -58,7 +58,7 @@ try:
             sys.exit(f'Put test failed, see output.')
         written_count += dict_args.get('-c')
         #stops one
-        sleep(30)
+        sleep(10)
         d_cli.container.stop(container_dict[str(parsed_args.transport_min_port + i)])
         print(f'Bob node {i} stopped.\n')
         stopped_list = d_cli.container.list(filters={"status":"exited"})
