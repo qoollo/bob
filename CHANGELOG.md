@@ -16,7 +16,7 @@ Bob versions changelog
 
 
 #### Updated
-
+- Configurable build profiles in Dockerfiles
 
 
 ## [2.1.0-alpha.7] - 2022-11-28
