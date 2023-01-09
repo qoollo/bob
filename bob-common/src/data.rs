@@ -230,12 +230,6 @@ impl BobGetOptions {
         self.force_node
     }
 
-    pub fn get_all(&self) -> bool {
-        self.get_source.map_or(false, |value| {
-            value == GetSource::All
-        })
-    }
-
     pub fn get_normal(&self) -> bool {
         self.get_source.map_or(false, |value| {
             value == GetSource::All || value == GetSource::Normal
