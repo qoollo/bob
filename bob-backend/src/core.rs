@@ -437,7 +437,7 @@ impl Backend {
                               if options.get_alien() { 1 } else { 0 };
 
         let mut result = Vec::with_capacity(capacity);
-        
+
         if options.get_normal() {
             if let Some(path) = path {
                 result.push(Operation::new_local(vdisk_id, path));
@@ -465,12 +465,14 @@ impl Backend {
     pub async fn delete(
         &self,
         key: BobKey,
-        options: BobDeleteOptions,
-        force_delete: bool,
+        meta: &BobMeta,
+        options: BobDeleteOptions
     ) -> Result<(), Error> {
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
         // TODO: FIX ME
         panic!("FIX ME");
+        /* 
+        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+
         if !options.force_alien_nodes().is_empty() {
             for node_name in options.force_alien_nodes() {
                 let mut op = Operation::new_alien(vdisk_id);
@@ -487,12 +489,13 @@ impl Backend {
                 key, options
             );
             Err(Error::internal())
-        }
+        }*/
     }
 
     pub async fn delete_local(
         &self,
         key: BobKey,
+        meta: &BobMeta,
         op: Operation,
         force_delete: bool,
     ) -> Result<u64, Error> {

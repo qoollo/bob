@@ -214,19 +214,18 @@ impl Grinder {
     pub(crate) async fn delete(
         &self,
         key: BobKey,
-        timestamp: u64,
+        meta: &BobMeta,
         options: BobDeleteOptions,
     ) -> Result<(), Error> {
         trace!(">>>- - - - - GRINDER DELETE START - - - - -");
-        let force = options.flags().contains(BobFlags::FORCE_OP);
-        let result = if options.flags().contains(BobFlags::FORCE_NODE) {
+        let result = if options.force_node() {
             counter!(CLIENT_DELETE_COUNTER, 1);
             let sw = Stopwatch::start_new();
             trace!(
                 "pass delete request to backend, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let result = self.backend.delete(key, options, force).await;
+            let result = self.backend.delete(key, meta, options).await;
             trace!(
                 "backend processed delete, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
@@ -239,7 +238,7 @@ impl Grinder {
         } else {
             counter!(GRINDER_DELETE_COUNTER, 1);
             let sw = Stopwatch::start_new();
-            let result = self.cluster.delete(key, timestamp).await;
+            let result = self.cluster.delete(key, meta).await;
             trace!(
                 "cluster processed delete, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0

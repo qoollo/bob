@@ -97,6 +97,13 @@ fn get_extract(req: GetRequest) -> Option<(BobKey, Option<GetOptions>)> {
     Some((key.into(), options))
 }
 
+fn delete_extract(req: DeleteRequest) -> Option<(BobKey, u64, Option<DeleteOptions>)> {
+    let key = req.key?.key;
+    let timestamp = req.meta.as_ref()?.timestamp;
+    let options = req.options;
+    Some((key.into(), timestamp, options))
+}
+
 type ApiResult<T> = Result<Response<T>, Status>;
 
 #[tonic::async_trait]
@@ -246,23 +253,21 @@ where
 
     async fn delete(&self, req: Request<DeleteRequest>) -> ApiResult<OpStatus> {
         let req = req.into_inner();
-        let DeleteRequest { key, meta, options } = req;
-        if let Some(key) = key {
+        if let Some((key, timestamp, options)) = delete_extract(req) {
             let sw = Stopwatch::start_new();
             self.grinder
                 .delete(
-                    key.key.into(),
-                    chrono::Local::now().timestamp() as u64,
+                    key,
+                    &BobMeta::new(timestamp),
                     BobDeleteOptions::new_delete(options),
                 )
                 .await?;
-            let elapsed = sw.elapsed();
-            debug!("DELETE-OK dt: {:?}", elapsed);
+            debug!("DELETE-OK dt: {:?}", sw.elapsed());
             Ok(Response::new(OpStatus { error: None }))
         } else {
             Err(Status::new(
                 Code::InvalidArgument,
-                "Key and options are mandatory",
+                "Key and meta are mandatory",
             ))
         }
     }

@@ -69,7 +69,7 @@ mod prelude {
     };
     pub use futures::{future, stream::FuturesUnordered, Future, FutureExt, StreamExt};
     pub use std::{
-        collections::HashMap,
+        collections::HashMap, collections::HashSet,
         fmt::{Debug, Formatter, Result as FmtResult},
         io::Write,
         pin::Pin,

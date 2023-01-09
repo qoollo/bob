@@ -50,14 +50,6 @@ impl GetOptions {
 }
 
 impl DeleteOptions {
-    pub fn new_all() -> Self {
-        Self {
-            force_alien_nodes: vec![],
-            force_node: false,
-            is_alien: false,
-        }
-    }
-
     pub fn new_local() -> Self {
         Self {
             force_alien_nodes: vec![],

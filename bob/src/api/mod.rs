@@ -1101,7 +1101,7 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
-    let meta = BobMeta::new(chrono::Local::now().timestamp() as u64);
+    let meta = BobMeta::new(chrono::Utc::now().timestamp() as u64);
     let data = BobData::new(body, meta);
 
     let opts = BobPutOptions::new_put(None);
@@ -1125,7 +1125,7 @@ where
     bob.grinder()
         .delete(
             key,
-            chrono::Local::now().timestamp() as u64,
+            &BobMeta::new(chrono::Utc::now().timestamp() as u64),
             BobDeleteOptions::new_delete(None),
         )
         .await

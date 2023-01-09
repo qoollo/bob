@@ -11,7 +11,7 @@ use axum::{
 
 use bob_access::{Authenticator, CredentialsHolder};
 use bob_common::{
-    data::{BobData, BobKey, BobMeta, BobPutOptions, BobGetOptions, BobDeleteOptions},
+    data::{BobData, BobKey, BobMeta, BobPutOptions, BobGetOptions},
     error::Error,
 };
 use bytes::Bytes;
@@ -179,7 +179,7 @@ where
     }
     let data = BobData::new(
         body,
-        BobMeta::new(chrono::Local::now().timestamp() as u64),
+        BobMeta::new(chrono::Utc::now().timestamp() as u64),
     );
 
     let opts = BobPutOptions::new_put(None);
@@ -255,7 +255,7 @@ async fn copy_object<A: Authenticator>(
     }
     let data = BobData::new(
         data.into_inner(),
-        BobMeta::new(chrono::Local::now().timestamp() as u64),
+        BobMeta::new(chrono::Utc::now().timestamp() as u64),
     );
 
     let opts = BobPutOptions::new_put(None);

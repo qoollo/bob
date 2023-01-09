@@ -32,12 +32,13 @@ fn call_node_put(
 
 fn call_node_delete(
     key: BobKey,
+    meta: BobMeta,
     options: DeleteOptions,
     node: Node,
 ) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
     debug!("DELETE[{}] delete to {}", key, node.name());
     let task = async move {
-        LinkManager::call_node(&node, |conn| conn.delete(key, options).boxed()).await
+        LinkManager::call_node(&node, |conn| conn.delete(key, meta, options).boxed()).await
     };
     tokio::spawn(task)
 }
@@ -94,12 +95,13 @@ pub(crate) async fn put_at_least(
 
 pub(crate) async fn delete_at_nodes(
     key: BobKey,
+    meta: &BobMeta,
     target_nodes: impl Iterator<Item = &Node>,
     target_nodes_count: usize,
     options: DeleteOptions,
 ) -> Vec<NodeOutput<Error>> {
     let (tasks, errors) = call_at_least(target_nodes, target_nodes_count, |n| {
-        call_node_delete(key, options.clone(), n)
+        call_node_delete(key, meta.clone(), options.clone(), n)
     })
     .await;
     assert!(tasks.is_empty());
@@ -243,28 +245,32 @@ pub(crate) async fn put_local_all(
 
 pub(crate) async fn delete_local_aliens(
     backend: &Backend,
-    node_names: Vec<String>,
     key: BobKey,
-    operation: Operation,
-    all_nodes: Vec<&Node>,
-) -> Result<(), PutOptions> {
-    let mut add_nodes = vec![];
-    for node in all_nodes {
-        let mut op = operation.clone();
+    meta: &BobMeta,
+    all_nodes_for_key: &[Node],
+    force_nodes: Vec<String>,
+    vdisk_id: VDiskId,
+) -> Result<(), DeleteOptions> {
+    let mut fully_failed_nodes = vec![];
+
+    for node in all_nodes_for_key {
+        let mut op = Operation::new_alien(vdisk_id);
         let node_name = node.name().to_string();
-        debug!("DELETE[{}] delete to local alien: {:?}", key, node_name);
-        let force_delete = node_names.contains(&node_name);
+        trace!("DELETE[{}] delete to local alien: {:?}", key, node_name);
+        let force_delete = force_nodes.contains(&node_name);
         op.set_remote_folder(node_name);
-        if let Err(e) = backend.delete_local(key, op, force_delete).await {
-            debug!("DELETE[{}] local support delete result: {:?}", key, e);
-            add_nodes.push(node.name().to_string());
+        if let Err(e) = backend.delete_local(key, meta, op, force_delete).await {
+            trace!("DELETE[{}] local alien delete result: {:?}", key, e);
+            if force_delete {
+                fully_failed_nodes.push(node.name().to_string());
+            }
         }
     }
 
-    if add_nodes.is_empty() {
+    if fully_failed_nodes.is_empty() {
         Ok(())
     } else {
-        Err(PutOptions::new_alien(add_nodes))
+        Err(DeleteOptions::new_alien(fully_failed_nodes))
     }
 }
 
@@ -295,17 +301,19 @@ pub(crate) async fn put_sup_nodes(
 
 pub(crate) async fn delete_sup_nodes(
     key: BobKey,
+    meta: &BobMeta,
     requests: &[(&Node, DeleteOptions)],
 ) -> Result<(), Vec<NodeOutput<Error>>> {
     let mut ret = vec![];
     for (node, options) in requests {
         let result =
-            LinkManager::call_node(node, |client| Box::pin(client.delete(key, options.clone())))
+            LinkManager::call_node(node, |client| Box::pin(client.delete(key, meta.clone(), options.clone())))
                 .await;
         debug!("{:?}", result);
         if let Err(e) = result {
-            let target_node = options.remote_nodes[0].to_owned();
+            let target_node = options.force_alien_nodes[0].to_owned(); // TODO: FIX ME
             ret.push(NodeOutput::new(target_node, e.into_inner()));
+            panic!("FIX ME");
         }
     }
 
@@ -331,12 +339,12 @@ pub(crate) async fn put_local_node(
 pub(crate) async fn delete_at_local_node(
     backend: &Backend,
     key: BobKey,
+    meta: &BobMeta,
     vdisk_id: VDiskId,
     disk_path: DiskPath,
-    force_delete: bool,
 ) -> Result<(), Error> {
-    debug!("local node has vdisk replica, put local");
+    debug!("local node has vdisk replica, delete local");
     let op = Operation::new_local(vdisk_id, disk_path);
-    backend.delete_local(key, op, force_delete).await?;
+    backend.delete_local(key, meta, op, true).await?;
     Ok(())
 }
