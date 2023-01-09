@@ -269,8 +269,12 @@ impl BobDeleteOptions {
         self.is_alien
     }
 
-    pub fn force_alien_nodes(&self) -> &[String] {
+    pub fn force_delete_nodes(&self) -> &[String] {
         &self.force_alien_nodes
+    }
+
+    pub fn is_force_delete(&self, node_name: &str) -> bool {
+        self.force_alien_nodes.iter().any(|x| x == node_name)
     }
 }
 

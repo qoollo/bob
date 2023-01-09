@@ -347,6 +347,77 @@ impl Group {
         exist
     }
 
+
+    pub async fn delete(
+        &self,
+        key: BobKey,
+        meta: &BobMeta,
+        timestamp_config: StartTimestampConfig,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
+        {
+            let holders = self.holders.read().await;
+            if holders.len() != 0 {
+                let copy = holders.iter().cloned().enumerate().collect();
+                drop(holders);
+                return self.delete_in_holders(copy, key, force_delete).await;
+            }
+        }
+        let holder = self
+            .get_actual_holder(get_current_timestamp(), timestamp_config)
+            .await?;
+        self.delete_in_holders(vec![(holder.0, holder.1)], key, force_delete)
+            .await
+    }
+
+    async fn delete_in_holders(
+        &self,
+        holders: Vec<(ChildId, Holder)>,
+        key: BobKey,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
+        let mut total_count = 0;
+        for holder in holders {
+            let delete = Self::delete_common(holder.1.clone(), key, force_delete).await;
+            if force_delete {
+                // We need to add marker record to alien regardless of record presence
+                self.holders
+                    .write()
+                    .await
+                    .add_to_parents(holder.0, &Key::from(key));
+            }
+            match delete {
+                Ok(count) => {
+                    trace!("delete data: {:?} from: {:?}", count, holder);
+                    total_count += count;
+                }
+                Err(err) => {
+                    error!("delete error: {}, from : {:?}", err, holder);
+                    return Err(err);
+                }
+            }
+        }
+        Ok(total_count)
+    }
+
+    async fn delete_common(holder: Holder, key: BobKey, force_delete: bool) -> Result<u64, Error> {
+        let result = holder.delete(key, force_delete).await;
+        if let Err(e) = result {
+            // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
+            // holder but instead try to restart the whole disk
+            if !e.is_possible_disk_disconnection() && !e.is_duplicate() && !e.is_not_ready() {
+                error!("pearl holder will restart: {:?}", e);
+                holder.try_reinit().await?;
+                holder.prepare_storage().await?;
+                debug!("backend::pearl::group::delete_common storage prepared");
+            }
+            Err(e)
+        } else {
+            result
+        }
+    }
+    
+
     pub fn holders(&self) -> Arc<RwLock<HoldersContainer>> {
         self.holders.clone()
     }
@@ -596,74 +667,6 @@ impl Group {
             (false, true) => Ordering::Less,
             _ => x.end_timestamp().cmp(&y.end_timestamp()),
         });
-    }
-
-    pub async fn delete(
-        &self,
-        key: BobKey,
-        timestamp_config: StartTimestampConfig,
-        force_delete: bool,
-    ) -> Result<u64, Error> {
-        {
-            let holders = self.holders.read().await;
-            if holders.len() != 0 {
-                let copy = holders.iter().cloned().enumerate().collect();
-                drop(holders);
-                return self.delete_in_holders(copy, key, force_delete).await;
-            }
-        }
-        let holder = self
-            .get_actual_holder(get_current_timestamp(), timestamp_config)
-            .await?;
-        self.delete_in_holders(vec![(holder.0, holder.1)], key, force_delete)
-            .await
-    }
-
-    async fn delete_in_holders(
-        &self,
-        holders: Vec<(ChildId, Holder)>,
-        key: BobKey,
-        force_delete: bool,
-    ) -> Result<u64, Error> {
-        let mut total_count = 0;
-        for holder in holders {
-            let delete = Self::delete_common(holder.1.clone(), key, force_delete).await;
-            if force_delete {
-                // We need to add marker record to alien regardless of record presence
-                self.holders
-                    .write()
-                    .await
-                    .add_to_parents(holder.0, &Key::from(key));
-            }
-            match delete {
-                Ok(count) => {
-                    trace!("delete data: {:?} from: {:?}", count, holder);
-                    total_count += count;
-                }
-                Err(err) => {
-                    error!("delete error: {}, from : {:?}", err, holder);
-                    return Err(err);
-                }
-            }
-        }
-        Ok(total_count)
-    }
-
-    async fn delete_common(holder: Holder, key: BobKey, force_delete: bool) -> Result<u64, Error> {
-        let result = holder.delete(key, force_delete).await;
-        if let Err(e) = result {
-            // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
-            // holder but instead try to restart the whole disk
-            if !e.is_possible_disk_disconnection() && !e.is_duplicate() && !e.is_not_ready() {
-                error!("pearl holder will restart: {:?}", e);
-                holder.try_reinit().await?;
-                holder.prepare_storage().await?;
-                debug!("backend::pearl::group::delete_common storage prepared");
-            }
-            Err(e)
-        } else {
-            result
-        }
     }
 
     pub(crate) async fn filter_memory_allocated(&self) -> usize {

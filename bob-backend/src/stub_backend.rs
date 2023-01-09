@@ -67,7 +67,7 @@ impl BackendStorage for StubBackend {
         &self,
         _op: Operation,
         _key: BobKey,
-        _force_delete: bool,
+        _meta: &BobMeta,
     ) -> Result<u64, Error> {
         Ok(0)
     }
@@ -76,6 +76,7 @@ impl BackendStorage for StubBackend {
         &self,
         _op: Operation,
         _key: BobKey,
+        _meta: &BobMeta,
         _force_delete: bool,
     ) -> Result<u64, Error> {
         Ok(0)

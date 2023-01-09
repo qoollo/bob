@@ -500,6 +500,68 @@ impl DiskController {
         }
     }
 
+
+    pub(crate) async fn delete(
+        &self,
+        op: Operation,
+        key: BobKey,
+        meta: &BobMeta
+    ) -> Result<u64, Error> {
+        if *self.state.read().await == GroupsState::Ready {
+            debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
+            let vdisk_group = self
+                .groups
+                .read()
+                .await
+                .iter()
+                .find(|g| g.can_process_operation(&op))
+                .cloned();
+            if let Some(group) = vdisk_group {
+                group
+                    .delete(key, meta, StartTimestampConfig::default(), true) // Local delete should always have force_delete = true
+                    .await
+            } else {
+                error!("DELETE[{}] Cannot find storage, operation: {:?}", key, op);
+                Err(Error::vdisk_not_found(op.vdisk_id()))
+            }
+        } else {
+            Err(Error::dc_is_not_available())
+        }
+    }
+
+    pub(crate) async fn delete_alien(
+        &self,
+        op: Operation,
+        key: BobKey,
+        meta: &BobMeta,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
+        if *self.state.read().await == GroupsState::Ready {
+            // TODO: FIX ME
+            panic!("FIX ME");
+            let vdisk_group = self.get_or_create_pearl(&op).await;
+            match vdisk_group {
+                Ok(group) => match group
+                    .delete(key, meta, StartTimestampConfig::new(false), force_delete)
+                    .await
+                {
+                    Err(e) => Err(self.process_error(e).await),
+                    Ok(x) => Ok(x),
+                },
+                Err(e) => {
+                    error!(
+                        "DELETE[alien][{}] Cannot find group, op: {:?}, err: {}",
+                        key, op, e
+                    );
+                    Err(Error::vdisk_not_found(op.vdisk_id()))
+                }
+            }
+        } else {
+            Err(Error::dc_is_not_available())
+        }
+    }
+
+
     pub(crate) async fn shutdown(&self) {
         let futures = FuturesUnordered::new();
         for group in self.groups.read().await.iter() {
@@ -595,63 +657,6 @@ impl DiskController {
             }
         }
         result
-    }
-
-    pub(crate) async fn delete(
-        &self,
-        op: Operation,
-        key: BobKey,
-        force_delete: bool,
-    ) -> Result<u64, Error> {
-        if *self.state.read().await == GroupsState::Ready {
-            debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
-            let vdisk_group = self
-                .groups
-                .read()
-                .await
-                .iter()
-                .find(|g| g.can_process_operation(&op))
-                .cloned();
-            if let Some(group) = vdisk_group {
-                group
-                    .delete(key, StartTimestampConfig::default(), force_delete)
-                    .await
-            } else {
-                error!("DELETE[{}] Cannot find storage, operation: {:?}", key, op);
-                Err(Error::vdisk_not_found(op.vdisk_id()))
-            }
-        } else {
-            Err(Error::dc_is_not_available())
-        }
-    }
-
-    pub(crate) async fn delete_alien(
-        &self,
-        op: Operation,
-        key: BobKey,
-        force_delete: bool,
-    ) -> Result<u64, Error> {
-        if *self.state.read().await == GroupsState::Ready {
-            let vdisk_group = self.get_or_create_pearl(&op).await;
-            match vdisk_group {
-                Ok(group) => match group
-                    .delete(key, StartTimestampConfig::new(false), force_delete)
-                    .await
-                {
-                    Err(e) => Err(self.process_error(e).await),
-                    Ok(x) => Ok(x),
-                },
-                Err(e) => {
-                    error!(
-                        "DELETE[alien][{}] Cannot find group, op: {:?}, err: {}",
-                        key, op, e
-                    );
-                    Err(Error::vdisk_not_found(op.vdisk_id()))
-                }
-            }
-        } else {
-            Err(Error::dc_is_not_available())
-        }
     }
 
     pub(crate) async fn filter_memory_allocated(&self) -> usize {
