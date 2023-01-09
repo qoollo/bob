@@ -1,51 +1,14 @@
 use crate::link_manager::LinkManager;
 use crate::prelude::*;
+use super::support_types::{RemoteDeleteError};
 
 pub(crate) type Tasks = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>;
 
-pub(crate) async fn get_any(
-    key: BobKey,
-    target_nodes: impl Iterator<Item = &Node>,
-    options: GetOptions,
-) -> Option<NodeOutput<BobData>> {
-    let requests: FuturesUnordered<_> = target_nodes
-        .map(|node| LinkManager::call_node(node, |conn| conn.get(key, options.clone()).boxed()))
-        .collect();
-    requests
-        .filter_map(|res| future::ready(res.ok()))
-        .next()
-        .await
-}
+// ======================= Helpers =================
 
-fn call_node_put(
-    key: BobKey,
-    data: BobData,
-    node: Node,
-    options: PutOptions,
-) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
-    debug!("PUT[{}] put to {}", key, node.name());
-    let task = async move {
-        LinkManager::call_node(&node, |conn| conn.put(key, data, options).boxed()).await
-    };
-    tokio::spawn(task)
-}
-
-fn call_node_delete(
-    key: BobKey,
-    meta: BobMeta,
-    options: DeleteOptions,
-    node: Node,
-) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
-    debug!("DELETE[{}] delete to {}", key, node.name());
-    let task = async move {
-        LinkManager::call_node(&node, |conn| conn.delete(key, meta, options).boxed()).await
-    };
-    tokio::spawn(task)
-}
-
-fn is_result_successful(
-    join_res: Result<Result<NodeOutput<()>, NodeOutput<Error>>, JoinError>,
-    errors: &mut Vec<NodeOutput<Error>>,
+fn is_result_successful<TErr: Debug>(
+    join_res: Result<Result<NodeOutput<()>, NodeOutput<TErr>>, JoinError>,
+    errors: &mut Vec<NodeOutput<TErr>>,
 ) -> usize {
     debug!("handle returned");
     match join_res {
@@ -63,10 +26,10 @@ fn is_result_successful(
     0
 }
 
-async fn finish_at_least_handles(
-    handles: &mut FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>,
+async fn finish_at_least_handles<TErr: Debug>(
+    handles: &mut FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>>,
     at_least: usize,
-) -> Vec<NodeOutput<Error>> {
+) -> Vec<NodeOutput<TErr>> {
     let mut ok_count = 0;
     let mut errors = Vec::new();
     while ok_count < at_least {
@@ -80,45 +43,49 @@ async fn finish_at_least_handles(
     errors
 }
 
-pub(crate) async fn put_at_least(
-    key: BobKey,
-    data: &BobData,
-    target_nodes: impl Iterator<Item = &Node>,
+async fn call_at_least<TOp, TErr: Debug>(
+    target_nodes: impl Iterator<Item = TOp>,
     at_least: usize,
-    options: PutOptions,
-) -> (Tasks, Vec<NodeOutput<Error>>) {
-    call_at_least(target_nodes, at_least, |n| {
-        call_node_put(key, data.clone(), n, options.clone())
-    })
-    .await
-}
-
-pub(crate) async fn delete_at_nodes(
-    key: BobKey,
-    meta: &BobMeta,
-    target_nodes: impl Iterator<Item = &Node>,
-    target_nodes_count: usize,
-    options: DeleteOptions,
-) -> Vec<NodeOutput<Error>> {
-    let (tasks, errors) = call_at_least(target_nodes, target_nodes_count, |n| {
-        call_node_delete(key, meta.clone(), options.clone(), n)
-    })
-    .await;
-    assert!(tasks.is_empty());
-    errors
-}
-
-async fn call_at_least(
-    target_nodes: impl Iterator<Item = &Node>,
-    at_least: usize,
-    f: impl Fn(Node) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>,
-) -> (Tasks, Vec<NodeOutput<Error>>) {
-    let mut handles: FuturesUnordered<_> = target_nodes.cloned().map(|node| f(node)).collect();
+    f: impl Fn(TOp) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>,
+) -> (FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>>, Vec<NodeOutput<TErr>>) {
+    let mut handles: FuturesUnordered<_> = target_nodes.map(|op| f(op)).collect();
     debug!("total handles count: {}", handles.len());
     let errors = finish_at_least_handles(&mut handles, at_least).await;
     debug!("remains: {}, errors: {}", handles.len(), errors.len());
     (handles, errors)
 }
+
+
+async fn finish_all_handles<TErr: Debug>(
+    handles: &mut FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>>
+) -> Vec<NodeOutput<TErr>> {
+    let mut ok_count = 0;
+    let mut total_count = 0;
+    let mut errors = Vec::new();
+    while let Some(join_res) = handles.next().await {
+        total_count += 1;
+        ok_count += is_result_successful(join_res, &mut errors);
+    }
+    debug!("ok_count/total: {}/{}", ok_count, total_count);
+    errors
+}
+
+async fn call_all<TOp, TErr: Debug>(
+    operations: impl Iterator<Item = TOp>,
+    f: impl Fn(TOp) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>,
+) -> (usize, Vec<NodeOutput<TErr>>) {
+    let mut handles: FuturesUnordered<_> = operations.map(|op| f(op)).collect();
+    let handles_len = handles.len();
+    if handles_len == 0 {
+        return (0, Vec::new());
+    }
+    debug!("total handles count: {}", handles_len);
+    let errors = finish_all_handles(&mut handles).await;
+    debug!("errors/total: {}/{}", errors.len(), handles_len);
+    (handles_len, errors)
+}
+
+// ======================= EXIST =================
 
 pub(crate) fn group_keys_by_nodes(
     mapper: &Virtual,
@@ -135,6 +102,22 @@ pub(crate) fn group_keys_by_nodes(
             .or_insert_with(|| (vec![key], vec![ind]));
     }
     keys_by_nodes
+}
+
+// ======================== GET ==========================
+
+pub(crate) async fn get_any(
+    key: BobKey,
+    target_nodes: impl Iterator<Item = &Node>,
+    options: GetOptions,
+) -> Option<NodeOutput<BobData>> {
+    let requests: FuturesUnordered<_> = target_nodes
+        .map(|node| LinkManager::call_node(node, |conn| conn.get(key, options.clone()).boxed()))
+        .collect();
+    requests
+        .filter_map(|res| future::ready(res.ok()))
+        .next()
+        .await
 }
 
 pub(crate) async fn lookup_local_alien(
@@ -217,6 +200,36 @@ pub(crate) async fn lookup_remote_nodes(mapper: &Virtual, key: BobKey) -> Option
     }
 }
 
+// ==================== PUT ======================
+
+fn call_node_put(
+    key: BobKey,
+    data: BobData,
+    node: Node,
+    options: PutOptions,
+) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
+    debug!("PUT[{}] put to {}", key, node.name());
+    let task = async move {
+        LinkManager::call_node(&node, |conn| conn.put(key, data, options).boxed()).await
+    };
+    tokio::spawn(task)
+}
+
+
+pub(crate) async fn put_at_least(
+    key: BobKey,
+    data: &BobData,
+    target_nodes: impl Iterator<Item = &Node>,
+    at_least: usize,
+    options: PutOptions,
+) -> (Tasks, Vec<NodeOutput<Error>>) {
+    call_at_least(target_nodes, at_least, |n| {
+        call_node_put(key, data.clone(), n.clone(), options.clone())
+    })
+    .await
+}
+
+
 pub(crate) async fn put_local_all(
     backend: &Backend,
     node_names: Vec<String>,
@@ -243,36 +256,6 @@ pub(crate) async fn put_local_all(
     }
 }
 
-pub(crate) async fn delete_local_aliens(
-    backend: &Backend,
-    key: BobKey,
-    meta: &BobMeta,
-    all_nodes_for_key: &[Node],
-    force_nodes: Vec<String>,
-    vdisk_id: VDiskId,
-) -> Result<(), DeleteOptions> {
-    let mut fully_failed_nodes = vec![];
-
-    for node in all_nodes_for_key {
-        let mut op = Operation::new_alien(vdisk_id);
-        let node_name = node.name().to_string();
-        trace!("DELETE[{}] delete to local alien: {:?}", key, node_name);
-        let force_delete = force_nodes.contains(&node_name);
-        op.set_remote_folder(node_name);
-        if let Err(e) = backend.delete_local(key, meta, op, force_delete).await {
-            trace!("DELETE[{}] local alien delete result: {:?}", key, e);
-            if force_delete {
-                fully_failed_nodes.push(node.name().to_string());
-            }
-        }
-    }
-
-    if fully_failed_nodes.is_empty() {
-        Ok(())
-    } else {
-        Err(DeleteOptions::new_alien(fully_failed_nodes))
-    }
-}
 
 pub(crate) async fn put_sup_nodes(
     key: BobKey,
@@ -299,30 +282,6 @@ pub(crate) async fn put_sup_nodes(
     }
 }
 
-pub(crate) async fn delete_sup_nodes(
-    key: BobKey,
-    meta: &BobMeta,
-    requests: &[(&Node, DeleteOptions)],
-) -> Result<(), Vec<NodeOutput<Error>>> {
-    let mut ret = vec![];
-    for (node, options) in requests {
-        let result =
-            LinkManager::call_node(node, |client| Box::pin(client.delete(key, meta.clone(), options.clone())))
-                .await;
-        debug!("{:?}", result);
-        if let Err(e) = result {
-            let target_node = options.force_alien_nodes[0].to_owned(); // TODO: FIX ME
-            ret.push(NodeOutput::new(target_node, e.into_inner()));
-            panic!("FIX ME");
-        }
-    }
-
-    if ret.is_empty() {
-        Ok(())
-    } else {
-        Err(ret)
-    }
-}
 
 pub(crate) async fn put_local_node(
     backend: &Backend,
@@ -336,7 +295,11 @@ pub(crate) async fn put_local_node(
     backend.put_local(key, data, op).await
 }
 
-pub(crate) async fn delete_at_local_node(
+
+
+// =================== DELETE =================
+
+pub(crate) async fn delete_on_local_node(
     backend: &Backend,
     key: BobKey,
     meta: &BobMeta,
@@ -347,4 +310,87 @@ pub(crate) async fn delete_at_local_node(
     let op = Operation::new_local(vdisk_id, disk_path);
     backend.delete_local(key, meta, op, true).await?;
     Ok(())
+}
+
+pub(crate) async fn delete_on_local_aliens(
+    backend: &Backend,
+    key: BobKey,
+    meta: &BobMeta,
+    all_nodes_for_key: &[Node],
+    force_nodes: HashSet<String>,
+    vdisk_id: VDiskId,
+) -> Result<(), Vec<String>> {
+    let mut fully_failed_nodes = vec![];
+
+    for node in all_nodes_for_key {
+        let mut op = Operation::new_alien(vdisk_id);
+        let node_name = node.name().to_string();
+        trace!("DELETE[{}] delete to local alien: {:?}", key, node_name);
+        let force_delete = force_nodes.contains(&node_name);
+        op.set_remote_folder(node_name);
+        if let Err(e) = backend.delete_local(key, meta, op, force_delete).await {
+            trace!("DELETE[{}] local alien delete result: {:?}", key, e);
+            if force_delete {
+                fully_failed_nodes.push(node.name().to_string());
+            }
+        }
+    }
+
+    if fully_failed_nodes.is_empty() {
+        Ok(())
+    } else {
+        Err(fully_failed_nodes)
+    }
+}
+
+
+fn call_node_delete(
+    key: BobKey,
+    meta: BobMeta,
+    options: DeleteOptions,
+    node: Node,
+) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<RemoteDeleteError>>> {
+    debug!("DELETE[{}] delete to {}", key, node.name());
+    let task = async move {
+        let force_alien_nodes_copy = options.force_alien_nodes.clone();
+        let call_result = LinkManager::call_node(&node, |conn| conn.delete(key, meta, options).boxed()).await;
+        call_result.map_err(|err| err.map(|inner| RemoteDeleteError::new(force_alien_nodes_copy, inner)))
+    };
+    tokio::spawn(task)
+}
+
+
+pub(super) async fn delete_on_remote_nodes(
+    key: BobKey,
+    meta: &BobMeta,
+    requests: impl Iterator<Item = (&Node, DeleteOptions)>,
+) -> Result<(), Vec<NodeOutput<RemoteDeleteError>>> {
+
+    let (_, errors) = call_all(requests, |(node, options)| { call_node_delete(key, meta.clone(), options, node.clone()) }).await;
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+pub(super) async fn delete_on_remote_nodes_local(
+    key: BobKey,
+    meta: &BobMeta,
+    target_nodes: Vec<&Node>
+) -> Vec<NodeOutput<RemoteDeleteError>> {
+    if target_nodes.is_empty() {
+        return Vec::new();
+    }
+
+    let remote_delete_result = delete_on_remote_nodes(key, meta, 
+        target_nodes.into_iter().map(|n| (n, DeleteOptions::new_local()))
+    ).await;
+
+    if let Err(errors) = remote_delete_result {
+        return errors;
+    }
+
+    return Vec::new();
 }

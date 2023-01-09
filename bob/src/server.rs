@@ -252,18 +252,31 @@ where
     }
 
     async fn delete(&self, req: Request<DeleteRequest>) -> ApiResult<OpStatus> {
+        let creds: CredentialsHolder<A> = (&req).into();
+        if !self.auth.check_credentials_grpc(creds.into())?.has_write() {
+            return Err(Status::permission_denied("WRITE permission required"));
+        }
+
         let req = req.into_inner();
         if let Some((key, timestamp, options)) = delete_extract(req) {
+            trace!("DELETE[{}] request processing started", key);
             let sw = Stopwatch::start_new();
-            self.grinder
+            let delete_result = self.grinder
                 .delete(
                     key,
                     &BobMeta::new(timestamp),
                     BobDeleteOptions::new_delete(options),
-                )
-                .await?;
-            debug!("DELETE-OK dt: {:?}", sw.elapsed());
-            Ok(Response::new(OpStatus { error: None }))
+                ).await;
+
+            delete_result
+                .map(|_| {
+                    debug!("DELETE[{}]-OK dt: {:?}", key, sw.elapsed());
+                    Response::new(OpStatus { error: None })
+                })
+                .map_err(|e| {
+                    warn!("DELETE[{}]-ERR dt: {:?}, error: {:?}", key, sw.elapsed(), e);
+                    e.into()
+                })
         } else {
             Err(Status::new(
                 Code::InvalidArgument,
