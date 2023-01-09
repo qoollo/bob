@@ -27,12 +27,12 @@ COPY bob-access/Cargo.toml bob-access/Cargo.toml
 RUN sed -i "s|\[\[bench\]\]|\[\[bench_ignore\]\]|g" */Cargo.toml
 
 # estimate build directory
-RUN export "BUILD_PROFILE_DIR=$(case "$BUILD_PROFILE" in\
+RUN echo "$(case "$BUILD_PROFILE" in\
   ("dev") echo "debug";;\
   ("test") echo "debug";;\
   ("bench") echo "release";;\
   (*) echo "$BUILD_PROFILE";;\
-  esac)"
+  esac)" >> ./build_profile_dir
 
 RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/lib.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-backend/src/lib.rs \
@@ -52,17 +52,19 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/
 # separate stage for proto build
 RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grpc {include!(\"bob_storage.rs\");}" > bob-grpc/src/lib.rs \
   && mkdir -p bob-grpc/proto
+RUN rm -f bob-grpc/src/bob_storage.rs
 COPY bob-grpc/proto/* bob-grpc/proto/
 COPY bob-grpc/build.rs bob-grpc/build.rs
 RUN cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-gnu \
-  && rm -f target/x86_64-unknown-linux-gnu/${BUILD_PROFILE_DIR}/deps/bob* \
-  && rm -f target/x86_64-unknown-linux-gnu/${BUILD_PROFILE_DIR}/deps/libbob*
+  && rm -f target/x86_64-unknown-linux-musl/$(cat ./build_profile_dir)/deps/bob* \
+  && rm -f target/x86_64-unknown-linux-musl/$(cat ./build_profile_dir)/deps/libbob*
 
 # final build
 COPY . .
 ENV BOB_KEY_SIZE=${KEY_SIZE}
 ENV BOB_COMMIT_HASH=${COMMIT_HASH}
-RUN cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-gnu
+RUN cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-musl
+RUN mkdir /usr/src/bob/target/build_output && mv /usr/src/bob/target/x86_64-unknown-linux-musl/$(cat ./build_profile_dir)/bobd /usr/src/bob/target/build_output/bobd
 
 # bobd image
 FROM ubuntu:20.04
@@ -85,7 +87,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home/bob/bin/
-COPY --chown=bobd:bobd --from=cargo-build /usr/src/bob/target/x86_64-unknown-linux-gnu/${BUILD_PROFILE_DIR}/bobd .
+COPY --chown=bobd:bobd --from=cargo-build /usr/src/bob/target/build_output/bobd .
 RUN mkdir /bob/log -p && chown bobd:bobd /bob/log -R \
   && mkdir /bob/data/d1 -p && chown bobd:bobd /bob/data/d1 -R \
   && mkdir /bob/configs -p && chown bobd:bobd /bob/configs -R \
