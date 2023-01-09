@@ -10,6 +10,7 @@ use super::{
 use bob_common::metrics::pearl::{
     PEARL_GET_BYTES_COUNTER, PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER,
     PEARL_PUT_BYTES_COUNTER, PEARL_PUT_COUNTER, PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
+    PEARL_DELETE_COUNTER, PEARL_DELETE_ERROR_COUNTER, PEARL_DELETE_TIMER
 };
 use pearl::FilterResult;
 use pearl::{
@@ -451,19 +452,24 @@ impl Holder {
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
 
-    pub async fn delete(&self, key: BobKey, force_delete: bool) -> Result<u64, Error> {
+    pub async fn delete(&self, key: BobKey, _meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
             let storage = state.get();
             trace!("Vdisk: {}, delete key: {}", self.vdisk, key);
+            counter!(PEARL_DELETE_COUNTER, 1);
+            let timer = Instant::now();
+            // TODO: use meta
             let res = storage
                 .delete(Key::from(key), !force_delete)
                 .await
                 .map_err(|e| {
                     trace!("error on delete: {:?}", e);
+                    counter!(PEARL_DELETE_ERROR_COUNTER, 1);
                     Error::storage(e.to_string())
                 });
             self.update_last_modification();
+            counter!(PEARL_DELETE_TIMER, timer.elapsed().as_nanos() as u64);
             res
         } else {
             trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);

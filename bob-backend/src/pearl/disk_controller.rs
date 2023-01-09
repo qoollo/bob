@@ -537,24 +537,30 @@ impl DiskController {
         force_delete: bool,
     ) -> Result<u64, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            // TODO: FIX ME
-            panic!("FIX ME");
-            let vdisk_group = self.get_or_create_pearl(&op).await;
-            match vdisk_group {
-                Ok(group) => match group
-                    .delete(key, meta, StartTimestampConfig::new(false), force_delete)
-                    .await
-                {
-                    Err(e) => Err(self.process_error(e).await),
-                    Ok(x) => Ok(x),
-                },
-                Err(e) => {
-                    error!(
-                        "DELETE[alien][{}] Cannot find group, op: {:?}, err: {}",
-                        key, op, e
-                    );
-                    Err(Error::vdisk_not_found(op.vdisk_id()))
-                }
+            let vdisk_group =
+                if !force_delete {
+                    match self.find_group(&op).await {
+                        Ok(group) => group,
+                        Err(_) => return Ok(0)
+                    }
+                } else {
+                    // we should create group only when force_delete == true
+                    match self.get_or_create_pearl(&op).await {
+                        Ok(group) => group,
+                        Err(err) => {
+                            error!(
+                                "DELETE[alien][{}] Cannot find group, op: {:?}, err: {}",
+                                key, op, err
+                            );
+                            return Err(Error::vdisk_not_found(op.vdisk_id()));
+                        }
+                    }
+                };
+
+            match vdisk_group.delete(key, meta, StartTimestampConfig::new(false), force_delete).await
+            {
+                Err(e) => Err(self.process_error(e).await),
+                Ok(x) => Ok(x),
             }
         } else {
             Err(Error::dc_is_not_available())

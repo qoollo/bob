@@ -136,17 +136,20 @@ impl Group {
         data_timestamp: u64,
         timestamp_config: StartTimestampConfig,
     ) -> Result<(ChildId, Holder), Error> {
-        self.find_actual_holder(data_timestamp)
-            .or_else(|e| {
-                debug!("cannot find pearl: {}", e);
-                self.create_write_pearl(data_timestamp, timestamp_config)
-            })
-            .await
+        let holder_info = {
+            let holders = self.holders.read().await;
+            Self::find_actual_holder(&holders, data_timestamp).await
+        };
+        if let Err(e) = holder_info {
+            debug!("cannot find pearl: {}", e);
+            self.create_write_pearl(data_timestamp, timestamp_config).await
+        } else {
+            holder_info
+        }
     }
 
     // find in all pearls actual pearl
-    async fn find_actual_holder(&self, data_timestamp: u64) -> BackendResult<(ChildId, Holder)> {
-        let holders = self.holders.read().await;
+    async fn find_actual_holder(holders: &HoldersContainer, data_timestamp: u64) -> BackendResult<(ChildId, Holder)> {
         let mut holders_for_time = holders
             .iter()
             .enumerate()
@@ -355,53 +358,64 @@ impl Group {
         timestamp_config: StartTimestampConfig,
         force_delete: bool,
     ) -> Result<u64, Error> {
-        {
-            let holders = self.holders.read().await;
-            if holders.len() != 0 {
-                let copy = holders.iter().cloned().enumerate().collect();
-                drop(holders);
-                return self.delete_in_holders(copy, key, force_delete).await;
-            }
+        let mut reference_timestamp = meta.timestamp();
+        let mut total_deletion_count = 0;
+
+        if force_delete {
+            let actual_holder = self.get_actual_holder(get_current_timestamp(), timestamp_config).await?;
+            reference_timestamp = actual_holder.1.start_timestamp();
+            total_deletion_count += self.delete_in_actual_holder(actual_holder, key, meta).await?;
         }
-        let holder = self
-            .get_actual_holder(get_current_timestamp(), timestamp_config)
-            .await?;
-        self.delete_in_holders(vec![(holder.0, holder.1)], key, force_delete)
-            .await
+
+        let all_holders_before: Vec<_> = {
+            let holders = self.holders.read().await;
+            holders.iter().cloned().enumerate().filter(|h| h.1.start_timestamp() < reference_timestamp).collect()
+        };
+
+        total_deletion_count += self.delete_in_holders_before(all_holders_before, key, meta).await.unwrap_or(0);
+
+        return Ok(total_deletion_count);
     }
 
-    async fn delete_in_holders(
+    async fn delete_in_actual_holder(&self, holder: (ChildId, Holder), key: BobKey, meta: &BobMeta) -> Result<u64, Error> {
+        // In actual holder we delete with force_delete = true
+        let delete_count = Self::delete_common(holder.1.clone(), key, meta, true).await?;
+            // We need to add marker record to alien regardless of record presence
+        self.holders
+            .write()
+            .await
+            .add_to_parents(holder.0, &Key::from(key));
+        
+        Ok(delete_count)
+    }
+
+    async fn delete_in_holders_before(
         &self,
         holders: Vec<(ChildId, Holder)>,
         key: BobKey,
-        force_delete: bool,
+        meta: &BobMeta
     ) -> Result<u64, Error> {
         let mut total_count = 0;
-        for holder in holders {
-            let delete = Self::delete_common(holder.1.clone(), key, force_delete).await;
-            if force_delete {
-                // We need to add marker record to alien regardless of record presence
-                self.holders
-                    .write()
-                    .await
-                    .add_to_parents(holder.0, &Key::from(key));
-            }
-            match delete {
+        // Reverse iteration (from newer to older)
+        for holder in holders.into_iter().rev() {
+            let holder_id = holder.1.get_id();
+            let delete = Self::delete_common(holder.1, key, meta, false).await;
+            total_count += match delete {
                 Ok(count) => {
-                    trace!("delete data: {:?} from: {:?}", count, holder);
-                    total_count += count;
+                    trace!("delete data: {} from: {}", count, holder_id);
+                    count
                 }
                 Err(err) => {
-                    error!("delete error: {}, from : {:?}", err, holder);
-                    return Err(err);
+                    debug!("delete error: {}, from : {}", err, holder_id);
+                    0
                 }
-            }
+            };
         }
         Ok(total_count)
     }
 
-    async fn delete_common(holder: Holder, key: BobKey, force_delete: bool) -> Result<u64, Error> {
-        let result = holder.delete(key, force_delete).await;
+    async fn delete_common(holder: Holder, key: BobKey, meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
+        let result = holder.delete(key, meta, force_delete).await;
         if let Err(e) = result {
             // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
             // holder but instead try to restart the whole disk
