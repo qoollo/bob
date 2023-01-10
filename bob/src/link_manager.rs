@@ -32,10 +32,10 @@ impl LinkManager {
                         node.address(),
                         e
                     );
-                    status += &format!("{:<10} ", node.name());
+                    status += &format!("[-]{:<10} ", node.name());
                     err_cnt += 1;
                 } else {
-                    status += &format!("{:<10} ", node.name());
+                    status += &format!("[+]{:<10} ", node.name());
                 }
             }
             info!("{}", status);
