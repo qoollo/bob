@@ -208,14 +208,13 @@ impl Quorum {
 
         if !failed_nodes.is_empty() {
             warn!(
-                "DELETE[{}] was not successful on target nodes. Operation continue on aliens. total {}, failed {:?}",
-                key, total, failed_nodes,
+                "DELETE[{}] was not successful on target nodes. Operation continue on aliens. total {}, failed {:?}, errors: {:?}",
+                key, total, failed_nodes, errors
             );
         }
 
         if let Err(err) = self.delete_aliens(failed_nodes, key, meta).await {
             error!("DELETE[{}] delete failed. Smth wrong with cluster/node configuration", key);
-            error!("DELETE[{}] node errors: {:?}", key, errors);
             Err(err)
         } else {
             debug!("DELETE[{}] succeed", key);
@@ -277,7 +276,7 @@ impl Quorum {
 
             trace!("DELETE[{}] supported alien requests: {:?}", key, queries);
             if let Err(sup_nodes_errors) = delete_on_remote_nodes(key, meta, queries.into_iter()).await {
-                debug!("delete on support nodes errors: {:?}", sup_nodes_errors);
+                warn!("delete on support nodes errors: {:?}", sup_nodes_errors);
                 failed_nodes.extend(
                     sup_nodes_errors
                         .into_iter()

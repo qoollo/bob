@@ -15,7 +15,7 @@ fn is_result_successful<TErr: Debug>(
         Ok(res) => match res {
             Ok(_) => return 1,
             Err(e) => {
-                error!("{:?}", e);
+                debug!("{:?}", e);
                 errors.push(e);
             }
         },
@@ -39,7 +39,7 @@ async fn finish_at_least_handles<TErr: Debug>(
             break;
         }
     }
-    debug!("ok_count/at_least: {}/{}", ok_count, at_least);
+    trace!("ok_count/at_least: {}/{}", ok_count, at_least);
     errors
 }
 
@@ -49,9 +49,9 @@ async fn call_at_least<TOp, TErr: Debug>(
     f: impl Fn(TOp) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>,
 ) -> (FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>>, Vec<NodeOutput<TErr>>) {
     let mut handles: FuturesUnordered<_> = target_nodes.map(|op| f(op)).collect();
-    debug!("total handles count: {}", handles.len());
+    trace!("total handles count: {}", handles.len());
     let errors = finish_at_least_handles(&mut handles, at_least).await;
-    debug!("remains: {}, errors: {}", handles.len(), errors.len());
+    trace!("remains: {}, errors: {}", handles.len(), errors.len());
     (handles, errors)
 }
 
@@ -66,7 +66,7 @@ async fn finish_all_handles<TErr: Debug>(
         total_count += 1;
         ok_count += is_result_successful(join_res, &mut errors);
     }
-    debug!("ok_count/total: {}/{}", ok_count, total_count);
+    trace!("ok_count/total: {}/{}", ok_count, total_count);
     errors
 }
 
@@ -79,9 +79,9 @@ async fn call_all<TOp, TErr: Debug>(
     if handles_len == 0 {
         return (0, Vec::new());
     }
-    debug!("total handles count: {}", handles_len);
+    trace!("total handles count: {}", handles_len);
     let errors = finish_all_handles(&mut handles).await;
-    debug!("errors/total: {}/{}", errors.len(), handles_len);
+    trace!("errors/total: {}/{}", errors.len(), handles_len);
     (handles_len, errors)
 }
 
@@ -306,7 +306,7 @@ pub(crate) async fn delete_on_local_node(
     vdisk_id: VDiskId,
     disk_path: DiskPath,
 ) -> Result<(), Error> {
-    debug!("local node has vdisk replica, delete local");
+    trace!("local node has vdisk replica, delete local");
     let op = Operation::new_local(vdisk_id, disk_path);
     backend.delete_local(key, meta, op, true).await?;
     Ok(())
@@ -350,7 +350,7 @@ fn call_node_delete(
     options: DeleteOptions,
     node: Node,
 ) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<RemoteDeleteError>>> {
-    debug!("DELETE[{}] delete to {}", key, node.name());
+    trace!("DELETE[{}] delete to {}", key, node.name());
     let task = async move {
         let force_alien_nodes_copy = options.force_alien_nodes.iter().cloned().collect();
         let call_result = LinkManager::call_node(&node, |conn| conn.delete(key, meta, options).boxed()).await;
