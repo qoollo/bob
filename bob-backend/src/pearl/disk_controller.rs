@@ -465,7 +465,7 @@ impl DiskController {
             if let Ok(group) = vdisk_group {
                 group.get(key).await
             } else {
-                warn!(
+                debug!(
                     "GET[alien][{}] No alien group has been created for vdisk #{}",
                     key,
                     op.vdisk_id()
