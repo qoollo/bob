@@ -346,7 +346,7 @@ impl Cluster for Quorum {
         if let Some(data) = lookup_remote_aliens(&self.mapper, key).await {
             return Ok(data);
         }
-        info!("GET[{}] Key not found", key);
+        debug!("GET[{}] Key not found", key);
         Err(Error::key_not_found(key))
     }
 
