@@ -8,6 +8,7 @@ Bob versions changelog
 - Support for 'exists' method in bobt (#691)
 - Round robin algorithm for alien nodes selection (#570)
 - 'release-lto' and 'integration-test' build profiles added (#704)
+- Crossplatform signal handling (#725)
 
 #### Changed
 - Use bytes to pass data to pearl (#597)
