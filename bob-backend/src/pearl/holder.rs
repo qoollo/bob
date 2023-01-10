@@ -12,12 +12,8 @@ use bob_common::metrics::pearl::{
     PEARL_PUT_BYTES_COUNTER, PEARL_PUT_COUNTER, PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
     PEARL_DELETE_COUNTER, PEARL_DELETE_ERROR_COUNTER, PEARL_DELETE_TIMER
 };
-use pearl::FilterResult;
-use pearl::{
-    error::{AsPearlError, ValidationErrorKind},
-    ReadResult,
-};
-use pearl::{BlobRecordTimestamp, BloomProvider};
+use pearl::error::{AsPearlError, ValidationErrorKind};
+use pearl::{BlobRecordTimestamp, ReadResult, BloomProvider, FilterResult};
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
