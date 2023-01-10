@@ -1,5 +1,5 @@
 # build image
-FROM rust:1.47.0 as cargo-build
+FROM rust:1.66.0 as cargo-build
 
 # rust toolchain version
 ARG RUST_TC_VER=stable
@@ -16,7 +16,6 @@ WORKDIR /usr/src/bob
 # crates downloading and initial build
 RUN mkdir -p bob/src bob-backend/src bob-common/src bob-grpc/src bob-apps/bin bob-access/src
 RUN mkdir target
-ENV OUT_DIR /usr/src/bob/target
 COPY Cargo.toml Cargo.toml
 COPY bob/Cargo.toml bob/Cargo.toml
 COPY bob-backend/Cargo.toml bob-backend/Cargo.toml
@@ -52,7 +51,6 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/
 # separate stage for proto build
 RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grpc {include!(\"bob_storage.rs\");}" > bob-grpc/src/lib.rs \
   && mkdir -p bob-grpc/proto
-RUN rm -f bob-grpc/src/bob_storage.rs
 COPY bob-grpc/proto/* bob-grpc/proto/
 COPY bob-grpc/build.rs bob-grpc/build.rs
 RUN cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-gnu \
