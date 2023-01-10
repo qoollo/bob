@@ -352,7 +352,7 @@ fn call_node_delete(
 ) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<RemoteDeleteError>>> {
     debug!("DELETE[{}] delete to {}", key, node.name());
     let task = async move {
-        let force_alien_nodes_copy = options.force_alien_nodes.clone();
+        let force_alien_nodes_copy = options.force_alien_nodes.iter().cloned().collect();
         let call_result = LinkManager::call_node(&node, |conn| conn.delete(key, meta, options).boxed()).await;
         call_result.map_err(|err| err.map(|inner| RemoteDeleteError::new(force_alien_nodes_copy, inner)))
     };
@@ -375,17 +375,18 @@ pub(super) async fn delete_on_remote_nodes(
     }
 }
 
-pub(super) async fn delete_on_remote_nodes_local(
+pub(super) async fn delete_on_remote_nodes_with_options(
     key: BobKey,
     meta: &BobMeta,
-    target_nodes: Vec<&Node>
+    target_nodes: Vec<&Node>,
+    options: DeleteOptions
 ) -> Vec<NodeOutput<RemoteDeleteError>> {
     if target_nodes.is_empty() {
         return Vec::new();
     }
 
     let remote_delete_result = delete_on_remote_nodes(key, meta, 
-        target_nodes.into_iter().map(|n| (n, DeleteOptions::new_local()))
+        target_nodes.into_iter().map(|n| (n, options.clone()))
     ).await;
 
     if let Err(errors) = remote_delete_result {

@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use smallvec::SmallVec;
 
 
 pub(super) trait HashSetExt<T> {
@@ -8,6 +9,7 @@ pub(super) trait HashSetExt<T> {
 impl<T: Eq + core::hash::Hash> HashSetExt<T> for HashSet<T> {
     fn drain_collect(&mut self, count: usize) -> Vec<T> {
         if count >= self.len() {
+            // The assumtion is that this branch is the most often taken
             return self.drain().collect();
         }
         if count == 0 {
@@ -25,12 +27,12 @@ impl<T: Eq + core::hash::Hash> HashSetExt<T> for HashSet<T> {
 
 #[derive(Debug)]
 pub(super) struct RemoteDeleteError {
-    force_alien_nodes: Vec<String>,
+    force_alien_nodes: SmallVec<[String; 1]>, // Will have 0 or 1 elements most of the time
     error: Error
 }
 
 impl RemoteDeleteError {
-    pub(super) fn new(force_alien_nodes: Vec<String>, error: Error) -> Self {
+    pub(super) fn new(force_alien_nodes: SmallVec<[String; 1]>, error: Error) -> Self {
         Self {
             force_alien_nodes: force_alien_nodes,
             error: error
@@ -45,7 +47,7 @@ impl RemoteDeleteError {
         return &self.error;
     }
 
-    pub(super) fn into_force_alien_nodes(self) -> Vec<String> {
+    pub(super) fn into_force_alien_nodes(self) -> SmallVec<[String; 1]> {
         return self.force_alien_nodes;
     }
 }

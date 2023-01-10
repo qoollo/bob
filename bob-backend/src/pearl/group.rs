@@ -396,7 +396,7 @@ impl Group {
         meta: &BobMeta
     ) -> Result<u64, Error> {
         let mut total_count = 0;
-        // Reverse iteration (from newer to older)
+        // General assumption is that processing in order from new to old holders is better, but this is not strictly required
         for holder in holders.into_iter().rev() {
             let holder_id = holder.1.get_id();
             let delete = Self::delete_common(holder.1, key, meta, false).await;
