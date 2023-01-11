@@ -624,8 +624,7 @@ impl Group {
 
     pub(crate) async fn blobs_count(&self) -> usize {
         let mut blobs = 0;
-        let holders_guard = self.holders();
-        let holders = holders_guard.read().await;
+        let holders = self.holders.read().await;
         for holder in holders.iter() {
             blobs += holder.blobs_count().await;
         }
@@ -634,8 +633,7 @@ impl Group {
 
     pub(crate) async fn index_memory(&self) -> usize {
         let mut index_memory = 0;
-        let holders_guard = self.holders();
-        let holders = holders_guard.read().await;
+        let holders = self.holders.read().await;
         for holder in holders.iter() {
             index_memory += holder.index_memory().await;
         }
