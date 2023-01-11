@@ -33,15 +33,15 @@ on:
         required: true
         default: '0'
       bob_bobt_count:
-        description: 'Amount of iterations for chain operation test'
+        description: 'Amount of iterations for bobt operation test'
         required: true
         default: '100000'
       bob_bobt_first_index:
-        description: 'Bottom boundry for chain test'
+        description: 'Bottom boundry for key in bobt test'
         required: true
         default: '0'
       bob_bobt_last_index:
-        description: 'Upper boundry for chain test'
+        description: 'Upper boundry for key in bobt test'
         required: true
         default: '10000'
 jobs:
@@ -239,7 +239,7 @@ jobs:
           INPUT="${{ github.event.inputs.bob_replicas_amount }}"
           echo "BOB_REPLICAS_AMOUNT=${INPUT:-"2"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_payload_size }}"
-          echo "BOB_PAYLOAD_SIZE=${INPUT:-"10240"}" >> $GITHUB_ENV
+          echo "BOB_PAYLOAD_SIZE=${INPUT:-"4096"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_record_count }}"
           echo "BOB_RECORD_COUNT=${INPUT:-"25000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_first_index }}"
@@ -273,7 +273,6 @@ jobs:
       - name: List availible images
         run: |
           docker image ls
-      #Also sets BOB_BOBP_ACTIONS_OFFSET as GITHUB_ENV from check_interval parameter (check_interval + 1s)
       - name: Generate config files for docker and bob
         run: |
           ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --check-interval 5000ms
@@ -316,7 +315,7 @@ jobs:
           INPUT="${{ github.event.inputs.bob_bobt_first_index }}"
           echo "BOB_BOBT_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_bobt_last_index }}"
-          echo "BOB_BOBT_LAST_INDEX=${INPUT:-"100000"}" >> $GITHUB_ENV
+          echo "BOB_BOBT_LAST_INDEX=${INPUT:-"10000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_bobt_count }}"
           echo "BOB_BOBT_COUNT=${INPUT:-"100000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_transport_min_port }}"
@@ -352,7 +351,6 @@ jobs:
       - name: List availible images
         run: |
           docker image ls
-      #Also sets BOB_BOBP_ACTIONS_OFFSET as GITHUB_ENV from check_interval parameter (check_interval + 1s)
       - name: Generate config files for docker and bob
         run: |
           ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} -u ${{ matrix.auth }} --check-interval 5000ms
