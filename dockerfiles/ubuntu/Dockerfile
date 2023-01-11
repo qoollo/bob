@@ -53,9 +53,9 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grp
   && mkdir -p bob-grpc/proto
 COPY bob-grpc/proto/* bob-grpc/proto/
 COPY bob-grpc/build.rs bob-grpc/build.rs
-RUN cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-musl \
-  && rm -f target/x86_64-unknown-linux-musl/$(cat ./build_profile_dir)/deps/bob* \
-  && rm -f target/x86_64-unknown-linux-musl/$(cat ./build_profile_dir)/deps/libbob*
+RUN cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-gnu \
+  && rm -f target/x86_64-unknown-linux-gnu/$(cat ./build_profile_dir)/deps/bob* \
+  && rm -f target/x86_64-unknown-linux-gnu/$(cat ./build_profile_dir)/deps/libbob*
 
 # final build
 COPY . .
