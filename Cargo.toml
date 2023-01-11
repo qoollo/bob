@@ -15,3 +15,6 @@ lto = true
 [profile.integration-test]
 inherits = "test"
 opt-level = 1
+debug = 0
+debug-assertions = true
+overflow-checks = true
