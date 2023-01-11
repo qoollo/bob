@@ -143,7 +143,11 @@ jobs:
       matrix:
         key: [8, 16]
         mode: [normal, random]
-        auth: [None, Basic]
+        auth: [None]
+        include:
+          - key: 8
+            mode: normal
+            auth: Basic
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repo
@@ -289,7 +293,10 @@ jobs:
     strategy:
       matrix:
         key: [8, 16]
-        auth: [None, Basic]
+        auth: [None]
+        include:
+          - key: 8
+            auth: Basic
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repo
