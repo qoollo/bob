@@ -341,7 +341,7 @@ impl Backend {
     pub async fn get(&self, key: BobKey, options: &BobGetOptions) -> Result<BobData, Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
-        // we cannot get data from alien if it belong this node
+        // Get all first: we search booth in local data and in aliens
         if options.get_all() {
             let mut all_result = Err(Error::key_not_found(key));
             if let Some(path) = disk_path {
@@ -355,6 +355,7 @@ impl Backend {
             all_result
         } 
         else if options.get_normal() {
+            // Lookup local data
             if let Some(path) = disk_path {
                 trace!("GET[{}] try read normal", key);
                 self.get_single(key, Operation::new_local(vdisk_id, path.clone())).await
@@ -364,6 +365,7 @@ impl Backend {
             }
         }
         else if options.get_alien() {
+            // Lookup aliens
             trace!("GET[{}] try read alien", key);
             self.get_single(key, Operation::new_alien(vdisk_id)).await
         } else {
@@ -424,6 +426,7 @@ impl Backend {
     fn find_operation(&self, key: BobKey, options: &BobGetOptions) -> Vec<Operation> {
         let (vdisk_id, path) = self.mapper.get_operation(key);
 
+        // With GET_ALL with should lookup both local data and aliens
         let capacity = if options.get_normal() && path.is_some() { 1 } else { 0 } +
                               if options.get_alien() { 1 } else { 0 };
 
