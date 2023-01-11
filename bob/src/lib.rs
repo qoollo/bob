@@ -49,7 +49,7 @@ mod prelude {
     pub use bob_common::{
         bob_client::{BobClient, Factory},
         configs::node::Node as NodeConfig,
-        data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskId},
+        data::{BobData, BobKey, BobMeta, BobPutOptions, BobGetOptions, BobDeleteOptions, DiskPath, VDiskId},
         error::Error,
         mapper::Virtual,
         metrics::{
@@ -69,7 +69,7 @@ mod prelude {
     };
     pub use futures::{future, stream::FuturesUnordered, Future, FutureExt, StreamExt};
     pub use std::{
-        collections::HashMap,
+        collections::HashMap, collections::HashSet,
         fmt::{Debug, Formatter, Result as FmtResult},
         io::Write,
         pin::Pin,
