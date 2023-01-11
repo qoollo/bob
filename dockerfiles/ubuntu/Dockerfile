@@ -64,7 +64,7 @@ ENV BOB_KEY_SIZE=${KEY_SIZE}
 ENV BOB_COMMIT_HASH=${COMMIT_HASH}
 RUN cargo build --profile=${BUILD_PROFILE} --target=$BUILD_TARGET \
   && mkdir target/build_output \ 
-  && mv target/x86_64-unknown-linux-musl/$(cat ./build_profile_dir)/bobd target/build_output/bobd
+  && mv target/$BUILD_TARGET/$(cat ./build_profile_dir)/bobd target/build_output/bobd
 
 # bobd image
 FROM ubuntu:20.04
