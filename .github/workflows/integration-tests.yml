@@ -135,14 +135,6 @@ jobs:
           path: |
             /tmp/bob-image-key${{ matrix.key }}.tar
 
-  job-verification:
-    needs: [build-binaries, build-docker-images]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Pass
-        run: |
-          echo "Verification"
-
   test-put-get-exist:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
     needs: [build-binaries, build-docker-images]
