@@ -53,7 +53,7 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grp
   && mkdir -p bob-grpc/proto
 COPY bob-grpc/proto/* bob-grpc/proto/
 COPY bob-grpc/build.rs bob-grpc/build.rs
-RUN cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-gnu \
+RUN cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-musl \
   && rm -f target/x86_64-unknown-linux-musl/$(cat ./build_profile_dir)/deps/bob* \
   && rm -f target/x86_64-unknown-linux-musl/$(cat ./build_profile_dir)/deps/libbob*
 
@@ -62,8 +62,8 @@ COPY . .
 ENV BOB_KEY_SIZE=${KEY_SIZE}
 ENV BOB_COMMIT_HASH=${COMMIT_HASH}
 RUN cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-musl \
-  && mkdir /usr/src/bob/target/build_output \ 
-  && mv /usr/src/bob/target/x86_64-unknown-linux-musl/$(cat ./build_profile_dir)/bobd /usr/src/bob/target/build_output/bobd
+  && mkdir target/build_output \ 
+  && mv target/x86_64-unknown-linux-musl/$(cat ./build_profile_dir)/bobd target/build_output/bobd
 
 # bobd image
 FROM ubuntu:20.04
