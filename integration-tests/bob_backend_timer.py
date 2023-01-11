@@ -1,4 +1,4 @@
-import requests, os, sys, json
+import requests, sys, json
 from retry import *
 
 def request_metrics(port):

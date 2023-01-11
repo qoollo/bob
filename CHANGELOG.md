@@ -12,6 +12,7 @@ Bob versions changelog
 - Integration tests (#518)
 - Added integration tests for aliens (#642)
 - Added integration tests for bobt (#648)
+- Added authentification support for integration tests (#672)
 
 #### Changed
 - Use bytes to pass data to pearl (#597)
