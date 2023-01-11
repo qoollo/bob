@@ -42,10 +42,11 @@ sysinfo = "0.26"
 tonic = { version = "0.6", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"
-uuid = "1.1.2"
+uuid = "1.1"
+smallvec = { version = "1.10", features = ["union"] }
 
 [dependencies.pearl]
-version = "0.15.0"
+version = "0.16.0"
 
 [dependencies.tokio]
 version = "1.21"
