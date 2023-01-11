@@ -30,7 +30,8 @@ def run_tests(behaviour, args):
         sys.exit(str(e))
 
 def get_run_args(mode, args, run_conf):
-    return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':args.first, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':run_conf.get(mode)}
+    return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':args.first, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':run_conf.get(mode), 
+    '--user':args.user, '--password':args.password}
 
 parser = argparse.ArgumentParser(description='This script launches bob tests with given configuration.')
 parser.add_argument('-c', dest='count', type=int, help='amount of entries to process', required=True)
@@ -42,6 +43,8 @@ parser.add_argument('--mode', dest='mode', type=str, help='random or normal', ch
 parser.add_argument('-k', dest='keysize', type=int, help='size of binary key (8 or 16)', choices=[8, 16], default=8)
 parser.add_argument('-nodes_amount', dest='nodes_amount', type=int, required=True, help='Amount of bob nodes.')
 parser.add_argument('-transport_min_port', dest='transport_min_port', type=int, required=True, help='Port of the first bob container.')
+parser.add_argument('--user', dest='user', type=str, help='Username for bob basic authentification')
+parser.add_argument('--password', dest='password', type=str, help='Password for bob basic authentification')
 
 parsed_args = parser.parse_args()
 

@@ -3,7 +3,7 @@
 import subprocess, argparse, shlex, sys, re
 
 def make_run_args(args):
-     return {'-c':args.count, '-s':args.start, '-e':args.end, '-a':f'http://127.0.0.1:{args.rest_min_port}'}
+     return {'-c':args.count, '-s':args.start, '-e':args.end, '-a':f'http://127.0.0.1:{args.rest_min_port}', '--user':args.user, '--password':args.password}
 
 def args_to_str(args_dict):
     bobp_args_str = str()
@@ -17,6 +17,8 @@ parser.add_argument('-c', dest='count', type=int, help='amount of entries to pro
 parser.add_argument('-s', dest='start', type=int, help='starting index', default=0)
 parser.add_argument('-e', dest='end', type=int, help='last index', default=0)
 parser.add_argument('-rest_min_port', dest='rest_min_port', type=int, required=True, help='Rest api port for the first node.')
+parser.add_argument('--user', dest='user', type=str, help='Username for bob basic authentification')
+parser.add_argument('--password', dest='password', type=str, help='Password for bob basic authentification')
 
 parsed_args = parser.parse_args()
 

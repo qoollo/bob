@@ -9,7 +9,7 @@ from bob_backend_timer import ensure_backend_up
 
 def make_run_args(args, offset):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':str(int(args.first) + offset), '-t':args.threads, '--mode':args.mode, '-k':args.keysize,
-     '-p':args.transport_min_port} 
+     '-p':args.transport_min_port, '--user':args.user, '--password':args.password} 
 
 def args_to_str(args_dict):
     bobp_args_str = str()
@@ -26,6 +26,8 @@ parser.add_argument('-f', dest='first', type=int, help='first index', default=0)
 parser.add_argument('-t', dest='threads', type=int, help='amount of working threads', default=1)
 parser.add_argument('--mode', dest='mode', type=str, help='random or normal', choices=['random', 'normal'], default='normal')
 parser.add_argument('-k', dest='keysize', type=int, help='size of binary key (8 or 16)', choices=[8, 16], default=8)
+parser.add_argument('--user', dest='user', type=str, help='Username for bob basic authentification')
+parser.add_argument('--password', dest='password', type=str, help='Password for bob basic authentification')
 parser.add_argument('-nodes_amount', dest='nodes_amount', type=int, required=True, help='Amount of bob nodes.')
 parser.add_argument('-rest_min_port', dest='rest_min_port', type=int, required=True, help='Rest api port for the first node.')
 parser.add_argument('-transport_min_port', dest='transport_min_port', type=int, required=True, help='Port of the first bob container.')
