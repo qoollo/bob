@@ -8,7 +8,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 use std::fs::read_to_string;
-use sysinfo::{DiskExt, Pid, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
+use sysinfo::{DiskExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 const CPU_STAT_FILE: &str = "/proc/stat";
@@ -74,7 +74,7 @@ impl HWMetricsCollector {
         let total_mem = kb_to_b(sys.total_memory());
         gauge!(TOTAL_RAM, total_mem as f64);
         debug!("total mem in bytes: {}", total_mem);
-        let pid = Pid::from(std::process::id() as i32);
+        let pid = sysinfo::get_current_pid().expect("Cannot determine current process PID");
 
         loop {
             interval.tick().await;
