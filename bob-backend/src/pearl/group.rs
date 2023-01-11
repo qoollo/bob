@@ -6,7 +6,7 @@ use crate::{
     pearl::{core::BackendResult, settings::Settings, utils::Utils},
 };
 use futures::Future;
-use pearl::BloomProvider;
+use pearl::{BloomProvider, ReadResult};
 use ring::digest::{digest, SHA256};
 use async_std::sync::{RwLock as UgradableRwLock, RwLockUpgradableReadGuard};
 
@@ -205,7 +205,9 @@ impl Group {
         timestamp_config: StartTimestampConfig,
     ) -> Result<(), Error> {
         let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
-        let holder = self.get_or_create_actual_holder(data.meta().timestamp(), timestamp_config).await?;
+        let holder = self
+            .get_or_create_actual_holder(data.meta().timestamp(), timestamp_config)
+            .await?;
         let res = Self::put_common(&holder.1, key, data).await?;
         self.holders
             .write()
@@ -219,60 +221,70 @@ impl Group {
         if let Err(e) = result {
             // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
             // holder but instead try to restart the whole disk
-            if e.is_possible_disk_disconnection() {
-                return Err(e);
-            }
-            if !e.is_duplicate() && !e.is_not_ready() {
+            if !e.is_possible_disk_disconnection() && !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
                 holder.prepare_storage().await?;
                 debug!("backend pearl group put common storage prepared");
             }
+            Err(e)
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     pub async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let holders = self.holders.read().await;
         let mut has_error = false;
-        let mut results = vec![];
+        let mut max_timestamp = None;
+        let mut result = None;
         for holder in holders
             .iter_possible_childs_rev(&Key::from(key))
             .map(|(_, x)| &x.data)
         {
             let get = Self::get_common(&holder, key).await;
             match get {
-                Ok(data) => {
-                    trace!("get data: {:?} from: {:?}", data, holder);
-                    results.push(data);
-                }
-                Err(err) => {
-                    if err.is_key_not_found() {
-                        debug!("{} not found in {:?}", key, holder)
-                    } else {
-                        has_error = true;
-                        error!("get error: {}, from : {:?}", err, holder);
+                Ok(data) => match data {
+                    ReadResult::Found(data) => {
+                        trace!("get data: {:?} from: {:?}", data, holder);
+                        let ts = data.meta().timestamp();
+                        if ts > max_timestamp.unwrap_or(0) {
+                            max_timestamp = Some(ts);
+                            result = Some(data);
+                        }
                     }
+                    ReadResult::Deleted(ts) => {
+                        trace!("{} is deleted in {:?} at {}", key, holder, ts);
+                        let ts: u64 = ts.into();
+                        if ts > max_timestamp.unwrap_or(0) {
+                            max_timestamp = Some(ts);
+                            result = None;
+                        }
+                    }
+                    ReadResult::NotFound => {
+                        debug!("{} not found in {:?}", key, holder)
+                    }
+                },
+                Err(err) => {
+                    has_error = true;
+                    error!("get error: {}, from : {:?}", err, holder);
                 }
             }
         }
-        if results.is_empty() {
+        if let Some(result) = result {
+            Ok(result)
+        } else {
             if has_error {
                 debug!("cannot read from some pearls");
                 Err(Error::failed("cannot read from some pearls"))
             } else {
-                debug!("not found in any pearl");
                 Err(Error::key_not_found(key))
             }
-        } else {
-            debug!("get with max timestamp, from {} results", results.len());
-            Ok(Settings::choose_most_recent_data(results)
-                .expect("results cannot be empty, because of the previous check"))
         }
     }
 
-    async fn get_common(holder: &Holder, key: BobKey) -> Result<BobData, Error> {
+    async fn get_common(holder: &Holder, key: BobKey) -> Result<ReadResult<BobData>, Error> {
         let result = holder.read(key).await;
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {
@@ -288,16 +300,115 @@ impl Group {
         let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
+        let mut max_timestamp = None;
+        let mut result = false;
         for (ind, &key) in keys.iter().enumerate() {
             for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
             {
-                if !exist[ind] {
-                    exist[ind] = holder.exist(key).await.unwrap_or(false);
+                match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
+                    ReadResult::Found(ts) => {
+                        let ts = ts.into();
+                        if ts > max_timestamp.unwrap_or(0) {
+                            max_timestamp = Some(ts);
+                            result = true;
+                        }
+                    }
+                    ReadResult::Deleted(ts) => {
+                        let ts = ts.into();
+                        if ts > max_timestamp.unwrap_or(0) {
+                            max_timestamp = Some(ts);
+                            result = false;
+                        }
+                    }
+                    ReadResult::NotFound => continue,
                 }
             }
+            exist[ind] = result;
         }
         Ok(exist)
     }
+
+
+    pub async fn delete(
+        &self,
+        key: BobKey,
+        meta: &BobMeta,
+        timestamp_config: StartTimestampConfig,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
+        let mut reference_timestamp = meta.timestamp();
+        let mut total_deletion_count = 0;
+
+        if force_delete {
+            let actual_holder = self.get_actual_holder(get_current_timestamp(), timestamp_config).await?;
+            reference_timestamp = actual_holder.1.start_timestamp();
+            total_deletion_count += self.delete_in_actual_holder(actual_holder, key, meta).await?;
+        }
+
+        let all_holders_before: Vec<_> = {
+            let holders = self.holders.read().await;
+            holders.iter().cloned().enumerate().filter(|h| h.1.start_timestamp() < reference_timestamp).collect()
+        };
+
+        total_deletion_count += self.delete_in_holders_before(all_holders_before, key, meta).await.unwrap_or(0);
+
+        return Ok(total_deletion_count);
+    }
+
+    async fn delete_in_actual_holder(&self, holder: (ChildId, Holder), key: BobKey, meta: &BobMeta) -> Result<u64, Error> {
+        // In actual holder we delete with force_delete = true
+        let delete_count = Self::delete_common(holder.1.clone(), key, meta, true).await?;
+            // We need to add marker record to alien regardless of record presence
+        self.holders
+            .write()
+            .await
+            .add_to_parents(holder.0, &Key::from(key));
+        
+        Ok(delete_count)
+    }
+
+    async fn delete_in_holders_before(
+        &self,
+        holders: Vec<(ChildId, Holder)>,
+        key: BobKey,
+        meta: &BobMeta
+    ) -> Result<u64, Error> {
+        let mut total_count = 0;
+        // General assumption is that processing in order from new to old holders is better, but this is not strictly required
+        for holder in holders.into_iter().rev() {
+            let holder_id = holder.1.get_id();
+            let delete = Self::delete_common(holder.1, key, meta, false).await;
+            total_count += match delete {
+                Ok(count) => {
+                    trace!("delete data: {} from: {}", count, holder_id);
+                    count
+                }
+                Err(err) => {
+                    debug!("delete error: {}, from : {}", err, holder_id);
+                    0
+                }
+            };
+        }
+        Ok(total_count)
+    }
+
+    async fn delete_common(holder: Holder, key: BobKey, meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
+        let result = holder.delete(key, meta, force_delete).await;
+        if let Err(e) = result {
+            // if we receive WorkDirUnavailable it's likely disk error, so we shouldn't restart one
+            // holder but instead try to restart the whole disk
+            if !e.is_possible_disk_disconnection() && !e.is_duplicate() && !e.is_not_ready() {
+                error!("pearl holder will restart: {:?}", e);
+                holder.try_reinit().await?;
+                holder.prepare_storage().await?;
+                debug!("backend::pearl::group::delete_common storage prepared");
+            }
+            Err(e)
+        } else {
+            result
+        }
+    }
+    
 
     pub fn holders(&self) -> Arc<UgradableRwLock<HoldersContainer>> {
         self.holders.clone()
@@ -552,42 +663,6 @@ impl Group {
             (false, true) => Ordering::Less,
             _ => x.end_timestamp().cmp(&y.end_timestamp()),
         });
-    }
-
-    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
-        let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
-        let holders = self.holders.read().await;
-        let mut total_count = 0;
-        for holder in holders.iter() {
-            let delete = Self::delete_common(holder.clone(), key).await;
-            match delete {
-                Ok(count) => {
-                    trace!("delete data: {:?} from: {:?}", count, holder);
-                    total_count += count;
-                }
-                Err(err) => {
-                    if err.is_key_not_found() {
-                        debug!("{} not found in {:?}", key, holder)
-                    } else {
-                        error!("delete error: {}, from : {:?}", err, holder);
-                        return Err(err);
-                    }
-                }
-            }
-        }
-        Ok(total_count)
-    }
-
-    async fn delete_common(holder: Holder, key: BobKey) -> Result<u64, Error> {
-        let result = holder.delete(key).await;
-        if let Err(e) = &result {
-            if !e.is_key_not_found() && !e.is_not_ready() {
-                holder.try_reinit().await?;
-                holder.prepare_storage().await?;
-                debug!("backend pearl group delete common storage prepared");
-            }
-        }
-        result
     }
 
     pub(crate) async fn filter_memory_allocated(&self) -> usize {
