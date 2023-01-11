@@ -1,7 +1,7 @@
 name: integration-tests
 on:
   push:
-    branches: [ "518-implement-semi-automatic-integration-tests", "642-integration-tests-add-tests-for-aliens", "648-integrationtests-add-consistency-test-for-random-putgetdelete-requests-with-bobt-tool", '672-integrationtests-run-tests-with-and-without-authorization'] #REMOVE WHEN ON MASTER
+    branches: ['672-integrationtests-run-tests-with-and-without-authorization'] #REMOVE WHEN ON MASTER
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+(.alpha.[0-9]+)*"
   pull_request_review:
@@ -52,7 +52,7 @@ jobs:
         key: [8, 16]
     env:
       TARGET: "x86_64-unknown-linux-musl"
-      BUILD_PROFILE: "test"
+      BUILD_PROFILE: "integration-test"
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repository 
@@ -163,7 +163,7 @@ jobs:
           INPUT="${{ github.event.inputs.bob_payload_size }}"
           echo "BOB_PAYLOAD_SIZE=${INPUT:-"10240"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_record_count }}"
-          echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
+          echo "BOB_RECORD_COUNT=${INPUT:-"100000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_first_index }}"
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_transport_min_port }}"
@@ -237,7 +237,7 @@ jobs:
           INPUT="${{ github.event.inputs.bob_payload_size }}"
           echo "BOB_PAYLOAD_SIZE=${INPUT:-"10240"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_record_count }}"
-          echo "BOB_RECORD_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
+          echo "BOB_RECORD_COUNT=${INPUT:-"25000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_first_index }}"
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_transport_min_port }}"
@@ -311,7 +311,7 @@ jobs:
           INPUT="${{ github.event.inputs.bob_bobt_last_index }}"
           echo "BOB_BOBT_LAST_INDEX=${INPUT:-"100000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_bobt_count }}"
-          echo "BOB_BOBT_COUNT=${INPUT:-"10000"}" >> $GITHUB_ENV
+          echo "BOB_BOBT_COUNT=${INPUT:-"100000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_transport_min_port }}"
           echo "BOB_TRANSPORT_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_auth_user }}"
