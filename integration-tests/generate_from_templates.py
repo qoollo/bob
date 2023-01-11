@@ -43,6 +43,8 @@ parser.add_argument('--graphite-enabled', dest='graphite_enabled', type=str, def
 parser.add_argument('--prometheus-enabled', dest='prometheus_enabled', type=str, default='false', choices=['true', 'false'])
 parser.add_argument('--path', dest='path', type=str, help='sets path to directory where configs will be generated.', default='/tmp')
 parser.add_argument('-transport_min_port', dest='transport_min_port', type=int, required=True, help='Port of the first bob container.')
+parser.add_argument('--user', dest='auth_user', type=str, help='Username for bob basic authentification', default='admin')
+parser.add_argument('--password', dest='auth_password', type=str, help='Password for bob basic authentification', default='password')
 parser.add_argument('-rest_min_port', dest='rest_min_port', type=int, required=True, help='Rest api port for the first node.')
 
 args = parser.parse_args()
@@ -97,5 +99,5 @@ with open("Templates/logger_template.yml.j2") as logger:
 with open("Templates/users_template.yml.j2") as users:
     template = Template(users.read())
     with open(os.path.join(path, 'users.bobnet.yaml'), 'w') as f:
-        f.write(template.render())
+        f.write(template.render(auth_user=args.auth_user, auth_password=args.auth_password))
         f.close
