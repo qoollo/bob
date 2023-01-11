@@ -1,7 +1,6 @@
 name: integration-tests
 on:
   push:
-    branches: ['672-integrationtests-run-tests-with-and-without-authorization'] #REMOVE WHEN ON MASTER
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+(.alpha.[0-9]+)*"
   pull_request_review:
@@ -37,11 +36,11 @@ on:
         required: true
         default: '100000'
       bob_bobt_first_index:
-        description: 'Bottom boundry for key in bobt test'
+        description: 'Bottom boundary for key in bobt test'
         required: true
         default: '0'
       bob_bobt_last_index:
-        description: 'Upper boundry for key in bobt test'
+        description: 'Upper boundary for key in bobt test'
         required: true
         default: '10000'
 jobs:
