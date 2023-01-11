@@ -9,6 +9,7 @@ Bob versions changelog
 - Support for 'exists' method in bobt (#691)
 - Round robin algorithm for alien nodes selection (#570)
 - 'release-lto' and 'integration-test' build profiles added (#704)
+- Crossplatform terminal signal handling (#725)
 - Integration tests (#518)
 - Added integration tests for aliens (#642)
 - Added integration tests for bobt (#648)
@@ -17,10 +18,13 @@ Bob versions changelog
 - Use bytes to pass data to pearl (#597)
 - Log message about the lack of connection to graphite became more understandable (#684)
 - Hostname resolving in background tasks (#529)
+- Remove 'termion' crate from dependencies (#718)
 - Make delete operation recoverable (#533)
+- Binaries sizes reduced for 'integration-test' profile (#727)
+- Configurable build profiles in Dockerfiles (#717)
 
 #### Fixed
-
+- PID unsafe type conversion fixed (#719)
 
 #### Updated
 - Pearl updated to v0.16.0 (#706)
