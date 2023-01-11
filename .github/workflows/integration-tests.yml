@@ -98,6 +98,8 @@ jobs:
     strategy:
       matrix:
         key: [8, 16]
+    env:
+      BUILD_PROFILE: "integration-test"
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v3
