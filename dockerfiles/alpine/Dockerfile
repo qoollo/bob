@@ -6,12 +6,13 @@ ARG RUST_TC_VER=stable
 ARG KEY_SIZE=8
 ARG COMMIT_HASH
 ARG BUILD_PROFILE=release
+ARG BUILD_TARGET=x86_64-unknown-linux-musl
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends musl-tools \
   && rustup install $RUST_TC_VER \
   && rustup default $RUST_TC_VER \
-  && rustup target add x86_64-unknown-linux-musl
+  && rustup target add $BUILD_TARGET
 
 WORKDIR /usr/src/bob
 
@@ -47,7 +48,7 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > bob/src/
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/brt.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-apps/bin/bobt.rs \
   && echo "fn main() {println!(\"if you see this, the build broke\")}" > bob-access/src/lib.rs \
-  && cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-musl
+  && cargo build --profile=${BUILD_PROFILE} --target=$BUILD_TARGET
 
 
 # separate stage for proto build
@@ -55,17 +56,17 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")} pub mod grp
   && mkdir -p bob-grpc/proto
 COPY bob-grpc/proto/* bob-grpc/proto/
 COPY bob-grpc/build.rs bob-grpc/build.rs
-RUN cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-musl \
-  && rm -f target/x86_64-unknown-linux-musl/$(cat ./build_profile_dir)/deps/bob* \
-  && rm -f target/x86_64-unknown-linux-musl/$(cat ./build_profile_dir)/deps/libbob*
+RUN cargo build --profile=${BUILD_PROFILE} --target=$BUILD_TARGET \
+  && rm -f target/$BUILD_TARGET/$(cat ./build_profile_dir)/deps/bob* \
+  && rm -f target/$BUILD_TARGET/$(cat ./build_profile_dir)/deps/libbob*
 
 # final build
 COPY . .
 ENV BOB_KEY_SIZE=${KEY_SIZE}
 ENV BOB_COMMIT_HASH=${COMMIT_HASH}
-RUN cargo build --profile=${BUILD_PROFILE} --target=x86_64-unknown-linux-musl \
+RUN cargo build --profile=${BUILD_PROFILE} --target=$BUILD_TARGET \
   && mkdir target/build_output \ 
-  && mv target/x86_64-unknown-linux-musl/$(cat ./build_profile_dir)/bobd target/build_output/bobd
+  && mv target/$BUILD_TARGET/$(cat ./build_profile_dir)/bobd target/build_output/bobd
 
 # bobd image
 FROM alpine:3.16
