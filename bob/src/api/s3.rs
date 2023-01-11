@@ -11,7 +11,7 @@ use axum::{
 
 use bob_access::{Authenticator, CredentialsHolder};
 use bob_common::{
-    data::{BobData, BobKey, BobMeta, BobOptions},
+    data::{BobData, BobKey, BobMeta, BobPutOptions, BobGetOptions},
     error::Error,
 };
 use bytes::Bytes;
@@ -140,7 +140,7 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
-    let opts = BobOptions::new_get(None);
+    let opts = BobGetOptions::new_get(None);
     let data = bob.grinder().get(key, &opts).await?;
     let content_type = headers
         .content_type
@@ -179,10 +179,10 @@ where
     }
     let data = BobData::new(
         body,
-        BobMeta::new(chrono::Local::now().timestamp() as u64),
+        BobMeta::new(chrono::Utc::now().timestamp() as u64),
     );
 
-    let opts = BobOptions::new_put(None);
+    let opts = BobPutOptions::new_put(None);
     bob.grinder().put(key, &data, opts).await?;
 
     Ok(StatusS3::from(StatusExt::from(StatusCode::CREATED)))
@@ -240,7 +240,7 @@ async fn copy_object<A: Authenticator>(
     key: BobKey,
     headers: CopyObjectHeaders,
 ) -> Result<StatusS3, StatusS3> {
-    let opts = BobOptions::new_get(None);
+    let opts = BobGetOptions::new_get(None);
     let data = bob.grinder().get(key, &opts).await?;
     let last_modified = data.meta().timestamp();
     if let Some(time) = headers.if_modified_since {
@@ -255,10 +255,10 @@ async fn copy_object<A: Authenticator>(
     }
     let data = BobData::new(
         data.into_inner(),
-        BobMeta::new(chrono::Local::now().timestamp() as u64),
+        BobMeta::new(chrono::Utc::now().timestamp() as u64),
     );
 
-    let opts = BobOptions::new_put(None);
+    let opts = BobPutOptions::new_put(None);
     bob.grinder().put(key, &data, opts).await?;
 
     Ok(StatusS3::from(StatusExt::from(StatusCode::OK)))
