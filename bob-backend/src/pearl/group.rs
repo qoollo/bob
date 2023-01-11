@@ -336,11 +336,12 @@ impl Group {
         timestamp_config: StartTimestampConfig,
         force_delete: bool,
     ) -> Result<u64, Error> {
+        let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let mut reference_timestamp = meta.timestamp();
         let mut total_deletion_count = 0;
 
         if force_delete {
-            let actual_holder = self.get_actual_holder(get_current_timestamp(), timestamp_config).await?;
+            let actual_holder = self.get_or_create_actual_holder(get_current_timestamp(), timestamp_config).await?;
             reference_timestamp = actual_holder.1.start_timestamp();
             total_deletion_count += self.delete_in_actual_holder(actual_holder, key, meta).await?;
         }
