@@ -17,6 +17,7 @@ Bob versions changelog
 - Log message about the lack of connection to graphite became more understandable (#684)
 - Hostname resolving in background tasks (#529)
 - Make delete operation recoverable (#533)
+- `Binaries sizes reduced for integration-test' profile (#727)
 
 #### Fixed
 
