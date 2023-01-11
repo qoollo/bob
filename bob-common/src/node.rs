@@ -142,6 +142,13 @@ impl<T> Output<T> {
     pub fn into_inner(self) -> T {
         self.inner
     }
+
+    pub fn map<TOut>(self, map_fn: impl FnOnce(T) -> TOut) -> Output<TOut> {
+        Output::<TOut> {
+            node_name: self.node_name,
+            inner: map_fn(self.inner)
+        }
+    }
 }
 
 impl Output<BobData> {

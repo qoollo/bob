@@ -22,7 +22,7 @@ pub(crate) mod prelude {
             cluster::Cluster as ClusterConfig,
             node::{BackendType, Node as NodeConfig, Pearl as PearlConfig},
         },
-        data::{BobData, BobKey, BobMeta, BobOptions, DiskPath, VDiskId},
+        data::{BobData, BobKey, BobMeta, BobPutOptions, BobGetOptions, BobDeleteOptions, DiskPath, VDiskId},
         error::Error,
         mapper::Virtual,
         metrics::BACKEND_STATE,

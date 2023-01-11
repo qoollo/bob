@@ -63,11 +63,22 @@ impl BackendStorage for StubBackend {
 
     async fn shutdown(&self) {}
 
-    async fn delete(&self, _op: Operation, _key: BobKey) -> Result<u64, Error> {
+    async fn delete(
+        &self,
+        _op: Operation,
+        _key: BobKey,
+        _meta: &BobMeta,
+    ) -> Result<u64, Error> {
         Ok(0)
     }
 
-    async fn delete_alien(&self, _op: Operation, _key: BobKey) -> Result<u64, Error> {
+    async fn delete_alien(
+        &self,
+        _op: Operation,
+        _key: BobKey,
+        _meta: &BobMeta,
+        _force_delete: bool,
+    ) -> Result<u64, Error> {
         Ok(0)
     }
 }
