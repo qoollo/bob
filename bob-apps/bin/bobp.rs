@@ -181,11 +181,11 @@ impl TaskConfig {
         if self.direct {
             Some(DeleteOptions {
                 force_node: true,
+                is_alien: false,
+                force_alien_nodes: vec![],
             })
         } else {
-            Some(DeleteOptions {
-                force_node: false,
-            })
+            None
         }
     }
 
@@ -879,6 +879,7 @@ async fn delete_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Del
         let request = request_creator(DeleteRequest {
             key: Some(key),
             options: options.clone(),
+            meta: None,
         });
 
         let res = if measure_time {
