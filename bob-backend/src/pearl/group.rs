@@ -615,8 +615,7 @@ impl Group {
 
     pub(crate) async fn corrupted_blobs_count(&self) -> usize {
         let mut corrupted_blobs = 0;
-        let holders_guard = self.holders();
-        let holders = holders_guard.read().await;
+        let holders = self.holders.read().await;
         for holder in holders.iter() {
             corrupted_blobs += holder.corrupted_blobs_count().await;
         }
