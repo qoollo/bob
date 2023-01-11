@@ -21,6 +21,7 @@ Bob versions changelog
 - Remove 'termion' crate from dependencies (#718)
 - Make delete operation recoverable (#533)
 - Binaries sizes reduced for 'integration-test' profile (#727)
+- Configurable build profiles in Dockerfiles (#717)
 
 #### Fixed
 - PID unsafe type conversion fixed (#719)

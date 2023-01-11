@@ -98,6 +98,8 @@ jobs:
     strategy:
       matrix:
         key: [8, 16]
+    env:
+      BUILD_PROFILE: "integration-test"
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v3
@@ -124,6 +126,7 @@ jobs:
           build-args: |
             COMMIT_HASH=${{ env.BOB_COMMIT_HASH }}
             KEY_SIZE=${{ matrix.key}}
+            BUILD_PROFILE=${{ env.BUILD_PROFILE }}
       - name: Save image
         run: |
           docker save -o /tmp/bob-image-key${{ matrix.key }}.tar qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }}
