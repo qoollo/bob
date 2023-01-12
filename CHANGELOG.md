@@ -14,6 +14,8 @@ Bob versions changelog
 - Added integration tests for aliens (#642)
 - Added integration tests for bobt (#648)
 - Added authentification support for integration tests (#672)
+- Add support for `delete` operation to `bobc` (#664)
+- Support for authorization to `bobc` (#679)
 
 #### Changed
 - Use bytes to pass data to pearl (#597)
