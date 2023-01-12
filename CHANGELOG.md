@@ -28,6 +28,7 @@ Bob versions changelog
 #### Fixed
 - Data access operations will be protected during remount to prevent data loss (#683)
 - PID unsafe type conversion fixed (#719)
+- Last iteration of alien integration tests (#736)
 
 #### Updated
 - Pearl updated to v0.16.0 (#706)
