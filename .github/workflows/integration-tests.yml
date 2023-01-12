@@ -1,8 +1,6 @@
 name: integration-tests
 on:
   push:
-    branches:
-      - "726-integration-tests-add-exist-pass-to-aliens-test-after-the-get-pass"
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
