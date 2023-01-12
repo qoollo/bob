@@ -302,6 +302,7 @@ impl Group {
         let holders = self.holders.read().await;
         let mut max_timestamp = None;
         let mut result = false;
+        // self.settings.config().skip_holders_by_timestamp_step_when_reading()
         for (ind, &key) in keys.iter().enumerate() {
             for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
             {

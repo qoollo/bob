@@ -269,6 +269,8 @@ pub struct Pearl {
     disks_events_logfile: String,
     #[serde(default)]
     bloom_filter_max_buf_bits_count: Option<usize>,
+    #[serde(default)]
+    skip_holders_by_timestamp_step_when_reading: Option<String>,
 }
 
 impl Pearl {
@@ -289,6 +291,13 @@ impl Pearl {
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
+    }
+
+    pub fn skip_holders_by_timestamp_step_when_reading(&self) -> Option<Duration> {
+        self.skip_holders_by_timestamp_step_when_reading.as_ref().map(|dur|
+            dur.parse::<HumanDuration>()
+                .expect("parse humantime duration")
+                .into())
     }
 
     fn default_fail_retry_count() -> u64 {
@@ -446,6 +455,14 @@ impl Pearl {
 impl Validatable for Pearl {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
+        if let Some(field) = self.skip_holders_by_timestamp_step_when_reading.as_ref() {
+            field.parse::<HumanDuration>()
+                .map_err(|e| {
+                    let msg = "field \'skip_holders_by_timestamp_step_when_reading\' for \'config\' is not valid".to_string();
+                    error!("{}, {}", msg, e);
+                    msg
+                })?;
+        }
         if self.fail_retry_timeout.parse::<HumanDuration>().is_err() {
             let msg = "field \'fail_retry_timeout\' for \'config\' is not valid".to_string();
             error!("{}", msg);
