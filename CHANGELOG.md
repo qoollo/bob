@@ -28,6 +28,7 @@ Bob versions changelog
 #### Fixed
 - Data access operations will be protected during remount to prevent data loss (#683)
 - PID unsafe type conversion fixed (#719)
+- Fixed data corruption in case of put request timeout (#690)
 
 #### Updated
 - Pearl updated to v0.16.0 (#706)
