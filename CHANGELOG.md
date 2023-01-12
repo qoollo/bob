@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Add support for `delete` operation to `bobc` (#664)
 
 
 #### Changed
@@ -22,7 +23,6 @@ Bob versions changelog
 - Include bobc into release builds (#569)
 - Added blob-info and index-info features to brt (#356)
 - Support for files, file name patterns, key ranges and a 'exists' subcommand to 'bobc' (#539)
-- Add support for `delete` operation to `bobc` (#664)
 
 #### Changed
 - Using interval logger in metric exporter to reduce error log density (#592)
