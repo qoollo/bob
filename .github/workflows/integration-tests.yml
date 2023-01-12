@@ -32,7 +32,7 @@ on:
         required: true
         default: '0'
       bob_bobt_count:
-        description: 'Amount of iterations for bobt test'
+        description: 'Amount of iterations for bobt operation test'
         required: true
         default: '100000'
       bob_bobt_first_index:
@@ -145,6 +145,11 @@ jobs:
       matrix:
         key: [8, 16]
         mode: [normal, random]
+        auth: [None]
+        include:
+          - key: 8
+            mode: normal
+            auth: Basic
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repo
@@ -169,6 +174,10 @@ jobs:
           echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_transport_min_port }}"
           echo "BOB_TRANSPORT_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_auth_user }}"
+          echo "BOB_AUTH_USER=${INPUT:-"admin"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_auth_password }}"
+          echo "BOB_AUTH_PASSWORD=${INPUT:-"password"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_rest_min_port }}"
           echo "BOB_REST_MIN_PORT=${INPUT:-"8000"}" >> $GITHUB_ENV
       - name: Install deps
@@ -198,7 +207,7 @@ jobs:
           docker image ls
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --check-interval 5000ms
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --check-interval 5000ms -u ${{ matrix.auth }}
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
@@ -206,7 +215,7 @@ jobs:
         working-directory: ./integration-tests
       - name: Run write/read/exist tests
         run: |
-          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }} --mode ${{ matrix.mode }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }}
+          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }} --mode ${{ matrix.mode }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} --user ${{ env.BOB_AUTH_USER }} --password ${{ env.BOB_AUTH_PASSWORD }}
         working-directory: ./integration-tests
 
   test-aliens:
@@ -285,6 +294,10 @@ jobs:
     strategy:
       matrix:
         key: [8, 16]
+        auth: [None]
+        include:
+          - key: 8
+            auth: Basic
     runs-on: ubuntu-latest
     steps:
       - name: Checks-out repo
@@ -309,6 +322,10 @@ jobs:
           echo "BOB_BOBT_COUNT=${INPUT:-"100000"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_transport_min_port }}"
           echo "BOB_TRANSPORT_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_auth_user }}"
+          echo "BOB_AUTH_USER=${INPUT:-"admin"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_auth_password }}"
+          echo "BOB_AUTH_PASSWORD=${INPUT:-"password"}" >> $GITHUB_ENV
           INPUT="${{ github.event.inputs.bob_rest_min_port }}"
           echo "BOB_REST_MIN_PORT=${INPUT:-"8000"}" >> $GITHUB_ENV
       - name: Install deps
@@ -338,7 +355,7 @@ jobs:
           docker image ls
       - name: Generate config files for docker and bob
         run: |
-          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --check-interval 5000ms
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} -u ${{ matrix.auth }} --check-interval 5000ms
         working-directory: ./integration-tests
       - name: Deploy docker containers
         run: |
@@ -346,5 +363,5 @@ jobs:
         working-directory: ./integration-tests
       - name: Run tests with bobt
         run: |
-          ./tests_bobt.py -c ${{ env.BOB_BOBT_COUNT }} -s ${{ env.BOB_BOBT_FIRST_INDEX }} -e ${{ env.BOB_BOBT_LAST_INDEX }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }}
+          ./tests_bobt.py -c ${{ env.BOB_BOBT_COUNT }} -s ${{ env.BOB_BOBT_FIRST_INDEX }} -e ${{ env.BOB_BOBT_LAST_INDEX }} --user ${{ env.BOB_AUTH_USER }} --password ${{ env.BOB_AUTH_PASSWORD }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }}
         working-directory: ./integration-tests
