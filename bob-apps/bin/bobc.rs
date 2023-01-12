@@ -450,7 +450,7 @@ async fn delete(key: u64, key_size: usize, client: &mut BobApiClient<Channel>) {
         key: Some(BlobKey {
             key: get_key_value(key, key_size),
         }),
-        options: Some(DeleteOptions::new_all()),
+        options: None,
     };
     let request = Request::new(message);
     let res = client.delete(request).await;
