@@ -594,7 +594,9 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .arg(&key_arg)
         .arg(&key_size_arg)
         .arg(&host_arg)
-        .arg(&port_arg);
+        .arg(&port_arg)
+        .arg(&user_arg)
+        .arg(&password_arg);
     let delete_sc = SubCommand::with_name(DELETE_SC)
         .arg(key_arg)
         .arg(key_size_arg)
