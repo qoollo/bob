@@ -534,7 +534,9 @@ impl Group {
             {
                 if let Some(name) = PartitionName::try_from_string(&file_name) {
                     let pearl_holder = self.create_pearl_holder(name.timestamp, &name.hash);
-                    holders.push(pearl_holder);
+                    let pos = holders.binary_search_by(
+                        |holder: &Holder| holder.start_timestamp().cmp(&name.timestamp));
+                    holders.insert(glue(pos), pearl_holder);
                 } else {
                     warn!("failed to parse partition name from {}", file_name);
                 }
@@ -706,6 +708,13 @@ impl Group {
             .collect::<FuturesUnordered<_>>()
             .fold(0, |acc, x| async move { acc + x })
             .await
+    }
+}
+
+fn glue<T>(r: Result<T, T>) -> T {
+    match r {
+        Ok(v) => v,
+        Err(v) => v,
     }
 }
 
