@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use bob_common::metrics::{ACTIVE_DISKS_COUNT, BLOOM_FILTERS_RAM, DISK_USED};
+use bob_common::metrics::{ACTIVE_DISKS_COUNT, BLOOM_FILTERS_RAM, DISK_USED, CORRUPTED_BLOBS_COUNT};
 
 pub(crate) struct Counter {
     count_interval: Duration,
@@ -24,6 +24,8 @@ impl Counter {
             let (normal_blobs, alien_blobs) = backend.blobs_count().await;
             gauge!(BLOBS_COUNT, normal_blobs as f64);
             gauge!(ALIEN_BLOBS_COUNT, alien_blobs as f64);
+            let corrupted_blobs = backend.corrupted_blobs_count().await;
+            gauge!(CORRUPTED_BLOBS_COUNT, corrupted_blobs as f64);
             let active_disks = backend.active_disks_count().await;
             gauge!(ACTIVE_DISKS_COUNT, active_disks as f64);
             let index_memory = backend.index_memory().await;

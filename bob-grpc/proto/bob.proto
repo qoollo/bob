@@ -35,7 +35,8 @@ message ExistRequest {
 // Delete operation parameters
 message DeleteRequest {
     BlobKey key = 1; // Blob's key
-    DeleteOptions options = 2; // Options
+    BlobMeta meta = 2; // Metadata
+    DeleteOptions options = 3; // Options
 }
 
 // Blob id
@@ -89,5 +90,7 @@ message BobError {
 
 // Delete operation options
 message DeleteOptions {
-    bool force_node = 1; // Force operation to be served by node to which it comes
+    repeated string force_alien_nodes = 1; // List of nodes in aliens to perform force operation (skip presence check)
+    bool force_node = 2; // Force operation to be served by node to which it comes
+    bool is_alien = 3; // Shows if the request is for aliens
 }
