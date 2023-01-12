@@ -870,7 +870,6 @@ async fn delete_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Del
     let request_creator = task_conf.get_request_creator::<DeleteRequest>();
 
     let options = task_conf.find_delete_options();
-    let meta = Some(create_current_blobmeta());
     let measure_time = task_conf.is_time_measurement_thread();
     let upper_idx = task_conf.low_idx + task_conf.count;
     for i in task_conf.low_idx..upper_idx {
@@ -880,7 +879,7 @@ async fn delete_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Del
         let request = request_creator(DeleteRequest {
             key: Some(key),
             options: options.clone(),
-            meta: meta.clone(),
+            meta: Some(create_current_blobmeta()),
         });
 
         let res = if measure_time {
