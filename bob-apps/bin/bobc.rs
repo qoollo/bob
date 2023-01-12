@@ -507,7 +507,12 @@ async fn exist(
     }
 }
 
-async fn delete(key: u64, key_size: usize, client: &mut BobApiClient<Channel>) {
+async fn delete(
+    key: u64,
+    key_size: usize,
+    client: &mut BobApiClient<Channel>,
+    request_creator: impl Fn(DeleteRequest) -> Request<DeleteRequest>,
+) {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
