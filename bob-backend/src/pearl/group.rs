@@ -596,6 +596,33 @@ impl Group {
         result
     }
 
+    pub(crate) async fn corrupted_blobs_count(&self) -> usize {
+        let mut corrupted_blobs = 0;
+        let holders = self.holders.read().await;
+        for holder in holders.iter() {
+            corrupted_blobs += holder.corrupted_blobs_count().await;
+        }
+        corrupted_blobs
+    }
+
+    pub(crate) async fn blobs_count(&self) -> usize {
+        let mut blobs = 0;
+        let holders = self.holders.read().await;
+        for holder in holders.iter() {
+            blobs += holder.blobs_count().await;
+        }
+        blobs
+    }
+
+    pub(crate) async fn index_memory(&self) -> usize {
+        let mut index_memory = 0;
+        let holders = self.holders.read().await;
+        for holder in holders.iter() {
+            index_memory += holder.index_memory().await;
+        }
+        index_memory
+    }
+
     pub(crate) async fn find_least_modified_freeable_holder(&self) -> Option<Holder> {
         let holders_lock = self.holders();
         let holders = holders_lock.read().await;
