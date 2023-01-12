@@ -141,7 +141,7 @@ impl Virtual {
         }
         if support_nodes.len() < count && offset % self.nodes.len() > 0 {
             for (id, node) in self.nodes.iter().take(offset % self.nodes.len()) {
-                if target_nodes.iter().all(|i| i.index() != *id) && support_nodes.iter().all(|n| node.index() != *id) {
+                if target_nodes.iter().all(|i| i.index() != *id) && support_nodes.iter().all(|n| n.index() != *id) {
                     support_nodes.push(node);
                     if support_nodes.len() >= count {
                         break;
