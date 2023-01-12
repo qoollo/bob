@@ -2,7 +2,7 @@
 extern crate log;
 
 use bob::{
-    Blob, BlobKey, BlobMeta, BobApiClient, DeleteOptions, DeleteRequest, ExistRequest, GetRequest,
+    Blob, BlobKey, BlobMeta, BobApiClient, DeleteRequest, ExistRequest, GetRequest,
     PutRequest,
 };
 use bytes::Bytes;
