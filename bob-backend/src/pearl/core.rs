@@ -166,9 +166,13 @@ impl BackendStorage for Pearl {
             .iter()
             .find(|dc| dc.can_process_operation(&op));
         if let Some(disk_controller) = dc_option {
-            disk_controller
-                .put(op, key, data)
-                .await
+            let handler = tokio::spawn(
+                disk_controller.clone().put(op, key, data.clone())
+            );
+            match handler.await {
+                Ok(res) => res,
+                Err(e) => Err(Error::failed(e.to_string()))
+            }
         } else {
             debug!(
                 "PUT[{}] Cannot find disk_controller, operation: {:?}",
@@ -234,7 +238,13 @@ impl BackendStorage for Pearl {
             .find(|dc| dc.can_process_operation(&op));
 
         if let Some(disk_controller) = dc_option {
-            disk_controller.delete(op, key, meta).await
+            let handler = tokio::spawn(
+                disk_controller.clone().delete(op, key, meta.clone())
+            );
+            match handler.await {
+                Ok(res) => res,
+                Err(e) => Err(Error::failed(e.to_string()))
+            }
         } else {
             Err(Error::dc_is_not_available())
         }
