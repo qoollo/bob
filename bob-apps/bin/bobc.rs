@@ -1,7 +1,9 @@
 #[macro_use]
 extern crate log;
 
-use bob::{Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetRequest, PutRequest};
+use bob::{
+    Blob, BlobKey, BlobMeta, BobApiClient, DeleteRequest, ExistRequest, GetRequest, PutRequest,
+};
 use bytes::Bytes;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use log::LevelFilter;
@@ -48,6 +50,7 @@ const FILE_ARG: &str = "file";
 const PUT_SC: &str = "put";
 const GET_SC: &str = "get";
 const EXIST_SC: &str = "exist";
+const DELETE_SC: &str = "delete";
 
 #[derive(Debug)]
 enum ParseError {
@@ -327,6 +330,11 @@ async fn main() {
             )
             .await
         }
+        DELETE_SC => {
+            for key in app_args.key_pattern.unwrap().into_iter() {
+                delete(key, app_args.keysize, &mut client).await
+            }
+        }
         _ => unreachable!("unknown command"),
     }
 }
@@ -345,7 +353,6 @@ async fn prepare_put_from_pattern(
             let key = match cap[1].parse() {
                 Ok(val) => val,
                 Err(_) => panic!("cannot parse capture group: {}", &cap[1]),
-
             };
             keys_names.push(KeyName { key, name });
         }
@@ -437,6 +444,31 @@ async fn exist(keys: &KeyPattern, key_size: usize, client: &mut BobApiClient<Cha
     }
 }
 
+async fn delete(key: u64, key_size: usize, client: &mut BobApiClient<Channel>) {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let meta = BlobMeta { timestamp };
+    let message = DeleteRequest {
+        key: Some(BlobKey {
+            key: get_key_value(key, key_size),
+        }),
+        options: None,
+        meta: Some(meta),
+    };
+    let request = Request::new(message);
+    let res = client.delete(request).await;
+    match res {
+        Ok(_) => {
+            info!("key: {}", key);
+        }
+        Err(e) => {
+            error!("{:?}", e);
+        }
+    }
+}
+
 fn get_matches<'a>() -> ArgMatches<'a> {
     let key_arg = Arg::with_name(KEY_ARG)
         .short("k")
@@ -479,6 +511,11 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .arg(&port_arg)
         .arg(file_arg.help("Output file"));
     let exists_sc = SubCommand::with_name(EXIST_SC)
+        .arg(&key_arg)
+        .arg(&key_size_arg)
+        .arg(&host_arg)
+        .arg(&port_arg);
+    let delete_sc = SubCommand::with_name(DELETE_SC)
         .arg(key_arg)
         .arg(key_size_arg)
         .arg(host_arg)
@@ -488,6 +525,7 @@ fn get_matches<'a>() -> ArgMatches<'a> {
         .subcommand(put_sc)
         .subcommand(get_sc)
         .subcommand(exists_sc)
+        .subcommand(delete_sc)
         .get_matches()
 }
 
