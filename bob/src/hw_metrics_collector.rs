@@ -8,7 +8,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 use std::fs::read_to_string;
-use sysinfo::{DiskExt, ProcessExt, RefreshKind, System, SystemExt};
+use sysinfo::{DiskExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 const CPU_STAT_FILE: &str = "/proc/stat";
@@ -74,14 +74,14 @@ impl HWMetricsCollector {
         let total_mem = kb_to_b(sys.total_memory());
         gauge!(TOTAL_RAM, total_mem as f64);
         debug!("total mem in bytes: {}", total_mem);
-        let pid = std::process::id() as i32;
+        let pid = sysinfo::get_current_pid().expect("Cannot determine current process PID");
 
         loop {
             interval.tick().await;
 
             sys.refresh_specifics(
                 RefreshKind::new()
-                    .with_processes()
+                    .with_processes(ProcessRefreshKind::everything())
                     .with_disks()
                     .with_memory(),
             );
@@ -481,42 +481,43 @@ impl DescrCounter {
         if !self.lsof_enabled {
             return None;
         }
-        let lsof_str = format!(
-            "lsof -a -p {} -d ^mem -d ^cwd -d ^rtd -d ^txt -d ^DEL",
-            process::id()
-        );
-        match pipers::Pipe::new(&lsof_str).then("wc -l").finally() {
-            Ok(proc) => {
-                match proc.wait_with_output() {
-                    Ok(output) => {
-                        if output.status.success() {
-                            let count = String::from_utf8(output.stdout).unwrap();
-                            match count[..count.len() - 1].parse::<u64>() {
-                                Ok(count) => {
-                                    return Some(count - 5); // exclude stdin, stdout, stderr, lsof pipe and wc pipe
+
+        let pid_arg = process::id().to_string();
+        let cmd_lsof = Command::new("lsof")
+            .args(["-a", "-p", &pid_arg, "-d", "^mem", "-d", "^cwd", "-d", "^rtd", "-d", "^txt", "-d", "^DEL"])
+            .stdout(std::process::Stdio::piped())
+            .spawn();
+        match cmd_lsof {
+            Ok(cmd_lsof) => {
+                match cmd_lsof.stdout {
+                    Some(stdout) => {
+                        match parse_command_output(Command::new("wc").arg("-l").stdin(stdout)) {
+                            Ok(output) => {
+                                match output.trim().parse::<u64>() {
+                                    Ok(count) => {
+                                        return Some(count - 5); // exclude stdin, stdout, stderr, lsof pipe and wc pipe
+                                    }
+                                    Err(e) => {
+                                        debug!("failed to parse lsof result: {}", e);
+                                    }
                                 }
-                                Err(e) => {
-                                    debug!("failed to parse lsof result: {}", e);
-                                }
+                            },
+                            Err(e) => {
+                                debug!("can't use lsof, wc error (fs /proc will be used): {}", e);
                             }
-                        } else {
-                            debug!(
-                                "something went wrong (fs /proc will be used): {}",
-                                String::from_utf8(output.stderr).unwrap()
-                            );
                         }
-                    }
-                    Err(e) => {
-                        debug!("lsof output wait error (fs /proc will be used): {}", e);
+                    },
+                    None => {
+                        debug!("lsof has no stdout (fs /proc will be used)");
                     }
                 }
-            }
+            },
             Err(e) => {
                 debug!("can't use lsof (fs /proc will be used): {}", e);
             }
         }
         self.lsof_enabled = false;
-        return None;
+        None
     }
 
     fn count_descriptors(&mut self) -> u64 {

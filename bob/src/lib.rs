@@ -28,19 +28,19 @@ pub mod server;
 pub use crate::{grinder::Grinder, server::Server as BobServer};
 pub use bob_backend::pearl::Key as PearlKey;
 pub use bob_common::{
-    bob_client::Factory,
+    bob_client::{Factory, FactoryTlsConfig},
     configs::cluster::{
         Cluster as ClusterConfig, Node as ClusterNodeConfig, Rack as ClusterRackConfig,
         Replica as ReplicaConfig, VDisk as VDiskConfig,
     },
-    configs::node::{Node as NodeConfig, BackendType},
+    configs::node::{BackendType, Node as NodeConfig},
     data::BOB_KEY_SIZE,
     mapper::Virtual as VirtualMapper,
     metrics::init_counters,
 };
 pub use bob_grpc::{
     bob_api_client::BobApiClient, bob_api_server::BobApiServer, Blob, BlobKey, BlobMeta,
-    ExistRequest, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
+    DeleteRequest, ExistRequest, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
 };
 
 mod prelude {
@@ -49,7 +49,7 @@ mod prelude {
     pub use bob_common::{
         bob_client::{BobClient, Factory},
         configs::node::Node as NodeConfig,
-        data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskId},
+        data::{BobData, BobKey, BobMeta, BobPutOptions, BobGetOptions, BobDeleteOptions, DiskPath, VDiskId},
         error::Error,
         mapper::Virtual,
         metrics::{
@@ -64,12 +64,12 @@ mod prelude {
         node::{Node, Output as NodeOutput},
     };
     pub use bob_grpc::{
-        bob_api_server::BobApi, Blob, BlobMeta, ExistRequest, ExistResponse, GetOptions,
-        GetRequest, Null, OpStatus, PutOptions, PutRequest,
+        bob_api_server::BobApi, Blob, BlobMeta, DeleteOptions, DeleteRequest, ExistRequest,
+        ExistResponse, GetOptions, GetRequest, Null, OpStatus, PutOptions, PutRequest,
     };
     pub use futures::{future, stream::FuturesUnordered, Future, FutureExt, StreamExt};
     pub use std::{
-        collections::HashMap,
+        collections::HashMap, collections::HashSet,
         fmt::{Debug, Formatter, Result as FmtResult},
         io::Write,
         pin::Pin,
@@ -112,7 +112,7 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn get_ok(node_name: String, timestamp: u64) -> GetResult {
-        let inner = BobData::new(vec![], BobMeta::new(timestamp));
+        let inner = BobData::new(vec![].into(), BobMeta::new(timestamp));
         Ok(NodeOutput::new(node_name, inner))
     }
 

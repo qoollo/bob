@@ -1,8 +1,10 @@
 use crate::{
+    error::Error,
     mapper::NodesMap,
     node::{Disk as NodeDisk, Node},
 };
-use bob_grpc::{GetOptions, GetSource, PutOptions};
+use bob_grpc::{DeleteOptions, GetOptions, GetSource, PutOptions};
+use bytes::{Bytes, BytesMut};
 use std::{
     convert::TryInto,
     fmt::{Debug, Formatter, Result as FmtResult},
@@ -92,12 +94,14 @@ pub type VDiskId = u32;
 
 #[derive(Clone)]
 pub struct BobData {
-    inner: Vec<u8>,
+    inner: Bytes,
     meta: BobMeta,
 }
 
 impl BobData {
-    pub fn new(inner: Vec<u8>, meta: BobMeta) -> Self {
+    const TIMESTAMP_LEN: usize = 8;
+
+    pub fn new(inner: Bytes, meta: BobMeta) -> Self {
         BobData { inner, meta }
     }
 
@@ -105,12 +109,29 @@ impl BobData {
         &self.inner
     }
 
-    pub fn into_inner(self) -> Vec<u8> {
+    pub fn into_inner(self) -> Bytes {
         self.inner
     }
 
     pub fn meta(&self) -> &BobMeta {
         &self.meta
+    }
+
+    pub fn to_serialized_bytes(&self) -> Bytes {
+        let mut result = BytesMut::with_capacity(Self::TIMESTAMP_LEN + self.inner.len());
+        result.extend_from_slice(&self.meta.timestamp.to_be_bytes());
+        result.extend_from_slice(&self.inner);
+        result.freeze()
+    }
+
+    pub fn from_serialized_bytes(mut bob_data: Bytes) -> Result<BobData, Error> {
+        let ts_bytes = bob_data.split_to(Self::TIMESTAMP_LEN);
+        let ts_bytes = (&*ts_bytes)
+            .try_into()
+            .map_err(|e| Error::storage(format!("parse error: {}", e)))?;
+        let timestamp = u64::from_be_bytes(ts_bytes);
+        let meta = BobMeta::new(timestamp);
+        Ok(BobData::new(bob_data, meta))
     }
 }
 
@@ -142,58 +163,71 @@ impl BobMeta {
     }
 }
 
-bitflags! {
-    #[derive(Default)]
-    pub struct BobFlags: u8 {
-        const FORCE_NODE = 0x01;
-    }
+
+#[derive(Debug)]
+pub struct BobPutOptions {
+    force_node: bool,
+    remote_nodes: Vec<String>
 }
 
 #[derive(Debug)]
-pub struct BobOptions {
-    flags: BobFlags,
-    remote_nodes: Vec<String>,
+pub struct BobGetOptions {
+    force_node: bool,
     get_source: Option<GetSource>,
 }
 
-impl BobOptions {
+#[derive(Debug)]
+pub struct BobDeleteOptions {
+    force_node: bool,
+    is_alien: bool,
+    force_alien_nodes: Vec<String>
+}
+
+impl BobPutOptions {
     pub fn new_put(options: Option<PutOptions>) -> Self {
-        let mut flags = BobFlags::default();
-        let remote_nodes = options.map_or(Vec::new(), |vopts| {
-            if vopts.force_node {
-                flags |= BobFlags::FORCE_NODE;
+        if let Some(vopts) = options {
+            BobPutOptions {
+                force_node: vopts.force_node,
+                remote_nodes: vopts.remote_nodes
             }
-            vopts.remote_nodes
-        });
-        BobOptions {
-            flags,
-            remote_nodes,
-            get_source: None,
+        } else {
+            BobPutOptions {
+                force_node: false,
+                remote_nodes: vec![]
+            }
         }
     }
 
-    pub fn new_get(options: Option<GetOptions>) -> Self {
-        let mut flags = BobFlags::default();
+    pub fn force_node(&self) -> bool {
+        self.force_node
+    }
 
-        let get_source = options.map(|vopts| {
-            if vopts.force_node {
-                flags |= BobFlags::FORCE_NODE;
-            }
-            GetSource::from(vopts.source)
-        });
-        BobOptions {
-            flags,
-            remote_nodes: Vec::new(),
-            get_source,
-        }
+    pub fn to_alien(&self) -> bool {
+        !self.remote_nodes.is_empty()
     }
 
     pub fn remote_nodes(&self) -> &[String] {
         &self.remote_nodes
     }
+}
 
-    pub fn flags(&self) -> BobFlags {
-        self.flags
+impl BobGetOptions {
+    pub fn new_get(options: Option<GetOptions>) -> Self {
+        if let Some(vopts) = options {
+            BobGetOptions {
+                force_node: vopts.force_node,
+                get_source: Some(GetSource::from(vopts.source))
+            }
+        } else {
+            BobGetOptions {
+                force_node: false,
+                get_source: None
+            }
+        }
+    }
+
+    pub fn force_node(&self) -> bool {
+        self.force_node
     }
 
     pub fn get_normal(&self) -> bool {
@@ -206,6 +240,41 @@ impl BobOptions {
         self.get_source.map_or(false, |value| {
             value == GetSource::All || value == GetSource::Alien
         })
+    }
+}
+
+
+impl BobDeleteOptions {
+    pub fn new_delete(options: Option<DeleteOptions>) -> Self {
+        if let Some(vopts) = options {
+            BobDeleteOptions {
+                force_node: vopts.force_node,
+                is_alien: vopts.is_alien,
+                force_alien_nodes: vopts.force_alien_nodes
+            }
+        } else {
+            BobDeleteOptions {
+                force_node: false,
+                is_alien: false,
+                force_alien_nodes: vec![]
+            }
+        }
+    }
+
+    pub fn force_node(&self) -> bool {
+        self.force_node
+    }
+
+    pub fn to_alien(&self) -> bool {
+        self.is_alien
+    }
+
+    pub fn force_delete_nodes(&self) -> &[String] {
+        &self.force_alien_nodes
+    }
+
+    pub fn is_force_delete(&self, node_name: &str) -> bool {
+        self.force_alien_nodes.iter().any(|x| x == node_name)
     }
 }
 

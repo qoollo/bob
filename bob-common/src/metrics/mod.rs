@@ -41,6 +41,13 @@ pub const GRINDER_EXIST_ERROR_COUNT_COUNTER: &str = "cluster_grinder.exist_error
 /// Measures processing time of the EXIST request
 pub const GRINDER_EXIST_TIMER: &str = "cluster_grinder.exist_timer";
 
+/// Counts number of DELETE requests, processed by Grinder
+pub const GRINDER_DELETE_COUNTER: &str = "cluster_grinder.delete_count";
+/// Counts number of DELETE requests return error, processed by Grinder
+pub const GRINDER_DELETE_ERROR_COUNT_COUNTER: &str = "cluster_grinder.delete_error_count";
+/// Measures processing time of the DELETE request
+pub const GRINDER_DELETE_TIMER: &str = "cluster_grinder.delete_timer";
+
 /// Counts number of PUT requests, processed by Client
 pub const CLIENT_PUT_COUNTER: &str = "client.put_count";
 /// Counts number of PUT requests return error, processed by Client
@@ -76,6 +83,8 @@ pub const AVAILABLE_NODES_COUNT: &str = "link_manager.nodes_number";
 pub const BACKEND_STATE: &str = "backend.backend_state";
 /// Count blobs (without aliens)
 pub const BLOBS_COUNT: &str = "backend.blob_count";
+/// Count corrupted blobs
+pub const CORRUPTED_BLOBS_COUNT: &str = "backend.corrupted_blob_count";
 /// Memory occupied bybloom filters
 pub const BLOOM_FILTERS_RAM: &str = "backend.bloom_filters_ram";
 /// Count alien blobs
@@ -111,16 +120,51 @@ pub type Timer = Instant;
 /// Structure contains put/get metrics for `BobClient`
 #[derive(Debug, Clone)]
 pub struct BobClient {
-    prefix: String,
+    prefixed_names: Arc<PrefixedNames>,
+}
+
+#[derive(Debug, Clone)]
+struct PrefixedNames {
+    put_count: String,
+    put_timer: String,
+    put_error_count: String,
+    get_count: String,
+    get_timer: String,
+    get_error_count: String,
+    exist_count: String,
+    exist_timer: String,
+    exist_error_count: String,
+    delete_count: String,
+    delete_timer: String,
+    delete_error_count: String,
+}
+
+impl PrefixedNames {
+    fn new(prefix: &str) -> Self {
+        Self {
+            put_count: format!("{}.put_count", prefix),
+            put_timer: format!("{}.put_timer", prefix),
+            put_error_count: format!("{}.put_error_count", prefix),
+            get_count: format!("{}.get_count", prefix),
+            get_timer: format!("{}.get_timer", prefix),
+            get_error_count: format!("{}.get_error_count", prefix),
+            exist_count: format!("{}.exist_count", prefix),
+            exist_timer: format!("{}.exist_timer", prefix),
+            exist_error_count: format!("{}.exist_error_count", prefix),
+            delete_count: format!("{}.delete_count", prefix),
+            delete_timer: format!("{}.delete_timer", prefix),
+            delete_error_count: format!("{}.delete_error_count", prefix),
+        }
+    }
 }
 
 impl BobClient {
-    fn new(prefix: String) -> Self {
-        BobClient { prefix }
+    fn new(prefixed_names: Arc<PrefixedNames>) -> Self {
+        BobClient { prefixed_names }
     }
 
     pub(crate) fn put_count(&self) {
-        counter!(self.prefix.clone() + ".put_count", 1);
+        counter!(self.prefixed_names.put_count.clone(), 1);
     }
 
     pub(crate) fn start_timer() -> Timer {
@@ -130,68 +174,86 @@ impl BobClient {
     #[allow(clippy::cast_possible_truncation)]
     pub(crate) fn put_timer_stop(&self, timer: Timer) {
         histogram!(
-            self.prefix.clone() + ".put_timer",
+            self.prefixed_names.put_timer.clone(),
             timer.elapsed().as_nanos() as f64
         );
     }
 
     pub(crate) fn put_error_count(&self) {
-        counter!(self.prefix.clone() + ".put_error_count", 1);
+        counter!(self.prefixed_names.put_error_count.clone(), 1);
     }
 
     pub(crate) fn get_count(&self) {
-        counter!(self.prefix.clone() + ".get_count", 1);
+        counter!(self.prefixed_names.get_count.clone(), 1);
     }
 
     pub(crate) fn get_timer_stop(&self, timer: Timer) {
         histogram!(
-            self.prefix.clone() + ".get_timer",
+            self.prefixed_names.get_timer.clone(),
             timer.elapsed().as_nanos() as f64
         );
     }
 
     pub(crate) fn get_error_count(&self) {
-        counter!(self.prefix.clone() + ".get_error_count", 1);
+        counter!(self.prefixed_names.get_error_count.clone(), 1);
     }
 
     pub(crate) fn exist_count(&self) {
-        counter!(self.prefix.clone() + ".exist_count", 1);
-    }
-
-    pub(crate) fn exist_error_count(&self) {
-        counter!(self.prefix.clone() + ".exist_error_count", 1);
+        counter!(self.prefixed_names.exist_count.clone(), 1);
     }
 
     pub(crate) fn exist_timer_stop(&self, timer: Timer) {
         histogram!(
-            self.prefix.clone() + ".exist_timer",
+            self.prefixed_names.exist_timer.clone(),
             timer.elapsed().as_nanos() as f64
         );
+    }
+
+    pub(crate) fn exist_error_count(&self) {
+        counter!(self.prefixed_names.exist_error_count.clone(), 1);
+    }
+
+    pub(crate) fn delete_count(&self) {
+        counter!(self.prefixed_names.delete_count.clone(), 1);
+    }
+
+    pub(crate) fn delete_timer_stop(&self, timer: Timer) {
+        histogram!(
+            self.prefixed_names.delete_timer.clone(),
+            timer.elapsed().as_nanos() as f64
+        );
+    }
+
+    pub(crate) fn delete_error_count(&self) {
+        counter!(self.prefixed_names.delete_error_count.clone(), 1);
     }
 }
 
 #[derive(Debug, Clone)]
 struct MetricsContainer {
     duration: Duration,
-    prefix: String,
+    prefixed_names: Arc<PrefixedNames>,
 }
 
 impl MetricsContainer {
     pub(crate) fn new(duration: Duration, prefix: String) -> Self {
-        MetricsContainer { duration, prefix }
+        let prefixed_names = Arc::new(PrefixedNames::new(&prefix));
+        MetricsContainer {
+            duration,
+            prefixed_names,
+        }
     }
 }
 
 /// A trait for generic metrics builders
 pub trait ContainerBuilder {
     /// Initializes `BobClient` container with given name
-    fn get_metrics(&self, name: &str) -> BobClient;
+    fn get_metrics(&self) -> BobClient;
 }
 
 impl ContainerBuilder for MetricsContainer {
-    fn get_metrics(&self, name: &str) -> BobClient {
-        let prefix = self.prefix.clone() + "." + name;
-        BobClient::new(prefix)
+    fn get_metrics(&self) -> BobClient {
+        BobClient::new(self.prefixed_names.clone())
     }
 }
 
@@ -207,7 +269,14 @@ pub async fn init_counters(
     //install_prometheus();
     //install_graphite(node_config, local_address);
     let shared = install_global(node_config, local_address).await;
-    let container = MetricsContainer::new(Duration::from_secs(1), CLIENTS_METRICS_DIR.to_owned());
+    let container = MetricsContainer::new(
+        Duration::from_secs(1),
+        format!(
+            "{}.{}",
+            CLIENTS_METRICS_DIR,
+            local_address.replace(".", "_")
+        ),
+    );
     info!(
         "metrics container initialized with update interval: {}ms",
         container.duration.as_millis()

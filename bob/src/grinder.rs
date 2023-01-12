@@ -10,6 +10,7 @@ use crate::{
 
 use bob_common::metrics::{
     CLIENT_DELETE_COUNTER, CLIENT_DELETE_ERROR_COUNT_COUNTER, CLIENT_DELETE_TIMER,
+    GRINDER_DELETE_COUNTER, GRINDER_DELETE_ERROR_COUNT_COUNTER, GRINDER_DELETE_TIMER,
 };
 use metrics::histogram as timing;
 
@@ -76,11 +77,11 @@ impl Grinder {
     pub(crate) async fn put(
         &self,
         key: BobKey,
-        data: BobData,
-        opts: BobOptions,
+        data: &BobData,
+        opts: BobPutOptions,
     ) -> Result<(), Error> {
         let sw = Stopwatch::start_new();
-        if opts.flags().contains(BobFlags::FORCE_NODE) {
+        if opts.force_node() {
             trace!(">>>- - - - - GRINDER PUT START - - - - -");
             debug!(
                 "PUT[{}] FORCE_NODE=true - will handle it by local node. Put params: {:?}",
@@ -117,10 +118,10 @@ impl Grinder {
         }
     }
 
-    pub(crate) async fn get(&self, key: BobKey, opts: &BobOptions) -> Result<BobData, Error> {
+    pub(crate) async fn get(&self, key: BobKey, opts: &BobGetOptions) -> Result<BobData, Error> {
         trace!(">>>- - - - - GRINDER GET START - - - - -");
         let sw = Stopwatch::start_new();
-        if opts.flags().contains(BobFlags::FORCE_NODE) {
+        if opts.force_node() {
             trace!(
                 "pass request to backend, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
@@ -169,10 +170,10 @@ impl Grinder {
     pub(crate) async fn exist(
         &self,
         keys: &[BobKey],
-        opts: &BobOptions,
+        opts: &BobGetOptions,
     ) -> Result<Vec<bool>, Error> {
         let sw = Stopwatch::start_new();
-        if opts.flags().contains(BobFlags::FORCE_NODE) {
+        if opts.force_node() {
             counter!(CLIENT_EXIST_COUNTER, 1);
             let time = Instant::now();
             let result = self.backend.exist(keys, opts).await;
@@ -204,28 +205,50 @@ impl Grinder {
     #[inline]
     pub(crate) fn run_periodic_tasks(&self, client_factory: Factory) {
         self.link_manager.spawn_checker(client_factory);
-        self.cleaner.spawn_task(self.cleaner.clone(), self.backend.clone());
+        self.cleaner
+            .spawn_task(self.cleaner.clone(), self.backend.clone());
         self.counter.spawn_task(self.backend.clone());
         self.hw_counter.spawn_task();
     }
 
-    pub(crate) async fn delete(&self, key: BobKey, with_aliens: bool) -> Result<u64, Error> {
+    pub(crate) async fn delete(
+        &self,
+        key: BobKey,
+        meta: &BobMeta,
+        options: BobDeleteOptions,
+    ) -> Result<(), Error> {
         trace!(">>>- - - - - GRINDER DELETE START - - - - -");
-        counter!(CLIENT_DELETE_COUNTER, 1);
-        let sw = Stopwatch::start_new();
-        trace!(
-            "pass request to backend, /{:.3}ms/",
-            sw.elapsed().as_secs_f64() * 1000.0
-        );
-        let result = self.backend.delete(key, with_aliens).await;
-        trace!(
-            "backend processed delete, /{:.3}ms/",
-            sw.elapsed().as_secs_f64() * 1000.0
-        );
-        if result.is_err() {
-            counter!(CLIENT_DELETE_ERROR_COUNT_COUNTER, 1);
-        }
-        timing!(CLIENT_DELETE_TIMER, sw.elapsed().as_nanos() as f64);
+        let result = if options.force_node() {
+            counter!(CLIENT_DELETE_COUNTER, 1);
+            let sw = Stopwatch::start_new();
+            trace!(
+                "pass delete request to backend, /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
+            let result = self.backend.delete(key, meta, options).await;
+            trace!(
+                "backend processed delete, /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
+            if result.is_err() {
+                counter!(CLIENT_DELETE_ERROR_COUNT_COUNTER, 1);
+            }
+            timing!(CLIENT_DELETE_TIMER, sw.elapsed().as_nanos() as f64);
+            result
+        } else {
+            counter!(GRINDER_DELETE_COUNTER, 1);
+            let sw = Stopwatch::start_new();
+            let result = self.cluster.delete(key, meta).await;
+            trace!(
+                "cluster processed delete, /{:.3}ms/",
+                sw.elapsed().as_secs_f64() * 1000.0
+            );
+            if result.is_err() {
+                counter!(GRINDER_DELETE_ERROR_COUNT_COUNTER, 1);
+            }
+            timing!(GRINDER_DELETE_TIMER, sw.elapsed().as_nanos() as f64);
+            result
+        };
         trace!(">>>- - - - - GRINDER DELETE FINISHED - - - - -");
         self.cleaner.request_index_cleanup();
         result

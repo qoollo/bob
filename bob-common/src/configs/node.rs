@@ -11,12 +11,14 @@ use std::{
     env::VarError,
     fmt::Debug,
     net::SocketAddr,
-    sync::{atomic::AtomicBool, Mutex},
+    sync::atomic::AtomicBool,
     time::Duration,
+    sync::Mutex,
 };
 use std::{net::IpAddr, sync::atomic::Ordering};
-use std::{net::Ipv4Addr, sync::Arc};
+use std::{net::Ipv4Addr, sync::Arc, fs};
 use tokio::time::sleep;
+use tonic::transport::{ServerTlsConfig, Identity};
 
 use ubyte::ByteUnit;
 
@@ -454,6 +456,46 @@ impl Validatable for Pearl {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TLSConfig {
+    pub ca_cert_path: String,
+    pub domain_name: String,
+    pub rest: Option<bool>,
+    pub grpc: Option<bool>,
+    pub cert_path: Option<String>,
+    pub pkey_path: Option<String>,
+}
+
+impl TLSConfig {
+    pub fn grpc_config(&self) -> Option<&Self> {
+        self.grpc.and_then(|grpc|
+            if grpc {
+                Some(self)
+            } else {
+                None
+            })
+    }
+
+    pub fn rest_config(&self) -> Option<&Self> {
+        self.rest.and_then(|rest|
+            if rest {
+                Some(self)
+            } else {
+                None
+            })
+    }
+
+    pub fn to_server_tls_config(&self) -> ServerTlsConfig {
+        let cert_path = self.cert_path.as_ref().expect("no certificate path specified");
+        let cert_bin = fs::read(cert_path).expect("can not read tls certificate from file");
+        let pkey_path = self.pkey_path.as_ref().expect("no private key path specified");
+        let key_bin = fs::read(pkey_path).expect("can not read tls private key from file");
+        let identity = Identity::from_pem(cert_bin.clone(), key_bin);
+
+        ServerTlsConfig::new().identity(identity)
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum BackendType {
     InMemory = 0,
@@ -477,6 +519,7 @@ pub struct Node {
     backend_type: String,
     pearl: Option<Pearl>,
     metrics: Option<MetricsConfig>,
+    tls: Option<TLSConfig>,
 
     #[serde(skip)]
     bind_ref: Arc<Mutex<String>>,
@@ -503,6 +546,9 @@ pub struct Node {
 
     #[serde(default = "NodeConfig::default_authentication_type")]
     authentication_type: AuthenticationType,
+
+    #[serde(default = "NodeConfig::default_hostname_resolve_period_ms")]
+    hostname_resolve_period_ms: u64,
 }
 
 impl NodeConfig {
@@ -533,6 +579,10 @@ impl NodeConfig {
 
     pub fn metrics(&self) -> &MetricsConfig {
         self.metrics.as_ref().expect("metrics config")
+    }
+
+    pub fn tls_config(&self) -> &Option<TLSConfig> {
+        &self.tls
     }
 
     /// Get log config file path.
@@ -595,6 +645,14 @@ impl NodeConfig {
 
     fn default_authentication_type() -> AuthenticationType {
         AuthenticationType::None
+    }
+
+    fn default_hostname_resolve_period_ms() -> u64 {
+        5000
+    }
+
+    pub fn hostname_resolve_period_ms(&self) -> u64 {
+        self.hostname_resolve_period_ms
     }
 
     pub fn backend_result(&self) -> Result<BackendType, String> {
@@ -808,6 +866,7 @@ pub mod tests {
             backend_type: "in_memory".to_string(),
             pearl: None,
             metrics: None,
+            tls: None,
             bind_ref: Arc::default(),
             disks_ref: Arc::default(),
             cleanup_interval: "1d".to_string(),
@@ -824,6 +883,7 @@ pub mod tests {
             index_memory_limit_soft: None,
             holder_group_size: 8,
             authentication_type: AuthenticationType::None,
+            hostname_resolve_period_ms: NodeConfig::default_hostname_resolve_period_ms(),
         }
     }
 }

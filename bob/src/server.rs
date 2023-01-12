@@ -1,12 +1,13 @@
 use std::net::IpAddr;
 
 use bob_access::{Authenticator, CredentialsHolder};
+use bytes::Bytes;
 use tokio::{runtime::Handle, task::block_in_place};
 
 use crate::prelude::*;
 
 use super::grinder::Grinder;
-use bob_common::metrics::SharedMetricsSnapshot;
+use bob_common::{configs::node::TLSConfig, metrics::SharedMetricsSnapshot};
 
 /// Struct contains `Grinder` and receives incomming GRPC requests
 #[derive(Clone, Debug)]
@@ -50,8 +51,8 @@ where
     }
 
     /// Call to run HTTP API server, not required for normal functioning
-    pub fn run_api_server(&self, address: IpAddr, port: u16) {
-        crate::api::spawn(self.clone(), address, port);
+    pub async fn run_api_server(&self, address: IpAddr, port: u16, tls_config: &Option<TLSConfig>) {
+        crate::api::spawn(self.clone(), address, port, tls_config).await;
     }
 
     /// Start backend component, required before starting bob service
@@ -82,7 +83,7 @@ where
     }
 }
 
-fn put_extract(req: PutRequest) -> Option<(BobKey, Vec<u8>, u64, Option<PutOptions>)> {
+fn put_extract(req: PutRequest) -> Option<(BobKey, Bytes, u64, Option<PutOptions>)> {
     let key = req.key?.key;
     let blob = req.data?;
     let timestamp = blob.meta.as_ref()?.timestamp;
@@ -94,6 +95,13 @@ fn get_extract(req: GetRequest) -> Option<(BobKey, Option<GetOptions>)> {
     let key = req.key?.key;
     let options = req.options;
     Some((key.into(), options))
+}
+
+fn delete_extract(req: DeleteRequest) -> Option<(BobKey, u64, Option<DeleteOptions>)> {
+    let key = req.key?.key;
+    let timestamp = req.meta.as_ref()?.timestamp;
+    let options = req.options;
+    Some((key.into(), timestamp, options))
 }
 
 type ApiResult<T> = Result<Response<T>, Status>;
@@ -136,7 +144,7 @@ where
             );
             let put_result = self
                 .grinder
-                .put(key, data, BobOptions::new_put(options))
+                .put(key, &data, BobPutOptions::new_put(options))
                 .await;
             trace!(
                 "grinder processed put request, /{:.3}ms/",
@@ -186,7 +194,7 @@ where
                 "create new bob options /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let options = BobOptions::new_get(options);
+            let options = BobGetOptions::new_get(options);
             trace!(
                 "pass request to grinder /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
@@ -230,7 +238,7 @@ where
         let req = req.into_inner();
         let ExistRequest { keys, options } = req;
         let keys = keys.into_iter().map(|k| k.key.into()).collect::<Vec<_>>();
-        let options = BobOptions::new_get(options);
+        let options = BobGetOptions::new_get(options);
         let exist = self
             .grinder
             .exist(&keys, &options)
@@ -241,5 +249,39 @@ where
         let response = ExistResponse { exist };
         let response = Response::new(response);
         Ok(response)
+    }
+
+    async fn delete(&self, req: Request<DeleteRequest>) -> ApiResult<OpStatus> {
+        let creds: CredentialsHolder<A> = (&req).into();
+        if !self.auth.check_credentials_grpc(creds.into())?.has_write() {
+            return Err(Status::permission_denied("WRITE permission required"));
+        }
+
+        let req = req.into_inner();
+        if let Some((key, timestamp, options)) = delete_extract(req) {
+            trace!("DELETE[{}] request processing started", key);
+            let sw = Stopwatch::start_new();
+            let delete_result = self.grinder
+                .delete(
+                    key,
+                    &BobMeta::new(timestamp),
+                    BobDeleteOptions::new_delete(options),
+                ).await;
+
+            delete_result
+                .map(|_| {
+                    debug!("DELETE[{}]-OK dt: {:?}", key, sw.elapsed());
+                    Response::new(OpStatus { error: None })
+                })
+                .map_err(|e| {
+                    warn!("DELETE[{}]-ERR dt: {:?}, error: {:?}", key, sw.elapsed(), e);
+                    e.into()
+                })
+        } else {
+            Err(Status::new(
+                Code::InvalidArgument,
+                "Key and meta are mandatory",
+            ))
+        }
     }
 }
