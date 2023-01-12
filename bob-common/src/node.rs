@@ -74,13 +74,13 @@ impl Node {
         self.address.to_string().replace('.', "_")
     }
 
-    pub async fn set_connection(&self, client: BobClient) {
+    pub fn set_connection(&self, client: BobClient) {
         let mut conn = self.conn.write().expect("rwlock write error");
         *conn = Some(client);
         self.conn_available.store(true, Ordering::Release);
     }
 
-    pub async fn clear_connection(&self) {
+    pub fn clear_connection(&self) {
         let mut conn = self.conn.write().expect("rwlock write error");
         *conn = None;
         self.conn_available.store(false, Ordering::Release);
@@ -101,7 +101,7 @@ impl Node {
             debug!("will connect to {:?}", self);
             let client = client_factory.produce(self.clone()).await?;
             self.ping(&client).await?;
-            self.set_connection(client).await;
+            self.set_connection(client);
             Ok(())
         }
     }
@@ -109,7 +109,7 @@ impl Node {
     pub async fn ping(&self, conn: &BobClient) -> Result<(), String> {
         if let Err(e) = conn.ping().await {
             debug!("Got broken connection to node {:?}", self);
-            self.clear_connection().await;
+            self.clear_connection();
             Err(format!("{:?}", e))
         } else {
             debug!("All good with pinging node {:?}", self);
