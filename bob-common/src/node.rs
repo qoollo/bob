@@ -6,7 +6,10 @@ use http::Uri;
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::{Hash, Hasher},
-    sync::{Arc, atomic::{AtomicBool, Ordering}, RwLock},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, RwLock,
+    },
 };
 
 pub type Id = u16;
@@ -72,13 +75,15 @@ impl Node {
     }
 
     pub async fn set_connection(&self, client: BobClient) {
-        *self.conn.write().await = Some(client);
-        self.conn_available.store(true, Ordering::Relaxed);
+        let mut conn = self.conn.write().expect("rwlock write error");
+        *conn = Some(client);
+        self.conn_available.store(true, Ordering::Release);
     }
 
     pub async fn clear_connection(&self) {
-        *self.conn.write().await = None;
-        self.conn_available.store(false, Ordering::Relaxed);
+        let mut conn = self.conn.write().expect("rwlock write error");
+        *conn = None;
+        self.conn_available.store(false, Ordering::Release);
     }
 
     pub fn get_connection(&self) -> Option<BobClient> {
@@ -86,7 +91,7 @@ impl Node {
     }
 
     pub fn connection_available(&self) -> bool {
-        self.conn_available.load(Ordering::Relaxed)
+        self.conn_available.load(Ordering::Acquire)
     }
 
     pub async fn check(&self, client_factory: &Factory) -> Result<(), String> {
@@ -96,7 +101,7 @@ impl Node {
             debug!("will connect to {:?}", self);
             let client = client_factory.produce(self.clone()).await?;
             self.ping(&client).await?;
-            self.set_connection(client);
+            self.set_connection(client).await;
             Ok(())
         }
     }
@@ -104,7 +109,7 @@ impl Node {
     pub async fn ping(&self, conn: &BobClient) -> Result<(), String> {
         if let Err(e) = conn.ping().await {
             debug!("Got broken connection to node {:?}", self);
-            self.clear_connection();
+            self.clear_connection().await;
             Err(format!("{:?}", e))
         } else {
             debug!("All good with pinging node {:?}", self);
@@ -154,7 +159,7 @@ impl<T> Output<T> {
     pub fn map<TOut>(self, map_fn: impl FnOnce(T) -> TOut) -> Output<TOut> {
         Output::<TOut> {
             node_name: self.node_name,
-            inner: map_fn(self.inner)
+            inner: map_fn(self.inner),
         }
     }
 }
