@@ -2,7 +2,7 @@
 extern crate log;
 
 use bob::{
-    Blob, BlobKey, BlobMeta, BobApiClient, DeleteOptions, DeleteRequest, ExistRequest, GetRequest,
+    Blob, BlobKey, BlobMeta, BobApiClient, DeleteRequest, ExistRequest, GetRequest,
     PutRequest,
 };
 use bytes::Bytes;
@@ -518,7 +518,7 @@ async fn delete(
         key: Some(BlobKey {
             key: get_key_value(key, key_size),
         }),
-        options: Some(DeleteOptions::new_all()),
+        options: None,
     };
     let request = request_creator(message);
     let res = client.delete(request).await;
