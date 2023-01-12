@@ -24,6 +24,7 @@ Bob versions changelog
 - Make delete operation recoverable (#533)
 - Binaries sizes reduced for 'integration-test' profile (#727)
 - Configurable build profiles in Dockerfiles (#717)
+- Removed `open_blobs_soft_limit` and `open_blobs_hard_limit` from node config example (#703)
 
 #### Fixed
 - Data access operations will be protected during remount to prevent data loss (#683)
