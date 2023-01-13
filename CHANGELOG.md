@@ -10,7 +10,7 @@ Bob versions changelog
 - Removed `open_blobs_soft_limit` and `open_blobs_hard_limit` from node config example (#703)
 
 #### Fixed
-
+- Fix incorrect timestamp used in Group::delete() (#741)
 
 #### Updated
 
