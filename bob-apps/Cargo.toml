@@ -4,6 +4,11 @@ version = "2.0.14-alpha.4"
 authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
 edition = "2018"
 
+[features]
+default = ["mimalloc"]
+mimalloc = ["dep:mimalloc"]
+mimalloc-secure = ["dep:mimalloc", "mimalloc/secure"]
+
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
@@ -43,6 +48,9 @@ tower-service = "0.3"
 version = "1.14"
 default-features = false
 features = []
+
+[target.'cfg(all(target_env = "musl", target_arch = "x86_64", target_pointer_width = "64"))'.dependencies]
+mimalloc = { version = "0.1", default-features = false, optional = true }
 
 [build-dependencies]
 tonic-build = "0.6"
