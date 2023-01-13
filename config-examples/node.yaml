@@ -61,6 +61,8 @@ bloom_filter_memory_limit: 8 GiB
 authentication_type: Basic
 # [size] memory limit for all indexes. Unlimited if not specified
 index_memory_limit: 8 GiB
+# [time] optional, threshold for get & exist holder reading optimisation
+skip_holders_by_timestamp_step_when_reading: 1h
 
 # tls parameters
 tls:
