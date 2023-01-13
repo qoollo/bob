@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.8] - 2023-01-13
+#### Added
 - Added grpc delete testing feature to bobp (#663)
 - Corrupted blobs count metric (#464)
 - 'Exists' method through HEAD request in REST API (#691)
@@ -32,6 +46,7 @@ Bob versions changelog
 #### Fixed
 - Data access operations will be protected during remount to prevent data loss (#683)
 - PID unsafe type conversion fixed (#719)
+- Holders returned by read_vdisk_directory() are now ordered by start_timestamp (#700)
 
 #### Updated
 - Pearl updated to v0.16.0 (#706)
