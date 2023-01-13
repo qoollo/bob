@@ -333,7 +333,7 @@ impl BackendStorage for Pearl {
             .iter()
             .find(|dc| dc.vdisks().iter().any(|&vd| vd == vdisk_id))
             .ok_or(Error::vdisk_not_found(vdisk_id))?;
-        let group = needed_dc.vdisk_group(vdisk_id).await?;
+        let mut group = needed_dc.vdisk_group(vdisk_id).await?;
         let postprocessor = BloomFilterMemoryLimitHooks::new(self.bloom_filter_memory_limit);
         group.remount(postprocessor).await
     }

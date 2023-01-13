@@ -93,10 +93,12 @@ impl Group {
         res
     }
 
-    pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
+    pub async fn remount(&mut self, pp: impl Hooks) -> AnyResult<()> {
         let _reinit_lock = self.reinit_lock.write().await;
         self.holders.write().await.clear();
-        self.run_under_reinit_lock(pp).await
+        let res = self.run_under_reinit_lock(pp).await;
+        self.safe_timestamp_step = self.safe_timestamp_step().await;
+        res
     }
 
     async fn run_pearls(holders: &mut HoldersContainer, pp: impl Hooks) -> AnyResult<()> {
