@@ -24,7 +24,7 @@ pub struct Group {
     disk_name: String,
     owner_node_name: String,
     dump_sem: Arc<Semaphore>,
-    safe_timestamp_step: Option<Duration>,
+    safe_timestamp_step: Option<u64>,
 }
 
 impl Group {
@@ -237,8 +237,8 @@ impl Group {
         }
     }
 
-    async fn safe_timestamp_step(&self) -> Option<Duration> {
-        if let Some(adjust) = self.settings.config().skip_holders_by_timestamp_step_when_reading() {
+    async fn safe_timestamp_step(&self) -> Option<u64> {
+        if let Some(adjust) = self.settings.config().skip_holders_by_timestamp_step_when_reading_sec() {
             let mut start_timestamps = self.holders.read().await
                 .iter()
                 .map(|holder| holder.start_timestamp())
@@ -257,8 +257,9 @@ impl Group {
                 }
             }
             if let Some(max_diff) = max_diff {
-                let step = Duration::from_secs((2 * max_diff).max(5 * self.settings.timestamp_period_as_secs()));
-                return Some(adjust.max(step) + Duration::from_secs(3600));
+                let step = (2 * max_diff).max(5 * self.settings.timestamp_period_as_secs());
+                // 3600s = 1h
+                return Some(adjust.max(step) + 3600);
             }
         }
         None
@@ -274,32 +275,34 @@ impl Group {
             .iter_possible_childs_rev(&Key::from(key))
             .map(|(_, x)| &x.data)
         {
-            let get = Self::get_common(&holder, key).await;
-            match get {
-                Ok(data) => match data {
-                    ReadResult::Found(data) => {
-                        trace!("get data: {:?} from: {:?}", data, holder);
-                        let ts = data.meta().timestamp();
-                        if ts > max_timestamp.unwrap_or(0) {
-                            max_timestamp = Some(ts);
-                            result = Some(data);
+            if self.should_check_holder(holder, max_timestamp) {
+                let get = Self::get_common(&holder, key).await;
+                match get {
+                    Ok(data) => match data {
+                        ReadResult::Found(data) => {
+                            trace!("get data: {:?} from: {:?}", data, holder);
+                            let ts = data.meta().timestamp();
+                            if ts > max_timestamp.unwrap_or(0) {
+                                max_timestamp = Some(ts);
+                                result = Some(data);
+                            }
                         }
-                    }
-                    ReadResult::Deleted(ts) => {
-                        trace!("{} is deleted in {:?} at {}", key, holder, ts);
-                        let ts: u64 = ts.into();
-                        if ts > max_timestamp.unwrap_or(0) {
-                            max_timestamp = Some(ts);
-                            result = None;
+                        ReadResult::Deleted(ts) => {
+                            trace!("{} is deleted in {:?} at {}", key, holder, ts);
+                            let ts: u64 = ts.into();
+                            if ts > max_timestamp.unwrap_or(0) {
+                                max_timestamp = Some(ts);
+                                result = None;
+                            }
                         }
+                        ReadResult::NotFound => {
+                            debug!("{} not found in {:?}", key, holder)
+                        }
+                    },
+                    Err(err) => {
+                        has_error = true;
+                        error!("get error: {}, from : {:?}", err, holder);
                     }
-                    ReadResult::NotFound => {
-                        debug!("{} not found in {:?}", key, holder)
-                    }
-                },
-                Err(err) => {
-                    has_error = true;
-                    error!("get error: {}, from : {:?}", err, holder);
                 }
             }
         }
@@ -337,22 +340,24 @@ impl Group {
         for (ind, &key) in keys.iter().enumerate() {
             for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
             {
-                match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
-                    ReadResult::Found(ts) => {
-                        let ts = ts.into();
-                        if ts > max_timestamp.unwrap_or(0) {
-                            max_timestamp = Some(ts);
-                            result = true;
+                if self.should_check_holder(holder, max_timestamp) {
+                    match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
+                        ReadResult::Found(ts) => {
+                            let ts = ts.into();
+                            if ts > max_timestamp.unwrap_or(0) {
+                                max_timestamp = Some(ts);
+                                result = true;
+                            }
                         }
-                    }
-                    ReadResult::Deleted(ts) => {
-                        let ts = ts.into();
-                        if ts > max_timestamp.unwrap_or(0) {
-                            max_timestamp = Some(ts);
-                            result = false;
+                        ReadResult::Deleted(ts) => {
+                            let ts = ts.into();
+                            if ts > max_timestamp.unwrap_or(0) {
+                                max_timestamp = Some(ts);
+                                result = false;
+                            }
                         }
+                        ReadResult::NotFound => continue,
                     }
-                    ReadResult::NotFound => continue,
                 }
             }
             exist[ind] = result;
@@ -360,6 +365,12 @@ impl Group {
         Ok(exist)
     }
 
+    #[inline]
+    fn should_check_holder(&self, holder: &Holder, max_timestamp: Option<u64>) -> bool {
+        max_timestamp.is_none() ||
+        self.safe_timestamp_step.is_none() ||
+        holder.end_timestamp() + self.safe_timestamp_step.unwrap() >= max_timestamp.unwrap()
+    }
 
     pub async fn delete(
         &self,

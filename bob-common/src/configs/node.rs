@@ -293,11 +293,11 @@ impl Pearl {
             .into()
     }
 
-    pub fn skip_holders_by_timestamp_step_when_reading(&self) -> Option<Duration> {
+    pub fn skip_holders_by_timestamp_step_when_reading_sec(&self) -> Option<u64> {
         self.skip_holders_by_timestamp_step_when_reading.as_ref().map(|dur|
             dur.parse::<HumanDuration>()
                 .expect("parse humantime duration")
-                .into())
+                .as_secs())
     }
 
     fn default_fail_retry_count() -> u64 {
