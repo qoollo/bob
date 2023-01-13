@@ -91,7 +91,7 @@ try:
         if not 'total err: 0' in str(p):
             sys.exit(f'Put test failed, see output.')
         written_count += dict_args.get('-c')
-        if not i == parsed_args.nodes_amount:
+        if i < parsed_args.nodes_amount:
             #stops one
             sleep(10)
             d_cli.container.stop(container_dict[str(parsed_args.transport_min_port + i)])
