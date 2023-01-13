@@ -39,7 +39,7 @@ pub struct Disk {
 }
 
 impl Node {
-    pub async fn new(name: String, address: &str, index: u16) -> Self {
+    pub fn new(name: String, address: &str, index: u16) -> Self {
         Self {
             name,
             address: address.to_string(),

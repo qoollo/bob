@@ -1,6 +1,5 @@
 use crate::{
     error::Error,
-    mapper::NodesMap,
     node::{Disk as NodeDisk, Node},
 };
 use bob_grpc::{DeleteOptions, GetOptions, GetSource, PutOptions};
@@ -310,8 +309,8 @@ impl VDisk {
         self.replicas.push(value)
     }
 
-    pub fn set_nodes(&mut self, nodes: &NodesMap) {
-        nodes.values().for_each(|node| {
+    pub fn set_nodes(&mut self, nodes: &Vec<Node>) {
+        nodes.iter().for_each(|node| {
             if self.replicas.iter().any(|r| r.node_name() == node.name()) {
                 //TODO check if some duplicates
                 self.nodes.push(node.clone());

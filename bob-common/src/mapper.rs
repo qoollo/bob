@@ -6,7 +6,6 @@ use crate::{
     data::{BobKey, DiskPath, VDisk as DataVDisk, VDiskId},
     node::{Id as NodeId, Node},
 };
-use futures::{stream::FuturesUnordered, StreamExt};
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -26,7 +25,7 @@ pub struct Virtual {
     local_node_address: String,
     disks: Vec<DiskPath>,
     vdisks: VDisksMap,
-    nodes: NodesMap,
+    nodes: Vec<Node>,
     distribution_func: DistributionFunc,
     support_nodes_offset: AtomicUsize,
 }
@@ -38,7 +37,7 @@ impl Virtual {
         let nodes = Self::prepare_nodes(&mut vdisks, cluster).await;
         let local_node_name = config.name().to_owned();
         let local_node_address = nodes
-            .values()
+            .iter()
             .find(|node| *node.name() == local_node_name)
             .expect("found node with name")
             .address()
@@ -56,7 +55,7 @@ impl Virtual {
         }
     }
 
-    async fn prepare_nodes(vdisks: &mut VDisksMap, cluster: &ClusterConfig) -> NodesMap {
+    async fn prepare_nodes(vdisks: &mut VDisksMap, cluster: &ClusterConfig) -> Vec<Node> {
         let nodes = cluster
             .nodes()
             .iter()
@@ -65,14 +64,9 @@ impl Virtual {
                 let index = i.try_into().expect("usize to u16");
                 let address = conf.address();
                 let name = conf.name().to_owned();
-                async move {
-                    let node = Node::new(name, address, index).await;
-                    (index, node)
-                }
+                Node::new(name, address, index)
             })
-            .collect::<FuturesUnordered<_>>()
-            .collect()
-            .await;
+            .collect();
 
         vdisks
             .values_mut()
@@ -108,7 +102,7 @@ impl Virtual {
         self.disks.iter().find(|d| d.name() == name)
     }
 
-    pub fn nodes(&self) -> &HashMap<NodeId, Node> {
+    pub fn nodes(&self) -> &[Node] {
         &self.nodes
     }
 
