@@ -92,6 +92,7 @@ jobs:
             target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobp
             target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/ccg
             target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobt
+
   build-docker-images:
     if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
     runs-on: ubuntu-latest
