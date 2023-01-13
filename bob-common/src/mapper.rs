@@ -139,7 +139,7 @@ impl Virtual {
         let actual_offset = if index == self.nodes.len() {
             offset % available_count
         } else {
-            offset % self.nodes.len()
+            index
         };
         for i in actual_offset..self.nodes.len() {
             let node = &self.nodes[i];
