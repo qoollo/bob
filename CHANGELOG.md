@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Added grpc delete testing feature to bobp (#663)
 - Corrupted blobs count metric (#464)
 - 'Exists' method through HEAD request in REST API (#691)
 - Support for 'exists' method in bobt (#691)
@@ -14,6 +15,8 @@ Bob versions changelog
 - Added integration tests for aliens (#642)
 - Added integration tests for bobt (#648)
 - Added authentification support for integration tests (#672)
+- Add support for `delete` operation to `bobc` (#664)
+- Support for authorization to `bobc` (#679)
 
 #### Changed
 - Use bytes to pass data to pearl (#597)
