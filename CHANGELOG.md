@@ -31,6 +31,7 @@ Bob versions changelog
 #### Fixed
 - Data access operations will be protected during remount to prevent data loss (#683)
 - PID unsafe type conversion fixed (#719)
+- Holders returned by read_vdisk_directory() are now ordered by start_timestamp (#700)
 
 #### Updated
 - Pearl updated to v0.16.0 (#706)
