@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Fixed incorrect execution of aliens integration tests (#736)
 
 #### Updated
 
@@ -46,7 +46,6 @@ Bob versions changelog
 - Data access operations will be protected during remount to prevent data loss (#683)
 - PID unsafe type conversion fixed (#719)
 - Holders returned by read_vdisk_directory() are now ordered by start_timestamp (#700)
-- Fixed incorrect execution of aliens integration tests (#736)
 
 #### Updated
 - Pearl updated to v0.16.0 (#706)
