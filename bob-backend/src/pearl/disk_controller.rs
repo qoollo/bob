@@ -400,10 +400,10 @@ impl DiskController {
     }
 
     pub(crate) async fn put(
-        self: Arc<Self>,
+        &self,
         op: Operation,
         key: BobKey,
-        data: BobData,
+        data: &BobData,
     ) -> BackendResult<()> {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = {
@@ -414,7 +414,7 @@ impl DiskController {
                     .cloned()
             };
             if let Some(group) = vdisk_group {
-                match group.put(key, &data, StartTimestampConfig::default()).await {
+                match group.put(key, data, StartTimestampConfig::default()).await {
                     Err(e) => {
                         debug!("PUT[{}], error: {:?}", key, e);
                         Err(self.process_error(e).await)
@@ -502,10 +502,10 @@ impl DiskController {
 
 
     pub(crate) async fn delete(
-        self: Arc<Self>,
+        &self,
         op: Operation,
         key: BobKey,
-        meta: BobMeta
+        meta: &BobMeta
     ) -> Result<u64, Error> {
         if *self.state.read().await == GroupsState::Ready {
             debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
@@ -518,7 +518,7 @@ impl DiskController {
                 .cloned();
             if let Some(group) = vdisk_group {
                 group
-                    .delete(key, &meta, StartTimestampConfig::default(), true) // Local delete should always have force_delete = true
+                    .delete(key, meta, StartTimestampConfig::default(), true) // Local delete should always have force_delete = true
                     .await
             } else {
                 error!("DELETE[{}] Cannot find storage, operation: {:?}", key, op);

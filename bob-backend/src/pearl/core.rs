@@ -142,6 +142,17 @@ impl MetricsProducer for Pearl {
     }
 }
 
+async fn spawn_call<T, R>(future: T) -> BackendResult<R>
+where 
+T: Future<Output=BackendResult<R>> + std::marker::Send + 'static,
+R: std::marker::Send + 'static,
+{
+    match tokio::spawn(future).await {
+        Ok(res) => res,
+        Err(e) => Err(Error::failed(e.to_string()))
+    }
+}
+
 #[async_trait]
 impl BackendStorage for Pearl {
     async fn run_backend(&self) -> AnyResult<()> {
@@ -165,14 +176,11 @@ impl BackendStorage for Pearl {
             .disk_controllers
             .iter()
             .find(|dc| dc.can_process_operation(&op));
-        if let Some(disk_controller) = dc_option {
-            let handler = tokio::spawn(
-                disk_controller.clone().put(op, key, data.clone())
-            );
-            match handler.await {
-                Ok(res) => res,
-                Err(e) => Err(Error::failed(e.to_string()))
-            }
+        if let Some(disk_controller) = dc_option.cloned() {
+            let data = data.clone();
+            spawn_call(async move {
+                disk_controller.put(op, key, &data).await
+            }).await
         } else {
             debug!(
                 "PUT[{}] Cannot find disk_controller, operation: {:?}",
@@ -184,7 +192,11 @@ impl BackendStorage for Pearl {
 
     async fn put_alien(&self, op: Operation, key: BobKey, data: &BobData) -> BackendResult<()> {
         debug!("PUT[alien][{}] to pearl backend, operation: {:?}", key, op);
-        self.alien_disk_controller.put_alien(op, key, data).await
+        let adc = self.alien_disk_controller.clone();
+        let data = data.clone();
+        spawn_call(async move {
+            adc.put_alien(op, key, &data).await
+        }).await
     }
 
     async fn get(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
@@ -237,14 +249,11 @@ impl BackendStorage for Pearl {
             .iter()
             .find(|dc| dc.can_process_operation(&op));
 
-        if let Some(disk_controller) = dc_option {
-            let handler = tokio::spawn(
-                disk_controller.clone().delete(op, key, meta.clone())
-            );
-            match handler.await {
-                Ok(res) => res,
-                Err(e) => Err(Error::failed(e.to_string()))
-            }
+        if let Some(disk_controller) = dc_option.cloned() {
+            let meta = meta.clone();
+            spawn_call(async move {
+                disk_controller.delete(op, key, &meta).await
+            }).await
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -253,7 +262,11 @@ impl BackendStorage for Pearl {
     async fn delete_alien(&self, op: Operation, key: BobKey, meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
         debug!("DELETE[alien][{}] from pearl backend", key);
         if self.alien_disk_controller.can_process_operation(&op) {
-            self.alien_disk_controller.delete_alien(op, key, meta, force_delete).await
+            let adc = self.alien_disk_controller.clone();
+            let meta = meta.clone();
+            spawn_call(async move {
+                adc.delete_alien(op, key, &meta, force_delete).await
+            }).await
         } else {
             Err(Error::dc_is_not_available())
         }
