@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.8] - 2023-01-13
+#### Added
 - Added grpc delete testing feature to bobp (#663)
 - Corrupted blobs count metric (#464)
 - 'Exists' method through HEAD request in REST API (#691)
