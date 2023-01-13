@@ -24,6 +24,7 @@ pub struct Group {
     disk_name: String,
     owner_node_name: String,
     dump_sem: Arc<Semaphore>,
+    safe_timestamp_step: Option<Duration>,
 }
 
 impl Group {
@@ -49,6 +50,7 @@ impl Group {
             disk_name,
             owner_node_name,
             dump_sem,
+            safe_timestamp_step: None,
         }
     }
 
@@ -79,14 +81,16 @@ impl Group {
         debug!("{}: save holders to group", self);
         let mut holders = self.holders.write().await;
         holders.clear();
-        holders.extend(new_holders).await;   
+        holders.extend(new_holders).await;
         debug!("{}: start holders", self);
         Self::run_pearls(&mut holders, pp).await
     }
 
-    pub async fn run(&self, pp: impl Hooks) -> AnyResult<()> {
+    pub async fn run(&mut self, pp: impl Hooks) -> AnyResult<()> {
         let _reinit_lock = self.reinit_lock.write().await;
-        self.run_under_reinit_lock(pp).await
+        let res = self.run_under_reinit_lock(pp).await;
+        self.safe_timestamp_step = self.safe_timestamp_step().await;
+        res
     }
 
     pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
@@ -233,6 +237,33 @@ impl Group {
         }
     }
 
+    async fn safe_timestamp_step(&self) -> Option<Duration> {
+        if let Some(adjust) = self.settings.config().skip_holders_by_timestamp_step_when_reading() {
+            let mut start_timestamps = self.holders.read().await
+                .iter()
+                .map(|holder| holder.start_timestamp())
+                .collect::<Vec<u64>>();
+            start_timestamps.sort();
+            start_timestamps.push(get_current_timestamp());
+            let mut max_diff = None;
+            for i in 0..start_timestamps.len() - 1 {
+                let diff = start_timestamps[i + 1] - start_timestamps[i];
+                if let Some(max_diff_v) = max_diff {
+                    if max_diff_v < diff {
+                        max_diff = Some(diff);
+                    }
+                } else {
+                    max_diff = Some(diff);
+                }
+            }
+            if let Some(max_diff) = max_diff {
+                let step = Duration::from_secs((2 * max_diff).max(5 * self.settings.timestamp_period_as_secs()));
+                return Some(adjust.max(step) + Duration::from_secs(3600));
+            }
+        }
+        None
+    }
+
     pub async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let holders = self.holders.read().await;
@@ -302,7 +333,7 @@ impl Group {
         let holders = self.holders.read().await;
         let mut max_timestamp = None;
         let mut result = false;
-        // self.settings.config().skip_holders_by_timestamp_step_when_reading()
+
         for (ind, &key) in keys.iter().enumerate() {
             for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
             {
