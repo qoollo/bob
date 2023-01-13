@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Added grpc delete testing feature to bobp (#663)
 - Corrupted blobs count metric (#464)
 - 'Exists' method through HEAD request in REST API (#691)
 - Support for 'exists' method in bobt (#691)
