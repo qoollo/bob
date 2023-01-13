@@ -126,36 +126,35 @@ impl Virtual {
         trace!("nodes available: {}", self.nodes.len());
         let offset = self.support_nodes_offset.fetch_add(1, Ordering::Relaxed);
         let mut support_nodes: Vec<&Node> = Vec::with_capacity(count);
-        let mut available_count = 0;
+        let mut index = 0;
         let mut offset_counter = offset % self.nodes.len();
-        let mut iterator = self.nodes.iter().enumerate();
-        let actual_offset = loop {
-            match iterator.next() {
-                Some((i, node)) => {
-                    if offset_counter == 0 {
-                        break i;
-                    }
-                    if node.connection_available() {
-                        available_count += 1;
-                    }
-                    offset_counter -= 1;
-                }
-                None => {
-                    break offset % available_count;
-                }
+        let mut available_count = 0;
+        while index < self.nodes.len() && offset_counter > 0 {
+            if self.nodes[index].connection_available() {
+                available_count += 1;
+                offset_counter -= 1;
             }
+            index += 1;
+        }
+        let actual_offset = if index == self.nodes.len() {
+            offset % available_count
+        } else {
+            offset % self.nodes.len()
         };
-        for node in self.nodes.iter().skip(actual_offset) {
-            if target_nodes.iter().all(|i| i.index() != node.index()) && node.connection_available()
+        for i in actual_offset..self.nodes.len() {
+            let node = &self.nodes[i];
+            if target_nodes.iter().all(|n| n.index() != node.index()) && node.connection_available()
             {
+                support_nodes.push(node);
                 if support_nodes.len() >= count {
                     break;
                 }
             }
         }
         if support_nodes.len() < count && actual_offset > 0 {
-            for node in self.nodes.iter().skip(actual_offset) {
-                if target_nodes.iter().all(|i| i.index() != node.index())
+            for i in 0..actual_offset {
+                let node = &self.nodes[i];
+                if target_nodes.iter().all(|n| n.index() != node.index())
                     && support_nodes.iter().all(|&n| n.index() != node.index())
                 {
                     support_nodes.push(node);
