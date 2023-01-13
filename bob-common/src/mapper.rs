@@ -125,17 +125,39 @@ impl Virtual {
         trace!("extract indexes of target nodes");
         trace!("nodes available: {}", self.nodes.len());
         let offset = self.support_nodes_offset.fetch_add(1, Ordering::Relaxed);
-        let mut support_nodes = Vec::with_capacity(count);
-        for (id, node) in self.nodes.iter().skip(offset % self.nodes.len()) {
-            if target_nodes.iter().all(|i| i.index() != *id) {
-                if support_nodes.len() < count && node.connection_available() {
-                    support_nodes.push(node);
+        let mut support_nodes: Vec<&Node> = Vec::with_capacity(count);
+        let mut available_count = 0;
+        let mut offset_counter = offset % self.nodes.len();
+        let mut iterator = self.nodes.iter().enumerate();
+        let actual_offset = loop {
+            match iterator.next() {
+                Some((i, node)) => {
+                    if offset_counter == 0 {
+                        break i;
+                    }
+                    if node.connection_available() {
+                        available_count += 1;
+                    }
+                    offset_counter -= 1;
+                }
+                None => {
+                    break offset % available_count;
+                }
+            }
+        };
+        for node in self.nodes.iter().skip(actual_offset) {
+            if target_nodes.iter().all(|i| i.index() != node.index()) && node.connection_available()
+            {
+                if support_nodes.len() >= count {
+                    break;
                 }
             }
         }
-        if support_nodes.len() < count && offset % self.nodes.len() > 0 {
-            for (id, node) in self.nodes.iter().take(offset % self.nodes.len()) {
-                if target_nodes.iter().all(|i| i.index() != *id) && support_nodes.iter().all(|n| n.index() != *id) {
+        if support_nodes.len() < count && actual_offset > 0 {
+            for node in self.nodes.iter().skip(actual_offset) {
+                if target_nodes.iter().all(|i| i.index() != node.index())
+                    && support_nodes.iter().all(|&n| n.index() != node.index())
+                {
                     support_nodes.push(node);
                     if support_nodes.len() >= count {
                         break;
