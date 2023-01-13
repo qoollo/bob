@@ -2,7 +2,7 @@ use rand::prelude::*;
 
 use bob::{
     Blob, BlobKey, BlobMeta, BobApiClient, ExistRequest, GetOptions, GetRequest, GetSource,
-    PutOptions, PutRequest,
+    PutOptions, PutRequest, DeleteRequest, DeleteOptions,
 };
 
 use clap::{App, Arg, ArgMatches};
@@ -176,6 +176,19 @@ impl TaskConfig {
         }
     }
 
+    fn find_delete_options(&self) -> Option<DeleteOptions> {
+        // option is mandatory for delete request to work
+        if self.direct {
+            Some(DeleteOptions {
+                force_node: true,
+                is_alien: false,
+                force_alien_nodes: vec![],
+            })
+        } else {
+            None
+        }
+    }
+
     fn is_time_measurement_thread(&self) -> bool {
         self.measure_time
     }
@@ -254,91 +267,233 @@ impl Debug for TaskConfig {
     }
 }
 
+struct PeriodicStatisticsBit {
+    count_spd: u64,
+    error: u64,
+    latency: f64,
+}
+
+struct PeriodicOperationStatistics<'a> {
+    count: DiffContainer<'a, u64>,
+    time_st: DiffContainer<'a, u64>,
+    count_st: DiffContainer<'a, u64>,
+    period_ms: u64,
+    stat: &'a OperationStatistics
+}
+
+impl<'a> PeriodicOperationStatistics<'a> {
+    fn from_operation_statistics(os: &'a OperationStatistics, period_ms: u64) -> Self {
+        Self {
+            count: DiffContainer::new(Box::new(|| os.total.load(Ordering::Relaxed))),
+            time_st: DiffContainer::new(Box::new(|| os.time_ns_st.load(Ordering::Relaxed))),
+            count_st: DiffContainer::new(Box::new(|| os.count_st.load(Ordering::Relaxed))),
+            period_ms,
+            stat: os,
+        }
+    }
+
+    fn current_bit(&mut self) -> PeriodicStatisticsBit {
+        let diff = self.count.get_diff();
+        let count_spd = diff * 1000 / self.period_ms;
+        let cur_st_time = self.time_st.get_diff() as f64;
+        let cur_st_count = self.count_st.get_diff() as f64;
+        let error = self.stat.error_count.load(Ordering::Relaxed);
+        let latency = finite_or_default(cur_st_time / cur_st_count / 1e9);
+        PeriodicStatisticsBit {
+            count_spd,
+            error,
+            latency,
+        }
+    }
+}
+
+struct PeriodicPutStatistics<'a> {
+    common: PeriodicOperationStatistics<'a>,
+    request_size_kb: f64,
+}
+
+impl<'a> PeriodicPutStatistics<'a> {
+    fn from(ps: &'a PutStatistics, period_ms: u64, request_size_b: u64) -> Self {
+        Self {
+            common: PeriodicOperationStatistics::from_operation_statistics(&ps.common, period_ms),
+            request_size_kb: request_size_b as f64 / 1024.,
+        }
+    }
+
+    fn process_and_print(&mut self) -> f64 {
+        let bit = self.common.current_bit();
+        let spd = bit.count_spd as f64 * self.request_size_kb;
+        println!("put:   {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+            bit.count_spd, bit.error, spd, bit.latency);
+        spd
+    }
+}
+
+struct PeriodicDeleteStatistics<'a> {
+    common: PeriodicOperationStatistics<'a>,
+    request_size_kb: f64,
+}
+
+impl<'a> PeriodicDeleteStatistics<'a> {
+    fn from(ds: &'a DeleteStatistics, period_ms: u64, request_size_b: u64) -> Self {
+        Self {
+            common: PeriodicOperationStatistics::from_operation_statistics(&ds.common, period_ms),
+            request_size_kb: request_size_b as f64 / 1024.,
+        }
+    }
+
+    fn process_and_print(&mut self) -> f64 {
+        let bit = self.common.current_bit();
+        let spd = bit.count_spd as f64 * self.request_size_kb;
+        println!("delete:{:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+            bit.count_spd, bit.error, spd, bit.latency);
+        spd
+    }
+}
+
+struct PeriodicGetStatistics<'a> {
+    common: PeriodicOperationStatistics<'a>,
+    size: DiffContainer<'a, u64>,
+    period_s: f64,
+}
+
+impl<'a> PeriodicGetStatistics<'a> {
+    fn from(gs: &'a GetStatistics, period_ms: u64) -> Self {
+        Self {
+            common: PeriodicOperationStatistics::from_operation_statistics(&gs.common, period_ms),
+            size: DiffContainer::new(Box::new(|| gs.size_bytes.load(Ordering::Relaxed))),
+            period_s: period_ms as f64 / 1000.,
+        }
+    }
+
+    fn process_and_print(&mut self) -> f64 {
+        let bit = self.common.current_bit();
+        let spd = self.size.get_diff() as f64 / 1024. / self.period_s;
+        println!("get:   {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+            bit.count_spd, bit.error, spd, bit.latency);
+        spd
+    }
+}
+
+struct PeriodicExistStatistics<'a> {
+    common: PeriodicOperationStatistics<'a>,
+    size: DiffContainer<'a, u64>,
+    period_s: f64,
+}
+
+impl<'a> PeriodicExistStatistics<'a> {
+    fn from(es: &'a ExistStatistics, period_ms: u64) -> Self {
+        Self {
+            common: PeriodicOperationStatistics::from_operation_statistics(&es.common, period_ms),
+            size: DiffContainer::new(Box::new(|| es.size_bytes.load(Ordering::Relaxed))),
+            period_s: period_ms as f64 / 1000.,
+        }
+    }
+
+    fn process_and_print(&mut self) -> f64 {
+        let bit = self.common.current_bit();
+        let spd = self.size.get_diff() as f64 / 1024.0 / self.period_s;
+        println!("exist: {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms", 
+            bit.count_spd, bit.error, spd, bit.latency);
+        spd
+    }
+}
+
 type CodeRepresentation = i32; // Because tonic::Code does not implement hash
 
 #[derive(Default)]
+struct OperationStatistics {
+    total: AtomicU64,
+    error_count: AtomicU64,
+    time_ns_st: AtomicU64,
+    count_st: AtomicU64,
+    errors: Mutex<HashMap<CodeRepresentation, u64>>,
+}
+
+impl OperationStatistics {
+    async fn save_error(&self, status: Status) {
+        let mut guard = self.errors.lock().expect("mutex");
+        guard
+            .entry(status.code() as CodeRepresentation)
+            .and_modify(|i| *i += 1)
+            .or_insert(1);
+
+        self.error_count.fetch_add(1, Ordering::SeqCst);
+        debug!("{}", status.message())
+    }
+
+    fn save_single_thread_time(&self, duration: &Duration) {
+        self.time_ns_st
+            .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
+        self.count_st.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn print_errors(&self, operation_name: &str) {
+        let guard = self.errors.lock().expect("mutex");
+        if !guard.is_empty() {
+            println!("{} errors:", operation_name);
+            for (&code, count) in guard.iter() {
+                println!("{:?} = {}", Code::from(code), count);
+            }
+        }
+    }
+
+    fn get_average_response_time(&self) -> f64 {
+        finite_or_default(
+            (self.time_ns_st.load(Ordering::Relaxed) as f64)
+                / (self.count_st.load(Ordering::Relaxed) as f64)
+                / 1e9
+        )
+    }
+}
+
+#[derive(Default)]
+struct PutStatistics {
+    common: OperationStatistics,
+    verified: AtomicU64,
+}
+
+#[derive(Default)]
+struct GetStatistics {
+    common: OperationStatistics,
+    size_bytes: AtomicU64,
+}
+
+#[derive(Default)]
+struct ExistStatistics {
+    common: OperationStatistics,
+    size_bytes: AtomicU64,
+    presented_keys: AtomicU64,
+}
+
+#[derive(Default)]
+struct DeleteStatistics {
+    common: OperationStatistics,
+    verified: AtomicU64,
+}
+
+#[derive(Default)]
 struct Statistics {
-    put_total: AtomicU64,
-    put_error_count: AtomicU64,
-
-    get_total: AtomicU64,
-    get_error_count: AtomicU64,
-
-    exist_total: AtomicU64,
-    exist_error_count: AtomicU64,
-
-    put_time_ns_st: AtomicU64,
-    put_count_st: AtomicU64,
-
-    get_time_ns_st: AtomicU64,
-    get_count_st: AtomicU64,
-
-    exist_time_ns_st: AtomicU64,
-    exist_count_st: AtomicU64,
-
-    get_errors: Mutex<HashMap<CodeRepresentation, u64>>,
-    put_errors: Mutex<HashMap<CodeRepresentation, u64>>,
-    exist_errors: Mutex<HashMap<CodeRepresentation, u64>>,
-
-    get_size_bytes: AtomicU64,
-
-    exist_size_bytes: AtomicU64,
-
-    exist_presented_keys: AtomicU64,
-
-    verified_puts: AtomicU64,
+    put: Arc<PutStatistics>,
+    get: Arc<GetStatistics>,
+    exist: Arc<ExistStatistics>,
+    delete: Arc<DeleteStatistics>,
 }
 
 impl Statistics {
-    fn save_single_thread_put_time(&self, duration: &Duration) {
-        self.put_time_ns_st
-            .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
-        self.put_count_st.fetch_add(1, Ordering::Relaxed);
+    fn get_total_op_count(&self) -> u64 {
+        let total_put = self.put.common.total.load(Ordering::Relaxed);
+        let total_exist = self.exist.common.total.load(Ordering::Relaxed);
+        let total_get = self.get.common.total.load(Ordering::Relaxed);
+        let total_delete = self.delete.common.total.load(Ordering::Relaxed);
+        total_put + total_get + total_exist + total_delete
     }
 
-    fn save_single_thread_get_time(&self, duration: &Duration) {
-        self.get_time_ns_st
-            .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
-        self.get_count_st.fetch_add(1, Ordering::Relaxed);
-    }
-
-    fn save_single_thread_exist_time(&self, duration: &Duration) {
-        self.exist_time_ns_st
-            .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
-        self.exist_count_st.fetch_add(1, Ordering::Relaxed);
-    }
-
-    fn save_get_error(&self, status: Status) {
-        let mut guard = self.get_errors.lock().expect("mutex");
-        guard
-            .entry(status.code() as CodeRepresentation)
-            .and_modify(|i| *i += 1)
-            .or_insert(1);
-
-        self.get_error_count.fetch_add(1, Ordering::SeqCst);
-        debug!("{}", status.message())
-    }
-
-    fn save_put_error(&self, status: Status) {
-        let mut guard = self.put_errors.lock().expect("mutex");
-        guard
-            .entry(status.code() as CodeRepresentation)
-            .and_modify(|i| *i += 1)
-            .or_insert(1);
-
-        self.put_error_count.fetch_add(1, Ordering::SeqCst);
-        debug!("{}", status.message())
-    }
-
-    fn save_exist_error(&self, status: Status) {
-        let mut guard = self.exist_errors.lock().expect("mutex");
-        guard
-            .entry(status.code() as CodeRepresentation)
-            .and_modify(|i| *i += 1)
-            .or_insert(1);
-
-        self.exist_error_count.fetch_add(1, Ordering::SeqCst);
-        debug!("{}", status.message())
+    fn get_total_error_count(&self) -> u64 {
+        self.put.common.error_count.load(Ordering::Relaxed) + 
+        self.get.common.error_count.load(Ordering::Relaxed) +
+        self.delete.common.error_count.load(Ordering::Relaxed) +
+        self.exist.common.error_count.load(Ordering::Relaxed)
     }
 }
 
@@ -356,6 +511,7 @@ enum Behavior {
     Put,
     Get,
     Exist,
+    Delete,
     Test,
     PingPong,
 }
@@ -368,6 +524,7 @@ impl FromStr for Behavior {
             "get" => Ok(Behavior::Get),
             "put" => Ok(Behavior::Put),
             "exist" => Ok(Behavior::Exist),
+            "delete" => Ok(Behavior::Delete),
             "test" => Ok(Behavior::Test),
             "ping_pong" => Ok(Behavior::PingPong),
             _ => Err(()),
@@ -470,42 +627,17 @@ async fn stat_worker(
     keys_count: u64,
     behavior_flags: u8,
 ) {
-    let (put_speed_values, get_speed_values, exist_speed_values, elapsed) =
+    let (put_speed_values, get_speed_values, exist_speed_values, delete_speed_values, elapsed) =
         print_periodic_stat(stop_token, period_ms, &stat, request_bytes, behavior_flags);
-    print_averages(
-        &stat,
-        &put_speed_values,
-        &get_speed_values,
-        &exist_speed_values,
-        elapsed,
-        keys_count,
-        behavior_flags,
-    );
-    print_errors_with_codes(stat);
+    print_averages(&stat, &put_speed_values, &get_speed_values, &exist_speed_values, &delete_speed_values, elapsed, keys_count, behavior_flags);
+    print_errors_with_codes(stat).await
 }
 
-fn print_errors_with_codes(stat: Arc<Statistics>) {
-    let guard = stat.get_errors.lock().expect("mutex");
-    if !guard.is_empty() {
-        println!("get errors:");
-        for (&code, count) in guard.iter() {
-            println!("{:?} = {}", Code::from(code), count);
-        }
-    }
-    let guard = stat.put_errors.lock().expect("mutex");
-    if !guard.is_empty() {
-        println!("put errors:");
-        for (&code, count) in guard.iter() {
-            println!("{:?} = {}", Code::from(code), count);
-        }
-    }
-    let guard = stat.exist_errors.lock().expect("mutex");
-    if !guard.is_empty() {
-        println!("exist errors:");
-        for (&code, count) in guard.iter() {
-            println!("{:?} = {}", Code::from(code), count);
-        }
-    }
+async fn print_errors_with_codes(stat: Arc<Statistics>) {
+    stat.get.common.print_errors("get");
+    stat.put.common.print_errors("put");
+    stat.exist.common.print_errors("exist");
+    stat.delete.common.print_errors("delete");
 }
 
 fn print_averages(
@@ -513,71 +645,56 @@ fn print_averages(
     put_speed_values: &[f64],
     get_speed_values: &[f64],
     exist_speed_values: &[f64],
+    delete_speed_values: &[f64],
     elapsed: Duration,
     keys_count: u64,
     behavior_flags: u8,
 ) {
-    let total_put = stat.put_total.load(Ordering::Relaxed);
-    let total_exist = stat.exist_total.load(Ordering::Relaxed);
-    let total_get = stat.get_total.load(Ordering::Relaxed);
-    let avg_total = ((total_put + total_get + total_exist) * 1000)
+    let avg_total = (stat.get_total_op_count() * 1000)
         .checked_div(elapsed.as_millis() as u64)
         .unwrap_or_default();
-    let total_err = stat.put_error_count.load(Ordering::Relaxed)
-        + stat.get_error_count.load(Ordering::Relaxed)
-        + stat.exist_error_count.load(Ordering::Relaxed);
-    let print_put = (behavior_flags & PUT_FLAG) > 0;
-    let print_get = (behavior_flags & GET_FLAG) > 0;
-    let print_exist = (behavior_flags & EXIST_FLAG) > 0;
-    print!(
-        "avg total: {} rps | total err: {}\r\n",
-        avg_total, total_err
-    );
-    if print_put {
-        let put_resp_time = finite_or_default(
-            (stat.put_time_ns_st.load(Ordering::Relaxed) as f64)
-                / (stat.put_count_st.load(Ordering::Relaxed) as f64)
-                / 1e9,
-        );
-        println!(
-            "put: {:>6.2} kb/s | resp time {:>6.2} ms",
-            average(put_speed_values),
-            put_resp_time
-        );
+    let total_err = stat.get_total_error_count();
+    print!("avg total: {} rps | total err: {}\r\n", avg_total, total_err);
+    let verify = get_matches().is_present("verify");
+    if (behavior_flags & PUT_FLAG) > 0 {
+        let put_resp_time = stat.put.common.get_average_response_time();
+        println!("put: {:>6.2} kb/s | resp time {:>6.2} ms", average(put_speed_values), put_resp_time);
+
+        if verify {
+            println!(
+                "verified put threads: {}",
+                stat.put.verified.load(Ordering::Relaxed)
+            );
+        }
     }
-    if print_get {
-        let get_resp_time = finite_or_default(
-            (stat.get_time_ns_st.load(Ordering::Relaxed) as f64)
-                / (stat.get_count_st.load(Ordering::Relaxed) as f64)
-                / 1e9,
-        );
-        println!(
-            "get: {:>6.2} kb/s | resp time {:>6.2} ms",
-            average(get_speed_values),
-            get_resp_time
-        );
+    if (behavior_flags & GET_FLAG) > 0 {
+        let get_resp_time = stat.get.common.get_average_response_time();
+        println!("get: {:>6.2} kb/s | resp time {:>6.2} ms", average(get_speed_values), get_resp_time);
     }
-    if print_exist {
-        let exist_resp_time = finite_or_default(
-            (stat.exist_time_ns_st.load(Ordering::Relaxed) as f64)
-                / (stat.exist_count_st.load(Ordering::Relaxed) as f64)
-                / 1e9,
-        );
-        let present_keys = stat.exist_presented_keys.load(Ordering::Relaxed);
-        println!(
-            "exist: {:>6.2} kb/s | resp time {:>6.2} ms | {} of {} keys present",
-            average(exist_speed_values),
-            exist_resp_time,
-            present_keys,
-            keys_count
-        );
+    if (behavior_flags & DELETE_FLAG) > 0 {
+        let delete_resp_time = stat.delete.common.get_average_response_time();
+        println!("delete: {:>6.2} kb/s | resp time {:>6.2} ms", average(delete_speed_values), delete_resp_time);
+
+        if verify {
+            println!(
+                "verified delete threads: {}",
+                stat.delete.verified.load(Ordering::Relaxed)
+            );
+        }
     }
-    if get_matches().is_present("verify") {
-        println!(
-            "verified put threads: {}",
-            stat.verified_puts.load(Ordering::Relaxed)
-        );
+    if (behavior_flags & EXIST_FLAG) > 0 {
+        let exist_resp_time = stat.exist.common.get_average_response_time();
+        let present_keys = stat.exist.presented_keys.load(Ordering::Relaxed);
+        println!("exist: {:>6.2} kb/s | resp time {:>6.2} ms | {} of {} keys present", 
+            average(exist_speed_values), exist_resp_time, present_keys, keys_count);
     }
+}
+
+fn print_offset(first_line: bool) -> bool {
+    if !first_line {
+        print!("{:>6}", ' ');
+    }
+    false
 }
 
 fn print_periodic_stat(
@@ -586,105 +703,46 @@ fn print_periodic_stat(
     stat: &Arc<Statistics>,
     request_bytes: u64,
     behavior_flags: u8,
-) -> (Vec<f64>, Vec<f64>, Vec<f64>, Duration) {
+) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Duration) {
     let pause = time::Duration::from_millis(period_ms);
-    let mut put_count = DiffContainer::new(Box::new(|| stat.put_total.load(Ordering::Relaxed)));
-    let mut get_count = DiffContainer::new(Box::new(|| stat.get_total.load(Ordering::Relaxed)));
-    let mut exist_count = DiffContainer::new(Box::new(|| stat.exist_total.load(Ordering::Relaxed)));
-    let mut put_time_st =
-        DiffContainer::new(Box::new(|| stat.put_time_ns_st.load(Ordering::Relaxed)));
-    let mut put_count_st =
-        DiffContainer::new(Box::new(|| stat.put_count_st.load(Ordering::Relaxed)));
-    let mut get_time_st =
-        DiffContainer::new(Box::new(|| stat.get_time_ns_st.load(Ordering::Relaxed)));
-    let mut get_count_st =
-        DiffContainer::new(Box::new(|| stat.get_count_st.load(Ordering::Relaxed)));
-    let mut exist_time_st =
-        DiffContainer::new(Box::new(|| stat.exist_time_ns_st.load(Ordering::Relaxed)));
-    let mut exist_count_st =
-        DiffContainer::new(Box::new(|| stat.exist_count_st.load(Ordering::Relaxed)));
-    let mut get_size = DiffContainer::new(Box::new(|| stat.get_size_bytes.load(Ordering::Relaxed)));
-    let mut exist_size =
-        DiffContainer::new(Box::new(|| stat.exist_size_bytes.load(Ordering::Relaxed)));
     let mut put_speed_values = vec![];
     let mut get_speed_values = vec![];
     let mut exist_speed_values = vec![];
-    let sec = period_ms as f64 / 1000.;
-    let k = request_bytes as f64 / 1024.0;
+    let mut delete_speed_values = vec![];
+
+    let mut periodic_put = PeriodicPutStatistics::from(&stat.put, period_ms, request_bytes);
+    let mut periodic_get = PeriodicGetStatistics::from(&stat.get, period_ms);
+    let mut periodic_exist = PeriodicExistStatistics::from(&stat.exist, period_ms);
+    let mut periodic_delete = PeriodicDeleteStatistics::from(&stat.delete, period_ms, request_bytes);
+
     let start = Instant::now();
     let print_put = (behavior_flags & PUT_FLAG) > 0;
     let print_get = (behavior_flags & GET_FLAG) > 0;
     let print_exist = (behavior_flags & EXIST_FLAG) > 0;
+    let print_delete = (behavior_flags & DELETE_FLAG) > 0;
     while !stop_token.load(Ordering::Relaxed) {
         thread::sleep(pause);
         let elapsed = start.elapsed().as_secs();
         print!("{:>5} ", elapsed);
         let mut first_line = true;
         if print_put {
-            if !first_line {
-                print!("{:>6}", ' ');
-            } else {
-                first_line = false;
-            }
-
-            let d_put = put_count.get_diff();
-            let put_count_spd = d_put * 1000 / period_ms;
-            let cur_st_put_time = put_time_st.get_diff() as f64;
-            let cur_st_put_count = put_count_st.get_diff() as f64;
-            let put_error = stat.put_error_count.load(Ordering::Relaxed);
-            let put_spd = put_count_spd as f64 * k;
-            println!(
-                "put:   {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms",
-                put_count_spd,
-                put_error,
-                put_spd,
-                finite_or_default(cur_st_put_time / cur_st_put_count / 1e9)
-            );
-
+            first_line = print_offset(first_line);
+            let put_spd = periodic_put.process_and_print();
             put_speed_values.push(put_spd);
         }
         if print_get {
-            if !first_line {
-                print!("{:>6}", ' ');
-            } else {
-                first_line = false;
-            }
-
-            let d_get = get_count.get_diff();
-            let get_count_spd = d_get * 1000 / period_ms;
-            let cur_st_get_time = get_time_st.get_diff() as f64;
-            let cur_st_get_count = get_count_st.get_diff() as f64;
-            let get_error = stat.get_error_count.load(Ordering::Relaxed);
-            let get_spd = get_size.get_diff() as f64 / 1024. / sec;
-            println!(
-                "get:   {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms",
-                get_count_spd,
-                get_error,
-                get_spd,
-                finite_or_default(cur_st_get_time / cur_st_get_count / 1e9)
-            );
-
+            first_line = print_offset(first_line);
+            let get_spd = periodic_get.process_and_print();
             get_speed_values.push(get_spd);
         }
+        if print_delete {
+            first_line = print_offset(first_line);
+            let delete_spd = periodic_delete.process_and_print();
+            delete_speed_values.push(delete_spd);
+        }
         if print_exist {
-            if !first_line {
-                print!("{:>6}", ' ');
-            }
-
-            let d_exist = exist_count.get_diff();
-            let exist_count_spd = d_exist * 1000 / period_ms;
-            let cur_st_exist_time = exist_time_st.get_diff() as f64;
-            let cur_st_exist_count = exist_count_st.get_diff() as f64;
-            let exist_error = stat.exist_error_count.load(Ordering::Relaxed);
-            let exist_spd = exist_size.get_diff() as f64 / 1024.0 / sec;
-            println!(
-                "exist: {:>6} rps | err {:5} | {:>6.2} kb/s | lat {:>6.2} ms",
-                exist_count_spd,
-                exist_error,
-                exist_spd,
-                finite_or_default(cur_st_exist_time / cur_st_exist_count / 1e9)
-            );
-
+            print_offset(first_line);
+            let exist_spd = periodic_exist.process_and_print();
             exist_speed_values.push(exist_spd);
         }
     }
@@ -694,6 +752,7 @@ fn print_periodic_stat(
         put_speed_values,
         get_speed_values,
         exist_speed_values,
+        delete_speed_values,
         elapsed,
     )
 }
@@ -710,7 +769,7 @@ fn finite_or_default(value: f64) -> f64 {
     }
 }
 
-async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
+async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<GetStatistics>) {
     let mut client = net_conf.build_client().await;
 
     let options = task_conf.find_get_options();
@@ -736,24 +795,24 @@ async fn get_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         let res = if measure_time {
             let start = Instant::now();
             let res = client.get(request).await;
-            stat.save_single_thread_get_time(&start.elapsed());
+            stat.common.save_single_thread_time(&start.elapsed());
             res
         } else {
             client.get(request).await
         };
         match res {
-            Err(status) => stat.save_get_error(status),
+            Err(status) => stat.common.save_error(status).await,
             Ok(payload) => {
                 let res = payload.into_inner().data;
-                stat.get_size_bytes
+                stat.size_bytes
                     .fetch_add(res.len() as u64, Ordering::SeqCst);
             }
         }
-        stat.get_total.fetch_add(1, Ordering::SeqCst);
+        stat.common.total.fetch_add(1, Ordering::SeqCst);
     }
 }
 
-async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
+async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<PutStatistics>) {
     let mut client = net_conf.build_client().await;
 
     let request_creator = task_conf.get_request_creator::<PutRequest>();
@@ -775,35 +834,88 @@ async fn put_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statis
         let res = if measure_time {
             let start = Instant::now();
             let res = client.put(request).await;
-            stat.save_single_thread_put_time(&start.elapsed());
+            stat.common.save_single_thread_time(&start.elapsed());
             res
         } else {
             client.put(request).await
         };
         if let Err(status) = res {
-            stat.save_put_error(status);
+            stat.common.save_error(status).await;
         }
-        stat.put_total.fetch_add(1, Ordering::SeqCst);
+        stat.common.total.fetch_add(1, Ordering::SeqCst);
     }
-    let req = Request::new(ExistRequest {
-        keys: (task_conf.low_idx..upper_idx)
-            .map(|i| BlobKey {
-                key: task_conf.get_proper_key(i),
-            })
-            .collect(),
-        options: task_conf.find_get_options(),
-    });
     if get_matches().is_present("verify") {
+        let request_creator = task_conf.get_request_creator::<ExistRequest>();
+        let req = request_creator(
+            ExistRequest {
+                keys: (task_conf.low_idx..upper_idx)
+                    .map(|i| BlobKey {
+                        key: task_conf.get_proper_key(i),
+                    })
+                    .collect(),
+                options: task_conf.find_get_options(),
+            });
         let res = client.exist(req).await;
         if let Ok(res) = res {
             if res.into_inner().exist.iter().all(|b| *b) {
-                stat.verified_puts.fetch_add(1, Ordering::SeqCst);
+                stat.verified.fetch_add(1, Ordering::SeqCst);
             }
         }
     }
 }
 
-async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
+async fn delete_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<DeleteStatistics>) {
+    let mut client = net_conf.build_client().await;
+
+    let request_creator = task_conf.get_request_creator::<DeleteRequest>();
+
+    let options = task_conf.find_delete_options();
+    let measure_time = task_conf.is_time_measurement_thread();
+    let upper_idx = task_conf.low_idx + task_conf.count;
+    for i in task_conf.low_idx..upper_idx {
+        let key = BlobKey {
+            key: task_conf.get_proper_key(i),
+        };
+        let request = request_creator(DeleteRequest {
+            key: Some(key),
+            options: options.clone(),
+            meta: Some(create_current_blobmeta()),
+        });
+
+        let res = if measure_time {
+            let start = Instant::now();
+            let res = client.delete(request).await;
+            stat.common.save_single_thread_time(&start.elapsed());
+            res
+        } else {
+            client.delete(request).await
+        };
+        if let Err(status) = res {
+            stat.common.save_error(status).await;
+        }
+        stat.common.total.fetch_add(1, Ordering::SeqCst);
+    }
+    if get_matches().is_present("verify") {
+        let request_creator = task_conf.get_request_creator::<ExistRequest>();
+        let req = request_creator(
+            ExistRequest {
+                keys: (task_conf.low_idx..upper_idx)
+                    .map(|i| BlobKey {
+                        key: task_conf.get_proper_key(i),
+                    })
+                    .collect(),
+                options: task_conf.find_get_options(),
+            });
+        let res = client.exist(req).await;
+        if let Ok(res) = res {
+            if res.into_inner().exist.iter().all(|b| !(*b)) {
+                stat.verified.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+    }
+}
+
+async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<ExistStatistics>) {
     let mut client = net_conf.build_client().await;
 
     let request_creator = task_conf.get_request_creator::<ExistRequest>();
@@ -829,33 +941,34 @@ async fn exist_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Stat
         let res = if measure_time {
             let start = Instant::now();
             let res = client.exist(request).await;
-            stat.save_single_thread_exist_time(&start.elapsed());
+            stat.common.save_single_thread_time(&start.elapsed());
             res
         } else {
             client.exist(request).await
         };
-        stat.exist_size_bytes
-            .fetch_add(send_size_bytes, Ordering::SeqCst);
+        stat.size_bytes
+                    .fetch_add(send_size_bytes, Ordering::SeqCst);
         match res {
-            Err(status) => stat.save_exist_error(status),
+            Err(status) => stat.common.save_error(status).await,
             Ok(payload) => {
                 let res = payload.into_inner().exist;
-                stat.exist_size_bytes
+                stat.size_bytes
                     .fetch_add((res.len() * size_of::<bool>()) as u64, Ordering::SeqCst);
 
                 let present = res.iter().fold(0, |acc, flag| acc + u64::from(*flag));
-                stat.exist_presented_keys
+                stat.presented_keys
                     .fetch_add(present, Ordering::SeqCst);
             }
         }
-        stat.exist_total.fetch_add(1, Ordering::SeqCst);
+        stat.common.total.fetch_add(1, Ordering::SeqCst);
     }
 }
 
 async fn test_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
-    put_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
-    get_worker(net_conf.clone(), task_conf.clone(), stat.clone()).await;
-    exist_worker(net_conf, task_conf, stat).await;
+    put_worker(net_conf.clone(), task_conf.clone(), stat.put.clone()).await;
+    get_worker(net_conf.clone(), task_conf.clone(), stat.get.clone()).await;
+    exist_worker(net_conf.clone(), task_conf.clone(), stat.exist.clone()).await;
+    delete_worker(net_conf, task_conf, stat.delete.clone()).await;
 }
 
 async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<Statistics>) {
@@ -881,15 +994,15 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
         let put_res = if measure_time {
             let start = Instant::now();
             let res = client.put(put_request).await;
-            stat.save_single_thread_put_time(&start.elapsed());
+            stat.put.common.save_single_thread_time(&start.elapsed());
             res
         } else {
             client.put(put_request).await
         };
         if let Err(status) = put_res {
-            stat.save_put_error(status);
+            stat.put.common.save_error(status).await;
         }
-        stat.put_total.fetch_add(1, Ordering::SeqCst);
+        stat.put.common.total.fetch_add(1, Ordering::SeqCst);
         let get_request = get_request_creator(GetRequest {
             key: Some(key),
             options: get_options.clone(),
@@ -897,15 +1010,15 @@ async fn ping_pong_worker(net_conf: NetConfig, task_conf: TaskConfig, stat: Arc<
         let get_res = if measure_time {
             let start = Instant::now();
             let res = client.get(get_request).await;
-            stat.save_single_thread_get_time(&start.elapsed());
+            stat.get.common.save_single_thread_time(&start.elapsed());
             res
         } else {
             client.get(get_request).await
         };
         if let Err(status) = get_res {
-            stat.save_get_error(status);
+            stat.get.common.save_error(status).await;
         }
-        stat.get_total.fetch_add(1, Ordering::SeqCst);
+        stat.get.common.total.fetch_add(1, Ordering::SeqCst);
     }
 }
 
@@ -938,9 +1051,10 @@ fn spawn_workers(
                 packet_size: task_conf.packet_size,
             };
             match benchmark_conf.behavior {
-                Behavior::Put => tokio::spawn(put_worker(nc, tc, stat_inner)),
-                Behavior::Get => tokio::spawn(get_worker(nc, tc, stat_inner)),
-                Behavior::Exist => tokio::spawn(exist_worker(nc, tc, stat_inner)),
+                Behavior::Put => tokio::spawn(put_worker(nc, tc, stat_inner.put.clone())),
+                Behavior::Get => tokio::spawn(get_worker(nc, tc, stat_inner.get.clone())),
+                Behavior::Exist => tokio::spawn(exist_worker(nc, tc, stat_inner.exist.clone())),
+                Behavior::Delete => tokio::spawn(delete_worker(nc, tc, stat_inner.delete.clone())),
                 Behavior::Test => tokio::spawn(test_worker(nc, tc, stat_inner)),
                 Behavior::PingPong => tokio::spawn(ping_pong_worker(nc, tc, stat_inner)),
             }
@@ -948,6 +1062,7 @@ fn spawn_workers(
         .collect()
 }
 
+const DELETE_FLAG: u8 = 8;
 const EXIST_FLAG: u8 = 4;
 const PUT_FLAG: u8 = 1;
 const GET_FLAG: u8 = 2;
@@ -966,7 +1081,10 @@ fn spawn_statistics_thread(
         }
         Behavior::Get => {
             behavior_flags |= GET_FLAG;
-        }
+        },
+        Behavior::Delete => {
+            behavior_flags |= DELETE_FLAG;
+        },
         Behavior::PingPong => {
             behavior_flags |= GET_FLAG;
             behavior_flags |= PUT_FLAG;
@@ -978,6 +1096,7 @@ fn spawn_statistics_thread(
             behavior_flags |= GET_FLAG;
             behavior_flags |= PUT_FLAG;
             behavior_flags |= EXIST_FLAG;
+            behavior_flags |= DELETE_FLAG;
         }
     }
     tokio::spawn(stat_worker(
@@ -990,13 +1109,17 @@ fn spawn_statistics_thread(
     ))
 }
 
-fn create_blob(task_conf: &TaskConfig) -> Blob {
-    let meta = BlobMeta {
+fn create_current_blobmeta() -> BlobMeta {
+    BlobMeta {
         timestamp: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("msg: &str")
             .as_secs(),
-    };
+    }
+}
+
+fn create_blob(task_conf: &TaskConfig) -> Blob {
+    let meta = create_current_blobmeta();
     Blob {
         data: vec![0_u8; task_conf.payload_size as usize].into(),
         meta: Some(meta),
@@ -1055,7 +1178,7 @@ fn get_matches() -> ArgMatches<'static> {
         )
         .arg(
             Arg::with_name("behavior")
-                .help("put / get / exist / test")
+                .help("put / get / exist / delete / test")
                 .takes_value(true)
                 .short("b")
                 .long("behavior")
