@@ -222,7 +222,7 @@ impl Holder {
         counter!(PEARL_PUT_COUNTER, 1);
         let data_size = Self::calc_data_size(&data);
         let timer = Instant::now();
-        let res = storage.write(key, data.to_serialized_bytes()).await;
+        let res = storage.write(key, data.to_serialized_bytes(), BlobRecordTimestamp::new(data.meta().timestamp())).await;
         let res = match res {
             Err(e) => {
                 counter!(PEARL_PUT_ERROR_COUNTER, 1);
@@ -453,16 +453,15 @@ impl Holder {
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
 
-    pub async fn delete(&self, key: BobKey, _meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
+    pub async fn delete(&self, key: BobKey, meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
             let storage = state.get();
             trace!("Vdisk: {}, delete key: {}", self.vdisk, key);
             counter!(PEARL_DELETE_COUNTER, 1);
             let timer = Instant::now();
-            // TODO: use meta
             let res = storage
-                .delete(Key::from(key), !force_delete)
+                .delete(Key::from(key), BlobRecordTimestamp::new(meta.timestamp()), !force_delete)
                 .await
                 .map_err(|e| {
                     trace!("error on delete: {:?}", e);
