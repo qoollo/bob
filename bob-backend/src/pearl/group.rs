@@ -250,21 +250,21 @@ impl Group {
             let mut max_diff = None;
             for i in 0..start_timestamps.len() - 1 {
                 let diff = start_timestamps[i + 1] - start_timestamps[i];
-                if let Some(max_diff_v) = max_diff {
-                    if max_diff_v < diff {
-                        max_diff = Some(diff);
+                if let Some(max_diff_v) = max_diff.as_mut() {
+                    if *max_diff_v < diff {
+                        *max_diff_v = diff;
                     }
                 } else {
                     max_diff = Some(diff);
                 }
             }
-            if let Some(max_diff) = max_diff {
-                let step = (2 * max_diff).max(5 * self.settings.timestamp_period_as_secs());
-                // 3600s = 1h
-                return Some(adjust.max(step) + 3600);
-            }
+            let max_diff = max_diff.unwrap_or(self.settings.timestamp_period_as_secs());
+            let step = (2 * max_diff).max(5 * self.settings.timestamp_period_as_secs());
+            // 3600s = 1h
+            Some(adjust.max(step) + 3600)
+        } else {
+            None
         }
-        None
     }
 
     pub async fn get(&self, key: BobKey) -> Result<BobData, Error> {
@@ -277,7 +277,7 @@ impl Group {
             .iter_possible_childs_rev(&Key::from(key))
             .map(|(_, x)| &x.data)
         {
-            if self.should_check_holder(holder, max_timestamp) {
+            if Self::should_check_holder(self.safe_timestamp_step, holder, max_timestamp) {
                 let get = Self::get_common(&holder, key).await;
                 match get {
                     Ok(data) => match data {
@@ -342,7 +342,7 @@ impl Group {
         for (ind, &key) in keys.iter().enumerate() {
             for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
             {
-                if self.should_check_holder(holder, max_timestamp) {
+                if Self::should_check_holder(self.safe_timestamp_step, holder, max_timestamp) {
                     match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
                         ReadResult::Found(ts) => {
                             let ts = ts.into();
@@ -368,10 +368,10 @@ impl Group {
     }
 
     #[inline]
-    fn should_check_holder(&self, holder: &Holder, max_timestamp: Option<u64>) -> bool {
+    fn should_check_holder(safe_timestamp_step: Option<u64>, holder: &Holder, max_timestamp: Option<u64>) -> bool {
         max_timestamp.is_none() ||
-        self.safe_timestamp_step.is_none() ||
-        holder.end_timestamp() + self.safe_timestamp_step.unwrap() >= max_timestamp.unwrap()
+        safe_timestamp_step.is_none() ||
+        holder.end_timestamp() + safe_timestamp_step.unwrap() >= max_timestamp.unwrap()
     }
 
     pub async fn delete(
