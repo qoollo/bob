@@ -585,6 +585,7 @@ impl Group {
                 }
             }
         }
+        holders.sort_by(|a, b| a.start_timestamp().cmp(&b.start_timestamp()));
         Ok(holders)
     }
 
