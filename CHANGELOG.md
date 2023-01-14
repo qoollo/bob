@@ -8,6 +8,7 @@ Bob versions changelog
 
 #### Changed
 - Removed `open_blobs_soft_limit` and `open_blobs_hard_limit` from node config example (#703)
+- Record timestamp is now passed to Pearl level and used to find newest record in get and exist functions (#708)
 
 #### Fixed
 - Fixed incorrect execution of aliens integration tests (#736)
