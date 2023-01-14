@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Added exist key metrics to grinder and exist metrics to pearl (#709)
 
 #### Changed
 - Removed `open_blobs_soft_limit` and `open_blobs_hard_limit` from node config example (#703)
