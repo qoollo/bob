@@ -321,7 +321,7 @@ impl Holder {
                 .contains(pearl_key)
                 .await
                 .map_err(|e| {
-                    error!("{:?}", e);
+                    error!("error on exist: {:?}", e);
                     counter!(PEARL_EXIST_ERROR_COUNTER, 1);
                     Error::storage(e.to_string())
                 });
