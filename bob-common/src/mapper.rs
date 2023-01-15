@@ -62,7 +62,7 @@ impl Virtual {
     }
 
     async fn prepare_nodes(vdisks: &mut VDisksMap, cluster: &ClusterConfig) -> Vec<Node> {
-        let nodes = cluster
+        let nodes: Vec<Node> = cluster
             .nodes()
             .iter()
             .enumerate()

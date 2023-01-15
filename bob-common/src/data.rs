@@ -309,7 +309,7 @@ impl VDisk {
         self.replicas.push(value)
     }
 
-    pub fn set_nodes(&mut self, nodes: &Vec<Node>) {
+    pub fn set_nodes(&mut self, nodes: &[Node]) {
         nodes.iter().for_each(|node| {
             if self.replicas.iter().any(|r| r.node_name() == node.name()) {
                 //TODO check if some duplicates
