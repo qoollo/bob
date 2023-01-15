@@ -17,6 +17,12 @@ pub type VDisksMap = HashMap<VDiskId, DataVDisk>;
 
 pub type NodesMap = HashMap<NodeId, Node>;
 
+/// `get_support_nodes` helper
+enum Offset {
+    Index(usize),
+    Avail(usize),
+}
+
 /// Struct for managing distribution of replicas on disks and nodes.
 /// Through the virtual intermediate object, called `VDisk` - "virtual disk"
 #[derive(Debug)]
@@ -115,6 +121,44 @@ impl Virtual {
         self.vdisks.get(&id).expect("vdisk not found").nodes()
     }
 
+    fn find_index(&self, offset: usize) -> Offset {
+        let mut avail = 0;
+        for i in 0..self.nodes.len() {
+            let node = &self.nodes[i];
+            if node.connection_available() {
+                if avail == offset {
+                    return Offset::Index(i);
+                }
+                avail += 1;
+            }
+        }
+        return Offset::Avail(avail);
+    }
+
+    fn find_actual_offset(&self, offset: usize) -> usize {
+        let mut res = self.find_index(offset % self.nodes.len());
+        if let Offset::Avail(avail) = res {
+            if avail > 0 {
+                let mut curr_offset = offset % avail;
+                while let Offset::Avail(avail) = res {
+                    if avail == 0 {
+                        break;
+                    }
+                    res = self.find_index(curr_offset);
+                    curr_offset = if curr_offset > avail {
+                        curr_offset - avail
+                    } else {
+                        0
+                    }
+                }
+            }
+        }
+        match res {
+            Offset::Index(index) => index,
+            Offset::Avail(_) => offset % self.nodes.len(),
+        }
+    }
+
     pub fn get_support_nodes(&self, key: BobKey, count: usize) -> Vec<&Node> {
         debug_assert!(count <= self.nodes.len());
         if count == 0 {
@@ -124,43 +168,22 @@ impl Virtual {
         let target_nodes = self.get_target_nodes_for_key(key);
         trace!("extract indexes of target nodes");
         trace!("nodes available: {}", self.nodes.len());
-        let offset = self.support_nodes_offset.fetch_add(1, Ordering::Relaxed);
         let mut support_nodes: Vec<&Node> = Vec::with_capacity(count);
-        let mut index = 0;
-        let mut offset_counter = offset % self.nodes.len();
-        let mut available_count = 0;
-        while index < self.nodes.len() && offset_counter > 0 {
-            if self.nodes[index].connection_available() {
-                available_count += 1;
-                offset_counter -= 1;
-            }
-            index += 1;
-        }
-        let actual_offset = if index == self.nodes.len() {
-            offset % available_count
-        } else {
-            index
-        };
-        for i in actual_offset..self.nodes.len() {
-            let node = &self.nodes[i];
-            if target_nodes.iter().all(|n| n.index() != node.index()) && node.connection_available()
+
+        let offset =
+            self.find_actual_offset(self.support_nodes_offset.fetch_add(1, Ordering::Relaxed));
+
+        for i in 0..self.nodes.len() {
+            let node = &self.nodes[(i + offset) % self.nodes.len()];
+            if i < offset
+                && node.connection_available()
+                && target_nodes.iter().all(|n| n.index() != node.index())
+                || target_nodes.iter().all(|n| n.index() != node.index())
+                    && support_nodes.iter().all(|&n| n.index() != node.index())
             {
                 support_nodes.push(node);
                 if support_nodes.len() >= count {
                     break;
-                }
-            }
-        }
-        if support_nodes.len() < count && actual_offset > 0 {
-            for i in 0..actual_offset {
-                let node = &self.nodes[i];
-                if target_nodes.iter().all(|n| n.index() != node.index())
-                    && support_nodes.iter().all(|&n| n.index() != node.index())
-                {
-                    support_nodes.push(node);
-                    if support_nodes.len() >= count {
-                        break;
-                    }
                 }
             }
         }
