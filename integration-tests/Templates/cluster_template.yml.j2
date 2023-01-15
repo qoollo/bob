@@ -1,0 +1,9 @@
+---
+nodes:
+{% for item in range(amount_of_nodes) %}
+  - name: local_node_{{ item }}
+    address: "bob_node{{ item }}:20000"
+    disks:
+      - name: disk1
+        path: /bob/data/d1
+{% endfor %}

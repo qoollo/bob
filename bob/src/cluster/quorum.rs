@@ -2,10 +2,11 @@ use crate::prelude::*;
 
 use super::{
     operations::{
-        delete_at_local_node, delete_at_nodes, group_keys_by_nodes, lookup_local_alien,
-        lookup_local_node, lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all,
-        put_local_node, put_sup_nodes, Tasks,
+        delete_on_local_node, delete_on_local_aliens, delete_on_remote_nodes, delete_on_remote_nodes_with_options,
+        group_keys_by_nodes, lookup_local_alien, lookup_local_node, lookup_remote_aliens,
+        lookup_remote_nodes, put_at_least, put_local_all, put_local_node, put_sup_nodes, Tasks,
     },
+    support_types::{ RemoteDeleteError, HashSetExt },
     Cluster,
 };
 use crate::link_manager::LinkManager;
@@ -25,6 +26,8 @@ impl Quorum {
             quorum,
         }
     }
+
+    // ================== PUT ==================
 
     async fn put_at_least(&self, key: BobKey, data: &BobData) -> Result<(), Error> {
         debug!("PUT[{}] ~~~PUT LOCAL NODE FIRST~~~", key);
@@ -83,35 +86,6 @@ impl Quorum {
         }
     }
 
-    async fn delete_on_nodes(&self, key: BobKey) -> Result<(), Error> {
-        debug!("DELETE[{}] ~~~DELETE LOCAL NODE FIRST~~~", key);
-        let res = delete_at_local_node(&self.backend, key).await;
-        let local_delete_ok = if let Err(e) = res {
-            error!("{}", e);
-            false
-        } else {
-            debug!("DELETE[{}] local node delete successful", key);
-            true
-        };
-
-        debug!("DELETE[{}] ~~~DELETE TO REMOTE NODES~~~", key);
-        let (errors, remote_count) = self.delete_at_remote_nodes(key).await;
-        let remote_ok_count = remote_count - errors.len();
-        if errors.len() > 0 || !local_delete_ok {
-            warn!(
-                "DELETE[{}] was not successful. local done: {}, remote {}, failed {}, errors: {:?}",
-                key,
-                local_delete_ok,
-                remote_ok_count,
-                errors.len(),
-                errors
-            );
-            Err(Error::failed("Data was deleted not on all nodes"))
-        } else {
-            Ok(())
-        }
-    }
-
     async fn background_put(
         self,
         mut rest_tasks: Tasks,
@@ -142,7 +116,7 @@ impl Quorum {
         }
     }
 
-    pub(crate) async fn put_remote_nodes(
+    async fn put_remote_nodes(
         &self,
         key: BobKey,
         data: &BobData,
@@ -159,36 +133,8 @@ impl Quorum {
         put_at_least(key, data, target_nodes, at_least, PutOptions::new_local()).await
     }
 
-    pub(crate) async fn delete_at_remote_nodes(
-        &self,
-        key: BobKey,
-    ) -> (Vec<NodeOutput<Error>>, usize) {
-        let local_node = self.mapper.local_node_name();
-        let target_nodes: Vec<_> = self
-            .mapper
-            .nodes()
-            .values()
-            .filter(|n| n.name() != local_node)
-            .collect();
-        debug!(
-            "DELETE[{}] cluster quorum put remote nodes {} total target nodes",
-            key,
-            target_nodes.len(),
-        );
-        let count = target_nodes.len();
-        (
-            delete_at_nodes(
-                key,
-                target_nodes.into_iter(),
-                count,
-                DeleteOptions::new_local(),
-            )
-            .await,
-            count,
-        )
-    }
 
-    pub(crate) async fn put_aliens(
+    async fn put_aliens(
         &self,
         mut failed_nodes: Vec<String>,
         key: BobKey,
@@ -235,6 +181,140 @@ impl Quorum {
             Ok(())
         }
     }
+
+
+    // =============================== DELETE ======================
+
+    async fn delete_on_nodes(&self, key: BobKey, meta: &BobMeta) -> Result<(), Error> {
+        debug!("DELETE[{}] ~~~DELETE LOCAL NODE FIRST~~~", key);
+        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let mut failed_nodes = HashSet::new();
+        let mut total = 0;
+        if let Some(disk_path) = disk_path {
+            total += 1;
+            let res = delete_on_local_node(&self.backend, key, meta, vdisk_id, disk_path).await;
+            if let Err(e) = res {
+                error!("{}", e);
+                failed_nodes.insert(self.mapper.local_node_name().to_owned());
+            }
+        };
+
+        debug!("DELETE[{}] ~~~DELETE TO REMOTE NODES~~~", key);
+        let (errors, remote_count) = self.delete_at_remote_nodes(key, meta).await;
+        total += remote_count;
+        failed_nodes.extend(errors.iter().map(|o| o.node_name().to_string()));
+
+        if !failed_nodes.is_empty() {
+            warn!(
+                "DELETE[{}] was not successful on target nodes. Operation continue on aliens. total {}, failed {:?}, errors: {:?}",
+                key, total, failed_nodes, errors
+            );
+        }
+
+        if let Err(err) = self.delete_aliens(failed_nodes, key, meta).await {
+            error!("DELETE[{}] delete failed. Smth wrong with cluster/node configuration", key);
+            Err(err)
+        } else {
+            debug!("DELETE[{}] succeed", key);
+            Ok(())
+        }
+    }
+
+
+    async fn delete_at_remote_nodes(
+        &self,
+        key: BobKey,
+        meta: &BobMeta,
+    ) -> (Vec<NodeOutput<RemoteDeleteError>>, usize) {
+        let local_node = self.mapper.local_node_name();
+        let target_nodes: Vec<_> = self
+            .mapper
+            .get_target_nodes_for_key(key)
+            .iter()
+            .filter(|n| n.name() != local_node)
+            .collect();
+        debug!(
+            "DELETE[{}] cluster quorum runs delete on remote nodes. Target nodes count: {}",
+            key,
+            target_nodes.len(),
+        );
+
+        let count = target_nodes.len();
+        (
+            delete_on_remote_nodes_with_options(key, meta, target_nodes, DeleteOptions::new_local()).await,
+            count
+        )
+    }
+
+
+    async fn delete_aliens(
+        &self,
+        mut failed_nodes: HashSet<String>,
+        key: BobKey,
+        meta: &BobMeta,
+    ) -> Result<(), Error> {
+        trace!("DELETE[{}] ~~~TRY DELETE AT REMOTE ALIENS~~~", key);
+
+        let mut sup_nodes_set = HashSet::new();
+        let local_node_name = self.mapper.local_node_name();
+
+        if failed_nodes.len() > 0 {
+            let sup_nodes = self.mapper.get_support_nodes(key, failed_nodes.len());
+            for sup_node in sup_nodes.iter() {
+                sup_nodes_set.insert(sup_node.name());
+            }
+
+            trace!("DELETE[{}] sup delete nodes: {:?}", key, &sup_nodes);
+            let nodes_need_remote_backup: Vec<_> = failed_nodes.drain_collect(sup_nodes.len());
+            let queries: Vec<_> = sup_nodes
+                .into_iter()
+                .zip(nodes_need_remote_backup)
+                .map(|(node, remote_node)| (node, DeleteOptions::new_alien(vec![remote_node])))
+                .collect();
+
+            trace!("DELETE[{}] supported alien requests: {:?}", key, queries);
+            if let Err(sup_nodes_errors) = delete_on_remote_nodes(key, meta, queries.into_iter()).await {
+                warn!("delete on support nodes errors: {:?}", sup_nodes_errors);
+                failed_nodes.extend(
+                    sup_nodes_errors
+                        .into_iter()
+                        .flat_map(|err| err.into_inner().into_force_alien_nodes().into_iter()),
+                )
+            };
+        }
+
+
+        // Delete on all nodes of cluster except sup_nodes and local node
+        let all_other_nodes_queries: Vec<_> = self.mapper.nodes().values()
+            .filter(|n| !sup_nodes_set.contains(n.name()) && n.name() != local_node_name)
+            .map(|n| (n, DeleteOptions::new_alien(vec![])))
+            .collect();
+        
+        trace!("DELETE[{}] normal alien deletion requests: {:?}", key, all_other_nodes_queries);
+        if let Err(sup_nodes_errors) = delete_on_remote_nodes(key, meta, all_other_nodes_queries.into_iter()).await {
+            debug!("delete on aliens nodes errors: {:?}", sup_nodes_errors);
+        };        
+
+
+        // Delete on local node
+        let local_delete = delete_on_local_aliens(
+            &self.backend,
+            key,
+            meta,
+            self.mapper.get_target_nodes_for_key(key),
+            failed_nodes,
+            self.mapper.vdisk_id_from_key(key)
+        ).await;
+
+        if let Err(e) = local_delete {
+            error!(
+                "DELETE[{}] local delete failed, smth wrong with backend: {:?}",
+                key, e
+            );
+            return Err(Error::internal());
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -263,7 +343,7 @@ impl Cluster for Quorum {
         if let Some(data) = lookup_remote_aliens(&self.mapper, key).await {
             return Ok(data);
         }
-        info!("GET[{}] Key not found", key);
+        debug!("GET[{}] Key not found", key);
         Err(Error::key_not_found(key))
     }
 
@@ -286,7 +366,7 @@ impl Cluster for Quorum {
         Ok(exist)
     }
 
-    async fn delete(&self, key: BobKey) -> Result<(), Error> {
-        self.delete_on_nodes(key).await
+    async fn delete(&self, key: BobKey, meta: &BobMeta) -> Result<(), Error> {
+        self.delete_on_nodes(key, meta).await
     }
 }

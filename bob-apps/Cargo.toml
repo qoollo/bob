@@ -1,6 +1,6 @@
 [package]
 name = "bob-apps"
-version = "2.1.0-alpha.7"
+version = "2.1.0-alpha.8"
 authors = [
     "Kirill Bushminkin <kb@qoollo.com>",
     "Pavel Iakushin <pyakushin@qoollo.com>",
@@ -38,7 +38,6 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.8"
 stopwatch = "0.0.7"
-termion = "1.5"
 thiserror = "1.0"
 tonic = { version = "0.6", features = ["prost", "tls"] }
 tower = "0.4"
@@ -54,7 +53,7 @@ default-features = false
 features = ["signal"]
 
 [dependencies.pearl]
-version = "0.15.0"
+version = "0.16.0"
 
 [build-dependencies]
 tonic-build = "0.6"
