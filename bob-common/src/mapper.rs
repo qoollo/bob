@@ -170,16 +170,21 @@ impl Virtual {
         trace!("nodes available: {}", self.nodes.len());
         let mut support_nodes: Vec<&Node> = Vec::with_capacity(count);
 
-        let offset =
+        let starting_index =
             self.find_actual_offset(self.support_nodes_offset.fetch_add(1, Ordering::Relaxed));
 
-        for i in 0..self.nodes.len() {
-            let node = &self.nodes[(i + offset) % self.nodes.len()];
-            if i < offset
-                && node.connection_available()
+        let len = self.nodes.len();
+        for i in 0..len {
+            let node = &self.nodes[(i + starting_index) % len];
+            let conn = if i + starting_index < len {
+                node.connection_available()
+            } else {
+                true
+            };
+            if conn
                 && target_nodes.iter().all(|n| n.index() != node.index())
-                || target_nodes.iter().all(|n| n.index() != node.index())
-                    && support_nodes.iter().all(|&n| n.index() != node.index())
+                && (i + starting_index < len
+                    || support_nodes.iter().all(|&n| n.index() != node.index()))
             {
                 support_nodes.push(node);
                 if support_nodes.len() >= count {
