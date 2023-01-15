@@ -11,6 +11,7 @@ Bob versions changelog
 
 #### Fixed
 - Fix incorrect timestamp used in `Group::delete()` (#741)
+- Fixed incorrect execution of aliens integration tests (#736)
 
 #### Updated
 
