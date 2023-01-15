@@ -341,7 +341,7 @@ impl Group {
         let mut total_deletion_count = 0;
 
         if force_delete {
-            let actual_holder = self.get_or_create_actual_holder(get_current_timestamp(), timestamp_config).await?;
+            let actual_holder = self.get_or_create_actual_holder(meta.timestamp(), timestamp_config).await?;
             reference_timestamp = actual_holder.1.start_timestamp();
             total_deletion_count += self.delete_in_actual_holder(actual_holder, key, meta).await?;
         }
@@ -540,6 +540,7 @@ impl Group {
                 }
             }
         }
+        holders.sort_by(|a, b| a.start_timestamp().cmp(&b.start_timestamp()));
         Ok(holders)
     }
 

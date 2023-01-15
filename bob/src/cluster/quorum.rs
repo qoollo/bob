@@ -58,6 +58,10 @@ impl Quorum {
         remote_ok_count += all_count - errors.len() - tasks.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
         if remote_ok_count + local_put_ok >= self.quorum {
+            if tasks.is_empty() && failed_nodes.is_empty() {
+                return Ok(());
+            }
+
             debug!("PUT[{}] spawn {} background put tasks", key, tasks.len());
             let q = self.clone();
             let data = data.clone();
@@ -165,14 +169,8 @@ impl Quorum {
         debug!("need additional local alien copies: {}", failed_nodes.len());
         let vdisk_id = self.mapper.vdisk_id_from_key(key);
         let operation = Operation::new_alien(vdisk_id);
-        let local_put = put_local_all(
-            &self.backend,
-            failed_nodes.clone(),
-            key,
-            data,
-            operation,
-        )
-        .await;
+        let local_put =
+            put_local_all(&self.backend, failed_nodes.clone(), key, data, operation).await;
         if let Err(e) = local_put {
             error!(
                 "PUT[{}] local put failed, smth wrong with backend: {:?}",
