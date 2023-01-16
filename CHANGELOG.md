@@ -7,7 +7,7 @@ Bob versions changelog
 
 
 #### Changed
-
+- Make local put parallel to remote (#573)
 
 #### Fixed
 
