@@ -66,7 +66,7 @@ vdisks:
     create_backend(node_config, cluster_config).await.unwrap()
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_write_multiple_read() {
     drop_pearl().await;
     let vdisk_id = 0;

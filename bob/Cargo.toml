@@ -45,7 +45,7 @@ uuid = "1.1"
 smallvec = { version = "1.10", features = ["union"] }
 
 [dependencies.pearl]
-version = "0.16.0"
+version = "0.17.0"
 
 [dependencies.tokio]
 version = "1.21"

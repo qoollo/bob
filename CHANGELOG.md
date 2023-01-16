@@ -16,7 +16,7 @@ Bob versions changelog
 - Fixed unsafe timestamp comparison condition in `Group::get` and `Group::exist` (#750)
 
 #### Updated
-
+- Pearl updated to v0.17.0 (#752)
 
 
 ## [2.1.0-alpha.8] - 2023-01-13
