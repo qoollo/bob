@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Quorum argument for manual workflow dispatch for integration tests (#749)
 
 #### Changed
 
