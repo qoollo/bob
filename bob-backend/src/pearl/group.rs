@@ -307,14 +307,14 @@ impl Group {
             {
                 match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
                     ReadResult::Found(ts) => {
-                        let ts = ts.into();
+                        let ts: u64 = ts.into();
                         if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
                             max_timestamp = Some(ts);
                             result = true;
                         }
                     }
                     ReadResult::Deleted(ts) => {
-                        let ts = ts.into();
+                        let ts: u64 = ts.into();
                         if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
                             max_timestamp = Some(ts);
                             result = false;
