@@ -25,10 +25,12 @@ pub(super) async fn send_metrics(
         interval.tick().await;
         let mut res_string = String::new();
         let ts = chrono::Local::now().timestamp();
-        let l = metrics.read().await;
-        flush_counters(&l.counters_map, &mut res_string, &prefix, ts).await;
-        flush_gauges(&l.gauges_map, &mut res_string, &prefix, ts).await;
-        flush_times(&l.times_map, &mut res_string, &prefix, ts).await;
+        {
+            let l = metrics.read().expect("rwlock");
+            flush_counters(&l.counters_map, &mut res_string, &prefix, ts);
+            flush_gauges(&l.gauges_map, &mut res_string, &prefix, ts);
+            flush_times(&l.times_map, &mut res_string, &prefix, ts);
+        }
         if let Err(e) = socket_sender.send(res_string).await {
             warn!("Can't send data to tcp sender task (reason: {})", e);
         };
@@ -45,17 +47,17 @@ async fn spawn_tcp_sender_task(address: String) -> Sender<String> {
 async fn tcp_sender_task(mut socket: RetrySocket, mut rx: Receiver<String>) {
     while let Some(data) = rx.recv().await {
         if let Err(e) = socket.write_all(data.as_bytes()).await {
-            warn!("Can't write data to socket: {}", e);
+            warn!("Can't write data to Graphite socket: {}", e);
             continue;
         }
         if let Err(e) = socket.flush().await {
-            warn!("Can't flush socket (reason: {})", e);
+            warn!("Can't flush Graphite socket (reason: {})", e);
         }
     }
     info!("Metrics thread is done.");
 }
 
-async fn flush_counters(
+fn flush_counters(
     counters_map: &HashMap<MetricKey, CounterEntry>,
     res_string: &mut String,
     prefix: &str,
@@ -73,7 +75,7 @@ async fn flush_counters(
     }
 }
 
-async fn flush_gauges(
+fn flush_gauges(
     gauges_map: &HashMap<MetricKey, GaugeEntry>,
     res_string: &mut String,
     prefix: &str,
@@ -91,7 +93,7 @@ async fn flush_gauges(
     }
 }
 
-async fn flush_times(
+fn flush_times(
     times_map: &HashMap<MetricKey, TimeEntry>,
     res_string: &mut String,
     prefix: &str,

@@ -10,10 +10,11 @@ use super::{
 use bob_common::metrics::pearl::{
     PEARL_GET_BYTES_COUNTER, PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER,
     PEARL_PUT_BYTES_COUNTER, PEARL_PUT_COUNTER, PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
+    PEARL_DELETE_COUNTER, PEARL_DELETE_ERROR_COUNTER, PEARL_DELETE_TIMER, 
+    PEARL_EXIST_COUNTER, PEARL_EXIST_ERROR_COUNTER, PEARL_EXIST_TIMER,
 };
 use pearl::error::{AsPearlError, ValidationErrorKind};
-use pearl::BloomProvider;
-use pearl::FilterResult;
+use pearl::{BlobRecordTimestamp, ReadResult, BloomProvider, FilterResult};
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
@@ -79,6 +80,11 @@ impl Holder {
     pub async fn blobs_count(&self) -> usize {
         let storage = self.storage.read().await;
         storage.blobs_count().await
+    }
+
+    pub async fn corrupted_blobs_count(&self) -> usize {
+        let storage = self.storage.read().await;
+        storage.corrupted_blobs_count()
     }
 
     pub async fn active_index_memory(&self) -> usize {
@@ -217,7 +223,7 @@ impl Holder {
         counter!(PEARL_PUT_COUNTER, 1);
         let data_size = Self::calc_data_size(&data);
         let timer = Instant::now();
-        let res = storage.write(key, data.to_serialized_vec()).await;
+        let res = storage.write(key, data.to_serialized_bytes()).await;
         let res = match res {
             Err(e) => {
                 counter!(PEARL_PUT_ERROR_COUNTER, 1);
@@ -246,7 +252,7 @@ impl Holder {
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    pub async fn read(&self, key: BobKey) -> Result<BobData, Error> {
+    pub async fn read(&self, key: BobKey) -> Result<ReadResult<BobData>, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
             let storage = state.get();
@@ -256,20 +262,24 @@ impl Holder {
             let res = storage
                 .read(Key::from(key))
                 .await
-                .map(|r| {
-                    counter!(PEARL_GET_BYTES_COUNTER, r.len() as u64);
-                    BobData::from_serialized_bytes(r)
-                })
                 .map_err(|e| {
                     counter!(PEARL_GET_ERROR_COUNTER, 1);
                     trace!("error on read: {:?}", e);
-                    match e.downcast_ref::<PearlError>().unwrap().kind() {
-                        PearlErrorKind::RecordNotFound => Error::key_not_found(key),
-                        _ => Error::storage(e.to_string()),
+                    Error::storage(e.to_string())
+                })
+                .and_then(|r| match r {
+                    ReadResult::Found(v) => {
+                        counter!(PEARL_GET_BYTES_COUNTER, v.len() as u64);
+                        BobData::from_serialized_bytes(v).map(|d| ReadResult::Found(d))
+                    }
+                    ReadResult::Deleted(ts) => Ok(ReadResult::Deleted(ts)),
+                    ReadResult::NotFound => {
+                        counter!(PEARL_GET_ERROR_COUNTER, 1);
+                        Ok(ReadResult::NotFound)
                     }
                 });
             counter!(PEARL_GET_TIMER, timer.elapsed().as_nanos() as u64);
-            res?
+            res
         } else {
             trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
             Err(Error::vdisk_is_not_ready())
@@ -299,16 +309,24 @@ impl Holder {
         }
     }
 
-    pub async fn exist(&self, key: BobKey) -> Result<bool, Error> {
+    pub async fn exist(&self, key: BobKey) -> Result<ReadResult<BlobRecordTimestamp>, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
             trace!("Vdisk: {}, check key: {}", self.vdisk, key);
+            counter!(PEARL_EXIST_COUNTER, 1);
             let pearl_key = Key::from(key);
             let storage = state.get();
-            storage.contains(pearl_key).await.map_err(|e| {
-                error!("{:?}", e);
-                Error::storage(e.to_string())
-            })
+            let timer = Instant::now();
+            let res = storage
+                .contains(pearl_key)
+                .await
+                .map_err(|e| {
+                    error!("error on exist: {:?}", e);
+                    counter!(PEARL_EXIST_ERROR_COUNTER, 1);
+                    Error::storage(e.to_string())
+                });
+            counter!(PEARL_EXIST_TIMER, timer.elapsed().as_nanos() as u64);
+            res
         } else {
             trace!("Vdisk: {} not ready for reading: {:?}", self.vdisk, state);
             Err(Error::vdisk_is_not_ready())
@@ -444,22 +462,24 @@ impl Holder {
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
 
-    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
+    pub async fn delete(&self, key: BobKey, _meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
             let storage = state.get();
             trace!("Vdisk: {}, delete key: {}", self.vdisk, key);
+            counter!(PEARL_DELETE_COUNTER, 1);
+            let timer = Instant::now();
+            // TODO: use meta
             let res = storage
-                .mark_all_as_deleted(Key::from(key))
+                .delete(Key::from(key), !force_delete)
                 .await
                 .map_err(|e| {
                     trace!("error on delete: {:?}", e);
-                    match e.downcast_ref::<PearlError>().unwrap().kind() {
-                        PearlErrorKind::RecordNotFound => Error::key_not_found(key),
-                        _ => Error::storage(e.to_string()),
-                    }
+                    counter!(PEARL_DELETE_ERROR_COUNTER, 1);
+                    Error::storage(e.to_string())
                 });
             self.update_last_modification();
+            counter!(PEARL_DELETE_TIMER, timer.elapsed().as_nanos() as u64);
             res
         } else {
             trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
@@ -573,6 +593,10 @@ impl PearlSync {
 
     pub async fn blobs_count(&self) -> usize {
         self.storage().blobs_count().await
+    }
+
+    pub fn corrupted_blobs_count(&self) -> usize {
+        self.storage().corrupted_blobs_count()
     }
 
     pub async fn has_active_blob(&self) -> bool {

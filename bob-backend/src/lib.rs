@@ -2,7 +2,6 @@ pub mod core;
 pub mod mem_backend;
 pub mod pearl;
 pub mod stub_backend;
-pub mod interval_logger;
 
 #[cfg(test)]
 pub mod mem_tests;
@@ -23,7 +22,7 @@ pub(crate) mod prelude {
             cluster::Cluster as ClusterConfig,
             node::{BackendType, Node as NodeConfig, Pearl as PearlConfig},
         },
-        data::{BobData, BobKey, BobMeta, BobOptions, DiskPath, VDiskId},
+        data::{BobData, BobKey, BobMeta, BobPutOptions, BobGetOptions, BobDeleteOptions, DiskPath, VDiskId},
         error::Error,
         mapper::Virtual,
         metrics::BACKEND_STATE,
@@ -50,4 +49,5 @@ pub(crate) mod prelude {
         fs::{create_dir_all, read_dir, remove_dir_all, remove_file, DirEntry},
         sync::{RwLock, Semaphore},
     };
+    pub use std::sync::RwLock as SyncRwLock;
 }

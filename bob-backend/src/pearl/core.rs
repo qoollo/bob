@@ -129,6 +129,17 @@ impl MetricsProducer for Pearl {
         })
         .await
     }
+
+    async fn corrupted_blobs_count(&self) -> usize {
+        let futs: FuturesUnordered<_> = self
+            .disk_controllers
+            .iter()
+            .cloned()
+            .map(|dc| async move { dc.corrupted_blobs_count().await })
+            .collect();
+        let cnt = futs.fold(0, |cnt, dc_cnt| ready(cnt + dc_cnt)).await;
+        cnt
+    }
 }
 
 #[async_trait]
@@ -158,7 +169,6 @@ impl BackendStorage for Pearl {
             disk_controller
                 .put(op, key, data)
                 .await
-                .map_err(|e| Error::failed(format!("{:#?}", e)))
         } else {
             debug!(
                 "PUT[{}] Cannot find disk_controller, operation: {:?}",
@@ -211,6 +221,29 @@ impl BackendStorage for Pearl {
     async fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> BackendResult<Vec<bool>> {
         if self.alien_disk_controller.can_process_operation(&operation) {
             self.alien_disk_controller.exist(operation, keys).await
+        } else {
+            Err(Error::dc_is_not_available())
+        }
+    }
+
+    async fn delete(&self, op: Operation, key: BobKey, meta: &BobMeta) -> Result<u64, Error> {
+        debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
+        let dc_option = self
+            .disk_controllers
+            .iter()
+            .find(|dc| dc.can_process_operation(&op));
+
+        if let Some(disk_controller) = dc_option {
+            disk_controller.delete(op, key, meta).await
+        } else {
+            Err(Error::dc_is_not_available())
+        }
+    }
+
+    async fn delete_alien(&self, op: Operation, key: BobKey, meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
+        debug!("DELETE[alien][{}] from pearl backend", key);
+        if self.alien_disk_controller.can_process_operation(&op) {
+            self.alien_disk_controller.delete_alien(op, key, meta, force_delete).await
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -282,29 +315,6 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
-        debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
-        let dc_option = self
-            .disk_controllers
-            .iter()
-            .find(|dc| dc.can_process_operation(&op));
-
-        if let Some(disk_controller) = dc_option {
-            disk_controller.delete(op, key).await
-        } else {
-            Err(Error::dc_is_not_available())
-        }
-    }
-
-    async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
-        debug!("DELETE[alien][{}] from pearl backend", key);
-        if self.alien_disk_controller.can_process_operation(&op) {
-            self.alien_disk_controller.delete_alien(op, key).await
-        } else {
-            Err(Error::dc_is_not_available())
-        }
-    }
-
     async fn offload_old_filters(&self, limit: usize) {
         Utils::offload_old_filters(self.collect_simple_holders().await, limit).await;
     }
@@ -315,5 +325,16 @@ impl BackendStorage for Pearl {
             memory += dc.filter_memory_allocated().await;
         }
         memory
+    }
+
+    async fn remount_vdisk(&self, vdisk_id: u32) -> AnyResult<()> {
+        let (dcs, _) = self.disk_controllers().ok_or(Error::internal())?;
+        let needed_dc = dcs
+            .iter()
+            .find(|dc| dc.vdisks().iter().any(|&vd| vd == vdisk_id))
+            .ok_or(Error::vdisk_not_found(vdisk_id))?;
+        let group = needed_dc.vdisk_group(vdisk_id).await?;
+        let postprocessor = BloomFilterMemoryLimitHooks::new(self.bloom_filter_memory_limit);
+        group.remount(postprocessor).await
     }
 }
