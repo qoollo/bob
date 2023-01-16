@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.9] - 2023-01-16
+#### Added
 - Added exist key metrics to grinder and exist metrics to pearl (#709)
 
 #### Changed
@@ -17,7 +31,7 @@ Bob versions changelog
 - Fixed unsafe timestamp comparison condition in `Group::get` and `Group::exist` (#750)
 
 #### Updated
-
+- Pearl updated to v0.17.0 (#752)
 
 
 ## [2.1.0-alpha.8] - 2023-01-13
