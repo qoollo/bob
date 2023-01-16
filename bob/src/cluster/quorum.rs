@@ -70,6 +70,7 @@ impl Quorum {
             tokio::spawn(async move { q.background_put(tasks, key, &data, failed_nodes).await });
             Ok(())
         } else {
+            assert!(tasks.is_empty(), "All target nodes put are expected to be completed before alien put begins");
             warn!(
                 "PUT[{}] quorum was not reached. ok {}, quorum {}, errors: {:?}",
                 key,

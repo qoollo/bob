@@ -7,7 +7,7 @@ Bob versions changelog
 
 
 #### Changed
-
+- Make local put parallel to remote (#573)
 
 #### Fixed
 
@@ -23,7 +23,6 @@ Bob versions changelog
 #### Changed
 - Removed `open_blobs_soft_limit` and `open_blobs_hard_limit` from node config example (#703)
 - Add condition to background_put (#589)
-- Make local put parallel to remote (#573)
 
 #### Fixed
 - Fix incorrect timestamp used in `Group::delete()` (#741)
