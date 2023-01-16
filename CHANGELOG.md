@@ -7,7 +7,7 @@ Bob versions changelog
 - Quorum argument for manual workflow dispatch for integration tests (#749)
 
 #### Changed
-
+- Make local put parallel to remote (#573)
 
 #### Fixed
 
