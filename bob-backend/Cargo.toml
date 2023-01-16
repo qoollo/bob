@@ -1,6 +1,6 @@
 [package]
 name = "bob-backend"
-version = "2.1.0-alpha.8"
+version = "2.1.0-alpha.9"
 authors = [
     "Kirill Bushminkin <kb@qoollo.com>",
     "Pavel Iakushin <pyakushin@qoollo.com>",

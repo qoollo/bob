@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.9] - 2023-01-16
+#### Added
 - Added exist key metrics to grinder and exist metrics to pearl (#709)
 
 #### Changed
