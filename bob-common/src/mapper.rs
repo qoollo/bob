@@ -121,11 +121,16 @@ impl Virtual {
         self.vdisks.get(&id).expect("vdisk not found").nodes()
     }
 
-    fn find_support_node_index(nodes: &[Node], offset: usize) -> SupportIndexResult {
+    fn find_support_node_index(
+        nodes: &[Node],
+        target_nodes: &[Node],
+        offset: usize,
+    ) -> SupportIndexResult {
         let mut avail = 0;
         for i in 0..nodes.len() {
             let node = &nodes[i];
-            if node.connection_available() {
+            if node.connection_available() && target_nodes.iter().all(|n| n.index() != node.index())
+            {
                 if avail == offset {
                     return SupportIndexResult::Index(i);
                 }
@@ -135,8 +140,12 @@ impl Virtual {
         return SupportIndexResult::Avail(avail);
     }
 
-    fn find_support_node_actual_offset(nodes: &[Node], offset: usize) -> usize {
-        let mut res = Self::find_support_node_index(nodes, offset % nodes.len());
+    fn find_support_node_offset(
+        nodes: &[Node],
+        target_nodes: &[Node],
+        offset: usize,
+    ) -> usize {
+        let mut res = Self::find_support_node_index(nodes, target_nodes, offset % nodes.len());
         if let SupportIndexResult::Avail(avail) = res {
             if avail > 0 {
                 let mut curr_offset = offset % avail;
@@ -144,7 +153,7 @@ impl Virtual {
                     if avail == 0 {
                         break;
                     }
-                    res = Self::find_support_node_index(nodes, curr_offset);
+                    res = Self::find_support_node_index(nodes, target_nodes, curr_offset);
                     curr_offset = if curr_offset > avail {
                         curr_offset - avail
                     } else {
@@ -170,8 +179,9 @@ impl Virtual {
         trace!("nodes available: {}", self.nodes.len());
         let mut support_nodes: Vec<&Node> = Vec::with_capacity(count);
 
-        let starting_index = Self::find_support_node_actual_offset(
+        let starting_index = Self::find_support_node_offset(
             &self.nodes,
+            target_nodes,
             self.support_nodes_offset.fetch_add(1, Ordering::Relaxed),
         );
 
