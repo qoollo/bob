@@ -121,7 +121,7 @@ impl Virtual {
         self.vdisks.get(&id).expect("vdisk not found").nodes()
     }
 
-    fn find_index(&self, offset: usize) -> Offset {
+    fn find_support_node_index(&self, offset: usize) -> Offset {
         let mut avail = 0;
         for i in 0..self.nodes.len() {
             let node = &self.nodes[i];
@@ -135,8 +135,8 @@ impl Virtual {
         return Offset::Avail(avail);
     }
 
-    fn find_actual_offset(&self, offset: usize) -> usize {
-        let mut res = self.find_index(offset % self.nodes.len());
+    fn find_support_node_actual_offset(&self, offset: usize) -> usize {
+        let mut res = self.find_support_node_index(offset % self.nodes.len());
         if let Offset::Avail(avail) = res {
             if avail > 0 {
                 let mut curr_offset = offset % avail;
@@ -144,7 +144,7 @@ impl Virtual {
                     if avail == 0 {
                         break;
                     }
-                    res = self.find_index(curr_offset);
+                    res = self.find_support_node_index(curr_offset);
                     curr_offset = if curr_offset > avail {
                         curr_offset - avail
                     } else {
@@ -171,7 +171,7 @@ impl Virtual {
         let mut support_nodes: Vec<&Node> = Vec::with_capacity(count);
 
         let starting_index =
-            self.find_actual_offset(self.support_nodes_offset.fetch_add(1, Ordering::Relaxed));
+            self.find_support_node_actual_offset(self.support_nodes_offset.fetch_add(1, Ordering::Relaxed));
 
         let len = self.nodes.len();
         for i in 0..len {
