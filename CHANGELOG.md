@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Quorum argument for manual workflow dispatch for integration tests (#749)
+
+#### Changed
+- Make local put parallel to remote (#573)
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.9] - 2023-01-16
+#### Added
 - Added exist key metrics to grinder and exist metrics to pearl (#709)
 - Send aliens to online nodes first (#570)
 
@@ -14,9 +28,10 @@ Bob versions changelog
 #### Fixed
 - Fix incorrect timestamp used in `Group::delete()` (#741)
 - Fixed incorrect execution of aliens integration tests (#736)
+- Fixed unsafe timestamp comparison condition in `Group::get` and `Group::exist` (#750)
 
 #### Updated
-
+- Pearl updated to v0.17.0 (#752)
 
 
 ## [2.1.0-alpha.8] - 2023-01-13

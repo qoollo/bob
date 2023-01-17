@@ -249,7 +249,7 @@ impl Group {
                     ReadResult::Found(data) => {
                         trace!("get data: {:?} from: {:?}", data, holder);
                         let ts = data.meta().timestamp();
-                        if ts > max_timestamp.unwrap_or(0) {
+                        if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
                             max_timestamp = Some(ts);
                             result = Some(data);
                         }
@@ -257,7 +257,7 @@ impl Group {
                     ReadResult::Deleted(ts) => {
                         trace!("{} is deleted in {:?} at {}", key, holder, ts);
                         let ts: u64 = ts.into();
-                        if ts > max_timestamp.unwrap_or(0) {
+                        if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
                             max_timestamp = Some(ts);
                             result = None;
                         }
@@ -307,15 +307,15 @@ impl Group {
             {
                 match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
                     ReadResult::Found(ts) => {
-                        let ts = ts.into();
-                        if ts > max_timestamp.unwrap_or(0) {
+                        let ts: u64 = ts.into();
+                        if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
                             max_timestamp = Some(ts);
                             result = true;
                         }
                     }
                     ReadResult::Deleted(ts) => {
-                        let ts = ts.into();
-                        if ts > max_timestamp.unwrap_or(0) {
+                        let ts: u64 = ts.into();
+                        if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
                             max_timestamp = Some(ts);
                             result = false;
                         }
