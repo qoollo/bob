@@ -121,10 +121,10 @@ impl Virtual {
         self.vdisks.get(&id).expect("vdisk not found").nodes()
     }
 
-    fn find_support_node_index(&self, offset: usize) -> SupportIndexResult {
+    fn find_support_node_index(nodes: &[Node], offset: usize) -> SupportIndexResult {
         let mut avail = 0;
-        for i in 0..self.nodes.len() {
-            let node = &self.nodes[i];
+        for i in 0..nodes.len() {
+            let node = &nodes[i];
             if node.connection_available() {
                 if avail == offset {
                     return SupportIndexResult::Index(i);
@@ -135,8 +135,8 @@ impl Virtual {
         return SupportIndexResult::Avail(avail);
     }
 
-    fn find_support_node_actual_offset(&self, offset: usize) -> usize {
-        let mut res = self.find_support_node_index(offset % self.nodes.len());
+    fn find_support_node_actual_offset(nodes: &[Node], offset: usize) -> usize {
+        let mut res = Self::find_support_node_index(nodes, offset % nodes.len());
         if let SupportIndexResult::Avail(avail) = res {
             if avail > 0 {
                 let mut curr_offset = offset % avail;
@@ -144,7 +144,7 @@ impl Virtual {
                     if avail == 0 {
                         break;
                     }
-                    res = self.find_support_node_index(curr_offset);
+                    res = Self::find_support_node_index(nodes, curr_offset);
                     curr_offset = if curr_offset > avail {
                         curr_offset - avail
                     } else {
@@ -155,7 +155,7 @@ impl Virtual {
         }
         match res {
             SupportIndexResult::Index(index) => index,
-            SupportIndexResult::Avail(_) => offset % self.nodes.len(),
+            SupportIndexResult::Avail(_) => offset % nodes.len(),
         }
     }
 
@@ -170,7 +170,8 @@ impl Virtual {
         trace!("nodes available: {}", self.nodes.len());
         let mut support_nodes: Vec<&Node> = Vec::with_capacity(count);
 
-        let starting_index = self.find_support_node_actual_offset(
+        let starting_index = Self::find_support_node_actual_offset(
+            &self.nodes,
             self.support_nodes_offset.fetch_add(1, Ordering::Relaxed),
         );
 
