@@ -270,12 +270,6 @@ pub struct Cluster {
     racks: Vec<Rack>,
     #[serde(default)]
     distribution_func: DistributionFunc,
-    #[serde(default = "default_max_sequential_errors")]
-    max_sequential_errors: usize,
-}
-
-fn default_max_sequential_errors() -> usize {
-    3
 }
 
 impl Cluster {
@@ -301,12 +295,6 @@ impl Cluster {
     #[must_use]
     pub fn racks(&self) -> &[Rack] {
         &self.racks
-    }
-
-    /// Returns max sequential errors
-    #[must_use]
-    pub fn max_sequential_errors(&self) -> usize {
-        self.max_sequential_errors
     }
 
     /// Extends the vdisks collection with contents of the iterator.
@@ -565,7 +553,6 @@ pub mod tests {
             vdisks,
             distribution_func: DistributionFunc::default(),
             racks: vec![],
-            max_sequential_errors: 3,
         }
     }
 }

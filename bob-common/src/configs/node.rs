@@ -542,6 +542,8 @@ pub struct Node {
     bind_to_ip_address: Option<SocketAddr>,
     #[serde(default = "NodeConfig::default_holder_group_size")]
     holder_group_size: usize,
+    #[serde(default = "NodeConfig::default_max_sequential_errors")]
+    max_sequential_errors: usize,
 
     #[serde(default = "NodeConfig::default_authentication_type")]
     authentication_type: AuthenticationType,
@@ -563,6 +565,12 @@ impl NodeConfig {
     /// Get node name.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Returns max sequential errors
+    #[must_use]
+    pub fn max_sequential_errors(&self) -> usize {
+        self.max_sequential_errors
     }
 
     pub fn quorum(&self) -> usize {
@@ -755,6 +763,10 @@ impl NodeConfig {
         1
     }
 
+    fn default_max_sequential_errors() -> usize {
+        3
+    }
+
     pub fn get_from_string(file: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
         let config = YamlBobConfig::parse::<NodeConfig>(file)?;
         debug!("config: {:?}", config);
@@ -871,6 +883,7 @@ pub mod tests {
             index_memory_limit_soft: None,
             holder_group_size: 8,
             authentication_type: AuthenticationType::None,
+            max_sequential_errors: 3,
         }
     }
 }

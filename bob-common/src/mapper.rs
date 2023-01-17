@@ -30,7 +30,7 @@ impl Virtual {
     /// Creates new instance of the Virtual disk mapper
     pub async fn new(config: &NodeConfig, cluster: &ClusterConfig) -> Self {
         let mut vdisks = cluster.create_vdisks_map().unwrap();
-        let nodes = Self::prepare_nodes(&mut vdisks, cluster).await;
+        let nodes = Self::prepare_nodes(&mut vdisks, cluster, config).await;
         let local_node_name = config.name().to_owned();
         let local_node_address = nodes
             .values()
@@ -50,7 +50,7 @@ impl Virtual {
         }
     }
 
-    async fn prepare_nodes(vdisks: &mut VDisksMap, cluster: &ClusterConfig) -> NodesMap {
+    async fn prepare_nodes(vdisks: &mut VDisksMap, cluster: &ClusterConfig, node_config: &NodeConfig) -> NodesMap {
         let nodes = cluster
             .nodes()
             .iter()
@@ -61,7 +61,7 @@ impl Virtual {
                 let name = conf.name().to_owned();
                 async move {
                     let node =
-                        Node::new(name, address, index, cluster.max_sequential_errors()).await;
+                        Node::new(name, address, index, node_config.max_sequential_errors()).await;
                     (index, node)
                 }
             })
