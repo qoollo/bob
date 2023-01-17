@@ -69,12 +69,14 @@ impl LinkManager {
     {
         match node.get_connection() {
             Some(conn) => match f(&conn).await {
-                Err(e) if e.inner().is_network_error() => {
-                    node.increase_error_and_clear_conn_if_needed().await;
+                Err(e) => {
+                    if e.inner().is_network_error() {
+                        node.increase_error_and_clear_conn_if_needed().await;
+                    }
                     Err(e)
                 }
                 o => {
-                    node.reset_error_count();
+                    conn.reset_error_count();
                     o
                 }
             },

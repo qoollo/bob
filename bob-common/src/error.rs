@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use thiserror::Error as ErrorTrait;
-use tonic::Status;
+use tonic::{Status, Code};
 
 use crate::data::{BobKey, VDiskId};
 
@@ -39,11 +39,15 @@ impl Error {
     }
 
     pub fn is_network_error(&self) -> bool {
-        self.ctx == Kind::Timeout || matches!(self.ctx, Kind::Failed(_))
+        self.ctx == Kind::Network
     }
 
     pub fn internal() -> Self {
         Self::new(Kind::Internal)
+    }
+
+    pub fn network() -> Self {
+        Self::new(Kind::Network)
     }
 
     pub fn unauthorized() -> Self {
@@ -149,12 +153,14 @@ impl From<Error> for Status {
             }
             Kind::Unauthorized => Self::unauthenticated("Unauthorized"),
             Kind::HolderTemporaryUnavailable => Self::unavailable("HolderTemporaryUnavailable"),
+            Kind::Network => Self::unavailable("network error"),
         }
     }
 }
 
 impl From<Status> for Error {
     fn from(status: Status) -> Self {
+        let code = status.code();
         let mut words = status.message().split_whitespace();
         let name = words.next();
         let length = status.message().len();
@@ -172,6 +178,7 @@ impl From<Status> for Error {
                 "PearlChangeState" => Some(Self::pearl_change_state(rest_words(words, length))),
                 "Unauthorized" => Some(Self::unauthorized()),
                 "HolderTemporaryUnavailable" => Some(Self::holder_temporary_unavailable()),
+                _ if code == Code::Unavailable => Some(Self::network()),
                 _ => None,
             },
         }
@@ -207,4 +214,5 @@ pub enum Kind {
     DisksEventsLogger(String),
     Unauthorized,
     HolderTemporaryUnavailable,
+    Network,
 }

@@ -14,6 +14,7 @@ pub mod b_client {
     use std::{
         fmt::{Debug, Formatter, Result as FmtResult},
         time::Duration,
+        sync::{Arc, atomic::{AtomicUsize, Ordering},},
     };
     use tonic::{
         metadata::MetadataValue,
@@ -29,6 +30,7 @@ pub mod b_client {
         client: BobApiClient<Channel>,
         metrics: BobClientMetrics,
         auth_header: String,
+        err_count: Arc<AtomicUsize>,
     }
 
     impl BobClient {
@@ -65,6 +67,7 @@ pub mod b_client {
                 client,
                 metrics,
                 auth_header,
+                err_count: Arc::default(),
             })
         }
 
@@ -207,6 +210,14 @@ pub mod b_client {
                     self.metrics.delete_error_count();
                     NodeOutput::new(self.node().name().to_owned(), e.into())
                 })
+        }
+
+        pub fn reset_error_count(&self) {
+            self.err_count.store(0, Ordering::Relaxed);
+        }
+
+        pub fn increase_error(&self) -> usize {
+            self.err_count.fetch_add(1, Ordering::Relaxed)
         }
 
         fn set_credentials<T>(&self, req: &mut Request<T>) {

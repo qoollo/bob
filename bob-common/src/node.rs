@@ -7,7 +7,6 @@ use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::{Hash, Hasher},
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc, RwLock
     },
 };
@@ -22,7 +21,6 @@ pub struct Node {
     address: String,
     index: Id,
     conn: Arc<RwLock<Option<BobClient>>>,
-    err_count: Arc<AtomicUsize>,
     max_sequential_errors: usize,
 }
 
@@ -51,7 +49,6 @@ impl Node {
             address: address.to_string(),
             index,
             conn: Arc::default(),
-            err_count: Arc::default(),
             max_sequential_errors,
         }
     }
@@ -78,8 +75,8 @@ impl Node {
     }
 
     pub fn set_connection(&self, client: BobClient) {
+        client.reset_error_count();
         *self.conn.write().expect("rwlock") = Some(client);
-        self.reset_error_count();
     }
 
     pub fn counter_display(&self) -> String {
@@ -94,14 +91,16 @@ impl Node {
         self.conn.read().expect("rwlock").clone()
     }
 
-    pub fn reset_error_count(&self) {
-        self.err_count.store(0, Ordering::Relaxed);
-    }
-
     pub async fn increase_error_and_clear_conn_if_needed(&self) {
-        let count = self.err_count.fetch_add(1, Ordering::Relaxed);
+        let mut lock = self.conn.write().expect("rwlock");
+        let count = 
+            if let Some(client) = lock.as_ref() {
+                client.increase_error()
+            } else {
+                0
+            };
         if count >= self.max_sequential_errors {
-            self.clear_connection();
+            *lock = None;
         }
     }
 
