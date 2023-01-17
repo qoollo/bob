@@ -18,9 +18,9 @@ pub type VDisksMap = HashMap<VDiskId, DataVDisk>;
 pub type NodesMap = HashMap<NodeId, Node>;
 
 /// `get_support_nodes` helper
-enum SupportIndexResult {
-    Index(usize),
-    Avail(usize),
+struct SupportIndexResult {
+    index: Option<usize>,
+    avail: usize,
 }
 
 /// Struct for managing distribution of replicas on disks and nodes.
@@ -132,39 +132,33 @@ impl Virtual {
             if node.connection_available() && target_nodes.iter().all(|n| n.index() != node.index())
             {
                 if avail == offset {
-                    return SupportIndexResult::Index(i);
+                    return SupportIndexResult {
+                        index: Some(i),
+                        avail: avail + 1,
+                    };
                 }
                 avail += 1;
             }
         }
-        return SupportIndexResult::Avail(avail);
+        return SupportIndexResult { index: None, avail };
     }
 
-    fn find_support_node_offset(
-        nodes: &[Node],
-        target_nodes: &[Node],
-        offset: usize,
-    ) -> usize {
+    fn find_support_node_offset(nodes: &[Node], target_nodes: &[Node], offset: usize) -> usize {
         let mut res = Self::find_support_node_index(nodes, target_nodes, offset % nodes.len());
-        if let SupportIndexResult::Avail(avail) = res {
-            if avail > 0 {
-                let mut curr_offset = offset % avail;
-                while let SupportIndexResult::Avail(avail) = res {
-                    if avail == 0 {
-                        break;
-                    }
-                    res = Self::find_support_node_index(nodes, target_nodes, curr_offset);
-                    curr_offset = if curr_offset > avail {
-                        curr_offset - avail
-                    } else {
-                        0
-                    }
+        if res.index == None && res.avail > 0 {
+            let mut curr_offset = offset % res.avail;
+            while res.index == None && res.avail > 0 {
+                res = Self::find_support_node_index(nodes, target_nodes, curr_offset);
+                curr_offset = if curr_offset > res.avail {
+                    curr_offset - res.avail
+                } else {
+                    0
                 }
             }
         }
-        match res {
-            SupportIndexResult::Index(index) => index,
-            SupportIndexResult::Avail(_) => offset % nodes.len(),
+        match res.index {
+            Some(index) => index,
+            None => offset % nodes.len(),
         }
     }
 
