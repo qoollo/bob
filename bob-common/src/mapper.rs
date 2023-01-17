@@ -18,7 +18,7 @@ pub type VDisksMap = HashMap<VDiskId, DataVDisk>;
 pub type NodesMap = HashMap<NodeId, Node>;
 
 /// `get_support_nodes` helper
-enum Offset {
+enum SupportIndexResult {
     Index(usize),
     Avail(usize),
 }
@@ -121,26 +121,26 @@ impl Virtual {
         self.vdisks.get(&id).expect("vdisk not found").nodes()
     }
 
-    fn find_support_node_index(&self, offset: usize) -> Offset {
+    fn find_support_node_index(&self, offset: usize) -> SupportIndexResult {
         let mut avail = 0;
         for i in 0..self.nodes.len() {
             let node = &self.nodes[i];
             if node.connection_available() {
                 if avail == offset {
-                    return Offset::Index(i);
+                    return SupportIndexResult::Index(i);
                 }
                 avail += 1;
             }
         }
-        return Offset::Avail(avail);
+        return SupportIndexResult::Avail(avail);
     }
 
     fn find_support_node_actual_offset(&self, offset: usize) -> usize {
         let mut res = self.find_support_node_index(offset % self.nodes.len());
-        if let Offset::Avail(avail) = res {
+        if let SupportIndexResult::Avail(avail) = res {
             if avail > 0 {
                 let mut curr_offset = offset % avail;
-                while let Offset::Avail(avail) = res {
+                while let SupportIndexResult::Avail(avail) = res {
                     if avail == 0 {
                         break;
                     }
@@ -154,8 +154,8 @@ impl Virtual {
             }
         }
         match res {
-            Offset::Index(index) => index,
-            Offset::Avail(_) => offset % self.nodes.len(),
+            SupportIndexResult::Index(index) => index,
+            SupportIndexResult::Avail(_) => offset % self.nodes.len(),
         }
     }
 
@@ -170,8 +170,9 @@ impl Virtual {
         trace!("nodes available: {}", self.nodes.len());
         let mut support_nodes: Vec<&Node> = Vec::with_capacity(count);
 
-        let starting_index =
-            self.find_support_node_actual_offset(self.support_nodes_offset.fetch_add(1, Ordering::Relaxed));
+        let starting_index = self.find_support_node_actual_offset(
+            self.support_nodes_offset.fetch_add(1, Ordering::Relaxed),
+        );
 
         let len = self.nodes.len();
         for i in 0..len {
