@@ -182,19 +182,24 @@ impl Virtual {
         let len = self.nodes.len();
         for i in 0..len {
             let node = &self.nodes[(i + starting_index) % len];
-            let conn = if i + starting_index < len {
-                node.connection_available()
-            } else {
-                true
-            };
-            if conn
-                && target_nodes.iter().all(|n| n.index() != node.index())
-                && (i + starting_index < len
-                    || support_nodes.iter().all(|&n| n.index() != node.index()))
+            if node.connection_available() && target_nodes.iter().all(|n| n.index() != node.index())
             {
                 support_nodes.push(node);
                 if support_nodes.len() >= count {
                     break;
+                }
+            }
+        }
+        if support_nodes.len() < count {
+            for i in 0..len {
+                let node = &self.nodes[(i + starting_index) % len];
+                if support_nodes.iter().all(|n| n.index() != node.index())
+                    && target_nodes.iter().all(|n| n.index() != node.index())
+                {
+                    support_nodes.push(node);
+                    if support_nodes.len() >= count {
+                        break;
+                    }
                 }
             }
         }
