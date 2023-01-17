@@ -90,6 +90,10 @@ impl Error {
         Self::new(Kind::Storage(msg.into()))
     }
 
+    pub fn holder_temporary_unavailable() -> Self {
+        Self::new(Kind::HolderTemporaryUnavailable)
+    }
+
     pub fn request_failed_completely(local: &Error, alien: &Error) -> Self {
         let msg = format!("local error: {}\nalien error: {}", local, alien);
         let ctx = Kind::RequestFailedCompletely(msg);
@@ -144,6 +148,7 @@ impl From<Error> for Status {
                 Self::internal(format!("disk events logger error: {}", msg))
             }
             Kind::Unauthorized => Self::unauthenticated("Unauthorized"),
+            Kind::HolderTemporaryUnavailable => Self::unavailable("HolderTemporaryUnavailable"),
         }
     }
 }
@@ -166,6 +171,7 @@ impl From<Status> for Error {
                 "Internal" => Some(Self::internal()),
                 "PearlChangeState" => Some(Self::pearl_change_state(rest_words(words, length))),
                 "Unauthorized" => Some(Self::unauthorized()),
+                "HolderTemporaryUnavailable" => Some(Self::holder_temporary_unavailable()),
                 _ => None,
             },
         }
@@ -200,4 +206,5 @@ pub enum Kind {
     RequestFailedCompletely(String),
     DisksEventsLogger(String),
     Unauthorized,
+    HolderTemporaryUnavailable,
 }

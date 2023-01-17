@@ -11,8 +11,9 @@ use std::{
     env::VarError,
     fmt::Debug,
     net::SocketAddr,
-    sync::{atomic::AtomicBool, Mutex},
+    sync::atomic::AtomicBool,
     time::Duration,
+    sync::Mutex,
 };
 use std::{net::IpAddr, sync::atomic::Ordering};
 use std::{net::Ipv4Addr, sync::Arc, fs};
@@ -547,6 +548,9 @@ pub struct Node {
 
     #[serde(default = "NodeConfig::default_authentication_type")]
     authentication_type: AuthenticationType,
+
+    #[serde(default = "NodeConfig::default_hostname_resolve_period_ms")]
+    hostname_resolve_period_ms: u64,
 }
 
 impl NodeConfig {
@@ -649,6 +653,14 @@ impl NodeConfig {
 
     fn default_authentication_type() -> AuthenticationType {
         AuthenticationType::None
+    }
+
+    fn default_hostname_resolve_period_ms() -> u64 {
+        5000
+    }
+
+    pub fn hostname_resolve_period_ms(&self) -> u64 {
+        self.hostname_resolve_period_ms
     }
 
     pub fn backend_result(&self) -> Result<BackendType, String> {
@@ -884,6 +896,7 @@ pub mod tests {
             holder_group_size: 8,
             authentication_type: AuthenticationType::None,
             max_sequential_errors: 3,
+            hostname_resolve_period_ms: NodeConfig::default_hostname_resolve_period_ms(),
         }
     }
 }

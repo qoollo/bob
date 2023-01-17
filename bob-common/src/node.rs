@@ -8,10 +8,9 @@ use std::{
     hash::{Hash, Hasher},
     sync::{
         atomic::{AtomicUsize, Ordering},
-        Arc,
+        Arc, RwLock
     },
 };
-use tokio::sync::RwLock;
 
 pub type Id = u16;
 
@@ -78,17 +77,21 @@ impl Node {
             .expect("build uri")
     }
 
-    pub async fn set_connection(&self, client: BobClient) {
-        *self.conn.write().await = Some(client);
+    pub fn set_connection(&self, client: BobClient) {
+        *self.conn.write().expect("rwlock") = Some(client);
         self.reset_error_count();
     }
 
-    pub async fn clear_connection(&self) {
-        *self.conn.write().await = None;
+    pub fn counter_display(&self) -> String {
+        self.address.to_string().replace('.', "_")
     }
 
-    pub async fn get_connection(&self) -> Option<BobClient> {
-        self.conn.read().await.clone()
+    pub fn clear_connection(&self) {
+        *self.conn.write().expect("rwlock") = None;
+    }
+
+    pub fn get_connection(&self) -> Option<BobClient> {
+        self.conn.read().expect("rwlock").clone()
     }
 
     pub fn reset_error_count(&self) {
@@ -98,18 +101,18 @@ impl Node {
     pub async fn increase_error_and_clear_conn_if_needed(&self) {
         let count = self.err_count.fetch_add(1, Ordering::Relaxed);
         if count >= self.max_sequential_errors {
-            self.clear_connection().await;
+            self.clear_connection();
         }
     }
 
     pub async fn check(&self, client_factory: &Factory) -> Result<(), String> {
-        if let Some(conn) = self.get_connection().await {
+        if let Some(conn) = self.get_connection() {
             self.ping(&conn).await
         } else {
             debug!("will connect to {:?}", self);
             let client = client_factory.produce(self.clone()).await?;
             self.ping(&client).await?;
-            self.set_connection(client).await;
+            self.set_connection(client);
             Ok(())
         }
     }
@@ -117,7 +120,7 @@ impl Node {
     pub async fn ping(&self, conn: &BobClient) -> Result<(), String> {
         if let Err(e) = conn.ping().await {
             debug!("Got broken connection to node {:?}", self);
-            self.clear_connection().await;
+            self.clear_connection();
             Err(format!("{:?}", e))
         } else {
             debug!("All good with pinging node {:?}", self);
@@ -162,6 +165,13 @@ impl<T> Output<T> {
 
     pub fn into_inner(self) -> T {
         self.inner
+    }
+
+    pub fn map<TOut>(self, map_fn: impl FnOnce(T) -> TOut) -> Output<TOut> {
+        Output::<TOut> {
+            node_name: self.node_name,
+            inner: map_fn(self.inner)
+        }
     }
 }
 
