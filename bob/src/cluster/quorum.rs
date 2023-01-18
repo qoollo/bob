@@ -3,7 +3,7 @@ use crate::prelude::*;
 use super::{
     operations::{
         delete_on_local_node, delete_on_local_aliens, delete_on_remote_nodes, delete_on_remote_nodes_with_options,
-        group_keys_by_nodes, lookup_local_alien, lookup_local_node, lookup_remote_aliens,
+        group_keys_by_nodes, lookup_local_alien, lookup_local_node, lookup_remote_aliens, finish_at_least_handles,
         lookup_remote_nodes, put_at_least, put_local_all, put_local_node, put_sup_nodes, Tasks,
     },
     support_types::{ RemoteDeleteError, HashSetExt },
@@ -30,40 +30,47 @@ impl Quorum {
     // ================== PUT ==================
 
     async fn put_at_least(&self, key: BobKey, data: &BobData) -> Result<(), Error> {
-        debug!("PUT[{}] ~~~PUT LOCAL NODE FIRST~~~", key);
         let mut local_put_ok = 0_usize;
-        let mut remote_ok_count = 0_usize;
-        let mut at_least = self.quorum;
+        let at_least = self.quorum;
         let mut failed_nodes = Vec::new();
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        if let Some(path) = disk_path {
-            debug!("disk path is present, try put local");
-            let res = put_local_node(&self.backend, key, data, vdisk_id, path).await;
-            if let Err(e) = res {
-                error!("{}", e);
-                failed_nodes.push(self.mapper.local_node_name().to_owned());
+        let (tasks, errors) =
+            if let Some(disk_path) = disk_path {
+                debug!("PUT[{}] ~~~PUT TO {} REMOTE NODES AND LOCAL NODE~~~", key, at_least - 1);
+                let (remote_put, local_put) = tokio::join!(
+                    self.put_remote_nodes(key, data, at_least - 1),
+                    put_local_node(&self.backend, key, data, vdisk_id, disk_path),
+                );
+                let (mut remote_tasks, mut errors) = remote_put;
+                if let Err(e) = local_put {
+                    error!("{}", e);
+                    failed_nodes.push(self.mapper.local_node_name().to_owned());
+                    debug!("PUT[{}] local failed, put another remote", key);
+                    errors.extend(finish_at_least_handles(&mut remote_tasks, 1).await.into_iter());
+                } else {
+                    local_put_ok += 1;
+                    debug!("PUT[{}] local node put successful", key);
+                }
+                (remote_tasks, errors)
             } else {
-                local_put_ok += 1;
-                at_least -= 1;
-                debug!("PUT[{}] local node put successful", key);
-            }
-        } else {
-            debug!("skip local put");
-        }
-        debug!("PUT[{}] need at least {} additional puts", key, at_least);
-
-        debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
-        let (tasks, errors) = self.put_remote_nodes(key, data, at_least).await;
+                debug!("PUT[{}] ~~~PUT TO {} REMOTE NODES~~~", key, at_least);
+                self.put_remote_nodes(key, data, at_least).await
+            };
         let all_count = self.mapper.get_target_nodes_for_key(key).len();
-        remote_ok_count += all_count - errors.len() - tasks.len() - local_put_ok;
+        let remote_ok_count = all_count - errors.len() - tasks.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
         if remote_ok_count + local_put_ok >= self.quorum {
+            if tasks.is_empty() && failed_nodes.is_empty() {
+                return Ok(());
+            }
+
             debug!("PUT[{}] spawn {} background put tasks", key, tasks.len());
             let q = self.clone();
             let data = data.clone();
             tokio::spawn(async move { q.background_put(tasks, key, &data, failed_nodes).await });
             Ok(())
         } else {
+            assert!(tasks.is_empty(), "All target nodes put are expected to be completed before alien put begins");
             warn!(
                 "PUT[{}] quorum was not reached. ok {}, quorum {}, errors: {:?}",
                 key,
@@ -84,7 +91,7 @@ impl Quorum {
 
     async fn background_put(
         self,
-        mut rest_tasks: Tasks,
+        mut rest_tasks: Tasks<Error>,
         key: BobKey,
         data: &BobData,
         mut failed_nodes: Vec<String>,
@@ -117,7 +124,7 @@ impl Quorum {
         key: BobKey,
         data: &BobData,
         at_least: usize,
-    ) -> (Tasks, Vec<NodeOutput<Error>>) {
+    ) -> (Tasks<Error>, Vec<NodeOutput<Error>>) {
         let local_node = self.mapper.local_node_name();
         let target_nodes = self.mapper.get_target_nodes_for_key(key);
         debug!(
@@ -165,14 +172,8 @@ impl Quorum {
         debug!("need additional local alien copies: {}", failed_nodes.len());
         let vdisk_id = self.mapper.vdisk_id_from_key(key);
         let operation = Operation::new_alien(vdisk_id);
-        let local_put = put_local_all(
-            &self.backend,
-            failed_nodes.clone(),
-            key,
-            data,
-            operation,
-        )
-        .await;
+        let local_put =
+            put_local_all(&self.backend, failed_nodes.clone(), key, data, operation).await;
         if let Err(e) = local_put {
             error!(
                 "PUT[{}] local put failed, smth wrong with backend: {:?}",

@@ -1,14 +1,16 @@
 #!/usr/bin/python3
 
-import subprocess, argparse, shlex, sys, os
+import subprocess, argparse, shlex, sys, re
 from time import sleep
 from python_on_whales import docker as d_cli
 from python_on_whales.exceptions import *
 from retry import *
 from bob_backend_timer import ensure_backend_up
 
-def make_run_args(args, offset):
-    return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':str(int(args.first) + offset), '-t':args.threads, '--mode':args.mode, '-k':args.keysize,
+run_options = ['get']
+
+def make_run_args(args, offset, count):
+    return {'-c':count, '-l':args.payload, '-h':f'{args.node}', '-f':str(int(args.first) + offset), '-t':args.threads, '--mode':args.mode, '-k':args.keysize,
      '-p':args.transport_min_port, '--user':args.user, '--password':args.password} 
 
 def args_to_str(args_dict):
@@ -17,6 +19,30 @@ def args_to_str(args_dict):
         if args_dict.get(key) != None:
             bobp_args_str += f'{key} {args_dict.get(key)} '
     return bobp_args_str
+
+def run_tests(behaviour, args):
+    try:
+        print(f'Running bobp -b {str(behaviour)} {args.rstrip()}')
+        p = subprocess.check_output(shlex.split(f'./bobp -b {behaviour} {args.rstrip()}')).decode('ascii')
+        print(str(p))
+        if behaviour == 'get':
+            if not 'total err: 0' in str(p):
+                sys.exit(f'{behaviour} test failed, see output')
+        elif behaviour == 'exist':
+            found_exist = re.search(r'\b[0-9]{1,}\sof\s[0-9]{1,}\b', str(p))
+            if not found_exist:
+                sys.exit(f"No {behaviour} output captured, check output")
+            exists = found_exist.group(0).split(' of ')
+            if exists[0] != exists[1]:
+                sys.exit(f"{exists[0]} of {exists[1]} keys, {behaviour} test failed, see output")
+            else:
+                print(f"{exists[0]} of {exists[1]} keys")   
+        else:
+            sys.exit('Unknown behaviour.')     
+    except subprocess.CalledProcessError as e:
+        sys.exit(str(e.stderr))
+    except Exception as e:
+        sys.exit(str(e))
 
 parser = argparse.ArgumentParser(description='This script launches bob tests with given configuration.')
 parser.add_argument('-c', dest='count', type=int, help='amount of entries to process', required=True)
@@ -34,6 +60,12 @@ parser.add_argument('-transport_min_port', dest='transport_min_port', type=int, 
 parser.add_argument('--cluster_start_waiting_time', dest='cluster_start_waiting_time', type=float, required=True, help='Offset for bobp.')
 parsed_args = parser.parse_args()
 
+#check if count is more than nodes amount
+if parsed_args.count < parsed_args.nodes_amount:
+    sys.exit('Amount of records cannot be less than nodes amount.')
+
+record_amount = parsed_args.count // parsed_args.nodes_amount
+
 #get container object mapping to ports
 container_dict = {}
 try:
@@ -48,9 +80,9 @@ except ValueError:
 #runs put and stops nodes in cycle
 written_count = 0
 try:
-    for i in range(1, parsed_args.nodes_amount):
+    for i in range(1, parsed_args.nodes_amount + 1):
         #make correctly formatted args 
-        dict_args = make_run_args(parsed_args, written_count)
+        dict_args = make_run_args(parsed_args, written_count, record_amount)
         bobp_args = args_to_str(dict_args)
         #run put
         print(f'Running bobp -b put {bobp_args.rstrip()}')
@@ -59,14 +91,15 @@ try:
         if not 'total err: 0' in str(p):
             sys.exit(f'Put test failed, see output.')
         written_count += dict_args.get('-c')
-        #stops one
-        sleep(10)
-        d_cli.container.stop(container_dict[str(parsed_args.transport_min_port + i)])
-        print(f'Bob node {i} stopped.\n')
-        stopped_list = d_cli.container.list(filters={"status":"exited"})
-        print('Stopped containers:\n')
-        for i in range(len(stopped_list)):
-            print(f'{stopped_list[i].id}\n') 
+        if i < parsed_args.nodes_amount:
+            #stops one
+            sleep(10)
+            d_cli.container.stop(container_dict[str(parsed_args.transport_min_port + i)])
+            print(f'Bob node {i} stopped.\n')
+            stopped_list = d_cli.container.list(filters={"status":"exited"})
+            print('Stopped containers:\n')
+            for i in range(len(stopped_list)):
+                print(f'{stopped_list[i].id}\n') 
 except subprocess.CalledProcessError as e:
     sys.exit(str(e.stderr))
 
@@ -84,15 +117,8 @@ except ValueError:
 
 sleep(float(parsed_args.cluster_start_waiting_time)/1000 + 1)
 
-try:
-    dict_args = make_run_args(parsed_args, 0)
-    dict_args['-c'] = str(written_count)
-    bobp_args = args_to_str(dict_args)
-    print(f'Running bobp -b get {bobp_args.rstrip()}')
-    p = subprocess.check_output(shlex.split(f'./bobp -b get {bobp_args.rstrip()}')).decode('ascii')
-    print(str(p))
-    if not 'total err: 0' in str(p):
-        sys.exit(f'Get test failed, see output.')
-except subprocess.CalledProcessError as e:
-    sys.exit(str(e.stderr))
 
+dict_args = make_run_args(parsed_args, 0, str(written_count))
+bobp_args = args_to_str(dict_args)
+for item in run_options:
+    run_tests(item, bobp_args)

@@ -1,6 +1,6 @@
 [package]
 name = "bob"
-version = "2.1.0-alpha.7"
+version = "2.1.0-alpha.9"
 authors = [
     "Kirill Bushminkin <kb@qoollo.com>",
     "Pavel Iakushin <pyakushin@qoollo.com>",
@@ -45,7 +45,7 @@ uuid = "1.1"
 smallvec = { version = "1.10", features = ["union"] }
 
 [dependencies.pearl]
-version = "0.16.0"
+version = "0.17.0"
 
 [dependencies.tokio]
 version = "1.21"
