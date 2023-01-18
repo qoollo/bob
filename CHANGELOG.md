@@ -8,6 +8,7 @@ Bob versions changelog
 
 #### Changed
 - Make local put parallel to remote (#573)
+- Build release binaries and docker images with `release-lto` profile (#714)
 
 #### Fixed
 
@@ -58,7 +59,6 @@ Bob versions changelog
 - Make delete operation recoverable (#533)
 - Binaries sizes reduced for 'integration-test' profile (#727)
 - Configurable build profiles in Dockerfiles (#717)
-- Build release binaries and docker images with `release-lto` profile (#714)
 
 #### Fixed
 - Data access operations will be protected during remount to prevent data loss (#683)
