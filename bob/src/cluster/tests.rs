@@ -158,7 +158,6 @@ fn create_node(
             } else {
                 get_err(client, n, c);
             }
-            client.expect_reset_error_count().returning(|| ());
         };
         f(
             client,

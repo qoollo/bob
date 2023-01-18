@@ -270,8 +270,7 @@ pub mod b_client {
             pub fn node(&self) -> &Node;
             pub async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult;
             pub async fn delete(&self, key: BobKey, meta: BobMeta, options: DeleteOptions) -> DeleteResult;
-            pub fn increase_error(&self) -> usize;
-            pub fn reset_error_count(&self);
+            pub fn error_count(&self) -> usize;
         }
         impl Clone for BobClient {
             fn clone(&self) -> Self;
