@@ -46,7 +46,7 @@ async fn main() {
 
     check_folders(&node, matches.is_present("init_folders"));
 
-    let mut mapper = VirtualMapper::new(&node, &cluster).await;
+    let mut mapper = VirtualMapper::new(&node, &cluster);
 
     let bind = node.bind();
     let bind_read = bind.lock().expect("mutex");
@@ -77,7 +77,7 @@ async fn main() {
             .iter()
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
-        mapper = VirtualMapper::new(&node, &cluster).await;
+        mapper = VirtualMapper::new(&node, &cluster);
         addr = if let Ok(addr) = found.address().parse() {
             addr
         } else if let Some(port) = port_from_address(found.address()) {
