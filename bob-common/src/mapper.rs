@@ -7,15 +7,13 @@ use crate::{
     node::{Id as NodeId, Node},
 };
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     convert::TryInto,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
 /// Hash map with IDs as keys and `VDisk`s as values.
 pub type VDisksMap = HashMap<VDiskId, DataVDisk>;
-
-pub type NodesMap = HashMap<NodeId, Node>;
 
 /// `get_support_nodes` helper
 struct SupportIndexResult {
@@ -152,7 +150,11 @@ impl Virtual {
         if res.index == None && res.avail > 0 {
             let mut curr_offset = offset % res.avail;
             while res.index == None && res.avail > 0 {
-                res = Self::try_find_support_node_offset_at_one_pass(nodes, target_nodes, curr_offset);
+                res = Self::try_find_support_node_offset_at_one_pass(
+                    nodes,
+                    target_nodes,
+                    curr_offset,
+                );
                 curr_offset = if curr_offset > res.avail {
                     curr_offset - res.avail
                 } else {
@@ -173,6 +175,7 @@ impl Virtual {
         }
         trace!("get target nodes for given key");
         let target_nodes = self.get_target_nodes_for_key(key);
+        debug_assert!(target_nodes.iter().map(|n| n.index()).collect::<HashSet<NodeId>>().len() == target_nodes.len());
         if target_nodes.len() >= self.nodes.len() {
             return vec![];
         }
@@ -184,7 +187,8 @@ impl Virtual {
         let starting_index = Self::find_support_node_offset(
             &self.nodes,
             target_nodes,
-            self.support_nodes_offset.fetch_add(1, Ordering::Relaxed) % (self.nodes.len() - target_nodes.len()),
+            self.support_nodes_offset.fetch_add(1, Ordering::Relaxed)
+                % (self.nodes.len() - target_nodes.len()),
         );
 
         let len = self.nodes.len();
@@ -198,7 +202,9 @@ impl Virtual {
                 }
             }
         }
-        if support_nodes.len() < count && support_nodes.len() +  target_nodes.len() < self.nodes.len() {
+        if support_nodes.len() < count
+            && support_nodes.len() + target_nodes.len() < self.nodes.len()
+        {
             for i in 0..len {
                 let node = &self.nodes[(i + starting_index) % len];
                 // Ignore connection status to fill support_nodes
