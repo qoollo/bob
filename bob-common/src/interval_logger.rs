@@ -3,9 +3,9 @@ use std::{
     collections::HashMap,
     hash::Hash,
     cmp::Eq,
-    fmt::Display
+    fmt::Display,
+    sync::Mutex,
 };
-use std::sync::Mutex as SyncMutex;
 use log::Level;
 
 #[derive(Debug)]
@@ -48,17 +48,17 @@ impl<E: Hash + Eq + Display> IntervalLogger<E> {
 
 #[derive(Debug)]
 pub struct IntervalLoggerSafe<E> {
-    inner: SyncMutex<IntervalLogger<E>>
+    inner: Mutex<IntervalLogger<E>>
 }
 
 impl<E: Hash + Eq + Display> IntervalLoggerSafe<E> {
     pub fn new(interval_ms: u64, level: Level) -> Self {
         Self {
-            inner: SyncMutex::new(IntervalLogger::new(interval_ms, level))
+            inner: Mutex::new(IntervalLogger::new(interval_ms, level))
         }
     }
 
     pub fn report_error(&self, action: E) {
-        self.inner.lock().expect("mutex").report_error(action);
+        self.inner.lock().expect("interval logger mutex").report_error(action);
     }
 }

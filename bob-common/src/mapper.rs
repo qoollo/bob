@@ -7,7 +7,11 @@ use crate::{
     node::{Id as NodeId, Node},
 };
 use futures::{stream::FuturesUnordered, StreamExt};
-use std::{collections::HashMap, convert::TryInto};
+use std::{
+    collections::HashMap,
+    convert::TryInto,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 /// Hash map with IDs as keys and `VDisk`s as values.
 pub type VDisksMap = HashMap<VDiskId, DataVDisk>;
@@ -16,7 +20,7 @@ pub type NodesMap = HashMap<NodeId, Node>;
 
 /// Struct for managing distribution of replicas on disks and nodes.
 /// Through the virtual intermediate object, called `VDisk` - "virtual disk"
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Virtual {
     local_node_name: String,
     local_node_address: String,
@@ -24,6 +28,7 @@ pub struct Virtual {
     vdisks: VDisksMap,
     nodes: NodesMap,
     distribution_func: DistributionFunc,
+    support_nodes_offset: AtomicUsize,
 }
 
 impl Virtual {
@@ -47,6 +52,7 @@ impl Virtual {
             vdisks,
             nodes,
             distribution_func: cluster.distribution_func(),
+            support_nodes_offset: AtomicUsize::new(0),
         }
     }
 
@@ -116,24 +122,36 @@ impl Virtual {
     }
 
     pub fn get_support_nodes(&self, key: BobKey, count: usize) -> Vec<&Node> {
+        debug_assert!(count <= self.nodes.len());
+        if count == 0 {
+            return vec![];
+        }
         trace!("get target nodes for given key");
         let target_nodes = self.get_target_nodes_for_key(key);
         trace!("extract indexes of target nodes");
-        let mut target_indexes = target_nodes.iter().map(Node::index);
-        let len = target_indexes.size_hint().0;
-        debug!("iterator size lower bound: {}", len);
         trace!("nodes available: {}", self.nodes.len());
-        self.nodes
-            .iter()
-            .filter_map(|(id, node)| {
-                if target_indexes.all(|i| &i != id) {
-                    Some(node)
-                } else {
-                    None
+        let offset = self.support_nodes_offset.fetch_add(1, Ordering::Relaxed);
+        let mut support_nodes = Vec::with_capacity(count);
+        for (id, node) in self.nodes.iter().skip(offset % self.nodes.len()) {
+            if target_nodes.iter().all(|i| i.index() != *id) {
+                support_nodes.push(node);
+                if support_nodes.len() >= count {
+                    break;
                 }
-            })
-            .take(count)
-            .collect()
+            }
+        }
+        if support_nodes.len() < count && offset % self.nodes.len() > 0 {
+            for (id, node) in self.nodes.iter().take(offset % self.nodes.len()) {
+                if target_nodes.iter().all(|i| i.index() != *id) {
+                    support_nodes.push(node);
+                    if support_nodes.len() >= count {
+                        break;
+                    }
+                }
+            }
+        }
+        debug_assert!(support_nodes.len() <= count);
+        support_nodes
     }
 
     pub fn vdisk_id_from_key(&self, key: BobKey) -> VDiskId {

@@ -47,11 +47,11 @@ async fn spawn_tcp_sender_task(address: String) -> Sender<String> {
 async fn tcp_sender_task(mut socket: RetrySocket, mut rx: Receiver<String>) {
     while let Some(data) = rx.recv().await {
         if let Err(e) = socket.write_all(data.as_bytes()).await {
-            warn!("Can't write data to socket: {}", e);
+            warn!("Can't write data to Graphite socket: {}", e);
             continue;
         }
         if let Err(e) = socket.flush().await {
-            warn!("Can't flush socket (reason: {})", e);
+            warn!("Can't flush Graphite socket (reason: {})", e);
         }
     }
     info!("Metrics thread is done.");

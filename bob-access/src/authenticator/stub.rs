@@ -1,4 +1,4 @@
-use crate::{credentials::Credentials, error::Error, permissions::Permissions};
+use crate::{credentials::RequestCredentials, error::Error, permissions::Permissions};
 
 use super::{Authenticator, AuthenticationType};
 
@@ -12,11 +12,11 @@ impl Stub {
 }
 
 impl Authenticator for Stub {
-    fn check_credentials_grpc(&self, _: Credentials) -> Result<Permissions, Error> {
+    fn check_credentials_grpc(&self, _: RequestCredentials) -> Result<Permissions, Error> {
         Ok(Permissions::all())
     }
 
-    fn check_credentials_rest(&self, _: Credentials) -> Result<Permissions, Error> {
+    fn check_credentials_rest(&self, _: RequestCredentials) -> Result<Permissions, Error> {
         Ok(Permissions::all())
     }
 
