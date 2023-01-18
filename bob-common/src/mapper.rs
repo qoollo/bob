@@ -38,9 +38,9 @@ pub struct Virtual {
 
 impl Virtual {
     /// Creates new instance of the Virtual disk mapper
-    pub async fn new(config: &NodeConfig, cluster: &ClusterConfig) -> Self {
+    pub fn new(config: &NodeConfig, cluster: &ClusterConfig) -> Self {
         let mut vdisks = cluster.create_vdisks_map().unwrap();
-        let nodes = Self::prepare_nodes(&mut vdisks, cluster).await;
+        let nodes = Self::prepare_nodes(&mut vdisks, cluster);
         let local_node_name = config.name().to_owned();
         let local_node_address = nodes
             .iter()
@@ -61,7 +61,7 @@ impl Virtual {
         }
     }
 
-    async fn prepare_nodes(vdisks: &mut VDisksMap, cluster: &ClusterConfig) -> Vec<Node> {
+    fn prepare_nodes(vdisks: &mut VDisksMap, cluster: &ClusterConfig) -> Vec<Node> {
         let nodes: Vec<Node> = cluster
             .nodes()
             .iter()
