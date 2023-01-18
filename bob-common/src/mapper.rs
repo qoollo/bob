@@ -190,7 +190,7 @@ impl Virtual {
                 }
             }
         }
-        if support_nodes.len() < count {
+        if support_nodes.len() < count && support_nodes.len() +  target_nodes.len() < nodes.len() {
             for i in 0..len {
                 let node = &self.nodes[(i + starting_index) % len];
                 if support_nodes.iter().all(|n| n.index() != node.index())
