@@ -228,7 +228,7 @@ where
         debug!("PING");
         if let Some(node_name) = r.metadata().get("node_name") {
             if let Ok(name) = node_name.to_str() {
-                self.grinder.update_node_connection(name).await
+                self.grinder.update_node_connection(name);
             }
         }
         Ok(Response::new(Null {}))

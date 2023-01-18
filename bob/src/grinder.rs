@@ -258,8 +258,8 @@ impl Grinder {
         result
     }
 
-    pub(crate) async fn update_node_connection(&self, node_name: &str) {
-        self.link_manager.update_node_connection(node_name).await;
+    pub(crate) fn update_node_connection(&self, node_name: &str) {
+        self.link_manager.update_node_connection(node_name);
     }
 }
 

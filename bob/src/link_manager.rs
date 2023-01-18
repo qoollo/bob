@@ -1,7 +1,5 @@
-use tokio::sync::{
-    mpsc::{channel, Receiver, Sender},
-    RwLock,
-};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::RwLock;
 
 use crate::prelude::*;
 
@@ -58,23 +56,25 @@ impl LinkManager {
     ) {
         while let Some(name) = node_check_queue.recv().await {
             if let Some(node) = nodes.iter().find(|n| n.name() == name) {
-                if let Err(e) = node.check(&factory).await {
-                    error!(
-                        "No connection to {}:[{}] - {}",
-                        node.name(),
-                        node.address(),
-                        e
-                    );
-                } else {
-                    debug!("Create connection in response to ping from {}", node.name());
+                if !node.connection_is_set() {
+                    if let Err(e) = node.check(&factory).await {
+                        error!(
+                            "No connection to {}:[{}] - {}",
+                            node.name(),
+                            node.address(),
+                            e
+                        );
+                    } else {
+                        debug!("Create connection in response to ping from {}", node.name());
+                    }
                 }
             }
         }
     }
 
     pub(crate) async fn spawn_checker(&self, factory: Factory) {
-        let (sender, receiver) = channel(self.nodes.len() * 10);
-        self.node_check_queue.write().await.replace(sender);
+        let (sender, receiver) = channel(self.nodes.len() * 2);
+        self.node_check_queue.write().expect("rwlock").replace(sender);
         tokio::spawn(Self::checker_task(
             factory.clone(),
             self.nodes.clone(),
@@ -124,11 +124,11 @@ impl LinkManager {
         .await
     }
 
-    pub(crate) async fn update_node_connection(&self, node_name: &str) {
+    pub(crate) fn update_node_connection(&self, node_name: &str) {
         if let Some(node) = self.nodes.iter().find(|n| n.name() == node_name) {
-            if let Some(queue) = self.node_check_queue.read().await.as_ref() {
+            if let Some(queue) = self.node_check_queue.read().expect("rwlock").as_ref() {
                 if !node.connection_is_set() {
-                    if let Err(e) = queue.send(node_name.to_string()).await {
+                    if let Err(e) = queue.try_send(node_name.to_string()) {
                         warn!("error while updating node {} status: {}", node_name, e);
                     }
                 }
