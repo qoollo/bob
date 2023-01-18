@@ -41,6 +41,8 @@ quorum: 1
 operation_timeout: 3sec
 # [time] interval for checking connections
 check_interval: 5000ms
+# [size] after this number of sequential network errors target node will be marked as unavailable
+max_sequential_errors: 3
 # [simple, quorum] simple - without checking status
 cluster_policy: quorum
 # type of the backend [in_memory, stub, pearl]

@@ -75,7 +75,6 @@ impl Node {
     }
 
     pub fn set_connection(&self, client: BobClient) {
-        client.reset_error_count();
         *self.conn.write().expect("rwlock") = Some(client);
     }
 
@@ -91,16 +90,14 @@ impl Node {
         self.conn.read().expect("rwlock").clone()
     }
 
-    pub async fn increase_error_and_clear_conn_if_needed(&self) {
-        let mut lock = self.conn.write().expect("rwlock");
-        let count = 
+    pub fn check_sequential_errors_and_clear_conn_if_needed(&self, client: &BobClient) {
+        if client.error_count() >= self.max_sequential_errors {
+            let mut lock = self.conn.write().expect("rwlock");
             if let Some(client) = lock.as_ref() {
-                client.increase_error()
-            } else {
-                0
-            };
-        if count >= self.max_sequential_errors {
-            *lock = None;
+                if client.error_count() >= self.max_sequential_errors {
+                    *lock = None;
+                }
+            }
         }
     }
 

@@ -512,6 +512,8 @@ pub struct Node {
     quorum: usize,
     operation_timeout: String,
     check_interval: String,
+    #[serde(default = "NodeConfig::default_max_sequential_errors")]
+    max_sequential_errors: usize,
     #[serde(default = "NodeConfig::default_count_interval")]
     count_interval: String,
     cluster_policy: String,
@@ -543,8 +545,6 @@ pub struct Node {
     bind_to_ip_address: Option<SocketAddr>,
     #[serde(default = "NodeConfig::default_holder_group_size")]
     holder_group_size: usize,
-    #[serde(default = "NodeConfig::default_max_sequential_errors")]
-    max_sequential_errors: usize,
 
     #[serde(default = "NodeConfig::default_authentication_type")]
     authentication_type: AuthenticationType,

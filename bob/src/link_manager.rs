@@ -68,17 +68,11 @@ impl LinkManager {
         T: Send,
     {
         match node.get_connection() {
-            Some(conn) => match f(&conn).await {
-                Err(e) => {
-                    if e.inner().is_network_error() {
-                        node.increase_error_and_clear_conn_if_needed().await;
-                    }
-                    Err(e)
-                }
-                o => {
-                    conn.reset_error_count();
-                    o
-                }
+            Some(conn) => {
+                f(&conn).await.map_err(|e| {
+                    node.check_sequential_errors_and_clear_conn_if_needed(&conn);
+                    e
+                })
             },
             None => Err(NodeOutput::new(
                 node.name().to_owned(),

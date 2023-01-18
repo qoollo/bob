@@ -8,7 +8,7 @@ pub mod b_client {
     };
     use bob_grpc::{
         bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, DeleteOptions, DeleteRequest,
-        ExistRequest, ExistResponse, GetOptions, GetRequest, Null, PutOptions, PutRequest,
+        ExistRequest, GetOptions, GetRequest, Null, PutOptions, PutRequest,
     };
     use mockall::mock;
     use std::{
@@ -19,7 +19,7 @@ pub mod b_client {
     use tonic::{
         metadata::MetadataValue,
         transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
-        Request, Response, Status,
+        Request, Status, Code,
     };
 
     /// Client for interaction with bob backend
@@ -104,9 +104,15 @@ pub mod b_client {
             match client.put(req).await {
                 Ok(_) => {
                     self.metrics.put_timer_stop(timer);
+                    if self.error_count() > 0 {
+                        self.reset_error_count();
+                    }
                     Ok(NodeOutput::new(node_name, ()))
                 }
                 Err(e) => {
+                    if is_network_error(&e) {
+                        self.increase_error();
+                    }
                     self.metrics.put_error_count();
                     self.metrics.put_timer_stop(timer);
                     Err(NodeOutput::new(node_name, e.into()))
@@ -134,9 +140,15 @@ pub mod b_client {
                     let ans = data.into_inner();
                     let meta = BobMeta::new(ans.meta.expect("get blob meta").timestamp);
                     let inner = BobData::new(ans.data, meta);
+                    if self.error_count() > 0 {
+                        self.reset_error_count();
+                    }
                     Ok(NodeOutput::new(node_name.clone(), inner))
                 }
                 Err(e) => {
+                    if is_network_error(&e) {
+                        self.increase_error();
+                    }
                     self.metrics.get_error_count();
                     self.metrics.get_timer_stop(timer);
                     Err(NodeOutput::new(node_name, e.into()))
@@ -173,21 +185,21 @@ pub mod b_client {
             self.set_credentials(&mut req);
             self.set_timeout(&mut req);
             let exist_response = client.exist(req).await;
-            let result = Self::get_exist_result(self.node.name().to_owned(), exist_response);
             self.metrics.exist_timer_stop(timer);
-            if result.is_err() {
-                self.metrics.exist_error_count();
-            }
-            result
-        }
-
-        fn get_exist_result(
-            node_name: String,
-            exist_response: Result<Response<ExistResponse>, Status>,
-        ) -> ExistResult {
             match exist_response {
-                Ok(response) => Ok(NodeOutput::new(node_name, response.into_inner().exist)),
-                Err(error) => Err(NodeOutput::new(node_name, error.into())),
+                Ok(response) => {
+                    if self.error_count() > 0 {
+                        self.reset_error_count();
+                    }
+                    Ok(NodeOutput::new(self.node.name().to_owned(), response.into_inner().exist))
+                },
+                Err(error) => {
+                    if is_network_error(&error) {
+                        self.increase_error();
+                    }
+                    self.metrics.exist_error_count();
+                    Err(NodeOutput::new(self.node.name().to_owned(), error.into()))
+                },
             }
         }
 
@@ -205,19 +217,33 @@ pub mod b_client {
             self.set_timeout(&mut req);
             let res = client.delete(req).await;
             self.metrics.delete_timer_stop(timer);
-            res.map(|_| NodeOutput::new(self.node().name().to_owned(), ()))
-                .map_err(|e| {
+            match res {
+                Ok(_) => {
+                    if self.error_count() > 0 {
+                        self.reset_error_count();
+                    }
+                    Ok(NodeOutput::new(self.node().name().to_owned(), ()))
+                },
+                Err(e) => {
+                    if is_network_error(&e) {
+                        self.increase_error();
+                    }
                     self.metrics.delete_error_count();
-                    NodeOutput::new(self.node().name().to_owned(), e.into())
-                })
+                    Err(NodeOutput::new(self.node().name().to_owned(), e.into()))
+                }
+            }
         }
 
-        pub fn reset_error_count(&self) {
+        fn reset_error_count(&self) {
             self.err_count.store(0, Ordering::Relaxed);
         }
 
-        pub fn increase_error(&self) -> usize {
+        fn increase_error(&self) -> usize {
             self.err_count.fetch_add(1, Ordering::Relaxed)
+        }
+
+        pub fn error_count(&self) -> usize {
+            self.err_count.load(Ordering::Relaxed)
         }
 
         fn set_credentials<T>(&self, req: &mut Request<T>) {
@@ -229,6 +255,10 @@ pub mod b_client {
         fn set_timeout<T>(&self, r: &mut Request<T>) {
             r.set_timeout(self.operation_timeout);
         }
+    }
+
+    fn is_network_error(status: &Status) -> bool {
+        status.code() == Code::Unavailable
     }
 
     mock! {
