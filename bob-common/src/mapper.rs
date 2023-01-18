@@ -121,7 +121,7 @@ impl Virtual {
         self.vdisks.get(&id).expect("vdisk not found").nodes()
     }
 
-    fn find_support_node_index(
+    fn try_find_support_node_offset_at_one_pass(
         nodes: &[Node],
         target_nodes: &[Node],
         offset: usize,
@@ -143,12 +143,13 @@ impl Virtual {
         return SupportIndexResult { index: None, avail };
     }
 
+    /// Look for an offset respecting the uniform distribution
     fn find_support_node_offset(nodes: &[Node], target_nodes: &[Node], offset: usize) -> usize {
-        let mut res = Self::find_support_node_index(nodes, target_nodes, offset % nodes.len());
+        let mut res = Self::try_find_support_node_offset_at_one_pass(nodes, target_nodes, offset % nodes.len());
         if res.index == None && res.avail > 0 {
             let mut curr_offset = offset % res.avail;
             while res.index == None && res.avail > 0 {
-                res = Self::find_support_node_index(nodes, target_nodes, curr_offset);
+                res = Self::try_find_support_node_offset_at_one_pass(nodes, target_nodes, curr_offset);
                 curr_offset = if curr_offset > res.avail {
                     curr_offset - res.avail
                 } else {
@@ -173,6 +174,7 @@ impl Virtual {
         trace!("nodes available: {}", self.nodes.len());
         let mut support_nodes: Vec<&Node> = Vec::with_capacity(count);
 
+        // This offset search preserves the uniform distribution of aliens
         let starting_index = Self::find_support_node_offset(
             &self.nodes,
             target_nodes,
@@ -190,9 +192,10 @@ impl Virtual {
                 }
             }
         }
-        if support_nodes.len() < count && support_nodes.len() +  target_nodes.len() < nodes.len() {
+        if support_nodes.len() < count && support_nodes.len() +  target_nodes.len() < self.nodes.len() {
             for i in 0..len {
                 let node = &self.nodes[(i + starting_index) % len];
+                // Ignore connection status to fill support_nodes
                 if support_nodes.iter().all(|n| n.index() != node.index())
                     && target_nodes.iter().all(|n| n.index() != node.index())
                 {
