@@ -145,7 +145,10 @@ impl Virtual {
 
     /// Look for an offset respecting the uniform distribution
     fn find_support_node_offset(nodes: &[Node], target_nodes: &[Node], offset: usize) -> usize {
-        let mut res = Self::try_find_support_node_offset_at_one_pass(nodes, target_nodes, offset % nodes.len());
+        if target_nodes.len() >= nodes.len() {
+            return 0;
+        }
+        let mut res = Self::try_find_support_node_offset_at_one_pass(nodes, target_nodes, offset);
         if res.index == None && res.avail > 0 {
             let mut curr_offset = offset % res.avail;
             while res.index == None && res.avail > 0 {
@@ -170,6 +173,9 @@ impl Virtual {
         }
         trace!("get target nodes for given key");
         let target_nodes = self.get_target_nodes_for_key(key);
+        if target_nodes.len() >= self.nodes.len() {
+            return vec![];
+        }
         trace!("extract indexes of target nodes");
         trace!("nodes available: {}", self.nodes.len());
         let mut support_nodes: Vec<&Node> = Vec::with_capacity(count);
@@ -178,7 +184,7 @@ impl Virtual {
         let starting_index = Self::find_support_node_offset(
             &self.nodes,
             target_nodes,
-            self.support_nodes_offset.fetch_add(1, Ordering::Relaxed),
+            self.support_nodes_offset.fetch_add(1, Ordering::Relaxed) % (self.nodes.len() - target_nodes.len()),
         );
 
         let len = self.nodes.len();
