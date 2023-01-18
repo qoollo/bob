@@ -1,0 +1,378 @@
+name: integration-tests
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
+  pull_request_review:
+    types: [submitted]
+  workflow_dispatch:
+    inputs:
+      bob_nodes_amount:
+        description: 'Amount of nodes in bob cluster for tests'
+        required: true
+        default: '4'
+      quorum:
+        description: 'Quorum for bob cluster'
+        required: true
+        default: '2'
+      bob_vdisk_count:
+        description: 'Vdisks count'
+        required: true
+        default: '4'
+      bob_replicas_amount:
+        description: 'Amount of vdisks replicas'
+        required: true
+        default: '2'
+      bob_payload_size:
+        description: 'Payload size'
+        required: true
+        default: '10240'
+      bob_record_count:
+        description: 'Amount of records to process during test'
+        required: true
+        default: '100000'
+      bob_first_index:
+        description: 'Index of the first record to proceed during tests'
+        required: true
+        default: '0'
+      bob_bobt_count:
+        description: 'Amount of iterations for bobt operation test'
+        required: true
+        default: '100000'
+      bob_bobt_first_index:
+        description: 'Bottom boundary for key in bobt test'
+        required: true
+        default: '0'
+      bob_bobt_last_index:
+        description: 'Upper boundary for key in bobt test'
+        required: true
+        default: '10000'
+jobs:
+  build-binaries:
+    if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
+    strategy:
+      matrix:
+        key: [8, 16]
+    env:
+      TARGET: "x86_64-unknown-linux-musl"
+      BUILD_PROFILE: "integration-test"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v3
+      - name: Set env variables and install packages
+        run: |
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
+          echo "BOB_KEY_SIZE=${{ matrix.key }}" >> $GITHUB_ENV
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
+      - name: Install latest stable
+        uses: actions-rs/toolchain@v1.0.6
+        with:
+          toolchain: stable
+          target: ${{ env.TARGET }}
+          default: true
+      - name: Estimate output binaries directory
+        run: |
+          echo "BUILD_PROFILE_DIR=$(case "$BUILD_PROFILE" in\
+          ("dev") echo "debug";;\
+          ("test") echo "debug";;\
+          ("bench") echo "release";;\
+          (*) echo "$BUILD_PROFILE";;\
+          esac)" >> $GITHUB_ENV
+      - name: Output estimated working-directory
+        run: echo ${{ env.BUILD_PROFILE_DIR }}
+      - name: Build binaries
+        uses: actions-rs/cargo@v1.0.1
+        with:
+          command: build
+          args: --target=${{ env.TARGET }} --profile=${{ env.BUILD_PROFILE }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: bob-binaries-${{ matrix.key }}
+          path: |
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobd
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobp
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/ccg
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobt
+
+  build-docker-images:
+    if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        key: [8, 16]
+    env:
+      BUILD_PROFILE: "integration-test"
+    steps:
+      - name: Checks-out repository 
+        uses: actions/checkout@v3
+      - name: Set env
+        run: |
+          echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+          echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: qoollo/bob
+          tags: |
+            ${{ env.VERSION }}-key${{ matrix.key }}
+      - name: Build image
+        uses: docker/build-push-action@v2
+        with:
+          outputs: type=image,name=qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }}
+          context: .
+          file: dockerfiles/alpine/Dockerfile
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            COMMIT_HASH=${{ env.BOB_COMMIT_HASH }}
+            KEY_SIZE=${{ matrix.key}}
+            BUILD_PROFILE=${{ env.BUILD_PROFILE }}
+      - name: Save image
+        run: |
+          docker save -o /tmp/bob-image-key${{ matrix.key }}.tar qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }}
+        working-directory: ./integration-tests
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: bob-image-key${{ matrix.key }}
+          path: |
+            /tmp/bob-image-key${{ matrix.key }}.tar
+
+  test-put-get-exist:
+    if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
+    needs: [build-binaries, build-docker-images]
+    strategy:
+      matrix:
+        key: [8, 16]
+        mode: [normal, random]
+        auth: [None]
+        include:
+          - key: 8
+            mode: normal
+            auth: Basic
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checks-out repo
+        uses: actions/checkout@v3
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Setup default variables for auto runs
+        run: |
+          INPUT="${{ github.event.inputs.bob_nodes_amount }}"
+          echo "BOB_NODES_AMOUNT=${INPUT:-"4"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_vdisk_count }}"
+          echo "BOB_VDISK_COUNT=${INPUT:-"4"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_replicas_amount }}"
+          echo "BOB_REPLICAS_AMOUNT=${INPUT:-"2"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_payload_size }}"
+          echo "BOB_PAYLOAD_SIZE=${INPUT:-"10240"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_record_count }}"
+          echo "BOB_RECORD_COUNT=${INPUT:-"100000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_first_index }}"
+          echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_transport_min_port }}"
+          echo "BOB_TRANSPORT_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_auth_user }}"
+          echo "BOB_AUTH_USER=${INPUT:-"admin"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_auth_password }}"
+          echo "BOB_AUTH_PASSWORD=${INPUT:-"password"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_rest_min_port }}"
+          echo "BOB_REST_MIN_PORT=${INPUT:-"8000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.quorum }}"
+          echo "BOB_CLUSTER_QUORUM=${INPUT:-"2"}" >> $GITHUB_ENV
+      - name: Install deps
+        run: |
+          /usr/bin/pip3 install -r ./requirements.txt
+        working-directory: ./integration-tests
+      - name: Get version data
+        run: |
+          echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+          echo "VERSION_NO_FORMATTING=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g')" >> $GITHUB_ENV
+      - name: Download binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: bob-binaries-${{ matrix.key }}
+          path: ./integration-tests
+      - name: Download docker images
+        uses: actions/download-artifact@v3
+        with:
+          name: bob-image-key${{ matrix.key }}
+          path: ./integration-tests
+      - name: Load docker images
+        run: |
+          docker load -i ./bob-image-key${{ matrix.key }}.tar
+        working-directory: ./integration-tests
+      - name: List availible images
+        run: |
+          docker image ls
+      - name: Generate config files for docker and bob
+        run: |
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --check-interval 5000ms -u ${{ matrix.auth }} -q ${{ env.BOB_CLUSTER_QUORUM }}
+        working-directory: ./integration-tests
+      - name: Deploy docker containers
+        run: |
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --cluster_start_waiting_time 5000 
+        working-directory: ./integration-tests
+      - name: Run write/read/exist tests
+        run: |
+          ./tests.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }} --mode ${{ matrix.mode }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} --user ${{ env.BOB_AUTH_USER }} --password ${{ env.BOB_AUTH_PASSWORD }} -t 4
+        working-directory: ./integration-tests
+
+  test-aliens:
+    if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
+    needs: [build-binaries, build-docker-images]
+    strategy:
+      matrix:
+        key: [8, 16]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checks-out repo
+        uses: actions/checkout@v3
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Setup default variables for auto runs
+        run: |
+          INPUT="${{ github.event.inputs.bob_nodes_amount }}"
+          echo "BOB_NODES_AMOUNT=${INPUT:-"4"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_vdisk_count }}"
+          echo "BOB_VDISK_COUNT=${INPUT:-"4"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_replicas_amount }}"
+          echo "BOB_REPLICAS_AMOUNT=${INPUT:-"2"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_payload_size }}"
+          echo "BOB_PAYLOAD_SIZE=${INPUT:-"4096"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_record_count }}"
+          echo "BOB_RECORD_COUNT=${INPUT:-"100000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_first_index }}"
+          echo "BOB_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_transport_min_port }}"
+          echo "BOB_TRANSPORT_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_rest_min_port }}"
+          echo "BOB_REST_MIN_PORT=${INPUT:-"8000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.quorum }}"
+          echo "BOB_CLUSTER_QUORUM=${INPUT:-"2"}" >> $GITHUB_ENV
+      - name: Install deps
+        run: |
+          /usr/bin/pip3 install -r ./requirements.txt
+        working-directory: ./integration-tests
+      - name: Get version data
+        run: |
+          echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+          echo "VERSION_NO_FORMATTING=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g')" >> $GITHUB_ENV
+      - name: Download binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: bob-binaries-${{ matrix.key }}
+          path: ./integration-tests
+      - name: Download docker images
+        uses: actions/download-artifact@v3
+        with:
+          name: bob-image-key${{ matrix.key }}
+          path: ./integration-tests
+      - name: Load docker images
+        run: |
+          docker load -i ./bob-image-key${{ matrix.key }}.tar
+        working-directory: ./integration-tests
+      - name: List availible images
+        run: |
+          docker image ls
+      - name: Generate config files for docker and bob
+        run: |
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --check-interval 5000ms -q ${{ env.BOB_CLUSTER_QUORUM }}
+        working-directory: ./integration-tests
+      - name: Deploy docker containers
+        run: |
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --cluster_start_waiting_time 5000
+        working-directory: ./integration-tests
+      - name: Run alien tests
+        run: |
+          ./tests_aliens.py -l ${{ env.BOB_PAYLOAD_SIZE }} -c ${{ env.BOB_RECORD_COUNT }} -f ${{ env.BOB_FIRST_INDEX }} -n 127.0.0.1 -k ${{ matrix.key }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --cluster_start_waiting_time 5000
+        working-directory: ./integration-tests
+
+  test-with-bobt:
+    if: ${{ github.event_name != 'pull_request_review' || github.event.review.state == 'approved' }}
+    needs: [build-binaries, build-docker-images]
+    strategy:
+      matrix:
+        key: [8, 16]
+        auth: [None]
+        include:
+          - key: 8
+            auth: Basic
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checks-out repo
+        uses: actions/checkout@v3
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Setup default variables for auto runs
+        run: |
+          INPUT="${{ github.event.inputs.bob_nodes_amount }}"
+          echo "BOB_NODES_AMOUNT=${INPUT:-"4"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_vdisk_count }}"
+          echo "BOB_VDISK_COUNT=${INPUT:-"4"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_replicas_amount }}"
+          echo "BOB_REPLICAS_AMOUNT=${INPUT:-"2"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_bobt_first_index }}"
+          echo "BOB_BOBT_FIRST_INDEX=${INPUT:-"0"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_bobt_last_index }}"
+          echo "BOB_BOBT_LAST_INDEX=${INPUT:-"10000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_bobt_count }}"
+          echo "BOB_BOBT_COUNT=${INPUT:-"100000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_transport_min_port }}"
+          echo "BOB_TRANSPORT_MIN_PORT=${INPUT:-"20000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_auth_user }}"
+          echo "BOB_AUTH_USER=${INPUT:-"admin"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_auth_password }}"
+          echo "BOB_AUTH_PASSWORD=${INPUT:-"password"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.bob_rest_min_port }}"
+          echo "BOB_REST_MIN_PORT=${INPUT:-"8000"}" >> $GITHUB_ENV
+          INPUT="${{ github.event.inputs.quorum }}"
+          echo "BOB_CLUSTER_QUORUM=${INPUT:-"2"}" >> $GITHUB_ENV
+      - name: Install deps
+        run: |
+          /usr/bin/pip3 install -r ./requirements.txt
+        working-directory: ./integration-tests
+      - name: Get version data
+        run: |
+          echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
+          echo "VERSION_NO_FORMATTING=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g')" >> $GITHUB_ENV
+      - name: Download binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: bob-binaries-${{ matrix.key }}
+          path: ./integration-tests
+      - name: Download docker images
+        uses: actions/download-artifact@v3
+        with:
+          name: bob-image-key${{ matrix.key }}
+          path: ./integration-tests
+      - name: Load docker images
+        run: |
+          docker load -i ./bob-image-key${{ matrix.key }}.tar
+        working-directory: ./integration-tests
+      - name: List availible images
+        run: |
+          docker image ls
+      - name: Generate config files for docker and bob
+        run: |
+          ./generate_from_templates.py -a ${{ env.BOB_NODES_AMOUNT }} -v qoollo/bob:${{ env.VERSION }}-key${{ matrix.key }} --path /tmp -transport_min_port ${{ env.BOB_TRANSPORT_MIN_PORT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} -u ${{ matrix.auth }} --check-interval 5000ms -q ${{ env.BOB_CLUSTER_QUORUM }}
+        working-directory: ./integration-tests
+      - name: Deploy docker containers
+        run: |
+          ./deploy.py --path /tmp/generated_configs -d ${{ env.BOB_VDISK_COUNT }} -r ${{ env.BOB_REPLICAS_AMOUNT }} -nodes_amount ${{ env.BOB_NODES_AMOUNT }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }} --cluster_start_waiting_time 5000
+        working-directory: ./integration-tests
+      - name: Run tests with bobt
+        run: |
+          ./tests_bobt.py -c ${{ env.BOB_BOBT_COUNT }} -s ${{ env.BOB_BOBT_FIRST_INDEX }} -e ${{ env.BOB_BOBT_LAST_INDEX }} --user ${{ env.BOB_AUTH_USER }} --password ${{ env.BOB_AUTH_PASSWORD }} -rest_min_port ${{ env.BOB_REST_MIN_PORT }}
+        working-directory: ./integration-tests

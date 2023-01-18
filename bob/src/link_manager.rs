@@ -1,7 +1,5 @@
 use crate::prelude::*;
 
-use termion::color;
-
 const FAST_PING_PERIOD_MS: u64 = 100;
 const FAST_PING_DURATION_SEC: u64 = 60;
 
@@ -67,17 +65,17 @@ impl LinkManager {
                             node.address(),
                             e
                         );
-                        status += &format!("{}{:<10} ", color::Fg(color::Red), node.name());
+                        status += &format!("[-]{:<10} ", node.name());
                     }
                     err_cnt += 1;
                 } else {
                     if log {
-                        status += &format!("{}{:<10} ", color::Fg(color::Green), node.name());
+                        status += &format!("[+]{:<10} ", node.name());
                     }
                 }
             }
             if log {
-                info!("{}{}", status, color::Fg(color::Reset));
+                info!("{}", status);
                 let cnt = nodes.len() - err_cnt;
                 gauge!(AVAILABLE_NODES_COUNT, cnt as f64);
             }

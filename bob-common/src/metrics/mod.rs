@@ -38,6 +38,10 @@ pub const GRINDER_GET_TIMER: &str = "cluster_grinder.get_timer";
 pub const GRINDER_EXIST_COUNTER: &str = "cluster_grinder.exist_count";
 /// Counts number of EXIST requests return error, processed by Grinder
 pub const GRINDER_EXIST_ERROR_COUNT_COUNTER: &str = "cluster_grinder.exist_error_count";
+/// Counts number of keys in error EXIST requests, processed by Grinder
+pub const GRINDER_EXIST_ERROR_KEYS_COUNT_COUNTER: &str = "cluster_grinder.exist_error_keys_count";
+/// Counts number of keys in EXIST requests, processed by Grinder
+pub const GRINDER_EXIST_KEYS_COUNT_COUNTER: &str = "cluster_grinder.exist_keys_count";
 /// Measures processing time of the EXIST request
 pub const GRINDER_EXIST_TIMER: &str = "cluster_grinder.exist_timer";
 
@@ -66,6 +70,10 @@ pub const CLIENT_GET_TIMER: &str = "client.get_timer";
 pub const CLIENT_EXIST_COUNTER: &str = "client.exist_count";
 /// Counts number of EXIST requests return error, processed by Client
 pub const CLIENT_EXIST_ERROR_COUNT_COUNTER: &str = "client.exist_error_count";
+/// Counts number of keys in error EXIST requests, processed by Client
+pub const CLIENT_EXIST_ERROR_KEYS_COUNT_COUNTER: &str = "client.exist_error_keys_count";
+/// Counts number of keys in EXIST requests, processed by Client
+pub const CLIENT_EXIST_KEYS_COUNT_COUNTER: &str = "client.exist_keys_count";
 /// Measures processing time of the EXIST request
 pub const CLIENT_EXIST_TIMER: &str = "client.exist_timer";
 
@@ -83,6 +91,8 @@ pub const AVAILABLE_NODES_COUNT: &str = "link_manager.nodes_number";
 pub const BACKEND_STATE: &str = "backend.backend_state";
 /// Count blobs (without aliens)
 pub const BLOBS_COUNT: &str = "backend.blob_count";
+/// Count corrupted blobs
+pub const CORRUPTED_BLOBS_COUNT: &str = "backend.corrupted_blob_count";
 /// Memory occupied bybloom filters
 pub const BLOOM_FILTERS_RAM: &str = "backend.bloom_filters_ram";
 /// Count alien blobs
@@ -291,9 +301,11 @@ fn init_grinder() {
     register_counter!(GRINDER_GET_COUNTER);
     register_counter!(GRINDER_PUT_COUNTER);
     register_counter!(GRINDER_EXIST_COUNTER);
+    register_counter!(GRINDER_EXIST_KEYS_COUNT_COUNTER);
     register_counter!(GRINDER_GET_ERROR_COUNT_COUNTER);
     register_counter!(GRINDER_PUT_ERROR_COUNT_COUNTER);
     register_counter!(GRINDER_EXIST_ERROR_COUNT_COUNTER);
+    register_counter!(GRINDER_EXIST_ERROR_KEYS_COUNT_COUNTER);
 }
 
 fn init_backend() {

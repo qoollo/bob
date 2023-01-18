@@ -4,13 +4,81 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Quorum argument for manual workflow dispatch for integration tests (#749)
+- Fast ping at the start (#657)
+
+#### Changed
+- Make local put parallel to remote (#573)
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.9] - 2023-01-16
+#### Added
+- Added exist key metrics to grinder and exist metrics to pearl (#709)
+
+#### Changed
+- Removed `open_blobs_soft_limit` and `open_blobs_hard_limit` from node config example (#703)
+- Add condition to background_put (#589)
+
+#### Fixed
+- Fix incorrect timestamp used in `Group::delete()` (#741)
+- Fixed incorrect execution of aliens integration tests (#736)
+- Fixed unsafe timestamp comparison condition in `Group::get` and `Group::exist` (#750)
+
+#### Updated
+- Pearl updated to v0.17.0 (#752)
+
+
+## [2.1.0-alpha.8] - 2023-01-13
+#### Added
+- Added grpc delete testing feature to bobp (#663)
+- Corrupted blobs count metric (#464)
+- 'Exists' method through HEAD request in REST API (#691)
+- Support for 'exists' method in bobt (#691)
+- Round robin algorithm for alien nodes selection (#570)
+- 'release-lto' and 'integration-test' build profiles added (#704)
+- Crossplatform terminal signal handling (#725)
+- Integration tests (#518)
+- Added integration tests for aliens (#642)
+- Added integration tests for bobt (#648)
+- Added authentification support for integration tests (#672)
+- Add support for `delete` operation to `bobc` (#664)
+- Support for authorization to `bobc` (#679)
+
+#### Changed
+- Use bytes to pass data to pearl (#597)
+- Log message about the lack of connection to graphite became more understandable (#684)
+- Hostname resolving in background tasks (#529)
+- Removed broken logic of holder creation from group::run function (#701)
+- Remove 'termion' crate from dependencies (#718)
+- Make delete operation recoverable (#533)
+- Binaries sizes reduced for 'integration-test' profile (#727)
+- Configurable build profiles in Dockerfiles (#717)
+
+#### Fixed
+- Data access operations will be protected during remount to prevent data loss (#683)
+- PID unsafe type conversion fixed (#719)
+- Holders returned by read_vdisk_directory() are now ordered by start_timestamp (#700)
+
+#### Updated
+- Pearl updated to v0.16.0 (#706)
+
+
+## [2.1.0-alpha.7] - 2022-11-28
+#### Added
 - Include bobt into the zip archive attached to the release infrastructure (#669)
 - Include bobc into release builds (#569)
 - Added blob-info and index-info features to brt (#356)
 - Support for files, file name patterns, key ranges and a 'exists' subcommand to 'bobc' (#539)
-- Fast ping at the start (#657)
 
 #### Changed
+- Using interval logger in metric exporter to reduce error log density (#592)
+- Using standard Authorization header for basic auth (#616)
 - Change locks to sync where possible (#472)
 
 #### Fixed
