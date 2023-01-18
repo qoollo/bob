@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use std::time::Instant;
 
 const FAST_PING_PERIOD_MS: u64 = 100;
 const FAST_PING_DURATION_SEC: u64 = 60;
@@ -22,16 +23,18 @@ impl LinkManager {
     }
 
     async fn checker_task(factory: Factory, nodes: Arc<[Node]>, period: Duration) {
-        let now = coarsetime::Clock::now_since_epoch().as_secs();
+        let now = Instant::now();
+        let fast_log_iteration_div = 
+            (period.as_millis() as usize / FAST_PING_PERIOD_MS as usize).max(1);
         Self::checker(
             &factory,
             &nodes,
-            Duration::from_millis(FAST_PING_PERIOD_MS),
+            Duration::from_millis(FAST_PING_PERIOD_MS).min(period),
             || {
-                let ts = coarsetime::Clock::now_since_epoch().as_secs();
-                ts > now && ts - now > FAST_PING_DURATION_SEC
+                let ts = Instant::now();
+                ts.duration_since(now).as_secs() > FAST_PING_DURATION_SEC
             },
-            period.as_millis() as usize / FAST_PING_PERIOD_MS as usize,
+            fast_log_iteration_div,
         )
         .await;
         Self::checker(&factory, &nodes, period, || false, 1).await;
@@ -47,18 +50,14 @@ impl LinkManager {
         let mut interval = interval(period);
         let mut i = 1;
         while !should_stop() {
-            let log = i % log_iteration_div == 0;
-            if log {
-                i = 1;
-            } else {
-                i += 1;
-            }
+            i = (i + 1) % log_iteration_div;
+            let log_in_this_iter = i == 0;
             interval.tick().await;
             let mut err_cnt = 0;
             let mut status = String::from("Node status: ");
             for node in nodes.iter() {
                 if let Err(e) = node.check(&factory).await {
-                    if log {
+                    if log_in_this_iter {
                         error!(
                             "No connection to {}:[{}] - {}",
                             node.name(),
@@ -69,16 +68,16 @@ impl LinkManager {
                     }
                     err_cnt += 1;
                 } else {
-                    if log {
+                    if log_in_this_iter {
                         status += &format!("[+]{:<10} ", node.name());
                     }
                 }
             }
-            if log {
+            if log_in_this_iter {
                 info!("{}", status);
-                let cnt = nodes.len() - err_cnt;
-                gauge!(AVAILABLE_NODES_COUNT, cnt as f64);
             }
+            let cnt = nodes.len() - err_cnt;
+            gauge!(AVAILABLE_NODES_COUNT, cnt as f64);
         }
     }
 
