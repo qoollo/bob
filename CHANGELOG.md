@@ -14,7 +14,7 @@ Bob versions changelog
 
 
 #### Updated
-
+- Logger to logstash updated to qoollo-log4rs-logstash v0.2 (#681)
 
 
 ## [2.1.0-alpha.9] - 2023-01-16
