@@ -42,7 +42,7 @@ async fn main() {
     println!("Node config: {:?}", node_config_file);
     let node = cluster.get(node_config_file).await.unwrap();
 
-    let extra_logstash_fields = HashMap::new();
+    let mut extra_logstash_fields = HashMap::new();
     extra_logstash_fields.insert("node_name".to_string(), serde_json::Value::String(node.name().to_string()));
     log4rs::init_file(node.log_config(), log4rs::config::Deserializers::default().with_logstash_extra(extra_logstash_fields))
         .expect("can't find log config");
