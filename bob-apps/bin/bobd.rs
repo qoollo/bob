@@ -44,6 +44,9 @@ async fn main() {
 
     let mut extra_logstash_fields = HashMap::new();
     extra_logstash_fields.insert("node_name".to_string(), serde_json::Value::String(node.name().to_string()));
+    if let Some(cluster_node_info) = cluster.nodes().iter().find(|item| item.name() == node.name()) {
+        extra_logstash_fields.insert("node_address".to_string(), serde_json::Value::String(cluster_node_info.address().to_string()));
+    }
     log4rs::init_file(node.log_config(), log4rs::config::Deserializers::default().with_logstash_extra(extra_logstash_fields))
         .expect("can't find log config");
 
