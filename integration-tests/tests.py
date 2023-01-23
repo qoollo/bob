@@ -21,9 +21,27 @@ def run_tests(behaviour, args):
             if exists[0] != exists[1]:
                 sys.exit(f"{exists[0]} of {exists[1]} keys, {behaviour} test failed, see output")
             else:
-                print(f"{exists[0]} of {exists[1]} keys")   
+                print(f"{exists[0]} of {exists[1]} keys")
         else:
             sys.exit('Unknown behaviour.')     
+    except subprocess.CalledProcessError as e:
+        sys.exit(str(e.stderr))
+    except Exception as e:
+        sys.exit(str(e))
+
+def run_doubled_exist_test(args):
+    try:
+        print(f'Running bobp -b exist {args.rstrip()}')
+        p = subprocess.check_output(shlex.split(f'./bobp -b exist {args.rstrip()}')).decode('ascii')
+        print(str(p))
+        found_exist = re.search(r'\b[0-9]{1,}\sof\s[0-9]{1,}\b', str(p))
+            if not found_exist:
+                sys.exit(f"No {behaviour} output captured, check output")
+            exists = found_exist.group(0).split(' of ')
+            if int(exists[0]) * 2 != int(exists[1]):
+                sys.exit(f"{exists[0]} of {exists[1]} keys, expected {int(exists[1]) / 2} of {exists[1]} instead, exist test failed, see output")
+            else:
+                print(f"{exists[0]} of {exists[1]} keys")
     except subprocess.CalledProcessError as e:
         sys.exit(str(e.stderr))
     except Exception as e:
@@ -32,6 +50,12 @@ def run_tests(behaviour, args):
 def get_run_args(mode, args, run_conf):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':args.first, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':run_conf.get(mode), 
     '--user':args.user, '--password':args.password}
+
+def make_args(raw_args):
+    for key in raw_args:
+        if raw_args.get(key) != None:
+            args_str += f'{key} {raw_args.get(key)} '
+    return args_str
 
 parser = argparse.ArgumentParser(description='This script launches bob tests with given configuration.')
 parser.add_argument('-c', dest='count', type=int, help='amount of entries to process', required=True)
@@ -61,8 +85,11 @@ except ValueError:
 for item in run_options:
     args_str = str()
     run_args = get_run_args(item, parsed_args, test_run_config)
-    for key in run_args:
-        if run_args.get(key) != None:
-            args_str += f'{key} {run_args.get(key)} '
+    args_str = make_args(run_args)
     run_tests(item, args_str)
 
+#run doubled range exist
+run_args = get_run_args(item, parsed_args, test_run_config)
+run_args['-c'] = int(run_args['-c']) * 2
+args_str = make_args(run_args)
+run_doubled_exist_test(args_str)
