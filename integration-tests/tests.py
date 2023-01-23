@@ -52,6 +52,7 @@ def get_run_args(mode, args, run_conf):
     '--user':args.user, '--password':args.password}
 
 def make_args(raw_args):
+    args_str = ''
     for key in raw_args:
         if raw_args.get(key) != None:
             args_str += f'{key} {raw_args.get(key)} '
