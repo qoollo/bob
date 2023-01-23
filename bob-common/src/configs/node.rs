@@ -269,11 +269,17 @@ pub struct Pearl {
     disks_events_logfile: String,
     #[serde(default)]
     bloom_filter_max_buf_bits_count: Option<usize>,
+    #[serde(default = "Pearl::default_max_dirty_bytes_before_sync")]
+    max_dirty_bytes_before_sync: usize,
 }
 
 impl Pearl {
     pub fn max_buf_bits_count(&self) -> Option<usize> {
         self.bloom_filter_max_buf_bits_count
+    }
+
+    pub fn max_dirty_bytes_before_sync(&self) -> usize {
+        self.max_dirty_bytes_before_sync
     }
 
     pub fn alien_disk(&self) -> Option<&str> {
@@ -309,6 +315,11 @@ impl Pearl {
 
     fn default_allow_duplicates() -> bool {
         true
+    }
+
+    fn default_max_dirty_bytes_before_sync() -> usize {
+        // 10Mb
+        10485760
     }
 
     pub fn allow_duplicates(&self) -> bool {
