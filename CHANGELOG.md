@@ -5,6 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Quorum argument for manual workflow dispatch for integration tests (#749)
+- Blob performes fsync if buffered bytes are larger than max_dirty_bytes_before_sync config param (#748)
 
 #### Changed
 - Make local put parallel to remote (#573)
