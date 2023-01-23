@@ -35,13 +35,13 @@ def run_doubled_exist_test(args):
         p = subprocess.check_output(shlex.split(f'./bobp -b exist {args.rstrip()}')).decode('ascii')
         print(str(p))
         found_exist = re.search(r'\b[0-9]{1,}\sof\s[0-9]{1,}\b', str(p))
-            if not found_exist:
-                sys.exit(f"No {behaviour} output captured, check output")
-            exists = found_exist.group(0).split(' of ')
-            if int(exists[0]) * 2 != int(exists[1]):
-                sys.exit(f"{exists[0]} of {exists[1]} keys, expected {int(exists[1]) / 2} of {exists[1]} instead, exist test failed, see output")
-            else:
-                print(f"{exists[0]} of {exists[1]} keys")
+        if not found_exist:
+            sys.exit(f"No {behaviour} output captured, check output")
+        exists = found_exist.group(0).split(' of ')
+        if int(exists[0]) * 2 != int(exists[1]):
+            sys.exit(f"{exists[0]} of {exists[1]} keys, expected {int(exists[1]) / 2} of {exists[1]} instead, exist test failed, see output")
+        else:
+            print(f"{exists[0]} of {exists[1]} keys")
     except subprocess.CalledProcessError as e:
         sys.exit(str(e.stderr))
     except Exception as e:
