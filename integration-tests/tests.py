@@ -39,7 +39,7 @@ def run_doubled_exist_test(args):
             sys.exit(f"No {behaviour} output captured, check output")
         exists = found_exist.group(0).split(' of ')
         if int(exists[0]) * 2 != int(exists[1]):
-            sys.exit(f"{exists[0]} of {exists[1]} keys, expected {int(exists[1]) / 2} of {exists[1]} instead, exist test failed, see output")
+            sys.exit(f"{exists[0]} of {exists[1]} keys, expected {int(int(exists[1]) / 2)} of {exists[1]} instead, exist test failed, see output")
         else:
             print(f"{exists[0]} of {exists[1]} keys")
     except subprocess.CalledProcessError as e:
