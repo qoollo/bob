@@ -23,14 +23,14 @@ impl LinkManager {
     }
 
     async fn start_checker_task(factory: Factory, nodes: Arc<[Node]>, period: Duration) {
-        let now = Instant::now();
+        let start = Instant::now();
         let fast_log_iteration_div = 
             (period.as_millis() as usize / FAST_PING_PERIOD_MS as usize).max(1);
         Self::checker(
             &factory,
             &nodes,
             Duration::from_millis(FAST_PING_PERIOD_MS).min(period),
-            || now.elapsed().as_secs() > FAST_PING_DURATION_SEC,
+            || start.elapsed().as_secs() > FAST_PING_DURATION_SEC,
             fast_log_iteration_div,
         )
         .await;
