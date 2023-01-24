@@ -22,7 +22,7 @@ impl LinkManager {
         }
     }
 
-    async fn checker_task(factory: Factory, nodes: Arc<[Node]>, period: Duration) {
+    async fn start_checker_task(factory: Factory, nodes: Arc<[Node]>, period: Duration) {
         let now = Instant::now();
         let fast_log_iteration_div = 
             (period.as_millis() as usize / FAST_PING_PERIOD_MS as usize).max(1);
@@ -30,10 +30,7 @@ impl LinkManager {
             &factory,
             &nodes,
             Duration::from_millis(FAST_PING_PERIOD_MS).min(period),
-            || {
-                let ts = Instant::now();
-                ts.duration_since(now).as_secs() > FAST_PING_DURATION_SEC
-            },
+            || now.elapsed().as_secs() > FAST_PING_DURATION_SEC,
             fast_log_iteration_div,
         )
         .await;
@@ -48,9 +45,9 @@ impl LinkManager {
         log_iteration_div: usize,
     ) {
         let mut interval = interval(period);
-        let mut i = 1;
+        let mut i: usize = 1;
         while !should_stop() {
-            i = (i + 1) % log_iteration_div;
+            i = i.wrapping_add(1) % log_iteration_div;
             let log_in_this_iter = i == 0;
             interval.tick().await;
             let mut err_cnt = 0;
@@ -83,7 +80,7 @@ impl LinkManager {
 
     pub(crate) fn spawn_checker(&self, factory: Factory) {
         let nodes = self.nodes.clone();
-        tokio::spawn(Self::checker_task(factory, nodes, self.check_interval));
+        tokio::spawn(Self::start_checker_task(factory, nodes, self.check_interval));
     }
 
     pub(crate) async fn call_nodes<F, T>(
