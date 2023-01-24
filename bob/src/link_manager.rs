@@ -1,4 +1,4 @@
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::mpsc::{channel, Receiver, Sender, error::TrySendError};
 use std::sync::RwLock;
 
 use crate::prelude::*;
@@ -72,7 +72,7 @@ impl LinkManager {
         }
     }
 
-    pub(crate) async fn spawn_checker(&self, factory: Factory) {
+    pub(crate) fn spawn_checker(&self, factory: Factory) {
         let (sender, receiver) = channel(self.nodes.len() * 2);
         self.node_check_queue.write().expect("rwlock").replace(sender);
         tokio::spawn(Self::checker_task(
@@ -129,7 +129,10 @@ impl LinkManager {
             if let Some(queue) = self.node_check_queue.read().expect("rwlock").as_ref() {
                 if !node.connection_is_set() {
                     if let Err(e) = queue.try_send(node_name.to_string()) {
-                        warn!("error while updating node {} status: {}", node_name, e);
+                        match e {
+                            TrySendError::Full(_) => warn!("too many pings received from node {}", node_name),
+                            TrySendError::Closed(msg) => error!("reconnection channel closed: {}", msg),
+                        }
                     }
                 }
             }

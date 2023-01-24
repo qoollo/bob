@@ -68,8 +68,8 @@ where
 
     /// Spawns background tasks, required before starting bob service
     #[inline]
-    pub async fn run_periodic_tasks(&self, client_factory: Factory) {
-        self.grinder.run_periodic_tasks(client_factory).await;
+    pub fn run_periodic_tasks(&self, client_factory: Factory) {
+        self.grinder.run_periodic_tasks(client_factory);
     }
 
     /// Gracefully shutdowns bob

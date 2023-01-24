@@ -148,7 +148,7 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
     info!("Start backend");
     bob.run_backend().await.unwrap();
     create_signal_handlers(&bob).unwrap();
-    bob.run_periodic_tasks(factory).await;
+    bob.run_periodic_tasks(factory);
     bob.run_api_server(address, port, node.tls_config()).await;
 
     let bob_service = BobApiServer::new(bob);

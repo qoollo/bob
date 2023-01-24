@@ -207,8 +207,8 @@ impl Grinder {
     }
 
     #[inline]
-    pub(crate) async fn run_periodic_tasks(&self, client_factory: Factory) {
-        self.link_manager.spawn_checker(client_factory).await;
+    pub(crate) fn run_periodic_tasks(&self, client_factory: Factory) {
+        self.link_manager.spawn_checker(client_factory);
         self.cleaner
             .spawn_task(self.cleaner.clone(), self.backend.clone());
         self.counter.spawn_task(self.backend.clone());
