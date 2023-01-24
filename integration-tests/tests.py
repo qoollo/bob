@@ -36,9 +36,9 @@ def run_doubled_exist_test(args):
         print(str(p))
         found_exist = re.search(r'\b[0-9]{1,}\sof\s[0-9]{1,}\b', str(p))
         if not found_exist:
-            sys.exit(f"No {behaviour} output captured, check output")
+            sys.exit(f"No exist output captured, check output")
         exists = found_exist.group(0).split(' of ')
-        if int(exists[0]) * 2 != int(exists[1]):
+        if int(exists[0]) * 2 + 1 != int(exists[1]):
             sys.exit(f"{exists[0]} of {exists[1]} keys, expected {int(int(exists[1]) / 2)} of {exists[1]} instead, exist test failed, see output")
         else:
             print(f"{exists[0]} of {exists[1]} keys")
@@ -91,6 +91,7 @@ for item in run_options:
 
 #run doubled range exist
 run_args = get_run_args(item, parsed_args, test_run_config)
-run_args['-c'] = int(run_args['-c']) * 2
+run_args['-c'] = int(run_args['-c']) * 2 + 1
+run_args['-s'] = 5001
 args_str = make_args(run_args)
 run_doubled_exist_test(args_str)
