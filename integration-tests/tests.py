@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import subprocess, argparse, shlex, sys, re, os
+import subprocess, argparse, shlex, sys, re
 from time import sleep
 
 run_options = ['put','get','exist']
@@ -29,8 +29,11 @@ def run_tests(behaviour, args):
     except Exception as e:
         sys.exit(str(e))
 
-def run_doubled_exist_test(args):
+def run_doubled_exist_test(run_args, expected_exist_keys):
     try:
+        run_args['-c'] = expected_exist_keys * 2 + 1
+        run_args['-s'] = 5001
+        args = make_args(run_args)
         print(f'Running bobp -b exist {args.rstrip()}')
         p = subprocess.check_output(shlex.split(f'./bobp -b exist {args.rstrip()}')).decode('ascii')
         print(str(p))
@@ -38,8 +41,8 @@ def run_doubled_exist_test(args):
         if not found_exist:
             sys.exit(f"No exist output captured, check output")
         exists = found_exist.group(0).split(' of ')
-        if int(exists[0]) * 2 + 1 != int(exists[1]):
-            sys.exit(f"{exists[0]} of {exists[1]} keys, expected {int(int(exists[1]) / 2)} of {exists[1]} instead, exist test failed, see output")
+        if int(exists[0]) != expected_exist_keys:
+            sys.exit(f"{exists[0]} of {exists[1]} keys, expected {expected_exist_keys} of {exists[1]} instead, exist test failed, see output")
         else:
             print(f"{exists[0]} of {exists[1]} keys")
     except subprocess.CalledProcessError as e:
@@ -91,7 +94,4 @@ for item in run_options:
 
 #run doubled range exist
 run_args = get_run_args(item, parsed_args, test_run_config)
-run_args['-c'] = int(run_args['-c']) * 2 + 1
-run_args['-s'] = 5001
-args_str = make_args(run_args)
-run_doubled_exist_test(args_str)
+run_doubled_exist_test(args_str, parsed_args.count)
