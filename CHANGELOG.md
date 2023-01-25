@@ -5,6 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Quorum argument for manual workflow dispatch for integration tests (#749)
+- Client metrics are initialized at the start (#761)
 
 #### Changed
 - Make local put parallel to remote (#573)
