@@ -33,6 +33,7 @@ def run_doubled_exist_test(run_args, expected_exist_keys):
     try:
         run_args['-c'] = expected_exist_keys * 2 + 1
         run_args['-s'] = 5001
+        run_args['-t'] = 1
         args = make_args(run_args)
         print(f'Running bobp -b exist {args.rstrip()}')
         p = subprocess.check_output(shlex.split(f'./bobp -b exist {args.rstrip()}')).decode('ascii')
@@ -94,4 +95,4 @@ for item in run_options:
 
 #run doubled range exist
 run_args = get_run_args(item, parsed_args, test_run_config)
-run_doubled_exist_test(args_str, parsed_args.count)
+run_doubled_exist_test(run_args, parsed_args.count)
