@@ -29,6 +29,13 @@ def run_tests(behaviour, args):
     except Exception as e:
         sys.exit(str(e))
 
+def make_args(raw_args):
+    args_str = ''
+    for key in raw_args:
+        if raw_args.get(key) != None:
+            args_str += f'{key} {raw_args.get(key)} '
+    return args_str
+
 def run_doubled_exist_test(run_args, expected_exist_keys):
     try:
         run_args['-c'] = expected_exist_keys * 2 + 1
@@ -54,13 +61,6 @@ def run_doubled_exist_test(run_args, expected_exist_keys):
 def get_run_args(mode, args, run_conf):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':args.first, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':run_conf.get(mode), 
     '--user':args.user, '--password':args.password}
-
-def make_args(raw_args):
-    args_str = ''
-    for key in raw_args:
-        if raw_args.get(key) != None:
-            args_str += f'{key} {raw_args.get(key)} '
-    return args_str
 
 parser = argparse.ArgumentParser(description='This script launches bob tests with given configuration.')
 parser.add_argument('-c', dest='count', type=int, help='amount of entries to process', required=True)
