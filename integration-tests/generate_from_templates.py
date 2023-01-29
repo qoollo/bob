@@ -3,6 +3,7 @@ from re import T
 import argparse, os, sys
 from jinja2 import Template
 from quantiphy import Quantity
+from misc_functions import print_then_exit
 
 def pathified(string):
     return str(os.path.abspath(rf'{string}'))
@@ -55,7 +56,7 @@ os.makedirs(path, exist_ok=True, mode=0o777)
 
 
 if len(os.listdir(path)) != 0:
-    sys.exit(f'Directory {path} not empty.')
+    print_then_exit(f'Directory {path} not empty.')
 
 try:
     original_umask = os.umask(0)

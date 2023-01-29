@@ -2,6 +2,7 @@
 
 import subprocess, argparse, shlex, sys, re
 from time import sleep
+from misc_functions import print_then_exit
 
 run_options = ['put','get','exist']
 
@@ -12,22 +13,22 @@ def run_tests(behaviour, args):
         print(str(p))
         if behaviour in {'put', 'get'}:
             if not 'total err: 0' in str(p):
-                sys.exit(f'{behaviour} test failed, see output')
+                print_then_exit(f'{behaviour} test failed, see output')
         elif behaviour == 'exist':
             found_exist = re.search(r'\b[0-9]{1,}\sof\s[0-9]{1,}\b', str(p))
             if not found_exist:
-                sys.exit(f"No {behaviour} output captured, check output")
+                print_then_exit(f"No {behaviour} output captured, check output")
             exists = found_exist.group(0).split(' of ')
             if exists[0] != exists[1]:
-                sys.exit(f"{exists[0]} of {exists[1]} keys, {behaviour} test failed, see output")
+                print_then_exit(f"{exists[0]} of {exists[1]} keys, {behaviour} test failed, see output")
             else:
                 print(f"{exists[0]} of {exists[1]} keys")
         else:
-            sys.exit('Unknown behaviour.')     
+            print_then_exit('Unknown behaviour.')     
     except subprocess.CalledProcessError as e:
-        sys.exit(str(e.stderr))
+        print_then_exit(str(e.stderr))
     except Exception as e:
-        sys.exit(str(e))
+        print_then_exit(str(e))
 
 def make_args(raw_args):
     args_str = ''
@@ -47,16 +48,16 @@ def run_doubled_exist_test(run_args, expected_exist_keys):
         print(str(p))
         found_exist = re.search(r'\b[0-9]{1,}\sof\s[0-9]{1,}\b', str(p))
         if not found_exist:
-            sys.exit(f"No exist output captured, check output")
+            print_then_exit(f"No exist output captured, check output")
         exists = found_exist.group(0).split(' of ')
         if int(exists[0]) != expected_exist_keys:
-            sys.exit(f"{exists[0]} of {exists[1]} keys, expected {expected_exist_keys} of {exists[1]} instead, exist test failed, see output")
+            print_then_exit(f"{exists[0]} of {exists[1]} keys, expected {expected_exist_keys} of {exists[1]} instead, exist test failed, see output")
         else:
             print(f"{exists[0]} of {exists[1]} keys")
     except subprocess.CalledProcessError as e:
-        sys.exit(str(e.stderr))
+        print_then_exit(str(e.stderr))
     except Exception as e:
-        sys.exit(str(e))
+        print_then_exit(str(e))
 
 def get_run_args(mode, args, run_conf):
     return {'-c':args.count, '-l':args.payload, '-h':f'{args.node}', '-f':args.first, '-t':args.threads, '--mode':args.mode, '-k':args.keysize, '-p':run_conf.get(mode), 
@@ -84,7 +85,7 @@ try:
         test_run_config[item]=str(parsed_args.transport_min_port + (iter % int(parsed_args.nodes_amount))) #used in get_run_args()
         iter += 1
 except ValueError:
-    sys.exit('Args had unexpected values.')
+    print_then_exit('Args had unexpected values.')
 
 #run put/get/exist tests
 for item in run_options:

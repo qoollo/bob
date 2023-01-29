@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import subprocess, argparse, shlex, sys, re
+from misc_functions import print_then_exit
 
 def make_run_args(args):
      return {'-c':args.count, '-s':args.start, '-e':args.end, '-a':f'http://127.0.0.1:{args.rest_min_port}', '--user':args.user, '--password':args.password}
@@ -33,12 +34,12 @@ try:
     found_summaries = re.search(r'\bFinal\ssummary:\s[0-9]{1,}\/[0-9]{1,}\b', str(p))
     #exit if no summaries
     if not found_summaries:
-        sys.exit('No bobt output found.')
+        print_then_exit('No bobt output found.')
     #find the last Summary and get its values
     summary = found_summaries.group(0).replace('Final summary: ', '').split('/')
     if summary[0] != summary[1]:
-        sys.exit(f'Test failed, captured summary has incomplete score: {summary[0]} of {summary[1]}')
+        print_then_exit(f'Test failed, captured summary has incomplete score: {summary[0]} of {summary[1]}')
     else:
         print(f'Test succeeded: {summary[0]}/{summary[1]}')
 except subprocess.CalledProcessError as e:
-    sys.exit(str(e.stderr))
+    print_then_exit(str(e.stderr))
