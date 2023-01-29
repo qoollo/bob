@@ -1,8 +1,7 @@
 #!/usr/bin/python3
 from re import T
-import argparse, os, sys
+import argparse, os
 from jinja2 import Template
-from quantiphy import Quantity
 from misc_functions import print_then_exit
 
 def pathified(string):

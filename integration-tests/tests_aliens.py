@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import subprocess, argparse, shlex, sys, re
+import subprocess, argparse, shlex, re
 from time import sleep
 from python_on_whales import docker as d_cli
 from python_on_whales.exceptions import *

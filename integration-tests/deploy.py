@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import os, argparse, sys, subprocess, shlex, docker
+import os, argparse, subprocess, shlex, docker
 from python_on_whales import docker as d_cli
 from docker import errors as d_err
 from docker import types as d_types

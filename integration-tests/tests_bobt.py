@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import subprocess, argparse, shlex, sys, re
+import subprocess, argparse, shlex, re
 from misc_functions import print_then_exit
 
 def make_run_args(args):
