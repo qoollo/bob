@@ -291,6 +291,7 @@ pub async fn init_counters(
     );
     let metrics = Arc::new(container);
     init_grinder();
+    init_client();
     init_backend();
     init_link_manager();
     init_pearl();
@@ -306,6 +307,22 @@ fn init_grinder() {
     register_counter!(GRINDER_PUT_ERROR_COUNT_COUNTER);
     register_counter!(GRINDER_EXIST_ERROR_COUNT_COUNTER);
     register_counter!(GRINDER_EXIST_ERROR_KEYS_COUNT_COUNTER);
+}
+
+fn init_client() {
+    register_counter!(CLIENT_EXIST_COUNTER);
+    register_counter!(CLIENT_EXIST_ERROR_COUNT_COUNTER);
+    register_counter!(CLIENT_EXIST_ERROR_KEYS_COUNT_COUNTER);
+    register_counter!(CLIENT_EXIST_KEYS_COUNT_COUNTER);
+
+    register_counter!(CLIENT_DELETE_COUNTER);
+    register_counter!(CLIENT_DELETE_ERROR_COUNT_COUNTER);
+
+    register_counter!(CLIENT_GET_COUNTER);
+    register_counter!(CLIENT_GET_ERROR_COUNT_COUNTER);
+
+    register_counter!(CLIENT_PUT_COUNTER);
+    register_counter!(CLIENT_PUT_ERROR_COUNT_COUNTER);
 }
 
 fn init_backend() {
