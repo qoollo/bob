@@ -5,7 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Quorum argument for manual workflow dispatch for integration tests (#749)
-- Doubled count exist test for integration tests (#764)
+- Exist test on doubled range of keys for integration tests (#764)
 
 #### Changed
 - Make local put parallel to remote (#573)
