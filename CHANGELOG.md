@@ -12,7 +12,7 @@ Bob versions changelog
 - Build release binaries and docker images with `release-lto` profile (#714)
 
 #### Fixed
-
+- Fix incorrect exist result due to variables sharing between keys (#762)
 
 #### Updated
 
