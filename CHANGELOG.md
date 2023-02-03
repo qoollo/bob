@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [v2.0.14-alpha.5] - 2023-02-03
+#### Added
  - Added mimalloc allocator for musl target (#688)
 
 #### Changed
