@@ -11,6 +11,7 @@ Bob versions changelog
 #### Changed
 - Make local put parallel to remote (#573)
 - Build release binaries and docker images with `release-lto` profile (#714)
+- Use read lock instead of write on hierarchical filters update to improve performance (#596)
 
 #### Fixed
 - Fix incorrect exist result due to variables sharing between keys (#762)
