@@ -119,11 +119,17 @@ impl Virtual {
         self.vdisks.get(&id).expect("vdisk not found").nodes()
     }
 
+    /// Skips nodes according to `offset` value and counts available nodes at the same time. 
+    /// Available nodes: connected nodes and not in `target_nodes` list.
+    /// If stops before the collection ends, then return value contains the node index for the specified offset.
+    /// If it skips the whole collection of nodes, then return value contains the number of available nodes.
     fn try_find_support_node_offset_at_one_pass(
         nodes: &[Node],
         target_nodes: &[Node],
         offset: usize,
     ) -> SupportIndexResult {
+        debug_assert!(offset <= nodes.len());
+
         let mut avail = 0;
         for i in 0..nodes.len() {
             let node = &nodes[i];
@@ -141,12 +147,14 @@ impl Virtual {
         return SupportIndexResult { index: None, avail };
     }
 
-    /// Look for an offset respecting the uniform distribution
+    /// Look for an offset respecting the uniform distribution for available nodes.
+    /// Available nodes: connected nodes and not in `target_nodes` list.
     fn find_support_node_offset(nodes: &[Node], target_nodes: &[Node], offset: usize) -> usize {
         if target_nodes.len() >= nodes.len() {
-            return 0;
+            // target_nodes is equal to nodes => cannot find the proper offset
+            return offset % nodes.len();
         }
-        let mut res = Self::try_find_support_node_offset_at_one_pass(nodes, target_nodes, offset);
+        let mut res = Self::try_find_support_node_offset_at_one_pass(nodes, target_nodes, offset % (nodes.len() - target_nodes.len()));
         if res.index == None && res.avail > 0 {
             let mut curr_offset = offset % res.avail;
             while res.index == None && res.avail > 0 {
@@ -168,14 +176,20 @@ impl Virtual {
         }
     }
 
+    /// Returns vector of supported nodes (nodes that can be used to store aliens for specified key).
+    /// Result vector will not conain target nodes for the key.
+    /// Preserves uniform distribution along available nodes.
     pub fn get_support_nodes(&self, key: BobKey, count: usize) -> Vec<&Node> {
         debug_assert!(count <= self.nodes.len());
         if count == 0 {
             return vec![];
         }
+        
         trace!("get target nodes for given key");
         let target_nodes = self.get_target_nodes_for_key(key);
         debug_assert!(target_nodes.iter().map(|n| n.index()).collect::<HashSet<NodeId>>().len() == target_nodes.len());
+        debug_assert!(target_nodes.iter().all(|n| self.nodes.iter().any(|n_full| n.index() == n_full.index())));
+
         if target_nodes.len() >= self.nodes.len() {
             return vec![];
         }
@@ -188,9 +202,9 @@ impl Virtual {
             &self.nodes,
             target_nodes,
             self.support_nodes_offset.fetch_add(1, Ordering::Relaxed)
-                % (self.nodes.len() - target_nodes.len()),
         );
 
+        // First pass: fill supported nodes starting from `starting_index`
         let len = self.nodes.len();
         for i in 0..len {
             let node = &self.nodes[(i + starting_index) % len];
@@ -202,9 +216,11 @@ impl Virtual {
                 }
             }
         }
+
         if support_nodes.len() < count
             && support_nodes.len() + target_nodes.len() < self.nodes.len()
         {
+            // Second pass: if the number of found support nodes is less than requested `count` then we also include diconnected ones
             for i in 0..len {
                 let node = &self.nodes[(i + starting_index) % len];
                 // Ignore connection status to fill support_nodes
