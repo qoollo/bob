@@ -312,7 +312,10 @@ impl VDisk {
     pub fn set_nodes(&mut self, nodes: &[Node]) {
         for node in nodes {
             if self.replicas.iter().any(|r| r.node_name() == node.name()) {
-                debug_assert!(self.nodes.iter().all(|n| n.address() != node.address() && n.index() != node.index()), "Duplicated nodes detected");
+                if self.nodes.iter().any(|n| n.address() == node.address() || n.index() == node.index()) {
+                    error!("Duplicated node detected: {:?}", node);
+                    panic!("Duplicated node detected: {:?}", node);
+                }
 
                 self.nodes.push(node.clone());
             }
