@@ -8,6 +8,7 @@ Bob versions changelog
 
 #### Changed
 - Make local put parallel to remote (#573)
+- Prefer online nodes for aliens, while maintaining uniform distribution (#571)
 
 #### Fixed
 
@@ -19,7 +20,6 @@ Bob versions changelog
 ## [2.1.0-alpha.9] - 2023-01-16
 #### Added
 - Added exist key metrics to grinder and exist metrics to pearl (#709)
-- Send aliens to online nodes first (#570)
 
 #### Changed
 - Removed `open_blobs_soft_limit` and `open_blobs_hard_limit` from node config example (#703)
