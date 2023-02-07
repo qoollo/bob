@@ -1,4 +1,8 @@
 use crate::prelude::*;
+use std::time::Instant;
+
+const FAST_PING_PERIOD_MS: u64 = 100;
+const FAST_PING_DURATION_SEC: u64 = 60;
 
 #[derive(Debug)]
 pub(crate) struct LinkManager {
@@ -19,26 +23,56 @@ impl LinkManager {
     }
 
     async fn checker_task(factory: Factory, nodes: Arc<[Node]>, period: Duration) {
+        let start = Instant::now();
+        let fast_log_iteration_div = 
+            (period.as_millis() as usize / FAST_PING_PERIOD_MS as usize).max(1);
+        Self::checker(
+            &factory,
+            &nodes,
+            Duration::from_millis(FAST_PING_PERIOD_MS).min(period),
+            || start.elapsed().as_secs() > FAST_PING_DURATION_SEC,
+            fast_log_iteration_div,
+        )
+        .await;
+        Self::checker(&factory, &nodes, period, || false, 1).await;
+    }
+
+    async fn checker(
+        factory: &Factory,
+        nodes: &[Node],
+        period: Duration,
+        should_stop: impl Fn() -> bool,
+        log_iteration_div: usize,
+    ) {
         let mut interval = interval(period);
-        loop {
+        let mut i: usize = 1;
+        while !should_stop() {
+            i = i.wrapping_add(1) % log_iteration_div;
+            let log_in_this_iter = i == 0;
             interval.tick().await;
             let mut err_cnt = 0;
             let mut status = String::from("Node status: ");
             for node in nodes.iter() {
                 if let Err(e) = node.check(&factory).await {
-                    error!(
-                        "No connection to {}:[{}] - {}",
-                        node.name(),
-                        node.address(),
-                        e
-                    );
-                    status += &format!("[-]{:<10} ", node.name());
+                    if log_in_this_iter {
+                        error!(
+                            "No connection to {}:[{}] - {}",
+                            node.name(),
+                            node.address(),
+                            e
+                        );
+                        status += &format!("[-]{:<10} ", node.name());
+                    }
                     err_cnt += 1;
                 } else {
-                    status += &format!("[+]{:<10} ", node.name());
+                    if log_in_this_iter {
+                        status += &format!("[+]{:<10} ", node.name());
+                    }
                 }
             }
-            info!("{}", status);
+            if log_in_this_iter {
+                info!("{}", status);
+            }
             let cnt = nodes.len() - err_cnt;
             gauge!(AVAILABLE_NODES_COUNT, cnt as f64);
         }

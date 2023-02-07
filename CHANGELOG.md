@@ -5,6 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Quorum argument for manual workflow dispatch for integration tests (#749)
+- Fast ping at the start (#657)
 - Client metrics are initialized at the start (#761)
 - Exist test on doubled range of keys for integration tests (#764)
 
