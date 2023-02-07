@@ -22,7 +22,7 @@ impl LinkManager {
         }
     }
 
-    async fn start_checker_task(factory: Factory, nodes: Arc<[Node]>, period: Duration) {
+    async fn checker_task(factory: Factory, nodes: Arc<[Node]>, period: Duration) {
         let start = Instant::now();
         let fast_log_iteration_div = 
             (period.as_millis() as usize / FAST_PING_PERIOD_MS as usize).max(1);
@@ -80,7 +80,7 @@ impl LinkManager {
 
     pub(crate) fn spawn_checker(&self, factory: Factory) {
         let nodes = self.nodes.clone();
-        tokio::spawn(Self::start_checker_task(factory, nodes, self.check_interval));
+        tokio::spawn(Self::checker_task(factory, nodes, self.check_interval));
     }
 
     pub(crate) async fn call_nodes<F, T>(
