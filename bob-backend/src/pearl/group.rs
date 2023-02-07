@@ -300,9 +300,9 @@ impl Group {
         let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
-        let mut max_timestamp = None;
-        let mut result = false;
         for (ind, &key) in keys.iter().enumerate() {
+            let mut max_timestamp = None;
+            let mut result = false;
             for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
             {
                 match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {

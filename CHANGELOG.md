@@ -6,15 +6,18 @@ Bob versions changelog
 #### Added
 - Quorum argument for manual workflow dispatch for integration tests (#749)
 - Fast ping at the start (#657)
+- Client metrics are initialized at the start (#761)
+- Exist test on doubled range of keys for integration tests (#764)
 
 #### Changed
 - Make local put parallel to remote (#573)
+- Build release binaries and docker images with `release-lto` profile (#714)
 
 #### Fixed
-
+- Fix incorrect exist result due to variables sharing between keys (#762)
 
 #### Updated
-
+- Logger to logstash updated to qoollo-log4rs-logstash v0.2 (#681)
 
 
 ## [2.1.0-alpha.9] - 2023-01-16
