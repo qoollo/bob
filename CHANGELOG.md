@@ -11,6 +11,7 @@ Bob versions changelog
 
 #### Changed
 - Make local put parallel to remote (#573)
+- Prefer online nodes for aliens, while maintaining uniform distribution (#571)
 - Build release binaries and docker images with `release-lto` profile (#714)
 
 #### Fixed
