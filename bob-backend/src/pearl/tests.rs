@@ -20,7 +20,7 @@ async fn create_backend(node_config: &str, cluster_config: &str) -> BackendResul
     let node = NodeConfig::get_from_string(node_config, &cluster).unwrap();
     debug!("node: {:?}", node);
 
-    let mapper = Arc::new(Virtual::new(&node, &cluster).await);
+    let mapper = Arc::new(Virtual::new(&node, &cluster));
     debug!("mapper: {:?}", mapper);
     PearlBackend::new(mapper, &node).await
 }

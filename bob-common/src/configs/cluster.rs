@@ -527,7 +527,7 @@ pub mod tests {
                 let name = id.to_string();
                 Node {
                     name: name.clone(),
-                    address: "0.0.0.0:0".to_string(),
+                    address: format!("0.0.0.0:{id}"),
                     disks: vec![DiskPath::new(name.clone(), name)],
                 }
             })
