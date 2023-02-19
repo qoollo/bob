@@ -30,6 +30,7 @@ pub mod b_client {
     }
 
     // BobClient readonly data that are shared between clones
+    #[derive(Debug)]
     struct BobClientInnerData {
         target_node_name: String,
         target_node_address: String,
@@ -242,25 +243,25 @@ pub mod b_client {
         }
 
         fn set_credentials<T>(&self, req: &mut Request<T>) {
-            let val = MetadataValue::from_str(&self.auth_header)
+            let val = MetadataValue::from_str(&self.inner_data.auth_header)
                 .expect("failed to create metadata value from authorization");
             req.metadata_mut().insert("authorization", val);
         }
 
         fn set_node_name<T>(&self, r: &mut Request<T>) {
-            let val = MetadataValue::from_str(&self.local_node_name)
+            let val = MetadataValue::from_str(&self.inner_data.local_node_name)
                 .expect("failed to create metadata value from node name");
             r.metadata_mut().insert("node_name", val);
         }
 
         fn set_timeout<T>(&self, r: &mut Request<T>) {
-            r.set_timeout(self.operation_timeout);
+            r.set_timeout(self.inner_data.operation_timeout);
         }
     }
 
     mock! {
         pub BobClient {
-            pub async fn create<'a>(node: Node, operation_timeout: Duration, metrics: BobClientMetrics, local_node_name: String, tls_config: Option<&'a FactoryTlsConfig>) -> Result<Self, String>;
+            pub async fn create<'a>(node: &Node, operation_timeout: Duration, metrics: BobClientMetrics, local_node_name: String, tls_config: Option<&'a FactoryTlsConfig>) -> Result<Self, String>;
             pub async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult;
             pub async fn get(&self, key: BobKey, options: GetOptions) -> GetResult;
             pub async fn ping(&self) -> PingResult;
@@ -277,9 +278,7 @@ pub mod b_client {
         fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
             f.debug_struct("RealBobClient")
                 .field("client", &"BobApiClient<Channel>")
-                .field("metrics", &self.metrics)
-                .field("node", &self.node)
-                .field("operation_timeout", &self.operation_timeout)
+                .field("inner_data", &self.inner_data)
                 .finish()
         }
     }
