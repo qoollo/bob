@@ -106,10 +106,6 @@ impl Node {
         }
     }
 
-    pub fn connection_is_set(&self) -> bool {
-        self.conn.read().expect("rwlock").is_some()
-    }
-
     pub async fn ping(&self, conn: &BobClient) -> Result<(), String> {
         if let Err(e) = conn.ping().await {
             debug!("Got broken connection to node {:?}", self);

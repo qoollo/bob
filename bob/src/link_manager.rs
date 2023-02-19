@@ -90,13 +90,13 @@ impl LinkManager {
     ) {
         while let Some(name) = node_check_queue.recv().await {
             if let Some(node) = nodes.iter().find(|n| n.name() == name) {
-                if !node.connection_is_set() {
-                    if let Err(e) = node.check(&factory).await {
+                if !node.connection_available() {
+                    if let Err(err) = node.check(&factory).await {
                         error!(
-                            "No connection to {}:[{}] - {}",
+                            "Unable to connect to {}:[{}] after the ping was received from it : {}",
                             node.name(),
                             node.address(),
-                            e
+                            err
                         );
                     } else {
                         debug!("Create connection in response to ping from {}", node.name());
@@ -161,11 +161,11 @@ impl LinkManager {
     pub(crate) fn update_node_connection(&self, node_name: &str) {
         if let Some(node) = self.nodes.iter().find(|n| n.name() == node_name) {
             if let Some(queue) = self.node_check_queue.read().expect("rwlock").as_ref() {
-                if !node.connection_is_set() {
+                if !node.connection_available() {
                     if let Err(e) = queue.try_send(node_name.to_string()) {
                         match e {
-                            TrySendError::Full(_) => warn!("too many pings received from node {}", node_name),
-                            TrySendError::Closed(msg) => error!("reconnection channel closed: {}", msg),
+                            TrySendError::Full(node_name) => warn!("too many pings received from nodes. Queue overflowed on node: {}", node_name),
+                            TrySendError::Closed(_) => error!("reconnection channel closed"),
                         }
                     }
                 }
