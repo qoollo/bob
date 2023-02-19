@@ -1,3 +1,6 @@
+use tokio::sync::mpsc::{channel, Receiver, Sender, error::TrySendError};
+use std::sync::RwLock;
+
 use crate::prelude::*;
 use std::time::Instant;
 
@@ -8,6 +11,7 @@ const FAST_PING_DURATION_SEC: u64 = 60;
 pub(crate) struct LinkManager {
     nodes: Arc<[Node]>,
     check_interval: Duration,
+    node_check_queue: Arc<RwLock<Option<Sender<String>>>>,
 }
 
 pub(crate) type ClusterCallOutput<T> = Result<NodeOutput<T>, NodeOutput<Error>>;
@@ -19,6 +23,7 @@ impl LinkManager {
         LinkManager {
             nodes: Arc::from(nodes),
             check_interval,
+            node_check_queue: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -78,9 +83,42 @@ impl LinkManager {
         }
     }
 
+    async fn priority_nodes_checker(
+        nodes: Arc<[Node]>,
+        factory: Factory,
+        mut node_check_queue: Receiver<String>,
+    ) {
+        while let Some(name) = node_check_queue.recv().await {
+            if let Some(node) = nodes.iter().find(|n| n.name() == name) {
+                if !node.connection_available() {
+                    if let Err(err) = node.check(&factory).await {
+                        error!(
+                            "Unable to connect to {}:[{}] after the ping was received from it : {}",
+                            node.name(),
+                            node.address(),
+                            err
+                        );
+                    } else {
+                        debug!("Create connection in response to ping from {}", node.name());
+                    }
+                }
+            }
+        }
+    }
+
     pub(crate) fn spawn_checker(&self, factory: Factory) {
-        let nodes = self.nodes.clone();
-        tokio::spawn(Self::checker_task(factory, nodes, self.check_interval));
+        let (sender, receiver) = channel(self.nodes.len() * 2);
+        self.node_check_queue.write().expect("rwlock").replace(sender);
+        tokio::spawn(Self::checker_task(
+            factory.clone(),
+            self.nodes.clone(),
+            self.check_interval,
+        ));
+        tokio::spawn(Self::priority_nodes_checker(
+            self.nodes.clone(),
+            factory,
+            receiver,
+        ));
     }
 
     pub(crate) async fn call_nodes<F, T>(
@@ -118,5 +156,20 @@ impl LinkManager {
             Box::pin(client.exist(keys.to_vec(), GetOptions::new_all()))
         })
         .await
+    }
+
+    pub(crate) fn update_node_connection(&self, node_name: &str) {
+        if let Some(node) = self.nodes.iter().find(|n| n.name() == node_name) {
+            if !node.connection_available() {
+                if let Some(queue) = self.node_check_queue.read().expect("rwlock").as_ref() {
+                    if let Err(e) = queue.try_send(node_name.to_string()) {
+                        match e {
+                            TrySendError::Full(node_name) => warn!("Too many pings received from nodes. Queue overflowed on node: {}", node_name),
+                            TrySendError::Closed(_) => error!("Reconnection channel in link_manager closed"),
+                        }
+                    }
+                }
+            }
+        }
     }
 }
