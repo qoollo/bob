@@ -76,7 +76,7 @@ impl Node {
 
     pub fn set_connection(&self, client: BobClient) {
         let mut conn = self.conn.write().expect("rwlock write error");
-        *conn = Some(client);
+        *conn = Some(Arc::new(client));
         self.conn_available.store(true, Ordering::Release);
     }
 
