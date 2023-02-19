@@ -6,7 +6,10 @@ use http::Uri;
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     hash::{Hash, Hasher},
-    sync::{Arc, RwLock},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, RwLock,
+    },
 };
 
 pub type Id = u16;
@@ -19,6 +22,7 @@ pub struct Node {
     address: String,
     index: Id,
     conn: Arc<RwLock<Option<BobClient>>>,
+    conn_available: Arc<AtomicBool>,
 }
 
 #[derive(Debug)]
@@ -35,12 +39,13 @@ pub struct Disk {
 }
 
 impl Node {
-    pub async fn new(name: String, address: &str, index: u16) -> Self {
+    pub fn new(name: String, address: &str, index: u16) -> Self {
         Self {
             name,
             address: address.to_string(),
             index,
             conn: Arc::default(),
+            conn_available: Arc::default(),
         }
     }
 
@@ -70,15 +75,23 @@ impl Node {
     }
 
     pub fn set_connection(&self, client: BobClient) {
-        *self.conn.write().expect("rwlock") = Some(client);
+        let mut conn = self.conn.write().expect("rwlock write error");
+        *conn = Some(client);
+        self.conn_available.store(true, Ordering::Release);
     }
 
     pub fn clear_connection(&self) {
-        *self.conn.write().expect("rwlock") = None;
+        let mut conn = self.conn.write().expect("rwlock write error");
+        *conn = None;
+        self.conn_available.store(false, Ordering::Release);
     }
 
     pub fn get_connection(&self) -> Option<BobClient> {
         self.conn.read().expect("rwlock").clone()
+    }
+
+    pub fn connection_available(&self) -> bool {
+        self.conn_available.load(Ordering::Acquire)
     }
 
     pub async fn check(&self, client_factory: &Factory) -> Result<(), String> {
@@ -150,7 +163,7 @@ impl<T> Output<T> {
     pub fn map<TOut>(self, map_fn: impl FnOnce(T) -> TOut) -> Output<TOut> {
         Output::<TOut> {
             node_name: self.node_name,
-            inner: map_fn(self.inner)
+            inner: map_fn(self.inner),
         }
     }
 }

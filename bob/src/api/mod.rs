@@ -425,7 +425,7 @@ where
     let mapper = bob.grinder().backend().mapper();
     let mut nodes = vec![];
     let vdisks = collect_disks_info(&bob);
-    for node in mapper.nodes().values() {
+    for node in mapper.nodes() {
         let vdisks: Vec<_> = vdisks
             .iter()
             .filter_map(|vd| {

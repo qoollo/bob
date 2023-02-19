@@ -162,7 +162,7 @@ pub(crate) async fn lookup_remote_aliens(mapper: &Virtual, key: BobKey) -> Optio
     let local_node = mapper.local_node_name();
     let target_nodes = mapper
         .nodes()
-        .values()
+        .iter()
         .filter(|node| node.name() != local_node);
     let result = get_any(key, target_nodes, GetOptions::new_alien()).await;
     if let Some(answer) = result {
