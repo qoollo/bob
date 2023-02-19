@@ -21,7 +21,7 @@ pub struct Node {
     name: Name,
     address: String,
     index: Id,
-    conn: Arc<RwLock<Option<BobClient>>>,
+    conn: Arc<RwLock<Option<Arc<BobClient>>>>,
     conn_available: Arc<AtomicBool>,
 }
 
@@ -86,7 +86,7 @@ impl Node {
         self.conn_available.store(false, Ordering::Release);
     }
 
-    pub fn get_connection(&self) -> Option<BobClient> {
+    pub fn get_connection(&self) -> Option<Arc<BobClient>> {
         self.conn.read().expect("rwlock").clone()
     }
 
@@ -96,10 +96,10 @@ impl Node {
 
     pub async fn check(&self, client_factory: &Factory) -> Result<(), String> {
         if let Some(conn) = self.get_connection() {
-            self.ping(&conn).await
+            self.ping(conn.as_ref()).await
         } else {
             debug!("will connect to {:?}", self);
-            let client = client_factory.produce(self.clone()).await?;
+            let client = client_factory.produce(&self).await?;
             self.ping(&client).await?;
             self.set_connection(client);
             Ok(())

@@ -12,6 +12,7 @@ pub mod b_client {
     };
     use mockall::mock;
     use std::{
+        sync::Arc,
         fmt::{Debug, Formatter, Result as FmtResult},
         time::Duration,
     };
@@ -22,14 +23,21 @@ pub mod b_client {
     };
 
     /// Client for interaction with bob backend
-    #[derive(Clone)]
+    //#[derive(Clone)]
     pub struct BobClient {
-        node: Node,
-        operation_timeout: Duration,
         client: BobApiClient<Channel>,
-        metrics: BobClientMetrics,
-        auth_header: String,
+        inner_data: Arc<BobClientInnerData>,
+    }
+
+    // BobClient readonly data that are shared between clones
+    struct BobClientInnerData {
+        target_node_name: String,
+        target_node_address: String,
         local_node_name: String,
+
+        operation_timeout: Duration,
+        auth_header: String,
+        metrics: BobClientMetrics,
     }
 
     impl BobClient {
@@ -38,12 +46,13 @@ pub mod b_client {
         /// Fails if can't connect to endpoint
         #[allow(dead_code)]
         pub async fn create(
-            node: Node,
+            node: &Node,
             operation_timeout: Duration,
             metrics: BobClientMetrics,
             local_node_name: String,
             tls_config: Option<&FactoryTlsConfig>,
-        ) -> Result<Self, String> {
+        ) -> Result<Self, String> 
+        {
             let mut endpoint = Endpoint::from(node.get_uri());
             if let Some(tls_config) = tls_config {
                 let cert = Certificate::from_pem(&tls_config.ca_cert);
@@ -61,21 +70,26 @@ pub mod b_client {
             let auth_header = format!("InterNode {}", base64::encode(local_node_name.clone()));
 
             Ok(Self {
-                node,
-                operation_timeout,
                 client,
-                metrics,
-                auth_header,
-                local_node_name,
+                inner_data: Arc::new(BobClientInnerData { 
+                        target_node_name: node.name().to_string(), 
+                        target_node_address: node.address().to_string(), 
+                        local_node_name: local_node_name, 
+                        operation_timeout: operation_timeout, 
+                        auth_header: auth_header, 
+                        metrics: metrics 
+                    })
             })
         }
 
         // Getters
-
         #[allow(dead_code)]
-        #[must_use]
-        pub fn node(&self) -> &Node {
-            &self.node
+        pub fn target_node_name(&self) -> &str {
+            &self.inner_data.target_node_name
+        }
+        #[allow(dead_code)]
+        pub fn target_node_address(&self) -> &str {
+            &self.inner_data.target_node_address
         }
 
         #[allow(dead_code)]
@@ -96,18 +110,21 @@ pub mod b_client {
             let mut req = Request::new(message);
             self.set_credentials(&mut req);
             self.set_timeout(&mut req);
-            self.metrics.put_count();
-            let timer = BobClientMetrics::start_timer();
+
             let mut client = self.client.clone();
-            let node_name = self.node.name().to_owned();
+            let node_name = self.inner_data.target_node_name.to_owned();
+            
+            self.inner_data.metrics.put_count();
+            let timer = BobClientMetrics::start_timer();
+
             match client.put(req).await {
                 Ok(_) => {
-                    self.metrics.put_timer_stop(timer);
+                    self.inner_data.metrics.put_timer_stop(timer);
                     Ok(NodeOutput::new(node_name, ()))
                 }
                 Err(e) => {
-                    self.metrics.put_error_count();
-                    self.metrics.put_timer_stop(timer);
+                    self.inner_data.metrics.put_error_count();
+                    self.inner_data.metrics.put_timer_stop(timer);
                     Err(NodeOutput::new(node_name, e.into()))
                 }
             }
@@ -115,11 +132,6 @@ pub mod b_client {
 
         #[allow(dead_code)]
         pub async fn get(&self, key: BobKey, options: GetOptions) -> GetResult {
-            let node_name = self.node.name().to_owned();
-            let mut client = self.client.clone();
-            self.metrics.get_count();
-            let timer = BobClientMetrics::start_timer();
-
             let message = GetRequest {
                 key: Some(BlobKey { key: key.into() }),
                 options: Some(options),
@@ -127,17 +139,24 @@ pub mod b_client {
             let mut req = Request::new(message);
             self.set_credentials(&mut req);
             self.set_timeout(&mut req);
+
+            let node_name = self.inner_data.target_node_name.to_owned();
+            let mut client = self.client.clone();
+
+            self.inner_data.metrics.get_count();
+            let timer = BobClientMetrics::start_timer();
+
             match client.get(req).await {
                 Ok(data) => {
-                    self.metrics.get_timer_stop(timer);
+                    self.inner_data.metrics.get_timer_stop(timer);
                     let ans = data.into_inner();
                     let meta = BobMeta::new(ans.meta.expect("get blob meta").timestamp);
                     let inner = BobData::new(ans.data, meta);
-                    Ok(NodeOutput::new(node_name.clone(), inner))
+                    Ok(NodeOutput::new(node_name, inner))
                 }
                 Err(e) => {
-                    self.metrics.get_error_count();
-                    self.metrics.get_timer_stop(timer);
+                    self.inner_data.metrics.get_error_count();
+                    self.inner_data.metrics.get_timer_stop(timer);
                     Err(NodeOutput::new(node_name, e.into()))
                 }
             }
@@ -145,22 +164,22 @@ pub mod b_client {
 
         #[allow(dead_code)]
         pub async fn ping(&self) -> PingResult {
-            let mut client = self.client.clone();
             let mut req = Request::new(Null {});
             self.set_credentials(&mut req);
             self.set_node_name(&mut req);
             self.set_timeout(&mut req);
+
+            let node_name = self.inner_data.target_node_name.to_owned();
+            let mut client = self.client.clone();
+
             match client.ping(req).await {
-                Ok(_) => Ok(NodeOutput::new(self.node.name().to_owned(), ())),
-                Err(e) => Err(NodeOutput::new(self.node.name().to_owned(), Error::from(e))),
+                Ok(_) => Ok(NodeOutput::new(node_name, ())),
+                Err(e) => Err(NodeOutput::new(node_name, Error::from(e))),
             }
         }
 
         #[allow(dead_code)]
         pub async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult {
-            let mut client = self.client.clone();
-            self.metrics.exist_count();
-            let timer = BobClientMetrics::start_timer();
             let keys = keys
                 .into_iter()
                 .map(|key| BlobKey { key: key.into() })
@@ -172,29 +191,28 @@ pub mod b_client {
             let mut req = Request::new(message);
             self.set_credentials(&mut req);
             self.set_timeout(&mut req);
-            let exist_response = client.exist(req).await;
-            let result = Self::get_exist_result(self.node.name().to_owned(), exist_response);
-            self.metrics.exist_timer_stop(timer);
-            if result.is_err() {
-                self.metrics.exist_error_count();
+
+            let node_name = self.inner_data.target_node_name.to_owned();
+            let mut client = self.client.clone();
+
+            self.inner_data.metrics.exist_count();
+            let timer = BobClientMetrics::start_timer();
+
+            match client.exist(req).await {
+                Ok(response) => {
+                    self.inner_data.metrics.exist_timer_stop(timer);
+                    Ok(NodeOutput::new(node_name, response.into_inner().exist))
+                },
+                Err(error) => {
+                    self.inner_data.metrics.exist_timer_stop(timer);
+                    self.inner_data.metrics.exist_error_count();
+                    Err(NodeOutput::new(node_name, error.into()))
+                }
             }
-            result
         }
 
-        fn get_exist_result(
-            node_name: String,
-            exist_response: Result<Response<ExistResponse>, Status>,
-        ) -> ExistResult {
-            match exist_response {
-                Ok(response) => Ok(NodeOutput::new(node_name, response.into_inner().exist)),
-                Err(error) => Err(NodeOutput::new(node_name, error.into())),
-            }
-        }
 
         pub async fn delete(&self, key: BobKey, meta: BobMeta, options: DeleteOptions) -> DeleteResult {
-            let mut client = self.client.clone();
-            self.metrics.delete_count();
-            let timer = BobClientMetrics::start_timer();
             let message = DeleteRequest {
                 key: Some(BlobKey { key: key.into() }),
                 meta: Some(BlobMeta { timestamp: meta.timestamp() }),
@@ -203,13 +221,24 @@ pub mod b_client {
             let mut req = Request::new(message);
             self.set_credentials(&mut req);
             self.set_timeout(&mut req);
-            let res = client.delete(req).await;
-            self.metrics.delete_timer_stop(timer);
-            res.map(|_| NodeOutput::new(self.node().name().to_owned(), ()))
-                .map_err(|e| {
-                    self.metrics.delete_error_count();
-                    NodeOutput::new(self.node().name().to_owned(), e.into())
-                })
+
+            let node_name = self.inner_data.target_node_name.to_owned();
+            let mut client = self.client.clone();
+
+            self.inner_data.metrics.delete_count();
+            let timer = BobClientMetrics::start_timer();
+
+            match client.delete(req).await {
+                Ok(_) => {
+                    self.inner_data.metrics.delete_timer_stop(timer);
+                    Ok(NodeOutput::new(node_name, ()))
+                },
+                Err(error) => {
+                    self.inner_data.metrics.delete_timer_stop(timer);
+                    self.inner_data.metrics.delete_error_count();
+                    Err(NodeOutput::new(node_name, error.into()))
+                }
+            }
         }
 
         fn set_credentials<T>(&self, req: &mut Request<T>) {
@@ -319,7 +348,7 @@ impl Factory {
             tls_config,
         }
     }
-    pub async fn produce(&self, node: Node) -> Result<BobClient, String> {
+    pub async fn produce(&self, node: &Node) -> Result<BobClient, String> {
         let metrics = self.metrics.clone().get_metrics();
         BobClient::create(
             node,
