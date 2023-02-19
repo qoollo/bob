@@ -277,7 +277,7 @@ impl BobDeleteOptions {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct VDisk {
     id: VDiskId,
     replicas: Vec<NodeDisk>,
@@ -317,7 +317,7 @@ impl VDisk {
                     panic!("Duplicated node detected: {:?}", node);
                 }
 
-                self.nodes.push(node.clone());
+                self.nodes.push(node.clone_manual());
             }
         }
     }

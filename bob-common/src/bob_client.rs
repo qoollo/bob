@@ -12,7 +12,6 @@ pub mod b_client {
     };
     use mockall::mock;
     use std::{
-        sync::Arc,
         fmt::{Debug, Formatter, Result as FmtResult},
         time::Duration,
     };

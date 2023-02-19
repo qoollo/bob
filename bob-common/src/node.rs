@@ -49,6 +49,16 @@ impl Node {
         }
     }
 
+    pub fn clone_manual(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            address: self.address.clone(),
+            index: self.index,
+            conn: self.conn.clone(),
+            conn_available: self.conn_available.clone()
+        }
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }
