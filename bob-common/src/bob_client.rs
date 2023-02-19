@@ -23,15 +23,10 @@ pub mod b_client {
     };
 
     /// Client for interaction with bob backend
-    //#[derive(Clone)]
+    /// Clone implementation was removed, because struct is large. Use Arc to store copies
     pub struct BobClient {
         client: BobApiClient<Channel>,
-        inner_data: Arc<BobClientInnerData>,
-    }
-
-    // BobClient readonly data that are shared between clones
-    #[derive(Debug)]
-    struct BobClientInnerData {
+        
         target_node_name: String,
         target_node_address: String,
         local_node_name: String,
@@ -72,25 +67,23 @@ pub mod b_client {
 
             Ok(Self {
                 client,
-                inner_data: Arc::new(BobClientInnerData { 
-                        target_node_name: node.name().to_string(), 
-                        target_node_address: node.address().to_string(), 
-                        local_node_name: local_node_name, 
-                        operation_timeout: operation_timeout, 
-                        auth_header: auth_header, 
-                        metrics: metrics 
-                    })
+                target_node_name: node.name().to_string(),
+                target_node_address: node.address().to_string(), 
+                local_node_name: local_node_name, 
+                operation_timeout: operation_timeout, 
+                auth_header: auth_header, 
+                metrics: metrics
             })
         }
 
         // Getters
         #[allow(dead_code)]
         pub fn target_node_name(&self) -> &str {
-            &self.inner_data.target_node_name
+            &self.target_node_name
         }
         #[allow(dead_code)]
         pub fn target_node_address(&self) -> &str {
-            &self.inner_data.target_node_address
+            &self.target_node_address
         }
 
         #[allow(dead_code)]
@@ -113,19 +106,19 @@ pub mod b_client {
             self.set_timeout(&mut req);
 
             let mut client = self.client.clone();
-            let node_name = self.inner_data.target_node_name.to_owned();
+            let node_name = self.target_node_name.to_owned();
             
-            self.inner_data.metrics.put_count();
+            self.metrics.put_count();
             let timer = BobClientMetrics::start_timer();
 
             match client.put(req).await {
                 Ok(_) => {
-                    self.inner_data.metrics.put_timer_stop(timer);
+                    self.metrics.put_timer_stop(timer);
                     Ok(NodeOutput::new(node_name, ()))
                 }
                 Err(e) => {
-                    self.inner_data.metrics.put_error_count();
-                    self.inner_data.metrics.put_timer_stop(timer);
+                    self.metrics.put_error_count();
+                    self.metrics.put_timer_stop(timer);
                     Err(NodeOutput::new(node_name, e.into()))
                 }
             }
@@ -141,23 +134,23 @@ pub mod b_client {
             self.set_credentials(&mut req);
             self.set_timeout(&mut req);
 
-            let node_name = self.inner_data.target_node_name.to_owned();
+            let node_name = self.target_node_name.to_owned();
             let mut client = self.client.clone();
 
-            self.inner_data.metrics.get_count();
+            self.metrics.get_count();
             let timer = BobClientMetrics::start_timer();
 
             match client.get(req).await {
                 Ok(data) => {
-                    self.inner_data.metrics.get_timer_stop(timer);
+                    self.metrics.get_timer_stop(timer);
                     let ans = data.into_inner();
                     let meta = BobMeta::new(ans.meta.expect("get blob meta").timestamp);
                     let inner = BobData::new(ans.data, meta);
                     Ok(NodeOutput::new(node_name, inner))
                 }
                 Err(e) => {
-                    self.inner_data.metrics.get_error_count();
-                    self.inner_data.metrics.get_timer_stop(timer);
+                    self.metrics.get_error_count();
+                    self.metrics.get_timer_stop(timer);
                     Err(NodeOutput::new(node_name, e.into()))
                 }
             }
@@ -170,7 +163,7 @@ pub mod b_client {
             self.set_node_name(&mut req);
             self.set_timeout(&mut req);
 
-            let node_name = self.inner_data.target_node_name.to_owned();
+            let node_name = self.target_node_name.to_owned();
             let mut client = self.client.clone();
 
             match client.ping(req).await {
@@ -193,20 +186,20 @@ pub mod b_client {
             self.set_credentials(&mut req);
             self.set_timeout(&mut req);
 
-            let node_name = self.inner_data.target_node_name.to_owned();
+            let node_name = self.target_node_name.to_owned();
             let mut client = self.client.clone();
 
-            self.inner_data.metrics.exist_count();
+            self.metrics.exist_count();
             let timer = BobClientMetrics::start_timer();
 
             match client.exist(req).await {
                 Ok(response) => {
-                    self.inner_data.metrics.exist_timer_stop(timer);
+                    self.metrics.exist_timer_stop(timer);
                     Ok(NodeOutput::new(node_name, response.into_inner().exist))
                 },
                 Err(error) => {
-                    self.inner_data.metrics.exist_timer_stop(timer);
-                    self.inner_data.metrics.exist_error_count();
+                    self.metrics.exist_timer_stop(timer);
+                    self.metrics.exist_error_count();
                     Err(NodeOutput::new(node_name, error.into()))
                 }
             }
@@ -223,39 +216,39 @@ pub mod b_client {
             self.set_credentials(&mut req);
             self.set_timeout(&mut req);
 
-            let node_name = self.inner_data.target_node_name.to_owned();
+            let node_name = self.target_node_name.to_owned();
             let mut client = self.client.clone();
 
-            self.inner_data.metrics.delete_count();
+            self.metrics.delete_count();
             let timer = BobClientMetrics::start_timer();
 
             match client.delete(req).await {
                 Ok(_) => {
-                    self.inner_data.metrics.delete_timer_stop(timer);
+                    self.metrics.delete_timer_stop(timer);
                     Ok(NodeOutput::new(node_name, ()))
                 },
                 Err(error) => {
-                    self.inner_data.metrics.delete_timer_stop(timer);
-                    self.inner_data.metrics.delete_error_count();
+                    self.metrics.delete_timer_stop(timer);
+                    self.metrics.delete_error_count();
                     Err(NodeOutput::new(node_name, error.into()))
                 }
             }
         }
 
         fn set_credentials<T>(&self, req: &mut Request<T>) {
-            let val = MetadataValue::from_str(&self.inner_data.auth_header)
+            let val = MetadataValue::from_str(&self.auth_header)
                 .expect("failed to create metadata value from authorization");
             req.metadata_mut().insert("authorization", val);
         }
 
         fn set_node_name<T>(&self, r: &mut Request<T>) {
-            let val = MetadataValue::from_str(&self.inner_data.local_node_name)
+            let val = MetadataValue::from_str(&self.local_node_name)
                 .expect("failed to create metadata value from node name");
             r.metadata_mut().insert("node_name", val);
         }
 
         fn set_timeout<T>(&self, r: &mut Request<T>) {
-            r.set_timeout(self.inner_data.operation_timeout);
+            r.set_timeout(self.operation_timeout);
         }
     }
 
@@ -278,7 +271,10 @@ pub mod b_client {
         fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
             f.debug_struct("RealBobClient")
                 .field("client", &"BobApiClient<Channel>")
-                .field("inner_data", &self.inner_data)
+                .field("target_node_name", &self.target_node_name())
+                .field("target_node_address", &self.target_node_address())
+                .field("local_node_name", &self.local_node_name)
+                .field("operation_timeout", &self.operation_timeout)
                 .finish()
         }
     }
