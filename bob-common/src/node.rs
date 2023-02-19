@@ -16,7 +16,7 @@ pub type Id = u16;
 
 pub type Name = String;
 
-#[derive(Clone)]
+//#[derive(Clone)]
 pub struct Node {
     name: Name,
     address: String,
