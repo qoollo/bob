@@ -235,8 +235,8 @@ impl From<String> for NodeName {
     }
 }
 
-impl AsRef for NodeName {
-    fn as_ref(&self) -> &T {
+impl AsRef<str> for NodeName {
+    fn as_ref(&self) -> &str {
         self.as_ref()
     }
 }

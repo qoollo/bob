@@ -4,7 +4,7 @@ use crate::{
         node::Node as NodeConfig,
     },
     data::{BobKey, DiskPath, VDisk as DataVDisk, VDiskId},
-    node::{Id as NodeId, Node},
+    node::{NodeId, Node},
 };
 use std::{
     collections::{HashMap, HashSet},
