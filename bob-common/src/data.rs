@@ -317,7 +317,7 @@ impl VDisk {
                     panic!("Duplicated node detected: {:?}", node);
                 }
 
-                self.nodes.push(node.clone_manual());
+                self.nodes.push(node.clone());
             }
         }
     }
