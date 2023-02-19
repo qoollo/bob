@@ -160,12 +160,12 @@ impl LinkManager {
 
     pub(crate) fn update_node_connection(&self, node_name: &str) {
         if let Some(node) = self.nodes.iter().find(|n| n.name() == node_name) {
-            if let Some(queue) = self.node_check_queue.read().expect("rwlock").as_ref() {
-                if !node.connection_available() {
+            if !node.connection_available() {
+                if let Some(queue) = self.node_check_queue.read().expect("rwlock").as_ref() {
                     if let Err(e) = queue.try_send(node_name.to_string()) {
                         match e {
-                            TrySendError::Full(node_name) => warn!("too many pings received from nodes. Queue overflowed on node: {}", node_name),
-                            TrySendError::Closed(_) => error!("reconnection channel closed"),
+                            TrySendError::Full(node_name) => warn!("Too many pings received from nodes. Queue overflowed on node: {}", node_name),
+                            TrySendError::Closed(_) => error!("Reconnection channel in link_manager closed"),
                         }
                     }
                 }
