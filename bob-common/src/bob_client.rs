@@ -8,7 +8,7 @@ pub mod b_client {
     };
     use bob_grpc::{
         bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, DeleteOptions, DeleteRequest,
-        ExistRequest, ExistResponse, GetOptions, GetRequest, Null, PutOptions, PutRequest,
+        ExistRequest, GetOptions, GetRequest, Null, PutOptions, PutRequest,
     };
     use mockall::mock;
     use std::{
@@ -19,7 +19,7 @@ pub mod b_client {
     use tonic::{
         metadata::MetadataValue,
         transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
-        Request, Response, Status,
+        Request,
     };
 
     /// Client for interaction with bob backend
