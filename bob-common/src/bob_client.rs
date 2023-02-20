@@ -77,7 +77,7 @@ pub mod b_client {
 
         // Getters
         #[allow(dead_code)]
-        pub fn target_node_name(&self) -> &str {
+        pub fn target_node_name(&self) -> &NodeName {
             &self.target_node_name
         }
         #[allow(dead_code)]
