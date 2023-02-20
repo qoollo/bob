@@ -4,7 +4,7 @@ pub mod b_client {
         data::{BobData, BobKey, BobMeta},
         error::Error,
         metrics::BobClient as BobClientMetrics,
-        node::{Node, Output as NodeOutput},
+        node::{Node, NodeName, Output as NodeOutput},
     };
     use bob_grpc::{
         bob_api_client::BobApiClient, Blob, BlobKey, BlobMeta, DeleteOptions, DeleteRequest,
@@ -26,7 +26,7 @@ pub mod b_client {
     pub struct BobClient {
         client: BobApiClient<Channel>,
         
-        target_node_name: String,
+        target_node_name: NodeName,
         target_node_address: String,
         local_node_name: String,
 
@@ -66,7 +66,7 @@ pub mod b_client {
 
             Ok(Self {
                 client,
-                target_node_name: node.name().to_string(),
+                target_node_name: node.name().clone(),
                 target_node_address: node.address().to_string(), 
                 local_node_name: local_node_name, 
                 operation_timeout: operation_timeout, 
@@ -104,8 +104,8 @@ pub mod b_client {
             self.set_credentials(&mut req);
             self.set_timeout(&mut req);
 
-            let mut client = self.client.clone();
             let node_name = self.target_node_name.to_owned();
+            let mut client = self.client.clone();
             
             self.metrics.put_count();
             let timer = BobClientMetrics::start_timer();

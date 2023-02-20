@@ -4,7 +4,7 @@ use crate::{
         node::Node as NodeConfig,
     },
     data::{BobKey, DiskPath, VDisk as DataVDisk, VDiskId},
-    node::{NodeId, Node},
+    node::{NodeId, NodeName, Node},
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -25,7 +25,7 @@ struct SupportIndexResult {
 /// Through the virtual intermediate object, called `VDisk` - "virtual disk"
 #[derive(Debug)]
 pub struct Virtual {
-    local_node_name: String,
+    local_node_name: NodeName,
     local_node_address: String,
     disks: Vec<DiskPath>,
     vdisks: VDisksMap,
@@ -39,7 +39,7 @@ impl Virtual {
     pub fn new(config: &NodeConfig, cluster: &ClusterConfig) -> Self {
         let mut vdisks = cluster.create_vdisks_map().unwrap();
         let nodes = Self::prepare_nodes(&mut vdisks, cluster);
-        let local_node_name = config.name().to_owned();
+        let local_node_name = config.name().into();
         let local_node_address = nodes
             .iter()
             .find(|node| *node.name() == local_node_name)
@@ -66,9 +66,7 @@ impl Virtual {
             .enumerate()
             .map(|(i, conf)| {
                 let index = i.try_into().expect("usize to u16");
-                let address = conf.address();
-                let name = conf.name().to_owned();
-                Node::new(name, address, index)
+                Node::new(conf.name(), conf.address(), index)
             })
             .collect();
 
@@ -78,7 +76,7 @@ impl Virtual {
         nodes
     }
 
-    pub fn local_node_name(&self) -> &str {
+    pub fn local_node_name(&self) -> &NodeName {
         &self.local_node_name
     }
 

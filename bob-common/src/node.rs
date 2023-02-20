@@ -54,13 +54,13 @@ pub struct Disk {
 impl Node {
     pub fn new(name: &str, address: &str, index: u16) -> Self {
         Self {
-            inner: NodeInner {
+            inner: Arc::new(NodeInner {
                 index,
                 name: name.into(),
                 address: address.to_string(),
                 conn: RwLock::new(None),
                 conn_available: AtomicBool::new(false),
-            }
+            })
         }
     }
 
@@ -217,6 +217,12 @@ impl PartialEq for Disk {
 
 // ============= NodeName =============
 
+impl NodeName {
+    pub fn as_str(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
 impl From<&str> for NodeName {
     fn from(val: &str) -> Self {
         Self(val.into())
@@ -229,21 +235,15 @@ impl From<&String> for NodeName {
     }
 }
 
-impl From<String> for NodeName {
-    fn from(val: String) -> Self {
-        Self(val.into())
-    }
-}
-
 impl AsRef<str> for NodeName {
     fn as_ref(&self) -> &str {
-        self.as_ref()
+        self.as_str()
     }
 }
 
 impl PartialEq for NodeName {
     fn eq(&self, other: &Self) -> bool {
-        self.0.as_ref() == other.0.as_ref()
+        self.as_str() == other.as_str()
     }
 }
 
@@ -251,42 +251,54 @@ impl Eq for NodeName { }
 
 impl PartialEq<str> for NodeName {
     fn eq(&self, other: &str) -> bool {
-        self.0.as_ref() == other
+        self.as_str() == other
     }
 }
 
 impl PartialEq<NodeName> for str {
     fn eq(&self, other: &NodeName) -> bool {
-        self == other.0.as_ref()
+        self == other.as_str()
+    }
+}
+
+impl<'a> PartialEq<&'a str> for NodeName {
+    fn eq(&self, other: &&'a str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl<'a> PartialEq<NodeName> for &'a str {
+    fn eq(&self, other: &NodeName) -> bool {
+        *self == other.as_str()
     }
 }
 
 impl PartialEq<String> for NodeName {
     fn eq(&self, other: &String) -> bool {
-        self.0.as_ref() == other
+        self.as_str() == other
     }
 }
 
 impl PartialEq<NodeName> for String {
     fn eq(&self, other: &NodeName) -> bool {
-        self == other.0.as_ref()
+        self == other.as_str()
     }
 }
 
 impl Hash for NodeName {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.as_ref().hash(state)
+        self.as_str().hash(state)
     }
 }
 
 impl Debug for NodeName {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.debug_tuple("NodeName").field(&self.0.as_ref()).finish()
+        f.debug_tuple("NodeName").field(&self.as_str()).finish()
     }
 }
 
 impl Display for NodeName {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str(self.0.as_ref())
+        f.write_str(self.as_str())
     }
 }

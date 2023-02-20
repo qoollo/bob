@@ -317,7 +317,6 @@ impl Cluster {
                     .iter()
                     .find(|node| node.name() == replica.node())
                     .ok_or("unknown node name in replica")?;
-                let node_name = replica.node().to_owned();
                 let disk_path = node
                     .disks()
                     .iter()
@@ -331,7 +330,7 @@ impl Cluster {
                     })?
                     .path()
                     .to_owned();
-                let node_disk = NodeDisk::new(disk_path, disk_name, node_name);
+                let node_disk = NodeDisk::new(disk_path, disk_name, node.name().to_owned());
                 disk.push_replica(node_disk);
             }
             vdisks.insert(vdisk.id(), disk);
