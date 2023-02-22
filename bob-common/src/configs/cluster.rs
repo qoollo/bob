@@ -73,7 +73,7 @@ impl Validatable for Rack {
 
         Validator::validate_no_duplicates(self.nodes.iter()).map_err(|dup_item| {
             error!("rack '{}' can't contain identical node names: {}", self.name(), dup_item);
-            Err(format!("rack '{}' can't contain identical node names: {}", self.name(), dup_item))
+            format!("rack '{}' can't contain identical node names: {}", self.name(), dup_item)
         })?;
 
         Ok(())
@@ -138,7 +138,7 @@ impl Validatable for Node {
 
         Validator::validate_no_duplicates(self.disks.iter().map(|dp| dp.name())).map_err(|dup_item| {
             error!("node '{}' can't use identical names for disks: {}", self.name(), dup_item);
-            Err(format!("node '{}' can't use identical names for disks: {}", self.name(), dup_item))
+            format!("node '{}' can't use identical names for disks: {}", self.name(), dup_item)
         })?;
 
         Ok(())
@@ -232,7 +232,7 @@ impl Validatable for VDisk {
 
         Validator::validate_no_duplicates(self.replicas.iter()).map_err(|dup_item| {
             debug!("vdisk: {} contains duplicate replicas: ({}, {})", self.id(), dup_item.node(), dup_item.disk());
-            Err(format!("vdisk: {} contains duplicate replicas: ({}, {})", self.id(), dup_item.node(), dup_item.disk()))
+            format!("vdisk: {} contains duplicate replicas: ({}, {})", self.id(), dup_item.node(), dup_item.disk())
         })?;
 
         Ok(())
@@ -453,22 +453,22 @@ impl Validatable for Cluster {
 
         Validator::validate_no_duplicates(self.nodes.iter().map(|node| &node.name)).map_err(|dup_item| {
             error!("config contains duplicates nodes names: {}", dup_item);
-            Err(format!("config contains duplicates nodes names: {}", dup_item))
+            format!("config contains duplicates nodes names: {}", dup_item)
         })?;
 
         Validator::validate_no_duplicates(self.nodes.iter().map(|node| &node.address)).map_err(|dup_item| {
             error!("config contains duplicates nodes addresses: {}", dup_item);
-            Err(format!("config contains duplicates nodes addresses: {}", dup_item))
+            format!("config contains duplicates nodes addresses: {}", dup_item)
         })?;
 
         Validator::validate_no_duplicates(self.racks.iter().map(|rack| rack.name())).map_err(|dup_item| {
             error!("config contains duplicates racks names: {}", dup_item);
-            Err(format!("config contains duplicates racks names: {}", dup_item))
+            format!("config contains duplicates racks names: {}", dup_item)
         })?;
 
         Validator::validate_no_duplicates(self.racks.iter().flat_map(|rack| rack.nodes())).map_err(|dup_item| {
             error!("config contains duplicate node names in racks: {}", dup_item);
-            Err(format!("config contains duplicate node names in racks: {}", dup_item))
+            format!("config contains duplicate node names in racks: {}", dup_item)
         })?;
 
         let node_names = self.nodes.iter().map(|node| &node.name).collect::<HashSet<_>>();
