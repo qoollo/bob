@@ -3,7 +3,8 @@ mod tests {
     use crate::configs::{
         cluster::Cluster as ClusterConfig,
         node::Node as NodeConfig,
-        reader::{Validatable, YamlBobConfig},
+        reader::YamlBobConfig,
+        validation::Validatable
     };
 
     #[test]

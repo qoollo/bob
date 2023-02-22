@@ -1,6 +1,7 @@
 use super::{
     node::BackendType,
-    reader::{Validatable, YamlBobConfig},
+    reader::YamlBobConfig,
+    validation::{Validatable, Validator}
 };
 use crate::{
     configs::node::Node as NodeConfig,
@@ -10,7 +11,7 @@ use crate::{
 };
 use anyhow::Result as AnyResult;
 use http::Uri;
-use std::collections::HashMap;
+use std::collections::{ HashMap, HashSet };
 
 impl Validatable for DiskPath {
     fn validate(&self) -> Result<(), String> {
@@ -71,15 +72,12 @@ impl Validatable for Rack {
             return Err(msg);
         }
 
-        let mut names = self.nodes.clone();
-        names.sort_unstable();
-        if names.windows(2).any(|pair| pair[0] == pair[1]) {
-            let msg = format!("racks can't contain identical node names: {}", self.name());
-            error!("{}", msg);
-            Err(msg)
-        } else {
-            Ok(())
-        }
+        Validator::validate_no_duplicates(self.nodes.iter()).map_err(|dup_item| {
+            error!("rack '{}' can't contain identical node names: {}", self.name(), dup_item);
+            Err(format!("rack '{}' can't contain identical node names: {}", self.name(), dup_item))
+        })?;
+
+        Ok(())
     }
 }
 
@@ -137,22 +135,19 @@ impl Validatable for Node {
             }
         }
 
-        Self::aggregate(&self.disks)?;
+        Validator::aggregate(&self.disks)?;
 
-        let mut names = self.disks.iter().map(DiskPath::name).collect::<Vec<_>>();
-        names.sort_unstable();
-        if names.windows(2).any(|pair| pair[0] == pair[1]) {
-            let msg = format!("nodes can't use identical names: {}", self.name());
-            error!("{}", msg);
-            Err(msg)
-        } else {
-            Ok(())
-        }
+        Validator::validate_no_duplicates(self.disks.iter().map(|dp| dp.name())).map_err(|dup_item| {
+            error!("node '{}' can't use identical names for disks: {}", self.name(), dup_item);
+            Err(format!("node '{}' can't use identical names for disks: {}", self.name(), dup_item))
+        })?;
+
+        Ok(())
     }
 }
 
 /// Struct represents replica info for virtual disk.
-#[derive(Debug, PartialEq, Serialize, Deserialize, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct Replica {
     node: String,
     disk: String,
@@ -231,19 +226,17 @@ impl Validatable for VDisk {
             debug!("vdisk must have replicas: {}", self.id());
             return Err(format!("vdisk must have replicas: {}", self.id()));
         }
-        Self::aggregate(&self.replicas).map_err(|e| {
+        Validator::aggregate(&self.replicas).map_err(|e| {
             debug!("vdisk is invalid: {}", self.id());
             e
         })?;
 
-        let mut replicas_ref = self.replicas.iter().collect::<Vec<_>>();
-        replicas_ref.sort();
-        if replicas_ref.windows(2).any(|pair| pair[0] == pair[1]) {
-            debug!("vdisk: {} contains duplicate replicas", self.id());
-            Err(format!("vdisk: {} contains duplicate replicas", self.id()))
-        } else {
-            Ok(())
-        }
+        Validator::validate_no_duplicates(self.replicas.iter()).map_err(|dup_item| {
+            debug!("vdisk: {} contains duplicate replicas: ({}, {})", self.id(), dup_item.node(), dup_item.disk());
+            Err(format!("vdisk: {} contains duplicate replicas: ({}, {})", self.id(), dup_item.node(), dup_item.disk()))
+        })?;
+
+        Ok(())
     }
 }
 
@@ -427,62 +420,53 @@ impl Cluster {
 impl Validatable for Cluster {
     fn validate(&self) -> Result<(), String> {
         if self.nodes.is_empty() {
-            let msg = "bob requires at least one node to start".to_string();
-            error!("{}", msg);
-            return Err(msg);
+            error!("bob requires at least one node to start");
+            return Err("bob requires at least one node to start".to_owned());
         }
         if self.vdisks.is_empty() {
-            let msg = "bob requires at least one virtual disk to start".to_string();
-            error!("{}", msg);
-            return Err(msg);
+            error!("bob requires at least one virtual disk to start");
+            return Err("bob requires at least one virtual disk to start".to_owned());
         }
-        Self::aggregate(&self.racks).map_err(|e| {
+        Validator::aggregate(&self.racks).map_err(|e| {
             error!("some racks in config are invalid");
             e
         })?;
-        Self::aggregate(&self.nodes).map_err(|e| {
+        Validator::aggregate(&self.nodes).map_err(|e| {
             error!("some nodes in config are invalid");
             e
         })?;
-        Self::aggregate(&self.vdisks).map_err(|e| {
+        Validator::aggregate(&self.vdisks).map_err(|e| {
             error!("some vdisks in config are invalid");
             e
         })?;
 
-        let mut vdisks_id = self.vdisks.iter().map(|vdisk| vdisk.id).collect::<Vec<_>>();
-        vdisks_id.sort_unstable();
-        if vdisks_id.windows(2).any(|pair| pair[0] == pair[1]) {
-            debug!("config contains duplicates vdisks ids");
-            return Err("config contains duplicates vdisks ids".to_string());
-        }
+        Validator::validate_no_duplicates(self.vdisks.iter().map(|vdisk| vdisk.id)).map_err(|dup_item| {
+            error!("config contains duplicates vdisks ids: {}", dup_item);
+            Err(format!("config contains duplicates vdisks ids: {}", dup_item))
+        })?;
 
-        let mut node_names = self.nodes.iter().map(|node| &node.name).collect::<Vec<_>>();
-        node_names.sort();
-        if node_names.windows(2).any(|pair| pair[0] == pair[1]) {
-            debug!("config contains duplicates nodes names");
-            return Err("config contains duplicates nodes names".to_string());
-        }
+        Validator::validate_no_duplicates(self.nodes.iter().map(|node| &node.name)).map_err(|dup_item| {
+            error!("config contains duplicates nodes names: {}", dup_item);
+            Err(format!("config contains duplicates nodes names: {}", dup_item))
+        })?;
 
-        let mut rack_names: Vec<_> = self.racks.iter().map(Rack::name).collect();
-        rack_names.sort_unstable();
-        if rack_names.windows(2).any(|pair| pair[0] == pair[1]) {
-            let msg = "config contains duplicates racks names";
-            debug!("{}", msg);
-            return Err(msg.to_string());
-        }
+        Validator::validate_no_duplicates(self.nodes.iter().map(|node| &node.address)).map_err(|dup_item| {
+            error!("config contains duplicates nodes addresses: {}", dup_item);
+            Err(format!("config contains duplicates nodes addresses: {}", dup_item))
+        })?;
 
-        let mut node_names_in_racks: Vec<_> = self.racks.iter().flat_map(Rack::nodes).collect();
-        node_names_in_racks.sort_unstable();
-        if node_names_in_racks
-            .windows(2)
-            .any(|pair| pair[0] == pair[1])
-        {
-            let msg = "config contains duplicate node names in racks";
-            debug!("{}", msg);
-            return Err(msg.to_string());
-        }
+        Validator::validate_no_duplicates(self.racks.iter().map(|rack| rack.name())).map_err(|dup_item| {
+            error!("config contains duplicates racks names: {}", dup_item);
+            Err(format!("config contains duplicates racks names: {}", dup_item))
+        })?;
 
-        for name in node_names_in_racks {
+        Validator::validate_no_duplicates(self.racks.iter().flat_map(|rack| rack.nodes())).map_err(|dup_item| {
+            error!("config contains duplicate node names in racks: {}", dup_item);
+            Err(format!("config contains duplicate node names in racks: {}", dup_item))
+        })?;
+
+        let node_names = self.nodes.iter().map(|node| &node.name).collect::<HashSet<_>>();
+        for name in self.racks.iter().flat_map(Rack::nodes) {
             if !node_names.contains(&name) {
                 let msg = format!("config contains unknown node names in racks: {}", name);
                 debug!("{}", msg);

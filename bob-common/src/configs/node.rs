@@ -1,7 +1,8 @@
 use super::{
     cluster::{Cluster as ClusterConfig, Node as ClusterNodeConfig},
     node::Node as NodeConfig,
-    reader::{Validatable, YamlBobConfig},
+    reader::YamlBobConfig,
+    validation::Validatable
 };
 use bob_access::AuthenticationType;
 use crate::data::DiskPath;
