@@ -213,11 +213,23 @@ impl PartialEq for Disk {
     }
 }
 
+impl Eq for Disk { }
+
+impl Hash for Disk {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.node_name.hash(state);
+        self.disk_name.hash(state);
+    }
+}
+
 
 
 // ============= NodeName =============
 
 impl NodeName {
+    pub fn new(val: &str) -> Self {
+        Self(val.into())
+    }
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
     }
@@ -231,7 +243,7 @@ impl From<&str> for NodeName {
 
 impl From<&String> for NodeName {
     fn from(val: &String) -> Self {
-        Self(val.into())
+        Self(val.as_str().into())
     }
 }
 
@@ -241,49 +253,25 @@ impl AsRef<str> for NodeName {
     }
 }
 
-impl PartialEq for NodeName {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_str() == other.as_str()
-    }
+macro_rules! impl_str_partial_eq {
+    ($ty:ty, $other:ty) => {
+        impl<'a> PartialEq<$other> for $ty {
+            fn eq(&self, other: &$other) -> bool {
+                PartialEq::eq(AsRef::<str>::as_ref(self), AsRef::<str>::as_ref(other))
+            }
+        }
+    };
 }
+
+impl_str_partial_eq!(NodeName, NodeName);
+impl_str_partial_eq!(NodeName, str);
+impl_str_partial_eq!(str, NodeName);
+impl_str_partial_eq!(NodeName, &'a str);
+impl_str_partial_eq!(&'a str, NodeName);
+impl_str_partial_eq!(NodeName, String);
+impl_str_partial_eq!(String, NodeName);
 
 impl Eq for NodeName { }
-
-impl PartialEq<str> for NodeName {
-    fn eq(&self, other: &str) -> bool {
-        self.as_str() == other
-    }
-}
-
-impl PartialEq<NodeName> for str {
-    fn eq(&self, other: &NodeName) -> bool {
-        self == other.as_str()
-    }
-}
-
-impl<'a> PartialEq<&'a str> for NodeName {
-    fn eq(&self, other: &&'a str) -> bool {
-        self.as_str() == *other
-    }
-}
-
-impl<'a> PartialEq<NodeName> for &'a str {
-    fn eq(&self, other: &NodeName) -> bool {
-        *self == other.as_str()
-    }
-}
-
-impl PartialEq<String> for NodeName {
-    fn eq(&self, other: &String) -> bool {
-        self.as_str() == other
-    }
-}
-
-impl PartialEq<NodeName> for String {
-    fn eq(&self, other: &NodeName) -> bool {
-        self == other.as_str()
-    }
-}
 
 impl Hash for NodeName {
     fn hash<H: Hasher>(&self, state: &mut H) {

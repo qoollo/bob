@@ -285,11 +285,18 @@ pub struct VDisk {
 }
 
 impl VDisk {
-    pub fn new(id: VDiskId) -> Self {
+    fn check_no_duplicates<TItem: Eq + Hash>(data: &[TItem]) -> bool {
+        return data.len() == data.iter().collect::<std::collections::HashSet<_>>().len();
+    }
+
+    pub fn new(id: VDiskId, replicas: Vec<NodeDisk>, nodes: Vec<Node>) -> Self {
+        debug_assert!(Self::check_no_duplicates(replicas.as_slice()));
+        debug_assert!(Self::check_no_duplicates(nodes.as_slice()));
+
         VDisk {
             id,
-            replicas: Vec::new(),
-            nodes: Vec::new(),
+            replicas,
+            nodes,
         }
     }
 
@@ -303,23 +310,6 @@ impl VDisk {
 
     pub fn nodes(&self) -> &[Node] {
         &self.nodes
-    }
-
-    pub fn push_replica(&mut self, value: NodeDisk) {
-        self.replicas.push(value)
-    }
-
-    pub fn set_nodes(&mut self, nodes: &[Node]) {
-        for node in nodes {
-            if self.replicas.iter().any(|r| r.node_name() == node.name()) {
-                if self.nodes.iter().any(|n| n.name() == node.name() || n.address() == node.address() || n.index() == node.index()) {
-                    error!("Duplicated node detected: {:?}", node);
-                    panic!("Duplicated node detected: {:?}", node);
-                }
-
-                self.nodes.push(node.clone());
-            }
-        }
     }
 }
 

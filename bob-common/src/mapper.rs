@@ -6,6 +6,7 @@ use crate::{
     data::{BobKey, DiskPath, VDisk as DataVDisk, VDiskId},
     node::{NodeId, NodeName, Node},
 };
+use core::slice::SlicePattern;
 use std::{
     collections::{HashMap, HashSet},
     convert::TryInto,
@@ -37,8 +38,8 @@ pub struct Virtual {
 impl Virtual {
     /// Creates new instance of the Virtual disk mapper
     pub fn new(config: &NodeConfig, cluster: &ClusterConfig) -> Self {
-        let mut vdisks = cluster.create_vdisks_map().unwrap();
-        let nodes = Self::prepare_nodes(&mut vdisks, cluster);
+        let nodes = Self::prepare_nodes(cluster);
+        let vdisks = Self::prepare_vdisks_map(cluster, nodes.as_slice());
         let local_node_name = config.name().into();
         let local_node_address = nodes
             .iter()
@@ -46,12 +47,11 @@ impl Virtual {
             .expect("found node with name")
             .address()
             .to_string();
-        let disks = config.disks();
-        let disks_read = disks.lock().expect("mutex");
+        let disks = config.disks().lock().expect("mutex").clone();
         Self {
             local_node_name,
             local_node_address,
-            disks: disks_read.clone(),
+            disks,
             vdisks,
             nodes,
             distribution_func: cluster.distribution_func(),
@@ -59,8 +59,8 @@ impl Virtual {
         }
     }
 
-    fn prepare_nodes(vdisks: &mut VDisksMap, cluster: &ClusterConfig) -> Vec<Node> {
-        let nodes: Vec<Node> = cluster
+    fn prepare_nodes(cluster: &ClusterConfig) -> Vec<Node> {
+        return cluster
             .nodes()
             .iter()
             .enumerate()
@@ -69,11 +69,23 @@ impl Virtual {
                 Node::new(conf.name(), conf.address(), index)
             })
             .collect();
+    }
+    fn prepare_vdisks_map(cluster: &ClusterConfig, nodes: &[Node]) -> VDisksMap {
+        let mut vdisks = VDisksMap::new();
+        let vdisks_replicas = cluster.collect_vdisk_replicas().unwrap();
+        for (vdisk_id, cur_vdisk_replicas) in vdisks_replicas {
+            // Collect nodes for vdisk
+            let mut vdisk_nodes = Vec::new();
+            for node in nodes {
+                if cur_vdisk_replicas.iter().any(|r| r.node_name() == node.name()) {
+                    vdisk_nodes.push(node.clone());
+                }
+            }
+
+            vdisks.insert(vdisk_id, DataVDisk::new(id, cur_vdisk_replicas, vdisk_nodes));
+        }
 
         vdisks
-            .values_mut()
-            .for_each(|vdisk| vdisk.set_nodes(&nodes));
-        nodes
     }
 
     pub fn local_node_name(&self) -> &NodeName {

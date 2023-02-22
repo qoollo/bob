@@ -5,8 +5,7 @@ use super::{
 };
 use crate::{
     configs::node::Node as NodeConfig,
-    data::{DiskPath, VDisk as DataVDisk},
-    mapper::VDisksMap,
+    data::{DiskPath, VDiskId},
     node::Disk as NodeDisk,
 };
 use anyhow::Result as AnyResult;
@@ -295,14 +294,14 @@ impl Cluster {
         self.vdisks.extend(iter)
     }
 
-    /// Creates [`DataVDisk`]s from config, required for mapper.
+    /// Creates map with [`NodeDisk`] collection for every [`VDiskId`] from config, required for mapper.
     /// # Errors
     /// Returns error description. If can't match node name with replica name.
     /// And if node disk with replica disk.
-    pub fn create_vdisks_map(&self) -> Result<VDisksMap, String> {
+    pub fn collect_vdisk_replicas(&self) -> Result<HashMap<VDiskId, Vec<NodeDisk>>, String> {
         let mut vdisks = HashMap::new();
         for vdisk in &self.vdisks {
-            let mut disk = DataVDisk::new(vdisk.id());
+            let mut physical_disks = Vec::new();
             for replica in vdisk.replicas() {
                 let disk_name = replica.disk().to_string();
                 let node: &Node = self
@@ -324,9 +323,9 @@ impl Cluster {
                     .path()
                     .to_owned();
                 let node_disk = NodeDisk::new(disk_path, disk_name, node.name().into());
-                disk.push_replica(node_disk);
+                physical_disks.push(node_disk);
             }
-            vdisks.insert(vdisk.id(), disk);
+            vdisks.insert(vdisk.id() as VDiskId, physical_disks);
         }
         Ok(vdisks)
     }
