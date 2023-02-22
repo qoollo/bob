@@ -440,10 +440,17 @@ impl Validatable for Cluster {
             e
         })?;
 
-        Validator::validate_no_duplicates(self.vdisks.iter().map(|vdisk| vdisk.id)).map_err(|dup_item| {
-            error!("config contains duplicates vdisks ids: {}", dup_item);
-            Err(format!("config contains duplicates vdisks ids: {}", dup_item))
-        })?;
+        let vdisk_ids = self.vdisks.iter().map(|vdisk| vdisk.id).collect::<Vec<_>>();
+        vdisk_ids.sort();
+        for index in 0..vdisk_ids.len() {
+            if vdisk_ids[index] < index {
+                error!("config contains duplicates vdisks ids: {}", vdisk_ids[index]);
+                return Err(format!("config contains duplicates vdisks ids: {}", vdisk_ids[index]));
+            } else if vdisk_ids[index] > index {
+                error!("config contains gap in vdisks ids before vdisk id = {}", vdisk_ids[index]);
+                return Err(format!("config contains gap in vdisks ids before vdisk id = {}", vdisk_ids[index]));
+            }
+        }
 
         Validator::validate_no_duplicates(self.nodes.iter().map(|node| &node.name)).map_err(|dup_item| {
             error!("config contains duplicates nodes names: {}", dup_item);
