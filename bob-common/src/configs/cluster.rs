@@ -441,7 +441,7 @@ impl Validatable for Cluster {
 
         let vdisk_ids = self.vdisks.iter().map(|vdisk| vdisk.id).collect::<Vec<_>>();
         vdisk_ids.sort();
-        for index in 0..vdisk_ids.len() {
+        for index in 0..(vdisk_ids.len() as u32) {
             if vdisk_ids[index] < index {
                 error!("config contains duplicates vdisks ids: {}", vdisk_ids[index]);
                 return Err(format!("config contains duplicates vdisks ids: {}", vdisk_ids[index]));

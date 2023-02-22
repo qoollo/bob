@@ -6,7 +6,6 @@ use crate::{
     data::{BobKey, DiskPath, VDisk as DataVDisk, VDiskId},
     node::{NodeId, NodeName, Node},
 };
-use core::slice::SlicePattern;
 use std::{
     collections::{HashMap, HashSet},
     convert::TryInto,
@@ -82,7 +81,7 @@ impl Virtual {
                 }
             }
 
-            vdisks.insert(vdisk_id, DataVDisk::new(id, cur_vdisk_replicas, vdisk_nodes));
+            vdisks.insert(vdisk_id, DataVDisk::new(vdisk_id, cur_vdisk_replicas, vdisk_nodes));
         }
 
         vdisks
