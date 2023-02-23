@@ -1,3 +1,4 @@
+pub use super::entity_names::NodeName; // Re-export
 use crate::{
     bob_client::{BobClient, Factory},
     data::BobData,
@@ -13,10 +14,6 @@ use std::{
 };
 
 pub type NodeId = u16;
-
-/// Node name struct. Clone is lightweight
-#[derive(Clone)]
-pub struct NodeName(Arc<str>);
 
 #[derive(Clone)]
 pub struct Node {
@@ -48,7 +45,6 @@ pub struct Disk {
     disk_path: String,
     disk_name: String,
 }
-
 
 
 impl Node {
@@ -133,9 +129,18 @@ impl Node {
     }
 }
 
+
+impl PartialEq for Node {
+    fn eq(&self, other: &Node) -> bool {
+        self.inner.name == other.inner.name
+    }
+}
+
+impl Eq for Node {}
+
 impl Hash for Node {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.inner.address.hash(state);
+        self.inner.name.hash(state);
     }
 }
 
@@ -145,14 +150,6 @@ impl Debug for Node {
     }
 }
 
-// @TODO get off partialeq trait
-impl PartialEq for Node {
-    fn eq(&self, other: &Node) -> bool {
-        self.inner.address == other.inner.address
-    }
-}
-
-impl Eq for Node {}
 
 impl<T> Output<T> {
     pub fn new(node_name: NodeName, inner: T) -> Self {
@@ -219,74 +216,5 @@ impl Hash for Disk {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.node_name.hash(state);
         self.disk_name.hash(state);
-    }
-}
-
-
-
-// ============= NodeName =============
-
-impl NodeName {
-    pub fn new(val: &str) -> Self {
-        Self(val.into())
-    }
-    pub fn as_str(&self) -> &str {
-        self.0.as_ref()
-    }
-}
-
-impl From<&str> for NodeName {
-    fn from(val: &str) -> Self {
-        Self(val.into())
-    }
-}
-
-impl From<&String> for NodeName {
-    fn from(val: &String) -> Self {
-        Self(val.as_str().into())
-    }
-}
-
-impl AsRef<str> for NodeName {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-macro_rules! impl_str_partial_eq {
-    ($ty:ty, $other:ty) => {
-        impl<'a> PartialEq<$other> for $ty {
-            fn eq(&self, other: &$other) -> bool {
-                PartialEq::eq(AsRef::<str>::as_ref(self), AsRef::<str>::as_ref(other))
-            }
-        }
-    };
-}
-
-impl_str_partial_eq!(NodeName, NodeName);
-impl_str_partial_eq!(NodeName, str);
-impl_str_partial_eq!(str, NodeName);
-impl_str_partial_eq!(NodeName, &'a str);
-impl_str_partial_eq!(&'a str, NodeName);
-impl_str_partial_eq!(NodeName, String);
-impl_str_partial_eq!(String, NodeName);
-
-impl Eq for NodeName { }
-
-impl Hash for NodeName {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_str().hash(state)
-    }
-}
-
-impl Debug for NodeName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.debug_tuple("NodeName").field(&self.as_str()).finish()
-    }
-}
-
-impl Display for NodeName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str(self.as_str())
     }
 }

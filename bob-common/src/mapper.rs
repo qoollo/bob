@@ -279,7 +279,7 @@ impl Virtual {
                 if vdisk
                     .replicas()
                     .iter()
-                    .filter(|r| r.node_name() == self.local_node_name)
+                    .filter(|r| r.node_name() == &self.local_node_name)
                     .any(|replica| replica.disk_name() == disk)
                 {
                     Some(*id)
@@ -293,7 +293,7 @@ impl Virtual {
     pub fn get_operation(&self, key: BobKey) -> (VDiskId, Option<DiskPath>) {
         let virt_disk = self.get_vdisk_for_key(key).expect("vdisk not found");
         let disk = virt_disk.replicas().iter().find_map(|disk| {
-            if disk.node_name() == self.local_node_name {
+            if disk.node_name() == &self.local_node_name {
                 Some(DiskPath::from(disk))
             } else {
                 None
