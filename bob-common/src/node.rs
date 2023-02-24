@@ -1,11 +1,11 @@
-pub use super::entity_names::NodeName; // Re-export
+pub use super::name_types::NodeName; // Re-export
 use crate::{
     bob_client::{BobClient, Factory},
     data::BobData,
 };
 use http::Uri;
 use std::{
-    fmt::{Debug, Display, Formatter, Result as FmtResult},
+    fmt::{Debug, Formatter, Result as FmtResult},
     hash::{Hash, Hasher},
     sync::{
         atomic::{AtomicBool, Ordering},
