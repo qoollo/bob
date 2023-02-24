@@ -439,7 +439,7 @@ impl Validatable for Cluster {
             e
         })?;
 
-        let vdisk_ids = self.vdisks.iter().map(|vdisk| vdisk.id).collect::<Vec<_>>();
+        let mut vdisk_ids = self.vdisks.iter().map(|vdisk| vdisk.id).collect::<Vec<_>>();
         vdisk_ids.sort();
         for index in 0..vdisk_ids.len() {
             if vdisk_ids[index] < index as u32 {
