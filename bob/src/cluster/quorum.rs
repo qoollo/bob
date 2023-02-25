@@ -288,7 +288,7 @@ impl Quorum {
 
 
         // Delete on all nodes of cluster except sup_nodes and local node
-        let all_other_nodes_queries: Vec<_> = self.mapper.nodes().values()
+        let all_other_nodes_queries: Vec<_> = self.mapper.nodes().iter()
             .filter(|n| !sup_nodes_set.contains(n.name()) && n.name() != local_node_name)
             .map(|n| (n, DeleteOptions::new_alien(vec![])))
             .collect();
