@@ -415,7 +415,7 @@ impl Group {
         self.holders.clone()
     }
 
-    pub fn node_name(&self) -> &str {
+    pub fn node_name(&self) -> &NodeName {
         &self.node_name
     }
 

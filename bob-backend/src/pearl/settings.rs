@@ -110,7 +110,7 @@ impl Settings {
         self: Arc<Self>,
         disk_name: String,
         dump_sem: Arc<Semaphore>,
-        owner_node_name: &str,
+        owner_node_name: &NodeName,
     ) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
         let node_names = Self::get_all_subdirectories(&self.alien_folder).await?;
@@ -125,7 +125,7 @@ impl Settings {
                         let group = Group::new(
                             self.clone(),
                             vdisk_id,
-                            node_name.clone(),
+                            NodeName::from(&node_name),
                             disk_name.clone(),
                             entry.path(),
                             format!("a{}", owner_node_name),

@@ -36,7 +36,7 @@ pub struct DiskController {
     dump_sem: Arc<Semaphore>,
     run_sem: Arc<Semaphore>,
     monitor_sem: Arc<Semaphore>,
-    node_name: String,
+    node_name: NodeName,
     groups: Arc<RwLock<Vec<Group>>>,
     state: Arc<RwLock<GroupsState>>,
     settings: Arc<Settings>,
@@ -64,7 +64,7 @@ impl DiskController {
             dump_sem,
             run_sem,
             monitor_sem: Arc::new(Semaphore::new(1)),
-            node_name: config.name().to_owned(),
+            node_name: NodeName::from(config.name()),
             groups: Arc::new(RwLock::new(Vec::new())),
             state: Arc::new(RwLock::new(GroupsState::NotReady)),
             settings,
@@ -263,7 +263,7 @@ impl DiskController {
                     self.node_name.clone(),
                     self.disk.name().to_owned(),
                     path,
-                    self.node_name.clone(),
+                    self.node_name.to_string(),
                     self.dump_sem.clone(),
                 )
             })
@@ -322,7 +322,7 @@ impl DiskController {
             .settings
             .clone()
             .create_alien_group(
-                operation.remote_node_name().expect("Node name not found"),
+                operation.remote_node_name().expect("Node name not found").clone(),
                 operation.vdisk_id(),
                 &self.node_name,
                 self.dump_sem.clone(),
