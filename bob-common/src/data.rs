@@ -192,7 +192,7 @@ impl BobPutOptions {
         }
     }
 
-    pub fn new_alien(remote_nodes: Vec<String>) -> Self {
+    pub fn new_alien(remote_nodes: Vec<NodeName>) -> Self {
         BobPutOptions {
             remote_nodes,
             force_node: true,
@@ -281,7 +281,7 @@ impl BobGetOptions {
     pub fn to_grpc(&self) -> GetOptions {
         GetOptions { 
             force_node: self.force_node, 
-            source: self.get_source
+            source: self.get_source.into()
         }
     }
 
