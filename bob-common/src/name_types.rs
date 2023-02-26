@@ -28,6 +28,9 @@ impl NodeName {
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
     }
+    pub fn to_string(&self) -> String {
+        String::from(self.0.as_ref())
+    }
 }
 
 impl From<&str> for NodeName {
@@ -51,12 +54,6 @@ impl AsRef<str> for NodeName {
 impl AsRef<[u8]> for NodeName {
     fn as_ref(&self) -> &[u8] {
         self.as_str().as_bytes()
-    }
-}
-
-impl ToString for NodeName {
-    fn to_string(&self) -> String {
-        String::from(self.as_str())
     }
 }
 
