@@ -673,7 +673,7 @@ impl NodeConfig {
         let t = node
             .disks()
             .iter()
-            .map(|disk| DiskPath::new(disk.name().to_owned(), disk.path().to_owned()))
+            .cloned()
             .collect::<Vec<_>>();
 
         {

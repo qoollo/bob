@@ -24,7 +24,7 @@ async fn test_mem_put_wrong_disk() {
 
     let retval = backend
         .put(
-            Operation::new_local(0, DiskPath::new("invalid name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("invalid name".into(), "")),
             BobKey::from(1u64),
             &BobData::new(vec![0].into(), BobMeta::stub()),
         )
@@ -38,7 +38,7 @@ async fn test_mem_put_get() {
 
     backend
         .put(
-            Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("name".into(), "")),
             BobKey::from(1u64),
             &BobData::new(vec![1].into(), BobMeta::stub()),
         )
@@ -46,7 +46,7 @@ async fn test_mem_put_get() {
         .unwrap();
     let retval = backend
         .get(
-            Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("name".into(), "")),
             BobKey::from(1u64),
         )
         .await
@@ -60,7 +60,7 @@ async fn test_mem_get_wrong_disk() {
 
     backend
         .put(
-            Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("name".into(), "")),
             BobKey::from(1u64),
             &BobData::new(vec![1].into(), BobMeta::stub()),
         )
@@ -68,7 +68,7 @@ async fn test_mem_get_wrong_disk() {
         .unwrap();
     let retval = backend
         .get(
-            Operation::new_local(0, DiskPath::new("invalid name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("invalid name".into(), "")),
             BobKey::from(1u64),
         )
         .await;
@@ -82,7 +82,7 @@ async fn test_mem_get_no_data() {
 
     let retval = backend
         .get(
-            Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("name".into(), "")),
             key,
         )
         .await;

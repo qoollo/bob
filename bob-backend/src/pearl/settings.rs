@@ -85,14 +85,14 @@ impl Settings {
         let disk_name = config
             .pearl()
             .alien_disk()
-            .map_or_else(|| DEFAULT_ALIEN_DISK_NAME.to_owned(), str::to_owned);
+            .unwrap_or(DEFAULT_ALIEN_DISK_NAME);
         let path = self
             .alien_folder
             .clone()
             .into_os_string()
             .into_string()
             .expect("Path is not utf8 encoded");
-        let alien_disk = DiskPath::new(disk_name, path);
+        let alien_disk = DiskPath::new(DiskName::from(disk_name), path.as_str());
         let dc = DiskController::new(
             alien_disk,
             Vec::new(),

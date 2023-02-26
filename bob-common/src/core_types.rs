@@ -1,8 +1,10 @@
+pub use super::name_types::DiskName; // Re-export
 use crate::{
     node::{Node, NodeName},
 };
 use std::{
     fmt::Debug,
+    sync::Arc,
     hash::{Hash, Hasher},
 };
 
@@ -10,15 +12,15 @@ use std::{
 /// Structure represents disk on the node. Contains path to disk and name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DiskPath {
-    name: String,
-    path: String,
+    name: DiskName,
+    path: Arc<str>,
 }
 
 #[derive(Debug, Clone)]
 pub struct NodeDisk {
     node_name: NodeName,
-    disk_path: String,
-    disk_name: String,
+    disk_name: DiskName,
+    disk_path: Arc<str>,
 }
 
 pub type VDiskId = u32;
@@ -66,35 +68,38 @@ impl VDisk {
 impl DiskPath {
     /// Creates new `DiskPath` with disk's name and path.
     #[must_use = "memory allocation"]
-    pub fn new(name: String, path: String) -> DiskPath {
-        DiskPath { name, path }
+    pub fn new(name: DiskName, path: &str) -> DiskPath {
+        DiskPath { 
+            name, 
+            path: path.into()
+        }
     }
 
     /// Returns disk name.
     #[must_use]
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &DiskName {
         &self.name
     }
 
     pub fn path(&self) -> &str {
-        &self.path
+        self.path.as_ref()
     }
 }
 
 impl NodeDisk {
-    pub fn new(disk_path: String, disk_name: String, node_name: NodeName) -> Self {
+    pub fn new(disk_path: &str, disk_name: DiskName, node_name: NodeName) -> Self {
         Self {
             node_name,
-            disk_path,
             disk_name,
+            disk_path: disk_path.into(),
         }
     }
 
     pub fn disk_path(&self) -> &str {
-        &self.disk_path
+        self.disk_path.as_ref()
     }
 
-    pub fn disk_name(&self) -> &str {
+    pub fn disk_name(&self) -> &DiskName {
         &self.disk_name
     }
 
@@ -123,8 +128,8 @@ impl Hash for NodeDisk {
 impl From<&NodeDisk> for DiskPath {
     fn from(node: &NodeDisk) -> Self {
         DiskPath {
-            name: node.disk_name().to_owned(),
-            path: node.disk_path().to_owned(),
+            name: node.disk_name.clone(),
+            path: node.disk_path.clone(),
         }
     }
 }

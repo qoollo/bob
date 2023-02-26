@@ -5,7 +5,8 @@ use super::{
 };
 use crate::{
     configs::node::Node as NodeConfig,
-    core_types::{DiskPath, VDiskId, NodeDisk},
+    node::NodeName,
+    core_types::{DiskPath, VDiskId, NodeDisk, DiskName},
 };
 use anyhow::Result as AnyResult;
 use http::Uri;
@@ -302,7 +303,7 @@ impl Cluster {
         for vdisk in &self.vdisks {
             let mut physical_disks = Vec::new();
             for replica in vdisk.replicas() {
-                let disk_name = replica.disk().to_string();
+                let disk_name = DiskName::from(replica.disk());
                 let node: &Node = self
                     .nodes
                     .iter()
@@ -311,7 +312,7 @@ impl Cluster {
                 let disk_path = node
                     .disks()
                     .iter()
-                    .find(|disk| disk.name() == disk_name)
+                    .find(|disk| disk.name() == &disk_name)
                     .ok_or_else(|| {
                         format!(
                             "can't find disk with name [{}], check replica section of vdisk [{}]",
@@ -319,9 +320,8 @@ impl Cluster {
                             vdisk.id()
                         )
                     })?
-                    .path()
-                    .to_owned();
-                let node_disk = NodeDisk::new(disk_path, disk_name, node.name().into());
+                    .path();
+                let node_disk = NodeDisk::new(disk_path, disk_name, NodeName::from(node.name()));
                 physical_disks.push(node_disk);
             }
             vdisks.insert(vdisk.id() as VDiskId, physical_disks);
@@ -516,7 +516,7 @@ pub mod tests {
                 Node {
                     name: name.clone(),
                     address: format!("0.0.0.0:{id}"),
-                    disks: vec![DiskPath::new(name.clone(), name)],
+                    disks: vec![DiskPath::new(DiskName::from(&name), name.as_str())],
                 }
             })
             .collect();

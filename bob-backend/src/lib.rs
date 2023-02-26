@@ -24,7 +24,7 @@ pub(crate) mod prelude {
         },
         data::{BobData, BobKey, BobMeta},
         operation_options::{BobPutOptions, BobGetOptions, BobDeleteOptions},
-        core_types::{DiskPath, VDiskId},
+        core_types::{DiskName, DiskPath, VDiskId},
         node::NodeName,
         error::Error,
         mapper::Virtual,
