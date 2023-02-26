@@ -39,7 +39,7 @@ impl RemoteDeleteError {
         }
     }
     #[allow(dead_code)]
-    pub(super) fn force_alien_nodes(&self) -> &[String] {
+    pub(super) fn force_alien_nodes(&self) -> &[NodeName] {
         return &self.force_alien_nodes;
     }
     #[allow(dead_code)]

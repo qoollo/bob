@@ -266,7 +266,7 @@ pub(crate) async fn put_sup_nodes(
     let mut ret = vec![];
     for (node, options) in requests {
         let result = LinkManager::call_node(node, |client| {
-            Box::pin(client.put(key, data.clone(), options.clone()))
+            Box::pin(client.put(key, data.clone(), options.to_grpc()))
         })
         .await;
         debug!("{:?}", result);

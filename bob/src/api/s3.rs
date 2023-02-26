@@ -140,7 +140,7 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
-    let opts = BobGetOptions::new_get(None);
+    let opts = BobGetOptions::from_grpc(None);
     let data = bob.grinder().get(key, &opts).await?;
     let content_type = headers
         .content_type
@@ -182,7 +182,7 @@ where
         BobMeta::new(chrono::Utc::now().timestamp() as u64),
     );
 
-    let opts = BobPutOptions::new_put(None);
+    let opts = BobPutOptions::from_grpc(None);
     bob.grinder().put(key, &data, opts).await?;
 
     Ok(StatusS3::from(StatusExt::from(StatusCode::CREATED)))
@@ -240,7 +240,7 @@ async fn copy_object<A: Authenticator>(
     key: BobKey,
     headers: CopyObjectHeaders,
 ) -> Result<StatusS3, StatusS3> {
-    let opts = BobGetOptions::new_get(None);
+    let opts = BobGetOptions::from_grpc(None);
     let data = bob.grinder().get(key, &opts).await?;
     let last_modified = data.meta().timestamp();
     if let Some(time) = headers.if_modified_since {

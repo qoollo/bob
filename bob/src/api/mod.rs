@@ -289,7 +289,7 @@ fn collect_replicas_info(replicas: &[NodeDisk]) -> Vec<Replica> {
         .map(|r| Replica {
             path: r.disk_path().to_owned(),
             disk: r.disk_name().to_owned(),
-            node: r.node_name().to_owned(),
+            node: r.node_name().to_string(),
         })
         .collect()
 }
@@ -297,7 +297,7 @@ fn collect_replicas_info(replicas: &[NodeDisk]) -> Vec<Replica> {
 // GET /status
 async fn status<A: Authenticator>(bob: Extension<BobServer<A>>) -> Json<Node> {
     let mapper = bob.grinder().backend().mapper();
-    let name = mapper.local_node_name().to_owned();
+    let name = mapper.local_node_name().to_string();
     let address = mapper.local_node_address().to_owned();
     let vdisks = collect_disks_info(&bob);
     let node = Node {
@@ -429,9 +429,9 @@ where
         let vdisks: Vec<_> = vdisks
             .iter()
             .filter_map(|vd| {
-                if vd.replicas.iter().any(|r| r.node == node.name()) {
+                if vd.replicas.iter().any(|r| &r.node == node.name()) {
                     let mut vd = vd.clone();
-                    vd.replicas.retain(|r| r.node == node.name());
+                    vd.replicas.retain(|r| &r.node == node.name());
                     Some(vd)
                 } else {
                     None
@@ -730,7 +730,7 @@ where
     debug!("get pearl holders: OK");
     let partitions = pearls.iter().map(Holder::get_id).collect();
 
-    let node_name = group.node_name().to_owned();
+    let node_name = group.node_name().to_string();
     let disk_name = group.disk_name().to_owned();
     let vdisk_id = group.vdisk_id();
     let ps = VDiskPartitions {
@@ -767,7 +767,7 @@ where
     let pearl = pearls.iter().find(|pearl| pearl.get_id() == partition_id);
     let partition = if let Some(p) = pearl {
         let partition = Partition {
-            node_name: group.node_name().to_owned(),
+            node_name: group.node_name().to_string(),
             disk_name: group.disk_name().to_owned(),
             vdisk_id: group.vdisk_id(),
             timestamp: p.start_timestamp(),
@@ -985,7 +985,7 @@ where
     for replica in vdisk
         .replicas
         .into_iter()
-        .filter(|r| r.node == local_node_name)
+        .filter(|r| &r.node == local_node_name)
     {
         let path = PathBuf::from(replica.path);
         let dir = create_directory(&path).await?;
@@ -1040,7 +1040,7 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let key = DataKey::from_str(&key)?.0;
-    let opts = BobGetOptions::new_get(None);
+    let opts = BobGetOptions::from_grpc(None);
     let result = bob.grinder().get(key, &opts).await?;
 
     let content_type = infer_data_type(&result);
@@ -1073,7 +1073,7 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let keys = [DataKey::from_str(&key)?.0];
-    let opts = BobGetOptions::new_get(None);
+    let opts = BobGetOptions::from_grpc(None);
     let result = bob.grinder().exist(&keys, &opts).await?;
 
     match result.get(0) {
@@ -1104,7 +1104,7 @@ where
     let meta = BobMeta::new(chrono::Utc::now().timestamp() as u64);
     let data = BobData::new(body, meta);
 
-    let opts = BobPutOptions::new_put(None);
+    let opts = BobPutOptions::from_grpc(None);
     bob.grinder().put(key, &data, opts).await?;
     Ok(StatusCode::CREATED.into())
 }
@@ -1126,7 +1126,7 @@ where
         .delete(
             key,
             &BobMeta::new(chrono::Utc::now().timestamp() as u64),
-            BobDeleteOptions::new_delete(None),
+            BobDeleteOptions::from_grpc(None),
         )
         .await
         .map_err(|e| internal(e.to_string()))?;
