@@ -6,14 +6,6 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-pub type VDiskId = u32;
-
-#[derive(Debug)]
-pub struct VDisk {
-    id: VDiskId,
-    replicas: Vec<NodeDisk>,
-    nodes: Vec<Node>,
-}
 
 /// Structure represents disk on the node. Contains path to disk and name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -27,6 +19,18 @@ pub struct NodeDisk {
     node_name: NodeName,
     disk_path: String,
     disk_name: String,
+}
+
+pub type VDiskId = u32;
+
+#[derive(Debug)]
+pub struct VDisk {
+    id: VDiskId,
+    /// VDisk replicas. 
+    /// Vec here is better than HashMap, because we have small number of replicas (ususally 2 or 3).
+    /// Vec is outperform HashMap with small number of entries. HashMap becomes faster only with 10 elements or more according to tests.
+    replicas: Vec<NodeDisk>,
+    nodes: Vec<Node>,
 }
 
 
