@@ -28,7 +28,6 @@ struct NodeInner {
     name: NodeName,
     address: String,
 
-    // TODO: use ArcSwap
     conn: RwLock<Option<Arc<BobClient>>>,
     conn_available: AtomicBool,
 }
@@ -37,13 +36,6 @@ struct NodeInner {
 pub struct Output<T> {
     node_name: NodeName,
     inner: T,
-}
-
-#[derive(Debug, Clone)]
-pub struct Disk {
-    node_name: NodeName,
-    disk_path: String,
-    disk_name: String,
 }
 
 
@@ -179,42 +171,5 @@ impl<T> Output<T> {
 impl Output<BobData> {
     pub fn timestamp(&self) -> u64 {
         self.inner.meta().timestamp()
-    }
-}
-
-impl Disk {
-    pub fn new(disk_path: String, disk_name: String, node_name: NodeName) -> Self {
-        Self {
-            node_name,
-            disk_path,
-            disk_name,
-        }
-    }
-
-    pub fn disk_path(&self) -> &str {
-        &self.disk_path
-    }
-
-    pub fn disk_name(&self) -> &str {
-        &self.disk_name
-    }
-
-    pub fn node_name(&self) -> &NodeName {
-        &self.node_name
-    }
-}
-
-impl PartialEq for Disk {
-    fn eq(&self, other: &Disk) -> bool {
-        self.node_name == other.node_name && self.disk_name == other.disk_name
-    }
-}
-
-impl Eq for Disk { }
-
-impl Hash for Disk {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.node_name.hash(state);
-        self.disk_name.hash(state);
     }
 }

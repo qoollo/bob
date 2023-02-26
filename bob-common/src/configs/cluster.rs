@@ -5,8 +5,7 @@ use super::{
 };
 use crate::{
     configs::node::Node as NodeConfig,
-    data::{DiskPath, VDiskId},
-    node::Disk as NodeDisk,
+    core_types::{DiskPath, VDiskId, NodeDisk},
 };
 use anyhow::Result as AnyResult;
 use http::Uri;

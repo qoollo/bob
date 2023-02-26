@@ -50,8 +50,9 @@ mod prelude {
     pub use bob_common::{
         bob_client::{BobClient, Factory},
         configs::node::Node as NodeConfig,
-        data::{BobData, BobKey, BobMeta, DiskPath, VDiskId},
+        data::{BobData, BobKey, BobMeta},
         operation_options::{BobPutOptions, BobGetOptions, BobDeleteOptions},
+        core_types::{DiskPath, VDiskId},
         error::Error,
         mapper::Virtual,
         metrics::{

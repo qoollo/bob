@@ -1,8 +1,6 @@
 use crate::{
     error::Error,
-    node::{Disk as NodeDisk, Node, NodeName},
 };
-use bob_grpc::{DeleteOptions, GetOptions, GetSource, PutOptions};
 use bytes::{Bytes, BytesMut};
 use std::{
     convert::TryInto,
@@ -89,7 +87,6 @@ impl Default for BobKey {
     }
 }
 
-pub type VDiskId = u32;
 
 #[derive(Clone)]
 pub struct BobData {
@@ -159,77 +156,5 @@ impl BobMeta {
 
     pub fn stub() -> Self {
         BobMeta { timestamp: 1 }
-    }
-}
-
-
-#[derive(Debug)]
-pub struct VDisk {
-    id: VDiskId,
-    replicas: Vec<NodeDisk>,
-    nodes: Vec<Node>,
-}
-
-impl VDisk {
-    fn check_no_duplicates<TItem: Eq + Hash>(data: &[TItem]) -> bool {
-        return data.len() == data.iter().collect::<std::collections::HashSet<_>>().len();
-    }
-
-    pub fn new(id: VDiskId, replicas: Vec<NodeDisk>, nodes: Vec<Node>) -> Self {
-        debug_assert!(Self::check_no_duplicates(replicas.as_slice()));
-        debug_assert!(Self::check_no_duplicates(nodes.as_slice()));
-
-        VDisk {
-            id,
-            replicas,
-            nodes,
-        }
-    }
-
-    pub fn id(&self) -> VDiskId {
-        self.id
-    }
-
-    pub fn replicas(&self) -> &[NodeDisk] {
-        &self.replicas
-    }
-
-    pub fn nodes(&self) -> &[Node] {
-        &self.nodes
-    }
-}
-
-/// Structure represents disk on the node. Contains path to disk and name.
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize)]
-pub struct DiskPath {
-    name: String,
-    path: String,
-}
-
-impl DiskPath {
-    /// Creates new `DiskPath` with disk's name and path.
-    #[must_use = "memory allocation"]
-    pub fn new(name: String, path: String) -> DiskPath {
-        DiskPath { name, path }
-    }
-
-    /// Returns disk name.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn path(&self) -> &str {
-        &self.path
-    }
-}
-
-// @TODO maybe merge NodeDisk and DiskPath
-impl From<&NodeDisk> for DiskPath {
-    fn from(node: &NodeDisk) -> Self {
-        DiskPath {
-            name: node.disk_name().to_owned(),
-            path: node.disk_path().to_owned(),
-        }
     }
 }

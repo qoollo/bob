@@ -5,7 +5,7 @@ use super::{
     validation::Validatable
 };
 use bob_access::AuthenticationType;
-use crate::data::DiskPath;
+use crate::core_types::DiskPath;
 use futures::Future;
 use humantime::Duration as HumanDuration;
 use std::{
