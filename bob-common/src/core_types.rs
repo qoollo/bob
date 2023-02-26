@@ -16,7 +16,7 @@ pub struct VDisk {
 }
 
 /// Structure represents disk on the node. Contains path to disk and name.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DiskPath {
     name: String,
     path: String,
