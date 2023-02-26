@@ -144,7 +144,7 @@ where
             );
             let put_result = self
                 .grinder
-                .put(key, &data, BobPutOptions::new_put(options))
+                .put(key, &data, BobPutOptions::from_grpc(options))
                 .await;
             trace!(
                 "grinder processed put request, /{:.3}ms/",
@@ -194,7 +194,7 @@ where
                 "create new bob options /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let options = BobGetOptions::new_get(options);
+            let options = BobGetOptions::from_grpc(options);
             trace!(
                 "pass request to grinder /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
@@ -243,7 +243,7 @@ where
         let req = req.into_inner();
         let ExistRequest { keys, options } = req;
         let keys = keys.into_iter().map(|k| k.key.into()).collect::<Vec<_>>();
-        let options = BobGetOptions::new_get(options);
+        let options = BobGetOptions::from_grpc(options);
         let exist = self
             .grinder
             .exist(&keys, &options)
@@ -270,7 +270,7 @@ where
                 .delete(
                     key,
                     &BobMeta::new(timestamp),
-                    BobDeleteOptions::new_delete(options),
+                    BobDeleteOptions::from_grpc(options),
                 ).await;
 
             delete_result

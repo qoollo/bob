@@ -48,6 +48,18 @@ impl AsRef<str> for NodeName {
     }
 }
 
+impl AsRef<[u8]> for NodeName {
+    fn as_ref(&self) -> &[u8] {
+        self.as_str().as_bytes()
+    }
+}
+
+impl ToString for NodeName {
+    fn to_string(&self) -> String {
+        String::from(self.as_str())
+    }
+}
+
 impl_str_partial_eq!(NodeName, NodeName);
 impl_str_partial_eq!(NodeName, str);
 impl_str_partial_eq!(str, NodeName);

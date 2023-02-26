@@ -64,7 +64,7 @@ mod prelude {
             GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER, GRINDER_PUT_COUNTER,
             GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER, INDEX_MEMORY,
         },
-        node::{Node, Output as NodeOutput},
+        node::{Node, NodeName, Output as NodeOutput},
     };
     pub use bob_grpc::{
         bob_api_server::BobApi, Blob, BlobMeta, DeleteOptions, DeleteRequest, ExistRequest,

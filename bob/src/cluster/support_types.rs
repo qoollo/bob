@@ -27,12 +27,12 @@ impl<T: Eq + core::hash::Hash> HashSetExt<T> for HashSet<T> {
 
 #[derive(Debug)]
 pub(super) struct RemoteDeleteError {
-    force_alien_nodes: SmallVec<[String; 1]>, // Will have 0 or 1 elements most of the time
+    force_alien_nodes: SmallVec<[NodeName; 1]>, // Will have 0 or 1 elements most of the time
     error: Error
 }
 
 impl RemoteDeleteError {
-    pub(super) fn new(force_alien_nodes: SmallVec<[String; 1]>, error: Error) -> Self {
+    pub(super) fn new(force_alien_nodes: SmallVec<[NodeName; 1]>, error: Error) -> Self {
         Self {
             force_alien_nodes: force_alien_nodes,
             error: error
@@ -47,7 +47,7 @@ impl RemoteDeleteError {
         return &self.error;
     }
 
-    pub(super) fn into_force_alien_nodes(self) -> SmallVec<[String; 1]> {
+    pub(super) fn into_force_alien_nodes(self) -> SmallVec<[NodeName; 1]> {
         return self.force_alien_nodes;
     }
 }

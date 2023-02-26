@@ -23,6 +23,7 @@ pub(crate) mod prelude {
             node::{BackendType, Node as NodeConfig, Pearl as PearlConfig},
         },
         data::{BobData, BobKey, BobMeta, BobPutOptions, BobGetOptions, BobDeleteOptions, DiskPath, VDiskId},
+        node::NodeName,
         error::Error,
         mapper::Virtual,
         metrics::BACKEND_STATE,

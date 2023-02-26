@@ -28,7 +28,7 @@ pub mod b_client {
         
         target_node_name: NodeName,
         target_node_address: String,
-        local_node_name: String,
+        local_node_name: NodeName,
 
         operation_timeout: Duration,
         auth_header: String,
@@ -44,7 +44,7 @@ pub mod b_client {
             node: &Node,
             operation_timeout: Duration,
             metrics: BobClientMetrics,
-            local_node_name: String,
+            local_node_name: NodeName,
             tls_config: Option<&FactoryTlsConfig>,
         ) -> Result<Self, String> 
         {
@@ -62,12 +62,12 @@ pub mod b_client {
                 .await
                 .map_err(|e| e.to_string())?;
 
-            let auth_header = format!("InterNode {}", base64::encode(local_node_name.clone()));
+            let auth_header = format!("InterNode {}", base64::encode(local_node_name.as_str()));
 
             Ok(Self {
                 client,
                 target_node_name: node.name().clone(),
-                target_node_address: node.address().to_string(), 
+                target_node_address: node.address().to_owned(), 
                 local_node_name: local_node_name, 
                 operation_timeout: operation_timeout, 
                 auth_header: auth_header, 
@@ -241,7 +241,7 @@ pub mod b_client {
         }
 
         fn set_node_name<T>(&self, r: &mut Request<T>) {
-            let val = MetadataValue::from_str(&self.local_node_name)
+            let val = MetadataValue::from_str(self.local_node_name.as_str())
                 .expect("failed to create metadata value from node name");
             r.metadata_mut().insert("node_name", val);
         }
@@ -253,7 +253,7 @@ pub mod b_client {
 
     mock! {
         pub BobClient {
-            pub async fn create<'a>(node: &Node, operation_timeout: Duration, metrics: BobClientMetrics, local_node_name: String, tls_config: Option<&'a FactoryTlsConfig>) -> Result<Self, String>;
+            pub async fn create<'a>(node: &Node, operation_timeout: Duration, metrics: BobClientMetrics, local_node_name: NodeName, tls_config: Option<&'a FactoryTlsConfig>) -> Result<Self, String>;
             pub async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult;
             pub async fn get(&self, key: BobKey, options: GetOptions) -> GetResult;
             pub async fn ping(&self) -> PingResult;
@@ -283,7 +283,7 @@ use crate::{
     data::BobData,
     error::Error,
     metrics::ContainerBuilder as MetricsContainerBuilder,
-    node::{Node, Output as NodeOutput},
+    node::{Node, NodeName, Output as NodeOutput},
 };
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
@@ -322,7 +322,7 @@ pub struct FactoryTlsConfig {
 pub struct Factory {
     operation_timeout: Duration,
     metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
-    local_node_name: String,
+    local_node_name: NodeName,
     tls_config: Option<FactoryTlsConfig>,
 }
 
@@ -332,7 +332,7 @@ impl Factory {
     pub fn new(
         operation_timeout: Duration,
         metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
-        local_node_name: String,
+        local_node_name: NodeName,
         tls_config: Option<FactoryTlsConfig>,
     ) -> Self {
         Factory {

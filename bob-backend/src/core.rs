@@ -21,7 +21,7 @@ pub const BACKEND_STARTED: f64 = 1f64;
 pub struct Operation {
     vdisk_id: VDiskId,
     disk_path: Option<DiskPath>,
-    remote_node_name: Option<String>, // save data to alien/<remote_node_name>
+    remote_node_name: Option<NodeName>, // save data to alien/<remote_node_name>
 }
 
 impl Operation {
@@ -29,7 +29,7 @@ impl Operation {
         self.vdisk_id
     }
 
-    pub fn remote_node_name(&self) -> Option<&str> {
+    pub fn remote_node_name(&self) -> Option<&NodeName> {
         self.remote_node_name.as_deref()
     }
 }
@@ -62,18 +62,8 @@ impl Operation {
         }
     }
 
-    // local operation doesn't contain remote node, so node name is passed through argument
-    #[must_use]
-    pub fn clone_local_alien(&self, local_node_name: &str) -> Self {
-        Self {
-            vdisk_id: self.vdisk_id,
-            disk_path: None,
-            remote_node_name: Some(local_node_name.to_owned()),
-        }
-    }
-
     #[inline]
-    pub fn set_remote_folder(&mut self, name: String) {
+    pub fn set_remote_node_name(&mut self, name: NodeName) {
         self.remote_node_name = Some(name);
     }
 
@@ -263,7 +253,7 @@ impl Backend {
             for node_name in options.remote_nodes() {
                 debug!("PUT[{}] core backend put remote node: {}", key, node_name);
                 let mut op = Operation::new_alien(vdisk_id);
-                op.set_remote_folder(node_name.to_owned());
+                op.set_remote_node_name(node_name.clone());
 
                 //TODO make it parallel?
                 self.put_single(key, data, op).await?;
@@ -331,8 +321,8 @@ impl Backend {
                     self.error_logger.report_error(error_to_log);
 
                     // write to alien/<local name>
-                    let mut op = operation.clone_local_alien(self.mapper().local_node_name());
-                    op.set_remote_folder(self.mapper.local_node_name().to_owned());
+                    let mut op = operation.clone();
+                    op.set_remote_node_name(self.mapper.local_node_name().clone());
                     self.inner
                         .put_alien(op, key, data)
                         .await
@@ -450,7 +440,7 @@ impl Backend {
             for node in self.mapper.get_target_nodes_for_key(key) {
                 let force_delete = options.is_force_delete(node.name());
                 let mut op = Operation::new_alien(vdisk_id);
-                op.set_remote_folder(node.name().to_owned());
+                op.set_remote_node_name(node.name().clone());
                 let delete_res = self.delete_single(key, meta, op, force_delete).await;
                 if let Err(err) = delete_res {
                     error!("DELETE[{}] Error deleting from aliens (node: {}, force_delete: {}): {:?}", key, node.name(), force_delete, err);
