@@ -48,12 +48,12 @@ pub struct Disk {
 
 
 impl Node {
-    pub fn new(name: &str, address: &str, index: u16) -> Self {
+    pub fn new(name: NodeName, address: String, index: u16) -> Self {
         Self {
             inner: Arc::new(NodeInner {
                 index,
-                name: name.into(),
-                address: address.to_string(),
+                name: name,
+                address: address,
                 conn: RwLock::new(None),
                 conn_available: AtomicBool::new(false),
             })

@@ -271,7 +271,7 @@ pub(crate) async fn put_sup_nodes(
         .await;
         debug!("{:?}", result);
         if let Err(e) = result {
-            let target_node = options.remote_nodes()[0].to_owned();
+            let target_node = options.remote_nodes()[0].clone(); // TODO: should return all nodes
             ret.push(NodeOutput::new(target_node, e.into_inner()));
         }
     }
@@ -325,7 +325,7 @@ pub(crate) async fn delete_on_local_aliens(
 
     for node in all_nodes_for_key {
         let mut op = Operation::new_alien(vdisk_id);
-        let node_name = node.name().to_owned();
+        let node_name = node.name().clone();
         trace!("DELETE[{}] delete to local alien: {:?}", key, node_name);
         let force_delete = force_nodes.contains(&node_name);
         op.set_remote_node_name(node_name);

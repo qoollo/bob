@@ -20,9 +20,9 @@ pub struct Group {
     settings: Arc<Settings>,
     directory_path: PathBuf,
     vdisk_id: VDiskId,
-    node_name: String,
+    node_name: NodeName,
     disk_name: String,
-    owner_node_name: String,
+    owner_node_identifier: String,
     dump_sem: Arc<Semaphore>,
 }
 
@@ -30,10 +30,10 @@ impl Group {
     pub fn new(
         settings: Arc<Settings>,
         vdisk_id: VDiskId,
-        node_name: String,
+        node_name: NodeName,
         disk_name: String,
         directory_path: PathBuf,
-        owner_node_name: String,
+        owner_node_identifier: String,
         dump_sem: Arc<Semaphore>,
     ) -> Self {
         Self {
@@ -47,7 +47,7 @@ impl Group {
             node_name,
             directory_path,
             disk_name,
-            owner_node_name,
+            owner_node_identifier,
             dump_sem,
         }
     }
@@ -545,7 +545,7 @@ impl Group {
     }
 
     fn get_owner_node_hash(&self) -> String {
-        let hash = digest(&SHA256, self.owner_node_name.as_bytes());
+        let hash = digest(&SHA256, self.owner_node_identifier.as_bytes());
         let hash = hash.as_ref();
         let mut hex = vec![];
         // Translate bytes to simple digit-letter representation

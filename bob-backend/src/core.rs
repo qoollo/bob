@@ -30,7 +30,7 @@ impl Operation {
     }
 
     pub fn remote_node_name(&self) -> Option<&NodeName> {
-        self.remote_node_name.as_deref()
+        self.remote_node_name.as_ref()
     }
 }
 

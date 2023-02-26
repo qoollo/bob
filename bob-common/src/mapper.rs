@@ -65,7 +65,7 @@ impl Virtual {
             .enumerate()
             .map(|(i, conf)| {
                 let index = i.try_into().expect("usize to u16");
-                Node::new(conf.name(), conf.address(), index)
+                Node::new(conf.name().into(), conf.address().to_owned(), index)
             })
             .collect();
     }

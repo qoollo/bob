@@ -44,7 +44,7 @@ impl Quorum {
                 let (mut remote_tasks, mut errors) = remote_put;
                 if let Err(e) = local_put {
                     error!("{}", e);
-                    failed_nodes.push(self.mapper.local_node_name().to_owned());
+                    failed_nodes.push(self.mapper.local_node_name().clone());
                     debug!("PUT[{}] local failed, put another remote", key);
                     errors.extend(finish_at_least_handles(&mut remote_tasks, 1).await.into_iter());
                 } else {
@@ -58,7 +58,7 @@ impl Quorum {
             };
         let all_count = self.mapper.get_target_nodes_for_key(key).len();
         let remote_ok_count = all_count - errors.len() - tasks.len() - local_put_ok;
-        failed_nodes.extend(errors.iter().map(|e| e.node_name().to_owned()));
+        failed_nodes.extend(errors.iter().map(|e| e.node_name().clone()));
         if remote_ok_count + local_put_ok >= self.quorum {
             if tasks.is_empty() && failed_nodes.is_empty() {
                 return Ok(());
@@ -106,7 +106,7 @@ impl Quorum {
                 ),
                 Ok(Err(e)) => {
                     error!("{:?}", e);
-                    failed_nodes.push(e.node_name().to_owned());
+                    failed_nodes.push(e.node_name().clone());
                 }
                 Err(e) => error!("{:?}", e),
             }
@@ -166,7 +166,7 @@ impl Quorum {
             failed_nodes.extend(
                 sup_nodes_errors
                     .iter()
-                    .map(|err| err.node_name().to_owned()),
+                    .map(|err| err.node_name().clone()),
             )
         };
         debug!("need additional local alien copies: {}", failed_nodes.len());
