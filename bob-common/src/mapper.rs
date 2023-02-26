@@ -3,7 +3,8 @@ use crate::{
         cluster::{Cluster as ClusterConfig, DistributionFunc},
         node::Node as NodeConfig,
     },
-    data::{BobKey, DiskPath, VDisk as DataVDisk, VDiskId},
+    data::BobKey,
+    core_types::{DiskPath, VDisk as DataVDisk, VDiskId},
     node::{NodeId, NodeName, Node},
 };
 use std::{

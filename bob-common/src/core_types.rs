@@ -2,23 +2,9 @@ use crate::{
     node::{Node, NodeName},
 };
 use std::{
-    fmt::{Debug, Formatter, Result as FmtResult},
-    hash::Hash,
+    fmt::Debug,
+    hash::{Hash, Hasher},
 };
-
-#[derive(Debug, Clone)]
-pub struct NodeDisk {
-    node_name: NodeName,
-    disk_path: String,
-    disk_name: String,
-}
-
-/// Structure represents disk on the node. Contains path to disk and name.
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize)]
-pub struct DiskPath {
-    name: String,
-    path: String,
-}
 
 pub type VDiskId = u32;
 
@@ -28,6 +14,21 @@ pub struct VDisk {
     replicas: Vec<NodeDisk>,
     nodes: Vec<Node>,
 }
+
+/// Structure represents disk on the node. Contains path to disk and name.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DiskPath {
+    name: String,
+    path: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct NodeDisk {
+    node_name: NodeName,
+    disk_path: String,
+    disk_name: String,
+}
+
 
 impl VDisk {
     fn check_no_duplicates<TItem: Eq + Hash>(data: &[TItem]) -> bool {
@@ -99,7 +100,7 @@ impl NodeDisk {
 }
 
 impl PartialEq for NodeDisk {
-    fn eq(&self, other: &Disk) -> bool {
+    fn eq(&self, other: &NodeDisk) -> bool {
         self.node_name == other.node_name && self.disk_name == other.disk_name
     }
 }
