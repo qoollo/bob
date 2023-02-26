@@ -15,7 +15,7 @@ use std::collections::{ HashMap, HashSet };
 impl Validatable for DiskPath {
     fn validate(&self) -> Result<(), String> {
         // For some reason serde yaml deserializes "field: # no value" into '~'
-        if self.name().is_empty()
+        if self.name().as_str().is_empty()
             || self.path().is_empty()
             || self.name() == "~"
             || self.path() == "~"
@@ -482,7 +482,7 @@ impl Validatable for Cluster {
         for vdisk in &self.vdisks {
             for replica in &vdisk.replicas {
                 if let Some(node) = self.nodes.iter().find(|x| x.name == replica.node) {
-                    if node.disks.iter().all(|x| x.name() != replica.disk) {
+                    if node.disks.iter().all(|x| x.name() != &replica.disk) {
                         let msg = format!(
                             "cannot find in node: {:?}, disk with name: {:?} for vdisk: {:?}",
                             replica.node, replica.disk, vdisk.id
@@ -516,7 +516,7 @@ pub mod tests {
                 Node {
                     name: name.clone(),
                     address: format!("0.0.0.0:{id}"),
-                    disks: vec![DiskPath::new(DiskName::from(&name), name.as_str())],
+                    disks: vec![DiskPath::new(name.as_str().into(), name.as_str())],
                 }
             })
             .collect();
