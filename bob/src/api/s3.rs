@@ -258,7 +258,7 @@ async fn copy_object<A: Authenticator>(
         BobMeta::new(chrono::Utc::now().timestamp() as u64),
     );
 
-    let opts = BobPutOptions::new_put(None);
+    let opts = BobPutOptions::from_grpc(None);
     bob.grinder().put(key, &data, opts).await?;
 
     Ok(StatusS3::from(StatusExt::from(StatusCode::OK)))
