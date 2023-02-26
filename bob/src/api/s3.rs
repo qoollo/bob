@@ -11,7 +11,8 @@ use axum::{
 
 use bob_access::{Authenticator, CredentialsHolder};
 use bob_common::{
-    data::{BobData, BobKey, BobMeta, BobPutOptions, BobGetOptions},
+    data::{BobData, BobKey, BobMeta},
+    operation_options::{BobPutOptions, BobGetOptions},
     error::Error,
 };
 use bytes::Bytes;

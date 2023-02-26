@@ -52,8 +52,8 @@ impl Node {
         Self {
             inner: Arc::new(NodeInner {
                 index,
-                name: name,
-                address: address,
+                name,
+                address,
                 conn: RwLock::new(None),
                 conn_available: AtomicBool::new(false),
             })

@@ -19,7 +19,8 @@ use bob_access::{Authenticator, CredentialsHolder};
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
     configs::node::TLSConfig,
-    data::{BobData, BobKey, BobMeta, BobPutOptions, BobGetOptions, BobDeleteOptions, VDisk as DataVDisk, BOB_KEY_SIZE},
+    data::{BobData, BobKey, BobMeta, VDisk as DataVDisk, BOB_KEY_SIZE},
+    operation_options::{BobPutOptions, BobGetOptions, BobDeleteOptions},
     error::Error as BobError,
     node::Disk as NodeDisk,
 };
