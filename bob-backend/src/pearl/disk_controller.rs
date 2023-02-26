@@ -257,13 +257,14 @@ impl DiskController {
             .copied()
             .map(|vdisk_id| {
                 let path = self.settings.normal_path(self.disk.path(), vdisk_id);
+                let owner_node_identifier = self.node_name.to_string();
                 Group::new(
                     self.settings.clone(),
                     vdisk_id,
                     self.node_name.clone(),
                     self.disk.name().to_owned(),
                     path,
-                    self.node_name.to_string(),
+                    owner_node_identifier,
                     self.dump_sem.clone(),
                 )
             })

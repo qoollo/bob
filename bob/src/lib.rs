@@ -101,25 +101,25 @@ pub(crate) mod test_utils {
 
     use crate::prelude::*;
 
-    pub(crate) fn ping_ok(node_name: String) -> PingResult {
+    pub(crate) fn ping_ok(node_name: NodeName) -> PingResult {
         Ok(NodeOutput::new(node_name, ()))
     }
 
-    pub(crate) fn put_ok(node_name: String) -> PutResult {
+    pub(crate) fn put_ok(node_name: NodeName) -> PutResult {
         Ok(NodeOutput::new(node_name, ()))
     }
 
-    pub(crate) fn put_err(node_name: String) -> PutResult {
+    pub(crate) fn put_err(node_name: NodeName) -> PutResult {
         debug!("return internal error on PUT");
         Err(NodeOutput::new(node_name, Error::internal()))
     }
 
-    pub(crate) fn get_ok(node_name: String, timestamp: u64) -> GetResult {
+    pub(crate) fn get_ok(node_name: NodeName, timestamp: u64) -> GetResult {
         let inner = BobData::new(vec![].into(), BobMeta::new(timestamp));
         Ok(NodeOutput::new(node_name, inner))
     }
 
-    pub(crate) fn get_err(node_name: String) -> GetResult {
+    pub(crate) fn get_err(node_name: NodeName) -> GetResult {
         debug!("return internal error on GET");
         Err(NodeOutput::new(node_name, Error::internal()))
     }
