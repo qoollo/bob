@@ -7,12 +7,17 @@ use std::{
     sync::Arc,
     hash::{Hash, Hasher},
 };
+use serde::{Serializer, Deserialize};
 
 
 /// Structure represents disk on the node. Contains path to disk and name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DiskPath {
+    #[serde(serialize_with = "Self::serialize_name")]
+    #[serde(deserialize_with = "Self::deserialize_name")]
     name: DiskName,
+    #[serde(serialize_with = "Self::serialize_path")]
+    #[serde(deserialize_with = "Self::deserialize_path")]
     path: Arc<str>,
 }
 
@@ -84,7 +89,35 @@ impl DiskPath {
     pub fn path(&self) -> &str {
         self.path.as_ref()
     }
+
+    fn serialize_name<S>(x: &DiskName, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        s.serialize_str(x.as_str())
+    }
+    fn deserialize_name<'de, D>(deserializer: D) -> Result<DiskName, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: &str = Deserialize::deserialize(deserializer)?;
+        Ok(DiskName::new(s))
+    }
+    fn serialize_path<S>(x: &Arc<str>, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        s.serialize_str(x.as_ref())
+    }
+    fn deserialize_path<'de, D>(deserializer: D) -> Result<Arc<str>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: &str = Deserialize::deserialize(deserializer)?;
+        Ok(s.into())
+    }
 }
+
 
 impl NodeDisk {
     pub fn new(disk_path: &str, disk_name: DiskName, node_name: NodeName) -> Self {
