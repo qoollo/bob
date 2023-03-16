@@ -14,6 +14,7 @@ Bob versions changelog
 - Make local put parallel to remote (#573)
 - Prefer online nodes for aliens, while maintaining uniform distribution (#571)
 - Build release binaries and docker images with `release-lto` profile (#714)
+- Make iouring optional (#567)
 
 #### Fixed
 - Fix incorrect exist result due to variables sharing between keys (#762)
