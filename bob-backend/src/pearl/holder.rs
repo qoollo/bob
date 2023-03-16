@@ -8,13 +8,13 @@ use super::{
     utils::Utils,
 };
 use bob_common::metrics::pearl::{
-    PEARL_GET_BYTES_COUNTER, PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER,
-    PEARL_PUT_BYTES_COUNTER, PEARL_PUT_COUNTER, PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
-    PEARL_DELETE_COUNTER, PEARL_DELETE_ERROR_COUNTER, PEARL_DELETE_TIMER, 
-    PEARL_EXIST_COUNTER, PEARL_EXIST_ERROR_COUNTER, PEARL_EXIST_TIMER,
+    PEARL_DELETE_COUNTER, PEARL_DELETE_ERROR_COUNTER, PEARL_DELETE_TIMER, PEARL_EXIST_COUNTER,
+    PEARL_EXIST_ERROR_COUNTER, PEARL_EXIST_TIMER, PEARL_GET_BYTES_COUNTER, PEARL_GET_COUNTER,
+    PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER, PEARL_PUT_BYTES_COUNTER, PEARL_PUT_COUNTER,
+    PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
 };
 use pearl::error::{AsPearlError, ValidationErrorKind};
-use pearl::{BlobRecordTimestamp, ReadResult, BloomProvider, FilterResult};
+use pearl::{BlobRecordTimestamp, BloomProvider, FilterResult, ReadResult};
 
 const MAX_TIME_SINCE_LAST_WRITE_SEC: u64 = 10;
 const SMALL_RECORDS_COUNT_MUL: u64 = 10;
@@ -317,14 +317,11 @@ impl Holder {
             let pearl_key = Key::from(key);
             let storage = state.get();
             let timer = Instant::now();
-            let res = storage
-                .contains(pearl_key)
-                .await
-                .map_err(|e| {
-                    error!("error on exist: {:?}", e);
-                    counter!(PEARL_EXIST_ERROR_COUNTER, 1);
-                    Error::storage(e.to_string())
-                });
+            let res = storage.contains(pearl_key).await.map_err(|e| {
+                error!("error on exist: {:?}", e);
+                counter!(PEARL_EXIST_ERROR_COUNTER, 1);
+                Error::storage(e.to_string())
+            });
             counter!(PEARL_EXIST_TIMER, timer.elapsed().as_nanos() as u64);
             res
         } else {
@@ -439,30 +436,40 @@ impl Holder {
             .max_blob_size(max_blob_size)
             .set_filter_config(filter_config)
             .set_dump_sem(self.dump_sem.clone());
-        let builder = if self.config.is_aio_enabled() {
-            match rio::new() {
-                Ok(ioring) => {
-                    warn!("bob will start with AIO - async fs io api");
-                    builder.enable_aio(ioring)
-                }
-                Err(e) => {
-                    warn!("bob will start with standard sync fs io api");
-                    warn!("can't start with AIO, cause: {}", e);
-                    self.config.set_aio(false);
-                    builder
-                }
-            }
-        } else {
-            warn!("bob will start with standard sync fs io api");
-            warn!("cause: disabled in config");
-            builder
-        };
+
+        let iodriver = self.get_io_driver();
         builder
+            .set_io_driver(iodriver)
             .build()
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
 
-    pub async fn delete(&self, key: BobKey, _meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
+    fn get_io_driver(&self) -> IoDriver {
+        let iodriver = if self.config.is_aio_enabled() {
+            warn!("bob will start with AIO - async fs io api");
+            IoDriver::new_async()
+                .map_err(|e| {
+                    warn!("bob will start with standard sync fs io api");
+                    warn!("can't start with AIO, cause: {}", e);
+                    self.config.set_aio(false);
+                    Result::<IoDriver, Error>::Ok(IoDriver::new_sync())
+                })
+                .unwrap()
+        } else {
+            warn!("bob will start with standard sync fs io api");
+            warn!("cause: disabled in config");
+
+            IoDriver::new_sync()
+        };
+        iodriver
+    }
+
+    pub async fn delete(
+        &self,
+        key: BobKey,
+        _meta: &BobMeta,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
             let storage = state.get();
