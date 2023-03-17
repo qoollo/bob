@@ -444,6 +444,16 @@ impl Holder {
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
 
+    #[cfg(not(feature = "async-io"))]
+    fn get_io_driver(&self) -> IoDriver {
+        if self.config.is_aio_enabled() {
+            warn!("async io feature is not enabled, ignoring aio flag from config");
+            self.config.set_aio(false);
+        }
+        IoDriver::new_sync()
+    }
+
+    #[cfg(feature = "async-io")]
     fn get_io_driver(&self) -> IoDriver {
         let iodriver = if self.config.is_aio_enabled() {
             warn!("bob will start with AIO - async fs io api");

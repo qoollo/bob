@@ -40,7 +40,6 @@ tower-service = "0.3"
 #version = "0.17.0"
 git = "https://github.com/qoollo/pearl"
 branch = "230-optional-iouring"
-features = [ "async-io-rio" ]
 
 [dependencies.tokio]
 version = "1.21"
@@ -49,6 +48,9 @@ features = []
 
 [dev-dependencies]
 criterion = "0.4"
+
+[features]
+async-io = ["pearl/async-io-rio"]
 
 [[bench]]
 name = "key_cmp_benchmark"
