@@ -32,16 +32,17 @@ impl Pearl {
         })?;
 
         let run_sem = Arc::new(Semaphore::new(config.init_par_degree()));
+        let iodriver = get_io_driver(&config.pearl());
         let data = settings
             .clone()
-            .read_group_from_disk(config, run_sem.clone(), logger.clone())
+            .read_group_from_disk(config, run_sem.clone(), logger.clone(), iodriver.clone())
             .await;
         let disk_controllers: Arc<[_]> = Arc::from(data.as_slice());
         trace!("count vdisk groups: {}", disk_controllers.len());
 
         let alien_disk_controller = settings
             .clone()
-            .read_alien_directory(config, run_sem, logger)
+            .read_alien_directory(config, run_sem, logger, iodriver)
             .await;
 
         let pearl = Self {
@@ -166,9 +167,7 @@ impl BackendStorage for Pearl {
             .iter()
             .find(|dc| dc.can_process_operation(&op));
         if let Some(disk_controller) = dc_option {
-            disk_controller
-                .put(op, key, data)
-                .await
+            disk_controller.put(op, key, data).await
         } else {
             debug!(
                 "PUT[{}] Cannot find disk_controller, operation: {:?}",
@@ -240,10 +239,18 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn delete_alien(&self, op: Operation, key: BobKey, meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
+    async fn delete_alien(
+        &self,
+        op: Operation,
+        key: BobKey,
+        meta: &BobMeta,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
         debug!("DELETE[alien][{}] from pearl backend", key);
         if self.alien_disk_controller.can_process_operation(&op) {
-            self.alien_disk_controller.delete_alien(op, key, meta, force_delete).await
+            self.alien_disk_controller
+                .delete_alien(op, key, meta, force_delete)
+                .await
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -337,4 +344,32 @@ impl BackendStorage for Pearl {
         let postprocessor = BloomFilterMemoryLimitHooks::new(self.bloom_filter_memory_limit);
         group.remount(postprocessor).await
     }
+}
+
+#[cfg(not(feature = "async-io"))]
+fn get_io_driver(pearl_config: &PearlConfig) -> IoDriver {
+    if pearl_config.is_aio_enabled() {
+        warn!("async io feature is not enabled, ignoring aio flag from config");
+    }
+    IoDriver::new_sync()
+}
+
+#[cfg(feature = "async-io")]
+fn get_io_driver(pearl_config: &PearlConfig) -> IoDriver {
+    let iodriver = if pearl_config.is_aio_enabled() {
+        warn!("bob will start with AIO - async fs io api");
+        IoDriver::new_async()
+            .map_err(|e| {
+                warn!("bob will start with standard sync fs io api");
+                warn!("can't start with AIO, cause: {}", e);
+                Result::<IoDriver, Error>::Ok(IoDriver::new_sync())
+            })
+            .unwrap()
+    } else {
+        warn!("bob will start with standard sync fs io api");
+        warn!("cause: disabled in config");
+
+        IoDriver::new_sync()
+    };
+    iodriver
 }

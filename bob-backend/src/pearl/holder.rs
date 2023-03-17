@@ -29,7 +29,19 @@ pub struct Holder {
     config: PearlConfig,
     storage: Arc<RwLock<PearlSync>>,
     last_modification: Arc<AtomicU64>,
+    pearl_creation_context: PearlCreationContext,
+}
+
+#[derive(Clone, Debug)]
+pub struct PearlCreationContext {
     dump_sem: Arc<Semaphore>,
+    iodriver: IoDriver,
+}
+
+impl PearlCreationContext {
+    pub fn new(dump_sem: Arc<Semaphore>, iodriver: IoDriver) -> Self {
+        Self { dump_sem, iodriver }
+    }
 }
 
 impl Holder {
@@ -39,7 +51,7 @@ impl Holder {
         vdisk: VDiskId,
         disk_path: PathBuf,
         config: PearlConfig,
-        dump_sem: Arc<Semaphore>,
+        pearl_creation_context: PearlCreationContext,
     ) -> Self {
         Self {
             start_timestamp,
@@ -49,7 +61,7 @@ impl Holder {
             config,
             storage: Arc::new(RwLock::new(PearlSync::default())),
             last_modification: Arc::new(AtomicU64::new(0)),
-            dump_sem,
+            pearl_creation_context,
         }
     }
 
@@ -430,48 +442,15 @@ impl Holder {
             filter_config.max_buf_bits_count = count;
             debug!("bloom filter max buffer bits count set to: {}", count);
         }
-        let builder = builder
+        builder
             .blob_file_name_prefix(prefix)
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
             .set_filter_config(filter_config)
-            .set_dump_sem(self.dump_sem.clone());
-
-        let iodriver = self.get_io_driver();
-        builder
-            .set_io_driver(iodriver)
+            .set_dump_sem(self.pearl_creation_context.dump_sem.clone())
+            .set_io_driver(self.pearl_creation_context.iodriver.clone())
             .build()
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
-    }
-
-    #[cfg(not(feature = "async-io"))]
-    fn get_io_driver(&self) -> IoDriver {
-        if self.config.is_aio_enabled() {
-            warn!("async io feature is not enabled, ignoring aio flag from config");
-            self.config.set_aio(false);
-        }
-        IoDriver::new_sync()
-    }
-
-    #[cfg(feature = "async-io")]
-    fn get_io_driver(&self) -> IoDriver {
-        let iodriver = if self.config.is_aio_enabled() {
-            warn!("bob will start with AIO - async fs io api");
-            IoDriver::new_async()
-                .map_err(|e| {
-                    warn!("bob will start with standard sync fs io api");
-                    warn!("can't start with AIO, cause: {}", e);
-                    self.config.set_aio(false);
-                    Result::<IoDriver, Error>::Ok(IoDriver::new_sync())
-                })
-                .unwrap()
-        } else {
-            warn!("bob will start with standard sync fs io api");
-            warn!("cause: disabled in config");
-
-            IoDriver::new_sync()
-        };
-        iodriver
     }
 
     pub async fn delete(
