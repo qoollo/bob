@@ -139,7 +139,7 @@ impl Group {
     }
 
     // find in all pearls actual pearl
-    async fn find_actual_holder(olders: &HoldersContainer, data_timestamp: u64) -> BackendResult<(ChildId, Holder)> {
+    async fn find_actual_holder(holders: &HoldersContainer, data_timestamp: u64) -> BackendResult<(ChildId, Holder)> {
         let mut holders_for_time = holders
             .iter()
             .enumerate()
@@ -356,7 +356,7 @@ impl Group {
         return Ok(total_deletion_count);
     }
 
-    async fn delete_in_actual_holder(self, holder: (ChildId, Holder), key: BobKey, meta: &BobMeta) -> Result<u64, Error> {
+    async fn delete_in_actual_holder(&self, holder: (ChildId, Holder), key: BobKey, meta: &BobMeta) -> Result<u64, Error> {
         // In actual holder we delete with force_delete = true
         let delete_count = Self::delete_common(holder.1.clone(), key, meta, true).await?;
         // We need to add marker record to alien regardless of record presence

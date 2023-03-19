@@ -167,7 +167,9 @@ impl BackendStorage for Pearl {
             .iter()
             .find(|dc| dc.can_process_operation(&op));
         if let Some(disk_controller) = dc_option {
-            disk_controller.put(op, key, data).await
+            disk_controller
+                .put(op, key, data)
+                .await
         } else {
             debug!(
                 "PUT[{}] Cannot find disk_controller, operation: {:?}",
@@ -190,9 +192,7 @@ impl BackendStorage for Pearl {
             .find(|dc| dc.can_process_operation(&op));
 
         if let Some(disk_controller) = dc_option {
-            disk_controller
-                .get(op, key)
-                .await
+            disk_controller.get(op, key).await
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -241,7 +241,7 @@ impl BackendStorage for Pearl {
         }
     }
 
-    async fn delete_alien(&self, op: Operation, key: BobKey, meta: &BobMeta, force_delete: bool,) -> Result<u64, Error> {
+    async fn delete_alien(&self, op: Operation, key: BobKey, meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
         debug!("DELETE[alien][{}] from pearl backend", key);
         if self.alien_disk_controller.can_process_operation(&op) {
             self.alien_disk_controller .delete_alien(op, key, meta, force_delete) .await
@@ -345,7 +345,6 @@ fn get_io_driver(pearl_config: &PearlConfig) -> IoDriver {
     if pearl_config.is_aio_enabled() {
         warn!("async io feature is not enabled, ignoring aio flag from config");
     }
-    IoDriver::new_async().unwrap_or_else
     IoDriver::new_sync()
 }
 
