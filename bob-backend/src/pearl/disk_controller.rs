@@ -507,7 +507,7 @@ impl DiskController {
         &self,
         op: Operation,
         key: BobKey,
-        meta: &BobMeta,
+        meta: &BobMeta
     ) -> Result<u64, Error> {
         if *self.state.read().await == GroupsState::Ready {
             debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
@@ -539,10 +539,11 @@ impl DiskController {
         force_delete: bool,
     ) -> Result<u64, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            let vdisk_group = if !force_delete {
+            let vdisk_group =
+                if !force_delete {
                 match self.find_group(&op).await {
                     Ok(group) => group,
-                    Err(_) => return Ok(0),
+                        Err(_) => return Ok(0)
                 }
             } else {
                 // we should create group only when force_delete == true
@@ -558,9 +559,7 @@ impl DiskController {
                 }
             };
 
-            match vdisk_group
-                .delete(key, meta, StartTimestampConfig::new(false), force_delete)
-                .await
+            match vdisk_group .delete(key, meta, StartTimestampConfig::new(false), force_delete) .await
             {
                 Err(e) => Err(self.process_error(e).await),
                 Ok(x) => Ok(x),
@@ -570,6 +569,7 @@ impl DiskController {
         }
     }
 
+    
     pub(crate) async fn shutdown(&self) {
         let futures = FuturesUnordered::new();
         for group in self.groups.read().await.iter() {

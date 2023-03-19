@@ -329,11 +329,14 @@ impl Holder {
             let pearl_key = Key::from(key);
             let storage = state.get();
             let timer = Instant::now();
-            let res = storage.contains(pearl_key).await.map_err(|e| {
-                error!("error on exist: {:?}", e);
-                counter!(PEARL_EXIST_ERROR_COUNTER, 1);
-                Error::storage(e.to_string())
-            });
+            let res = storage
+                .contains(pearl_key)
+                .await
+                .map_err(|e| {
+                    error!("error on exist: {:?}", e);
+                    counter!(PEARL_EXIST_ERROR_COUNTER, 1);
+                    Error::storage(e.to_string())
+                });
             counter!(PEARL_EXIST_TIMER, timer.elapsed().as_nanos() as u64);
             res
         } else {
@@ -453,12 +456,7 @@ impl Holder {
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
     }
 
-    pub async fn delete(
-        &self,
-        key: BobKey,
-        _meta: &BobMeta,
-        force_delete: bool,
-    ) -> Result<u64, Error> {
+    pub async fn delete(&self, key: BobKey, _meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
             let storage = state.get();
