@@ -354,7 +354,7 @@ fn get_io_driver(pearl_config: &PearlConfig) -> IoDriver {
         info!("bob will start with AIO - async fs io api");
         IoDriver::new_async()
             .unwrap_or_else(|e| {
-                warn!("bob will start with standard sync fs io api, can't start with AIO, cause: {}", e);
+                warn!("bob will start with standard sync fs io api, can't start with AIO, cause: {:?}", e);
                 Result::<IoDriver, Error>::Ok(IoDriver::new_sync())
             })
     } else {
