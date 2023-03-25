@@ -20,7 +20,7 @@ Bob versions changelog
 
 #### Updated
 - Logger to logstash updated to qoollo-log4rs-logstash v0.2 (#681)
-- Pearl updated to v0.18.0 ()
+- Pearl updated to v0.18.0 (#778)
 
 
 ## [2.1.0-alpha.9] - 2023-01-16
