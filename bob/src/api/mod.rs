@@ -425,7 +425,7 @@ where
     let mapper = bob.grinder().backend().mapper();
     let mut nodes = vec![];
     let vdisks = collect_disks_info(&bob);
-    for node in mapper.nodes().values() {
+    for node in mapper.nodes() {
         let vdisks: Vec<_> = vdisks
             .iter()
             .filter_map(|vd| {
@@ -1251,6 +1251,7 @@ impl From<BobError> for StatusExt {
             Kind::Internal => StatusCode::INTERNAL_SERVER_ERROR,
             Kind::VDiskIsNotReady => StatusCode::INTERNAL_SERVER_ERROR,
             Kind::KeyNotFound(_) => StatusCode::NOT_FOUND,
+            Kind::HolderTemporaryUnavailable => StatusCode::SERVICE_UNAVAILABLE,
             _ => StatusCode::BAD_REQUEST,
         };
         Self {

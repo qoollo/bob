@@ -7,6 +7,6 @@ roles:
     write_rest: true
 
 users:
-  - username: admin
-    password: password
+  - username: {{ auth_user }}
+    password: {{ auth_password }}
     role: admin

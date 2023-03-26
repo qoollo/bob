@@ -29,6 +29,7 @@ pub mod b_client {
         client: BobApiClient<Channel>,
         metrics: BobClientMetrics,
         auth_header: String,
+        local_node_name: String,
     }
 
     impl BobClient {
@@ -57,7 +58,7 @@ pub mod b_client {
                 .await
                 .map_err(|e| e.to_string())?;
 
-            let auth_header = format!("InterNode {}", base64::encode(local_node_name));
+            let auth_header = format!("InterNode {}", base64::encode(local_node_name.clone()));
 
             Ok(Self {
                 node,
@@ -65,6 +66,7 @@ pub mod b_client {
                 client,
                 metrics,
                 auth_header,
+                local_node_name,
             })
         }
 
@@ -146,6 +148,7 @@ pub mod b_client {
             let mut client = self.client.clone();
             let mut req = Request::new(Null {});
             self.set_credentials(&mut req);
+            self.set_node_name(&mut req);
             self.set_timeout(&mut req);
             match client.ping(req).await {
                 Ok(_) => Ok(NodeOutput::new(self.node.name().to_owned(), ())),
@@ -211,8 +214,14 @@ pub mod b_client {
 
         fn set_credentials<T>(&self, req: &mut Request<T>) {
             let val = MetadataValue::from_str(&self.auth_header)
-                .expect("failed to create metadata value from node name");
+                .expect("failed to create metadata value from authorization");
             req.metadata_mut().insert("authorization", val);
+        }
+
+        fn set_node_name<T>(&self, r: &mut Request<T>) {
+            let val = MetadataValue::from_str(&self.local_node_name)
+                .expect("failed to create metadata value from node name");
+            r.metadata_mut().insert("node_name", val);
         }
 
         fn set_timeout<T>(&self, r: &mut Request<T>) {

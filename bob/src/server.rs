@@ -224,8 +224,13 @@ where
         }
     }
 
-    async fn ping(&self, _: Request<Null>) -> ApiResult<Null> {
+    async fn ping(&self, r: Request<Null>) -> ApiResult<Null> {
         debug!("PING");
+        if let Some(node_name) = r.metadata().get("node_name") {
+            if let Ok(name) = node_name.to_str() {
+                self.grinder.update_node_connection(name);
+            }
+        }
         Ok(Response::new(Null {}))
     }
 

@@ -2,7 +2,7 @@ use crate::link_manager::LinkManager;
 use crate::prelude::*;
 use super::support_types::{RemoteDeleteError};
 
-pub(crate) type Tasks = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>;
+pub(crate) type Tasks<Err> = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Err>>>>;
 
 // ======================= Helpers =================
 
@@ -26,8 +26,8 @@ fn is_result_successful<TErr: Debug>(
     0
 }
 
-async fn finish_at_least_handles<TErr: Debug>(
-    handles: &mut FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>>,
+pub(crate) async fn finish_at_least_handles<TErr: Debug>(
+    handles: &mut Tasks<TErr>,
     at_least: usize,
 ) -> Vec<NodeOutput<TErr>> {
     let mut ok_count = 0;
@@ -162,7 +162,7 @@ pub(crate) async fn lookup_remote_aliens(mapper: &Virtual, key: BobKey) -> Optio
     let local_node = mapper.local_node_name();
     let target_nodes = mapper
         .nodes()
-        .values()
+        .iter()
         .filter(|node| node.name() != local_node);
     let result = get_any(key, target_nodes, GetOptions::new_alien()).await;
     if let Some(answer) = result {
@@ -222,7 +222,7 @@ pub(crate) async fn put_at_least(
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
     options: PutOptions,
-) -> (Tasks, Vec<NodeOutput<Error>>) {
+) -> (Tasks<Error>, Vec<NodeOutput<Error>>) {
     call_at_least(target_nodes, at_least, |n| {
         call_node_put(key, data.clone(), n.clone(), options.clone())
     })

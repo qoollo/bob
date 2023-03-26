@@ -40,7 +40,8 @@ pub use bob_common::{
 };
 pub use bob_grpc::{
     bob_api_client::BobApiClient, bob_api_server::BobApiServer, Blob, BlobKey, BlobMeta,
-    DeleteRequest, ExistRequest, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
+    DeleteOptions, DeleteRequest, ExistRequest, GetOptions, GetRequest, GetSource, PutOptions,
+    PutRequest,
 };
 
 mod prelude {
@@ -55,8 +56,10 @@ mod prelude {
         metrics::{
             ALIEN_BLOBS_COUNT, AVAILABLE_NODES_COUNT, BLOBS_COUNT, CLIENT_EXIST_COUNTER,
             CLIENT_EXIST_ERROR_COUNT_COUNTER, CLIENT_EXIST_TIMER, CLIENT_GET_COUNTER,
+            CLIENT_EXIST_ERROR_KEYS_COUNT_COUNTER, CLIENT_EXIST_KEYS_COUNT_COUNTER,
             CLIENT_GET_ERROR_COUNT_COUNTER, CLIENT_GET_TIMER, CLIENT_PUT_COUNTER,
             CLIENT_PUT_ERROR_COUNT_COUNTER, CLIENT_PUT_TIMER, GRINDER_EXIST_COUNTER,
+            GRINDER_EXIST_KEYS_COUNT_COUNTER, GRINDER_EXIST_ERROR_KEYS_COUNT_COUNTER,
             GRINDER_EXIST_ERROR_COUNT_COUNTER, GRINDER_EXIST_TIMER, GRINDER_GET_COUNTER,
             GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER, GRINDER_PUT_COUNTER,
             GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER, INDEX_MEMORY,
