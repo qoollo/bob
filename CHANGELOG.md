@@ -5,11 +5,14 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Quorum argument for manual workflow dispatch for integration tests (#749)
+- Reconnect to a node when Ping is received from it (#625)
+- Fast ping at the start (#657)
 - Client metrics are initialized at the start (#761)
 - Exist test on doubled range of keys for integration tests (#764)
 
 #### Changed
 - Make local put parallel to remote (#573)
+- Prefer online nodes for aliens, while maintaining uniform distribution (#571)
 - Build release binaries and docker images with `release-lto` profile (#714)
 - Use read lock instead of write on hierarchical filters update to improve performance (#596)
 
@@ -18,6 +21,7 @@ Bob versions changelog
 
 #### Updated
 - Logger to logstash updated to qoollo-log4rs-logstash v0.2 (#681)
+- Pearl updated to v0.18.0 (#778)
 
 
 ## [2.1.0-alpha.9] - 2023-01-16
