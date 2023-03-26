@@ -9,6 +9,7 @@ Bob versions changelog
 - Fast ping at the start (#657)
 - Client metrics are initialized at the start (#761)
 - Exist test on doubled range of keys for integration tests (#764)
+- Added validate_data_checksum_in_index_regen field to pearl config (#607)
 
 #### Changed
 - Make local put parallel to remote (#573)
@@ -46,7 +47,6 @@ Bob versions changelog
 - Corrupted blobs count metric (#464)
 - 'Exists' method through HEAD request in REST API (#691)
 - Support for 'exists' method in bobt (#691)
-- Added validate_data_checksum_in_index_regen field to pearl config (#215)
 - Round robin algorithm for alien nodes selection (#570)
 - 'release-lto' and 'integration-test' build profiles added (#704)
 - Crossplatform terminal signal handling (#725)
