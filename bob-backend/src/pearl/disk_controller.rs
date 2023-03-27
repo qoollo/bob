@@ -559,7 +559,7 @@ impl DiskController {
                     }
                 };
 
-            match vdisk_group.delete(key, meta, StartTimestampConfig::new(false), force_delete) .await
+            match vdisk_group.delete(key, meta, StartTimestampConfig::new(false), force_delete).await
             {
                 Err(e) => Err(self.process_error(e).await),
                 Ok(x) => Ok(x),
