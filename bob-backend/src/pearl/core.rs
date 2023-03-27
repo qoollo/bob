@@ -358,7 +358,7 @@ fn get_io_driver(pearl_config: &PearlConfig) -> IoDriver {
                 IoDriver::new_sync()
             })
     } else {
-        info!("bob will start with standard sync fs io api, cause: disabled in config");
+        info!("bob will start with standard sync fs io api, cause: async io disabled in config");
         IoDriver::new_sync()
     };
     iodriver
