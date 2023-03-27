@@ -269,8 +269,8 @@ pub struct Pearl {
     disks_events_logfile: String,
     #[serde(default)]
     bloom_filter_max_buf_bits_count: Option<usize>,
-    #[serde(default = "Pearl::default_validate_data_checksum_in_index_regen")]
-    validate_data_checksum_in_index_regen: bool,
+    #[serde(default = "Pearl::default_validate_data_checksum_during_index_regen")]
+    validate_data_checksum_during_index_regen: bool,
 }
 
 impl Pearl {
@@ -293,12 +293,12 @@ impl Pearl {
             .into()
     }
 
-    fn default_validate_data_checksum_in_index_regen() -> bool {
+    fn default_validate_data_checksum_during_index_regen() -> bool {
         false
     }
 
-    pub fn validate_data_checksum_in_index_regen(&self) -> bool {
-        self.validate_data_checksum_in_index_regen
+    pub fn validate_data_checksum_during_index_regen(&self) -> bool {
+        self.validate_data_checksum_during_index_regen
     }
 
     fn default_fail_retry_count() -> u64 {
