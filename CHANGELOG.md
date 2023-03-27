@@ -9,6 +9,7 @@ Bob versions changelog
 - Fast ping at the start (#657)
 - Client metrics are initialized at the start (#761)
 - Exist test on doubled range of keys for integration tests (#764)
+- Added validate_data_checksum_in_index_regen field to pearl config (#607)
 
 #### Changed
 - Make local put parallel to remote (#573)

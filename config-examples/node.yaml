@@ -79,6 +79,8 @@ pearl:
   enable_aio: false
   # path to logfile with info about disks states switches, default = "/tmp/bob_events.csv"
   disks_events_logfile: "/tmp/bob_events.csv"
+  # optional, default = false, enables data checksum validation during index regeneration
+  validate_data_checksum_during_index_regen: false
   # [size] required for 'pearl'
   max_blob_size: 100 mb
   # optional, required for 'pearl', disables search for existing keys before write
