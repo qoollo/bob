@@ -9,6 +9,7 @@ Bob versions changelog
 - Fast ping at the start (#657)
 - Client metrics are initialized at the start (#761)
 - Exist test on doubled range of keys for integration tests (#764)
+- Used swap and bob virtual memory metrics added to hardware metrics (#771)
 - Added validate_data_checksum_in_index_regen field to pearl config (#607)
 
 #### Changed
@@ -19,6 +20,7 @@ Bob versions changelog
 
 #### Fixed
 - Fix incorrect exist result due to variables sharing between keys (#762)
+- Fix unit of measurement of memory in hardware metrics (#772)
 
 #### Updated
 - Logger to logstash updated to qoollo-log4rs-logstash v0.2 (#681)
