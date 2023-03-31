@@ -27,6 +27,7 @@ pub(crate) mod prelude {
         error::Error,
         mapper::Virtual,
         metrics::BACKEND_STATE,
+        stopwatch::Stopwatch,
     };
     pub use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
     pub use futures::{stream::FuturesUnordered, StreamExt, TryFutureExt};
@@ -44,7 +45,6 @@ pub(crate) mod prelude {
         sync::Arc,
         time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     };
-    pub use stopwatch::Stopwatch;
     pub use tokio::{
         fs::{create_dir_all, read_dir, remove_dir_all, remove_file, DirEntry},
         sync::{RwLock, Semaphore},
