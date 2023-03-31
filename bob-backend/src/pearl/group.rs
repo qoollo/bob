@@ -210,7 +210,7 @@ impl Group {
             .await?;
         let res = Self::put_common(&holder.1, key, data).await?;
         self.holders
-            .write()
+            .read()
             .await
             .add_to_parents(holder.0, &Key::from(key));
         Ok(res)
@@ -361,7 +361,7 @@ impl Group {
         let delete_count = Self::delete_common(holder.1.clone(), key, meta, true).await?;
         // We need to add marker record to alien regardless of record presence
         self.holders
-            .write()
+            .read()
             .await
             .add_to_parents(holder.0, &Key::from(key));
 

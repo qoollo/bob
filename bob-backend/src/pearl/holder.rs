@@ -441,6 +441,7 @@ impl Holder {
         let max_data = self.config.max_data_in_blob();
         let max_blob_size = self.config.max_blob_size();
         let mut filter_config = BloomConfig::default();
+        let validate_data_during_index_regen = self.config.validate_data_checksum_during_index_regen();
         if let Some(count) = self.config.max_buf_bits_count() {
             filter_config.max_buf_bits_count = count;
             debug!("bloom filter max buffer bits count set to: {}", count);
