@@ -37,7 +37,7 @@ serde_derive = "1.0"
 serde_yaml = "0.8"
 stopwatch = "0.0.7"
 thiserror = "1.0"
-sysinfo = "0.26"
+sysinfo = "0.27"
 tonic = { version = "0.6", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"
@@ -45,7 +45,7 @@ uuid = "1.1"
 smallvec = { version = "1.10", features = ["union"] }
 
 [dependencies.pearl]
-version = "0.17.0"
+version = "0.18.0"
 
 [dependencies.tokio]
 version = "1.21"

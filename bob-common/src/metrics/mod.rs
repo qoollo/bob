@@ -110,12 +110,14 @@ pub const DISK_USED: &str = "backend.used_disk";
 
 pub const DESCRIPTORS_AMOUNT: &str = "hardware.descr_amount";
 
-pub const CPU_LOAD: &str = "hardware.cpu_load";
+pub const BOB_CPU_LOAD: &str = "hardware.bob_cpu_load";
 pub const CPU_IOWAIT: &str = "hardware.cpu_iowait";
 pub const AVAILABLE_RAM: &str = "hardware.available_ram";
 pub const USED_RAM: &str = "hardware.used_ram";
 pub const TOTAL_RAM: &str = "hardware.total_ram";
+pub const USED_SWAP: &str = "hardware.used_swap";
 pub const BOB_RAM: &str = "hardware.bob_ram";
+pub const BOB_VIRTUAL_RAM: &str = "hardware.bob_virtual_ram";
 pub const FREE_SPACE: &str = "hardware.free_space";
 pub const USED_SPACE: &str = "hardware.used_space";
 pub const TOTAL_SPACE: &str = "hardware.total_space";
