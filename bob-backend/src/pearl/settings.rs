@@ -158,7 +158,8 @@ impl Settings {
         let disk_name = self
             .config
             .alien_disk()
-            .map_or_else(String::new, str::to_owned);
+            .unwrap_or(DEFAULT_ALIEN_DISK_NAME)
+            .into();
         let group = Group::new(
             self,
             vdisk_id,

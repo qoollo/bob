@@ -153,7 +153,7 @@ pub trait MetricsProducer: Send + Sync {
 
 #[derive(Hash, PartialEq, Eq, Debug)]
 enum BackendErrorAction {
-    PUT(String, String),
+    PUT(DiskName, String),
 }
 
 impl Display for BackendErrorAction {
@@ -171,7 +171,7 @@ impl Display for BackendErrorAction {
 }
 
 impl BackendErrorAction {
-    fn put(disk: String, error: &Error) -> Self {
+    fn put(disk: DiskName, error: &Error) -> Self {
         BackendErrorAction::PUT(disk, error.to_string())
     }
 }
@@ -317,7 +317,7 @@ impl Backend {
                         local_err
                     );
                     let error_to_log =
-                        BackendErrorAction::put(operation.disk_name_local(), &local_err);
+                        BackendErrorAction::put(operation.disk_name_local().clone(), &local_err);
                     self.error_logger.report_error(error_to_log);
 
                     // write to alien/<local name>
