@@ -78,6 +78,12 @@ impl From<&String> for NodeName {
     }
 }
 
+impl From<&NodeName> for NodeName {
+    fn from(val: &NodeName) -> Self {
+        val.clone()
+    }
+}
+
 impl AsRef<str> for NodeName {
     fn as_ref(&self) -> &str {
         self.as_str()
@@ -160,6 +166,12 @@ impl From<&str> for DiskName {
 impl From<&String> for DiskName {
     fn from(val: &String) -> Self {
         Self(val.as_str().into())
+    }
+}
+
+impl From<&DiskName> for DiskName {
+    fn from(val: &DiskName) -> Self {
+        val.clone()
     }
 }
 

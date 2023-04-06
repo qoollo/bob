@@ -238,7 +238,7 @@ impl Center {
         self.iter_disks()
             .find(|(_, node, disk)| {
                 self.counter.disk_used_count(&node.name, &disk.name) == min_key
-                    && list.contains(&Replica::new(node.name.clone(), disk.name.clone()))
+                    && list.contains(&Replica::new(node.name.to_string(), disk.name.to_string()))
             })
             .ok_or_else(|| anyhow!("Can't find disk"))
     }
@@ -445,7 +445,7 @@ impl Rack {
         let (node, disk) = disks
             .find(|(node, disk)| {
                 min_key == counter.disk_used_count(&node.name, &disk.name)
-                    && list.contains(&Replica::new(node.name.clone(), disk.name.clone()))
+                    && list.contains(&Replica::new(node.name.to_string(), disk.name.to_string()))
             })
             .ok_or_else(|| anyhow!("Can't find disk"))?;
 
