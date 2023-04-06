@@ -10,11 +10,11 @@ const VDISKS_COUNT: u32 = 10;
 pub(crate) fn new_direct(paths: &[String], vdisks_count: u32) -> MemBackend {
     let disks = paths
         .iter()
-        .map(|p| (p.clone(), MemDisk::new_direct(p.into(), vdisks_count)))
+        .map(|p| (DiskName::from(p), MemDisk::new_direct(DiskName::from(p), vdisks_count)))
         .collect();
     MemBackend {
         disks,
-        foreign_data: MemDisk::new_direct("foreign".into(), vdisks_count),
+        foreign_data: MemDisk::new_direct(DiskName::from("foreign"), vdisks_count),
     }
 }
 
