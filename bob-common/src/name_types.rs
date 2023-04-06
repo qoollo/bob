@@ -3,6 +3,10 @@ use std::{
     hash::{Hash, Hasher},
     sync::Arc,
 };
+use serde::{
+    de::{Visitor, Deserialize, Deserializer},
+    ser::{Serialize, Serializer}
+};
 
 /// Node name struct. Clone is lightweight
 #[derive(Clone)]
@@ -21,6 +25,31 @@ macro_rules! impl_str_partial_eq {
             }
         }
     };
+}
+
+/// Visistor for deserialization
+struct ArcStrVisitor;
+
+impl<'de> Visitor<'de> for ArcStrVisitor {
+    type Value = Arc<str>;
+
+    fn expecting(&self, formatter: &mut Formatter) -> FmtResult {
+        formatter.write_str("string")
+    }
+    
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error, 
+    {
+        Ok(v.into())
+    }
+
+    fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error, 
+    {
+        Ok(v.into())
+    }
 }
 
 // ============= NodeName =============
@@ -89,6 +118,24 @@ impl Display for NodeName {
     }
 }
 
+impl<'de> Deserialize<'de> for NodeName {
+    fn deserialize<D>(deserializer: D) -> Result<DiskName, D::Error>
+    where
+        D: Deserializer<'de>,
+    {   
+        deserializer.deserialize_str(ArcStrVisitor).map(|v| NodeName(v))
+    }
+}
+
+impl Serialize for NodeName {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
 
 // ============= DiskName =============
 
@@ -153,5 +200,24 @@ impl Debug for DiskName {
 impl Display for DiskName {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.write_str(self.as_str())
+    }
+}
+
+
+impl<'de> Deserialize<'de> for DiskName {
+    fn deserialize<D>(deserializer: D) -> Result<DiskName, D::Error>
+    where
+        D: Deserializer<'de>,
+    {   
+        deserializer.deserialize_str(ArcStrVisitor).map(|v| DiskName(v))
+    }
+}
+
+impl Serialize for DiskName {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.as_str())
     }
 }
