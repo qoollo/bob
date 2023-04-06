@@ -17,6 +17,9 @@ Bob versions changelog
 - Prefer online nodes for aliens, while maintaining uniform distribution (#571)
 - Build release binaries and docker images with `release-lto` profile (#714)
 - Use read lock instead of write on hierarchical filters update to improve performance (#596)
+- BobClient clone overhead reduced (#774)
+- Node struct internals placed inside Arc to reduce clone overhead (#724)
+- NodeName and DiskName types introduced to reduce clone overhead (#775)
 
 #### Fixed
 - Fix incorrect exist result due to variables sharing between keys (#762)
