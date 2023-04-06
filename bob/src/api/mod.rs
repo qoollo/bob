@@ -477,7 +477,7 @@ where
     for dc in dcs.iter().chain(std::iter::once(&alien_disk_controller)) {
         let disk_path = dc.disk();
 
-        let name = disk_path.name().to_owned();
+        let name = disk_path.name().to_string();
         let path = disk_path.path().to_owned();
         let is_active = dc.is_ready().await;
         let value = DiskState {
@@ -557,7 +557,7 @@ where
         .ok_or_else(not_acceptable_backend)?;
     dcs.iter()
         .chain(std::iter::once(&alien_disk_controller))
-        .filter(|dc| dc.disk().name() == disk_name)
+        .filter(|dc| dc.disk().name() == &disk_name)
         .map(|dc| dc.stop())
         .collect::<FuturesUnordered<_>>()
         .collect::<Vec<()>>()
@@ -590,7 +590,7 @@ where
     let target_dcs = dcs
         .iter()
         .chain(std::iter::once(&alien_disk_controller))
-        .filter(|dc| dc.disk().name() == disk_name)
+        .filter(|dc| dc.disk().name() == &disk_name)
         .map(|dc| dc.run(NoopHooks))
         .collect::<FuturesUnordered<_>>();
 
@@ -732,7 +732,7 @@ where
     let partitions = pearls.iter().map(Holder::get_id).collect();
 
     let node_name = group.node_name().to_string();
-    let disk_name = group.disk_name().to_owned();
+    let disk_name = group.disk_name().to_string();
     let vdisk_id = group.vdisk_id();
     let ps = VDiskPartitions {
         node_name,
@@ -769,7 +769,7 @@ where
     let partition = if let Some(p) = pearl {
         let partition = Partition {
             node_name: group.node_name().to_string(),
-            disk_name: group.disk_name().to_owned(),
+            disk_name: group.disk_name().to_string(),
             vdisk_id: group.vdisk_id(),
             timestamp: p.start_timestamp(),
             records_count: p.records_count().await,
