@@ -73,8 +73,8 @@ impl Operation {
     }
 
     #[inline]
-    pub fn disk_name_local(&self) -> String {
-        self.disk_path.as_ref().expect("no path").name().to_owned()
+    pub fn disk_name_local(&self) -> &DiskName {
+        self.disk_path.as_ref().expect("no path").name()
     }
 }
 

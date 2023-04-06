@@ -108,7 +108,7 @@ impl Settings {
 
     pub(crate) async fn collect_alien_groups(
         self: Arc<Self>,
-        disk_name: String,
+        disk_name: &DiskName,
         dump_sem: Arc<Semaphore>,
         owner_node_name: &NodeName,
     ) -> BackendResult<Vec<Group>> {

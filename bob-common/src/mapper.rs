@@ -4,7 +4,7 @@ use crate::{
         node::Node as NodeConfig,
     },
     data::BobKey,
-    core_types::{DiskPath, VDisk as DataVDisk, VDiskId},
+    core_types::{DiskName, DiskPath, VDisk as DataVDisk, VDiskId},
     node::{NodeId, NodeName, Node},
 };
 use std::{
@@ -273,7 +273,7 @@ impl Virtual {
         self.get_vdisk(vdisk_id)
     }
 
-    pub fn get_vdisks_by_disk(&self, disk: &str) -> Vec<VDiskId> {
+    pub fn get_vdisks_by_disk(&self, disk: &DiskName) -> Vec<VDiskId> {
         let vdisks = self.vdisks.iter();
         vdisks
             .filter_map(|(id, vdisk)| {

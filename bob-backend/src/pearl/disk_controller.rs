@@ -262,7 +262,7 @@ impl DiskController {
                     self.settings.clone(),
                     vdisk_id,
                     self.node_name.clone(),
-                    self.disk.name().to_owned(),
+                    self.disk.name().clone(),
                     path,
                     owner_node_identifier,
                     self.dump_sem.clone(),
@@ -275,7 +275,7 @@ impl DiskController {
         let settings = self.settings.clone();
         let groups = settings
             .collect_alien_groups(
-                self.disk.name().to_owned(),
+                self.disk.name(),
                 self.dump_sem.clone(),
                 &self.node_name,
             )

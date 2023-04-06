@@ -21,7 +21,7 @@ pub struct Group {
     directory_path: PathBuf,
     vdisk_id: VDiskId,
     node_name: NodeName,
-    disk_name: String,
+    disk_name: DiskName,
     owner_node_identifier: String,
     dump_sem: Arc<Semaphore>,
 }
@@ -31,7 +31,7 @@ impl Group {
         settings: Arc<Settings>,
         vdisk_id: VDiskId,
         node_name: NodeName,
-        disk_name: String,
+        disk_name: DiskName,
         directory_path: PathBuf,
         owner_node_identifier: String,
         dump_sem: Arc<Semaphore>,
@@ -60,7 +60,7 @@ impl Group {
                 .map_or(true, |node_name| *node_name == self.node_name);
             name_matched && self.vdisk_id == operation.vdisk_id()
         } else {
-            self.vdisk_id == operation.vdisk_id() && self.disk_name == operation.disk_name_local()
+            self.vdisk_id == operation.vdisk_id() && &self.disk_name == operation.disk_name_local()
         }
     }
 
@@ -419,7 +419,7 @@ impl Group {
         &self.node_name
     }
 
-    pub fn disk_name(&self) -> &str {
+    pub fn disk_name(&self) -> &DiskName {
         &self.disk_name
     }
 
