@@ -7,7 +7,6 @@ use std::{
     sync::Arc,
     hash::{Hash, Hasher},
 };
-use serde::{Serializer, Deserialize};
 
 
 /// Structure represents disk on the node. Contains path to disk and name.

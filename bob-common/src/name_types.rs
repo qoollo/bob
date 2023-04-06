@@ -119,7 +119,7 @@ impl Display for NodeName {
 }
 
 impl<'de> Deserialize<'de> for NodeName {
-    fn deserialize<D>(deserializer: D) -> Result<DiskName, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<NodeName, D::Error>
     where
         D: Deserializer<'de>,
     {   
