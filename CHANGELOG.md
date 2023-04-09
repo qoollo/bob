@@ -21,6 +21,7 @@ Bob versions changelog
 #### Fixed
 - Fix incorrect exist result due to variables sharing between keys (#762)
 - Fix unit of measurement of memory in hardware metrics (#772)
+- Fix rust deprecation warning (#779)
 
 #### Updated
 - Logger to logstash updated to qoollo-log4rs-logstash v0.2 (#681)
