@@ -32,7 +32,6 @@ rocket = { version = "0.5.0-rc.2", features = ["json", "uuid"] }
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.8"
-stopwatch = "0.0.7"
 termion = "1.5"
 thiserror = "1.0"
 sysinfo = "0.21"

@@ -5,6 +5,7 @@ pub mod error;
 pub mod mapper;
 pub mod metrics;
 pub mod node;
+pub mod stopwatch;
 
 #[macro_use]
 extern crate bitflags;

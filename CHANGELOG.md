@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Fix rust deprecation warning (#779)
 
 #### Updated
 
