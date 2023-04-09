@@ -80,6 +80,6 @@ impl Stopwatch {
     /// Returns the elapsed time since the start of the stopwatch in milliseconds.
     pub fn elapsed_ms(&self) -> u64 {
         let dur = self.elapsed();
-        dur.as_millis() as u64 + (dur.subsec_nanos() / 1000000) as u64
+        dur.as_millis() as u64
     }
 }
