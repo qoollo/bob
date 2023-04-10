@@ -12,6 +12,12 @@ members = [
 inherits = "release"
 lto = true
 
+[profile.release]
+panic = "abort"
+
+[profile.dev]
+panic = "abort"
+
 [profile.integration-test]
 inherits = "test"
 opt-level = 1
