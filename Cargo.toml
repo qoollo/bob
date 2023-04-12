@@ -8,15 +8,19 @@ members = [
 ]
 
 
-[profile.release-lto]
-inherits = "release"
-lto = true
-
 [profile.release]
 panic = "abort"
 
+[profile.release-lto]
+inherits = "release"
+panic = "abort"
+lto = true
+
 [profile.dev]
 panic = "abort"
+
+[profile.test]
+panic = "unwind"
 
 [profile.integration-test]
 inherits = "test"
