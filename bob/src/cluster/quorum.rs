@@ -278,31 +278,30 @@ impl Cluster for Quorum {
         // filter local keys
         let (indices, local_keys) = filter_local_keys(keys, &self.mapper);
         // end
-        debug!("local keys {:?}", local_keys);
-        debug!("local indices {:?}", indices);
+        trace!("local keys {:?} local indices {:?}", local_keys, indices);
         if local_keys.len() > 0 {
             let result = exist_on_local_node(&self.backend, &local_keys).await?;
             for (idx, r) in indices.into_iter().zip(result.into_iter()) {
                 exist[idx] |= r;
             }
-            debug!("exist after local node {:?}", exist);
+            trace!("exist after local node {:?}", exist);
         }
 
         // filter keys that were not found
         let local_alien = filter_not_found(&exist, keys);
         // end
-        debug!("local alien keys {:?}", local_alien);
+        trace!("local alien keys {:?}", local_alien);
         if local_alien.len() > 0 {
             let result = exist_on_local_alien(&self.backend, &local_alien).await?;
             update_exist(&mut exist, &result);
-            debug!("exist after local alien {:?}", exist);
+            trace!("exist after local alien {:?}", exist);
         }
 
         // filter remote not found keys by nodes
         let remote_keys = filter_remote_not_found_by_nodes(&exist, keys, &self.mapper);
         // end
 
-        debug!("remote keys by nodes {:?}", remote_keys);
+        trace!("remote keys by nodes {:?}", remote_keys);
         if remote_keys.len() > 0 {
             for (nodes, (keys, indices)) in remote_keys {
                 let result = exist_on_remote_nodes(&nodes, &keys).await;
@@ -312,7 +311,7 @@ impl Cluster for Quorum {
                     }
                 }
             }
-            debug!("exist after remote nodes {:?}", exist);
+            trace!("exist after remote nodes {:?}", exist);
         }
 
         // filter remote not found keys
@@ -322,13 +321,13 @@ impl Cluster for Quorum {
             // filter remote nodes
             let remote_nodes = filter_remote_nodes(&self.mapper);
             // end
-            debug!("remote nodes {:?}", remote_nodes);
+            trace!("remote nodes {:?}", remote_nodes);
 
             let result = exist_on_remote_aliens(&remote_nodes, &remote_alien).await;
-            debug!("alien result {:?}", result);
+            trace!("alien result {:?}", result);
             for res in result.into_iter() {
                 if let Ok(inner) = res {
-                    debug!("inner {:?}", inner);
+                    trace!("inner {:?}", inner);
                     update_exist(&mut exist, inner.inner());
                 }
             }
