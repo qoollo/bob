@@ -340,20 +340,70 @@ impl Cluster for Quorum {
     }
 }
 
-fn filter_local_keys(keys: &[BobKey], mapper: &Virtual) -> (Vec<usize>, Vec<BobKey>)  {
+fn group_by_nodes(
+    keys: &[BobKey],
+    mapper: &Virtual,
+) -> (
+    Option<IndexMap>,
+    HashMap<Node, IndexMap>,
+    HashMap<Node, IndexMap>,
+) {
+    let mut local = IndexMap::new();
+    let mut primary = HashMap::new();
+    let mut secondary = HashMap::new();
+
+    let local_node = mapper.local_node_name();
+
+    for (index, &key) in keys.iter().enumerate() {
+        let target_nodes = mapper.get_target_nodes_for_key(key);
+
+        if !target_nodes
+            .iter()
+            .any(|n| n.name() == local_node || primary.contains_key(n))
+        {
+            if let Some(node) = target_nodes.iter().find(|n| !secondary.contains_key(*n)) {
+                primary.insert(node.clone(), IndexMap::new());
+            }
+        }
+
+        for node in target_nodes {
+            if node.name() == local_node {
+                local.push(index);
+            } else if let Some(map) = primary.get_mut(node) {
+                map.push(index)
+            } else {
+                secondary
+                    .entry(node.clone())
+                    .or_insert(IndexMap::new())
+                    .push(index);
+            }
+        }
+    }
+
+    (
+        if local.is_empty() { None } else { Some(local) },
+        primary,
+        secondary,
+    )
+}
+
+fn filter_local_keys(keys: &[BobKey], mapper: &Virtual) -> (Vec<usize>, Vec<BobKey>) {
     let mut indices = Vec::new();
     let local_keys = keys
         .iter()
         .enumerate()
         .filter_map(|(idx, &key)| {
-            mapper.get_target_nodes_for_key(key).iter().find_map(|node| {
-              if node.name() == mapper.local_node_name() {
-                  indices.push(idx);
-                  Some(key)
-              } else {
-                  None
-              }
-            })
+            mapper
+                .get_target_nodes_for_key(key)
+                .iter()
+                .find_map(|node| {
+                    if node.name() == mapper.local_node_name() {
+                        indices.push(idx);
+                        Some(key)
+                    } else {
+                        None
+                    }
+                })
         })
         .collect::<Vec<BobKey>>();
     (indices, local_keys)
@@ -369,7 +419,11 @@ fn filter_not_found(exist: &[bool], keys: &[BobKey]) -> Vec<BobKey> {
     not_found_keys
 }
 
-fn filter_remote_not_found_by_nodes(exist: &[bool], keys: &[BobKey], mapper: &Virtual) -> HashMap<Vec<Node>, (Vec<BobKey>, Vec<usize>)> {
+fn filter_remote_not_found_by_nodes(
+    exist: &[bool],
+    keys: &[BobKey],
+    mapper: &Virtual,
+) -> HashMap<Vec<Node>, (Vec<BobKey>, Vec<usize>)> {
     let mut remote_keys: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
     for (idx, &r) in exist.iter().enumerate() {
         if r == false {
@@ -407,5 +461,61 @@ fn update_exist(exist: &mut [bool], result: &[bool]) {
             *r |= result[i];
             i += 1;
         }
+    }
+}
+
+pub(crate) struct IndexMap {
+    indexes: Vec<usize>,
+}
+
+impl IndexMap {
+    pub(crate) fn new() -> Self {
+        Self { indexes: vec![] }
+    }
+
+    pub(crate) fn where_not_exists(data: &[bool]) -> Self {
+        Self {
+            indexes: data
+                .iter()
+                .enumerate()
+                .filter(|(_, f)| **f)
+                .map(|(i, _)| i)
+                .collect(),
+        }
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.indexes.len()
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.indexes.is_empty()
+    }
+
+    pub(crate) fn push(&mut self, item: usize) {
+        debug_assert!(!self.indexes.contains(&item));
+        self.indexes.push(item);
+    }
+
+    pub(crate) fn collect<T>(&self, data: impl IntoIterator<Item = T>) -> Vec<T> {
+        data.into_iter()
+            .enumerate()
+            .filter(|(i, _)| self.indexes.contains(i))
+            .map(|(_, i)| i)
+            .collect()
+    }
+
+    pub(crate) fn update_existence(&self, original: &mut [bool], mapped: &[bool]) {
+        let max = original.len();
+        self.indexes
+            .iter()
+            .zip(mapped.iter())
+            .filter(|(i, _)| **i < max)
+            .for_each(|(i, f)| original[*i] |= f)
+    }
+
+    pub(crate) fn retain_not_existed(&mut self, original: &[bool]) {
+        self.indexes
+            .retain(|&i| i >= original.len() || original[i] == false);
     }
 }
