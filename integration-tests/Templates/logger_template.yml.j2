@@ -23,7 +23,7 @@ appenders:
   requests:
     kind: rolling_file
     # [path] to the log file
-    path: "./log/info.log"
+    path: "{{ path }}/info.log"
     encoder:
       pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {l} {m}{n}"
     policy:
@@ -33,7 +33,7 @@ appenders:
         limit: 20 mb
       roller:
         kind: fixed_window
-        pattern: "./log/archive/info.{}.log"
+        pattern: "{{ path }}/archive/info.{}.log"
         count: 10
     filters:
     - kind: threshold
@@ -41,7 +41,7 @@ appenders:
 
   requests_error:
     kind: rolling_file
-    path: "./log/error.log"
+    path: "{{ path }}/error.log"
     encoder:
       pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {l} {m}{n}"
     policy:
@@ -51,20 +51,11 @@ appenders:
         limit: 20 mb
       roller:
         kind: fixed_window
-        pattern: "./log/archive/error.{}.log"
+        pattern: "{{ path }}/archive/error.{}.log"
         count: 10
     filters:
     - kind: threshold
       level: error
-
-  logstash:
-    kind: logstash
-    hostname: 127.0.0.1
-    port: 5959
-    buffer_size: 100
-    buffer_lifetime: 1s
-    extra_fields:
-      cluster: "bob"
 
 # root logger sets the default global logging level attach appenders to the root
 # Other loggers use this parameters as default

@@ -1,14 +1,15 @@
 use crate::prelude::*;
 use bob_common::metrics::{
-    BOB_RAM, CPU_IOWAIT, CPU_LOAD, DESCRIPTORS_AMOUNT, AVAILABLE_RAM, FREE_SPACE, HW_DISKS_FOLDER,
-    TOTAL_RAM, TOTAL_SPACE, USED_RAM, USED_SPACE,
+    BOB_RAM, BOB_VIRTUAL_RAM, BOB_CPU_LOAD, DESCRIPTORS_AMOUNT, CPU_IOWAIT, 
+    TOTAL_RAM, AVAILABLE_RAM, USED_RAM, USED_SWAP,
+    TOTAL_SPACE, FREE_SPACE, USED_SPACE, HW_DISKS_FOLDER
 };
 use libc::statvfs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 use std::fs::read_to_string;
-use sysinfo::{DiskExt, Pid, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
+use sysinfo::{DiskExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 const CPU_STAT_FILE: &str = "/proc/stat";
@@ -71,10 +72,10 @@ impl HWMetricsCollector {
         let mut dcounter = DescrCounter::new();
         let mut cpu_s_c = CPUStatCollector::new();
         let mut disk_s_c = DiskStatCollector::new(&disks);
-        let total_mem = kb_to_b(sys.total_memory());
+        let total_mem = sys.total_memory();
         gauge!(TOTAL_RAM, total_mem as f64);
         debug!("total mem in bytes: {}", total_mem);
-        let pid = Pid::from(std::process::id() as i32);
+        let pid = sysinfo::get_current_pid().expect("Cannot determine current process PID");
 
         loop {
             interval.tick().await;
@@ -97,19 +98,23 @@ impl HWMetricsCollector {
             }
 
             if let Some(proc) = sys.process(pid) {
-                gauge!(CPU_LOAD, proc.cpu_usage() as f64);
-                let bob_ram = kb_to_b(proc.memory());
+                gauge!(BOB_CPU_LOAD, proc.cpu_usage() as f64);
+                let bob_ram = proc.memory();
                 gauge!(BOB_RAM, bob_ram as f64);
+                let bob_virtual_ram = proc.virtual_memory();
+                gauge!(BOB_VIRTUAL_RAM, bob_virtual_ram as f64);
             } else {
                 debug!("Can't get process stat descriptor");
             }
 
             let _ = Self::update_space_metrics_from_disks(&disks);
-            let available_mem = kb_to_b(sys.available_memory());
+            let available_mem = sys.available_memory();
             let used_mem = total_mem - available_mem;
-            debug!("used mem in bytes: {} | available mem in bytes: {}", used_mem, available_mem);
+            let used_swap = sys.used_swap();
+            debug!("used mem in bytes: {} | available mem in bytes: {} | used swap: {}", used_mem, available_mem, used_swap);
             gauge!(USED_RAM, used_mem as f64);
             gauge!(AVAILABLE_RAM, available_mem as f64);
+            gauge!(USED_SWAP, used_swap as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
 
             if let Err(CommandError::Primary(e)) = disk_s_c.collect_and_send_metrics() {
@@ -556,10 +561,6 @@ impl DescrCounter {
 
 fn bytes_to_mb(bytes: u64) -> u64 {
     bytes / 1024 / 1024
-}
-
-fn kb_to_b(kbs: u64) -> u64 {
-    kbs * 1024
 }
 
 fn parse_command_output(command: &mut Command) -> Result<String, String> {

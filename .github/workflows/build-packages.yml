@@ -15,7 +15,7 @@ jobs:
         bob_key_size: [8, 16]
     env:
       TARGET: "x86_64-unknown-linux-musl"
-      BUILD_MODE: "release"
+      BUILD_PROFILE: "release-lto"
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
@@ -30,24 +30,34 @@ jobs:
           toolchain: stable
           target: ${{ env.TARGET }}
           default: true
+      - name: Estimate output binaries directory
+        run: |
+          echo "BUILD_PROFILE_DIR=$(case "$BUILD_PROFILE" in\
+          ("dev") echo "debug";;\
+          ("test") echo "debug";;\
+          ("bench") echo "release";;\
+          (*) echo "$BUILD_PROFILE";;\
+          esac)" >> $GITHUB_ENV
+      - name: Output estimated working-directory
+        run: echo ${{ env.BUILD_PROFILE_DIR }}
       - name: Build release
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}
+          args: --profile=${{ env.BUILD_PROFILE }} --target=${{ env.TARGET }}
       - name: Check bobd version
-        run: target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd --version
+        run: target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobd --version
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
           name: bob-binaries-${{ matrix.bob_key_size }}
           path: |
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobp
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobt
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobc
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/brt
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobd
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobp
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobt
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobc
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/ccg
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/brt
  
   build-rpm:
     runs-on: ubuntu-latest

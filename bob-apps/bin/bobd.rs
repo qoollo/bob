@@ -9,8 +9,9 @@ use std::{
     error::Error as ErrorTrait,
     net::{IpAddr, Ipv4Addr, SocketAddr},
 };
-use tokio::{runtime::Handle, signal::unix::SignalKind};
+use tokio::runtime::Handle;
 use tonic::transport::Server;
+use qoollo_log4rs_logstash::config::DeserializersExt; 
 use std::path::PathBuf;
 use std::fs::create_dir;
 
@@ -41,12 +42,17 @@ async fn main() {
     println!("Node config: {:?}", node_config_file);
     let node = cluster.get(node_config_file).await.unwrap();
 
-    log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
+    let mut extra_logstash_fields = HashMap::new();
+    extra_logstash_fields.insert("node_name".to_string(), serde_json::Value::String(node.name().to_string()));
+    if let Some(cluster_node_info) = cluster.nodes().iter().find(|item| item.name() == node.name()) {
+        extra_logstash_fields.insert("node_address".to_string(), serde_json::Value::String(cluster_node_info.address().to_string()));
+    }
+    log4rs::init_file(node.log_config(), log4rs::config::Deserializers::default().with_logstash_extra(extra_logstash_fields))
         .expect("can't find log config");
 
     check_folders(&node, matches.is_present("init_folders"));
 
-    let mut mapper = VirtualMapper::new(&node, &cluster).await;
+    let mut mapper = VirtualMapper::new(&node, &cluster);
 
     let bind = node.bind();
     let bind_read = bind.lock().expect("mutex");
@@ -77,7 +83,7 @@ async fn main() {
             .iter()
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
-        mapper = VirtualMapper::new(&node, &cluster).await;
+        mapper = VirtualMapper::new(&node, &cluster);
         addr = if let Ok(addr) = found.address().parse() {
             addr
         } else if let Some(port) = port_from_address(found.address()) {
@@ -190,31 +196,44 @@ fn port_from_address(addr: &str) -> Option<u16> {
         .and_then(|(_, port)| port.parse::<u16>().ok())
 }
 
-fn create_signal_handlers<A: Authenticator>(
-    server: &BobServer<A>,
-) -> Result<(), Box<dyn ErrorTrait>> {
-    let signals = [SignalKind::terminate(), SignalKind::interrupt()];
-    for s in signals.iter() {
-        spawn_signal_handler(server, *s)?;
-    }
+#[cfg(target_family = "unix")]
+fn create_signal_handlers<A: Authenticator>(server: &BobServer<A>) -> Result<(), Box<dyn ErrorTrait>> {
+    use tokio::signal::unix::{*};
+    let mut terminate = signal(SignalKind::terminate())?;
+    let mut interrupt = signal(SignalKind::interrupt())?;
+    spawn_signal_handler(server, async move {
+        tokio::select! {
+            _ = terminate.recv() => "terminate",
+            _ = interrupt.recv() => "interrupt"
+        }
+    });
     Ok(())
 }
 
-fn spawn_signal_handler<A: Authenticator>(
+#[cfg(target_family = "windows")]
+fn create_signal_handlers<A: Authenticator>(server: &BobServer<A>) -> Result<(), Box<dyn ErrorTrait>> {
+    use tokio::signal::windows::{*};
+    let mut ctrl_c = ctrl_c()?;
+    spawn_signal_handler(server, async move {
+        tokio::select! {
+            _ = ctrl_c.recv() => "ctrl_c"
+        }
+    });
+    Ok(())
+}
+
+fn spawn_signal_handler<A: Authenticator, TFut: futures::Future<Output = &'static str> + Send + 'static>(
     server: &BobServer<A>,
-    s: tokio::signal::unix::SignalKind,
-) -> Result<(), Box<dyn std::error::Error>> {
-    use tokio::signal::unix::signal;
-    let mut task = signal(s)?;
+    signal_tasks_future: TFut
+) {
     let server = server.clone();
     tokio::spawn(async move {
-        task.recv().await;
-        debug!("Got signal {:?}", s);
+        let signal_name = signal_tasks_future.await;
+        info!("Got signal '{}'. Shutdown started", signal_name);
         server.shutdown().await;
         log::logger().flush();
         std::process::exit(0);
     });
-    Ok(())
 }
 
 fn check_folders(node: &NodeConfig, init_flag: bool) {

@@ -12,7 +12,7 @@ use crate::{
 };
 use log::Level;
 
-use bob_common::{metrics::BLOOM_FILTERS_RAM, interval_logger::IntervalLoggerSafe, };
+use bob_common::{interval_logger::IntervalLoggerSafe, metrics::BLOOM_FILTERS_RAM};
 
 pub const BACKEND_STARTING: f64 = 0f64;
 pub const BACKEND_STARTED: f64 = 1f64;
@@ -107,8 +107,8 @@ pub trait BackendStorage: Debug + MetricsProducer + Send + Sync + 'static {
     async fn exist(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
     async fn exist_alien(&self, op: Operation, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
 
-    async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error>;
-    async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error>;
+    async fn delete(&self, op: Operation, key: BobKey, meta: &BobMeta) -> Result<u64, Error>;
+    async fn delete_alien(&self, op: Operation, key: BobKey, meta: &BobMeta, force_delete: bool) -> Result<u64, Error>;
 
     async fn shutdown(&self);
 
@@ -154,6 +154,10 @@ pub trait MetricsProducer: Send + Sync {
 
     async fn disk_used_by_disk(&self) -> HashMap<DiskPath, u64> {
         HashMap::new()
+    }
+
+    async fn corrupted_blobs_count(&self) -> usize {
+        0
     }
 }
 
@@ -216,6 +220,10 @@ impl Backend {
         self.inner.blobs_count().await
     }
 
+    pub async fn corrupted_blobs_count(&self) -> usize {
+        self.inner.corrupted_blobs_count().await
+    }
+
     pub async fn active_disks_count(&self) -> usize {
         self.inner.active_disks_count().await
     }
@@ -241,7 +249,7 @@ impl Backend {
         self.inner.run().await
     }
 
-    pub async fn put(&self, key: BobKey, data: &BobData, options: BobOptions) -> Result<(), Error> {
+    pub async fn put(&self, key: BobKey, data: &BobData, options: BobPutOptions) -> Result<(), Error> {
         trace!(">>>>>>- - - - - BACKEND PUT START - - - - -");
         let sw = Stopwatch::start_new();
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
@@ -250,7 +258,7 @@ impl Backend {
             disk_path,
             sw.elapsed().as_secs_f64() * 1000.0
         );
-        let res = if !options.remote_nodes().is_empty() {
+        let res = if options.to_alien() {
             // write to all remote_nodes
             for node_name in options.remote_nodes() {
                 debug!("PUT[{}] core backend put remote node: {}", key, node_name);
@@ -338,7 +346,7 @@ impl Backend {
         }
     }
 
-    pub async fn get(&self, key: BobKey, options: &BobOptions) -> Result<BobData, Error> {
+    pub async fn get(&self, key: BobKey, options: &BobGetOptions) -> Result<BobData, Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
         // we cannot get data from alien if it belong this node
@@ -383,7 +391,7 @@ impl Backend {
         }
     }
 
-    pub async fn exist(&self, keys: &[BobKey], options: &BobOptions) -> Result<Vec<bool>, Error> {
+    pub async fn exist(&self, keys: &[BobKey], options: &BobGetOptions) -> Result<Vec<bool>, Error> {
         let mut exist = vec![false; keys.len()];
         let keys_by_id_and_path = self.group_keys_by_operations(keys, options);
         for (operation, (keys, indexes)) in keys_by_id_and_path {
@@ -401,14 +409,10 @@ impl Backend {
         Ok(exist)
     }
 
-    pub async fn shutdown(&self) {
-        self.inner.shutdown().await;
-    }
-
     fn group_keys_by_operations(
         &self,
         keys: &[BobKey],
-        options: &BobOptions,
+        options: &BobGetOptions,
     ) -> HashMap<Operation, (Vec<BobKey>, Vec<usize>)> {
         let mut keys_by_operations: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
         for (ind, &key) in keys.iter().enumerate() {
@@ -426,7 +430,7 @@ impl Backend {
         keys_by_operations
     }
 
-    fn find_operation(&self, key: BobKey, options: &BobOptions) -> Option<Operation> {
+    fn find_operation(&self, key: BobKey, options: &BobGetOptions) -> Option<Operation> {
         let (vdisk_id, path) = self.mapper.get_operation(key);
         if options.get_normal() {
             path.map(|path| Operation::new_local(vdisk_id, path))
@@ -435,6 +439,79 @@ impl Backend {
         } else {
             None
         }
+    }
+
+    pub async fn delete(
+        &self,
+        key: BobKey,
+        meta: &BobMeta,
+        options: BobDeleteOptions
+    ) -> Result<(), Error> {
+        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        if options.to_alien() {
+            // Process all nodes for key
+            let mut errors = Vec::new();
+            for node in self.mapper.get_target_nodes_for_key(key) {
+                let force_delete = options.is_force_delete(node.name());
+                let mut op = Operation::new_alien(vdisk_id);
+                op.set_remote_folder(node.name().to_owned());
+                let delete_res = self.delete_single(key, meta, op, force_delete).await;
+                if let Err(err) = delete_res {
+                    error!("DELETE[{}] Error deleting from aliens (node: {}, force_delete: {}): {:?}", key, node.name(), force_delete, err);
+                    errors.push(err);
+                }
+            }
+            if errors.len() == 0 {
+                Ok(())
+            } else if errors.len() == 1 {
+                Err(errors.remove(0))
+            } else {
+                Err(Error::failed("Multiple errors detected"))
+            }
+        } else if let Some(path) = disk_path {
+            let op = Operation::new_local(vdisk_id, path);
+            self.delete_single(key, meta, op, true).await.map(|_| ())
+        } else {
+            error!(
+                "DELETE[{}] dont know what to do with data: op: {:?}. Data is not local and alien",
+                key, options
+            );
+            Err(Error::internal())
+        }
+    }
+
+    pub async fn delete_local(
+        &self,
+        key: BobKey,
+        meta: &BobMeta,
+        operation: Operation,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
+        self.delete_single(key, meta, operation, force_delete).await
+    }
+
+    async fn delete_single(
+        &self,
+        key: BobKey,
+        meta: &BobMeta,
+        operation: Operation,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
+        if operation.is_data_alien() {
+            debug!("DELETE[{}] from backend, foreign data", key);
+            self.inner.delete_alien(operation, key, meta, force_delete).await
+        } else {
+            debug!(
+                "DELETE[{}][{}] from backend",
+                key,
+                operation.disk_name_local()
+            );
+            self.inner.delete(operation, key, meta).await
+        }
+    }
+
+    pub async fn shutdown(&self) {
+        self.inner.shutdown().await;
     }
 
     pub async fn close_unneeded_active_blobs(&self, soft: usize, hard: usize) {
@@ -447,41 +524,6 @@ impl Backend {
 
     pub async fn free_least_used_holder_resources(&self) -> Option<usize> {
         self.inner.free_least_used_resources().await
-    }
-
-    pub async fn delete(&self, key: BobKey) -> Result<u64, Error> {
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        let mut ops = vec![];
-        if let Some(path) = disk_path {
-            ops.push(Operation::new_local(vdisk_id, path.clone()));
-        }
-        ops.push(Operation::new_alien(vdisk_id));
-        let total_count = futures::future::join_all(ops.into_iter().map(|op| {
-            trace!("DELETE[{}] try delete", key);
-            self.delete_single(key, op)
-                .map_err(|e| {
-                    debug!("DELETE[{}] delete error: {}", key, e);
-                })
-                .unwrap_or_else(|_| 0)
-        }))
-        .await
-        .iter()
-        .sum();
-        Ok(total_count)
-    }
-
-    async fn delete_single(&self, key: BobKey, operation: Operation) -> Result<u64, Error> {
-        if operation.is_data_alien() {
-            debug!("DELETE[{}] from backend, foreign data", key);
-            self.inner.delete_alien(operation, key).await
-        } else {
-            debug!(
-                "DELETE[{}][{}] from backend",
-                key,
-                operation.disk_name_local()
-            );
-            self.inner.delete(operation, key).await
-        }
     }
 
     pub async fn offload_old_filters(&self, limit: usize) {

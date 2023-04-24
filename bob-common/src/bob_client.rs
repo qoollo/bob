@@ -1,5 +1,5 @@
 pub mod b_client {
-    use super::{DeleteResult, ExistResult, GetResult, PingResult, PutResult, FactoryTlsConfig};
+    use super::{DeleteResult, ExistResult, FactoryTlsConfig, GetResult, PingResult, PutResult};
     use crate::{
         data::{BobData, BobKey, BobMeta},
         error::Error,
@@ -29,6 +29,7 @@ pub mod b_client {
         client: BobApiClient<Channel>,
         metrics: BobClientMetrics,
         auth_header: String,
+        local_node_name: String,
     }
 
     impl BobClient {
@@ -46,7 +47,9 @@ pub mod b_client {
             let mut endpoint = Endpoint::from(node.get_uri());
             if let Some(tls_config) = tls_config {
                 let cert = Certificate::from_pem(&tls_config.ca_cert);
-                let tls_config = ClientTlsConfig::new().domain_name(&tls_config.tls_domain_name).ca_certificate(cert);
+                let tls_config = ClientTlsConfig::new()
+                    .domain_name(&tls_config.tls_domain_name)
+                    .ca_certificate(cert);
                 endpoint = endpoint.tls_config(tls_config).expect("client tls");
             }
             endpoint = endpoint.tcp_nodelay(true);
@@ -54,8 +57,8 @@ pub mod b_client {
             let client = BobApiClient::connect(endpoint)
                 .await
                 .map_err(|e| e.to_string())?;
-            
-            let auth_header = format!("InterNode {}", base64::encode(local_node_name));
+
+            let auth_header = format!("InterNode {}", base64::encode(local_node_name.clone()));
 
             Ok(Self {
                 node,
@@ -63,6 +66,7 @@ pub mod b_client {
                 client,
                 metrics,
                 auth_header,
+                local_node_name,
             })
         }
 
@@ -144,6 +148,7 @@ pub mod b_client {
             let mut client = self.client.clone();
             let mut req = Request::new(Null {});
             self.set_credentials(&mut req);
+            self.set_node_name(&mut req);
             self.set_timeout(&mut req);
             match client.ping(req).await {
                 Ok(_) => Ok(NodeOutput::new(self.node.name().to_owned(), ())),
@@ -186,12 +191,13 @@ pub mod b_client {
             }
         }
 
-        pub async fn delete(&self, key: BobKey, options: DeleteOptions) -> DeleteResult {
+        pub async fn delete(&self, key: BobKey, meta: BobMeta, options: DeleteOptions) -> DeleteResult {
             let mut client = self.client.clone();
             self.metrics.delete_count();
             let timer = BobClientMetrics::start_timer();
             let message = DeleteRequest {
                 key: Some(BlobKey { key: key.into() }),
+                meta: Some(BlobMeta { timestamp: meta.timestamp() }),
                 options: Some(options),
             };
             let mut req = Request::new(message);
@@ -208,9 +214,14 @@ pub mod b_client {
 
         fn set_credentials<T>(&self, req: &mut Request<T>) {
             let val = MetadataValue::from_str(&self.auth_header)
-                .expect("failed to create metadata value from node name");
+                .expect("failed to create metadata value from authorization");
             req.metadata_mut().insert("authorization", val);
-            
+        }
+
+        fn set_node_name<T>(&self, r: &mut Request<T>) {
+            let val = MetadataValue::from_str(&self.local_node_name)
+                .expect("failed to create metadata value from node name");
+            r.metadata_mut().insert("node_name", val);
         }
 
         fn set_timeout<T>(&self, r: &mut Request<T>) {
@@ -226,7 +237,7 @@ pub mod b_client {
             pub async fn ping(&self) -> PingResult;
             pub fn node(&self) -> &Node;
             pub async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult;
-            pub async fn delete(&self, key: BobKey, options: DeleteOptions) -> DeleteResult;
+            pub async fn delete(&self, key: BobKey, meta: BobMeta, options: DeleteOptions) -> DeleteResult;
         }
         impl Clone for BobClient {
             fn clone(&self) -> Self;
@@ -310,7 +321,14 @@ impl Factory {
     }
     pub async fn produce(&self, node: Node) -> Result<BobClient, String> {
         let metrics = self.metrics.clone().get_metrics();
-        BobClient::create(node, self.operation_timeout, metrics, self.local_node_name.clone(), self.tls_config.as_ref()).await
+        BobClient::create(
+            node,
+            self.operation_timeout,
+            metrics,
+            self.local_node_name.clone(),
+            self.tls_config.as_ref(),
+        )
+        .await
     }
 }
 
