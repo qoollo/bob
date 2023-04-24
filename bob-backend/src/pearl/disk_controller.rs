@@ -508,7 +508,7 @@ impl DiskController {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = self.find_group(&operation).await;
             if let Ok(group) = vdisk_group {
-                Ok(group.exist(keys).await)
+                group.exist(keys).await
             } else {
                 trace!(
                     "EXIST[alien] No alien group has been created for vdisk #{}",
