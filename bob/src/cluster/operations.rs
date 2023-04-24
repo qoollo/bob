@@ -287,10 +287,13 @@ pub(crate) async fn exist_on_local_alien(
 
 pub(crate) async fn exist_on_remote_nodes(
     nodes: &[Node],
-    keys: &[BobKey],
+    keys_by_node: HashMap<Node, Vec<BobKey>>,
 ) -> Vec<Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>> {
     LinkManager::call_nodes(nodes.iter(), |client| {
-        Box::pin(client.exist(keys.to_vec(), GetOptions::new_local()))
+        Box::pin(client.exist(
+            keys_by_node.get(client.node()).unwrap().clone(),
+            GetOptions::new_local(),
+        ))
     })
     .await
 }
