@@ -246,7 +246,7 @@ impl Quorum {
         let count = target_nodes.len();
         (
             delete_on_remote_nodes_with_options(key, meta, target_nodes, DeleteOptions::new_local()).await,
-            count,
+            count
         )
     }
 
@@ -298,6 +298,7 @@ impl Quorum {
         if let Err(sup_nodes_errors) = delete_on_remote_nodes(key, meta, all_other_nodes_queries.into_iter()).await {
             debug!("delete on aliens nodes errors: {:?}", sup_nodes_errors);
         };
+
 
         // Delete on local node
         let local_delete = delete_on_local_aliens(
