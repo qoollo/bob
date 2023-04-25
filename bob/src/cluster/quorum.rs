@@ -3,10 +3,10 @@ use crate::prelude::*;
 use super::{
     operations::{
         delete_on_local_aliens, delete_on_local_node, delete_on_remote_nodes,
-        delete_on_remote_nodes_with_options, exist_on_local_node, exist_on_remote_aliens,
-        exist_on_remote_nodes, finish_at_least_handles, lookup_local_alien, lookup_local_node,
-        lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all, put_local_node,
-        put_sup_nodes, Tasks,
+        delete_on_remote_nodes_with_options, exist_on_local_alien, exist_on_local_node,
+        exist_on_remote_aliens, exist_on_remote_nodes, finish_at_least_handles, lookup_local_alien,
+        lookup_local_node, lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all,
+        put_local_node, put_sup_nodes, Tasks,
     },
     support_types::{HashSetExt, RemoteDeleteError},
     Cluster,
@@ -405,7 +405,7 @@ impl Cluster for Quorum {
             let all_remote_nodes: Vec<_> = self
                 .mapper
                 .nodes()
-                .values()
+                .iter()
                 .filter(|n| n.name() != self.mapper.local_node_name())
                 .cloned()
                 .collect();
@@ -500,83 +500,6 @@ fn group_by_nodes(
     )
 }
 
-fn filter_local_keys(keys: &[BobKey], mapper: &Virtual) -> (Vec<usize>, Vec<BobKey>) {
-    let mut indices = Vec::new();
-    let local_keys = keys
-        .iter()
-        .enumerate()
-        .filter_map(|(idx, &key)| {
-            mapper
-                .get_target_nodes_for_key(key)
-                .iter()
-                .find_map(|node| {
-                    if node.name() == mapper.local_node_name() {
-                        indices.push(idx);
-                        Some(key)
-                    } else {
-                        None
-                    }
-                })
-        })
-        .collect::<Vec<BobKey>>();
-    (indices, local_keys)
-}
-
-fn filter_not_found(exist: &[bool], keys: &[BobKey]) -> Vec<BobKey> {
-    let mut not_found_keys = Vec::new();
-    for (idx, &r) in exist.iter().enumerate() {
-        if r == false {
-            not_found_keys.push(keys[idx]);
-        }
-    }
-    not_found_keys
-}
-
-fn filter_remote_not_found_by_nodes(
-    exist: &[bool],
-    keys: &[BobKey],
-    mapper: &Virtual,
-) -> HashMap<Vec<Node>, (Vec<BobKey>, Vec<usize>)> {
-    let mut remote_keys: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
-    for (idx, &r) in exist.iter().enumerate() {
-        if r == false {
-            remote_keys
-                .entry(mapper.get_target_nodes_for_key(keys[idx]).to_vec())
-                .and_modify(|(closure_keys, indices)| {
-                    closure_keys.push(keys[idx]);
-                    indices.push(idx);
-                })
-                .or_insert_with(|| (vec![keys[idx]], vec![idx]));
-        }
-    }
-    remote_keys
-}
-
-fn filter_remote_nodes(mapper: &Virtual) -> Vec<Node> {
-    let remote_nodes = mapper
-        .nodes()
-        .into_iter()
-        .filter_map(|(_, node)| {
-            if node.name() != mapper.local_node_name() {
-                Some(node.clone())
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<Node>>();
-    remote_nodes
-}
-
-fn update_exist(exist: &mut [bool], result: &[bool]) {
-    let mut i = 0;
-    for r in exist.iter_mut() {
-        if *r == false {
-            *r |= result[i];
-            i += 1;
-        }
-    }
-}
-
 pub(crate) struct IndexMap {
     indexes: Vec<usize>,
 }
@@ -595,10 +518,6 @@ impl IndexMap {
                 .map(|(i, _)| i)
                 .collect(),
         }
-    }
-
-    pub(crate) fn len(&self) -> usize {
-        self.indexes.len()
     }
 
     pub(crate) fn is_empty(&self) -> bool {

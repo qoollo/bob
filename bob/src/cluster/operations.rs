@@ -87,25 +87,6 @@ async fn call_all<TOp, TErr: Debug>(
     (handles_len, errors)
 }
 
-// ======================= EXIST =================
-
-pub(crate) fn group_keys_by_nodes(
-    mapper: &Virtual,
-    keys: &[BobKey],
-) -> HashMap<Vec<Node>, (Vec<BobKey>, Vec<usize>)> {
-    let mut keys_by_nodes: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
-    for (ind, &key) in keys.iter().enumerate() {
-        keys_by_nodes
-            .entry(mapper.get_target_nodes_for_key(key).to_vec())
-            .and_modify(|(keys, indexes)| {
-                keys.push(key);
-                indexes.push(ind);
-            })
-            .or_insert_with(|| (vec![key], vec![ind]));
-    }
-    keys_by_nodes
-}
-
 // ======================== GET ==========================
 
 pub(crate) async fn get_any(
@@ -300,7 +281,7 @@ pub(crate) async fn exist_on_local_node(
     keys: &[BobKey],
 ) -> Result<Vec<bool>, Error> {
     Ok(backend
-        .exist(keys, &BobOptions::new_get(Some(GetOptions::new_local())))
+        .exist(keys, &BobGetOptions::new_get(Some(GetOptions::new_local())))
         .await?)
 }
 
@@ -309,7 +290,7 @@ pub(crate) async fn exist_on_local_alien(
     keys: &[BobKey],
 ) -> Result<Vec<bool>, Error> {
     Ok(backend
-        .exist(keys, &BobOptions::new_get(Some(GetOptions::new_alien())))
+        .exist(keys, &BobGetOptions::new_get(Some(GetOptions::new_alien())))
         .await?)
 }
 
