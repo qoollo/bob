@@ -1,6 +1,6 @@
-use super::support_types::RemoteDeleteError;
 use crate::link_manager::LinkManager;
 use crate::prelude::*;
+use super::support_types::RemoteDeleteError;
 
 pub(crate) type Tasks<Err> = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Err>>>>;
 
@@ -54,6 +54,7 @@ async fn call_at_least<TOp, TErr: Debug>(
     trace!("remains: {}, errors: {}", handles.len(), errors.len());
     (handles, errors)
 }
+
 
 async fn finish_all_handles<TErr: Debug>(
     handles: &mut FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>>
@@ -386,6 +387,7 @@ pub(super) async fn delete_on_remote_nodes(
     meta: &BobMeta,
     requests: impl Iterator<Item = (&Node, DeleteOptions)>,
 ) -> Result<(), Vec<NodeOutput<RemoteDeleteError>>> {
+
     let (_, errors) = call_all(requests, |(node, options)| { call_node_delete(key, meta.clone(), options, node.clone()) }).await;
 
     if errors.is_empty() {
@@ -405,8 +407,8 @@ pub(super) async fn delete_on_remote_nodes_with_options(
         return Vec::new();
     }
 
-    let remote_delete_result = delete_on_remote_nodes(key, meta,
-        target_nodes.into_iter().map(|n| (n, options.clone())),
+    let remote_delete_result = delete_on_remote_nodes(key, meta, 
+        target_nodes.into_iter().map(|n| (n, options.clone()))
     ).await;
 
     if let Err(errors) = remote_delete_result {
