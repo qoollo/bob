@@ -378,6 +378,8 @@ impl Cluster for Quorum {
 
     async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
         let len = keys.len();
+        debug!("EXIST {} keys", len);
+
         let mut result = vec![false; len];
 
         let (local, mut primary, mut secondary) = group_by_nodes(keys, &self.mapper);
@@ -412,8 +414,14 @@ impl Cluster for Quorum {
             let remote_nodes_aliens_exist =
                 exist_on_remote_aliens(&all_remote_nodes, &alien_index_map.collect(keys)).await;
             for remote_alien_result in remote_nodes_aliens_exist {
-                let remote_alien_result = remote_alien_result.map_err(|e| e.into_inner())?;
-                alien_index_map.update_existence(&mut result, remote_alien_result.inner());
+                match remote_alien_result {
+                    Ok(remote_alien_result) => {
+                        alien_index_map.update_existence(&mut result, remote_alien_result.inner());
+                    }
+                    Err(e) => {
+                        debug!("Failed to check existence in aliens: {:?}", e);
+                    }
+                }
             }
         }
 
@@ -443,10 +451,16 @@ async fn collect_remote_exists(
             let nodes: Vec<_> = keys_by_node.keys().cloned().collect();
             let remote_results = exist_on_remote_nodes(&nodes, keys_by_node).await;
             for (remote_result, node) in remote_results.into_iter().zip(nodes) {
-                let remote_result = remote_result.map_err(|e| e.into_inner())?;
-                indexes_by_node
-                    .get(&node)
-                    .map(|idx| idx.update_existence(result, remote_result.inner()));
+                match remote_result {
+                    Ok(remote_result) => {
+                        indexes_by_node
+                            .get(&node)
+                            .map(|idx| idx.update_existence(result, remote_result.inner()));
+                    }
+                    Err(e) => {
+                        debug!("Failed to check existence on node {}: {:?}", node.name(), e);
+                    }
+                }
             }
         }
     }
@@ -514,7 +528,7 @@ impl IndexMap {
             indexes: data
                 .iter()
                 .enumerate()
-                .filter(|(_, f)| **f)
+                .filter(|(_, f)| !**f)
                 .map(|(i, _)| i)
                 .collect(),
         }
