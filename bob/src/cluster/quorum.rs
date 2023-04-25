@@ -35,35 +35,28 @@ impl Quorum {
         let at_least = self.quorum;
         let mut failed_nodes = Vec::new();
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        let (tasks, errors) = if let Some(disk_path) = disk_path {
-            debug!(
-                "PUT[{}] ~~~PUT TO {} REMOTE NODES AND LOCAL NODE~~~",
-                key,
-                at_least - 1
-            );
-            let (remote_put, local_put) = tokio::join!(
-                self.put_remote_nodes(key, data, at_least - 1),
-                put_local_node(&self.backend, key, data, vdisk_id, disk_path),
-            );
-            let (mut remote_tasks, mut errors) = remote_put;
-            if let Err(e) = local_put {
-                error!("{}", e);
-                failed_nodes.push(self.mapper.local_node_name().to_owned());
-                debug!("PUT[{}] local failed, put another remote", key);
-                errors.extend(
-                    finish_at_least_handles(&mut remote_tasks, 1)
-                        .await
-                        .into_iter(),
+        let (tasks, errors) =
+            if let Some(disk_path) = disk_path {
+                debug!("PUT[{}] ~~~PUT TO {} REMOTE NODES AND LOCAL NODE~~~", key, at_least - 1);
+                let (remote_put, local_put) = tokio::join!(
+                    self.put_remote_nodes(key, data, at_least - 1),
+                    put_local_node(&self.backend, key, data, vdisk_id, disk_path),
                 );
+                let (mut remote_tasks, mut errors) = remote_put;
+                if let Err(e) = local_put {
+                    error!("{}", e);
+                    failed_nodes.push(self.mapper.local_node_name().to_owned());
+                    debug!("PUT[{}] local failed, put another remote", key);
+                    errors.extend(finish_at_least_handles(&mut remote_tasks, 1).await.into_iter());
+                } else {
+                    local_put_ok += 1;
+                    debug!("PUT[{}] local node put successful", key);
+                }
+                (remote_tasks, errors)
             } else {
-                local_put_ok += 1;
-                debug!("PUT[{}] local node put successful", key);
-            }
-            (remote_tasks, errors)
-        } else {
-            debug!("PUT[{}] ~~~PUT TO {} REMOTE NODES~~~", key, at_least);
-            self.put_remote_nodes(key, data, at_least).await
-        };
+                debug!("PUT[{}] ~~~PUT TO {} REMOTE NODES~~~", key, at_least);
+                self.put_remote_nodes(key, data, at_least).await
+            };
         let all_count = self.mapper.get_target_nodes_for_key(key).len();
         let remote_ok_count = all_count - errors.len() - tasks.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
@@ -78,10 +71,7 @@ impl Quorum {
             tokio::spawn(async move { q.background_put(tasks, key, &data, failed_nodes).await });
             Ok(())
         } else {
-            assert!(
-                tasks.is_empty(),
-                "All target nodes put are expected to be completed before alien put begins"
-            );
+            assert!(tasks.is_empty(), "All target nodes put are expected to be completed before alien put begins");
             warn!(
                 "PUT[{}] quorum was not reached. ok {}, quorum {}, errors: {:?}",
                 key,
@@ -147,6 +137,7 @@ impl Quorum {
         put_at_least(key, data, target_nodes, at_least, PutOptions::new_local()).await
     }
 
+
     async fn put_aliens(
         &self,
         mut failed_nodes: Vec<String>,
@@ -195,6 +186,7 @@ impl Quorum {
         }
     }
 
+
     // =============================== DELETE ======================
 
     async fn delete_on_nodes(&self, key: BobKey, meta: &BobMeta) -> Result<(), Error> {
@@ -224,16 +216,14 @@ impl Quorum {
         }
 
         if let Err(err) = self.delete_aliens(failed_nodes, key, meta).await {
-            error!(
-                "DELETE[{}] delete failed. Smth wrong with cluster/node configuration",
-                key
-            );
+            error!("DELETE[{}] delete failed. Smth wrong with cluster/node configuration", key);
             Err(err)
         } else {
             debug!("DELETE[{}] succeed", key);
             Ok(())
         }
     }
+
 
     async fn delete_at_remote_nodes(
         &self,
@@ -255,16 +245,11 @@ impl Quorum {
 
         let count = target_nodes.len();
         (
-            delete_on_remote_nodes_with_options(
-                key,
-                meta,
-                target_nodes,
-                DeleteOptions::new_local(),
-            )
-            .await,
+            delete_on_remote_nodes_with_options(key, meta, target_nodes, DeleteOptions::new_local()).await,
             count,
         )
     }
+
 
     async fn delete_aliens(
         &self,
@@ -292,9 +277,7 @@ impl Quorum {
                 .collect();
 
             trace!("DELETE[{}] supported alien requests: {:?}", key, queries);
-            if let Err(sup_nodes_errors) =
-                delete_on_remote_nodes(key, meta, queries.into_iter()).await
-            {
+            if let Err(sup_nodes_errors) = delete_on_remote_nodes(key, meta, queries.into_iter()).await {
                 warn!("delete on support nodes errors: {:?}", sup_nodes_errors);
                 failed_nodes.extend(
                     sup_nodes_errors
@@ -304,23 +287,15 @@ impl Quorum {
             };
         }
 
+
         // Delete on all nodes of cluster except sup_nodes and local node
-        let all_other_nodes_queries: Vec<_> = self
-            .mapper
-            .nodes()
-            .iter()
+        let all_other_nodes_queries: Vec<_> = self.mapper.nodes().iter()
             .filter(|n| !sup_nodes_set.contains(n.name()) && n.name() != local_node_name)
             .map(|n| (n, DeleteOptions::new_alien(vec![])))
             .collect();
 
-        trace!(
-            "DELETE[{}] normal alien deletion requests: {:?}",
-            key,
-            all_other_nodes_queries
-        );
-        if let Err(sup_nodes_errors) =
-            delete_on_remote_nodes(key, meta, all_other_nodes_queries.into_iter()).await
-        {
+        trace!("DELETE[{}] normal alien deletion requests: {:?}", key, all_other_nodes_queries);
+        if let Err(sup_nodes_errors) = delete_on_remote_nodes(key, meta, all_other_nodes_queries.into_iter()).await {
             debug!("delete on aliens nodes errors: {:?}", sup_nodes_errors);
         };
 
@@ -331,9 +306,8 @@ impl Quorum {
             meta,
             self.mapper.get_target_nodes_for_key(key),
             failed_nodes,
-            self.mapper.vdisk_id_from_key(key),
-        )
-        .await;
+            self.mapper.vdisk_id_from_key(key)
+        ).await;
 
         if let Err(e) = local_delete {
             error!(
