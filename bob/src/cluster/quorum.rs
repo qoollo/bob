@@ -335,14 +335,18 @@ impl Quorum {
             }
 
             if !keys_by_node.is_empty() {
-                let nodes: Vec<_> = keys_by_node.keys().cloned().collect();
-                let remote_results = exist_on_remote_nodes(&nodes, keys_by_node).await;
+                let nodes: Vec<_> = keys_by_node.keys().collect();
+                let remote_results = exist_on_remote_nodes(&nodes, &keys_by_node).await;
                 for (remote_result, node) in remote_results.into_iter().zip(nodes) {
                     match remote_result {
                         Ok(remote_result) => {
+                            debug_assert!(node.name() == remote_result.node_name());
                             indexes_by_node
-                                .get(&node)
-                                .map(|idx| idx.update_existence(result, remote_result.inner()));
+                                .get(node)
+                                .expect("node should exist")
+                                .update_existence(result, remote_result.inner());
+                            trace!("Check existence on node {}: found {} keys", 
+                                   node.name(), remote_result.inner().iter().filter(|f| **f).count());
                         }
                         Err(e) => {
                             debug!("Failed to check existence on node {}: {:?}", node.name(), e);
@@ -483,23 +487,23 @@ impl Cluster for Quorum {
         }
 
         if !alien_index_map.is_empty() {
+            trace!("EXIST {} keys check remote alien", len);
             let all_remote_nodes: Vec<_> = self
                 .mapper
                 .nodes()
                 .iter()
                 .filter(|n| n.name() != self.mapper.local_node_name())
-                .cloned()
                 .collect();
             let remote_nodes_aliens_exist =
                 exist_on_remote_aliens(&all_remote_nodes, &alien_index_map.collect(keys)).await;
+            trace!("EXIST {} keys check remote alien finished", len);
             for remote_alien_result in remote_nodes_aliens_exist {
                 match remote_alien_result {
                     Ok(remote_alien_result) => {
                         alien_index_map.update_existence(&mut result, remote_alien_result.inner());
                     }
-                    Err(e) => {
-                        debug!("Failed to check existence in aliens: {:?}", e);
-                    }
+                    Err(e) => warn!("EXIST {} keys check remote alien failed on node {}: {:?}", 
+                                    len, e.node_name(), e)
                 }
             }
         }
