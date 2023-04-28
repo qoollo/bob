@@ -442,21 +442,44 @@ impl Cluster for Quorum {
 
         if let Some(local) = local {
             if !local.is_empty() {
+                trace!("EXIST {} keys check local node", len);
                 let local_keys = local.collect(keys);
-                let local_exist = exist_on_local_node(&self.backend, &local_keys).await?;
-                local.update_existence(&mut result, &local_exist);
+                match exist_on_local_node(&self.backend, &local_keys).await {
+                    Ok(local_exist) => {
+                        trace!("EXIST {} keys check local node: found {}/{} keys",
+                               len, local_exist.len(), local.len());
+                        local.update_existence(&mut result, &local_exist);
+                    },
+                    Err(e) => warn!("EXIST {} check local node failed: {:?}", len, e)
+                };
             }
         }
 
-        Self::collect_remote_exists(&mut result, keys, &mut primary).await?;
-        Self::collect_remote_exists(&mut result, keys, &mut secondary).await?;
+        trace!("EXIST {} keys check primary nodes", len);
+        match Self::collect_remote_exists(&mut result, keys, &mut primary).await {
+            Ok(_) => trace!("EXIST {} keys check primary nodes finished", len),
+            Err(e) => warn!("EXIST {} keys check primary nodes failed: {:?}", len, e)
+        }
 
-        let alien_index_map = IndexMap::where_not_exists(&result);
+        trace!("EXIST {} keys check secondary nodes", len);
+        match Self::collect_remote_exists(&mut result, keys, &mut secondary).await {
+            Ok(_) => trace!("EXIST {} keys check secondary nodes finished", len),
+            Err(e) => warn!("EXIST {} keys check secondary nodes failed: {:?}", len, e)
+        }
+
+        let mut alien_index_map = IndexMap::where_not_exists(&result);
 
         if !alien_index_map.is_empty() {
-            let local_alien_result =
-                exist_on_local_alien(&self.backend, &alien_index_map.collect(keys)).await?;
-            alien_index_map.update_existence(&mut result, &local_alien_result);
+            trace!("EXIST {} keys check local alien", len);
+            match exist_on_local_alien(&self.backend, &alien_index_map.collect(keys)).await {
+                Ok(local_alien_result) => {
+                    trace!("EXIST {} keys check local alien finished: found {}/{} keys",
+                           len, local_alien_result.len(), alien_index_map.len()); 
+                    alien_index_map.update_existence(&mut result, &local_alien_result);
+                    alien_index_map.retain_not_existed(&result)
+                },
+                Err(e) => warn!("EXIST {} keys check local alien failed: {:?}", len, e)
+            }
         }
 
         if !alien_index_map.is_empty() {

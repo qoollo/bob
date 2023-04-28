@@ -85,6 +85,11 @@ impl IndexMap {
         self.indexes.is_empty()
     }
 
+    /// Get number of indexes in the map
+    pub(crate) fn len(&self) -> usize {
+        self.indexes.len()
+    }
+
     /// Add index
     pub(crate) fn push(&mut self, item: usize) {
         debug_assert!(!self.indexes.contains(&item));
