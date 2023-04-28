@@ -8,7 +8,7 @@ use super::{
         lookup_local_node, lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all,
         put_local_node, put_sup_nodes, Tasks,
     },
-    support_types::{HashSetExt, RemoteDeleteError},
+    support_types::{HashSetExt, RemoteDeleteError, IndexMap},
     Cluster,
 };
 
@@ -319,6 +319,87 @@ impl Quorum {
         }
         Ok(())
     }
+
+    async fn collect_remote_exists(
+        result: &mut [bool],
+        keys: &[BobKey],
+        indexes_by_node: &mut HashMap<Node, IndexMap>,
+    ) -> Result<(), Error> {
+        if !indexes_by_node.is_empty() {
+            let mut keys_by_node = HashMap::new();
+            for (node, node_map) in indexes_by_node.iter_mut() {
+                node_map.retain_not_existed(&result);
+                if !node_map.is_empty() {
+                    keys_by_node.insert(node.clone(), node_map.collect(keys));
+                }
+            }
+
+            if !keys_by_node.is_empty() {
+                let nodes: Vec<_> = keys_by_node.keys().cloned().collect();
+                let remote_results = exist_on_remote_nodes(&nodes, keys_by_node).await;
+                for (remote_result, node) in remote_results.into_iter().zip(nodes) {
+                    match remote_result {
+                        Ok(remote_result) => {
+                            indexes_by_node
+                                .get(&node)
+                                .map(|idx| idx.update_existence(result, remote_result.inner()));
+                        }
+                        Err(e) => {
+                            debug!("Failed to check existence on node {}: {:?}", node.name(), e);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn group_by_nodes(
+        keys: &[BobKey],
+        mapper: &Virtual,
+    ) -> (
+        Option<IndexMap>,
+        HashMap<Node, IndexMap>,
+        HashMap<Node, IndexMap>,
+    ) {
+        let mut local = IndexMap::new();
+        let mut primary = HashMap::new();
+        let mut secondary = HashMap::new();
+
+        let local_node = mapper.local_node_name();
+
+        for (index, &key) in keys.iter().enumerate() {
+            let target_nodes = mapper.get_target_nodes_for_key(key);
+
+            if !target_nodes
+                .iter()
+                .any(|n| n.name() == local_node || primary.contains_key(n))
+            {
+                if let Some(node) = target_nodes.iter().find(|n| !secondary.contains_key(*n)) {
+                    primary.insert(node.clone(), IndexMap::new());
+                }
+            }
+
+            for node in target_nodes {
+                if node.name() == local_node {
+                    local.push(index);
+                } else if let Some(map) = primary.get_mut(node) {
+                    map.push(index)
+                } else {
+                    secondary
+                        .entry(node.clone())
+                        .or_insert(IndexMap::new())
+                        .push(index);
+                }
+            }
+        }
+
+        return (
+            if local.is_empty() { None } else { Some(local) },
+            primary,
+            secondary,
+        );
+    }
 }
 
 #[async_trait]
@@ -357,7 +438,7 @@ impl Cluster for Quorum {
 
         let mut result = vec![false; len];
 
-        let (local, mut primary, mut secondary) = group_by_nodes(keys, &self.mapper);
+        let (local, mut primary, mut secondary) = Self::group_by_nodes(keys, &self.mapper);
 
         if let Some(local) = local {
             if !local.is_empty() {
@@ -367,8 +448,8 @@ impl Cluster for Quorum {
             }
         }
 
-        collect_remote_exists(&mut result, keys, &mut primary).await?;
-        collect_remote_exists(&mut result, keys, &mut secondary).await?;
+        Self::collect_remote_exists(&mut result, keys, &mut primary).await?;
+        Self::collect_remote_exists(&mut result, keys, &mut secondary).await?;
 
         let alien_index_map = IndexMap::where_not_exists(&result);
 
@@ -405,141 +486,5 @@ impl Cluster for Quorum {
 
     async fn delete(&self, key: BobKey, meta: &BobMeta) -> Result<(), Error> {
         self.delete_on_nodes(key, meta).await
-    }
-}
-
-async fn collect_remote_exists(
-    result: &mut [bool],
-    keys: &[BobKey],
-    indexes_by_node: &mut HashMap<Node, IndexMap>,
-) -> Result<(), Error> {
-    if !indexes_by_node.is_empty() {
-        let mut keys_by_node = HashMap::new();
-        for (node, node_map) in indexes_by_node.iter_mut() {
-            node_map.retain_not_existed(&result);
-            if !node_map.is_empty() {
-                keys_by_node.insert(node.clone(), node_map.collect(keys));
-            }
-        }
-
-        if !keys_by_node.is_empty() {
-            let nodes: Vec<_> = keys_by_node.keys().cloned().collect();
-            let remote_results = exist_on_remote_nodes(&nodes, keys_by_node).await;
-            for (remote_result, node) in remote_results.into_iter().zip(nodes) {
-                match remote_result {
-                    Ok(remote_result) => {
-                        indexes_by_node
-                            .get(&node)
-                            .map(|idx| idx.update_existence(result, remote_result.inner()));
-                    }
-                    Err(e) => {
-                        debug!("Failed to check existence on node {}: {:?}", node.name(), e);
-                    }
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-fn group_by_nodes(
-    keys: &[BobKey],
-    mapper: &Virtual,
-) -> (
-    Option<IndexMap>,
-    HashMap<Node, IndexMap>,
-    HashMap<Node, IndexMap>,
-) {
-    let mut local = IndexMap::new();
-    let mut primary = HashMap::new();
-    let mut secondary = HashMap::new();
-
-    let local_node = mapper.local_node_name();
-
-    for (index, &key) in keys.iter().enumerate() {
-        let target_nodes = mapper.get_target_nodes_for_key(key);
-
-        if !target_nodes
-            .iter()
-            .any(|n| n.name() == local_node || primary.contains_key(n))
-        {
-            if let Some(node) = target_nodes.iter().find(|n| !secondary.contains_key(*n)) {
-                primary.insert(node.clone(), IndexMap::new());
-            }
-        }
-
-        for node in target_nodes {
-            if node.name() == local_node {
-                local.push(index);
-            } else if let Some(map) = primary.get_mut(node) {
-                map.push(index)
-            } else {
-                secondary
-                    .entry(node.clone())
-                    .or_insert(IndexMap::new())
-                    .push(index);
-            }
-        }
-    }
-
-    (
-        if local.is_empty() { None } else { Some(local) },
-        primary,
-        secondary,
-    )
-}
-
-pub(crate) struct IndexMap {
-    indexes: Vec<usize>,
-}
-
-impl IndexMap {
-    pub(crate) fn new() -> Self {
-        Self { indexes: vec![] }
-    }
-
-    pub(crate) fn where_not_exists(data: &[bool]) -> Self {
-        Self {
-            indexes: data
-                .iter()
-                .enumerate()
-                .filter(|(_, f)| !**f)
-                .map(|(i, _)| i)
-                .collect(),
-        }
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.indexes.is_empty()
-    }
-
-    pub(crate) fn push(&mut self, item: usize) {
-        debug_assert!(!self.indexes.contains(&item));
-        self.indexes.push(item);
-    }
-
-    pub(crate) fn collect<'a, T: Clone + 'a>(
-        &'a self,
-        data: impl IntoIterator<Item = &'a T>,
-    ) -> Vec<T> {
-        data.into_iter()
-            .enumerate()
-            .filter(|(i, _)| self.indexes.contains(i))
-            .map(|(_, i)| i.clone())
-            .collect()
-    }
-
-    pub(crate) fn update_existence(&self, original: &mut [bool], mapped: &[bool]) {
-        let max = original.len();
-        self.indexes
-            .iter()
-            .zip(mapped.iter())
-            .filter(|(i, _)| **i < max)
-            .for_each(|(i, f)| original[*i] |= f)
-    }
-
-    pub(crate) fn retain_not_existed(&mut self, original: &[bool]) {
-        self.indexes
-            .retain(|&i| i >= original.len() || original[i] == false);
     }
 }
