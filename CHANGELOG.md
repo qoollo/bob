@@ -11,8 +11,6 @@ Bob versions changelog
 - Exist test on doubled range of keys for integration tests (#764)
 - Used swap and bob virtual memory metrics added to hardware metrics (#771)
 - Added validate_data_checksum_in_index_regen field to pearl config (#607)
-- 'Exists' method through HEAD request in REST API (#691)
-- Support for 'exists' method in bobt (#691)
 - Lookup existence in aliens (#576)
 - Separate local and remote lookup (#585)
 
