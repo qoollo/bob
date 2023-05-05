@@ -103,9 +103,8 @@ impl IndexMap {
     ) -> Vec<T> {
         let mut result = Vec::with_capacity(self.indexes.len());
         for &i in &self.indexes {
-            if i < data.len() {
-                result.push(data[i].clone());
-            }
+            debug_assert!(i < data.len());
+            result.push(data[i].clone());
         }
         result
     }
@@ -113,12 +112,11 @@ impl IndexMap {
     /// Update elements in original according to internal indexes mapping
     pub(crate) fn update_existence(&self, original: &mut [bool], mapped: &[bool]) {
         let max = original.len();
-        let len = std::cmp::max(self.indexes.len(), mapped.len());
-        for i in 0..len {
+        assert!(self.indexes.len() == mapped.len());
+        for i in 0..self.indexes.len() {
             let ind = self.indexes[i];
-            if ind < max {
-                original[ind] |= mapped[i];
-            }
+            debug_assert!(ind < max);
+            original[ind] |= mapped[i];
         }
     }
 
