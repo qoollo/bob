@@ -393,6 +393,7 @@ fn build_prometheus(node_config: &NodeConfig) -> PrometheusRecorder {
     };
     tokio::spawn(future);
 
+    // Fix for memory leak in prometheus crate, https://github.com/qoollo/bob/issues/788
     let handle = recorder.handle();
     let future = async move {
         let mut timer = tokio::time::interval(Duration::from_secs(PROMETHEUS_RENDER_INTERVAL_SEC));
