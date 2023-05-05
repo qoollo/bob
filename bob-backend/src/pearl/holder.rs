@@ -336,7 +336,6 @@ impl Holder {
 
     pub async fn try_reinit(&self) -> BackendResult<()> {
         let mut state = self.storage.write().await;
-
         if let Some(storage) = state.reset() {
             trace!("Vdisk: {} close old Pearl due to reinit", self.vdisk);
             if let Err(e) = storage.close().await {
@@ -345,13 +344,14 @@ impl Holder {
             }
         }
      
+        // TODO: fix lock
         match self.crate_and_prepare_storage().await {
             Ok(storage) => {
                 state.set_ready(storage).expect("Storage setting successful");
                 debug!("update Pearl id: {}, mark as ready, state: ready", self.vdisk);
                 Ok(())
             }
-            Err(e) => Err(Error::storage(format!("pearl error: {:?}", e))),
+            Err(e) => Err(e),
         }
     }
 
@@ -363,7 +363,7 @@ impl Holder {
                 debug!("update Pearl id: {}, mark as ready, state: ready", self.vdisk);
                 Ok(())
             }
-            Err(e) => Err(Error::storage(format!("pearl error: {:?}", e))),
+            Err(e) => Err(e),
         }
     }
 
@@ -433,11 +433,13 @@ impl Holder {
 
     async fn init_pearl(&self, storage: &mut Storage<Key>) -> Result<(), Error> {
         let ts = get_current_timestamp();
-        if self.gets_into_interval(ts) {
+        let res = if self.gets_into_interval(ts) {
             storage.init().await
         } else {
             storage.init_lazy().await
-        }
+        };
+
+        res.map_err(|err| Error::storage(format!("pearl error: {:?}", err)))
     }
 
     pub async fn drop_directory(&self) -> BackendResult<()> {
