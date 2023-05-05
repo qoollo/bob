@@ -189,7 +189,7 @@ impl Holder {
 
     pub async fn update(&self, storage: Storage<Key>) {
         let mut st = self.storage.write().await;
-        st.set(storage.clone());
+        st.set(storage);
         st.ready(); // current pearl disk is ready
         debug!(
             "update Pearl id: {}, mark as ready, state: {:?}",
@@ -201,7 +201,7 @@ impl Holder {
         let state = self.storage.read().await;
 
         if state.is_ready() {
-            let storage = state.get();
+            let storage = state.storage();
             self.update_last_modification();
             trace!("Vdisk: {}, write key: {}", self.vdisk, key);
             Self::write_disk(storage, Key::from(key), data).await
@@ -219,7 +219,7 @@ impl Holder {
 
     // @TODO remove redundant return result
     #[allow(clippy::cast_possible_truncation)]
-    async fn write_disk(storage: PearlStorage, key: Key, data: &BobData) -> BackendResult<()> {
+    async fn write_disk(storage: &PearlStorage, key: Key, data: &BobData) -> BackendResult<()> {
         counter!(PEARL_PUT_COUNTER, 1);
         let data_size = Self::calc_data_size(&data);
         let timer = Instant::now();
@@ -255,7 +255,7 @@ impl Holder {
     pub async fn read(&self, key: BobKey) -> Result<ReadResult<BobData>, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
-            let storage = state.get();
+            let storage = state.storage();
             trace!("Vdisk: {}, read key: {}", self.vdisk, key);
             counter!(PEARL_GET_COUNTER, 1);
             let timer = Instant::now();
@@ -298,7 +298,7 @@ impl Holder {
         } else {
             state.init();
             trace!("Vdisk: {} set as reinit, state: {:?}", self.vdisk, state);
-            let storage = state.get();
+            let storage = state.storage().clone(); // TODO: fix this
             trace!("Vdisk: {} close old Pearl", self.vdisk);
             let result = storage.close().await;
             if let Err(e) = result {
@@ -315,7 +315,7 @@ impl Holder {
             trace!("Vdisk: {}, check key: {}", self.vdisk, key);
             counter!(PEARL_EXIST_COUNTER, 1);
             let pearl_key = Key::from(key);
-            let storage = state.get();
+            let storage = state.storage();
             let timer = Instant::now();
             let res = storage
                 .contains(pearl_key)
@@ -467,7 +467,7 @@ impl Holder {
     pub async fn delete(&self, key: BobKey, _meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
         let state = self.storage.read().await;
         if state.is_ready() {
-            let storage = state.get();
+            let storage = state.storage();
             trace!("Vdisk: {}, delete key: {}", self.vdisk, key);
             counter!(PEARL_DELETE_COUNTER, 1);
             let timer = Instant::now();
@@ -489,7 +489,7 @@ impl Holder {
         }
     }
 
-    pub async fn close_storage(&self) {
+    pub async fn close_storage(self) {
         let lck = self.storage();
         let pearl_sync = lck.write().await;
         let storage = pearl_sync.storage().clone();
@@ -562,7 +562,7 @@ pub enum PearlState {
     Initializing,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct PearlSync {
     storage: Option<PearlStorage>,
     state: PearlState,
@@ -634,11 +634,6 @@ impl PearlSync {
     pub fn set(&mut self, storage: PearlStorage) {
         self.storage = Some(storage);
         self.start_time_test += 1;
-    }
-
-    #[inline]
-    pub fn get(&self) -> PearlStorage {
-        self.storage.clone().expect("cloned storage")
     }
 
     pub async fn filter_memory_allocated(&self) -> usize {

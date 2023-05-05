@@ -91,7 +91,8 @@ impl Group {
 
     pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
         let _reinit_lock = self.reinit_lock.write().await;
-        self.holders.write().await.clear();
+        let cleared = self.holders.write().await.clear_and_get_values();
+        close_holders(cleared.into_iter()).await;
         self.run_under_reinit_lock(pp).await
     }
 
@@ -467,14 +468,14 @@ impl Group {
             let msg = format!("pearl:{} not found", start_timestamp);
             return Err(Error::pearl_change_state(msg));
         }
-        close_holders(removed.iter()).await;
+        close_holders(removed.into_iter()).await;
         Ok(removed)
     }
 
     pub async fn detach_all(&self) -> BackendResult<()> {
         let mut holders_lock = self.holders.write().await;
         let holders: Vec<_> = holders_lock.clear_and_get_values();
-        close_holders(holders.iter()).await;
+        close_holders(holders.into_iter()).await;
         Ok(())
     }
 
@@ -710,7 +711,7 @@ impl Group {
     }
 }
 
-async fn close_holders(holders: impl Iterator<Item = &Holder>) {
+async fn close_holders(holders: impl Iterator<Item = Holder>) {
     for holder in holders {
         holder.close_storage().await;
     }
