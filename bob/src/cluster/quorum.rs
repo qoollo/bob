@@ -451,7 +451,7 @@ impl Cluster for Quorum {
                 match exist_on_local_node(&self.backend, &local_keys).await {
                     Ok(local_exist) => {
                         trace!("EXIST {} keys check local node: found {}/{} keys",
-                               len, local_exist.len(), local.len());
+                               len, local_exist.filter(|v| v).len(), local.len());
                         local.update_existence(&mut result, &local_exist);
                     },
                     Err(e) => warn!("EXIST {} check local node failed: {:?}", len, e)
