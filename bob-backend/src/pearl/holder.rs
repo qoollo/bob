@@ -517,7 +517,7 @@ impl Holder {
         }
     }
 
-    pub async fn close_storage(self) {
+    pub async fn close_storage(&self) {
         let mut pearl_sync = self.storage.write().await;
         if let Some(storage) = pearl_sync.reset() {
             if let Err(e) = storage.fsyncdata().await {
