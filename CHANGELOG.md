@@ -11,6 +11,7 @@ Bob versions changelog
 
 #### Fixed
 - Fix rust deprecation warning (#779)
+- Fix memory leak due to prometheus lib (#788)
 
 #### Updated
 
