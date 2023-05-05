@@ -10,6 +10,20 @@ Bob versions changelog
 
 
 #### Fixed
+
+
+#### Updated
+
+
+
+## [v2.0.14-alpha.6] - 2023-05-05
+#### Added
+
+
+#### Changed
+
+
+#### Fixed
 - Fix rust deprecation warning (#779)
 - Fix memory leak due to prometheus lib (#788)
 
