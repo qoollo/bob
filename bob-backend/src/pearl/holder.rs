@@ -85,7 +85,7 @@ impl Holder {
     pub async fn corrupted_blobs_count(&self) -> usize {
         let storage = self.storage.read().await;
         if let Some(storage) = storage.storage() {
-            storage.corrupted_blobs_count().await
+            storage.corrupted_blobs_count()
         } else {
             0
         }
@@ -341,14 +341,14 @@ impl Holder {
             trace!("Vdisk: {} close old Pearl due to reinit", self.vdisk);
             if let Err(e) = storage.close().await {
                 error!("can't close pearl storage: {:?}", e);
-                return Err(e);
+                // Continue anyway
             }
         }
      
-        match self.crate_and_prepare_storage() {
+        match self.crate_and_prepare_storage().await {
             Ok(storage) => {
                 state.set_ready(storage).expect("Storage setting successful");
-                debug!("update Pearl id: {}, mark as ready, state: {:?}", self.vdisk, st);
+                debug!("update Pearl id: {}, mark as ready, state: ready", self.vdisk);
                 Ok(())
             }
             Err(e) => Err(Error::storage(format!("pearl error: {:?}", e))),
@@ -356,11 +356,11 @@ impl Holder {
     }
 
     pub async fn prepare_storage(&self) -> Result<(), Error> {
-        match self.crate_and_prepare_storage() {
+        match self.crate_and_prepare_storage().await {
             Ok(storage) => {
                 let mut st = self.storage.write().await;
                 st.set_ready(storage).expect("Storage setting successful");
-                debug!("update Pearl id: {}, mark as ready, state: {:?}", self.vdisk, st);
+                debug!("update Pearl id: {}, mark as ready, state: ready", self.vdisk);
                 Ok(())
             }
             Err(e) => Err(Error::storage(format!("pearl error: {:?}", e))),
@@ -609,11 +609,6 @@ impl PearlSync {
             PearlState::Initializing => None,
             PearlState::Running(storage) => Some(storage)
         }
-    }
-
-    #[inline]
-    pub fn initialized_storage(&self) -> &PearlStorage {
-        self.storage().expect("Pearl storage was not initialized")
     }
 
     #[inline]
