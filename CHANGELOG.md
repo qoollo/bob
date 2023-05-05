@@ -24,6 +24,7 @@ Bob versions changelog
 - Fix unit of measurement of memory in hardware metrics (#772)
 - Fix rust deprecation warning (#779)
 - Fix subtraction overflow in cleaner (#781)
+- Fix memory leak due to prometheus lib (#788)
 
 #### Updated
 - Logger to logstash updated to qoollo-log4rs-logstash v0.2 (#681)
