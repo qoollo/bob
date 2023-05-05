@@ -450,7 +450,7 @@ impl Group {
         }
     }
 
-    pub async fn detach(&self, start_timestamp: u64) -> BackendResult<Vec<Holder>> {
+    pub async fn detach(&self, start_timestamp: u64) -> BackendResult<()> {
         let mut holders = self.holders.write().await;
         debug!("write lock acquired");
         let ts = get_current_timestamp();
@@ -469,7 +469,7 @@ impl Group {
             return Err(Error::pearl_change_state(msg));
         }
         close_holders(removed.into_iter()).await;
-        Ok(removed)
+        Ok(())
     }
 
     pub async fn detach_all(&self) -> BackendResult<()> {
