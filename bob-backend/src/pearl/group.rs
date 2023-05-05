@@ -225,7 +225,6 @@ impl Group {
             if !e.is_possible_disk_disconnection() && !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
-                holder.prepare_storage().await?;
                 debug!("backend pearl group put common storage prepared");
             }
             Err(e)
@@ -290,7 +289,6 @@ impl Group {
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {
                 holder.try_reinit().await?;
-                holder.prepare_storage().await?;
                 debug!("backend pearl group get common storage prepared");
             }
         }
@@ -402,7 +400,6 @@ impl Group {
             if !e.is_possible_disk_disconnection() && !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
                 holder.try_reinit().await?;
-                holder.prepare_storage().await?;
                 debug!("backend::pearl::group::delete_common storage prepared");
             }
             Err(e)
