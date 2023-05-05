@@ -92,7 +92,8 @@ impl Group {
     pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
         let _reinit_lock = self.reinit_lock.write().await;
         let cleared = self.holders.write().await.clear_and_get_values();
-        close_holders(cleared.into_iter()).await;
+        close_holders(cleared.iter()).await; // Close old holders
+        std::mem::drop(cleared); // This is a guarantee, that all resources will be released
         self.run_under_reinit_lock(pp).await
     }
 
@@ -447,7 +448,7 @@ impl Group {
         }
     }
 
-    pub async fn detach(&self, start_timestamp: u64) -> BackendResult<()> {
+    pub async fn detach(&self, start_timestamp: u64) -> BackendResult<Vec<Holder>> {
         let mut holders = self.holders.write().await;
         debug!("write lock acquired");
         let ts = get_current_timestamp();
@@ -465,14 +466,14 @@ impl Group {
             let msg = format!("pearl:{} not found", start_timestamp);
             return Err(Error::pearl_change_state(msg));
         }
-        close_holders(removed.into_iter()).await;
-        Ok(())
+        close_holders(removed.iter()).await;
+        Ok(removed)
     }
 
     pub async fn detach_all(&self) -> BackendResult<()> {
         let mut holders_lock = self.holders.write().await;
         let holders: Vec<_> = holders_lock.clear_and_get_values();
-        close_holders(holders.into_iter()).await;
+        close_holders(holders.iter()).await;
         Ok(())
     }
 
@@ -708,7 +709,7 @@ impl Group {
     }
 }
 
-async fn close_holders(holders: impl Iterator<Item = Holder>) {
+async fn close_holders(holders: impl Iterator<Item = &Holder>) {
     for holder in holders {
         holder.close_storage().await;
     }
