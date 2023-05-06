@@ -345,7 +345,7 @@ impl Holder {
     }
 
     pub async fn try_reinit(&self) -> BackendResult<()> {
-        let _init_protection = self.inner.init_protection.try_acquire().map_err(|err| Error::holder_temporary_unavailable())?;
+        let _init_protection = self.inner.init_protection.try_acquire().map_err(|_| Error::holder_temporary_unavailable())?;
 
         let old_storage = {
             let mut state = self.storage.write().await;
