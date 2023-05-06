@@ -57,8 +57,8 @@ impl Holder {
                 disk_path,
                 config,          
                 dump_sem,
-                last_modification: Arc::new(AtomicU64::new(0)),
-                init_protection: Arc::new(Semaphore::new(1))
+                last_modification: AtomicU64::new(0),
+                init_protection: Semaphore::new(1)
             })
         }
     }
