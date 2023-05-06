@@ -50,7 +50,7 @@ impl Holder {
     ) -> Self {
         Self {
             storage: Arc::new(RwLock::new(PearlSync::default())),
-            inner: Arc::new(HolerInner {
+            inner: Arc::new(HolderInner {
                 start_timestamp,
                 end_timestamp,
                 vdisk,
@@ -354,7 +354,7 @@ impl Holder {
 
         if let Some(old_storage) = old_storage {
             trace!("Vdisk: {} close old Pearl due to reinit", self.inner.vdisk);
-            if let Err(e) = storage.close().await {
+            if let Err(e) = old_storage.close().await {
                 error!("can't close pearl storage: {:?}", e);
                 // Continue anyway
             }

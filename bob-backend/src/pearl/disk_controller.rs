@@ -575,10 +575,9 @@ impl DiskController {
             let holders = holders.read().await;
             for holder in holders.iter() {
                 let holder = holder.clone();
-                let id = holder.get_id();
                 futures.push(async move {
                     holder.close_storage().await;
-                    debug!("holder {} closed", id);
+                    debug!("holder {} closed", holder.get_id());
                 });
             }
         }

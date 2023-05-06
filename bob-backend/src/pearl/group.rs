@@ -93,7 +93,7 @@ impl Group {
         let _reinit_lock = self.reinit_lock.write().await;
         let cleared = self.holders.write().await.clear_and_get_values();
         close_holders(cleared.iter()).await; // Close old holders
-        std::mem::drop(cleared); // This is a guarantee, that all resources will be released
+        std::mem::drop(cleared); // This is to guarantee, that all resources will be released
         self.run_under_reinit_lock(pp).await
     }
 
