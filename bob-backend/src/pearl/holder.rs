@@ -30,6 +30,7 @@ pub struct Holder {
     storage: Arc<RwLock<PearlSync>>,
     last_modification: Arc<AtomicU64>,
     dump_sem: Arc<Semaphore>,
+    init_protection: Arc<Semaphore>
 }
 
 impl Holder {
@@ -50,6 +51,7 @@ impl Holder {
             storage: Arc::new(RwLock::new(PearlSync::default())),
             last_modification: Arc::new(AtomicU64::new(0)),
             dump_sem,
+            init_protection: Arc::new(Semaphore::new(1))
         }
     }
 
@@ -335,8 +337,14 @@ impl Holder {
     }
 
     pub async fn try_reinit(&self) -> BackendResult<()> {
-        let mut state = self.storage.write().await;
-        if let Some(storage) = state.reset() {
+        let _init_protection = self.init_protection.try_acquire().map_err(|err| Error::holder_temporary_unavailable())?;
+
+        let old_storage = {
+            let mut state = self.storage.write().await;
+            state.reset()
+        };
+
+        if let Some(old_storage) = old_storage {
             trace!("Vdisk: {} close old Pearl due to reinit", self.vdisk);
             if let Err(e) = storage.close().await {
                 error!("can't close pearl storage: {:?}", e);
@@ -344,9 +352,9 @@ impl Holder {
             }
         }
      
-        // TODO: fix lock
         match self.crate_and_prepare_storage().await {
             Ok(storage) => {
+                let mut state = self.storage.write().await;
                 state.set_ready(storage).expect("Storage setting successful");
                 debug!("update Pearl id: {}, mark as ready, state: ready", self.vdisk);
                 Ok(())
@@ -356,6 +364,8 @@ impl Holder {
     }
 
     pub async fn prepare_storage(&self) -> Result<(), Error> {
+        let _init_protection = self.init_protection.acquire().await.expect("init_protection semaphore acquire error");
+
         match self.crate_and_prepare_storage().await {
             Ok(storage) => {
                 let mut st = self.storage.write().await;
