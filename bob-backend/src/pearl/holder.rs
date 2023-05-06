@@ -436,7 +436,7 @@ impl Holder {
             .await?;
 
         let mut storage = self
-            .config
+            .inner.config
             .try_multiple_times(
                 || self.init_pearl_by_path(),
                 &format!("can't init pearl by path: {:?}", self.inner.disk_path),
