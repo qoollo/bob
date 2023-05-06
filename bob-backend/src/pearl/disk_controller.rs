@@ -577,12 +577,8 @@ impl DiskController {
                 let holder = holder.clone();
                 let id = holder.get_id();
                 futures.push(async move {
-                    match holder.close_storage().await {
-                        Ok(_) => debug!("holder {} closed", id),
-                        Err(e) => {
-                            error!("error closing holder{}: {} (disk: {:?})", id, e, self.disk)
-                        }
-                    }
+                    holder.close_storage().await;
+                    debug!("holder {} closed", id);
                 });
             }
         }

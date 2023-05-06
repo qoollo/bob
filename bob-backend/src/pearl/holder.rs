@@ -521,10 +521,10 @@ impl Holder {
         let mut pearl_sync = self.storage.write().await;
         if let Some(storage) = pearl_sync.reset() {
             if let Err(e) = storage.fsyncdata().await {
-                warn!("pearl fsync error: {:?}", e);
+                warn!("pearl fsync error (path: '{}'): {:?}", self.disk_path.display(), e);
             }
             if let Err(e) = storage.close().await {
-                warn!("pearl close error: {:?}", e);
+                warn!("pearl close error (path: '{}'): {:?}", self.disk_path.display(), e);
             }
         }
     }
