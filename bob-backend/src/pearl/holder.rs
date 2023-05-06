@@ -75,7 +75,7 @@ impl Holder {
 
     pub async fn blobs_count(&self) -> usize {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.blobs_count().await
         } else {
             0
@@ -84,7 +84,7 @@ impl Holder {
 
     pub async fn corrupted_blobs_count(&self) -> usize {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.corrupted_blobs_count()
         } else {
             0
@@ -93,7 +93,7 @@ impl Holder {
 
     pub async fn active_index_memory(&self) -> usize {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.active_index_memory().await
         } else {
             0
@@ -102,7 +102,7 @@ impl Holder {
 
     pub async fn index_memory(&self) -> usize {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.index_memory().await
         } else {
             0
@@ -111,7 +111,7 @@ impl Holder {
 
     pub async fn has_excess_resources(&self) -> bool {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.inactive_index_memory().await > 0
         } else {
             false
@@ -120,7 +120,7 @@ impl Holder {
 
     pub async fn records_count(&self) -> usize {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.records_count().await
         } else {
             0
@@ -158,7 +158,7 @@ impl Holder {
 
     pub async fn has_active_blob(&self) -> bool {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.has_active_blob().await
         } else {
             false
@@ -167,7 +167,7 @@ impl Holder {
 
     pub async fn active_blob_is_empty(&self) -> Option<bool> {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.records_count_in_active_blob().await.map(|c| c == 0)
         } else {
             None
@@ -176,7 +176,7 @@ impl Holder {
 
     pub async fn active_blob_is_small(&self) -> Option<bool> {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.records_count_in_active_blob().await
                 .map(|c| c as u64 * SMALL_RECORDS_COUNT_MUL < self.config.max_data_in_blob())
         } else {
@@ -200,7 +200,7 @@ impl Holder {
         //   at every moment, but the whole operation will be performed faster (but remember about
         //   disk_sem and other things, which may slow down this concurrent dump)
         let storage = self.storage.write().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.close_active_blob_in_background().await;
             warn!("Active blob of {} closed", self.get_id());
         }
@@ -208,7 +208,7 @@ impl Holder {
 
     pub async fn free_excess_resources(&self) -> usize {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.free_excess_resources().await
         } else {
             0
@@ -217,7 +217,7 @@ impl Holder {
 
     pub async fn filter_memory_allocated(&self) -> usize {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.filter_memory_allocated().await
         } else {
             0
@@ -227,7 +227,7 @@ impl Holder {
     pub async fn write(&self, key: BobKey, data: &BobData) -> BackendResult<()> {
         let state = self.storage.read().await;
 
-        if let Some(storage) = state.storage() {
+        if let Some(storage) = state.get() {
             self.update_last_modification();
             trace!("Vdisk: {}, write key: {}", self.vdisk, key);
             Self::write_disk(storage, Key::from(key), data).await
@@ -280,7 +280,7 @@ impl Holder {
     #[allow(clippy::cast_possible_truncation)]
     pub async fn read(&self, key: BobKey) -> Result<ReadResult<BobData>, Error> {
         let state = self.storage.read().await;
-        if let Some(storage) = state.storage() {
+        if let Some(storage) = state.get() {
             trace!("Vdisk: {}, read key: {}", self.vdisk, key);
             counter!(PEARL_GET_COUNTER, 1);
             let timer = Instant::now();
@@ -313,7 +313,7 @@ impl Holder {
 
     pub async fn exist(&self, key: BobKey) -> Result<ReadResult<BlobRecordTimestamp>, Error> {
         let state = self.storage.read().await;
-        if let Some(storage) = state.storage() {
+        if let Some(storage) = state.get() {
             trace!("Vdisk: {}, check key: {}", self.vdisk, key);
             counter!(PEARL_EXIST_COUNTER, 1);
             let pearl_key = Key::from(key);
@@ -495,7 +495,7 @@ impl Holder {
 
     pub async fn delete(&self, key: BobKey, _meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
         let state = self.storage.read().await;
-        if let Some(storage) = state.storage() {
+        if let Some(storage) = state.get() {
             trace!("Vdisk: {}, delete key: {}", self.vdisk, key);
             counter!(PEARL_DELETE_COUNTER, 1);
             let timer = Instant::now();
@@ -531,7 +531,7 @@ impl Holder {
 
     pub async fn disk_used(&self) -> u64 {
         let storage_guard = self.storage.read().await;
-        if let Some(storage) = storage_guard.storage() {
+        if let Some(storage) = storage_guard.get() {
             storage.disk_used().await
         } else {
             0
@@ -544,7 +544,7 @@ impl BloomProvider<Key> for Holder {
     type Filter = <Storage<Key> as BloomProvider<Key>>::Filter;
     async fn check_filter(&self, item: &Key) -> FilterResult {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             return BloomProvider::check_filter(storage, item).await;
         }
         FilterResult::NeedAdditionalCheck
@@ -556,7 +556,7 @@ impl BloomProvider<Key> for Holder {
 
     async fn offload_buffer(&mut self, needed_memory: usize, level: usize) -> usize {
         let mut storage = self.storage.write().await;
-        if let Some(storage) = storage.storage_mut() {
+        if let Some(storage) = storage.get_mut() {
             storage.offload_buffer(needed_memory, level).await
         } else {
             0
@@ -565,7 +565,7 @@ impl BloomProvider<Key> for Holder {
 
     async fn get_filter(&self) -> Option<Self::Filter> {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.get_filter().await
         } else {
             None
@@ -578,7 +578,7 @@ impl BloomProvider<Key> for Holder {
 
     async fn filter_memory_allocated(&self) -> usize {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.filter_memory_allocated().await
         } else {
             0
@@ -599,14 +599,14 @@ pub struct PearlSync {
     state: PearlState,
 }
 impl PearlSync {
-    pub fn storage(&self) -> Option<&PearlStorage> {
+    pub fn get(&self) -> Option<&PearlStorage> {
         match &self.state {
             PearlState::Initializing => None,
             PearlState::Running(storage) => Some(storage)
         }
     }
 
-    pub fn storage_mut(&mut self) -> Option<&mut PearlStorage> {
+    pub fn get_mut(&mut self) -> Option<&mut PearlStorage> {
         match &mut self.state {
             PearlState::Initializing => None,
             PearlState::Running(storage) => Some(storage)
@@ -618,7 +618,6 @@ impl PearlSync {
         matches!(&self.state, PearlState::Running(_))
     }
 
-    #[inline]
     pub fn set_ready(&mut self, storage: PearlStorage) -> Result<(), Error> {
         if self.is_ready() {
             return Err(Error::failed("Pearl storage already initialized. Please, close previous before"));
@@ -627,8 +626,6 @@ impl PearlSync {
         Ok(())
     }
 
-
-    #[inline]
     pub fn reset(&mut self) -> Option<PearlStorage> {
         let prev_state = std::mem::replace(&mut self.state, PearlState::Initializing);
         match prev_state {

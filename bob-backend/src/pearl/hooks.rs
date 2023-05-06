@@ -25,7 +25,7 @@ impl From<&Holder> for SimpleHolder {
 impl SimpleHolder {
     pub(crate) async fn filter_memory_allocated(&self) -> usize {
         let storage = self.storage.read().await;
-        if let Some(storage) = storage.storage() {
+        if let Some(storage) = storage.get() {
             storage.filter_memory_allocated().await
         } else {
             0
@@ -34,7 +34,7 @@ impl SimpleHolder {
 
     pub(crate) async fn offload_filter(&self, needed_memory: usize, level: usize) -> usize {
         let mut storage = self.storage.write().await;
-        if let Some(storage) = storage.storage_mut() {
+        if let Some(storage) = storage.get_mut() {
             storage.offload_buffer(needed_memory, level).await
         } else {
             0
