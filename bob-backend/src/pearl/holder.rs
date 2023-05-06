@@ -22,15 +22,21 @@ const SMALL_RECORDS_COUNT_MUL: u64 = 10;
 /// Struct hold pearl and add put/get/restart api
 #[derive(Clone, Debug)]
 pub struct Holder {
+    storage: Arc<RwLock<PearlSync>>,
+    inner: Arc<HolderInner>
+}
+
+/// Inner Holder data moved into HolderInner to reduce clonning overhead
+#[derive(Debug)]
+struct HolderInner {
     start_timestamp: u64,
     end_timestamp: u64,
     vdisk: VDiskId,
     disk_path: PathBuf,
     config: PearlConfig,
-    storage: Arc<RwLock<PearlSync>>,
-    last_modification: Arc<AtomicU64>,
     dump_sem: Arc<Semaphore>,
-    init_protection: Arc<Semaphore>
+    last_modification: AtomicU64,
+    init_protection: Semaphore
 }
 
 impl Holder {
@@ -43,28 +49,30 @@ impl Holder {
         dump_sem: Arc<Semaphore>,
     ) -> Self {
         Self {
-            start_timestamp,
-            end_timestamp,
-            vdisk,
-            disk_path,
-            config,
             storage: Arc::new(RwLock::new(PearlSync::default())),
-            last_modification: Arc::new(AtomicU64::new(0)),
-            dump_sem,
-            init_protection: Arc::new(Semaphore::new(1))
+            inner: Arc::new(HolerInner {
+                start_timestamp,
+                end_timestamp,
+                vdisk,
+                disk_path,
+                config,          
+                dump_sem,
+                last_modification: Arc::new(AtomicU64::new(0)),
+                init_protection: Arc::new(Semaphore::new(1))
+            })
         }
     }
 
     pub fn start_timestamp(&self) -> u64 {
-        self.start_timestamp
+        self.inner.start_timestamp
     }
 
     pub fn end_timestamp(&self) -> u64 {
-        self.end_timestamp
+        self.inner.end_timestamp
     }
 
     pub fn get_id(&self) -> String {
-        self.disk_path
+        self.inner.disk_path
             .file_name()
             .and_then(std::ffi::OsStr::to_str)
             .unwrap_or("unparsable string")
@@ -130,17 +138,17 @@ impl Holder {
     }
 
     pub fn gets_into_interval(&self, timestamp: u64) -> bool {
-        self.start_timestamp <= timestamp && timestamp < self.end_timestamp
+        self.inner.start_timestamp <= timestamp && timestamp < self.inner.end_timestamp
     }
 
     pub fn is_outdated(&self) -> bool {
         let ts = Self::get_current_ts();
-        ts > self.end_timestamp
+        ts > self.inner.end_timestamp
     }
 
     pub fn is_older_than(&self, secs: u64) -> bool {
         let ts = Self::get_current_ts();
-        (ts - secs) > self.end_timestamp
+        (ts - secs) > self.inner.end_timestamp
     }
 
     pub async fn no_modifications_recently(&self) -> bool {
@@ -150,11 +158,11 @@ impl Holder {
     }
 
     pub fn last_modification(&self) -> u64 {
-        self.last_modification.load(Ordering::Acquire)
+        self.inner.last_modification.load(Ordering::Acquire)
     }
 
     fn update_last_modification(&self) {
-        self.last_modification
+        self.inner.last_modification
             .store(Self::get_current_ts(), Ordering::Release);
     }
 
@@ -180,7 +188,7 @@ impl Holder {
         let storage = self.storage.read().await;
         if let Some(storage) = storage.get() {
             storage.records_count_in_active_blob().await
-                .map(|c| c as u64 * SMALL_RECORDS_COUNT_MUL < self.config.max_data_in_blob())
+                .map(|c| c as u64 * SMALL_RECORDS_COUNT_MUL < self.inner.config.max_data_in_blob())
         } else {
             None
         }
@@ -231,10 +239,10 @@ impl Holder {
 
         if let Some(storage) = state.get() {
             self.update_last_modification();
-            trace!("Vdisk: {}, write key: {}", self.vdisk, key);
+            trace!("Vdisk: {}, write key: {}", self.inner.vdisk, key);
             Self::write_disk(storage, Key::from(key), data).await
         } else {
-            trace!("Vdisk: {} isn't ready for writing: {:?}", self.vdisk, state);
+            trace!("Vdisk: {} isn't ready for writing: {:?}", self.inner.vdisk, state);
             Err(Error::vdisk_is_not_ready())
         }
     }
@@ -283,7 +291,7 @@ impl Holder {
     pub async fn read(&self, key: BobKey) -> Result<ReadResult<BobData>, Error> {
         let state = self.storage.read().await;
         if let Some(storage) = state.get() {
-            trace!("Vdisk: {}, read key: {}", self.vdisk, key);
+            trace!("Vdisk: {}, read key: {}", self.inner.vdisk, key);
             counter!(PEARL_GET_COUNTER, 1);
             let timer = Instant::now();
             let res = storage
@@ -308,7 +316,7 @@ impl Holder {
             counter!(PEARL_GET_TIMER, timer.elapsed().as_nanos() as u64);
             res
         } else {
-            trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
+            trace!("Vdisk: {} isn't ready for reading: {:?}", self.inner.vdisk, state);
             Err(Error::vdisk_is_not_ready())
         }
     }
@@ -316,7 +324,7 @@ impl Holder {
     pub async fn exist(&self, key: BobKey) -> Result<ReadResult<BlobRecordTimestamp>, Error> {
         let state = self.storage.read().await;
         if let Some(storage) = state.get() {
-            trace!("Vdisk: {}, check key: {}", self.vdisk, key);
+            trace!("Vdisk: {}, check key: {}", self.inner.vdisk, key);
             counter!(PEARL_EXIST_COUNTER, 1);
             let pearl_key = Key::from(key);
             let timer = Instant::now();
@@ -331,13 +339,13 @@ impl Holder {
             counter!(PEARL_EXIST_TIMER, timer.elapsed().as_nanos() as u64);
             res
         } else {
-            trace!("Vdisk: {} not ready for reading: {:?}", self.vdisk, state);
+            trace!("Vdisk: {} not ready for reading: {:?}", self.inner.vdisk, state);
             Err(Error::vdisk_is_not_ready())
         }
     }
 
     pub async fn try_reinit(&self) -> BackendResult<()> {
-        let _init_protection = self.init_protection.try_acquire().map_err(|err| Error::holder_temporary_unavailable())?;
+        let _init_protection = self.inner.init_protection.try_acquire().map_err(|err| Error::holder_temporary_unavailable())?;
 
         let old_storage = {
             let mut state = self.storage.write().await;
@@ -345,7 +353,7 @@ impl Holder {
         };
 
         if let Some(old_storage) = old_storage {
-            trace!("Vdisk: {} close old Pearl due to reinit", self.vdisk);
+            trace!("Vdisk: {} close old Pearl due to reinit", self.inner.vdisk);
             if let Err(e) = storage.close().await {
                 error!("can't close pearl storage: {:?}", e);
                 // Continue anyway
@@ -356,7 +364,7 @@ impl Holder {
             Ok(storage) => {
                 let mut state = self.storage.write().await;
                 state.set_ready(storage).expect("Storage setting successful");
-                debug!("update Pearl id: {}, mark as ready, state: ready", self.vdisk);
+                debug!("update Pearl id: {}, mark as ready, state: ready", self.inner.vdisk);
                 Ok(())
             }
             Err(e) => Err(e),
@@ -364,13 +372,13 @@ impl Holder {
     }
 
     pub async fn prepare_storage(&self) -> Result<(), Error> {
-        let _init_protection = self.init_protection.acquire().await.expect("init_protection semaphore acquire error");
+        let _init_protection = self.inner.init_protection.acquire().await.expect("init_protection semaphore acquire error");
 
         match self.crate_and_prepare_storage().await {
             Ok(storage) => {
                 let mut st = self.storage.write().await;
                 st.set_ready(storage).expect("Storage setting successful");
-                debug!("update Pearl id: {}, mark as ready, state: ready", self.vdisk);
+                debug!("update Pearl id: {}, mark as ready, state: ready", self.inner.vdisk);
                 Ok(())
             }
             Err(e) => Err(e),
@@ -379,11 +387,11 @@ impl Holder {
 
     async fn crate_and_prepare_storage(&self) -> Result<Storage<Key>, Error> {
         debug!("backend pearl holder prepare storage");
-        self.config
+        self.inner.config
             .try_multiple_times_async(
                 || self.init_holder(),
                 "can't initialize holder",
-                self.config.fail_retry_timeout(),
+                self.inner.config.fail_retry_timeout(),
             )
             .await
             .map_err(|e| {
@@ -410,20 +418,20 @@ impl Holder {
     }
 
     async fn init_holder(&self) -> AnyResult<Storage<Key>> {
-        let f = || Utils::check_or_create_directory(&self.disk_path);
-        self.config
+        let f = || Utils::check_or_create_directory(&self.inner.disk_path);
+        self.inner.config
             .try_multiple_times_async(
                 f,
-                &format!("cannot check path: {:?}", self.disk_path),
-                self.config.fail_retry_timeout(),
+                &format!("cannot check path: {:?}", self.inner.disk_path),
+                self.inner.config.fail_retry_timeout(),
             )
             .await?;
 
-        self.config
+        self.inner.config
             .try_multiple_times_async(
-                || Utils::drop_pearl_lock_file(&self.disk_path),
-                &format!("cannot delete lock file: {:?}", self.disk_path),
-                self.config.fail_retry_timeout(),
+                || Utils::drop_pearl_lock_file(&self.inner.disk_path),
+                &format!("cannot delete lock file: {:?}", self.inner.disk_path),
+                self.inner.config.fail_retry_timeout(),
             )
             .await?;
 
@@ -431,13 +439,13 @@ impl Holder {
             .config
             .try_multiple_times(
                 || self.init_pearl_by_path(),
-                &format!("can't init pearl by path: {:?}", self.disk_path),
-                self.config.fail_retry_timeout(),
+                &format!("can't init pearl by path: {:?}", self.inner.disk_path),
+                self.inner.config.fail_retry_timeout(),
             )
             .await
             .with_context(|| "backend pearl holder init storage failed")?;
         self.init_pearl(&mut storage).await?;
-        debug!("backend pearl holder init holder ready #{}", self.vdisk);
+        debug!("backend pearl holder init holder ready #{}", self.inner.vdisk);
         Ok(storage)
     }
 
@@ -453,23 +461,23 @@ impl Holder {
     }
 
     pub async fn drop_directory(&self) -> BackendResult<()> {
-        Utils::drop_directory(&self.disk_path).await
+        Utils::drop_directory(&self.inner.disk_path).await
     }
 
     fn init_pearl_by_path(&self) -> AnyResult<PearlStorage> {
-        let mut builder = Builder::new().work_dir(&self.disk_path);
+        let mut builder = Builder::new().work_dir(&self.inner.disk_path);
 
-        if self.config.allow_duplicates() {
+        if self.inner.config.allow_duplicates() {
             builder = builder.allow_duplicates();
         }
 
         // @TODO add default values to be inserted on deserialisation step
-        let prefix = self.config.blob_file_name_prefix();
-        let max_data = self.config.max_data_in_blob();
-        let max_blob_size = self.config.max_blob_size();
+        let prefix = self.inner.config.blob_file_name_prefix();
+        let max_data = self.inner.config.max_data_in_blob();
+        let max_blob_size = self.inner.config.max_blob_size();
         let mut filter_config = BloomConfig::default();
-        let validate_data_during_index_regen = self.config.validate_data_checksum_during_index_regen();
-        if let Some(count) = self.config.max_buf_bits_count() {
+        let validate_data_during_index_regen = self.inner.config.validate_data_checksum_during_index_regen();
+        if let Some(count) = self.inner.config.max_buf_bits_count() {
             filter_config.max_buf_bits_count = count;
             debug!("bloom filter max buffer bits count set to: {}", count);
         }
@@ -479,8 +487,8 @@ impl Holder {
             .max_blob_size(max_blob_size)
             .set_filter_config(filter_config)
             .set_validate_data_during_index_regen(validate_data_during_index_regen)
-            .set_dump_sem(self.dump_sem.clone());
-        let builder = if self.config.is_aio_enabled() {
+            .set_dump_sem(self.inner.dump_sem.clone());
+        let builder = if self.inner.config.is_aio_enabled() {
             match rio::new() {
                 Ok(ioring) => {
                     warn!("bob will start with AIO - async fs io api");
@@ -489,7 +497,7 @@ impl Holder {
                 Err(e) => {
                     warn!("bob will start with standard sync fs io api");
                     warn!("can't start with AIO, cause: {}", e);
-                    self.config.set_aio(false);
+                    self.inner.config.set_aio(false);
                     builder
                 }
             }
@@ -500,13 +508,13 @@ impl Holder {
         };
         builder
             .build()
-            .with_context(|| format!("cannot build pearl by path: {:?}", &self.disk_path))
+            .with_context(|| format!("cannot build pearl by path: {:?}", &self.inner.disk_path))
     }
 
     pub async fn delete(&self, key: BobKey, _meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
         let state = self.storage.read().await;
         if let Some(storage) = state.get() {
-            trace!("Vdisk: {}, delete key: {}", self.vdisk, key);
+            trace!("Vdisk: {}, delete key: {}", self.inner.vdisk, key);
             counter!(PEARL_DELETE_COUNTER, 1);
             let timer = Instant::now();
             // TODO: use meta
@@ -522,7 +530,7 @@ impl Holder {
             counter!(PEARL_DELETE_TIMER, timer.elapsed().as_nanos() as u64);
             res
         } else {
-            trace!("Vdisk: {} isn't ready for reading: {:?}", self.vdisk, state);
+            trace!("Vdisk: {} isn't ready for reading: {:?}", self.inner.vdisk, state);
             Err(Error::vdisk_is_not_ready())
         }
     }
@@ -531,10 +539,10 @@ impl Holder {
         let mut pearl_sync = self.storage.write().await;
         if let Some(storage) = pearl_sync.reset() {
             if let Err(e) = storage.fsyncdata().await {
-                warn!("pearl fsync error (path: '{}'): {:?}", self.disk_path.display(), e);
+                warn!("pearl fsync error (path: '{}'): {:?}", self.inner.disk_path.display(), e);
             }
             if let Err(e) = storage.close().await {
-                warn!("pearl close error (path: '{}'): {:?}", self.disk_path.display(), e);
+                warn!("pearl close error (path: '{}'): {:?}", self.inner.disk_path.display(), e);
             }
         }
     }
