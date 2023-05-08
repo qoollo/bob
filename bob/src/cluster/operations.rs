@@ -301,7 +301,7 @@ pub(crate) async fn exist_on_remote_nodes(
 ) -> Vec<Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>> {
     LinkManager::call_nodes(keys_by_node.values().map(|(n, _)| n), |client| {
         Box::pin(client.exist(
-            keys_by_node.get(client.node().name()).unwrap().1.clone(),
+            keys_by_node.get(client.node().name()).expect("map is based on nodes from values").1.clone(),
             GetOptions::new_local(),
         ))
     })

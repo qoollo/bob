@@ -342,7 +342,8 @@ impl Quorum {
             for remote_result in remote_results.into_iter() {
                 match remote_result {
                     Ok(remote_result) => {
-                        let node = &node_keys_by_node_name.get(remote_result.node_name()).unwrap().0;
+                        let node = &node_keys_by_node_name.get(remote_result.node_name())
+                            .expect("result should be from known node").0;
                         debug_assert!(node.name() == remote_result.node_name());
                         indexes_by_node
                             .get(&node)
