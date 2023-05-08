@@ -338,8 +338,7 @@ impl Quorum {
         }
 
         if !node_keys_by_node_name.is_empty() {
-            let nodes: Vec<_> = node_keys_by_node_name.values().map(|(n, _)| n).collect();
-            let remote_results = exist_on_remote_nodes(&nodes, &node_keys_by_node_name).await;
+            let remote_results = exist_on_remote_nodes(&node_keys_by_node_name).await;
             for remote_result in remote_results.into_iter() {
                 match remote_result {
                     Ok(remote_result) => {
@@ -499,6 +498,9 @@ impl Cluster for Quorum {
                 match remote_alien_result {
                     Ok(remote_alien_result) => {
                         alien_index_map.update_existence(&mut result, remote_alien_result.inner());
+                        trace!("Check existence in alien on node {}: found {}/{} keys", 
+                               remote_alien_result.node_name(), remote_alien_result.inner().iter().filter(|f| **f).count(), 
+                               remote_alien_result.inner().len());
                     }
                     Err(e) => debug!("EXIST {} keys check remote alien failed on node {}: {:?}", 
                                      len, e.node_name(), e)
