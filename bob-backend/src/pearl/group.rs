@@ -210,7 +210,7 @@ impl Group {
             .await?;
         let res = Self::put_common(&holder.1, key, data).await?;
         self.holders
-            .write()
+            .read()
             .await
             .add_to_parents(holder.0, &Key::from(key));
         Ok(res)
@@ -249,7 +249,7 @@ impl Group {
                     ReadResult::Found(data) => {
                         trace!("get data: {:?} from: {:?}", data, holder);
                         let ts = data.meta().timestamp();
-                        if ts > max_timestamp.unwrap_or(0) {
+                        if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
                             max_timestamp = Some(ts);
                             result = Some(data);
                         }
@@ -257,7 +257,7 @@ impl Group {
                     ReadResult::Deleted(ts) => {
                         trace!("{} is deleted in {:?} at {}", key, holder, ts);
                         let ts: u64 = ts.into();
-                        if ts > max_timestamp.unwrap_or(0) {
+                        if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
                             max_timestamp = Some(ts);
                             result = None;
                         }
@@ -300,22 +300,22 @@ impl Group {
         let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
-        let mut max_timestamp = None;
-        let mut result = false;
         for (ind, &key) in keys.iter().enumerate() {
+            let mut max_timestamp = None;
+            let mut result = false;
             for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
             {
                 match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
                     ReadResult::Found(ts) => {
-                        let ts = ts.into();
-                        if ts > max_timestamp.unwrap_or(0) {
+                        let ts: u64 = ts.into();
+                        if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
                             max_timestamp = Some(ts);
                             result = true;
                         }
                     }
                     ReadResult::Deleted(ts) => {
-                        let ts = ts.into();
-                        if ts > max_timestamp.unwrap_or(0) {
+                        let ts: u64 = ts.into();
+                        if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
                             max_timestamp = Some(ts);
                             result = false;
                         }
@@ -341,7 +341,7 @@ impl Group {
         let mut total_deletion_count = 0;
 
         if force_delete {
-            let actual_holder = self.get_or_create_actual_holder(get_current_timestamp(), timestamp_config).await?;
+            let actual_holder = self.get_or_create_actual_holder(meta.timestamp(), timestamp_config).await?;
             reference_timestamp = actual_holder.1.start_timestamp();
             total_deletion_count += self.delete_in_actual_holder(actual_holder, key, meta).await?;
         }
@@ -361,7 +361,7 @@ impl Group {
         let delete_count = Self::delete_common(holder.1.clone(), key, meta, true).await?;
             // We need to add marker record to alien regardless of record presence
         self.holders
-            .write()
+            .read()
             .await
             .add_to_parents(holder.0, &Key::from(key));
         
@@ -540,6 +540,7 @@ impl Group {
                 }
             }
         }
+        holders.sort_by(|a, b| a.start_timestamp().cmp(&b.start_timestamp()));
         Ok(holders)
     }
 

@@ -10,7 +10,8 @@ use super::{
 use bob_common::metrics::pearl::{
     PEARL_GET_BYTES_COUNTER, PEARL_GET_COUNTER, PEARL_GET_ERROR_COUNTER, PEARL_GET_TIMER,
     PEARL_PUT_BYTES_COUNTER, PEARL_PUT_COUNTER, PEARL_PUT_ERROR_COUNTER, PEARL_PUT_TIMER,
-    PEARL_DELETE_COUNTER, PEARL_DELETE_ERROR_COUNTER, PEARL_DELETE_TIMER
+    PEARL_DELETE_COUNTER, PEARL_DELETE_ERROR_COUNTER, PEARL_DELETE_TIMER, 
+    PEARL_EXIST_COUNTER, PEARL_EXIST_ERROR_COUNTER, PEARL_EXIST_TIMER,
 };
 use pearl::error::{AsPearlError, ValidationErrorKind};
 use pearl::{BlobRecordTimestamp, ReadResult, BloomProvider, FilterResult};
@@ -312,12 +313,20 @@ impl Holder {
         let state = self.storage.read().await;
         if state.is_ready() {
             trace!("Vdisk: {}, check key: {}", self.vdisk, key);
+            counter!(PEARL_EXIST_COUNTER, 1);
             let pearl_key = Key::from(key);
             let storage = state.get();
-            storage.contains(pearl_key).await.map_err(|e| {
-                error!("{:?}", e);
-                Error::storage(e.to_string())
-            })
+            let timer = Instant::now();
+            let res = storage
+                .contains(pearl_key)
+                .await
+                .map_err(|e| {
+                    error!("error on exist: {:?}", e);
+                    counter!(PEARL_EXIST_ERROR_COUNTER, 1);
+                    Error::storage(e.to_string())
+                });
+            counter!(PEARL_EXIST_TIMER, timer.elapsed().as_nanos() as u64);
+            res
         } else {
             trace!("Vdisk: {} not ready for reading: {:?}", self.vdisk, state);
             Err(Error::vdisk_is_not_ready())
@@ -420,6 +429,7 @@ impl Holder {
         let max_data = self.config.max_data_in_blob();
         let max_blob_size = self.config.max_blob_size();
         let mut filter_config = BloomConfig::default();
+        let validate_data_during_index_regen = self.config.validate_data_checksum_during_index_regen();
         if let Some(count) = self.config.max_buf_bits_count() {
             filter_config.max_buf_bits_count = count;
             debug!("bloom filter max buffer bits count set to: {}", count);
@@ -429,6 +439,7 @@ impl Holder {
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
             .set_filter_config(filter_config)
+            .set_validate_data_during_index_regen(validate_data_during_index_regen)
             .set_dump_sem(self.dump_sem.clone());
         let builder = if self.config.is_aio_enabled() {
             match rio::new() {

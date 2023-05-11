@@ -1,8 +1,8 @@
 use crate::link_manager::LinkManager;
 use crate::prelude::*;
-use super::support_types::{RemoteDeleteError};
+use super::support_types::RemoteDeleteError;
 
-pub(crate) type Tasks = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>;
+pub(crate) type Tasks<Err> = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Err>>>>;
 
 // ======================= Helpers =================
 
@@ -26,8 +26,8 @@ fn is_result_successful<TErr: Debug>(
     0
 }
 
-async fn finish_at_least_handles<TErr: Debug>(
-    handles: &mut FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>>,
+pub(crate) async fn finish_at_least_handles<TErr: Debug>(
+    handles: &mut Tasks<TErr>,
     at_least: usize,
 ) -> Vec<NodeOutput<TErr>> {
     let mut ok_count = 0;
@@ -83,25 +83,6 @@ async fn call_all<TOp, TErr: Debug>(
     let errors = finish_all_handles(&mut handles).await;
     trace!("errors/total: {}/{}", errors.len(), handles_len);
     (handles_len, errors)
-}
-
-// ======================= EXIST =================
-
-pub(crate) fn group_keys_by_nodes(
-    mapper: &Virtual,
-    keys: &[BobKey],
-) -> HashMap<Vec<Node>, (Vec<BobKey>, Vec<usize>)> {
-    let mut keys_by_nodes: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
-    for (ind, &key) in keys.iter().enumerate() {
-        keys_by_nodes
-            .entry(mapper.get_target_nodes_for_key(key).to_vec())
-            .and_modify(|(keys, indexes)| {
-                keys.push(key);
-                indexes.push(ind);
-            })
-            .or_insert_with(|| (vec![key], vec![ind]));
-    }
-    keys_by_nodes
 }
 
 // ======================== GET ==========================
@@ -162,7 +143,7 @@ pub(crate) async fn lookup_remote_aliens(mapper: &Virtual, key: BobKey) -> Optio
     let local_node = mapper.local_node_name();
     let target_nodes = mapper
         .nodes()
-        .values()
+        .iter()
         .filter(|node| node.name() != local_node);
     let result = get_any(key, target_nodes, GetOptions::new_alien()).await;
     if let Some(answer) = result {
@@ -222,7 +203,7 @@ pub(crate) async fn put_at_least(
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
     options: PutOptions,
-) -> (Tasks, Vec<NodeOutput<Error>>) {
+) -> (Tasks<Error>, Vec<NodeOutput<Error>>) {
     call_at_least(target_nodes, at_least, |n| {
         call_node_put(key, data.clone(), n.clone(), options.clone())
     })
@@ -295,7 +276,47 @@ pub(crate) async fn put_local_node(
     backend.put_local(key, data, op).await
 }
 
+// =================== EXIST ==================
 
+pub(crate) async fn exist_on_local_node(
+    backend: &Backend,
+    keys: &[BobKey],
+) -> Result<Vec<bool>, Error> {
+    Ok(backend
+        .exist(keys, &BobGetOptions::new_get(Some(GetOptions::new_local())))
+        .await?)
+}
+
+pub(crate) async fn exist_on_local_alien(
+    backend: &Backend,
+    keys: &[BobKey],
+) -> Result<Vec<bool>, Error> {
+    Ok(backend
+        .exist(keys, &BobGetOptions::new_get(Some(GetOptions::new_alien())))
+        .await?)
+}
+
+pub(crate) async fn exist_on_remote_nodes(
+    keys_by_node: &HashMap<String, (Node, Vec<BobKey>)>,
+) -> Vec<Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>> {
+    LinkManager::call_nodes(keys_by_node.values().map(|(n, _)| n), |client| {
+        Box::pin(client.exist(
+            keys_by_node.get(client.node().name()).expect("map is based on nodes from values").1.clone(),
+            GetOptions::new_local(),
+        ))
+    })
+    .await
+}
+
+pub(crate) async fn exist_on_remote_aliens(
+    nodes: &[&Node],
+    keys: &[BobKey],
+) -> Vec<Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>> {
+    LinkManager::call_nodes(nodes.iter().map(|n| *n), |client| {
+        Box::pin(client.exist(keys.to_vec(), GetOptions::new_alien()))
+    })
+    .await
+}
 
 // =================== DELETE =================
 

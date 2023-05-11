@@ -1,11 +1,11 @@
 #!/usr/bin/python3
-import os, argparse, sys, subprocess, shlex, docker
+import os, argparse, subprocess, shlex, docker
 from python_on_whales import docker as d_cli
 from docker import errors as d_err
 from docker import types as d_types
 from python_on_whales.exceptions import DockerException
 from retry import *
-from bob_backend_timer import ensure_backend_up
+from misc_functions import ensure_backend_up, print_then_exit
 from time import sleep
 
 #collect arguments
@@ -45,9 +45,9 @@ good_path = os.path.abspath(args.path)
 #check for configs to exist
 try:
     if not 'cluster.yaml.bobnet' in os.listdir(good_path):
-        sys.exit('Cluster config not found in the specifed directory.')
+        print_then_exit('Cluster config not found in the specifed directory.')
 except FileNotFoundError as e:
-    sys.exit(e)
+    print_then_exit(e)
 
 #change execution permissions for binaries
 try:
@@ -55,25 +55,25 @@ try:
     os.chmod(path=f'./bobp', mode=0o771)
     os.chmod(path=f'./bobt', mode=0o771)
 except OSError as e:
-    sys.exit(e)
+    print_then_exit(e)
 
 #run cluster generation
 try:
     pr = subprocess.check_output(shlex.split(f'./ccg new -i {args.path}/cluster.yaml.bobnet -o {args.path}/cluster.yaml.bobnet {args_str.rstrip()}'))
     if str(pr).find('ERROR') != -1:
-        sys.exit(str(pr))
+        print_then_exit(str(pr))
 except subprocess.CalledProcessError:
-    sys.exit(pr.stderr)
+    print_then_exit(pr.stderr)
 
 
 try:
     os.chdir(good_path)
 except FileNotFoundError:
-    sys.exit('The path does not exist.')
+    print_then_exit('The path does not exist.')
 except PermissionError:
-    sys.exit(f'Access to {good_path} is denied.')
+    print_then_exit(f'Access to {good_path} is denied.')
 except NotADirectoryError:
-    sys.exit('The specified path is not a directory.')
+    print_then_exit('The specified path is not a directory.')
 
 #run docker containers
 try:
@@ -81,20 +81,20 @@ try:
     d_cli.compose.up(detach=True)
     print(f'Services are initilized:\n{d_cli.container.list()}')
 except d_err.NotFound:
-    sys.exit('Docker network not found')
+    print_then_exit('Docker network not found')
 except DockerException:
-    sys.exit('Could not initilize docker-compose.')
+    print_then_exit('Could not initilize docker-compose.')
 
 try:
     if len(d_cli.container.list()) < int(args.nodes_amount):
-        sys.exit('One or more bob docker containers are not running.')
+        print_then_exit('One or more bob docker containers are not running.')
 except ValueError:
-    sys.exit('Amount of nodes has unexpected value.')
+    print_then_exit('Amount of nodes has unexpected value.')
 
 #ensure bob initilized in container
 try:
     ensure_backend_up(int(args.nodes_amount), args.rest_min_port)
 except ValueError:
-    sys.exit('Amount of nodes has unexpected value.')
+    print_then_exit('Amount of nodes has unexpected value.')
 
 sleep(float(args.cluster_start_waiting_time)/1000 + 1)

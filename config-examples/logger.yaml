@@ -64,8 +64,7 @@ appenders:
     buffer_size: 100
     buffer_lifetime: 1s
     extra_fields:
-      node_id: 1
-      node_name: "node_1"
+      cluster: "bob"
 
 # root logger sets the default global logging level attach appenders to the root
 # Other loggers use this parameters as default

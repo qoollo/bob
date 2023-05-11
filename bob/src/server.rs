@@ -208,8 +208,7 @@ where
                 "grinder finished request processing /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let elapsed = sw.elapsed_ms();
-            debug!("GET[{}]-OK dt: {}ms", key, elapsed);
+            debug!("GET[{}]-OK dt: {}ms", key, sw.elapsed_ms());
             let meta = Some(BlobMeta {
                 timestamp: get_res.meta().timestamp(),
             });
@@ -224,8 +223,13 @@ where
         }
     }
 
-    async fn ping(&self, _: Request<Null>) -> ApiResult<Null> {
+    async fn ping(&self, r: Request<Null>) -> ApiResult<Null> {
         debug!("PING");
+        if let Some(node_name) = r.metadata().get("node_name") {
+            if let Ok(name) = node_name.to_str() {
+                self.grinder.update_node_connection(name);
+            }
+        }
         Ok(Response::new(Null {}))
     }
 
@@ -244,8 +248,7 @@ where
             .exist(&keys, &options)
             .await
             .map_err::<Status, _>(|e| e.into())?;
-        let elapsed = sw.elapsed();
-        debug!("EXISTS-OK dt: {:?}", elapsed);
+        debug!("EXISTS-OK dt: {:?}", sw.elapsed());
         let response = ExistResponse { exist };
         let response = Response::new(response);
         Ok(response)

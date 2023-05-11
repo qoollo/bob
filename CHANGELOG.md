@@ -4,6 +4,69 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Added mimalloc allocator for musl target (#688)
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.10] - 2023-05-11
+#### Added
+- Quorum argument for manual workflow dispatch for integration tests (#749)
+- Reconnect to a node when Ping is received from it (#625)
+- Fast ping at the start (#657)
+- Client metrics are initialized at the start (#761)
+- Exist test on doubled range of keys for integration tests (#764)
+- Used swap and bob virtual memory metrics added to hardware metrics (#771)
+- Added validate_data_checksum_in_index_regen field to pearl config (#607)
+- Lookup existence in aliens (#576)
+- Separate local and remote lookup (#585)
+- Exist test for alien integration tests (#726)
+
+#### Changed
+- Make local put parallel to remote (#573)
+- Prefer online nodes for aliens, while maintaining uniform distribution (#571)
+- Build release binaries and docker images with `release-lto` profile (#714)
+- Use read lock instead of write on hierarchical filters update to improve performance (#596)
+- Abort on panic in any of the threads (#782)
+
+#### Fixed
+- Fix incorrect exist result due to variables sharing between keys (#762)
+- Fix unit of measurement of memory in hardware metrics (#772)
+- Fix rust deprecation warning (#779)
+- Fix subtraction overflow in cleaner (#781)
+
+#### Updated
+- Logger to logstash updated to qoollo-log4rs-logstash v0.2 (#681)
+- Pearl updated to v0.18.0 (#778)
+
+
+## [2.1.0-alpha.9] - 2023-01-16
+#### Added
+- Added exist key metrics to grinder and exist metrics to pearl (#709)
+
+#### Changed
+- Removed `open_blobs_soft_limit` and `open_blobs_hard_limit` from node config example (#703)
+- Add condition to background_put (#589)
+
+#### Fixed
+- Fix incorrect timestamp used in `Group::delete()` (#741)
+- Fixed incorrect execution of aliens integration tests (#736)
+- Fixed unsafe timestamp comparison condition in `Group::get` and `Group::exist` (#750)
+
+#### Updated
+- Pearl updated to v0.17.0 (#752)
+
+
+## [2.1.0-alpha.8] - 2023-01-13
+#### Added
+- Added grpc delete testing feature to bobp (#663)
 - Corrupted blobs count metric (#464)
 - 'Exists' method through HEAD request in REST API (#691)
 - Support for 'exists' method in bobt (#691)
@@ -14,7 +77,8 @@ Bob versions changelog
 - Added integration tests for aliens (#642)
 - Added integration tests for bobt (#648)
 - Added authentification support for integration tests (#672)
-- Added mimalloc allocator for musl target (#688)
+- Add support for `delete` operation to `bobc` (#664)
+- Support for authorization to `bobc` (#679)
 
 #### Changed
 - Use bytes to pass data to pearl (#597)
@@ -29,6 +93,7 @@ Bob versions changelog
 #### Fixed
 - Data access operations will be protected during remount to prevent data loss (#683)
 - PID unsafe type conversion fixed (#719)
+- Holders returned by read_vdisk_directory() are now ordered by start_timestamp (#700)
 
 #### Updated
 - Pearl updated to v0.16.0 (#706)
