@@ -299,7 +299,7 @@ impl Cluster for Quorum {
 
     async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
         let len = keys.len();
-		debug!("EXIST {} keys", len);
+        debug!("EXIST {} keys", len);
 
         let mut result = vec![false; len];
 
