@@ -2,13 +2,13 @@ use crate::prelude::*;
 
 use super::{
     operations::{
-        group_keys_by_nodes, lookup_local_alien, lookup_local_node, lookup_remote_aliens,
+        exist_on_local_node, exist_on_local_alien, exist_on_remote_nodes,
+        exist_on_remote_aliens, lookup_local_alien, lookup_local_node, lookup_remote_aliens,
         lookup_remote_nodes, put_at_least, put_local_all, put_local_node, put_sup_nodes, Tasks,
     },
     support_types::IndexMap,
     Cluster,
 };
-use crate::link_manager::LinkManager;
 
 #[derive(Clone)]
 pub(crate) struct Quorum {
@@ -298,6 +298,7 @@ impl Cluster for Quorum {
     }
 
     async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
+        let len = keys.len();
 		debug!("EXIST {} keys", len);
 
         let mut result = vec![false; len];
@@ -347,7 +348,7 @@ impl Cluster for Quorum {
             let all_remote_nodes: Vec<_> = self
                 .mapper
                 .nodes()
-                .iter()
+                .values()
                 .filter(|n| n.name() != self.mapper.local_node_name())
                 .collect();
             let remote_nodes_aliens_exist =
