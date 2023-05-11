@@ -1,7 +1,17 @@
 [package]
 name = "bob-access"
-version = "2.1.0-alpha.9"
-authors = ["Pavel Iakushin <pyakushin@qoollo.com>"]
+version = "2.1.0-alpha.10"
+authors = [
+    "Kirill Bushminkin <kb@qoollo.com>",
+    "Pavel Iakushin <pyakushin@qoollo.com>",
+    "Nikita Menshov",
+    "Ilia Kopylov",
+    "Ivan Druzhitskiy",
+    "Vladimir Stepanenko",
+    "Pavel Perestoronin",
+    "Konstantin Konnov",
+    "Konstantin Bulany"
+]
 edition = "2021"
 
 [dependencies]
