@@ -2,12 +2,13 @@ use crate::prelude::*;
 
 use super::{
     operations::{
-        group_keys_by_nodes, lookup_local_alien, lookup_local_node, lookup_remote_aliens,
+        exist_on_local_node, exist_on_local_alien, exist_on_remote_nodes,
+        exist_on_remote_aliens, lookup_local_alien, lookup_local_node, lookup_remote_aliens,
         lookup_remote_nodes, put_at_least, put_local_all, put_local_node, put_sup_nodes, Tasks,
     },
+    support_types::IndexMap,
     Cluster,
 };
-use crate::link_manager::LinkManager;
 
 #[derive(Clone)]
 pub(crate) struct Quorum {
@@ -177,6 +178,93 @@ impl Quorum {
             Ok(())
         }
     }
+
+    async fn collect_remote_exists(
+        result: &mut [bool],
+        keys: &[BobKey],
+        indexes_by_node: &mut HashMap<Node, IndexMap>,
+    ) {
+        if indexes_by_node.is_empty() {
+            return;
+        }
+
+        let mut node_keys_by_node_name = HashMap::new();
+        for (node, node_map) in indexes_by_node.iter_mut() {
+            node_map.retain_not_existed(&result);
+            if !node_map.is_empty() {
+                node_keys_by_node_name.insert(node.name().to_owned(), (node.clone(), node_map.collect(keys)));
+            }
+        }
+
+        if !node_keys_by_node_name.is_empty() {
+            let remote_results = exist_on_remote_nodes(&node_keys_by_node_name).await;
+            for remote_result in remote_results.into_iter() {
+                match remote_result {
+                    Ok(remote_result) => {
+                        let node = &node_keys_by_node_name.get(remote_result.node_name())
+                            .expect("result should be from known node").0;
+                        debug_assert!(node.name() == remote_result.node_name());
+                        indexes_by_node
+                            .get(&node)
+                            .expect("node should exist")
+                            .update_existence(result, remote_result.inner());
+                        trace!("Check existence on node {}: found {}/{} keys", 
+                               node.name(), remote_result.inner().iter().filter(|f| **f).count(), remote_result.inner().len());
+                    }
+                    Err(e) => {
+                        debug!("Failed to check existence on node {}: {:?}", e.node_name(), e);
+                    }
+                }
+            }
+        }
+    }
+
+    fn group_by_nodes(
+        keys: &[BobKey],
+        mapper: &Virtual,
+    ) -> (
+        Option<IndexMap>,
+        HashMap<Node, IndexMap>,
+        HashMap<Node, IndexMap>,
+    ) {
+        let mut local = IndexMap::new();
+        let mut primary = HashMap::new();
+        let mut secondary = HashMap::new();
+
+        let local_node = mapper.local_node_name();
+
+        for (index, &key) in keys.iter().enumerate() {
+            let target_nodes = mapper.get_target_nodes_for_key(key);
+
+            if !target_nodes
+                .iter()
+                .any(|n| n.name() == local_node || primary.contains_key(n))
+            {
+                if let Some(node) = target_nodes.iter().find(|n| !secondary.contains_key(*n)) {
+                    primary.insert(node.clone(), IndexMap::new());
+                }
+            }
+
+            for node in target_nodes {
+                if node.name() == local_node {
+                    local.push(index);
+                } else if let Some(map) = primary.get_mut(node) {
+                    map.push(index)
+                } else {
+                    secondary
+                        .entry(node.clone())
+                        .or_insert(IndexMap::new())
+                        .push(index);
+                }
+            }
+        }
+
+        return (
+            if local.is_empty() { None } else { Some(local) },
+            primary,
+            secondary,
+        );
+    }
 }
 
 #[async_trait]
@@ -210,21 +298,76 @@ impl Cluster for Quorum {
     }
 
     async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error> {
-        let keys_by_nodes = group_keys_by_nodes(&self.mapper, keys);
-        debug!(
-            "EXIST Nodes for fan out: {:?}",
-            &keys_by_nodes.keys().flatten().collect::<Vec<_>>()
-        );
         let len = keys.len();
-        let mut exist = vec![false; len];
-        for (nodes, (keys, indexes)) in keys_by_nodes {
-            let cluster_results = LinkManager::exist_on_nodes(&nodes, &keys).await;
-            for result in cluster_results.into_iter().flatten() {
-                for (&r, &ind) in result.inner().iter().zip(&indexes) {
-                    exist[ind] |= r;
+        debug!("EXIST {} keys", len);
+
+        let mut result = vec![false; len];
+
+        let (local, mut primary, mut secondary) = Self::group_by_nodes(keys, &self.mapper);
+
+        if let Some(local) = local {
+            if !local.is_empty() {
+                trace!("EXIST {} keys check local node", len);
+                let local_keys = local.collect(keys);
+                match exist_on_local_node(&self.backend, &local_keys).await {
+                    Ok(local_exist) => {
+                        trace!("EXIST {} keys check local node: found {}/{} keys",
+                               len, local_exist.iter().filter(|v| **v).count(), local.len());
+                        local.update_existence(&mut result, &local_exist);
+                    },
+                    Err(e) => warn!("EXIST {} check local node failed: {:?}", len, e)
+                };
+            }
+        }
+
+        trace!("EXIST {} keys check primary nodes", len);
+        Self::collect_remote_exists(&mut result, keys, &mut primary).await;
+        trace!("EXIST {} keys check primary nodes finished", len);
+
+        trace!("EXIST {} keys check secondary nodes", len);
+        Self::collect_remote_exists(&mut result, keys, &mut secondary).await;
+        trace!("EXIST {} keys check secondary nodes finished", len);
+
+        let mut alien_index_map = IndexMap::where_not_exists(&result);
+
+        if !alien_index_map.is_empty() {
+            trace!("EXIST {} keys check local alien", len);
+            match exist_on_local_alien(&self.backend, &alien_index_map.collect(keys)).await {
+                Ok(local_alien_result) => {
+                    trace!("EXIST {} keys check local alien finished: found {}/{} keys",
+                           len, local_alien_result.iter().filter(|v| **v).count(), alien_index_map.len()); 
+                    alien_index_map.update_existence(&mut result, &local_alien_result);
+                    alien_index_map.retain_not_existed(&result)
+                },
+                Err(e) => warn!("EXIST {} keys check local alien failed: {:?}", len, e)
+            }
+        }
+
+        if !alien_index_map.is_empty() {
+            trace!("EXIST {} keys check remote alien", len);
+            let all_remote_nodes: Vec<_> = self
+                .mapper
+                .nodes()
+                .values()
+                .filter(|n| n.name() != self.mapper.local_node_name())
+                .collect();
+            let remote_nodes_aliens_exist =
+                exist_on_remote_aliens(&all_remote_nodes, &alien_index_map.collect(keys)).await;
+            trace!("EXIST {} keys check remote alien finished", len);
+            for remote_alien_result in remote_nodes_aliens_exist {
+                match remote_alien_result {
+                    Ok(remote_alien_result) => {
+                        alien_index_map.update_existence(&mut result, remote_alien_result.inner());
+                        trace!("Check existence in alien on node {}: found {}/{} keys", 
+                               remote_alien_result.node_name(), remote_alien_result.inner().iter().filter(|f| **f).count(), 
+                               remote_alien_result.inner().len());
+                    }
+                    Err(e) => debug!("EXIST {} keys check remote alien failed on node {}: {:?}", 
+                                     len, e.node_name(), e)
                 }
             }
         }
-        Ok(exist)
+
+        Ok(result)
     }
 }

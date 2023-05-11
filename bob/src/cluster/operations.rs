@@ -84,21 +84,44 @@ pub(crate) async fn put_at_least(
     (handles, errors)
 }
 
-pub(crate) fn group_keys_by_nodes(
-    mapper: &Virtual,
+pub(crate) async fn exist_on_local_node(
+    backend: &Backend,
     keys: &[BobKey],
-) -> HashMap<Vec<Node>, (Vec<BobKey>, Vec<usize>)> {
-    let mut keys_by_nodes: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
-    for (ind, &key) in keys.iter().enumerate() {
-        keys_by_nodes
-            .entry(mapper.get_target_nodes_for_key(key).to_vec())
-            .and_modify(|(keys, indexes)| {
-                keys.push(key);
-                indexes.push(ind);
-            })
-            .or_insert_with(|| (vec![key], vec![ind]));
-    }
-    keys_by_nodes
+) -> Result<Vec<bool>, Error> {
+    Ok(backend
+        .exist(keys, &BobOptions::new_get(Some(GetOptions::new_local())))
+        .await?)
+}
+
+pub(crate) async fn exist_on_local_alien(
+    backend: &Backend,
+    keys: &[BobKey],
+) -> Result<Vec<bool>, Error> {
+    Ok(backend
+        .exist(keys, &BobOptions::new_get(Some(GetOptions::new_alien())))
+        .await?)
+}
+
+pub(crate) async fn exist_on_remote_nodes(
+    keys_by_node: &HashMap<String, (Node, Vec<BobKey>)>,
+) -> Vec<Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>> {
+    LinkManager::call_nodes(keys_by_node.values().map(|(n, _)| n), |client| {
+        Box::pin(client.exist(
+            keys_by_node.get(client.node().name()).expect("map is based on nodes from values").1.clone(),
+            GetOptions::new_local(),
+        ))
+    })
+    .await
+}
+
+pub(crate) async fn exist_on_remote_aliens(
+    nodes: &[&Node],
+    keys: &[BobKey],
+) -> Vec<Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>> {
+    LinkManager::call_nodes(nodes.iter().map(|n| *n), |client| {
+        Box::pin(client.exist(keys.to_vec(), GetOptions::new_alien()))
+    })
+    .await
 }
 
 pub(crate) async fn lookup_local_alien(

@@ -4,7 +4,8 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Lookup existence in aliens (#576)
+- Separate local and remote lookup (#585)
 
 #### Changed
 
