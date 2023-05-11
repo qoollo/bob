@@ -13,6 +13,7 @@ Bob versions changelog
 - Added validate_data_checksum_in_index_regen field to pearl config (#607)
 - Lookup existence in aliens (#576)
 - Separate local and remote lookup (#585)
+- Exist test for alien integration tests (#726)
 
 #### Changed
 - Make local put parallel to remote (#573)
