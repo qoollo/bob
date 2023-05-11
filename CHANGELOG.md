@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.10] - 2023-05-11
+#### Added
 - Quorum argument for manual workflow dispatch for integration tests (#749)
 - Reconnect to a node when Ping is received from it (#625)
 - Fast ping at the start (#657)
