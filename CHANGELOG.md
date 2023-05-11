@@ -11,6 +11,7 @@ Bob versions changelog
 - Exist test on doubled range of keys for integration tests (#764)
 - Used swap and bob virtual memory metrics added to hardware metrics (#771)
 - Added validate_data_checksum_in_index_regen field to pearl config (#607)
+- Exist test for alien integration tests (#726)
 
 #### Changed
 - Make local put parallel to remote (#573)
