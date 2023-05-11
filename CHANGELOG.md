@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [v2.0.14-alpha.7] - 2023-05-11
+#### Added
 - Lookup existence in aliens (#576)
 - Separate local and remote lookup (#585)
 
