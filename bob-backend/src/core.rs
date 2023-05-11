@@ -370,6 +370,11 @@ impl Backend {
         let keys_by_id_and_path = self.group_keys_by_operations(keys, options);
         for (operation, (keys, indexes)) in keys_by_id_and_path {
             let result = self.inner.exist(operation, &keys).await;
+            let result = if operation.is_data_alien() {
+                self.inner.exist_alien(operation, &keys).await
+            } else {
+                self.inner.exist(operation, &keys).await
+            };
             if let Ok(result) = result {
                 for (&res, ind) in result.iter().zip(indexes) {
                     exist[ind] |= res;
