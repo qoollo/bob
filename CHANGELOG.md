@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Added mimalloc allocator for musl target (#688)
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.10] - 2023-05-11
+#### Added
 - Quorum argument for manual workflow dispatch for integration tests (#749)
 - Reconnect to a node when Ping is received from it (#625)
 - Fast ping at the start (#657)
@@ -11,6 +25,9 @@ Bob versions changelog
 - Exist test on doubled range of keys for integration tests (#764)
 - Used swap and bob virtual memory metrics added to hardware metrics (#771)
 - Added validate_data_checksum_in_index_regen field to pearl config (#607)
+- Lookup existence in aliens (#576)
+- Separate local and remote lookup (#585)
+- Exist test for alien integration tests (#726)
 
 #### Changed
 - Make local put parallel to remote (#573)

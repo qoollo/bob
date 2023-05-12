@@ -1,11 +1,23 @@
 [package]
 name = "bob-apps"
-version = "2.1.0-alpha.9"
+version = "2.1.0-alpha.10"
 authors = [
     "Kirill Bushminkin <kb@qoollo.com>",
     "Pavel Iakushin <pyakushin@qoollo.com>",
+    "Nikita Menshov",
+    "Ilia Kopylov",
+    "Ivan Druzhitskiy",
+    "Vladimir Stepanenko",
+    "Pavel Perestoronin",
+    "Konstantin Konnov",
+    "Konstantin Bulany"
 ]
 edition = "2021"
+
+[features]
+default = ["mimalloc"]
+mimalloc = ["dep:mimalloc"]
+mimalloc-secure = ["dep:mimalloc", "mimalloc/secure"]
 
 [dependencies]
 anyhow = "1.0"
@@ -55,6 +67,9 @@ features = ["signal"]
 
 [dependencies.pearl]
 version = "0.18.0"
+
+[target.'cfg(all(target_env = "musl", target_arch = "x86_64", target_pointer_width = "64"))'.dependencies]
+mimalloc = { version = "0.1", default-features = false, optional = true }
 
 [build-dependencies]
 tonic-build = "0.6"
