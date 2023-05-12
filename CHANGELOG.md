@@ -7,7 +7,7 @@ Bob versions changelog
 - Added mimalloc allocator for musl target (#688)
 
 #### Changed
-
+- Avoid Pearl Storage clone (#791)
 
 #### Fixed
 
@@ -35,7 +35,6 @@ Bob versions changelog
 - Build release binaries and docker images with `release-lto` profile (#714)
 - Use read lock instead of write on hierarchical filters update to improve performance (#596)
 - Abort on panic in any of the threads (#782)
-- Avoid Pearl Storage clone (#791)
 
 #### Fixed
 - Fix incorrect exist result due to variables sharing between keys (#762)
