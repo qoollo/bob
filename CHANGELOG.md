@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Used_swap and bob_virtual_memory metrics added to hardware metrics (#771)
 
 #### Changed
 
