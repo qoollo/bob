@@ -360,7 +360,7 @@ impl Holder {
             }
         }
      
-        match self.crate_and_prepare_storage().await {
+        match self.create_and_prepare_storage().await {
             Ok(storage) => {
                 let mut state = self.storage.write().await;
                 state.set_ready(storage).expect("Storage setting successful");
@@ -374,7 +374,7 @@ impl Holder {
     pub async fn prepare_storage(&self) -> Result<(), Error> {
         let _init_protection = self.inner.init_protection.acquire().await.expect("init_protection semaphore acquire error");
 
-        match self.crate_and_prepare_storage().await {
+        match self.create_and_prepare_storage().await {
             Ok(storage) => {
                 let mut st = self.storage.write().await;
                 st.set_ready(storage).expect("Storage setting successful");
@@ -385,7 +385,7 @@ impl Holder {
         }
     }
 
-    async fn crate_and_prepare_storage(&self) -> Result<Storage<Key>, Error> {
+    async fn create_and_prepare_storage(&self) -> Result<Storage<Key>, Error> {
         debug!("backend pearl holder prepare storage");
         self.inner.config
             .try_multiple_times_async(
