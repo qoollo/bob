@@ -47,33 +47,21 @@ impl Validatable for BackendSettings {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
         if self.root_dir_name.is_empty() {
-            let msg = "field \'root_dir_name\' for backend settings config is empty".to_string();
-            error!("{}", msg);
-            return Err(msg);
+            return Err("field \'root_dir_name\' for backend.settings config is empty".to_string());
         }
 
         if self.alien_root_dir_name.is_empty() {
-            let msg =
-                "field 'alien_root_dir_name' for 'backend settings config' is empty".to_string();
-            error!("{}", msg);
-            return Err(msg);
+            return Err("field 'alien_root_dir_name' for 'backend.settings config' is empty".to_string());
         }
 
         if let Err(e) = self.timestamp_period.parse::<HumanDuration>() {
-            let msg = format!(
-                "field 'timestamp_period' for 'backend settings config' is not valid: {}",
-                e
-            );
-            error!("{}", msg);
-            return Err(msg);
+            return Err(format!("field 'timestamp_period' for 'backend settings config' is not valid: {}", e));
         }
+
         let period = chrono::Duration::from_std(self.timestamp_period())
-            .expect("smth wrong with time: {:?}, error: {}");
-        if period > chrono::Duration::weeks(1) {
-            let msg = "field 'timestamp_period' for 'backend settings config' is greater then week"
-                .to_string();
-            error!("{}", msg);
-            return Err(msg);
+            .expect("smth wrong with time");
+        if period > chrono::Duration::days(366) {
+            return Err(format!("field 'timestamp_period' for 'backend.settings config' is greater than 1 year ({})", period));
         }
 
         if self
@@ -81,13 +69,10 @@ impl Validatable for BackendSettings {
             .parse::<HumanDuration>()
             .is_err()
         {
-            let msg = "field \'create_pearl_wait_delay\' for backend settings config is not valid"
-                .to_string();
-            error!("{}", msg);
-            Err(msg)
-        } else {
-            Ok(())
-        }
+            return Err(format!("field \'create_pearl_wait_delay\' for backend.settings config is not valid ({})", self.create_pearl_wait_delay));
+        } 
+
+        Ok(())
     }
 }
 
@@ -164,9 +149,7 @@ impl MetricsConfig {
 
     fn check_unset(&self) -> Result<(), String> {
         if self.graphite_enabled && self.graphite.is_none() {
-            let msg = "graphite is enabled but no graphite address has been provided".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("graphite is enabled but no graphite address has been provided".to_string())
         } else {
             Ok(())
         }
@@ -187,8 +170,7 @@ impl MetricsConfig {
             .iter()
             .any(|field| field.map_or(false, str::is_empty))
         {
-            debug!("one of optional fields for 'metrics config' is empty");
-            Err("one of optional fields for 'metrics config' is empty".to_string())
+            Err("'name' or 'prefix' field for 'metrics config' is empty".to_string())
         } else {
             Ok(())
         }
@@ -198,9 +180,7 @@ impl MetricsConfig {
         if !self.graphite_enabled {
             Ok(())
         } else if let Err(e) = self.graphite().unwrap().parse::<SocketAddr>() {
-            let msg = format!("field 'graphite': {} for 'metrics config' is invalid", e);
-            error!("{}", msg);
-            Err(msg)
+            Err(format!("field 'graphite': {} for 'metrics config' is invalid", e))
         } else {
             Ok(())
         }
@@ -215,9 +195,7 @@ impl MetricsConfig {
                 // check if there is '{', '}' or other invalid chars left
                 || prefix.find(invalid_char_predicate).is_some()
         {
-            let msg = "Graphite 'prefix' is invalid".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("Graphite 'prefix' is invalid".to_string())
         } else {
             Ok(())
         }
@@ -393,13 +371,13 @@ impl Pearl {
     }
 
     fn check_unset(&self) -> Result<(), String> {
-        if self.blob_file_name_prefix == PLACEHOLDER || self.fail_retry_timeout == PLACEHOLDER {
-            let msg = "some of the fields present, but empty".to_string();
-            error!("{}", msg);
-            Err(msg)
-        } else {
-            Ok(())
-        }
+        if self.blob_file_name_prefix == PLACEHOLDER {
+            return Err("'blob_file_name_prefix' present, but empty".to_string());
+        } 
+        if self.fail_retry_timeout == PLACEHOLDER {
+            return Err("'fail_retry_timeout' present, but empty".to_string());
+        } 
+        Ok(())
     }
 
     /// Helper for running provided function multiple times.
@@ -458,9 +436,7 @@ impl Validatable for Pearl {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
         if self.fail_retry_timeout.parse::<HumanDuration>().is_err() {
-            let msg = "field \'fail_retry_timeout\' for \'config\' is not valid".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err(format!("field \'fail_retry_timeout\' for \'config\' is not a valid duration ('{}')", self.fail_retry_timeout))
         } else {
             self.settings.validate()
         }
@@ -757,21 +733,23 @@ impl NodeConfig {
         self.holder_group_size
     }
 
-    fn check_unset(&self) -> Result<(), String> {
-        if self.backend_type == PLACEHOLDER
-            || self.check_interval == PLACEHOLDER
-            || self.cluster_policy == PLACEHOLDER
-            || self.log_config == PLACEHOLDER
-            || self.users_config == PLACEHOLDER
-            || self.name == PLACEHOLDER
-            || self.operation_timeout == PLACEHOLDER
-        {
-            let msg = "some of the fields present, but empty".to_string();
-            error!("{}", msg);
-            Err(msg)
+    fn check_unset_single(val: &str, field_name: &str) -> Result<(), String> {
+        if val == PLACEHOLDER {
+            Err(format!("'{}' present in node config, but empty", field_name))
         } else {
             Ok(())
         }
+    }
+    fn check_unset(&self) -> Result<(), String> {
+        Self::check_unset_single(&self.backend_type, "backend_type")?;
+        Self::check_unset_single(&self.check_interval, "check_interval")?;
+        Self::check_unset_single(&self.cluster_policy, "cluster_policy")?;
+        Self::check_unset_single(&self.log_config, "log_config")?;
+        Self::check_unset_single(&self.users_config, "users_config")?;
+        Self::check_unset_single(&self.name, "name")?;
+        Self::check_unset_single(&self.operation_timeout, "operation_timeout")?;
+        Self::check_unset_single(&self.backend_type, "backend_type")?;
+        Ok(())
     }
 
     fn default_init_par_degree() -> usize {
@@ -780,12 +758,13 @@ impl NodeConfig {
 
     pub fn get_from_string(file: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
         let config = YamlBobConfig::parse::<NodeConfig>(file)?;
-        debug!("config: {:?}", config);
+        debug!("Node config: {:?}", config);
         if let Err(e) = config.validate() {
-            Err(format!("config is not valid: {}", e))
+            debug!("Node config is not valid: {}", e);
+            Err(format!("Node config is not valid: {}", e))
         } else {
             cluster.check(&config)?;
-            debug!("cluster config is valid");
+            debug!("Node config is valid");
             Ok(config)
         }
     }
@@ -814,43 +793,25 @@ impl Validatable for NodeConfig {
             if let Some(pearl) = &self.pearl {
                 pearl.validate()?;
             } else {
-                let msg = "selected pearl backend, but pearl config not set".to_string();
-                error!("{}", msg);
-                return Err(msg);
+                return Err("selected pearl backend, but pearl config not set".to_string());
             }
         }
-        self.operation_timeout
-            .parse::<HumanDuration>()
-            .map_err(|e| {
-                let msg = "field \'timeout\' for \'config\' is not valid".to_string();
-                error!("{}, {}", msg, e);
-                msg
+        self.operation_timeout.parse::<HumanDuration>().map_err(|e| {
+                format!("field \'timeout\' for \'config\' is not valid: {}", e)
             })?;
         self.check_interval.parse::<HumanDuration>().map_err(|e| {
-            let msg = "field \'check_interval\' for \'config\' is not valid".to_string();
-            error!("{}, {}", msg, e);
-            msg
+            format!("field \'check_interval\' for \'config\' is not valid: {}", e)
         })?;
         if self.name.is_empty() {
-            let msg = "field \'name\' for \'config\' is empty".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("field \'name\' for \'config\' is empty".to_string())
         } else if self.cluster_policy.is_empty() {
-            let msg = "field \'cluster_policy\' for \'config\' is empty".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("field \'cluster_policy\' for \'config\' is empty".to_string())
         } else if self.users_config.is_empty() {
-            let msg = "field \'users_config\' for \'config\' is empty".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("field \'users_config\' for \'config\' is empty".to_string())
         } else if self.log_config.is_empty() {
-            let msg = "field \'log_config\' for \'config\' is empty".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("field \'log_config\' for \'config\' is empty".to_string())
         } else if self.quorum == 0 {
-            let msg = "field \'quorum\' for \'config\' must be greater than 0".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("field \'quorum\' for \'config\' must be greater than 0".to_string())
         } else {
             self.metrics
                 .as_ref()

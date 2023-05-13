@@ -20,11 +20,8 @@ impl Validatable for DiskPath {
             || self.name() == "~"
             || self.path() == "~"
         {
-            let msg = "node disks must contain not empty fields \'name\' and \'path\'".to_string();
-            error!("NodeDisk validation failed: {}", msg);
-            Err(msg)
+            Err("NodeDisk validation failed: node disks must contain not empty fields \'name\' and \'path\'".to_string())
         } else {
-            debug!("{:?} is valid", self);
             Ok(())
         }
     }
@@ -66,13 +63,10 @@ impl Rack {
 impl Validatable for Rack {
     fn validate(&self) -> Result<(), String> {
         if self.name.is_empty() || self.name == "~" {
-            let msg = "rack must contain not empty field \'name\'".to_string();
-            error!("{}", msg);
-            return Err(msg);
+            return Err("rack must contain not empty field \'name\'".to_string());
         }
 
         Validator::validate_no_duplicates(self.nodes.iter()).map_err(|dup_item| {
-            error!("rack '{}' can't contain identical node names: {}", self.name(), dup_item);
             format!("rack '{}' can't contain identical node names: {}", self.name(), dup_item)
         })?;
 
@@ -114,30 +108,23 @@ impl Node {
 impl Validatable for Node {
     fn validate(&self) -> Result<(), String> {
         if self.name.is_empty() || self.name == "~" {
-            let msg = "node must contain not empty field \'name\'".to_string();
-            error!("{}", msg);
-            return Err(msg);
+            return Err("node must contain not empty field \'name\'".to_string());
         }
 
         match self.address.parse::<Uri>() {
             Ok(uri) => {
                 if uri.port_u16().is_none() {
-                    let msg = format!("{}: node uri missing port", uri);
-                    error!("{}", msg);
-                    return Err(msg);
+                    return Err(format!("{}: node uri missing port", uri));
                 }
             }
             Err(e) => {
-                let msg = format!("{}: node uri parse failed: {}", self.address, e);
-                error!("{}", msg);
-                return Err(msg);
+                return Err(format!("{}: node uri parse failed: {}", self.address, e));
             }
         }
 
         Validator::aggregate(&self.disks)?;
 
         Validator::validate_no_duplicates(self.disks.iter().map(|dp| dp.name())).map_err(|dup_item| {
-            error!("node '{}' can't use identical names for disks: {}", self.name(), dup_item);
             format!("node '{}' can't use identical names for disks: {}", self.name(), dup_item)
         })?;
 
@@ -174,9 +161,7 @@ impl Replica {
 impl Validatable for Replica {
     fn validate(&self) -> Result<(), String> {
         if self.node.is_empty() || self.disk.is_empty() {
-            let msg = "replica must contain not empty fields \'node\' and \'disk\'".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("replica must contain not empty fields \'node\' and \'disk\'".to_string())
         } else {
             Ok(())
         }
@@ -222,16 +207,13 @@ impl VDisk {
 impl Validatable for VDisk {
     fn validate(&self) -> Result<(), String> {
         if self.replicas.is_empty() {
-            debug!("vdisk must have replicas: {}", self.id());
             return Err(format!("vdisk must have replicas: {}", self.id()));
         }
         Validator::aggregate(&self.replicas).map_err(|e| {
-            debug!("vdisk is invalid: {}", self.id());
-            e
+            format!("vdisk {} is invalid: {}", self.id(), e)
         })?;
 
         Validator::validate_no_duplicates(self.replicas.iter()).map_err(|dup_item| {
-            debug!("vdisk: {} contains duplicate replicas: ({}, {})", self.id(), dup_item.node(), dup_item.disk());
             format!("vdisk: {} contains duplicate replicas: ({}, {})", self.id(), dup_item.node(), dup_item.disk())
         })?;
 
@@ -335,9 +317,8 @@ impl Cluster {
     pub async fn try_get(filename: &str) -> Result<Self, String> {
         let config = YamlBobConfig::get::<Cluster>(filename).await?;
         if let Err(e) = config.validate() {
-            let msg = format!("config is not valid: {}", e);
-            error!("{}", msg);
-            Err(msg)
+            debug!("Cluster config is not valid: {}", e);
+            Err(format!("Cluster config is not valid: {}", e))
         } else {
             Ok(config)
         }
@@ -352,8 +333,8 @@ impl Cluster {
             .map_err(|e| anyhow::anyhow!("failed to parse NodeConfig from yaml: {}", e))?;
 
         if let Err(e) = config.validate() {
-            debug!("config is not valid: {}", e);
-            Err(anyhow::anyhow!("config is not valid: {}", e))
+            debug!("Node config is not valid: {}", e);
+            Err(anyhow::anyhow!("Node config is not valid: {}", e))
         } else {
             self.check(&config)
                 .map_err(|e| anyhow::anyhow!("node config check failed: {}", e))?;
@@ -406,8 +387,8 @@ impl Cluster {
         let config = YamlBobConfig::parse::<Self>(file)?;
         debug!("config: {:?}", config);
         if let Err(e) = config.validate() {
-            debug!("config is not valid: {}", e);
-            Err(format!("config is not valid: {}", e))
+            debug!("Cluster config is not valid: {}", e);
+            Err(format!("Cluster config is not valid: {}", e))
         } else {
             debug!("config is valid");
             Ok(config)
@@ -418,64 +399,51 @@ impl Cluster {
 impl Validatable for Cluster {
     fn validate(&self) -> Result<(), String> {
         if self.nodes.is_empty() {
-            error!("bob requires at least one node to start");
             return Err("bob requires at least one node to start".to_owned());
         }
         if self.vdisks.is_empty() {
-            error!("bob requires at least one virtual disk to start");
             return Err("bob requires at least one virtual disk to start".to_owned());
         }
         Validator::aggregate(&self.racks).map_err(|e| {
-            error!("some racks in config are invalid");
-            e
+            format!("some racks in config are invalid: {}", e)
         })?;
         Validator::aggregate(&self.nodes).map_err(|e| {
-            error!("some nodes in config are invalid");
-            e
+            format!("some nodes in config are invalid: {}", e)
         })?;
         Validator::aggregate(&self.vdisks).map_err(|e| {
-            error!("some vdisks in config are invalid");
-            e
+            format!("some vdisks in config are invalid: {}", e)
         })?;
 
         let mut vdisk_ids = self.vdisks.iter().map(|vdisk| vdisk.id).collect::<Vec<_>>();
         vdisk_ids.sort();
         for index in 0..vdisk_ids.len() {
             if vdisk_ids[index] < index as u32 {
-                error!("config contains duplicates vdisks ids: {}", vdisk_ids[index]);
                 return Err(format!("config contains duplicates vdisks ids: {}", vdisk_ids[index]));
             } else if vdisk_ids[index] > index as u32 {
-                error!("config contains gap in vdisks ids before vdisk id = {}", vdisk_ids[index]);
                 return Err(format!("config contains gap in vdisks ids before vdisk id = {}", vdisk_ids[index]));
             }
         }
 
         Validator::validate_no_duplicates(self.nodes.iter().map(|node| &node.name)).map_err(|dup_item| {
-            error!("config contains duplicates nodes names: {}", dup_item);
             format!("config contains duplicates nodes names: {}", dup_item)
         })?;
 
         Validator::validate_no_duplicates(self.nodes.iter().map(|node| &node.address)).map_err(|dup_item| {
-            error!("config contains duplicates nodes addresses: {}", dup_item);
             format!("config contains duplicates nodes addresses: {}", dup_item)
         })?;
 
         Validator::validate_no_duplicates(self.racks.iter().map(|rack| rack.name())).map_err(|dup_item| {
-            error!("config contains duplicates racks names: {}", dup_item);
             format!("config contains duplicates racks names: {}", dup_item)
         })?;
 
         Validator::validate_no_duplicates(self.racks.iter().flat_map(|rack| rack.nodes())).map_err(|dup_item| {
-            error!("config contains duplicate node names in racks: {}", dup_item);
             format!("config contains duplicate node names in racks: {}", dup_item)
         })?;
 
         let node_names = self.nodes.iter().map(|node| &node.name).collect::<HashSet<_>>();
         for name in self.racks.iter().flat_map(Rack::nodes) {
             if !node_names.contains(&name) {
-                let msg = format!("config contains unknown node names in racks: {}", name);
-                debug!("{}", msg);
-                return Err(msg);
+                return Err(format!("config contains unknown node names in racks: {}", name));
             }
         }
 
@@ -483,20 +451,10 @@ impl Validatable for Cluster {
             for replica in &vdisk.replicas {
                 if let Some(node) = self.nodes.iter().find(|x| x.name == replica.node) {
                     if node.disks.iter().all(|x| *x.name() != replica.disk) {
-                        let msg = format!(
-                            "cannot find in node: {:?}, disk with name: {:?} for vdisk: {:?}",
-                            replica.node, replica.disk, vdisk.id
-                        );
-                        error!("{}", msg);
-                        return Err(msg);
+                        return Err(format!("cannot find in node: {:?}, disk with name: {:?} for vdisk: {:?}", replica.node, replica.disk, vdisk.id));
                     }
                 } else {
-                    let msg = format!(
-                        "cannot find node: {:?} for vdisk: {:?}",
-                        replica.node, vdisk.id
-                    );
-                    error!("{}", msg);
-                    return Err(msg);
+                    return Err(format!("cannot find node: {:?} for vdisk: {:?}", replica.node, vdisk.id));
                 }
             }
         }

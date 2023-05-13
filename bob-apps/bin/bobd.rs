@@ -36,13 +36,19 @@ async fn main() {
         return;
     }
 
-    let cluster_config = matches.value_of("cluster").unwrap();
+    let cluster_config = matches.value_of("cluster").expect("'cluster' argument is required");
     println!("Cluster config: {:?}", cluster_config);
-    let cluster = ClusterConfig::try_get(cluster_config).await.unwrap();
+    let cluster = ClusterConfig::try_get(cluster_config).await.map_err(|err| {
+        eprintln!("Cluster config parsing error: {}", err);
+        err
+    }).expect("Cluster config parsing error");
 
-    let node_config_file = matches.value_of("node").unwrap();
+    let node_config_file = matches.value_of("node").expect("'node' argument is required");
     println!("Node config: {:?}", node_config_file);
-    let node = cluster.get(node_config_file).await.unwrap();
+    let node = cluster.get(node_config_file).await.map_err(|err| {
+        eprintln!("Node config parsing error: {}", err);
+        err
+    }).expect("Node config parsing error");
 
     let mut extra_logstash_fields = HashMap::new();
     extra_logstash_fields.insert("node_name".to_string(), serde_json::Value::String(node.name().to_string()));
