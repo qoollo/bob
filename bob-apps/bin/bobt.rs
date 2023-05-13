@@ -8,7 +8,7 @@ use reqwest::RequestBuilder;
 use std::collections::BTreeMap;
 use std::process::ExitCode;
 use std::time::Duration;
-use stopwatch::Stopwatch;
+use bob_common::stopwatch::Stopwatch;
 
 const START_ID_ARG_NAME: &str = "start-id";
 const END_ID_ARG_NAME: &str = "end-id";

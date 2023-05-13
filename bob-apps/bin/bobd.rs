@@ -1,3 +1,5 @@
+include!("alloc/mimalloc.rs");
+
 use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
     VirtualMapper, BackendType, FactoryTlsConfig,

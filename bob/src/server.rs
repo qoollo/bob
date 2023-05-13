@@ -208,8 +208,7 @@ where
                 "grinder finished request processing /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let elapsed = sw.elapsed_ms();
-            debug!("GET[{}]-OK dt: {}ms", key, elapsed);
+            debug!("GET[{}]-OK dt: {}ms", key, sw.elapsed_ms());
             let meta = Some(BlobMeta {
                 timestamp: get_res.meta().timestamp(),
             });
@@ -249,8 +248,7 @@ where
             .exist(&keys, &options)
             .await
             .map_err::<Status, _>(|e| e.into())?;
-        let elapsed = sw.elapsed();
-        debug!("EXISTS-OK dt: {:?}", elapsed);
+        debug!("EXISTS-OK dt: {:?}", sw.elapsed());
         let response = ExistResponse { exist };
         let response = Response::new(response);
         Ok(response)

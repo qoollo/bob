@@ -67,6 +67,7 @@ mod prelude {
             GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER, INDEX_MEMORY,
         },
         node::{Node, NodeName, Output as NodeOutput},
+        stopwatch::Stopwatch,
     };
     pub use bob_grpc::{
         bob_api_server::BobApi, Blob, BlobMeta, DeleteOptions, DeleteRequest, ExistRequest,
@@ -81,7 +82,6 @@ mod prelude {
         sync::Arc,
         time::{Duration, Instant},
     };
-    pub use stopwatch::Stopwatch;
     pub use tokio::{
         task::{JoinError, JoinHandle},
         time::interval,

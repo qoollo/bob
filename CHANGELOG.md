@@ -4,6 +4,22 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Added mimalloc allocator for musl target (#688)
+
+#### Changed
+- BobClient clone overhead reduced (#774)
+- Node struct internals placed inside Arc to reduce clone overhead (#724)
+- NodeName and DiskName types introduced to reduce clone overhead (#775)
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.10] - 2023-05-11
+#### Added
 - Quorum argument for manual workflow dispatch for integration tests (#749)
 - Reconnect to a node when Ping is received from it (#625)
 - Fast ping at the start (#657)
@@ -11,19 +27,22 @@ Bob versions changelog
 - Exist test on doubled range of keys for integration tests (#764)
 - Used swap and bob virtual memory metrics added to hardware metrics (#771)
 - Added validate_data_checksum_in_index_regen field to pearl config (#607)
+- Lookup existence in aliens (#576)
+- Separate local and remote lookup (#585)
+- Exist test for alien integration tests (#726)
 
 #### Changed
 - Make local put parallel to remote (#573)
 - Prefer online nodes for aliens, while maintaining uniform distribution (#571)
 - Build release binaries and docker images with `release-lto` profile (#714)
 - Use read lock instead of write on hierarchical filters update to improve performance (#596)
-- BobClient clone overhead reduced (#774)
-- Node struct internals placed inside Arc to reduce clone overhead (#724)
-- NodeName and DiskName types introduced to reduce clone overhead (#775)
+- Abort on panic in any of the threads (#782)
 
 #### Fixed
 - Fix incorrect exist result due to variables sharing between keys (#762)
 - Fix unit of measurement of memory in hardware metrics (#772)
+- Fix rust deprecation warning (#779)
+- Fix subtraction overflow in cleaner (#781)
 
 #### Updated
 - Logger to logstash updated to qoollo-log4rs-logstash v0.2 (#681)

@@ -7,7 +7,7 @@ from python_on_whales.exceptions import *
 from retry import *
 from misc_functions import ensure_backend_up, print_then_exit
 
-run_options = ['get']
+run_options = ['get', 'exist']
 
 def make_run_args(args, offset, count):
     return {'-c':count, '-l':args.payload, '-h':f'{args.node}', '-f':str(int(args.first) + offset), '-t':args.threads, '--mode':args.mode, '-k':args.keysize,
