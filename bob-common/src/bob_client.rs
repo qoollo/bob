@@ -21,7 +21,7 @@ pub mod b_client {
         Request,
     };
 
-    /// Client for interaction with bob backend
+    /// Client for interaction with bob backend.
     /// Clone implementation was removed, because struct is large. Use Arc to store copies
     pub struct BobClient {
         client: BobApiClient<Channel>,
@@ -257,7 +257,7 @@ pub mod b_client {
             pub async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult;
             pub async fn get(&self, key: BobKey, options: GetOptions) -> GetResult;
             pub async fn ping(&self) -> PingResult;
-            pub fn node(&self) -> &Node;
+            pub fn target_node_name(&self) -> &NodeName;
             pub async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult;
             pub async fn delete(&self, key: BobKey, meta: BobMeta, options: DeleteOptions) -> DeleteResult;
         }
