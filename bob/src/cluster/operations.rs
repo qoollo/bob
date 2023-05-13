@@ -284,7 +284,7 @@ pub(crate) async fn exist_on_local_node(
     keys: &[BobKey],
 ) -> Result<Vec<bool>, Error> {
     Ok(backend
-        .exist(keys, &BobGetOptions::new_get(Some(GetOptions::new_local())))
+        .exist(keys, &BobGetOptions::new_local())
         .await?)
 }
 
@@ -293,12 +293,12 @@ pub(crate) async fn exist_on_local_alien(
     keys: &[BobKey],
 ) -> Result<Vec<bool>, Error> {
     Ok(backend
-        .exist(keys, &BobGetOptions::new_get(Some(GetOptions::new_alien())))
+        .exist(keys, &BobGetOptions::new_alien())
         .await?)
 }
 
 pub(crate) async fn exist_on_remote_nodes(
-    keys_by_node: &HashMap<String, (Node, Vec<BobKey>)>,
+    keys_by_node: &HashMap<NodeName, (Node, Vec<BobKey>)>,
 ) -> Vec<Result<NodeOutput<Vec<bool>>, NodeOutput<Error>>> {
     LinkManager::call_nodes(keys_by_node.values().map(|(n, _)| n), |client| {
         Box::pin(client.exist(

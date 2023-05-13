@@ -320,6 +320,8 @@ impl Quorum {
         Ok(())
     }
 
+    // =============================== EXIST ======================
+
     async fn collect_remote_exists(
         result: &mut [bool],
         keys: &[BobKey],
@@ -333,7 +335,7 @@ impl Quorum {
         for (node, node_map) in indexes_by_node.iter_mut() {
             node_map.retain_not_existed(&result);
             if !node_map.is_empty() {
-                node_keys_by_node_name.insert(node.name().to_owned(), (node.clone(), node_map.collect(keys)));
+                node_keys_by_node_name.insert(node.name().clone(), (node.clone(), node_map.collect(keys)));
             }
         }
 
