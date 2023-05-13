@@ -1,4 +1,4 @@
-pub use super::name_types::DiskName; // Re-export
+use super::name_types::{Name, NameMarker}; 
 use crate::{
     node::{Node, NodeName},
 };
@@ -7,6 +7,17 @@ use std::{
     sync::Arc,
     hash::{Hash, Hasher},
 };
+
+/// Marker type for [`DiskName`]
+pub struct OfDisk;
+impl NameMarker for OfDisk {
+    fn display_name() -> &'static str {
+        "DiskName"
+    }
+}
+
+/// Disk name. Clone is lightweight
+pub type DiskName = Name<OfDisk>;
 
 
 /// Structure represents disk on the node. Contains path to disk and name.

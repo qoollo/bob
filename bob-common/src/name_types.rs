@@ -1,31 +1,27 @@
 use std::{
     fmt::{Debug, Display, Formatter, Result as FmtResult},
     hash::{Hash, Hasher},
-    sync::Arc,
+    sync::Arc, 
+    marker::PhantomData,
 };
 use serde::{
     de::{Visitor, Deserialize, Deserializer},
     ser::{Serialize, Serializer}
 };
 
-/// Node name struct. Clone is lightweight
-#[derive(Clone)]
-pub struct NodeName(Arc<str>);
-
-/// Disk name struct. Clone is lightweight
-#[derive(Clone)]
-pub struct DiskName(Arc<str>);
-
-
-macro_rules! impl_str_partial_eq {
-    ($ty:ty, $other:ty) => {
-        impl<'a> PartialEq<$other> for $ty {
-            fn eq(&self, other: &$other) -> bool {
-                PartialEq::eq(AsRef::<str>::as_ref(self), AsRef::<str>::as_ref(other))
-            }
-        }
-    };
+/// Marker type to distinct different Name types between each other
+pub trait NameMarker: Sized {
+    /// Returns type name for Debug printing. 
+    /// Example: `NodeName` for node, `DiskName` for disk
+    fn display_name() -> &'static str;
 }
+
+/// Generic name struct. Clone is lightweight
+pub struct Name<TMarker: NameMarker> {
+    str: Arc<str>,
+    _phantom: PhantomData<TMarker>
+}
+
 
 /// Visistor for deserialization
 struct ArcStrVisitor;
@@ -52,180 +48,118 @@ impl<'de> Visitor<'de> for ArcStrVisitor {
     }
 }
 
-// ============= NodeName =============
-
-impl NodeName {
+impl<TMarker: NameMarker> Name<TMarker> {
     pub fn new(val: &str) -> Self {
-        Self(val.into())
+        Self {
+            str: val.into(),
+            _phantom: PhantomData::default()
+        }
     }
     pub fn as_str(&self) -> &str {
-        self.0.as_ref()
+        self.str.as_ref()
     }
     pub fn to_string(&self) -> String {
-        String::from(self.0.as_ref())
+        String::from(self.str.as_ref())
     }
 }
 
-impl From<&str> for NodeName {
+impl<TMarker: NameMarker> Clone for Name<TMarker> {
+    fn clone(&self) -> Self {
+        Self {
+            str: self.str.clone(),
+            _phantom: PhantomData::default()
+        }
+    }
+}
+
+impl<TMarker: NameMarker> From<&str> for Name<TMarker> {
     fn from(val: &str) -> Self {
-        Self(val.into())
+        Self {
+            str: val.into(),
+            _phantom: PhantomData::default()
+        }
     }
 }
 
-impl From<&String> for NodeName {
+impl<TMarker: NameMarker> From<&String> for Name<TMarker> {
     fn from(val: &String) -> Self {
-        Self(val.as_str().into())
+        Self {
+            str: val.as_str().into(),
+            _phantom: PhantomData::default()
+        }
     }
 }
 
-impl From<&NodeName> for NodeName {
-    fn from(val: &NodeName) -> Self {
-        val.clone()
+impl<TMarker: NameMarker> From<&Name<TMarker>> for Name<TMarker> {
+    fn from(val: &Name<TMarker>) -> Self {
+        Self {
+            str: val.str.clone(),
+            _phantom: PhantomData::default()
+        }
     }
 }
 
-impl AsRef<str> for NodeName {
+impl<TMarker: NameMarker> AsRef<str> for Name<TMarker> {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
 }
 
-impl AsRef<[u8]> for NodeName {
+impl<TMarker: NameMarker> AsRef<[u8]> for Name<TMarker> {
     fn as_ref(&self) -> &[u8] {
         self.as_str().as_bytes()
     }
 }
 
-impl_str_partial_eq!(NodeName, NodeName);
-impl_str_partial_eq!(NodeName, str);
-impl_str_partial_eq!(str, NodeName);
-impl_str_partial_eq!(NodeName, &'a str);
-impl_str_partial_eq!(&'a str, NodeName);
-impl_str_partial_eq!(NodeName, String);
-impl_str_partial_eq!(String, NodeName);
+macro_rules! impl_str_partial_eq {
+    ($ty:ty, $other:ty) => {
+        impl<'a, TMarker: NameMarker> PartialEq<$other> for $ty {
+            fn eq(&self, other: &$other) -> bool {
+                PartialEq::eq(AsRef::<str>::as_ref(self), AsRef::<str>::as_ref(other))
+            }
+        }
+    };
+}
 
-impl Eq for NodeName { }
+impl_str_partial_eq!(Name<TMarker>, Name<TMarker>);
+impl_str_partial_eq!(Name<TMarker>, str);
+impl_str_partial_eq!(str, Name<TMarker>);
+impl_str_partial_eq!(Name<TMarker>, &'a str);
+impl_str_partial_eq!(&'a str, Name<TMarker>);
+impl_str_partial_eq!(Name<TMarker>, String);
+impl_str_partial_eq!(String, Name<TMarker>);
 
-impl Hash for NodeName {
+impl<TMarker: NameMarker> Eq for Name<TMarker> { }
+
+
+impl<TMarker: NameMarker> Hash for Name<TMarker> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.as_str().hash(state)
     }
 }
 
-impl Debug for NodeName {
+impl<TMarker: NameMarker> Debug for Name<TMarker> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.debug_tuple("NodeName").field(&self.as_str()).finish()
+        f.debug_tuple(TMarker::display_name()).field(&self.as_str()).finish()
     }
 }
 
-impl Display for NodeName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str(self.as_str())
-    }
-}
-
-impl<'de> Deserialize<'de> for NodeName {
-    fn deserialize<D>(deserializer: D) -> Result<NodeName, D::Error>
-    where
-        D: Deserializer<'de>,
-    {   
-        deserializer.deserialize_str(ArcStrVisitor).map(|v| NodeName(v))
-    }
-}
-
-impl Serialize for NodeName {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(self.as_str())
-    }
-}
-
-
-// ============= DiskName =============
-
-impl DiskName {
-    pub fn new(val: &str) -> Self {
-        Self(val.into())
-    }
-    pub fn as_str(&self) -> &str {
-        self.0.as_ref()
-    }
-    pub fn to_string(&self) -> String {
-        String::from(self.0.as_ref())
-    }
-}
-
-impl From<&str> for DiskName {
-    fn from(val: &str) -> Self {
-        Self(val.into())
-    }
-}
-
-impl From<&String> for DiskName {
-    fn from(val: &String) -> Self {
-        Self(val.as_str().into())
-    }
-}
-
-impl From<&DiskName> for DiskName {
-    fn from(val: &DiskName) -> Self {
-        val.clone()
-    }
-}
-
-impl AsRef<str> for DiskName {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl AsRef<[u8]> for DiskName {
-    fn as_ref(&self) -> &[u8] {
-        self.as_str().as_bytes()
-    }
-}
-
-impl_str_partial_eq!(DiskName, DiskName);
-impl_str_partial_eq!(DiskName, str);
-impl_str_partial_eq!(str, DiskName);
-impl_str_partial_eq!(DiskName, &'a str);
-impl_str_partial_eq!(&'a str, DiskName);
-impl_str_partial_eq!(DiskName, String);
-impl_str_partial_eq!(String, DiskName);
-
-impl Eq for DiskName { }
-
-impl Hash for DiskName {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_str().hash(state)
-    }
-}
-
-impl Debug for DiskName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.debug_tuple("DiskName").field(&self.as_str()).finish()
-    }
-}
-
-impl Display for DiskName {
+impl<TMarker: NameMarker> Display for Name<TMarker> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.write_str(self.as_str())
     }
 }
 
-
-impl<'de> Deserialize<'de> for DiskName {
-    fn deserialize<D>(deserializer: D) -> Result<DiskName, D::Error>
+impl<'de, TMarker: NameMarker> Deserialize<'de> for Name<TMarker> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {   
-        deserializer.deserialize_str(ArcStrVisitor).map(|v| DiskName(v))
+        deserializer.deserialize_str(ArcStrVisitor).map(|v| Self { str: v, _phantom: PhantomData::default() })
     }
 }
 
-impl Serialize for DiskName {
+impl<TMarker: NameMarker> Serialize for Name<TMarker> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

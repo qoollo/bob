@@ -1,4 +1,4 @@
-pub use super::name_types::NodeName; // Re-export
+use super::name_types::{Name, NameMarker};
 use crate::{
     bob_client::{BobClient, Factory},
     data::BobData,
@@ -13,7 +13,17 @@ use std::{
     },
 };
 
+/// Marker type for [`NodeName`]
+pub struct OfNode;
+impl NameMarker for OfNode {
+    fn display_name() -> &'static str {
+        "NodeName"
+    }
+}
+
 pub type NodeId = u16;
+/// Node name. Clone is lightweight
+pub type NodeName = Name<OfNode>;
 
 #[derive(Clone)]
 pub struct Node {
