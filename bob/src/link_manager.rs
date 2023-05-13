@@ -89,7 +89,7 @@ impl LinkManager {
         mut node_check_queue: Receiver<String>,
     ) {
         while let Some(name) = node_check_queue.recv().await {
-            if let Some(node) = nodes.iter().find(|n| n.name() == &name) {
+            if let Some(node) = nodes.iter().find(|n| *n.name() == name) {
                 if !node.connection_available() {
                     if let Err(err) = node.check(&factory).await {
                         error!(

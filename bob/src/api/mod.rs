@@ -430,9 +430,9 @@ where
         let vdisks: Vec<_> = vdisks
             .iter()
             .filter_map(|vd| {
-                if vd.replicas.iter().any(|r| &r.node == node.name()) {
+                if vd.replicas.iter().any(|r| r.node == *node.name()) {
                     let mut vd = vd.clone();
-                    vd.replicas.retain(|r| &r.node == node.name());
+                    vd.replicas.retain(|r| r.node == *node.name());
                     Some(vd)
                 } else {
                     None
@@ -557,7 +557,7 @@ where
         .ok_or_else(not_acceptable_backend)?;
     dcs.iter()
         .chain(std::iter::once(&alien_disk_controller))
-        .filter(|dc| dc.disk().name() == &disk_name)
+        .filter(|dc| *dc.disk().name() == disk_name)
         .map(|dc| dc.stop())
         .collect::<FuturesUnordered<_>>()
         .collect::<Vec<()>>()
@@ -590,7 +590,7 @@ where
     let target_dcs = dcs
         .iter()
         .chain(std::iter::once(&alien_disk_controller))
-        .filter(|dc| dc.disk().name() == &disk_name)
+        .filter(|dc| *dc.disk().name() == disk_name)
         .map(|dc| dc.run(NoopHooks))
         .collect::<FuturesUnordered<_>>();
 
@@ -986,7 +986,7 @@ where
     for replica in vdisk
         .replicas
         .into_iter()
-        .filter(|r| &r.node == local_node_name)
+        .filter(|r| r.node == *local_node_name)
     {
         let path = PathBuf::from(replica.path);
         let dir = create_directory(&path).await?;

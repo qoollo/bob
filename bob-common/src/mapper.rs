@@ -280,7 +280,7 @@ impl Virtual {
                 if vdisk
                     .replicas()
                     .iter()
-                    .filter(|r| r.node_name() == &self.local_node_name)
+                    .filter(|r| *r.node_name() == self.local_node_name)
                     .any(|replica| replica.disk_name() == disk)
                 {
                     Some(*id)

@@ -60,7 +60,7 @@ impl Group {
                 .map_or(true, |node_name| *node_name == self.node_name);
             name_matched && self.vdisk_id == operation.vdisk_id()
         } else {
-            self.vdisk_id == operation.vdisk_id() && &self.disk_name == operation.disk_name_local()
+            self.vdisk_id == operation.vdisk_id() && self.disk_name == *operation.disk_name_local()
         }
     }
 

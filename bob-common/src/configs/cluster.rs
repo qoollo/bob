@@ -312,7 +312,7 @@ impl Cluster {
                 let disk_path = node
                     .disks()
                     .iter()
-                    .find(|disk| disk.name() == &disk_name)
+                    .find(|disk| *disk.name() == disk_name)
                     .ok_or_else(|| {
                         format!(
                             "can't find disk with name [{}], check replica section of vdisk [{}]",
@@ -482,7 +482,7 @@ impl Validatable for Cluster {
         for vdisk in &self.vdisks {
             for replica in &vdisk.replicas {
                 if let Some(node) = self.nodes.iter().find(|x| x.name == replica.node) {
-                    if node.disks.iter().all(|x| x.name() != &replica.disk) {
+                    if node.disks.iter().all(|x| *x.name() != replica.disk) {
                         let msg = format!(
                             "cannot find in node: {:?}, disk with name: {:?} for vdisk: {:?}",
                             replica.node, replica.disk, vdisk.id

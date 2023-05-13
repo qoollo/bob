@@ -199,7 +199,7 @@ impl Settings {
             .mapper
             .nodes()
             .iter()
-            .any(|node| node.name() == &file_name)
+            .any(|node| *node.name() == file_name)
         {
             Ok((entry, file_name))
         } else {
