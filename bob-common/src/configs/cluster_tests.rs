@@ -584,7 +584,7 @@ pearl:
   settings:                     # describes how create and manage bob directories. required for 'pearl'
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
-    timestamp_period: 2w      # period when new pearl directory created. required for 'pearl'
+    timestamp_period: 500d      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
         let d: NodeConfig = YamlBobConfig::parse(s).unwrap();
