@@ -595,16 +595,10 @@ impl DiskController {
             let holders = group.holders();
             let holders = holders.read().await;
             for holder in holders.iter() {
-                let storage = holder.storage().read().await;
-                let storage = storage.storage().clone();
-                let id = holder.get_id();
+                let holder = holder.clone();
                 futures.push(async move {
-                    match storage.close().await {
-                        Ok(_) => debug!("holder {} closed", id),
-                        Err(e) => {
-                            error!("error closing holder{}: {} (disk: {:?})", id, e, self.disk)
-                        }
-                    }
+                    holder.close_storage().await;
+                    debug!("holder {} closed", holder.get_id());
                 });
             }
         }

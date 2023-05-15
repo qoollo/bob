@@ -91,7 +91,9 @@ impl Group {
 
     pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
         let _reinit_lock = self.reinit_lock.write().await;
-        self.holders.write().await.clear();
+        let cleared = self.holders.write().await.clear_and_get_values();
+        close_holders(cleared.iter()).await; // Close old holders
+        std::mem::drop(cleared); // This is to guarantee, that all resources will be released before `run_under_reinit_lock` is called
         self.run_under_reinit_lock(pp).await
     }
 
@@ -223,9 +225,11 @@ impl Group {
             // holder but instead try to restart the whole disk
             if !e.is_possible_disk_disconnection() && !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
-                holder.try_reinit().await?;
-                holder.prepare_storage().await?;
-                debug!("backend pearl group put common storage prepared");
+                if let Err(err) = holder.try_reinit().await {
+                    warn!("Pearl backend holder reinit ended with error: {:?}", err);
+                } else {
+                    debug!("Pearl backend holder reinited");
+                }
             }
             Err(e)
         } else {
@@ -288,9 +292,11 @@ impl Group {
         let result = holder.read(key).await;
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {
-                holder.try_reinit().await?;
-                holder.prepare_storage().await?;
-                debug!("backend pearl group get common storage prepared");
+                if let Err(err) = holder.try_reinit().await {
+                    warn!("Pearl backend holder reinit ended with error: {:?}", err);
+                } else {
+                    debug!("Pearl backend holder reinited");
+                }
             }
         }
         result
@@ -400,9 +406,11 @@ impl Group {
             // holder but instead try to restart the whole disk
             if !e.is_possible_disk_disconnection() && !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
-                holder.try_reinit().await?;
-                holder.prepare_storage().await?;
-                debug!("backend::pearl::group::delete_common storage prepared");
+                if let Err(err) = holder.try_reinit().await {
+                    warn!("Pearl backend holder reinit ended with error: {:?}", err);
+                } else {
+                    debug!("Pearl backend holder reinited");
+                }
             }
             Err(e)
         } else {

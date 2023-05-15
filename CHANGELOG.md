@@ -7,7 +7,7 @@ Bob versions changelog
 - Added mimalloc allocator for musl target (#688)
 
 #### Changed
-
+- Avoid Pearl Storage clone (#791)
 
 #### Fixed
 
