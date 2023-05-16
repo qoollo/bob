@@ -21,7 +21,10 @@ impl<T: Into<Vec<u8>>> From<T> for Key {
 }
 
 impl<'a> KeyTrait<'a> for Key {
+    /// Length of the key in bytes
     const LEN: u16 = BOB_KEY_SIZE;
+    /// Size of the key in memory
+    const MEM_SIZE: usize = std::mem::size_of::<Vec<u8>>() + BOB_KEY_SIZE_USIZE;
 
     type Ref = RefKey<'a>;
 }
