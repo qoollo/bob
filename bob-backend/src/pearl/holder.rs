@@ -499,8 +499,8 @@ impl Holder {
             .max_blob_size(max_blob_size)
             .set_filter_config(filter_config)
             .set_validate_data_during_index_regen(validate_data_during_index_regen)
-            .set_dump_sem(self.pearl_creation_context.dump_sem.clone())
-            .set_io_driver(self.pearl_creation_context.iodriver.clone())
+            .set_dump_sem(self.inner.pearl_creation_context.dump_sem.clone())
+            .set_io_driver(self.inner.pearl_creation_context.iodriver.clone())
             .build()
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.inner.disk_path))
     }
