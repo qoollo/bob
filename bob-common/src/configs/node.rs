@@ -47,7 +47,7 @@ impl Validatable for BackendSettings {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
         if self.root_dir_name.is_empty() {
-            return Err("field \'root_dir_name\' for backend.settings config is empty".to_string());
+            return Err("field 'root_dir_name' for backend.settings config is empty".to_string());
         }
 
         if self.alien_root_dir_name.is_empty() {
@@ -69,7 +69,7 @@ impl Validatable for BackendSettings {
             .parse::<HumanDuration>()
             .is_err()
         {
-            return Err(format!("field \'create_pearl_wait_delay\' for backend.settings config is not valid ({})", self.create_pearl_wait_delay));
+            return Err(format!("field 'create_pearl_wait_delay' for backend.settings config is not valid ({})", self.create_pearl_wait_delay));
         } 
 
         Ok(())
@@ -436,7 +436,7 @@ impl Validatable for Pearl {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
         if self.fail_retry_timeout.parse::<HumanDuration>().is_err() {
-            Err(format!("field \'fail_retry_timeout\' for \'config\' is not a valid duration ('{}')", self.fail_retry_timeout))
+            Err(format!("field 'fail_retry_timeout' for 'config' is not a valid duration ('{}')", self.fail_retry_timeout))
         } else {
             self.settings.validate()
         }
@@ -797,21 +797,21 @@ impl Validatable for NodeConfig {
             }
         }
         self.operation_timeout.parse::<HumanDuration>().map_err(|e| {
-                format!("field \'timeout\' for \'config\' is not valid: {}", e)
+                format!("field 'timeout' for 'config' is not valid: {}", e)
             })?;
         self.check_interval.parse::<HumanDuration>().map_err(|e| {
-            format!("field \'check_interval\' for \'config\' is not valid: {}", e)
+            format!("field 'check_interval' for 'config' is not valid: {}", e)
         })?;
         if self.name.is_empty() {
-            Err("field \'name\' for \'config\' is empty".to_string())
+            Err("field 'name' for 'config' is empty".to_string())
         } else if self.cluster_policy.is_empty() {
-            Err("field \'cluster_policy\' for \'config\' is empty".to_string())
+            Err("field 'cluster_policy' for 'config' is empty".to_string())
         } else if self.users_config.is_empty() {
-            Err("field \'users_config\' for \'config\' is empty".to_string())
+            Err("field 'users_config' for 'config' is empty".to_string())
         } else if self.log_config.is_empty() {
-            Err("field \'log_config\' for \'config\' is empty".to_string())
+            Err("field 'log_config' for 'config' is empty".to_string())
         } else if self.quorum == 0 {
-            Err("field \'quorum\' for \'config\' must be greater than 0".to_string())
+            Err("field 'quorum' for 'config' must be greater than 0".to_string())
         } else {
             self.metrics
                 .as_ref()

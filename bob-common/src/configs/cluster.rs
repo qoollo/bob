@@ -20,7 +20,7 @@ impl Validatable for DiskPath {
             || self.name() == "~"
             || self.path() == "~"
         {
-            Err("NodeDisk validation failed: node disks must contain not empty fields \'name\' and \'path\'".to_string())
+            Err("NodeDisk validation failed: node disks must contain not empty fields 'name' and 'path'".to_string())
         } else {
             Ok(())
         }
@@ -63,7 +63,7 @@ impl Rack {
 impl Validatable for Rack {
     fn validate(&self) -> Result<(), String> {
         if self.name.is_empty() || self.name == "~" {
-            return Err("rack must contain not empty field \'name\'".to_string());
+            return Err("rack must contain not empty field 'name'".to_string());
         }
 
         Validator::validate_no_duplicates(self.nodes.iter()).map_err(|dup_item| {
@@ -108,7 +108,7 @@ impl Node {
 impl Validatable for Node {
     fn validate(&self) -> Result<(), String> {
         if self.name.is_empty() || self.name == "~" {
-            return Err("node must contain not empty field \'name\'".to_string());
+            return Err("node must contain not empty field 'name'".to_string());
         }
 
         match self.address.parse::<Uri>() {
@@ -161,7 +161,7 @@ impl Replica {
 impl Validatable for Replica {
     fn validate(&self) -> Result<(), String> {
         if self.node.is_empty() || self.disk.is_empty() {
-            Err("replica must contain not empty fields \'node\' and \'disk\'".to_string())
+            Err("replica must contain not empty fields 'node' and 'disk'".to_string())
         } else {
             Ok(())
         }
