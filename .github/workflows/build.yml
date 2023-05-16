@@ -2,12 +2,11 @@ name: build
 
 on:
   pull_request:
-      types: [ opened, synchronize, reopened, ready_for_review, labeled, unlabeled ]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   push:
-    branches: [ master ]
-    
-jobs:
+    branches: [master]
 
+jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
@@ -17,7 +16,7 @@ jobs:
       TARGET: "x86_64-unknown-linux-musl"
       BUILD_PROFILE: "release"
     steps:
-      - name: Checks-out repository 
+      - name: Checks-out repository
         uses: actions/checkout@v2
       - name: Set env variables and install packages
         run: |
@@ -45,13 +44,18 @@ jobs:
         with:
           command: build
           args: --profile=${{ env.BUILD_PROFILE }} --target=${{ env.TARGET }}
+      - name: Build release with async io
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --features async-io --profile=${{ env.BUILD_PROFILE }} --target=${{ env.TARGET }}
       - name: Check bobd version
         run: target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobd --version
 
   build-alpine-image:
     runs-on: ubuntu-latest
     steps:
-      - name: Checks-out repository 
+      - name: Checks-out repository
         uses: actions/checkout@v2
       - name: Set env
         run: |
@@ -66,7 +70,7 @@ jobs:
   build-ubuntu-image:
     runs-on: ubuntu-latest
     steps:
-      - name: Checks-out repository 
+      - name: Checks-out repository
         uses: actions/checkout@v2
       - name: Set env
         run: |

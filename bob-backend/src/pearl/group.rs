@@ -1,6 +1,6 @@
 use crate::{pearl::utils::get_current_timestamp, prelude::*};
 
-use super::{data::Key, utils::StartTimestampConfig, Holder, Hooks};
+use super::{data::Key, holder::PearlCreationContext, utils::StartTimestampConfig, Holder, Hooks};
 use crate::{
     core::Operation,
     pearl::{core::BackendResult, settings::Settings, utils::Utils},
@@ -23,7 +23,7 @@ pub struct Group {
     node_name: NodeName,
     disk_name: DiskName,
     owner_node_identifier: String,
-    dump_sem: Arc<Semaphore>,
+    pearl_creation_context: PearlCreationContext,
 }
 
 impl Group {
@@ -34,7 +34,7 @@ impl Group {
         disk_name: DiskName,
         directory_path: PathBuf,
         owner_node_identifier: String,
-        dump_sem: Arc<Semaphore>,
+        pearl_creation_context: PearlCreationContext,
     ) -> Self {
         Self {
             holders: Arc::new(UgradableRwLock::new(HoldersContainer::new(
@@ -48,7 +48,7 @@ impl Group {
             directory_path,
             disk_name,
             owner_node_identifier,
-            dump_sem,
+            pearl_creation_context,
         }
     }
 
@@ -79,7 +79,7 @@ impl Group {
         debug!("{}: save holders to group", self);
         let mut holders = self.holders.write().await;
         holders.clear();
-        holders.extend(new_holders).await;   
+        holders.extend(new_holders).await;
         debug!("{}: start holders", self);
         Self::run_pearls(&mut holders, pp).await
     }
@@ -91,7 +91,9 @@ impl Group {
 
     pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
         let _reinit_lock = self.reinit_lock.write().await;
-        self.holders.write().await.clear();
+        let cleared = self.holders.write().await.clear_and_get_values();
+        close_holders(cleared.iter()).await; // Close old holders
+        std::mem::drop(cleared); // This is to guarantee, that all resources will be released before `run_under_reinit_lock` is called
         self.run_under_reinit_lock(pp).await
     }
 
@@ -178,7 +180,7 @@ impl Group {
     ) -> Result<(ChildId, Holder), Error> {
         // importantly, only one thread can hold an upgradable lock at a time
         let holders = self.holders.upgradable_read().await;
-        
+
         let created_holder_index = Self::find_actual_holder(&holders, data_timestamp).await;
         Ok(if let Ok(index_and_holder) = created_holder_index {
             index_and_holder
@@ -190,7 +192,7 @@ impl Group {
                     "pearl init failed",
                     self.settings.config().settings().create_pearl_wait_delay(),
                 ).await?;
-            debug!("backend pearl group save pearl storage prepared");    
+            debug!("backend pearl group save pearl storage prepared");
             let mut holders = RwLockUpgradableReadGuard::upgrade(holders).await;
             let new_index = holders.push(pearl.clone()).await;
             debug!("group create write pearl holder inserted, index {:?}", new_index);
@@ -223,9 +225,11 @@ impl Group {
             // holder but instead try to restart the whole disk
             if !e.is_possible_disk_disconnection() && !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
-                holder.try_reinit().await?;
-                holder.prepare_storage().await?;
-                debug!("backend pearl group put common storage prepared");
+                if let Err(err) = holder.try_reinit().await {
+                    warn!("Pearl backend holder reinit ended with error: {:?}", err);
+                } else {
+                    debug!("Pearl backend holder reinited");
+                }
             }
             Err(e)
         } else {
@@ -288,9 +292,11 @@ impl Group {
         let result = holder.read(key).await;
         if let Err(e) = &result {
             if !e.is_key_not_found() && !e.is_not_ready() {
-                holder.try_reinit().await?;
-                holder.prepare_storage().await?;
-                debug!("backend pearl group get common storage prepared");
+                if let Err(err) = holder.try_reinit().await {
+                    warn!("Pearl backend holder reinit ended with error: {:?}", err);
+                } else {
+                    debug!("Pearl backend holder reinited");
+                }
             }
         }
         result
@@ -328,7 +334,7 @@ impl Group {
         Ok(exist)
     }
 
-
+    
     pub async fn delete(
         &self,
         key: BobKey,
@@ -359,12 +365,12 @@ impl Group {
     async fn delete_in_actual_holder(&self, holder: (ChildId, Holder), key: BobKey, meta: &BobMeta) -> Result<u64, Error> {
         // In actual holder we delete with force_delete = true
         let delete_count = Self::delete_common(holder.1.clone(), key, meta, true).await?;
-            // We need to add marker record to alien regardless of record presence
+        // We need to add marker record to alien regardless of record presence
         self.holders
             .read()
             .await
             .add_to_parents(holder.0, &Key::from(key));
-        
+
         Ok(delete_count)
     }
 
@@ -400,17 +406,19 @@ impl Group {
             // holder but instead try to restart the whole disk
             if !e.is_possible_disk_disconnection() && !e.is_duplicate() && !e.is_not_ready() {
                 error!("pearl holder will restart: {:?}", e);
-                holder.try_reinit().await?;
-                holder.prepare_storage().await?;
-                debug!("backend::pearl::group::delete_common storage prepared");
+                if let Err(err) = holder.try_reinit().await {
+                    warn!("Pearl backend holder reinit ended with error: {:?}", err);
+                } else {
+                    debug!("Pearl backend holder reinited");
+                }
             }
             Err(e)
         } else {
             result
         }
     }
-    
 
+    
     pub fn holders(&self) -> Arc<UgradableRwLock<HoldersContainer>> {
         self.holders.clone()
     }
@@ -493,7 +501,7 @@ impl Group {
             self.vdisk_id,
             path,
             config,
-            self.dump_sem.clone(),
+            self.pearl_creation_context.clone(),
         )
     }
 

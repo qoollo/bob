@@ -10,12 +10,14 @@ Bob versions changelog
 - BobClient clone overhead reduced (#774)
 - Node struct internals placed inside Arc to reduce clone overhead (#724)
 - NodeName and DiskName types introduced to reduce clone overhead (#775)
+- Avoid Pearl Storage clone (#791)
+- Make iouring optional (#567)
 
 #### Fixed
 
 
 #### Updated
-
+- Pearl updated to v0.19.0 (#798)
 
 
 ## [2.1.0-alpha.10] - 2023-05-11

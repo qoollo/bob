@@ -5,6 +5,7 @@ use super::{
     disk_controller::logger::DisksEventsLogger,
     disk_controller::DiskController,
     group::Group,
+    holder::PearlCreationContext,
     utils::{StartTimestampConfig, Utils},
 };
 const DEFAULT_ALIEN_DISK_NAME: &str = "alien_disk";
@@ -56,6 +57,7 @@ impl Settings {
         config: &NodeConfig,
         run_sem: Arc<Semaphore>,
         logger: DisksEventsLogger,
+        iodriver: IoDriver,
     ) -> Vec<Arc<DiskController>> {
         let local_disks = self.mapper.local_disks().iter().cloned();
         local_disks
@@ -69,6 +71,7 @@ impl Settings {
                     self.clone(),
                     false,
                     logger.clone(),
+                    iodriver.clone(),
                 )
             })
             .collect::<FuturesUnordered<_>>()
@@ -81,6 +84,7 @@ impl Settings {
         config: &NodeConfig,
         run_sem: Arc<Semaphore>,
         logger: DisksEventsLogger,
+        iodriver: IoDriver,
     ) -> Arc<DiskController> {
         let disk_name = config
             .pearl()
@@ -101,6 +105,7 @@ impl Settings {
             self.clone(),
             true,
             logger,
+            iodriver,
         )
         .await;
         dc
@@ -109,8 +114,8 @@ impl Settings {
     pub(crate) async fn collect_alien_groups(
         self: Arc<Self>,
         disk_name: &DiskName,
-        dump_sem: Arc<Semaphore>,
         owner_node_name: &NodeName,
+        pearl_creation_context: PearlCreationContext,
     ) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
         let node_names = Self::get_all_subdirectories(&self.alien_folder).await?;
@@ -129,7 +134,7 @@ impl Settings {
                             disk_name.clone(),
                             entry.path(),
                             format!("a{}", owner_node_name),
-                            dump_sem.clone(),
+                            pearl_creation_context.clone(),
                         );
                         result.push(group);
                     } else {
@@ -149,7 +154,7 @@ impl Settings {
         remote_node_name: NodeName,
         vdisk_id: u32,
         node_name: &NodeName,
-        dump_sem: Arc<Semaphore>,
+        pearl_creation_context: PearlCreationContext,
     ) -> BackendResult<Group> {
         let path = self.alien_path(vdisk_id, &remote_node_name);
 
@@ -167,7 +172,7 @@ impl Settings {
             disk_name,
             path,
             format!("a{}", node_name),
-            dump_sem,
+            pearl_creation_context,
         );
         Ok(group)
     }
