@@ -39,7 +39,6 @@ pub mod b_client {
         /// Creates [`BobClient`] instance
         /// # Errors
         /// Fails if can't connect to endpoint
-        #[allow(dead_code)]
         pub async fn create(
             node: &Node,
             operation_timeout: Duration,
@@ -76,16 +75,13 @@ pub mod b_client {
         }
 
         // Getters
-        #[allow(dead_code)]
         pub fn target_node_name(&self) -> &NodeName {
             &self.target_node_name
         }
-        #[allow(dead_code)]
         pub fn target_node_address(&self) -> &str {
             &self.target_node_address
         }
 
-        #[allow(dead_code)]
         pub async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult {
             debug!("real client put called");
             let meta = BlobMeta {
@@ -123,7 +119,6 @@ pub mod b_client {
             }
         }
 
-        #[allow(dead_code)]
         pub async fn get(&self, key: BobKey, options: GetOptions) -> GetResult {
             let message = GetRequest {
                 key: Some(BlobKey { key: key.into() }),
@@ -155,7 +150,6 @@ pub mod b_client {
             }
         }
 
-        #[allow(dead_code)]
         pub async fn ping(&self) -> PingResult {
             let mut req = Request::new(Null {});
             self.set_credentials(&mut req);
@@ -171,7 +165,6 @@ pub mod b_client {
             }
         }
 
-        #[allow(dead_code)]
         pub async fn exist(&self, keys: Vec<BobKey>, options: GetOptions) -> ExistResult {
             let keys = keys
                 .into_iter()
