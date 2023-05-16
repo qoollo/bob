@@ -8,6 +8,7 @@ Bob versions changelog
 
 #### Changed
 - Avoid Pearl Storage clone (#791)
+- Make iouring optional (#567)
 
 #### Fixed
 

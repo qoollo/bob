@@ -1,6 +1,6 @@
 use crate::{pearl::utils::get_current_timestamp, prelude::*};
 
-use super::{data::Key, utils::StartTimestampConfig, Holder, Hooks};
+use super::{data::Key, holder::PearlCreationContext, utils::StartTimestampConfig, Holder, Hooks};
 use crate::{
     core::Operation,
     pearl::{core::BackendResult, settings::Settings, utils::Utils},
@@ -23,7 +23,7 @@ pub struct Group {
     node_name: String,
     disk_name: String,
     owner_node_name: String,
-    dump_sem: Arc<Semaphore>,
+    pearl_creation_context: PearlCreationContext,
 }
 
 impl Group {
@@ -34,7 +34,7 @@ impl Group {
         disk_name: String,
         directory_path: PathBuf,
         owner_node_name: String,
-        dump_sem: Arc<Semaphore>,
+        pearl_creation_context: PearlCreationContext,
     ) -> Self {
         Self {
             holders: Arc::new(UgradableRwLock::new(HoldersContainer::new(
@@ -48,7 +48,7 @@ impl Group {
             directory_path,
             disk_name,
             owner_node_name,
-            dump_sem,
+            pearl_creation_context,
         }
     }
 
@@ -79,7 +79,7 @@ impl Group {
         debug!("{}: save holders to group", self);
         let mut holders = self.holders.write().await;
         holders.clear();
-        holders.extend(new_holders).await;   
+        holders.extend(new_holders).await;
         debug!("{}: start holders", self);
         Self::run_pearls(&mut holders, pp).await
     }
@@ -180,7 +180,7 @@ impl Group {
     ) -> Result<(ChildId, Holder), Error> {
         // importantly, only one thread can hold an upgradable lock at a time
         let holders = self.holders.upgradable_read().await;
-        
+
         let created_holder_index = Self::find_actual_holder(&holders, data_timestamp).await;
         Ok(if let Ok(index_and_holder) = created_holder_index {
             index_and_holder
@@ -192,7 +192,7 @@ impl Group {
                     "pearl init failed",
                     self.settings.config().settings().create_pearl_wait_delay(),
                 ).await?;
-            debug!("backend pearl group save pearl storage prepared");    
+            debug!("backend pearl group save pearl storage prepared");
             let mut holders = RwLockUpgradableReadGuard::upgrade(holders).await;
             let new_index = holders.push(pearl.clone()).await;
             debug!("group create write pearl holder inserted, index {:?}", new_index);
@@ -334,7 +334,7 @@ impl Group {
         Ok(exist)
     }
 
-
+    
     pub async fn delete(
         &self,
         key: BobKey,
@@ -365,12 +365,12 @@ impl Group {
     async fn delete_in_actual_holder(&self, holder: (ChildId, Holder), key: BobKey, meta: &BobMeta) -> Result<u64, Error> {
         // In actual holder we delete with force_delete = true
         let delete_count = Self::delete_common(holder.1.clone(), key, meta, true).await?;
-            // We need to add marker record to alien regardless of record presence
+        // We need to add marker record to alien regardless of record presence
         self.holders
             .read()
             .await
             .add_to_parents(holder.0, &Key::from(key));
-        
+
         Ok(delete_count)
     }
 
@@ -417,8 +417,8 @@ impl Group {
             result
         }
     }
-    
 
+    
     pub fn holders(&self) -> Arc<UgradableRwLock<HoldersContainer>> {
         self.holders.clone()
     }
@@ -501,7 +501,7 @@ impl Group {
             self.vdisk_id,
             path,
             config,
-            self.dump_sem.clone(),
+            self.pearl_creation_context.clone(),
         )
     }
 

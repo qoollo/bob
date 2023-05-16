@@ -2,16 +2,15 @@ name: tests
 
 on:
   pull_request:
-      types: [ opened, synchronize, reopened, ready_for_review ]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
-    branches: [ master ]
-    
-jobs:
+    branches: [master]
 
+jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
-      - name: Checks-out repository 
+      - name: Checks-out repository
         uses: actions/checkout@v2
       - name: Install latest stable
         uses: actions-rs/toolchain@v1
@@ -25,3 +24,8 @@ jobs:
         with:
           command: test
           args: --features testing
+      - name: Tests async-io
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --features testing,async-io

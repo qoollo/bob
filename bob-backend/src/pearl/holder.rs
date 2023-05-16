@@ -34,9 +34,21 @@ struct HolderInner {
     vdisk: VDiskId,
     disk_path: PathBuf,
     config: PearlConfig,
-    dump_sem: Arc<Semaphore>,
+    pearl_creation_context: PearlCreationContext,
     last_modification: AtomicU64,
     init_protection: Semaphore
+}
+
+#[derive(Clone, Debug)]
+pub struct PearlCreationContext {
+    dump_sem: Arc<Semaphore>,
+    iodriver: IoDriver,
+}
+
+impl PearlCreationContext {
+    pub fn new(dump_sem: Arc<Semaphore>, iodriver: IoDriver) -> Self {
+        Self { dump_sem, iodriver }
+    }
 }
 
 impl Holder {
@@ -46,7 +58,7 @@ impl Holder {
         vdisk: VDiskId,
         disk_path: PathBuf,
         config: PearlConfig,
-        dump_sem: Arc<Semaphore>,
+        pearl_creation_context: PearlCreationContext,
     ) -> Self {
         Self {
             storage: Arc::new(RwLock::new(PearlSync::default())),
@@ -56,7 +68,7 @@ impl Holder {
                 vdisk,
                 disk_path,
                 config,          
-                dump_sem,
+                pearl_creation_context,
                 last_modification: AtomicU64::new(0),
                 init_protection: Semaphore::new(1)
             })
@@ -481,32 +493,14 @@ impl Holder {
             filter_config.max_buf_bits_count = count;
             debug!("bloom filter max buffer bits count set to: {}", count);
         }
-        let builder = builder
+        builder
             .blob_file_name_prefix(prefix)
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
             .set_filter_config(filter_config)
             .set_validate_data_during_index_regen(validate_data_during_index_regen)
-            .set_dump_sem(self.inner.dump_sem.clone());
-        let builder = if self.inner.config.is_aio_enabled() {
-            match rio::new() {
-                Ok(ioring) => {
-                    warn!("bob will start with AIO - async fs io api");
-                    builder.enable_aio(ioring)
-                }
-                Err(e) => {
-                    warn!("bob will start with standard sync fs io api");
-                    warn!("can't start with AIO, cause: {}", e);
-                    self.inner.config.set_aio(false);
-                    builder
-                }
-            }
-        } else {
-            warn!("bob will start with standard sync fs io api");
-            warn!("cause: disabled in config");
-            builder
-        };
-        builder
+            .set_dump_sem(self.inner.pearl_creation_context.dump_sem.clone())
+            .set_io_driver(self.inner.pearl_creation_context.iodriver.clone())
             .build()
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.inner.disk_path))
     }

@@ -8,6 +8,7 @@ pub(crate) mod logger;
 use crate::{core::Operation, pearl::hooks::Hooks, prelude::*};
 use logger::DisksEventsLogger;
 
+use super::holder::PearlCreationContext;
 use super::Holder;
 use super::{core::BackendResult, settings::Settings, utils::StartTimestampConfig, Group};
 
@@ -33,7 +34,6 @@ enum GroupsState {
 pub struct DiskController {
     disk: DiskPath,
     vdisks: Vec<VDiskId>,
-    dump_sem: Arc<Semaphore>,
     run_sem: Arc<Semaphore>,
     monitor_sem: Arc<Semaphore>,
     node_name: String,
@@ -44,6 +44,7 @@ pub struct DiskController {
     disk_state_metric: String,
     logger: DisksEventsLogger,
     blobs_count_cached: Arc<AtomicU64>,
+    pearl_creation_context: PearlCreationContext,
 }
 
 impl DiskController {
@@ -55,13 +56,14 @@ impl DiskController {
         settings: Arc<Settings>,
         is_alien: bool,
         logger: DisksEventsLogger,
+        iodriver: IoDriver,
     ) -> Arc<Self> {
         let disk_state_metric = format!("{}.{}", DISKS_FOLDER, disk.name());
         let dump_sem = Arc::new(Semaphore::new(config.disk_access_par_degree()));
+        let pearl_creation_context = PearlCreationContext::new(dump_sem, iodriver);
         let new_dc = Self {
             disk,
             vdisks,
-            dump_sem,
             run_sem,
             monitor_sem: Arc::new(Semaphore::new(1)),
             node_name: config.name().to_owned(),
@@ -72,6 +74,7 @@ impl DiskController {
             disk_state_metric,
             logger,
             blobs_count_cached: Arc::new(AtomicU64::new(0)),
+            pearl_creation_context,
         };
         new_dc
             .init()
@@ -264,7 +267,7 @@ impl DiskController {
                     self.disk.name().to_owned(),
                     path,
                     self.node_name.clone(),
-                    self.dump_sem.clone(),
+                    self.pearl_creation_context.clone(),
                 )
             })
             .collect()
@@ -275,8 +278,8 @@ impl DiskController {
         let groups = settings
             .collect_alien_groups(
                 self.disk.name().to_owned(),
-                self.dump_sem.clone(),
                 &self.node_name,
+                self.pearl_creation_context.clone(),
             )
             .await?;
         trace!(
@@ -325,7 +328,7 @@ impl DiskController {
                 operation.remote_node_name().expect("Node name not found"),
                 operation.vdisk_id(),
                 &self.node_name,
-                self.dump_sem.clone(),
+                self.pearl_creation_context.clone(),
             )
             .await?;
         write_lock_groups.push(group.clone());
@@ -521,7 +524,6 @@ impl DiskController {
         }
     }
 
-
     pub(crate) async fn delete(
         &self,
         op: Operation,
@@ -588,7 +590,7 @@ impl DiskController {
         }
     }
 
-
+    
     pub(crate) async fn shutdown(&self) {
         let futures = FuturesUnordered::new();
         for group in self.groups.read().await.iter() {

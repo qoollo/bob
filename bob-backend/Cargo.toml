@@ -53,6 +53,9 @@ features = []
 [dev-dependencies]
 criterion = "0.4"
 
+[features]
+async-io = ["pearl/async-io-rio"]
+
 [[bench]]
 name = "key_cmp_benchmark"
 harness = false
