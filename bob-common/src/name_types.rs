@@ -22,32 +22,6 @@ pub struct Name<TMarker: NameMarker> {
     _phantom: PhantomData<TMarker>
 }
 
-
-/// Visistor for deserialization
-struct ArcStrVisitor;
-
-impl<'de> Visitor<'de> for ArcStrVisitor {
-    type Value = Arc<str>;
-
-    fn expecting(&self, formatter: &mut Formatter) -> FmtResult {
-        formatter.write_str("string")
-    }
-    
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error, 
-    {
-        Ok(v.into())
-    }
-
-    fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error, 
-    {
-        Ok(v.into())
-    }
-}
-
 impl<TMarker: NameMarker> Name<TMarker> {
     pub fn new(val: &str) -> Self {
         Self {
@@ -147,6 +121,33 @@ impl<TMarker: NameMarker> Debug for Name<TMarker> {
 impl<TMarker: NameMarker> Display for Name<TMarker> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.write_str(self.as_str())
+    }
+}
+
+// ==== Serialization/deserialization ===
+
+/// Visistor for deserialization
+struct ArcStrVisitor;
+
+impl<'de> Visitor<'de> for ArcStrVisitor {
+    type Value = Arc<str>;
+
+    fn expecting(&self, formatter: &mut Formatter) -> FmtResult {
+        formatter.write_str("string")
+    }
+    
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error, 
+    {
+        Ok(v.into())
+    }
+
+    fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error, 
+    {
+        Ok(v.into())
     }
 }
 
