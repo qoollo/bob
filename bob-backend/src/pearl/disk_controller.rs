@@ -496,7 +496,28 @@ impl DiskController {
             if let Some(group) = group_option {
                 group.exist(keys).await
             } else {
-                Err(Error::internal())
+                Err(Error::vdisk_not_found(operation.vdisk_id()))
+            }
+        } else {
+            Err(Error::dc_is_not_available())
+        }
+    }
+
+    pub(crate) async fn exist_alien(
+        &self,
+        operation: Operation,
+        keys: &[BobKey],
+    ) -> Result<Vec<bool>, Error> {
+        if *self.state.read().await == GroupsState::Ready {
+            let vdisk_group = self.find_group(&operation).await;
+            if let Ok(group) = vdisk_group {
+                group.exist(keys).await
+            } else {
+                trace!(
+                    "EXIST[alien] No alien group has been created for vdisk #{}",
+                    operation.vdisk_id()
+                );
+                Ok(vec![false; keys.len()])
             }
         } else {
             Err(Error::dc_is_not_available())
@@ -576,16 +597,10 @@ impl DiskController {
             let holders = group.holders();
             let holders = holders.read().await;
             for holder in holders.iter() {
-                let storage = holder.storage().read().await;
-                let storage = storage.storage().clone();
-                let id = holder.get_id();
+                let holder = holder.clone();
                 futures.push(async move {
-                    match storage.close().await {
-                        Ok(_) => debug!("holder {} closed", id),
-                        Err(e) => {
-                            error!("error closing holder{}: {} (disk: {:?})", id, e, self.disk)
-                        }
-                    }
+                    holder.close_storage().await;
+                    debug!("holder {} closed", holder.get_id());
                 });
             }
         }
