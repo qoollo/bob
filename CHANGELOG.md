@@ -7,6 +7,9 @@ Bob versions changelog
 - Added mimalloc allocator for musl target (#688)
 
 #### Changed
+- BobClient clone overhead reduced (#774)
+- Node struct internals placed inside Arc to reduce clone overhead (#724)
+- NodeName and DiskName types introduced to reduce clone overhead (#775)
 - Avoid Pearl Storage clone (#791)
 - Make iouring optional (#567)
 

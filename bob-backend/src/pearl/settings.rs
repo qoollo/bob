@@ -89,14 +89,14 @@ impl Settings {
         let disk_name = config
             .pearl()
             .alien_disk()
-            .map_or_else(|| DEFAULT_ALIEN_DISK_NAME.to_owned(), str::to_owned);
+            .unwrap_or(DEFAULT_ALIEN_DISK_NAME);
         let path = self
             .alien_folder
             .clone()
             .into_os_string()
             .into_string()
             .expect("Path is not utf8 encoded");
-        let alien_disk = DiskPath::new(disk_name, path);
+        let alien_disk = DiskPath::new(DiskName::from(disk_name), path.as_str());
         let dc = DiskController::new(
             alien_disk,
             Vec::new(),
@@ -113,8 +113,8 @@ impl Settings {
 
     pub(crate) async fn collect_alien_groups(
         self: Arc<Self>,
-        disk_name: String,
-        owner_node_name: &str,
+        disk_name: &DiskName,
+        owner_node_name: &NodeName,
         pearl_creation_context: PearlCreationContext,
     ) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
@@ -130,7 +130,7 @@ impl Settings {
                         let group = Group::new(
                             self.clone(),
                             vdisk_id,
-                            node_name.clone(),
+                            NodeName::from(&node_name),
                             disk_name.clone(),
                             entry.path(),
                             format!("a{}", owner_node_name),
@@ -151,23 +151,24 @@ impl Settings {
 
     pub async fn create_alien_group(
         self: Arc<Self>,
-        remote_node_name: &str,
+        remote_node_name: NodeName,
         vdisk_id: u32,
-        node_name: &str,
+        node_name: &NodeName,
         pearl_creation_context: PearlCreationContext,
     ) -> BackendResult<Group> {
-        let path = self.alien_path(vdisk_id, remote_node_name);
+        let path = self.alien_path(vdisk_id, &remote_node_name);
 
         Utils::check_or_create_directory(&path).await?;
 
         let disk_name = self
             .config
             .alien_disk()
-            .map_or_else(String::new, str::to_owned);
+            .unwrap_or(DEFAULT_ALIEN_DISK_NAME)
+            .into();
         let group = Group::new(
             self,
             vdisk_id,
-            remote_node_name.to_owned(),
+            remote_node_name,
             disk_name,
             path,
             format!("a{}", node_name),
@@ -203,7 +204,7 @@ impl Settings {
             .mapper
             .nodes()
             .iter()
-            .any(|node| node.name() == file_name)
+            .any(|node| *node.name() == file_name)
         {
             Ok((entry, file_name))
         } else {
@@ -261,7 +262,7 @@ impl Settings {
         vdisk_path
     }
 
-    fn alien_path(&self, vdisk_id: VDiskId, node_name: &str) -> PathBuf {
+    fn alien_path(&self, vdisk_id: VDiskId, node_name: &NodeName) -> PathBuf {
         let mut vdisk_path = self.alien_folder.clone();
         vdisk_path.push(format!("{}/{}/", node_name, vdisk_id));
         vdisk_path

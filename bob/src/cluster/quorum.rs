@@ -45,7 +45,7 @@ impl Quorum {
                 let (mut remote_tasks, mut errors) = remote_put;
                 if let Err(e) = local_put {
                     error!("{}", e);
-                    failed_nodes.push(self.mapper.local_node_name().to_owned());
+                    failed_nodes.push(self.mapper.local_node_name().clone());
                     debug!("PUT[{}] local failed, put another remote", key);
                     errors.extend(finish_at_least_handles(&mut remote_tasks, 1).await.into_iter());
                 } else {
@@ -59,7 +59,7 @@ impl Quorum {
             };
         let all_count = self.mapper.get_target_nodes_for_key(key).len();
         let remote_ok_count = all_count - errors.len() - tasks.len() - local_put_ok;
-        failed_nodes.extend(errors.iter().map(|e| e.node_name().to_string()));
+        failed_nodes.extend(errors.iter().map(|e| e.node_name().clone()));
         if remote_ok_count + local_put_ok >= self.quorum {
             if tasks.is_empty() && failed_nodes.is_empty() {
                 return Ok(());
@@ -95,7 +95,7 @@ impl Quorum {
         mut rest_tasks: Tasks<Error>,
         key: BobKey,
         data: &BobData,
-        mut failed_nodes: Vec<String>,
+        mut failed_nodes: Vec<NodeName>,
     ) {
         debug!("PUT[{}] ~~~BACKGROUND PUT TO REMOTE NODES~~~", key);
         while let Some(join_res) = rest_tasks.next().await {
@@ -107,7 +107,7 @@ impl Quorum {
                 ),
                 Ok(Err(e)) => {
                     error!("{:?}", e);
-                    failed_nodes.push(e.node_name().to_string());
+                    failed_nodes.push(e.node_name().clone());
                 }
                 Err(e) => error!("{:?}", e),
             }
@@ -134,13 +134,13 @@ impl Quorum {
             target_nodes.len(),
         );
         let target_nodes = target_nodes.iter().filter(|node| node.name() != local_node);
-        put_at_least(key, data, target_nodes, at_least, PutOptions::new_local()).await
+        put_at_least(key, data, target_nodes, at_least, BobPutOptions::new_local()).await
     }
 
 
     async fn put_aliens(
         &self,
-        mut failed_nodes: Vec<String>,
+        mut failed_nodes: Vec<NodeName>,
         key: BobKey,
         data: &BobData,
     ) -> Result<(), Error> {
@@ -159,15 +159,15 @@ impl Quorum {
         let queries: Vec<_> = sup_nodes
             .into_iter()
             .zip(nodes_need_remote_backup)
-            .map(|(node, remote_node)| (node, PutOptions::new_alien(vec![remote_node])))
+            .map(|(node, remote_node)| (node, BobPutOptions::new_alien(vec![remote_node])))
             .collect();
         debug!("PUT[{}] additional alien requests: {:?}", key, queries);
-        if let Err(sup_nodes_errors) = put_sup_nodes(key, data, &queries).await {
+        if let Err(sup_nodes_errors) = put_sup_nodes(key, data, queries.into_iter()).await {
             debug!("support nodes errors: {:?}", sup_nodes_errors);
             failed_nodes.extend(
                 sup_nodes_errors
                     .iter()
-                    .map(|err| err.node_name().to_owned()),
+                    .map(|err| err.node_name().clone()),
             )
         };
         debug!("need additional local alien copies: {}", failed_nodes.len());
@@ -199,14 +199,14 @@ impl Quorum {
             let res = delete_on_local_node(&self.backend, key, meta, vdisk_id, disk_path).await;
             if let Err(e) = res {
                 error!("{}", e);
-                failed_nodes.insert(self.mapper.local_node_name().to_owned());
+                failed_nodes.insert(self.mapper.local_node_name().clone());
             }
         };
 
         debug!("DELETE[{}] ~~~DELETE TO REMOTE NODES~~~", key);
         let (errors, remote_count) = self.delete_at_remote_nodes(key, meta).await;
         total += remote_count;
-        failed_nodes.extend(errors.iter().map(|o| o.node_name().to_string()));
+        failed_nodes.extend(errors.iter().map(|o| o.node_name().clone()));
 
         if !failed_nodes.is_empty() {
             warn!(
@@ -245,7 +245,7 @@ impl Quorum {
 
         let count = target_nodes.len();
         (
-            delete_on_remote_nodes_with_options(key, meta, target_nodes, DeleteOptions::new_local()).await,
+            delete_on_remote_nodes_with_options(key, meta, target_nodes, BobDeleteOptions::new_local()).await,
             count
         )
     }
@@ -253,7 +253,7 @@ impl Quorum {
 
     async fn delete_aliens(
         &self,
-        mut failed_nodes: HashSet<String>,
+        mut failed_nodes: HashSet<NodeName>,
         key: BobKey,
         meta: &BobMeta,
     ) -> Result<(), Error> {
@@ -273,7 +273,7 @@ impl Quorum {
             let queries: Vec<_> = sup_nodes
                 .into_iter()
                 .zip(nodes_need_remote_backup)
-                .map(|(node, remote_node)| (node, DeleteOptions::new_alien(vec![remote_node])))
+                .map(|(node, remote_node)| (node, BobDeleteOptions::new_alien(vec![remote_node.clone()])))
                 .collect();
 
             trace!("DELETE[{}] supported alien requests: {:?}", key, queries);
@@ -291,7 +291,7 @@ impl Quorum {
         // Delete on all nodes of cluster except sup_nodes and local node
         let all_other_nodes_queries: Vec<_> = self.mapper.nodes().iter()
             .filter(|n| !sup_nodes_set.contains(n.name()) && n.name() != local_node_name)
-            .map(|n| (n, DeleteOptions::new_alien(vec![])))
+            .map(|n| (n, BobDeleteOptions::new_alien(vec![])))
             .collect();
 
         trace!("DELETE[{}] normal alien deletion requests: {:?}", key, all_other_nodes_queries);
@@ -320,6 +320,8 @@ impl Quorum {
         Ok(())
     }
 
+    // =============================== EXIST ======================
+
     async fn collect_remote_exists(
         result: &mut [bool],
         keys: &[BobKey],
@@ -333,7 +335,7 @@ impl Quorum {
         for (node, node_map) in indexes_by_node.iter_mut() {
             node_map.retain_not_existed(&result);
             if !node_map.is_empty() {
-                node_keys_by_node_name.insert(node.name().to_owned(), (node.clone(), node_map.collect(keys)));
+                node_keys_by_node_name.insert(node.name().clone(), (node.clone(), node_map.collect(keys)));
             }
         }
 

@@ -20,9 +20,9 @@ pub struct Group {
     settings: Arc<Settings>,
     directory_path: PathBuf,
     vdisk_id: VDiskId,
-    node_name: String,
-    disk_name: String,
-    owner_node_name: String,
+    node_name: NodeName,
+    disk_name: DiskName,
+    owner_node_identifier: String,
     pearl_creation_context: PearlCreationContext,
 }
 
@@ -30,10 +30,10 @@ impl Group {
     pub fn new(
         settings: Arc<Settings>,
         vdisk_id: VDiskId,
-        node_name: String,
-        disk_name: String,
+        node_name: NodeName,
+        disk_name: DiskName,
         directory_path: PathBuf,
-        owner_node_name: String,
+        owner_node_identifier: String,
         pearl_creation_context: PearlCreationContext,
     ) -> Self {
         Self {
@@ -47,7 +47,7 @@ impl Group {
             node_name,
             directory_path,
             disk_name,
-            owner_node_name,
+            owner_node_identifier,
             pearl_creation_context,
         }
     }
@@ -60,7 +60,7 @@ impl Group {
                 .map_or(true, |node_name| *node_name == self.node_name);
             name_matched && self.vdisk_id == operation.vdisk_id()
         } else {
-            self.vdisk_id == operation.vdisk_id() && self.disk_name == operation.disk_name_local()
+            self.vdisk_id == operation.vdisk_id() && self.disk_name == *operation.disk_name_local()
         }
     }
 
@@ -423,11 +423,11 @@ impl Group {
         self.holders.clone()
     }
 
-    pub fn node_name(&self) -> &str {
+    pub fn node_name(&self) -> &NodeName {
         &self.node_name
     }
 
-    pub fn disk_name(&self) -> &str {
+    pub fn disk_name(&self) -> &DiskName {
         &self.disk_name
     }
 
@@ -553,7 +553,7 @@ impl Group {
     }
 
     fn get_owner_node_hash(&self) -> String {
-        let hash = digest(&SHA256, self.owner_node_name.as_bytes());
+        let hash = digest(&SHA256, self.owner_node_identifier.as_bytes());
         let hash = hash.as_ref();
         let mut hex = vec![];
         // Translate bytes to simple digit-letter representation
