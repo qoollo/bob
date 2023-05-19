@@ -1,5 +1,9 @@
-import requests, os, sys, json
+import requests, sys, json
 from retry import *
+
+def print_then_exit(exit_str):
+    print(exit_str)
+    sys.exit(exit_str)
 
 def request_metrics(port):
     try:
@@ -25,7 +29,7 @@ def ensure_backend_up(bob_nodes_amount, rest_min_port):
                     print(f'Node {item} is ready!')
         print('All nodes are ready!')
     except ValueError:
-        sys.exit('Amount of nodes has unexpected value.')
+        print_then_exit('Amount of nodes has unexpected value.')
     except KeyError:
         raise UserWarning(f'No backend state metric.')
     

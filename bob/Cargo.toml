@@ -1,9 +1,16 @@
 [package]
 name = "bob"
-version = "2.1.0-alpha.7"
+version = "2.1.0-alpha.10"
 authors = [
     "Kirill Bushminkin <kb@qoollo.com>",
     "Pavel Iakushin <pyakushin@qoollo.com>",
+    "Nikita Menshov",
+    "Ilia Kopylov",
+    "Ivan Druzhitskiy",
+    "Vladimir Stepanenko",
+    "Pavel Perestoronin",
+    "Konstantin Konnov",
+    "Konstantin Bulany"
 ]
 edition = "2021"
 
@@ -35,9 +42,8 @@ ring = "0.16"
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.8"
-stopwatch = "0.0.7"
 thiserror = "1.0"
-sysinfo = "0.26"
+sysinfo = "0.27"
 tonic = { version = "0.6", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"
@@ -45,7 +51,7 @@ uuid = "1.1"
 smallvec = { version = "1.10", features = ["union"] }
 
 [dependencies.pearl]
-version = "0.16.0"
+version = "0.19.0"
 
 [dependencies.tokio]
 version = "1.21"
