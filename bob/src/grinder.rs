@@ -28,7 +28,7 @@ pub struct Grinder {
 impl Grinder {
     /// Creates new instance of the Grinder
     pub async fn new(mapper: Virtual, config: &NodeConfig) -> Grinder {
-        let nodes = mapper.nodes().values().cloned().collect::<Vec<_>>();
+        let nodes = mapper.nodes().iter().cloned().collect::<Vec<_>>();
         let link_manager = Arc::new(LinkManager::new(nodes.as_slice(), config.check_interval()));
         let mapper = Arc::new(mapper);
         let backend = Arc::new(Backend::new(mapper.clone(), config).await);
@@ -175,6 +175,7 @@ impl Grinder {
         let sw = Stopwatch::start_new();
         if opts.force_node() {
             counter!(CLIENT_EXIST_COUNTER, 1);
+            counter!(CLIENT_EXIST_KEYS_COUNT_COUNTER, keys.len() as u64);
             let time = Instant::now();
             let result = self.backend.exist(keys, opts).await;
             trace!(
@@ -183,11 +184,13 @@ impl Grinder {
             );
             if result.is_err() {
                 counter!(CLIENT_EXIST_ERROR_COUNT_COUNTER, 1);
+                counter!(CLIENT_EXIST_ERROR_KEYS_COUNT_COUNTER, keys.len() as u64);
             }
             timing!(CLIENT_EXIST_TIMER, time.elapsed().as_nanos() as f64);
             result
         } else {
             counter!(GRINDER_EXIST_COUNTER, 1);
+            counter!(GRINDER_EXIST_KEYS_COUNT_COUNTER, keys.len() as u64);
             let time = Instant::now();
             let result = self.cluster.exist(keys).await;
             trace!(
@@ -196,6 +199,7 @@ impl Grinder {
             );
             if result.is_err() {
                 counter!(GRINDER_EXIST_ERROR_COUNT_COUNTER, 1);
+                counter!(GRINDER_EXIST_ERROR_KEYS_COUNT_COUNTER, keys.len() as u64);
             }
             timing!(GRINDER_EXIST_TIMER, time.elapsed().as_nanos() as f64);
             result
@@ -252,6 +256,10 @@ impl Grinder {
         trace!(">>>- - - - - GRINDER DELETE FINISHED - - - - -");
         self.cleaner.request_index_cleanup();
         result
+    }
+
+    pub(crate) fn update_node_connection(&self, node_name: &str) {
+        self.link_manager.update_node_connection(node_name);
     }
 }
 

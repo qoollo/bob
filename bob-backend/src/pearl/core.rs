@@ -32,16 +32,17 @@ impl Pearl {
         })?;
 
         let run_sem = Arc::new(Semaphore::new(config.init_par_degree()));
+        let iodriver = get_io_driver(&config.pearl());
         let data = settings
             .clone()
-            .read_group_from_disk(config, run_sem.clone(), logger.clone())
+            .read_group_from_disk(config, run_sem.clone(), logger.clone(), iodriver.clone())
             .await;
         let disk_controllers: Arc<[_]> = Arc::from(data.as_slice());
         trace!("count vdisk groups: {}", disk_controllers.len());
 
         let alien_disk_controller = settings
             .clone()
-            .read_alien_directory(config, run_sem, logger)
+            .read_alien_directory(config, run_sem, logger, iodriver)
             .await;
 
         let pearl = Self {
@@ -220,7 +221,9 @@ impl BackendStorage for Pearl {
 
     async fn exist_alien(&self, operation: Operation, keys: &[BobKey]) -> BackendResult<Vec<bool>> {
         if self.alien_disk_controller.can_process_operation(&operation) {
-            self.alien_disk_controller.exist(operation, keys).await
+            self.alien_disk_controller
+                .exist_alien(operation, keys)
+                .await
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -337,4 +340,28 @@ impl BackendStorage for Pearl {
         let postprocessor = BloomFilterMemoryLimitHooks::new(self.bloom_filter_memory_limit);
         group.remount(postprocessor).await
     }
+}
+
+#[cfg(not(feature = "async-io"))]
+fn get_io_driver(pearl_config: &PearlConfig) -> IoDriver {
+    if pearl_config.is_aio_enabled() {
+        warn!("async io feature is not enabled, ignoring aio flag from config");
+    }
+    IoDriver::new_sync()
+}
+
+#[cfg(feature = "async-io")]
+fn get_io_driver(pearl_config: &PearlConfig) -> IoDriver {
+    let iodriver = if pearl_config.is_aio_enabled() {
+        info!("bob will start with AIO - async fs io api");
+        IoDriver::new_async()
+            .unwrap_or_else(|e| {
+                warn!("bob will start with standard sync fs io api, can't start with AIO, cause: {:?}", e);
+                IoDriver::new_sync()
+            })
+    } else {
+        info!("bob will start with standard sync fs io api, cause: async io disabled in config");
+        IoDriver::new_sync()
+    };
+    iodriver
 }

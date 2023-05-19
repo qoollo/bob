@@ -5,15 +5,68 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Added optional get & exist optimization (#702)
+- Added mimalloc allocator for musl target (#688)
+
+#### Changed
+- BobClient clone overhead reduced (#774)
+- Node struct internals placed inside Arc to reduce clone overhead (#724)
+- NodeName and DiskName types introduced to reduce clone overhead (#775)
+- Avoid Pearl Storage clone (#791)
+- Make iouring optional (#567)
+
+#### Fixed
+
+
+#### Updated
+- Pearl updated to v0.19.0 (#798)
+
+
+## [2.1.0-alpha.10] - 2023-05-11
+#### Added
+- Quorum argument for manual workflow dispatch for integration tests (#749)
+- Reconnect to a node when Ping is received from it (#625)
+- Fast ping at the start (#657)
+- Client metrics are initialized at the start (#761)
+- Exist test on doubled range of keys for integration tests (#764)
+- Used swap and bob virtual memory metrics added to hardware metrics (#771)
+- Added validate_data_checksum_in_index_regen field to pearl config (#607)
+- Lookup existence in aliens (#576)
+- Separate local and remote lookup (#585)
+- Exist test for alien integration tests (#726)
+
+#### Changed
+- Make local put parallel to remote (#573)
+- Prefer online nodes for aliens, while maintaining uniform distribution (#571)
+- Build release binaries and docker images with `release-lto` profile (#714)
+- Use read lock instead of write on hierarchical filters update to improve performance (#596)
+- Abort on panic in any of the threads (#782)
+
+#### Fixed
+- Fix incorrect exist result due to variables sharing between keys (#762)
+- Fix unit of measurement of memory in hardware metrics (#772)
+- Fix rust deprecation warning (#779)
+- Fix subtraction overflow in cleaner (#781)
+
+#### Updated
+- Logger to logstash updated to qoollo-log4rs-logstash v0.2 (#681)
+- Pearl updated to v0.18.0 (#778)
+
+
+## [2.1.0-alpha.9] - 2023-01-16
+#### Added
+- Added exist key metrics to grinder and exist metrics to pearl (#709)
 
 #### Changed
 - Removed `open_blobs_soft_limit` and `open_blobs_hard_limit` from node config example (#703)
+- Add condition to background_put (#589)
 
 #### Fixed
+- Fix incorrect timestamp used in `Group::delete()` (#741)
 - Fixed incorrect execution of aliens integration tests (#736)
+- Fixed unsafe timestamp comparison condition in `Group::get` and `Group::exist` (#750)
 
 #### Updated
-
+- Pearl updated to v0.17.0 (#752)
 
 
 ## [2.1.0-alpha.8] - 2023-01-13

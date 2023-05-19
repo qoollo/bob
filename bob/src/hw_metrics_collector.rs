@@ -1,7 +1,9 @@
 use crate::prelude::*;
+use bob_common::core_types::DiskName;
 use bob_common::metrics::{
-    BOB_RAM, CPU_IOWAIT, CPU_LOAD, DESCRIPTORS_AMOUNT, AVAILABLE_RAM, FREE_SPACE, HW_DISKS_FOLDER,
-    TOTAL_RAM, TOTAL_SPACE, USED_RAM, USED_SPACE,
+    BOB_RAM, BOB_VIRTUAL_RAM, BOB_CPU_LOAD, DESCRIPTORS_AMOUNT, CPU_IOWAIT, 
+    TOTAL_RAM, AVAILABLE_RAM, USED_RAM, USED_SWAP,
+    TOTAL_SPACE, FREE_SPACE, USED_SPACE, HW_DISKS_FOLDER
 };
 use libc::statvfs;
 use std::os::unix::fs::MetadataExt;
@@ -21,7 +23,7 @@ pub(crate) struct DiskSpaceMetrics {
 }
 
 pub(crate) struct HWMetricsCollector {
-    disks: HashMap<PathBuf, String>,
+    disks: HashMap<PathBuf, DiskName>,
     interval_time: Duration,
 }
 
@@ -34,7 +36,7 @@ impl HWMetricsCollector {
         }
     }
 
-    fn collect_used_disks(disks: &[DiskPath]) -> HashMap<PathBuf, String> {
+    fn collect_used_disks(disks: &[DiskPath]) -> HashMap<PathBuf, DiskName> {
         System::new_all()
             .disks()
             .iter()
@@ -51,7 +53,7 @@ impl HWMetricsCollector {
                     })
                     .map(|config_disk| {
                         let diskpath = path.to_str().expect("Not UTF-8").to_owned();
-                        (PathBuf::from(diskpath), config_disk.name().to_owned())
+                        (PathBuf::from(diskpath), config_disk.name().clone())
                     })
             })
             .collect()
@@ -65,13 +67,13 @@ impl HWMetricsCollector {
         Self::update_space_metrics_from_disks(&self.disks)
     }
 
-    async fn task(t: Duration, disks: HashMap<PathBuf, String>) {
+    async fn task(t: Duration, disks: HashMap<PathBuf, DiskName>) {
         let mut interval = interval(t);
         let mut sys = System::new_all();
         let mut dcounter = DescrCounter::new();
         let mut cpu_s_c = CPUStatCollector::new();
         let mut disk_s_c = DiskStatCollector::new(&disks);
-        let total_mem = kb_to_b(sys.total_memory());
+        let total_mem = sys.total_memory();
         gauge!(TOTAL_RAM, total_mem as f64);
         debug!("total mem in bytes: {}", total_mem);
         let pid = sysinfo::get_current_pid().expect("Cannot determine current process PID");
@@ -97,19 +99,23 @@ impl HWMetricsCollector {
             }
 
             if let Some(proc) = sys.process(pid) {
-                gauge!(CPU_LOAD, proc.cpu_usage() as f64);
-                let bob_ram = kb_to_b(proc.memory());
+                gauge!(BOB_CPU_LOAD, proc.cpu_usage() as f64);
+                let bob_ram = proc.memory();
                 gauge!(BOB_RAM, bob_ram as f64);
+                let bob_virtual_ram = proc.virtual_memory();
+                gauge!(BOB_VIRTUAL_RAM, bob_virtual_ram as f64);
             } else {
                 debug!("Can't get process stat descriptor");
             }
 
             let _ = Self::update_space_metrics_from_disks(&disks);
-            let available_mem = kb_to_b(sys.available_memory());
+            let available_mem = sys.available_memory();
             let used_mem = total_mem - available_mem;
-            debug!("used mem in bytes: {} | available mem in bytes: {}", used_mem, available_mem);
+            let used_swap = sys.used_swap();
+            debug!("used mem in bytes: {} | available mem in bytes: {} | used swap: {}", used_mem, available_mem, used_swap);
             gauge!(USED_RAM, used_mem as f64);
             gauge!(AVAILABLE_RAM, available_mem as f64);
+            gauge!(USED_SWAP, used_swap as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
 
             if let Err(CommandError::Primary(e)) = disk_s_c.collect_and_send_metrics() {
@@ -118,7 +124,7 @@ impl HWMetricsCollector {
         }
     }
 
-    fn update_space_metrics_from_disks(disks: &HashMap<PathBuf, String>) -> DiskSpaceMetrics {
+    fn update_space_metrics_from_disks(disks: &HashMap<PathBuf, DiskName>) -> DiskSpaceMetrics {
         let disks_metrics = Self::space(disks);
         gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
         gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
@@ -151,7 +157,7 @@ impl HWMetricsCollector {
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
 
-    fn space(disks: &HashMap<PathBuf, String>) -> DiskSpaceMetrics {
+    fn space(disks: &HashMap<PathBuf, DiskName>) -> DiskSpaceMetrics {
         let mut total = 0;
         let mut used = 0;
         let mut free = 0;
@@ -316,7 +322,7 @@ struct DiskStatCollector {
 }
 
 impl DiskStatCollector {
-    fn new(disks: &HashMap<PathBuf, String>) -> Self {
+    fn new(disks: &HashMap<PathBuf, DiskName>) -> Self {
         let mut disk_metric_data = HashMap::new();
         for (path, disk_name) in disks {
             let path_str = path.as_os_str().to_str().unwrap();
@@ -556,10 +562,6 @@ impl DescrCounter {
 
 fn bytes_to_mb(bytes: u64) -> u64 {
     bytes / 1024 / 1024
-}
-
-fn kb_to_b(kbs: u64) -> u64 {
-    kbs * 1024
 }
 
 fn parse_command_output(command: &mut Command) -> Result<String, String> {

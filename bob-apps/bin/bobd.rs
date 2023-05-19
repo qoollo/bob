@@ -1,3 +1,5 @@
+include!("alloc/mimalloc.rs");
+
 use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
     VirtualMapper, BackendType, FactoryTlsConfig,
@@ -11,6 +13,7 @@ use std::{
 };
 use tokio::runtime::Handle;
 use tonic::transport::Server;
+use qoollo_log4rs_logstash::config::DeserializersExt; 
 use std::path::PathBuf;
 use std::fs::create_dir;
 
@@ -33,20 +36,31 @@ async fn main() {
         return;
     }
 
-    let cluster_config = matches.value_of("cluster").unwrap();
+    let cluster_config = matches.value_of("cluster").expect("'cluster' argument is required");
     println!("Cluster config: {:?}", cluster_config);
-    let cluster = ClusterConfig::try_get(cluster_config).await.unwrap();
+    let cluster = ClusterConfig::try_get(cluster_config).await.map_err(|err| {
+        eprintln!("Cluster config parsing error: {}", err);
+        err
+    }).expect("Cluster config parsing error");
 
-    let node_config_file = matches.value_of("node").unwrap();
+    let node_config_file = matches.value_of("node").expect("'node' argument is required");
     println!("Node config: {:?}", node_config_file);
-    let node = cluster.get(node_config_file).await.unwrap();
+    let node = cluster.get(node_config_file).await.map_err(|err| {
+        eprintln!("Node config parsing error: {}", err);
+        err
+    }).expect("Node config parsing error");
 
-    log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
+    let mut extra_logstash_fields = HashMap::new();
+    extra_logstash_fields.insert("node_name".to_string(), serde_json::Value::String(node.name().to_string()));
+    if let Some(cluster_node_info) = cluster.nodes().iter().find(|item| item.name() == node.name()) {
+        extra_logstash_fields.insert("node_address".to_string(), serde_json::Value::String(cluster_node_info.address().to_string()));
+    }
+    log4rs::init_file(node.log_config(), log4rs::config::Deserializers::default().with_logstash_extra(extra_logstash_fields))
         .expect("can't find log config");
 
     check_folders(&node, matches.is_present("init_folders"));
 
-    let mut mapper = VirtualMapper::new(&node, &cluster).await;
+    let mut mapper = VirtualMapper::new(&node, &cluster);
 
     let bind = node.bind();
     let bind_read = bind.lock().expect("mutex");
@@ -77,7 +91,7 @@ async fn main() {
             .iter()
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
-        mapper = VirtualMapper::new(&node, &cluster).await;
+        mapper = VirtualMapper::new(&node, &cluster);
         addr = if let Ok(addr) = found.address().parse() {
             addr
         } else if let Some(port) = port_from_address(found.address()) {

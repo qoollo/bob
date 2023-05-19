@@ -1,7 +1,17 @@
 [package]
 name = "bob-grpc"
-version = "2.1.0-alpha.8"
-authors = ["Kirill Bushminkin <kb@qoollo.com>", "Pavel Iakushin <pyakushin@qoollo.com>"]
+version = "2.1.0-alpha.10"
+authors = [
+    "Kirill Bushminkin <kb@qoollo.com>",
+    "Pavel Iakushin <pyakushin@qoollo.com>",
+    "Nikita Menshov",
+    "Ilia Kopylov",
+    "Ivan Druzhitskiy",
+    "Vladimir Stepanenko",
+    "Pavel Perestoronin",
+    "Konstantin Konnov",
+    "Konstantin Bulany"
+]
 edition = "2021"
 
 [dependencies]

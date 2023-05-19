@@ -144,7 +144,7 @@ where
             );
             let put_result = self
                 .grinder
-                .put(key, &data, BobPutOptions::new_put(options))
+                .put(key, &data, BobPutOptions::from_grpc(options))
                 .await;
             trace!(
                 "grinder processed put request, /{:.3}ms/",
@@ -194,7 +194,7 @@ where
                 "create new bob options /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let options = BobGetOptions::new_get(options);
+            let options = BobGetOptions::from_grpc(options);
             trace!(
                 "pass request to grinder /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
@@ -208,8 +208,7 @@ where
                 "grinder finished request processing /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let elapsed = sw.elapsed_ms();
-            debug!("GET[{}]-OK dt: {}ms", key, elapsed);
+            debug!("GET[{}]-OK dt: {}ms", key, sw.elapsed_ms());
             let meta = Some(BlobMeta {
                 timestamp: get_res.meta().timestamp(),
             });
@@ -224,8 +223,13 @@ where
         }
     }
 
-    async fn ping(&self, _: Request<Null>) -> ApiResult<Null> {
+    async fn ping(&self, r: Request<Null>) -> ApiResult<Null> {
         debug!("PING");
+        if let Some(node_name) = r.metadata().get("node_name") {
+            if let Ok(name) = node_name.to_str() {
+                self.grinder.update_node_connection(name);
+            }
+        }
         Ok(Response::new(Null {}))
     }
 
@@ -238,14 +242,13 @@ where
         let req = req.into_inner();
         let ExistRequest { keys, options } = req;
         let keys = keys.into_iter().map(|k| k.key.into()).collect::<Vec<_>>();
-        let options = BobGetOptions::new_get(options);
+        let options = BobGetOptions::from_grpc(options);
         let exist = self
             .grinder
             .exist(&keys, &options)
             .await
             .map_err::<Status, _>(|e| e.into())?;
-        let elapsed = sw.elapsed();
-        debug!("EXISTS-OK dt: {:?}", elapsed);
+        debug!("EXISTS-OK dt: {:?}", sw.elapsed());
         let response = ExistResponse { exist };
         let response = Response::new(response);
         Ok(response)
@@ -265,7 +268,7 @@ where
                 .delete(
                     key,
                     &BobMeta::new(timestamp),
-                    BobDeleteOptions::new_delete(options),
+                    BobDeleteOptions::from_grpc(options),
                 ).await;
 
             delete_result
