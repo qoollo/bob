@@ -4,6 +4,7 @@ use std::{
     fmt::{Display, Formatter, Result as FMTResult},
     hash::Hash,
 };
+use smallvec::SmallVec;
 
 use crate::{
     mem_backend::MemBackend,
@@ -339,7 +340,7 @@ impl Backend {
     pub async fn get(&self, key: BobKey, options: &BobGetOptions) -> Result<BobData, Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
-        // Get all first: we search booth in local data and in aliens
+        // Get all first: we search both in local data and in aliens
         if options.get_all() {
             let mut all_result = Err(Error::key_not_found(key));
             if let Some(path) = disk_path {
@@ -411,7 +412,7 @@ impl Backend {
     ) -> HashMap<Operation, (Vec<BobKey>, Vec<usize>)> {
         let mut keys_by_operations: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
         for (ind, &key) in keys.iter().enumerate() {
-            let operations = self.find_operation(key, options);
+            let operations = self.find_operations(key, options);
             for operation in operations {
                 keys_by_operations
                     .entry(operation)
@@ -425,14 +426,14 @@ impl Backend {
         keys_by_operations
     }
 
-    fn find_operation(&self, key: BobKey, options: &BobGetOptions) -> Vec<Operation> {
+    fn find_operations(&self, key: BobKey, options: &BobGetOptions) -> SmallVec<[Operation; 1]> {
         let (vdisk_id, path) = self.mapper.get_operation(key);
 
-        // With GET_ALL with should lookup both local data and aliens
+        // With GET_ALL we should lookup both local data and aliens
         let capacity = if options.get_normal() && path.is_some() { 1 } else { 0 } +
                               if options.get_alien() { 1 } else { 0 };
 
-        let mut result = Vec::with_capacity(capacity);
+        let mut result = SmallVec::with_capacity(capacity);
         
         if options.get_normal() {
             if let Some(path) = path {
