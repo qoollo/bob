@@ -445,18 +445,14 @@ impl Validatable for Pearl {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
         if let Some(field) = self.skip_holders_by_timestamp_step_when_reading.as_ref() {
-            field.parse::<HumanDuration>()
-                .map_err(|e| {
-                    let msg = "field \'skip_holders_by_timestamp_step_when_reading\' for \'config\' is not valid".to_string();
-                    error!("{}, {}", msg, e);
-                    msg
-                })?;
+            if field.parse::<HumanDuration>().is_err() {
+                return Err(format!("field 'skip_holders_by_timestamp_step_when_reading' for 'config' is not valid ({})", field));
+            }
         }
         if self.fail_retry_timeout.parse::<HumanDuration>().is_err() {
-            Err(format!("field 'fail_retry_timeout' for 'config' is not a valid duration ('{}')", self.fail_retry_timeout))
-        } else {
-            self.settings.validate()
+            return Err(format!("field 'fail_retry_timeout' for 'config' is not a valid duration ('{}')", self.fail_retry_timeout));
         }
+        self.settings.validate()
     }
 }
 

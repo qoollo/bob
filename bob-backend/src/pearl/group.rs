@@ -283,30 +283,26 @@ impl Group {
             .map(|(_, x)| &x.data)
         {
             if Self::should_check_holder(self.safe_timestamp_step, holder, max_timestamp) {
-                let get = Self::get_common(&holder, key).await;
-                match get {
-                    Ok(data) => 
-                        match data {
-                            ReadResult::Found(data) => {
-                                trace!("get data: {:?} from: {:?}", data, holder);
-                                let ts = data.meta().timestamp();
-                                if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
-                                    max_timestamp = Some(ts);
-                                    result = Some(data);
-                                }
-                            },
-                            ReadResult::Deleted(ts) => {
-                                trace!("{} is deleted in {:?} at {}", key, holder, ts);
-                                let ts: u64 = ts.into();
-                                if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
-                                    max_timestamp = Some(ts);
-                                    result = None;
-                                }
-                            },
-                            ReadResult::NotFound => {
-                                debug!("{} not found in {:?}", key, holder)
-                            }
-                        },
+                match Self::get_common(&holder, key).await {
+                    Ok(ReadResult::Found(data)) => {
+                        trace!("get data: {:?} from: {:?}", data, holder);
+                        let ts = data.meta().timestamp();
+                        if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
+                            max_timestamp = Some(ts);
+                            result = Some(data);
+                        }
+                    },
+                    Ok(ReadResult::Deleted(ts)) => {
+                        trace!("{} is deleted in {:?} at {}", key, holder, ts);
+                        let ts: u64 = ts.into();
+                        if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
+                            max_timestamp = Some(ts);
+                            result = None;
+                        }
+                    },
+                    Ok(ReadResult::NotFound) => {
+                        debug!("{} not found in {:?}", key, holder)
+                    },
                     Err(err) => {
                         has_error = true;
                         error!("get error: {}, from : {:?}", err, holder);
@@ -348,8 +344,7 @@ impl Group {
         for (ind, &key) in keys.iter().enumerate() {
             let mut max_timestamp = None;
             let mut result = false;
-            for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
-            {
+            for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key)) {
                 if Self::should_check_holder(self.safe_timestamp_step, holder, max_timestamp) {
                     match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
                         ReadResult::Found(ts) => {
