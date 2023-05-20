@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use bob_common::metrics::{
     CPU_LOAD, DESCRIPTORS_AMOUNT, FREE_RAM, FREE_SPACE, TOTAL_RAM, TOTAL_SPACE, USED_RAM,
-    USED_SPACE, BOB_RAM,
+    USED_SPACE, BOB_RAM, USED_SWAP, BOB_VIRTUAL_RAM
 };
 use std::path::{Path, PathBuf};
 use std::os::unix::fs::MetadataExt;
@@ -76,8 +76,12 @@ impl HWMetricsCollector {
             debug!("used mem in bytes: {}", used_mem);
             gauge!(USED_RAM, used_mem as f64);
             gauge!(FREE_RAM, (total_mem - used_mem) as f64);
+            let used_swap = kb_to_b(sys.used_swap());
+            gauge!(USED_SWAP, used_swap as f64);
             let bob_ram = kb_to_b(proc.memory());
             gauge!(BOB_RAM, bob_ram as f64);
+            let bob_virtual_ram = kb_to_b(proc.virtual_memory());
+            gauge!(BOB_VIRTUAL_RAM, bob_virtual_ram as f64);
             gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
             gauge!(CPU_LOAD, proc.cpu_usage() as f64);
         }
