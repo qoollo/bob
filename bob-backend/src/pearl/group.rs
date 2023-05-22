@@ -263,9 +263,8 @@ impl Group {
                 }
             }
             let max_diff = max_diff.unwrap_or(self.settings.timestamp_period_as_secs());
-            let step = (2 * max_diff).max(5 * self.settings.timestamp_period_as_secs());
-            // 3600s = 1h
-            Some(adjust.max(step) + 3600)
+            let step = 2 * max_diff.max(self.settings.timestamp_period_as_secs()) + 1;
+            Some(adjust.max(step))
         } else {
             None
         }
