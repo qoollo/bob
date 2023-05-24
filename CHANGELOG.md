@@ -14,7 +14,7 @@ Bob versions changelog
 - Make iouring optional (#567)
 
 #### Fixed
-
+- Fix memory leak due to prometheus lib (#788)
 
 #### Updated
 - Pearl updated to v0.19.0 (#798)
