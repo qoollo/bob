@@ -50,7 +50,9 @@ mod prelude {
     pub use bob_common::{
         bob_client::{BobClient, Factory},
         configs::node::Node as NodeConfig,
-        data::{BobData, BobKey, BobMeta, BobPutOptions, BobGetOptions, BobDeleteOptions, DiskPath, VDiskId},
+        data::{BobData, BobKey, BobMeta},
+        operation_options::{BobPutOptions, BobGetOptions, BobDeleteOptions},
+        core_types::{DiskPath, VDiskId},
         error::Error,
         mapper::Virtual,
         metrics::{
@@ -64,7 +66,7 @@ mod prelude {
             GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER, GRINDER_PUT_COUNTER,
             GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER, INDEX_MEMORY,
         },
-        node::{Node, Output as NodeOutput},
+        node::{Node, NodeName, Output as NodeOutput},
         stopwatch::Stopwatch,
     };
     pub use bob_grpc::{
@@ -101,25 +103,25 @@ pub(crate) mod test_utils {
 
     use crate::prelude::*;
 
-    pub(crate) fn ping_ok(node_name: String) -> PingResult {
+    pub(crate) fn ping_ok(node_name: NodeName) -> PingResult {
         Ok(NodeOutput::new(node_name, ()))
     }
 
-    pub(crate) fn put_ok(node_name: String) -> PutResult {
+    pub(crate) fn put_ok(node_name: NodeName) -> PutResult {
         Ok(NodeOutput::new(node_name, ()))
     }
 
-    pub(crate) fn put_err(node_name: String) -> PutResult {
+    pub(crate) fn put_err(node_name: NodeName) -> PutResult {
         debug!("return internal error on PUT");
         Err(NodeOutput::new(node_name, Error::internal()))
     }
 
-    pub(crate) fn get_ok(node_name: String, timestamp: u64) -> GetResult {
+    pub(crate) fn get_ok(node_name: NodeName, timestamp: u64) -> GetResult {
         let inner = BobData::new(vec![].into(), BobMeta::new(timestamp));
         Ok(NodeOutput::new(node_name, inner))
     }
 
-    pub(crate) fn get_err(node_name: String) -> GetResult {
+    pub(crate) fn get_err(node_name: NodeName) -> GetResult {
         debug!("return internal error on GET");
         Err(NodeOutput::new(node_name, Error::internal()))
     }

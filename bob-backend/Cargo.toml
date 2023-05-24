@@ -1,9 +1,16 @@
 [package]
 name = "bob-backend"
-version = "2.1.0-alpha.9"
+version = "2.1.0-alpha.10"
 authors = [
     "Kirill Bushminkin <kb@qoollo.com>",
     "Pavel Iakushin <pyakushin@qoollo.com>",
+    "Nikita Menshov",
+    "Ilia Kopylov",
+    "Ivan Druzhitskiy",
+    "Vladimir Stepanenko",
+    "Pavel Perestoronin",
+    "Konstantin Konnov",
+    "Konstantin Bulany"
 ]
 edition = "2021"
 
@@ -36,7 +43,7 @@ tower = "0.4"
 tower-service = "0.3"
 
 [dependencies.pearl]
-version = "0.18.0"
+version = "0.19.0"
 
 [dependencies.tokio]
 version = "1.21"
@@ -45,6 +52,9 @@ features = []
 
 [dev-dependencies]
 criterion = "0.4"
+
+[features]
+async-io = ["pearl/async-io-rio"]
 
 [[bench]]
 name = "key_cmp_benchmark"
