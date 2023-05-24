@@ -14,7 +14,7 @@ Bob versions changelog
 - Make iouring optional (#567)
 
 #### Fixed
-
+- Do not propagate an initialization error when it is determined that the disk is not available (#807)
 
 #### Updated
 - Pearl updated to v0.19.0 (#798)
