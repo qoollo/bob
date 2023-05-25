@@ -29,3 +29,7 @@ debug = 0
 debug-assertions = true
 overflow-checks = true
 panic = "abort"
+
+[profile.jemalloc-profile]
+inherits = "dev"
+panic = "unwind"

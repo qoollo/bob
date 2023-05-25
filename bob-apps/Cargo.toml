@@ -18,6 +18,8 @@ edition = "2021"
 default = ["mimalloc"]
 mimalloc = ["dep:mimalloc"]
 mimalloc-secure = ["dep:mimalloc", "mimalloc/secure"]
+# Important: can't be used with panic = "abort"
+# Please use profile "jemalloc-profile"
 jemalloc-profile = ["jemallocator", "jemallocator/profiling"]
 
 [dependencies]
