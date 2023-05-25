@@ -1,4 +1,7 @@
+#[cfg(any(feature = "mimalloc", feature = "mimalloc-secure"))]
 include!("alloc/mimalloc.rs");
+#[cfg(feature = "jemalloc-profile")]
+include!("alloc/jemalloc.rs");
 
 use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
