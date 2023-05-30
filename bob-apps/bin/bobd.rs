@@ -1,3 +1,5 @@
+#[cfg(all(any(feature = "mimalloc", feature = "mimalloc-secure"), feature = "jemalloc-profile"))]
+compile_error!("features `mimalloc` and `jemalloc-profile` are mutually exclusive");
 #[cfg(any(feature = "mimalloc", feature = "mimalloc-secure"))]
 include!("alloc/mimalloc.rs");
 #[cfg(feature = "jemalloc-profile")]
