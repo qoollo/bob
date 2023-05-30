@@ -30,6 +30,6 @@ debug-assertions = true
 overflow-checks = true
 panic = "abort"
 
-[profile.jemalloc-profile]
+[profile.jemallocator-profile]
 inherits = "dev"
 panic = "unwind"
