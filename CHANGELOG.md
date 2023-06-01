@@ -5,6 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Added mimalloc allocator for musl target (#688)
+- Added jemalloc-profile for memory profiling (#797)
 
 #### Changed
 - BobClient clone overhead reduced (#774)
