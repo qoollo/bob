@@ -41,6 +41,10 @@ pub struct BackendSettings {
     alien_root_dir_name: String,
     timestamp_period: String,
     create_pearl_wait_delay: String,
+    /// Enables record search optimization and sets the depth of partition scanning after finding the first record by key. 
+    /// This optimization is unsafe, value should be at least 2 times the maximum value of 'timestamp_period' that was used throughout the lifetime of the cluster
+    #[serde(default)]
+    skip_holders_by_timestamp_step_when_reading: Option<String>,
 }
 
 impl Validatable for BackendSettings {
@@ -58,19 +62,20 @@ impl Validatable for BackendSettings {
             return Err(format!("field 'timestamp_period' for 'backend settings config' is not valid: {}", e));
         }
 
-        let period = chrono::Duration::from_std(self.timestamp_period())
-            .expect("smth wrong with time");
+        let period = chrono::Duration::from_std(self.timestamp_period()).expect("smth wrong with time");
         if period > chrono::Duration::days(366) {
             return Err(format!("field 'timestamp_period' for 'backend.settings config' is greater than 1 year ({})", period));
         }
 
-        if self
-            .create_pearl_wait_delay
-            .parse::<HumanDuration>()
-            .is_err()
-        {
+        if self.create_pearl_wait_delay.parse::<HumanDuration>().is_err() {
             return Err(format!("field 'create_pearl_wait_delay' for backend.settings config is not valid ({})", self.create_pearl_wait_delay));
         } 
+
+        if let Some(field) = self.skip_holders_by_timestamp_step_when_reading.as_ref() {
+            if field.parse::<HumanDuration>().is_err() {
+                return Err(format!("field 'skip_holders_by_timestamp_step_when_reading' for 'config' is not valid ({})", field));
+            }
+        }
 
         Ok(())
     }
@@ -97,6 +102,13 @@ impl BackendSettings {
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
+    }
+
+    pub fn skip_holders_by_timestamp_step_when_reading_sec(&self) -> Option<u64> {
+        self.skip_holders_by_timestamp_step_when_reading.as_ref().map(|dur|
+            dur.parse::<HumanDuration>()
+                .expect("parse humantime duration")
+                .as_secs())
     }
 
     fn check_unset(&self) -> Result<(), String> {
@@ -250,8 +262,6 @@ pub struct Pearl {
     bloom_filter_max_buf_bits_count: Option<usize>,
     #[serde(default = "Pearl::default_validate_data_checksum_during_index_regen")]
     validate_data_checksum_during_index_regen: bool,
-    #[serde(default)]
-    skip_holders_by_timestamp_step_when_reading: Option<String>,
 }
 
 impl Pearl {
@@ -280,13 +290,6 @@ impl Pearl {
 
     pub fn validate_data_checksum_during_index_regen(&self) -> bool {
         self.validate_data_checksum_during_index_regen
-    }
-
-    pub fn skip_holders_by_timestamp_step_when_reading_sec(&self) -> Option<u64> {
-        self.skip_holders_by_timestamp_step_when_reading.as_ref().map(|dur|
-            dur.parse::<HumanDuration>()
-                .expect("parse humantime duration")
-                .as_secs())
     }
 
     fn default_fail_retry_count() -> u64 {
@@ -444,11 +447,6 @@ impl Pearl {
 impl Validatable for Pearl {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
-        if let Some(field) = self.skip_holders_by_timestamp_step_when_reading.as_ref() {
-            if field.parse::<HumanDuration>().is_err() {
-                return Err(format!("field 'skip_holders_by_timestamp_step_when_reading' for 'config' is not valid ({})", field));
-            }
-        }
         if self.fail_retry_timeout.parse::<HumanDuration>().is_err() {
             return Err(format!("field 'fail_retry_timeout' for 'config' is not a valid duration ('{}')", self.fail_retry_timeout));
         }
