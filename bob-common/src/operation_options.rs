@@ -129,6 +129,10 @@ impl BobGetOptions {
         self.force_node
     }
 
+    pub fn get_all(&self) -> bool {
+        self.get_source == GetSource::All
+    }
+
     pub fn get_normal(&self) -> bool {
         self.get_source == GetSource::Normal || self.get_source == GetSource::All
     }

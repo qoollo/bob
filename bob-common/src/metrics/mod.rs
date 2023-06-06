@@ -124,6 +124,8 @@ pub const TOTAL_SPACE: &str = "hardware.total_space";
 
 const CLIENTS_METRICS_DIR: &str = "clients";
 
+const PROMETHEUS_RENDER_INTERVAL_SEC: u64 = 3600;
+
 /// Type to measure time of requests processing
 pub type Timer = Instant;
 
@@ -390,6 +392,18 @@ fn build_prometheus(node_config: &NodeConfig) -> PrometheusRecorder {
         }
     };
     tokio::spawn(future);
+
+    // Fix for memory leak in prometheus crate, https://github.com/qoollo/bob/issues/788
+    let handle = recorder.handle();
+    let future = async move {
+        let mut timer = tokio::time::interval(Duration::from_secs(PROMETHEUS_RENDER_INTERVAL_SEC));
+        loop {
+            let _ = timer.tick().await;
+            let _ = handle.render();
+        }
+    };
+    tokio::spawn(future);
+
     recorder
 }
 
