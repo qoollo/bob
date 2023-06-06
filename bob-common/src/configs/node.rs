@@ -250,6 +250,8 @@ pub struct Pearl {
     bloom_filter_max_buf_bits_count: Option<usize>,
     #[serde(default = "Pearl::default_validate_data_checksum_during_index_regen")]
     validate_data_checksum_during_index_regen: bool,
+    /// Enables record search optimization and sets the depth of partition scanning after finding the first record by key. 
+    /// This optimization is unsafe, value should be at least 2 times the maximum value of 'timestamp_period' that was used throughout the lifetime of the cluster
     #[serde(default)]
     skip_holders_by_timestamp_step_when_reading: Option<String>,
 }
