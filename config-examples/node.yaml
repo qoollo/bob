@@ -81,6 +81,9 @@ pearl:
   disks_events_logfile: "/tmp/bob_events.csv"
   # optional, default = false, enables data checksum validation during index regeneration
   validate_data_checksum_during_index_regen: false
+  # optional, default = None, enables optimization of record search and sets the depth of partition scanning after the first record by the key is found. 
+  # This optimization is unsafe, value should be at least 2 times the maximum value of 'timestamp_period' that was used throughout the lifetime of the cluster
+  #skip_holders_by_timestamp_step_when_reading: 2h
   # [size] required for 'pearl'
   max_blob_size: 100 mb
   # optional, required for 'pearl', disables search for existing keys before write
@@ -103,9 +106,6 @@ pearl:
     alien_root_dir_name: alien
     # [time] period when new pearl directory created. required for 'pearl'
     timestamp_period: 1h
-    # optional, default = None, enables record search optimization and sets the depth of partition scanning after finding the first record by key. 
-    # This optimization is unsafe, value should be at least 2 times the maximum value of 'timestamp_period' that was used throughout the lifetime of the cluster
-    #skip_holders_by_timestamp_step_when_reading: 2h
     # each thread will wait this period if another thread creating pearl. required for 'pearl'
     create_pearl_wait_delay: 100ms
 

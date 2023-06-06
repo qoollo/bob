@@ -244,7 +244,7 @@ impl Group {
     }
 
     async fn safe_timestamp_step(&self) -> Option<u64> {
-        if let Some(adjust) = self.settings.config().settings().skip_holders_by_timestamp_step_when_reading_sec() {
+        if let Some(adjust) = self.settings.config().skip_holders_by_timestamp_step_when_reading_sec() {
             let mut start_timestamps = self.holders.read().await
                 .iter()
                 .map(|holder| holder.start_timestamp())
