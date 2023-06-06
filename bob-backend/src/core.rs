@@ -4,6 +4,7 @@ use std::{
     fmt::{Display, Formatter, Result as FMTResult},
     hash::Hash,
 };
+use smallvec::SmallVec;
 
 use crate::{
     mem_backend::MemBackend,
@@ -339,30 +340,35 @@ impl Backend {
     pub async fn get(&self, key: BobKey, options: &BobGetOptions) -> Result<BobData, Error> {
         let (vdisk_id, disk_path) = self.mapper.get_operation(key);
 
-        // we cannot get data from alien if it belong this node
-
-        if options.get_normal() {
+        // Get all first: we search both in local data and in aliens
+        if options.get_all() {
+            let mut all_result = Err(Error::key_not_found(key));
             if let Some(path) = disk_path {
                 trace!("GET[{}] try read normal", key);
-                self.get_local(key, Operation::new_local(vdisk_id, path.clone()))
-                    .await
+                all_result = self.get_single(key, Operation::new_local(vdisk_id, path.clone())).await;
+            }
+            if all_result.is_err() {
+                trace!("GET[{}] try read alien", key);
+                all_result = self.get_single(key, Operation::new_alien(vdisk_id)).await;
+            }
+            all_result
+        } 
+        else if options.get_normal() {
+            // Lookup local data
+            if let Some(path) = disk_path {
+                trace!("GET[{}] try read normal", key);
+                self.get_single(key, Operation::new_local(vdisk_id, path.clone())).await
             } else {
                 error!("GET[{}] we read data but can't find path in config", key);
                 Err(Error::internal())
             }
         }
-        //TODO how read from all alien folders?
         else if options.get_alien() {
-            //TODO check is alien? how? add field to grpc
+            // Lookup aliens
             trace!("GET[{}] try read alien", key);
-            //TODO read from all vdisk ids
-            let op = Operation::new_alien(vdisk_id);
-            self.get_single(key, op).await
+            self.get_single(key, Operation::new_alien(vdisk_id)).await
         } else {
-            error!(
-                "GET[{}] can't read from anywhere {:?}, {:?}",
-                key, disk_path, options
-            );
+            error!("GET[{}] can't read from anywhere {:?}, {:?}", key, disk_path, options);
             Err(Error::internal())
         }
     }
@@ -406,8 +412,8 @@ impl Backend {
     ) -> HashMap<Operation, (Vec<BobKey>, Vec<usize>)> {
         let mut keys_by_operations: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
         for (ind, &key) in keys.iter().enumerate() {
-            let operation = self.find_operation(key, options);
-            if let Some(operation) = operation {
+            let operations = self.find_operations(key, options);
+            for operation in operations {
                 keys_by_operations
                     .entry(operation)
                     .and_modify(|(keys, indexes)| {
@@ -420,15 +426,25 @@ impl Backend {
         keys_by_operations
     }
 
-    fn find_operation(&self, key: BobKey, options: &BobGetOptions) -> Option<Operation> {
+    fn find_operations(&self, key: BobKey, options: &BobGetOptions) -> SmallVec<[Operation; 1]> {
         let (vdisk_id, path) = self.mapper.get_operation(key);
+
+        // With GET_ALL we should lookup both local data and aliens
+        let capacity = if options.get_normal() && path.is_some() { 1 } else { 0 } +
+                              if options.get_alien() { 1 } else { 0 };
+
+        let mut result = SmallVec::with_capacity(capacity);
+        
         if options.get_normal() {
-            path.map(|path| Operation::new_local(vdisk_id, path))
-        } else if options.get_alien() {
-            Some(Operation::new_alien(vdisk_id))
-        } else {
-            None
-        }
+            if let Some(path) = path {
+                result.push(Operation::new_local(vdisk_id, path));
+            }
+        } 
+        if options.get_alien() {
+            result.push(Operation::new_alien(vdisk_id));
+        } 
+
+        result
     }
 
     pub async fn delete(
