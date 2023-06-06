@@ -5,7 +5,8 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Added mimalloc allocator for musl target (#688)
-- Proper support for GetSource::ALL requests (#723) 
+- Added jemalloc-profile for memory profiling (#797)
+- Proper support for GetSource::ALL requests (#723)
 
 #### Changed
 - BobClient clone overhead reduced (#774)
@@ -15,7 +16,7 @@ Bob versions changelog
 - Make iouring optional (#567)
 
 #### Fixed
-
+- Fix memory leak due to prometheus lib (#788)
 
 #### Updated
 - Pearl updated to v0.19.0 (#798)
