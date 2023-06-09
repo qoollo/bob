@@ -8,6 +8,7 @@ pub(crate) mod logger;
 use crate::{core::Operation, pearl::hooks::Hooks, prelude::*};
 use logger::DisksEventsLogger;
 
+use super::holder::PearlCreationContext;
 use super::Holder;
 use super::{core::BackendResult, settings::Settings, utils::StartTimestampConfig, Group};
 
@@ -33,10 +34,9 @@ enum GroupsState {
 pub struct DiskController {
     disk: DiskPath,
     vdisks: Vec<VDiskId>,
-    dump_sem: Arc<Semaphore>,
     run_sem: Arc<Semaphore>,
     monitor_sem: Arc<Semaphore>,
-    node_name: String,
+    node_name: NodeName,
     groups: Arc<RwLock<Vec<Group>>>,
     state: Arc<RwLock<GroupsState>>,
     settings: Arc<Settings>,
@@ -44,6 +44,7 @@ pub struct DiskController {
     disk_state_metric: String,
     logger: DisksEventsLogger,
     blobs_count_cached: Arc<AtomicU64>,
+    pearl_creation_context: PearlCreationContext,
 }
 
 impl DiskController {
@@ -55,16 +56,17 @@ impl DiskController {
         settings: Arc<Settings>,
         is_alien: bool,
         logger: DisksEventsLogger,
+        iodriver: IoDriver,
     ) -> Arc<Self> {
         let disk_state_metric = format!("{}.{}", DISKS_FOLDER, disk.name());
         let dump_sem = Arc::new(Semaphore::new(config.disk_access_par_degree()));
+        let pearl_creation_context = PearlCreationContext::new(dump_sem, iodriver);
         let new_dc = Self {
             disk,
             vdisks,
-            dump_sem,
             run_sem,
             monitor_sem: Arc::new(Semaphore::new(1)),
-            node_name: config.name().to_owned(),
+            node_name: NodeName::from(config.name()),
             groups: Arc::new(RwLock::new(Vec::new())),
             state: Arc::new(RwLock::new(GroupsState::NotReady)),
             settings,
@@ -72,6 +74,7 @@ impl DiskController {
             disk_state_metric,
             logger,
             blobs_count_cached: Arc::new(AtomicU64::new(0)),
+            pearl_creation_context,
         };
         new_dc
             .init()
@@ -257,14 +260,15 @@ impl DiskController {
             .copied()
             .map(|vdisk_id| {
                 let path = self.settings.normal_path(self.disk.path(), vdisk_id);
+                let owner_node_identifier = self.node_name.to_string();
                 Group::new(
                     self.settings.clone(),
                     vdisk_id,
                     self.node_name.clone(),
-                    self.disk.name().to_owned(),
+                    self.disk.name().clone(),
                     path,
-                    self.node_name.clone(),
-                    self.dump_sem.clone(),
+                    owner_node_identifier,
+                    self.pearl_creation_context.clone(),
                 )
             })
             .collect()
@@ -274,9 +278,9 @@ impl DiskController {
         let settings = self.settings.clone();
         let groups = settings
             .collect_alien_groups(
-                self.disk.name().to_owned(),
-                self.dump_sem.clone(),
+                self.disk.name(),
                 &self.node_name,
+                self.pearl_creation_context.clone(),
             )
             .await?;
         trace!(
@@ -322,10 +326,10 @@ impl DiskController {
             .settings
             .clone()
             .create_alien_group(
-                operation.remote_node_name().expect("Node name not found"),
+                operation.remote_node_name().expect("Node name not found").clone(),
                 operation.vdisk_id(),
                 &self.node_name,
-                self.dump_sem.clone(),
+                self.pearl_creation_context.clone(),
             )
             .await?;
         write_lock_groups.push(group.clone());
@@ -341,7 +345,7 @@ impl DiskController {
     }
 
     async fn run_groups(groups: Arc<RwLock<Vec<Group>>>, pp: impl Hooks) -> AnyResult<()> {
-        for group in groups.read().await.iter() {
+        for group in groups.write().await.iter_mut() {
             group.run(pp.clone()).await?;
         }
         Ok(())
@@ -382,10 +386,7 @@ impl DiskController {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = self.get_or_create_pearl(&op).await;
             match vdisk_group {
-                Ok(group) => match group
-                    .put(key, data, StartTimestampConfig::new(false))
-                    .await
-                {
+                Ok(group) => match group.put(key, data, StartTimestampConfig::new(false)).await {
                     Err(e) => Err(self.process_error(e).await),
                     Ok(()) => Ok(()),
                 },
@@ -402,7 +403,12 @@ impl DiskController {
         }
     }
 
-    pub(crate) async fn put(&self, op: Operation, key: BobKey, data: &BobData) -> BackendResult<()> {
+    pub(crate) async fn put(
+        &self,
+        op: Operation,
+        key: BobKey,
+        data: &BobData,
+    ) -> BackendResult<()> {
         if *self.state.read().await == GroupsState::Ready {
             let vdisk_group = {
                 let groups = self.groups.read().await;
@@ -463,7 +469,7 @@ impl DiskController {
             if let Ok(group) = vdisk_group {
                 group.get(key).await
             } else {
-                warn!(
+                debug!(
                     "GET[alien][{}] No alien group has been created for vdisk #{}",
                     key,
                     op.vdisk_id()
@@ -489,31 +495,113 @@ impl DiskController {
                 .find(|g| g.can_process_operation(&operation))
                 .cloned();
             if let Some(group) = group_option {
-                Ok(group.exist(keys).await)
+                group.exist(keys).await
             } else {
-                Err(Error::internal())
+                Err(Error::vdisk_not_found(operation.vdisk_id()))
             }
         } else {
             Err(Error::dc_is_not_available())
         }
     }
 
+    pub(crate) async fn exist_alien(
+        &self,
+        operation: Operation,
+        keys: &[BobKey],
+    ) -> Result<Vec<bool>, Error> {
+        if *self.state.read().await == GroupsState::Ready {
+            let vdisk_group = self.find_group(&operation).await;
+            if let Ok(group) = vdisk_group {
+                group.exist(keys).await
+            } else {
+                trace!(
+                    "EXIST[alien] No alien group has been created for vdisk #{}",
+                    operation.vdisk_id()
+                );
+                Ok(vec![false; keys.len()])
+            }
+        } else {
+            Err(Error::dc_is_not_available())
+        }
+    }
+
+    pub(crate) async fn delete(
+        &self,
+        op: Operation,
+        key: BobKey,
+        meta: &BobMeta
+    ) -> Result<u64, Error> {
+        if *self.state.read().await == GroupsState::Ready {
+            debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
+            let vdisk_group = self
+                .groups
+                .read()
+                .await
+                .iter()
+                .find(|g| g.can_process_operation(&op))
+                .cloned();
+            if let Some(group) = vdisk_group {
+                group
+                    .delete(key, meta, StartTimestampConfig::default(), true) // Local delete should always have force_delete = true
+                    .await
+            } else {
+                error!("DELETE[{}] Cannot find storage, operation: {:?}", key, op);
+                Err(Error::vdisk_not_found(op.vdisk_id()))
+            }
+        } else {
+            Err(Error::dc_is_not_available())
+        }
+    }
+
+    pub(crate) async fn delete_alien(
+        &self,
+        op: Operation,
+        key: BobKey,
+        meta: &BobMeta,
+        force_delete: bool,
+    ) -> Result<u64, Error> {
+        if *self.state.read().await == GroupsState::Ready {
+            let vdisk_group =
+                if !force_delete {
+                    match self.find_group(&op).await {
+                        Ok(group) => group,
+                        Err(_) => return Ok(0)
+                    }
+                } else {
+                    // we should create group only when force_delete == true
+                    match self.get_or_create_pearl(&op).await {
+                        Ok(group) => group,
+                        Err(err) => {
+                            error!(
+                                "DELETE[alien][{}] Cannot find group, op: {:?}, err: {}",
+                                key, op, err
+                            );
+                            return Err(Error::vdisk_not_found(op.vdisk_id()));
+                        }
+                    }
+                };
+
+            match vdisk_group.delete(key, meta, StartTimestampConfig::new(false), force_delete).await
+            {
+                Err(e) => Err(self.process_error(e).await),
+                Ok(x) => Ok(x),
+            }
+        } else {
+            Err(Error::dc_is_not_available())
+        }
+    }
+
+    
     pub(crate) async fn shutdown(&self) {
         let futures = FuturesUnordered::new();
         for group in self.groups.read().await.iter() {
             let holders = group.holders();
             let holders = holders.read().await;
             for holder in holders.iter() {
-                let storage = holder.storage().read().await;
-                let storage = storage.storage().clone();
-                let id = holder.get_id();
+                let holder = holder.clone();
                 futures.push(async move {
-                    match storage.close().await {
-                        Ok(_) => debug!("holder {} closed", id),
-                        Err(e) => {
-                            error!("error closing holder{}: {} (disk: {:?})", id, e, self.disk)
-                        }
-                    }
+                    holder.close_storage().await;
+                    debug!("holder {} closed", holder.get_id());
                 });
             }
         }
@@ -524,11 +612,7 @@ impl DiskController {
         let cnt = if *self.state.read().await == GroupsState::Ready {
             let mut cnt: usize = 0;
             for group in self.groups.read().await.iter() {
-                let holders_guard = group.holders();
-                let holders = holders_guard.read().await;
-                for holder in holders.iter() {
-                    cnt += holder.blobs_count().await;
-                }
+                cnt += group.blobs_count().await;
             }
             cnt
         } else {
@@ -538,15 +622,23 @@ impl DiskController {
         cnt
     }
 
+    pub(crate) async fn corrupted_blobs_count(&self) -> usize {
+        if *self.state.read().await == GroupsState::Ready {
+            let mut cnt: usize = 0;
+            for group in self.groups.read().await.iter() {
+                cnt += group.corrupted_blobs_count().await;
+            }
+            cnt
+        } else {
+            0
+        }
+    }
+
     pub(crate) async fn index_memory(&self) -> usize {
         if *self.state.read().await == GroupsState::Ready {
             let mut cnt = 0;
             for group in self.groups.read().await.iter() {
-                let holders_guard = group.holders();
-                let holders = holders_guard.read().await;
-                for holder in holders.iter() {
-                    cnt += holder.index_memory().await;
-                }
+                cnt += group.index_memory().await;
             }
             cnt
         } else {
@@ -593,45 +685,6 @@ impl DiskController {
             }
         }
         result
-    }
-
-    pub(crate) async fn delete(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
-        if *self.state.read().await == GroupsState::Ready {
-            debug!("DELETE[{}] from pearl backend. operation: {:?}", key, op);
-            let vdisk_group = self
-                .groups
-                .read()
-                .await
-                .iter()
-                .find(|g| g.can_process_operation(&op))
-                .cloned();
-            if let Some(group) = vdisk_group {
-                group.delete(key).await
-            } else {
-                error!("DELETE[{}] Cannot find storage, operation: {:?}", key, op);
-                Err(Error::vdisk_not_found(op.vdisk_id()))
-            }
-        } else {
-            Err(Error::dc_is_not_available())
-        }
-    }
-
-    pub(crate) async fn delete_alien(&self, op: Operation, key: BobKey) -> Result<u64, Error> {
-        if *self.state.read().await == GroupsState::Ready {
-            let vdisk_group = self.find_group(&op).await;
-            if let Ok(group) = vdisk_group {
-                group.delete(key).await
-            } else {
-                debug!(
-                    "DELETE[alien][{}] No alien group has been created for vdisk #{}",
-                    key,
-                    op.vdisk_id()
-                );
-                Err(Error::key_not_found(key))
-            }
-        } else {
-            Err(Error::dc_is_not_available())
-        }
     }
 
     pub(crate) async fn filter_memory_allocated(&self) -> usize {

@@ -3,78 +3,92 @@ use crate::{
         cluster::{Cluster as ClusterConfig, DistributionFunc},
         node::Node as NodeConfig,
     },
-    data::{BobKey, DiskPath, VDisk as DataVDisk, VDiskId},
-    node::{Id as NodeId, Node},
+    data::BobKey,
+    core_types::{DiskName, DiskPath, VDisk as DataVDisk, VDiskId},
+    node::{NodeId, NodeName, Node},
 };
-use futures::{stream::FuturesUnordered, StreamExt};
-use std::{collections::HashMap, convert::TryInto};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryInto,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 /// Hash map with IDs as keys and `VDisk`s as values.
 pub type VDisksMap = HashMap<VDiskId, DataVDisk>;
 
-pub type NodesMap = HashMap<NodeId, Node>;
+/// `get_support_nodes` helper
+struct SupportIndexResult {
+    index: Option<usize>,
+    avail: usize,
+}
 
 /// Struct for managing distribution of replicas on disks and nodes.
 /// Through the virtual intermediate object, called `VDisk` - "virtual disk"
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Virtual {
-    local_node_name: String,
+    local_node_name: NodeName,
     local_node_address: String,
     disks: Vec<DiskPath>,
     vdisks: VDisksMap,
-    nodes: NodesMap,
+    nodes: Vec<Node>,
     distribution_func: DistributionFunc,
+    support_nodes_offset: AtomicUsize,
 }
 
 impl Virtual {
     /// Creates new instance of the Virtual disk mapper
-    pub async fn new(config: &NodeConfig, cluster: &ClusterConfig) -> Self {
-        let mut vdisks = cluster.create_vdisks_map().unwrap();
-        let nodes = Self::prepare_nodes(&mut vdisks, cluster).await;
-        let local_node_name = config.name().to_owned();
+    pub fn new(config: &NodeConfig, cluster: &ClusterConfig) -> Self {
+        let nodes = Self::prepare_nodes(cluster);
+        let vdisks = Self::prepare_vdisks_map(cluster, nodes.as_slice());
+        let local_node_name = config.name().into();
         let local_node_address = nodes
-            .values()
+            .iter()
             .find(|node| *node.name() == local_node_name)
             .expect("found node with name")
             .address()
             .to_string();
-        let disks = config.disks();
-        let disks_read = disks.lock().expect("mutex");
+        let disks = config.disks().lock().expect("mutex").clone();
         Self {
             local_node_name,
             local_node_address,
-            disks: disks_read.clone(),
+            disks,
             vdisks,
             nodes,
             distribution_func: cluster.distribution_func(),
+            support_nodes_offset: AtomicUsize::new(0),
         }
     }
 
-    async fn prepare_nodes(vdisks: &mut VDisksMap, cluster: &ClusterConfig) -> NodesMap {
-        let nodes = cluster
+    fn prepare_nodes(cluster: &ClusterConfig) -> Vec<Node> {
+        return cluster
             .nodes()
             .iter()
             .enumerate()
             .map(|(i, conf)| {
                 let index = i.try_into().expect("usize to u16");
-                let address = conf.address();
-                let name = conf.name().to_owned();
-                async move {
-                    let node = Node::new(name, address, index).await;
-                    (index, node)
-                }
+                Node::new(conf.name().into(), conf.address().to_owned(), index)
             })
-            .collect::<FuturesUnordered<_>>()
-            .collect()
-            .await;
+            .collect();
+    }
+    fn prepare_vdisks_map(cluster: &ClusterConfig, nodes: &[Node]) -> VDisksMap {
+        let mut vdisks = VDisksMap::new();
+        let vdisks_replicas = cluster.collect_vdisk_replicas().unwrap();
+        for (vdisk_id, cur_vdisk_replicas) in vdisks_replicas {
+            // Collect nodes for vdisk
+            let mut vdisk_nodes = Vec::new();
+            for node in nodes {
+                if cur_vdisk_replicas.iter().any(|r| r.node_name() == node.name()) {
+                    vdisk_nodes.push(node.clone());
+                }
+            }
+
+            vdisks.insert(vdisk_id, DataVDisk::new(vdisk_id, cur_vdisk_replicas, vdisk_nodes));
+        }
 
         vdisks
-            .values_mut()
-            .for_each(|vdisk| vdisk.set_nodes(&nodes));
-        nodes
     }
 
-    pub fn local_node_name(&self) -> &str {
+    pub fn local_node_name(&self) -> &NodeName {
         &self.local_node_name
     }
 
@@ -102,7 +116,7 @@ impl Virtual {
         self.disks.iter().find(|d| d.name() == name)
     }
 
-    pub fn nodes(&self) -> &HashMap<NodeId, Node> {
+    pub fn nodes(&self) -> &[Node] {
         &self.nodes
     }
 
@@ -115,25 +129,123 @@ impl Virtual {
         self.vdisks.get(&id).expect("vdisk not found").nodes()
     }
 
+    /// Skips nodes according to `offset` value and counts available nodes at the same time. 
+    /// Available nodes: connected nodes and not in `target_nodes` list.
+    /// If stops before the collection ends, then return value contains the node index for the specified offset.
+    /// If it skips the whole collection of nodes, then return value contains the number of available nodes.
+    fn try_find_support_node_offset_at_one_pass(
+        nodes: &[Node],
+        target_nodes: &[Node],
+        offset: usize,
+    ) -> SupportIndexResult {
+        debug_assert!(offset <= nodes.len());
+
+        let mut avail = 0;
+        for i in 0..nodes.len() {
+            let node = &nodes[i];
+            if node.connection_available() && target_nodes.iter().all(|n| n.index() != node.index())
+            {
+                if avail == offset {
+                    return SupportIndexResult {
+                        index: Some(i),
+                        avail: avail + 1,
+                    };
+                }
+                avail += 1;
+            }
+        }
+        return SupportIndexResult { index: None, avail };
+    }
+
+    /// Look for an offset respecting the uniform distribution for available nodes.
+    /// Available nodes: connected nodes and not in `target_nodes` list.
+    fn find_support_node_offset(nodes: &[Node], target_nodes: &[Node], offset: usize) -> usize {
+        if target_nodes.len() >= nodes.len() {
+            // target_nodes is equal to nodes => cannot find the proper offset
+            return offset % nodes.len();
+        }
+        let mut res = Self::try_find_support_node_offset_at_one_pass(nodes, target_nodes, offset % (nodes.len() - target_nodes.len()));
+        if res.index == None && res.avail > 0 {
+            let mut curr_offset = offset % res.avail;
+            while res.index == None && res.avail > 0 {
+                res = Self::try_find_support_node_offset_at_one_pass(
+                    nodes,
+                    target_nodes,
+                    curr_offset,
+                );
+                curr_offset = if curr_offset > res.avail {
+                    curr_offset - res.avail
+                } else {
+                    0
+                }
+            }
+        }
+        match res.index {
+            Some(index) => index,
+            None => offset % nodes.len(),
+        }
+    }
+
+    /// Returns vector of supported nodes (nodes that can be used to store aliens for specified key).
+    /// Result vector will not conain target nodes for the key.
+    /// Preserves uniform distribution along available nodes.
     pub fn get_support_nodes(&self, key: BobKey, count: usize) -> Vec<&Node> {
+        debug_assert!(count <= self.nodes.len());
+        if count == 0 {
+            return vec![];
+        }
+        
         trace!("get target nodes for given key");
         let target_nodes = self.get_target_nodes_for_key(key);
+        debug_assert!(target_nodes.iter().map(|n| n.index()).collect::<HashSet<NodeId>>().len() == target_nodes.len());
+        debug_assert!(target_nodes.iter().all(|n| self.nodes.iter().any(|n_full| n.index() == n_full.index())));
+
+        if target_nodes.len() >= self.nodes.len() {
+            return vec![];
+        }
         trace!("extract indexes of target nodes");
-        let mut target_indexes = target_nodes.iter().map(Node::index);
-        let len = target_indexes.size_hint().0;
-        debug!("iterator size lower bound: {}", len);
         trace!("nodes available: {}", self.nodes.len());
-        self.nodes
-            .iter()
-            .filter_map(|(id, node)| {
-                if target_indexes.all(|i| &i != id) {
-                    Some(node)
-                } else {
-                    None
+        let mut support_nodes: Vec<&Node> = Vec::with_capacity(count);
+
+        // This offset search preserves the uniform distribution of aliens
+        let starting_index = Self::find_support_node_offset(
+            &self.nodes,
+            target_nodes,
+            self.support_nodes_offset.fetch_add(1, Ordering::Relaxed)
+        );
+
+        // First pass: fill supported nodes starting from `starting_index`
+        let len = self.nodes.len();
+        for i in 0..len {
+            let node = &self.nodes[(i + starting_index) % len];
+            if node.connection_available() && target_nodes.iter().all(|n| n.index() != node.index())
+            {
+                support_nodes.push(node);
+                if support_nodes.len() >= count {
+                    break;
                 }
-            })
-            .take(count)
-            .collect()
+            }
+        }
+
+        if support_nodes.len() < count
+            && support_nodes.len() + target_nodes.len() < self.nodes.len()
+        {
+            // Second pass: if the number of found support nodes is less than requested `count` then we also include diconnected ones
+            for i in 0..len {
+                let node = &self.nodes[(i + starting_index) % len];
+                // Ignore connection status to fill support_nodes
+                if support_nodes.iter().all(|n| n.index() != node.index())
+                    && target_nodes.iter().all(|n| n.index() != node.index())
+                {
+                    support_nodes.push(node);
+                    if support_nodes.len() >= count {
+                        break;
+                    }
+                }
+            }
+        }
+        debug_assert!(support_nodes.len() <= count);
+        support_nodes
     }
 
     pub fn vdisk_id_from_key(&self, key: BobKey) -> VDiskId {
@@ -161,14 +273,14 @@ impl Virtual {
         self.get_vdisk(vdisk_id)
     }
 
-    pub fn get_vdisks_by_disk(&self, disk: &str) -> Vec<VDiskId> {
+    pub fn get_vdisks_by_disk(&self, disk: &DiskName) -> Vec<VDiskId> {
         let vdisks = self.vdisks.iter();
         vdisks
             .filter_map(|(id, vdisk)| {
                 if vdisk
                     .replicas()
                     .iter()
-                    .filter(|r| r.node_name() == self.local_node_name)
+                    .filter(|r| *r.node_name() == self.local_node_name)
                     .any(|replica| replica.disk_name() == disk)
                 {
                     Some(*id)
@@ -182,7 +294,7 @@ impl Virtual {
     pub fn get_operation(&self, key: BobKey) -> (VDiskId, Option<Vec<DiskPath>>) {
         let virt_disk = self.get_vdisk_for_key(key).expect("vdisk not found");
         let disks: Vec<DiskPath> = virt_disk.replicas().iter().filter_map(|disk| {
-            if disk.node_name() == self.local_node_name {
+            if disk.node_name() == &self.local_node_name {
                 Some(DiskPath::from(disk))
             } else {
                 None

@@ -49,7 +49,7 @@ impl Quorum {
         F: FnMut(&'_ BobClient) -> crate::link_manager::ClusterCallFuture<'_, T> + Send + Clone,
         T: Send + Debug,
     {
-        let target_nodes: Vec<_> = self.mapper.nodes().values().cloned().collect();
+        let target_nodes: Vec<_> = self.mapper.nodes().iter().cloned().collect();
 
         debug!(
             "{}[{}]: Nodes for fan out: {:?}",
@@ -133,9 +133,9 @@ impl Cluster for Quorum {
         Ok(exist)
     }
 
-    async fn delete(&self, key: BobKey) -> Result<(), Error> {
+    async fn delete(&self, key: BobKey, meta: &BobMeta) -> Result<(), Error> {
         self.perform_on_nodes(key, "DELETE", move |c| {
-            Box::pin(c.delete(key, DeleteOptions::new_local()))
+            Box::pin(c.delete(key, meta.clone(), DeleteOptions::new_local()))
         })
         .await
     }

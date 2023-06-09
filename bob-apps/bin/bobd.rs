@@ -1,16 +1,24 @@
+#[cfg(all(any(feature = "mimalloc", feature = "mimalloc-secure"), any(feature = "jemallocator", feature = "jemallocator-profile")))]
+compile_error!("features `mimalloc` and `jemallocator` are mutually exclusive");
+#[cfg(any(feature = "mimalloc", feature = "mimalloc-secure"))]
+include!("alloc/mimalloc.rs");
+#[cfg(any(feature = "jemallocator", feature = "jemallocator-profile"))]
+include!("alloc/jemalloc.rs");
+
 use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
     VirtualMapper, BackendType, FactoryTlsConfig,
 };
-use bob_access::{Authenticator, BasicAuthenticator, Credentials, StubAuthenticator, UsersMap, AuthenticationType};
+use bob_access::{Authenticator, BasicAuthenticator, DeclaredCredentials, StubAuthenticator, UsersMap, AuthenticationType};
 use clap::{crate_version, App, Arg, ArgMatches};
 use std::{
     collections::HashMap,
     error::Error as ErrorTrait,
     net::{IpAddr, Ipv4Addr, SocketAddr},
 };
-use tokio::{net::lookup_host, runtime::Handle, signal::unix::SignalKind};
+use tokio::runtime::Handle;
 use tonic::transport::Server;
+use qoollo_log4rs_logstash::config::DeserializersExt; 
 use std::path::PathBuf;
 use std::fs::create_dir;
 
@@ -33,20 +41,31 @@ async fn main() {
         return;
     }
 
-    let cluster_config = matches.value_of("cluster").unwrap();
+    let cluster_config = matches.value_of("cluster").expect("'cluster' argument is required");
     println!("Cluster config: {:?}", cluster_config);
-    let cluster = ClusterConfig::try_get(cluster_config).await.unwrap();
+    let cluster = ClusterConfig::try_get(cluster_config).await.map_err(|err| {
+        eprintln!("Cluster config parsing error: {}", err);
+        err
+    }).expect("Cluster config parsing error");
 
-    let node_config_file = matches.value_of("node").unwrap();
+    let node_config_file = matches.value_of("node").expect("'node' argument is required");
     println!("Node config: {:?}", node_config_file);
-    let node = cluster.get(node_config_file).await.unwrap();
+    let node = cluster.get(node_config_file).await.map_err(|err| {
+        eprintln!("Node config parsing error: {}", err);
+        err
+    }).expect("Node config parsing error");
 
-    log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
+    let mut extra_logstash_fields = HashMap::new();
+    extra_logstash_fields.insert("node_name".to_string(), serde_json::Value::String(node.name().to_string()));
+    if let Some(cluster_node_info) = cluster.nodes().iter().find(|item| item.name() == node.name()) {
+        extra_logstash_fields.insert("node_address".to_string(), serde_json::Value::String(cluster_node_info.address().to_string()));
+    }
+    log4rs::init_file(node.log_config(), log4rs::config::Deserializers::default().with_logstash_extra(extra_logstash_fields))
         .expect("can't find log config");
 
     check_folders(&node, matches.is_present("init_folders"));
 
-    let mut mapper = VirtualMapper::new(&node, &cluster).await;
+    let mut mapper = VirtualMapper::new(&node, &cluster);
 
     let bind = node.bind();
     let bind_read = bind.lock().expect("mutex");
@@ -77,7 +96,7 @@ async fn main() {
             .iter()
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
-        mapper = VirtualMapper::new(&node, &cluster).await;
+        mapper = VirtualMapper::new(&node, &cluster);
         addr = if let Ok(addr) = found.address().parse() {
             addr
         } else if let Some(port) = port_from_address(found.address()) {
@@ -107,7 +126,7 @@ async fn main() {
         AuthenticationType::Basic => {
             let users_storage =
                 UsersMap::from_file(node.users_config()).expect("Can't parse users and roles");
-            let mut authenticator = BasicAuthenticator::new(users_storage);
+            let mut authenticator = BasicAuthenticator::new(users_storage, node.hostname_resolve_period_ms());
             let nodes_credentials = nodes_credentials_from_cluster_config(&cluster).await;
             authenticator
                 .set_nodes_credentials(nodes_credentials)
@@ -162,38 +181,21 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
 
 async fn nodes_credentials_from_cluster_config(
     cluster_config: &ClusterConfig,
-) -> HashMap<IpAddr, Vec<Credentials>> {
-    let mut nodes_creds: HashMap<IpAddr, Vec<Credentials>> = HashMap::new();
+) -> HashMap<String, DeclaredCredentials> {
+    let mut nodes_creds: HashMap<String, DeclaredCredentials> = HashMap::new();
     for node in cluster_config.nodes() {
-        let address = &node.address();
-        let address = if let Ok(address) = address.parse() {
-            address
+        let address = node.address();
+        let cred = 
+        if let Ok(address) = address.parse::<SocketAddr>() {
+            DeclaredCredentials::internode_builder(node.name())
+                .with_address(address)
+                .build()
         } else {
-            match lookup_host(address).await {
-                Ok(mut address) => address
-                    .next()
-                    .expect("failed to resolve hostname: dns returned empty ip list"),
-                Err(e) => {
-                    error!("expected SocketAddr/hostname, found: {}", address);
-                    error!("{}", e);
-                    panic!("failed to resolve hostname")
-                }
-            }
+            DeclaredCredentials::internode_builder(node.name())
+                .with_hostname(address.into())
+                .build()
         };
-        let cred = Credentials::builder()
-            .with_nodename(node.name())
-            .with_address(Some(address))
-            .build();
-        let ip = cred.ip().expect("node missing ip");
-        match nodes_creds.get_mut(&ip) {
-            Some(creds) => {
-                creds.push(cred);
-            },
-            None => {
-                let creds = vec![cred];
-                nodes_creds.insert(ip, creds);
-            }
-        }
+        nodes_creds.insert(node.name().into(), cred);
     }
     nodes_creds
 }
@@ -207,31 +209,44 @@ fn port_from_address(addr: &str) -> Option<u16> {
         .and_then(|(_, port)| port.parse::<u16>().ok())
 }
 
-fn create_signal_handlers<A: Authenticator>(
-    server: &BobServer<A>,
-) -> Result<(), Box<dyn ErrorTrait>> {
-    let signals = [SignalKind::terminate(), SignalKind::interrupt()];
-    for s in signals.iter() {
-        spawn_signal_handler(server, *s)?;
-    }
+#[cfg(target_family = "unix")]
+fn create_signal_handlers<A: Authenticator>(server: &BobServer<A>) -> Result<(), Box<dyn ErrorTrait>> {
+    use tokio::signal::unix::{*};
+    let mut terminate = signal(SignalKind::terminate())?;
+    let mut interrupt = signal(SignalKind::interrupt())?;
+    spawn_signal_handler(server, async move {
+        tokio::select! {
+            _ = terminate.recv() => "terminate",
+            _ = interrupt.recv() => "interrupt"
+        }
+    });
     Ok(())
 }
 
-fn spawn_signal_handler<A: Authenticator>(
+#[cfg(target_family = "windows")]
+fn create_signal_handlers<A: Authenticator>(server: &BobServer<A>) -> Result<(), Box<dyn ErrorTrait>> {
+    use tokio::signal::windows::{*};
+    let mut ctrl_c = ctrl_c()?;
+    spawn_signal_handler(server, async move {
+        tokio::select! {
+            _ = ctrl_c.recv() => "ctrl_c"
+        }
+    });
+    Ok(())
+}
+
+fn spawn_signal_handler<A: Authenticator, TFut: futures::Future<Output = &'static str> + Send + 'static>(
     server: &BobServer<A>,
-    s: tokio::signal::unix::SignalKind,
-) -> Result<(), Box<dyn std::error::Error>> {
-    use tokio::signal::unix::signal;
-    let mut task = signal(s)?;
+    signal_tasks_future: TFut
+) {
     let server = server.clone();
     tokio::spawn(async move {
-        task.recv().await;
-        debug!("Got signal {:?}", s);
+        let signal_name = signal_tasks_future.await;
+        info!("Got signal '{}'. Shutdown started", signal_name);
         server.shutdown().await;
         log::logger().flush();
         std::process::exit(0);
     });
-    Ok(())
 }
 
 fn check_folders(node: &NodeConfig, init_flag: bool) {

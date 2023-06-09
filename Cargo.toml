@@ -6,3 +6,30 @@ members = [
     "bob-common",
     "bob-access",
 ]
+
+
+[profile.release]
+panic = "abort"
+
+[profile.release-lto]
+inherits = "release"
+panic = "abort"
+lto = true
+
+[profile.dev]
+panic = "abort"
+
+[profile.test]
+panic = "unwind"
+
+[profile.integration-test]
+inherits = "test"
+opt-level = 1
+debug = 0
+debug-assertions = true
+overflow-checks = true
+panic = "abort"
+
+[profile.jemallocator-profile]
+inherits = "dev"
+panic = "unwind"

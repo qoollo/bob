@@ -1,0 +1,12 @@
+---
+roles:
+  admin:
+    read: true
+    write: true
+    read_rest: true
+    write_rest: true
+
+users:
+  - username: {{ auth_user }}
+    password: {{ auth_password }}
+    role: admin

@@ -15,7 +15,7 @@ jobs:
         bob_key_size: [8, 16]
     env:
       TARGET: "x86_64-unknown-linux-musl"
-      BUILD_MODE: "release"
+      BUILD_PROFILE: "release-lto"
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
@@ -30,22 +30,34 @@ jobs:
           toolchain: stable
           target: ${{ env.TARGET }}
           default: true
+      - name: Estimate output binaries directory
+        run: |
+          echo "BUILD_PROFILE_DIR=$(case "$BUILD_PROFILE" in\
+          ("dev") echo "debug";;\
+          ("test") echo "debug";;\
+          ("bench") echo "release";;\
+          (*) echo "$BUILD_PROFILE";;\
+          esac)" >> $GITHUB_ENV
+      - name: Output estimated working-directory
+        run: echo ${{ env.BUILD_PROFILE_DIR }}
       - name: Build release
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --${{ env.BUILD_MODE }} --target=${{ env.TARGET }}
+          args: --profile=${{ env.BUILD_PROFILE }} --target=${{ env.TARGET }}
       - name: Check bobd version
-        run: target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd --version
+        run: target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobd --version
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
           name: bob-binaries-${{ matrix.bob_key_size }}
           path: |
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobp
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/ccg
-            target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/brt
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobd
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobp
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobt
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobc
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/ccg
+            target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/brt
  
   build-rpm:
     runs-on: ubuntu-latest
@@ -69,7 +81,7 @@ jobs:
           sed -i "s/release_number/${{ github.run_id }}/" linux-packages/bob.spec
           cur_dir_name=${PWD##*/}
           mkdir -p ./rpmbuild/{SOURCES,BUILD,RPMS,SPECS,SRPMS}
-          tar czf ./rpmbuild/SOURCES/bob-${{ env.VERSION }}.tar.gz ../${cur_dir_name}/{bobd,bobp,brt,ccg,linux-packages/bob_limits.conf,linux-packages/bob.service} ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml --transform s/${cur_dir_name}/bob-${{ env.VERSION }}/
+          tar czf ./rpmbuild/SOURCES/bob-${{ env.VERSION }}.tar.gz ../${cur_dir_name}/{bobd,bobp,bobc,brt,ccg,linux-packages/bob_limits.conf,linux-packages/bob.service} ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml --transform s/${cur_dir_name}/bob-${{ env.VERSION }}/
           rpmbuild -ba --define "_topdir ${PWD}/rpmbuild" linux-packages/bob.spec
       - name: Upload artifact
         uses: actions/upload-artifact@v2
@@ -126,8 +138,8 @@ jobs:
           mkdir -p bob_${{ env.VERSION }}_amd64/{DEBIAN,usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
           cp linux-packages/{control,postinst} bob_${{ env.VERSION }}_amd64/DEBIAN/
           chmod +x bob_${{ env.VERSION }}_amd64/DEBIAN/postinst
-          cp {bobd,bobp,brt,ccg} bob_${{ env.VERSION }}_amd64/usr/bin/
-          chmod +x bob_${{ env.VERSION }}_amd64/usr/bin/{bobd,bobp,brt,ccg}
+          cp {bobd,bobp,bobc,brt,ccg} bob_${{ env.VERSION }}_amd64/usr/bin/
+          chmod +x bob_${{ env.VERSION }}_amd64/usr/bin/{bobd,bobc,bobp,brt,ccg}
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}_amd64/etc/bob/
           cp linux-packages/bob.service bob_${{ env.VERSION }}_amd64/etc/systemd/system/
           cp linux-packages/bob.service bob_${{ env.VERSION }}_amd64/lib/systemd/system/
@@ -187,8 +199,8 @@ jobs:
         run: |
           echo Version:${{ env.VERSION }}
           mkdir -p bob_${{ env.VERSION }}/{usr/bin,etc/bob,etc/systemd/system,lib/systemd/system,etc/security/limits.d}
-          cp {bobd,bobp,brt,ccg} bob_${{ env.VERSION }}/usr/bin/
-          chmod +x bob_${{ env.VERSION }}/usr/bin/{bobd,bobp,brt,ccg}
+          cp {bobd,bobp,bobt,bobc,brt,ccg} bob_${{ env.VERSION }}/usr/bin/
+          chmod +x bob_${{ env.VERSION }}/usr/bin/{bobd,bobp,bobt,bobc,brt,ccg}
           cp config-examples/{cluster,node,logger}.yaml bob_${{ env.VERSION }}/etc/bob/
           cp linux-packages/bob.service bob_${{ env.VERSION }}/etc/systemd/system/
           cp linux-packages/bob.service bob_${{ env.VERSION }}/lib/systemd/system/
