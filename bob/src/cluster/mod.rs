@@ -1,6 +1,7 @@
 mod operations;
 mod quorum;
 mod simple;
+mod support_types;
 
 #[cfg(test)]
 mod tests;
@@ -11,9 +12,10 @@ use simple::Quorum as SimpleQuorum;
 
 #[async_trait]
 pub(crate) trait Cluster {
-    async fn put(&self, key: BobKey, data: BobData) -> Result<(), Error>;
+    async fn put(&self, key: BobKey, data: &BobData) -> Result<(), Error>;
     async fn get(&self, key: BobKey) -> Result<BobData, Error>;
     async fn exist(&self, keys: &[BobKey]) -> Result<Vec<bool>, Error>;
+    async fn delete(&self, key: BobKey, meat: &BobMeta) -> Result<(), Error>;
 }
 
 pub(crate) fn get_cluster(

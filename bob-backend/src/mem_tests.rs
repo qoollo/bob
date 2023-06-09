@@ -10,11 +10,11 @@ const VDISKS_COUNT: u32 = 10;
 pub(crate) fn new_direct(paths: &[String], vdisks_count: u32) -> MemBackend {
     let disks = paths
         .iter()
-        .map(|p| (p.clone(), MemDisk::new_direct(p.clone(), vdisks_count)))
+        .map(|p| (DiskName::from(p), MemDisk::new_direct(DiskName::from(p), vdisks_count)))
         .collect();
     MemBackend {
         disks,
-        foreign_data: MemDisk::new_direct("foreign".to_string(), vdisks_count),
+        foreign_data: MemDisk::new_direct(DiskName::from("foreign"), vdisks_count),
     }
 }
 
@@ -24,9 +24,9 @@ async fn test_mem_put_wrong_disk() {
 
     let retval = backend
         .put(
-            Operation::new_local(0, DiskPath::new("invalid name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("invalid name".into(), "")),
             BobKey::from(1u64),
-            BobData::new(vec![0], BobMeta::stub()),
+            &BobData::new(vec![0].into(), BobMeta::stub()),
         )
         .await;
     assert!(retval.err().unwrap().is_internal())
@@ -38,15 +38,15 @@ async fn test_mem_put_get() {
 
     backend
         .put(
-            Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("name".into(), "")),
             BobKey::from(1u64),
-            BobData::new(vec![1], BobMeta::stub()),
+            &BobData::new(vec![1].into(), BobMeta::stub()),
         )
         .await
         .unwrap();
     let retval = backend
         .get(
-            Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("name".into(), "")),
             BobKey::from(1u64),
         )
         .await
@@ -60,15 +60,15 @@ async fn test_mem_get_wrong_disk() {
 
     backend
         .put(
-            Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("name".into(), "")),
             BobKey::from(1u64),
-            BobData::new(vec![1], BobMeta::stub()),
+            &BobData::new(vec![1].into(), BobMeta::stub()),
         )
         .await
         .unwrap();
     let retval = backend
         .get(
-            Operation::new_local(0, DiskPath::new("invalid name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("invalid name".into(), "")),
             BobKey::from(1u64),
         )
         .await;
@@ -82,7 +82,7 @@ async fn test_mem_get_no_data() {
 
     let retval = backend
         .get(
-            Operation::new_local(0, DiskPath::new("name".to_owned(), "".to_owned())),
+            Operation::new_local(0, DiskPath::new("name".into(), "")),
             key,
         )
         .await;

@@ -1,0 +1,7 @@
+python-on-whales
+requests
+docker
+jinja2
+urllib3
+chardet
+retry

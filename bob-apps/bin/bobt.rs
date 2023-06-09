@@ -1,13 +1,14 @@
 use clap::{App, Arg, ArgMatches};
-use env_logger::Env;
+use env_logger::{Env, Target};
 use http::{StatusCode, Uri};
 use lazy_static::lazy_static;
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use reqwest::RequestBuilder;
 use std::collections::BTreeMap;
+use std::process::ExitCode;
 use std::time::Duration;
-use stopwatch::Stopwatch;
+use bob_common::stopwatch::Stopwatch;
 
 const START_ID_ARG_NAME: &str = "start-id";
 const END_ID_ARG_NAME: &str = "end-id";
@@ -18,29 +19,35 @@ const USERNAME_ARG_NAME: &str = "username";
 const PASSWORD_ARG_NAME: &str = "password";
 
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
     let env = Env::default().filter_or("RUST_LOG", "info");
-    env_logger::init_from_env(env);
+    env_logger::Builder::from_env(env).target(Target::Stdout).init();
     let settings = Settings::new();
     let mut tester = Tester::new(settings).await;
-    tester.run_test().await;
+    if tester.run_test().await {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
 }
 
 enum Operation {
     Get,
     Put,
     Delete,
+    Exists
 }
 
 impl Operation {
     fn gen<R: Rng>(rng: &mut R) -> Self {
         lazy_static! {
-            static ref DIST: Uniform<u32> = Uniform::<u32>::new(0, 3);
+            static ref DIST: Uniform<u32> = Uniform::<u32>::new(0, 4);
         }
         match DIST.sample(rng) {
             0 => Self::Get,
             1 => Self::Put,
             2 => Self::Delete,
+            3 => Self::Exists,
             _ => Self::Get,
         }
     }
@@ -103,6 +110,26 @@ impl Tester {
         }
     }
 
+    async fn exists(&mut self) -> bool {
+        let key = self.rand_id();
+        let res = self.client.exists(key).await;
+        match res {
+            Ok(found) => {
+                let contains_key = self.storage.contains_key(&key);
+                if contains_key == found {
+                    true
+                } else {
+                    log::warn!("Exists unexpected result: expected '{}' != actual '{}'", contains_key, found);
+                    false
+                }
+            }
+            Err(e) => {
+                log::warn!("Exists unexpected error: {}", e);
+                false
+            }
+        }
+    }
+
     async fn put(&mut self) -> bool {
         let key = self.rand_id();
         let size = self.rand_size();
@@ -152,7 +179,7 @@ impl Tester {
         }
     }
 
-    async fn run_test(&mut self) {
+    async fn run_test(&mut self) -> bool {
         let mut total_succ: u64 = 0;
         for i in 0..self.settings.count {
             if i % 10000 == 0 || i == self.settings.count - 1 {
@@ -165,11 +192,14 @@ impl Tester {
                 Operation::Get => self.get().await,
                 Operation::Put => self.put().await,
                 Operation::Delete => self.delete().await,
+                Operation::Exists => self.exists().await
             };
             if success {
                 total_succ += 1;
             }
         }
+        log::info!("Final summary: {}/{}", total_succ, self.settings.count);
+        total_succ == self.settings.count
     }
 }
 
@@ -182,6 +212,8 @@ struct Client {
     get_time: Duration,
     delete_count: u64,
     delete_time: Duration,
+    exists_count: u64,
+    exists_time: Duration
 }
 
 impl Client {
@@ -195,6 +227,8 @@ impl Client {
             get_time: Duration::ZERO,
             delete_count: 0,
             delete_time: Duration::ZERO,
+            exists_count: 0,
+            exists_time: Duration::ZERO
         }
     }
 
@@ -205,6 +239,8 @@ impl Client {
         self.get_count = 0;
         self.delete_time = Duration::ZERO;
         self.delete_count = 0;
+        self.exists_time = Duration::ZERO;
+        self.exists_count = 0;
     }
 
     fn print_summary(&self) {
@@ -214,6 +250,8 @@ impl Client {
         log::info!("PUT: count: {}, latency: {}", self.put_count, latency);
         let latency = self.delete_time.as_secs_f64() / self.delete_count as f64 * 1000.0;
         log::info!("DELETE: count: {}, latency: {}", self.delete_count, latency);
+        let latency = self.exists_time.as_secs_f64() / self.exists_count as f64 * 1000.0;
+        log::info!("EXISTS: count: {}, latency: {}", self.exists_count, latency);
     }
 
     async fn put(&mut self, key: u64, size: usize) -> Result<(), String> {
@@ -258,6 +296,32 @@ impl Client {
         bytes.map(|b| b.len()).map_err(|e| e.to_string())
     }
 
+    async fn exists(&mut self, key: u64) -> Result<bool, String> {
+        let req = self.settings.request(key, |a| self.http_client.head(a))?;
+        let sw = Stopwatch::new();
+        let res = self
+            .http_client
+            .execute(req)
+            .await
+            .map_err(|e| e.to_string())?;
+        let status = res.status();
+        self.exists_time += sw.elapsed();
+        self.exists_count += 1;
+
+        if status == StatusCode::OK {
+            log::debug!("Exists {}, result: {:?}", key, status);
+            return Ok(true);
+        }
+        else if status == StatusCode::NOT_FOUND {
+            log::debug!("Exists {}, result: {:?}", key, status);
+            return Ok(false);
+        } 
+        else {
+            log::warn!("Exists resulted in error code: {:?}", res.status());
+            return Err(status.to_string());
+        }
+    }
+
     async fn delete(&mut self, key: u64) -> Result<usize, String> {
         let size = self.get(key).await?;
         log::debug!("Delete {} with size {}", key, size);
@@ -286,8 +350,8 @@ struct Settings {
     end_id: u64,
     max_size: usize,
     api_uri: Uri,
-    username: String,
-    password: String,
+    username: Option<String>,
+    password: Option<String>,
 }
 
 impl Settings {
@@ -344,18 +408,16 @@ impl Settings {
             .expect("wrong format of url")
     }
 
-    fn get_username(matches: &ArgMatches) -> String {
+    fn get_username(matches: &ArgMatches) -> Option<String> {
         matches
             .value_of(USERNAME_ARG_NAME)
-            .expect("required")
-            .to_string()
+            .and_then(|s| Some(s.to_string()))
     }
 
-    fn get_password(matches: &ArgMatches) -> String {
+    fn get_password(matches: &ArgMatches) -> Option<String> {
         matches
             .value_of(PASSWORD_ARG_NAME)
-            .expect("required")
-            .to_string()
+            .and_then(|s| Some(s.to_string()))
     }
 
     fn request(
@@ -369,9 +431,11 @@ impl Settings {
             .map_err(|e| e.to_string())
     }
 
-    fn append_request_headers(&self, b: RequestBuilder) -> RequestBuilder {
-        b.header("username", &self.username)
-            .header("password", &self.password)
+    fn append_request_headers(&self, mut b: RequestBuilder) -> RequestBuilder {
+        if let (Some(username), Some(password)) = (self.username.as_ref(), self.password.as_ref()) {
+            b = b.basic_auth(username, Some(password));
+        }
+        b
     }
 }
 
@@ -404,12 +468,10 @@ fn get_matches<'a>() -> ArgMatches<'a> {
     let username_arg = Arg::with_name(USERNAME_ARG_NAME)
         .short("u")
         .long("user")
-        .takes_value(true)
-        .required(true);
+        .takes_value(true);
     let password_arg = Arg::with_name(PASSWORD_ARG_NAME)
         .short("p")
         .long("password")
-        .required(true)
         .takes_value(true);
     App::new("bobt")
         .arg(count_arg)

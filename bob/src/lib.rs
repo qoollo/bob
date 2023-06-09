@@ -28,19 +28,20 @@ pub mod server;
 pub use crate::{grinder::Grinder, server::Server as BobServer};
 pub use bob_backend::pearl::Key as PearlKey;
 pub use bob_common::{
-    bob_client::Factory,
+    bob_client::{Factory, FactoryTlsConfig},
     configs::cluster::{
         Cluster as ClusterConfig, Node as ClusterNodeConfig, Rack as ClusterRackConfig,
         Replica as ReplicaConfig, VDisk as VDiskConfig,
     },
-    configs::node::{Node as NodeConfig, BackendType},
+    configs::node::{BackendType, Node as NodeConfig},
     data::BOB_KEY_SIZE,
     mapper::Virtual as VirtualMapper,
     metrics::init_counters,
 };
 pub use bob_grpc::{
     bob_api_client::BobApiClient, bob_api_server::BobApiServer, Blob, BlobKey, BlobMeta,
-    ExistRequest, GetOptions, GetRequest, GetSource, PutOptions, PutRequest,
+    DeleteOptions, DeleteRequest, ExistRequest, GetOptions, GetRequest, GetSource, PutOptions,
+    PutRequest,
 };
 
 mod prelude {
@@ -49,34 +50,38 @@ mod prelude {
     pub use bob_common::{
         bob_client::{BobClient, Factory},
         configs::node::Node as NodeConfig,
-        data::{BobData, BobFlags, BobKey, BobMeta, BobOptions, DiskPath, VDiskId},
+        data::{BobData, BobKey, BobMeta},
+        operation_options::{BobPutOptions, BobGetOptions, BobDeleteOptions},
+        core_types::{DiskPath, VDiskId},
         error::Error,
         mapper::Virtual,
         metrics::{
             ALIEN_BLOBS_COUNT, AVAILABLE_NODES_COUNT, BLOBS_COUNT, CLIENT_EXIST_COUNTER,
             CLIENT_EXIST_ERROR_COUNT_COUNTER, CLIENT_EXIST_TIMER, CLIENT_GET_COUNTER,
+            CLIENT_EXIST_ERROR_KEYS_COUNT_COUNTER, CLIENT_EXIST_KEYS_COUNT_COUNTER,
             CLIENT_GET_ERROR_COUNT_COUNTER, CLIENT_GET_TIMER, CLIENT_PUT_COUNTER,
             CLIENT_PUT_ERROR_COUNT_COUNTER, CLIENT_PUT_TIMER, GRINDER_EXIST_COUNTER,
+            GRINDER_EXIST_KEYS_COUNT_COUNTER, GRINDER_EXIST_ERROR_KEYS_COUNT_COUNTER,
             GRINDER_EXIST_ERROR_COUNT_COUNTER, GRINDER_EXIST_TIMER, GRINDER_GET_COUNTER,
             GRINDER_GET_ERROR_COUNT_COUNTER, GRINDER_GET_TIMER, GRINDER_PUT_COUNTER,
             GRINDER_PUT_ERROR_COUNT_COUNTER, GRINDER_PUT_TIMER, INDEX_MEMORY,
         },
-        node::{Node, Output as NodeOutput},
+        node::{Node, NodeName, Output as NodeOutput},
+        stopwatch::Stopwatch,
     };
     pub use bob_grpc::{
-        bob_api_server::BobApi, Blob, BlobMeta, ExistRequest, ExistResponse, GetOptions,
-        GetRequest, Null, OpStatus, PutOptions, PutRequest,
+        bob_api_server::BobApi, Blob, BlobMeta, DeleteOptions, DeleteRequest, ExistRequest,
+        ExistResponse, GetOptions, GetRequest, Null, OpStatus, PutOptions, PutRequest,
     };
     pub use futures::{future, stream::FuturesUnordered, Future, FutureExt, StreamExt};
     pub use std::{
-        collections::HashMap,
+        collections::HashMap, collections::HashSet,
         fmt::{Debug, Formatter, Result as FmtResult},
         io::Write,
         pin::Pin,
         sync::Arc,
         time::{Duration, Instant},
     };
-    pub use stopwatch::Stopwatch;
     pub use tokio::{
         task::{JoinError, JoinHandle},
         time::interval,
@@ -98,25 +103,25 @@ pub(crate) mod test_utils {
 
     use crate::prelude::*;
 
-    pub(crate) fn ping_ok(node_name: String) -> PingResult {
+    pub(crate) fn ping_ok(node_name: NodeName) -> PingResult {
         Ok(NodeOutput::new(node_name, ()))
     }
 
-    pub(crate) fn put_ok(node_name: String) -> PutResult {
+    pub(crate) fn put_ok(node_name: NodeName) -> PutResult {
         Ok(NodeOutput::new(node_name, ()))
     }
 
-    pub(crate) fn put_err(node_name: String) -> PutResult {
+    pub(crate) fn put_err(node_name: NodeName) -> PutResult {
         debug!("return internal error on PUT");
         Err(NodeOutput::new(node_name, Error::internal()))
     }
 
-    pub(crate) fn get_ok(node_name: String, timestamp: u64) -> GetResult {
-        let inner = BobData::new(vec![], BobMeta::new(timestamp));
+    pub(crate) fn get_ok(node_name: NodeName, timestamp: u64) -> GetResult {
+        let inner = BobData::new(vec![].into(), BobMeta::new(timestamp));
         Ok(NodeOutput::new(node_name, inner))
     }
 
-    pub(crate) fn get_err(node_name: String) -> GetResult {
+    pub(crate) fn get_err(node_name: NodeName) -> GetResult {
         debug!("return internal error on GET");
         Err(NodeOutput::new(node_name, Error::internal()))
     }

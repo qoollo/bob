@@ -8,3 +8,4 @@ test: build
 
 clean:
 				rm -r target
+				rm Cargo.lock

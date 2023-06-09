@@ -49,6 +49,24 @@ impl GetOptions {
     }
 }
 
+impl DeleteOptions {
+    pub fn new_local() -> Self {
+        Self {
+            force_alien_nodes: vec![],
+            force_node: true,
+            is_alien: false
+        }
+    }
+
+    pub fn new_alien(force_alien_nodes: Vec<String>) -> Self {
+        Self {
+            force_alien_nodes,
+            force_node: true,
+            is_alien: true,
+        }
+    }
+}
+
 impl From<i32> for GetSource {
     fn from(value: i32) -> Self {
         match value {

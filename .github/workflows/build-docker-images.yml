@@ -14,6 +14,8 @@ jobs:
     strategy:
       matrix:
         bob_key_size: [8, 16]
+    env:
+       BUILD_PROFILE: "release-lto"
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
@@ -48,6 +50,7 @@ jobs:
           build-args: |
             COMMIT_HASH=${{ env.BOB_COMMIT_HASH }}
             KEY_SIZE=${{ matrix.bob_key_size }}
+            BUILD_PROFILE=${{ env.BUILD_PROFILE }}
 
   build-ubuntu-image:
     runs-on: ubuntu-latest
@@ -55,6 +58,8 @@ jobs:
     strategy:
       matrix:
         bob_key_size: [8, 16]
+    env:
+       BUILD_PROFILE: "release-lto"
     steps:
       - name: Checks-out repository 
         uses: actions/checkout@v2
@@ -85,3 +90,4 @@ jobs:
           build-args: |
             COMMIT_HASH=${{ env.BOB_COMMIT_HASH }}
             KEY_SIZE=${{ matrix.bob_key_size }}
+            BUILD_PROFILE=${{ env.BUILD_PROFILE }}

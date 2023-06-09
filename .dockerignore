@@ -15,3 +15,4 @@ Cargo.lock
 /dockerfiles/*
 !/dockerfiles/default-configs
 /compose_examples
+bob-grpc/src/bob_storage.rs

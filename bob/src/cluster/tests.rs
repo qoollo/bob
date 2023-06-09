@@ -109,8 +109,8 @@ async fn create_cluster(
     cluster: &ClusterConfig,
     map: &[(&str, Call, Arc<CountCall>)],
 ) -> (Quorum, Arc<Backend>) {
-    let mapper = Arc::new(Virtual::new(node, cluster).await);
-    for node in mapper.nodes().values() {
+    let mapper = Arc::new(Virtual::new(node, cluster));
+    for node in mapper.nodes() {
         let mut mock_client = BobClient::new();
 
         let (_, func, call) = map
@@ -118,7 +118,7 @@ async fn create_cluster(
             .find(|(name, _, _)| *name == node.name())
             .expect("find node with name");
         func(&mut mock_client, node.clone(), call.clone());
-        node.set_connection(mock_client).await;
+        node.set_connection(mock_client);
     }
 
     let backend = Arc::new(Backend::new(mapper.clone(), node).await);
@@ -204,7 +204,7 @@ async fn simple_one_node_put_ok() {
 
     let key = 1;
     let result = quorum
-        .put(BobKey::from(key), BobData::new(vec![], BobMeta::new(11)))
+        .put(BobKey::from(key), &BobData::new(vec![].into(), BobMeta::new(11)))
         .await;
 
     assert!(result.is_ok());
@@ -236,7 +236,7 @@ async fn simple_two_node_one_vdisk_cluster_put_ok() {
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
     let key = 2;
     let result = quorum
-        .put(BobKey::from(key), BobData::new(vec![], BobMeta::new(11)))
+        .put(BobKey::from(key), &BobData::new(vec![].into(), BobMeta::new(11)))
         .await;
     sleep(Duration::from_millis(1)).await;
 
@@ -272,7 +272,7 @@ async fn simple_two_node_two_vdisk_one_replica_cluster_put_ok() {
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
 
     let mut result = quorum
-        .put(BobKey::from(3), BobData::new(vec![], BobMeta::new(11)))
+        .put(BobKey::from(3), &BobData::new(vec![].into(), BobMeta::new(11)))
         .await;
 
     assert!(result.is_ok());
@@ -281,7 +281,7 @@ async fn simple_two_node_two_vdisk_one_replica_cluster_put_ok() {
     assert_eq!(1, calls[1].1.put_count());
 
     result = quorum
-        .put(BobKey::from(4), BobData::new(vec![], BobMeta::new(11)))
+        .put(BobKey::from(4), &BobData::new(vec![].into(), BobMeta::new(11)))
         .await;
 
     assert!(result.is_ok());
@@ -319,7 +319,7 @@ async fn two_node_one_vdisk_cluster_one_node_failed_put_err() {
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
 
     let result = quorum
-        .put(BobKey::from(5), BobData::new(vec![], BobMeta::new(11)))
+        .put(BobKey::from(5), &BobData::new(vec![].into(), BobMeta::new(11)))
         .await;
     sleep(Duration::from_millis(1)).await;
 
@@ -353,7 +353,7 @@ async fn two_node_one_vdisk_cluster_one_node_failed_put_ok() {
     let (quorum, _) = create_cluster(&node, &cluster, &actions).await;
 
     let result = quorum
-        .put(BobKey::from(5), BobData::new(vec![], BobMeta::new(11)))
+        .put(BobKey::from(5), &BobData::new(vec![].into(), BobMeta::new(11)))
         .await;
     sleep(Duration::from_millis(1000)).await;
 
@@ -384,7 +384,7 @@ async fn three_node_two_vdisk_cluster_second_node_failed_put_ok() {
 
     sleep(Duration::from_millis(1)).await;
     let result = quorum
-        .put(BobKey::from(0), BobData::new(vec![], BobMeta::new(11)))
+        .put(BobKey::from(0), &BobData::new(vec![].into(), BobMeta::new(11)))
         .await;
     sleep(Duration::from_millis(1000)).await;
     assert!(result.is_ok());
@@ -415,7 +415,7 @@ async fn three_node_two_vdisk_cluster_one_node_failed_put_err() {
 
     info!("quorum put: 0");
     let result = quorum
-        .put(BobKey::from(0), BobData::new(vec![], BobMeta::new(11)))
+        .put(BobKey::from(0), &BobData::new(vec![].into(), BobMeta::new(11)))
         .await;
     sleep(Duration::from_millis(1000)).await;
 
@@ -451,7 +451,7 @@ async fn three_node_two_vdisk_cluster_one_node_failed_put_ok2() {
     let (quorum, backend) = create_cluster(&node, &cluster, &actions).await;
 
     let result = quorum
-        .put(BobKey::from(0), BobData::new(vec![], BobMeta::new(11)))
+        .put(BobKey::from(0), &BobData::new(vec![].into(), BobMeta::new(11)))
         .await;
     sleep(Duration::from_millis(1000)).await;
 
@@ -488,7 +488,7 @@ async fn three_node_one_vdisk_cluster_one_node_failed_put_ok() {
 
     info!("put local: 0");
     let result = quorum
-        .put(BobKey::from(0), BobData::new(vec![], BobMeta::new(11)))
+        .put(BobKey::from(0), &BobData::new(vec![].into(), BobMeta::new(11)))
         .await;
     assert!(result.is_ok());
     // assert_eq!(1, calls[0].1.put_count());

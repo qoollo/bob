@@ -5,6 +5,7 @@ use super::{
     disk_controller::logger::DisksEventsLogger,
     disk_controller::DiskController,
     group::Group,
+    holder::PearlCreationContext,
     utils::{StartTimestampConfig, Utils},
 };
 const DEFAULT_ALIEN_DISK_NAME: &str = "alien_disk";
@@ -56,6 +57,7 @@ impl Settings {
         config: &NodeConfig,
         run_sem: Arc<Semaphore>,
         logger: DisksEventsLogger,
+        iodriver: IoDriver,
     ) -> Vec<Arc<DiskController>> {
         let local_disks = self.mapper.local_disks().iter().cloned();
         local_disks
@@ -69,6 +71,7 @@ impl Settings {
                     self.clone(),
                     false,
                     logger.clone(),
+                    iodriver.clone(),
                 )
             })
             .collect::<FuturesUnordered<_>>()
@@ -81,18 +84,19 @@ impl Settings {
         config: &NodeConfig,
         run_sem: Arc<Semaphore>,
         logger: DisksEventsLogger,
+        iodriver: IoDriver,
     ) -> Arc<DiskController> {
         let disk_name = config
             .pearl()
             .alien_disk()
-            .map_or_else(|| DEFAULT_ALIEN_DISK_NAME.to_owned(), str::to_owned);
+            .unwrap_or(DEFAULT_ALIEN_DISK_NAME);
         let path = self
             .alien_folder
             .clone()
             .into_os_string()
             .into_string()
             .expect("Path is not utf8 encoded");
-        let alien_disk = DiskPath::new(disk_name, path);
+        let alien_disk = DiskPath::new(DiskName::from(disk_name), path.as_str());
         let dc = DiskController::new(
             alien_disk,
             Vec::new(),
@@ -101,6 +105,7 @@ impl Settings {
             self.clone(),
             true,
             logger,
+            iodriver,
         )
         .await;
         dc
@@ -108,9 +113,9 @@ impl Settings {
 
     pub(crate) async fn collect_alien_groups(
         self: Arc<Self>,
-        disk_name: String,
-        dump_sem: Arc<Semaphore>,
-        owner_node_name: &str,
+        disk_name: &DiskName,
+        owner_node_name: &NodeName,
+        pearl_creation_context: PearlCreationContext,
     ) -> BackendResult<Vec<Group>> {
         let mut result = vec![];
         let node_names = Self::get_all_subdirectories(&self.alien_folder).await?;
@@ -125,11 +130,11 @@ impl Settings {
                         let group = Group::new(
                             self.clone(),
                             vdisk_id,
-                            node_name.clone(),
+                            NodeName::from(&node_name),
                             disk_name.clone(),
                             entry.path(),
                             format!("a{}", owner_node_name),
-                            dump_sem.clone(),
+                            pearl_creation_context.clone(),
                         );
                         result.push(group);
                     } else {
@@ -146,27 +151,28 @@ impl Settings {
 
     pub async fn create_alien_group(
         self: Arc<Self>,
-        remote_node_name: &str,
+        remote_node_name: NodeName,
         vdisk_id: u32,
-        node_name: &str,
-        dump_sem: Arc<Semaphore>,
+        node_name: &NodeName,
+        pearl_creation_context: PearlCreationContext,
     ) -> BackendResult<Group> {
-        let path = self.alien_path(vdisk_id, remote_node_name);
+        let path = self.alien_path(vdisk_id, &remote_node_name);
 
         Utils::check_or_create_directory(&path).await?;
 
         let disk_name = self
             .config
             .alien_disk()
-            .map_or_else(String::new, str::to_owned);
+            .unwrap_or(DEFAULT_ALIEN_DISK_NAME)
+            .into();
         let group = Group::new(
             self,
             vdisk_id,
-            remote_node_name.to_owned(),
+            remote_node_name,
             disk_name,
             path,
             format!("a{}", node_name),
-            dump_sem,
+            pearl_creation_context,
         );
         Ok(group)
     }
@@ -197,8 +203,8 @@ impl Settings {
         if self
             .mapper
             .nodes()
-            .values()
-            .any(|node| node.name() == file_name)
+            .iter()
+            .any(|node| *node.name() == file_name)
         {
             Ok((entry, file_name))
         } else {
@@ -256,7 +262,7 @@ impl Settings {
         vdisk_path
     }
 
-    fn alien_path(&self, vdisk_id: VDiskId, node_name: &str) -> PathBuf {
+    fn alien_path(&self, vdisk_id: VDiskId, node_name: &NodeName) -> PathBuf {
         let mut vdisk_path = self.alien_folder.clone();
         vdisk_path.push(format!("{}/{}/", node_name, vdisk_id));
         vdisk_path

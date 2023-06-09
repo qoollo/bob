@@ -3,7 +3,8 @@ mod tests {
     use crate::configs::{
         cluster::Cluster as ClusterConfig,
         node::Node as NodeConfig,
-        reader::{Validatable, YamlBobConfig},
+        reader::YamlBobConfig,
+        validation::Validatable
     };
 
     #[test]
@@ -448,15 +449,13 @@ vdisks:
         let d: ClusterConfig = YamlBobConfig::parse(s).unwrap();
         assert!(d.validate().is_ok());
 
-        let vdisks = d.create_vdisks_map().unwrap();
+        let vdisks = d.collect_vdisk_replicas().unwrap();
         assert_eq!(2, vdisks.len());
-        assert_eq!(0, vdisks[&0].id());
-        assert_eq!(1, vdisks[&0].replicas().len());
-        assert_eq!("/tmp/d1", vdisks[&0].replicas()[0].disk_path());
+        assert_eq!(1, vdisks[&0].len());
+        assert_eq!("/tmp/d1", vdisks[&0][0].disk_path());
 
-        assert_eq!(1, vdisks[&1].id());
-        assert_eq!(2, vdisks[&1].replicas().len());
-        assert_eq!("/tmp/d2", vdisks[&1].replicas()[0].disk_path());
+        assert_eq!(2, vdisks[&1].len());
+        assert_eq!("/tmp/d2", vdisks[&1][0].disk_path());
     }
 
     #[test]
@@ -585,7 +584,7 @@ pearl:
   settings:                     # describes how create and manage bob directories. required for 'pearl'
     root_dir_name: bob            # root dir for bob storage. required for 'pearl'
     alien_root_dir_name: alien    # root dir for alien storage in 'alien_disk'. required for 'pearl'
-    timestamp_period: 2w      # period when new pearl directory created. required for 'pearl'
+    timestamp_period: 500d      # period when new pearl directory created. required for 'pearl'
     create_pearl_wait_delay: 100ms
 ";
         let d: NodeConfig = YamlBobConfig::parse(s).unwrap();

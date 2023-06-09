@@ -2,7 +2,6 @@ use super::prelude::*;
 
 fn le_cmp_keys<const N: usize>(x: &[u8], y: &[u8]) -> std::cmp::Ordering {
     use std::cmp::Ordering;
-    use std::convert::TryInto;
 
     if N % std::mem::size_of::<usize>() == 0 {
         let len = N / std::mem::size_of::<usize>();
@@ -72,6 +71,7 @@ macro_rules! sized_key {
         impl<'a> KeyTrait<'a> for $t {
             type Ref = $r<'a>;
             const LEN: u16 = $n;
+            const MEM_SIZE: usize = std::mem::size_of::<Vec<u8>>() + $n;
         }
 
         impl Default for $t {

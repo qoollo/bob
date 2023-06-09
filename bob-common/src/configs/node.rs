@@ -1,22 +1,25 @@
 use super::{
     cluster::{Cluster as ClusterConfig, Node as ClusterNodeConfig},
     node::Node as NodeConfig,
-    reader::{Validatable, YamlBobConfig},
+    reader::YamlBobConfig,
+    validation::Validatable
 };
 use bob_access::AuthenticationType;
-use crate::data::DiskPath;
+use crate::core_types::DiskPath;
 use futures::Future;
 use humantime::Duration as HumanDuration;
 use std::{
     env::VarError,
     fmt::Debug,
     net::SocketAddr,
-    sync::{atomic::AtomicBool, Mutex},
+    sync::atomic::AtomicBool,
     time::Duration,
+    sync::Mutex,
 };
 use std::{net::IpAddr, sync::atomic::Ordering};
-use std::{net::Ipv4Addr, sync::Arc};
+use std::{net::Ipv4Addr, sync::Arc, fs};
 use tokio::time::sleep;
+use tonic::transport::{ServerTlsConfig, Identity};
 
 use ubyte::{ByteUnit, ToByteUnit};
 
@@ -44,33 +47,21 @@ impl Validatable for BackendSettings {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
         if self.root_dir_name.is_empty() {
-            let msg = "field \'root_dir_name\' for backend settings config is empty".to_string();
-            error!("{}", msg);
-            return Err(msg);
+            return Err("field 'root_dir_name' for backend.settings config is empty".to_string());
         }
 
         if self.alien_root_dir_name.is_empty() {
-            let msg =
-                "field 'alien_root_dir_name' for 'backend settings config' is empty".to_string();
-            error!("{}", msg);
-            return Err(msg);
+            return Err("field 'alien_root_dir_name' for 'backend.settings config' is empty".to_string());
         }
 
         if let Err(e) = self.timestamp_period.parse::<HumanDuration>() {
-            let msg = format!(
-                "field 'timestamp_period' for 'backend settings config' is not valid: {}",
-                e
-            );
-            error!("{}", msg);
-            return Err(msg);
+            return Err(format!("field 'timestamp_period' for 'backend settings config' is not valid: {}", e));
         }
+
         let period = chrono::Duration::from_std(self.timestamp_period())
-            .expect("smth wrong with time: {:?}, error: {}");
-        if period > chrono::Duration::weeks(1) {
-            let msg = "field 'timestamp_period' for 'backend settings config' is greater then week"
-                .to_string();
-            error!("{}", msg);
-            return Err(msg);
+            .expect("smth wrong with time");
+        if period > chrono::Duration::days(366) {
+            return Err(format!("field 'timestamp_period' for 'backend.settings config' is greater than 1 year ({})", period));
         }
 
         if self
@@ -78,13 +69,10 @@ impl Validatable for BackendSettings {
             .parse::<HumanDuration>()
             .is_err()
         {
-            let msg = "field \'create_pearl_wait_delay\' for backend settings config is not valid"
-                .to_string();
-            error!("{}", msg);
-            Err(msg)
-        } else {
-            Ok(())
-        }
+            return Err(format!("field 'create_pearl_wait_delay' for backend.settings config is not valid ({})", self.create_pearl_wait_delay));
+        } 
+
+        Ok(())
     }
 }
 
@@ -161,9 +149,7 @@ impl MetricsConfig {
 
     fn check_unset(&self) -> Result<(), String> {
         if self.graphite_enabled && self.graphite.is_none() {
-            let msg = "graphite is enabled but no graphite address has been provided".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("graphite is enabled but no graphite address has been provided".to_string())
         } else {
             Ok(())
         }
@@ -184,8 +170,7 @@ impl MetricsConfig {
             .iter()
             .any(|field| field.map_or(false, str::is_empty))
         {
-            debug!("one of optional fields for 'metrics config' is empty");
-            Err("one of optional fields for 'metrics config' is empty".to_string())
+            Err("'name' or 'prefix' field for 'metrics config' is empty".to_string())
         } else {
             Ok(())
         }
@@ -195,9 +180,7 @@ impl MetricsConfig {
         if !self.graphite_enabled {
             Ok(())
         } else if let Err(e) = self.graphite().unwrap().parse::<SocketAddr>() {
-            let msg = format!("field 'graphite': {} for 'metrics config' is invalid", e);
-            error!("{}", msg);
-            Err(msg)
+            Err(format!("field 'graphite': {} for 'metrics config' is invalid", e))
         } else {
             Ok(())
         }
@@ -212,9 +195,7 @@ impl MetricsConfig {
                 // check if there is '{', '}' or other invalid chars left
                 || prefix.find(invalid_char_predicate).is_some()
         {
-            let msg = "Graphite 'prefix' is invalid".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("Graphite 'prefix' is invalid".to_string())
         } else {
             Ok(())
         }
@@ -286,6 +267,12 @@ pub struct Pearl {
     disks_events_logfile: String,
     #[serde(default)]
     bloom_filter_max_buf_bits_count: Option<usize>,
+    #[serde(default = "Pearl::default_validate_data_checksum_during_index_regen")]
+    validate_data_checksum_during_index_regen: bool,
+    /// Enables record search optimization and sets the depth of partition scanning after finding the first record by key. 
+    /// This optimization is unsafe, value should be at least 2 times the maximum value of 'timestamp_period' that was used throughout the lifetime of the cluster
+    #[serde(default)]
+    skip_holders_by_timestamp_step_when_reading: Option<String>,
 }
 
 impl Pearl {
@@ -306,6 +293,21 @@ impl Pearl {
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
+    }
+
+    fn default_validate_data_checksum_during_index_regen() -> bool {
+        false
+    }
+
+    pub fn validate_data_checksum_during_index_regen(&self) -> bool {
+        self.validate_data_checksum_during_index_regen
+    }
+
+    pub fn skip_holders_by_timestamp_step_when_reading_sec(&self) -> Option<u64> {
+        self.skip_holders_by_timestamp_step_when_reading.as_ref().map(|dur|
+            dur.parse::<HumanDuration>()
+                .expect("parse humantime duration")
+                .as_secs())
     }
 
     fn default_fail_retry_count() -> u64 {
@@ -399,13 +401,13 @@ impl Pearl {
     }
 
     fn check_unset(&self) -> Result<(), String> {
-        if self.blob_file_name_prefix == PLACEHOLDER || self.fail_retry_timeout == PLACEHOLDER {
-            let msg = "some of the fields present, but empty".to_string();
-            error!("{}", msg);
-            Err(msg)
-        } else {
-            Ok(())
-        }
+        if self.blob_file_name_prefix == PLACEHOLDER {
+            return Err("'blob_file_name_prefix' present, but empty".to_string());
+        } 
+        if self.fail_retry_timeout == PLACEHOLDER {
+            return Err("'fail_retry_timeout' present, but empty".to_string());
+        } 
+        Ok(())
     }
 
     /// Helper for running provided function multiple times.
@@ -485,13 +487,55 @@ impl Pearl {
 impl Validatable for Pearl {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
-        if self.fail_retry_timeout.parse::<HumanDuration>().is_err() {
-            let msg = "field \'fail_retry_timeout\' for \'config\' is not valid".to_string();
-            error!("{}", msg);
-            Err(msg)
-        } else {
-            self.settings.validate()
+        if let Some(field) = self.skip_holders_by_timestamp_step_when_reading.as_ref() {
+            if field.parse::<HumanDuration>().is_err() {
+                return Err(format!("field 'skip_holders_by_timestamp_step_when_reading' for 'config' is not valid ({})", field));
+            }
         }
+        if self.fail_retry_timeout.parse::<HumanDuration>().is_err() {
+            return Err(format!("field 'fail_retry_timeout' for 'config' is not a valid duration ('{}')", self.fail_retry_timeout));
+        }
+        self.settings.validate()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TLSConfig {
+    pub ca_cert_path: String,
+    pub domain_name: String,
+    pub rest: Option<bool>,
+    pub grpc: Option<bool>,
+    pub cert_path: Option<String>,
+    pub pkey_path: Option<String>,
+}
+
+impl TLSConfig {
+    pub fn grpc_config(&self) -> Option<&Self> {
+        self.grpc.and_then(|grpc|
+            if grpc {
+                Some(self)
+            } else {
+                None
+            })
+    }
+
+    pub fn rest_config(&self) -> Option<&Self> {
+        self.rest.and_then(|rest|
+            if rest {
+                Some(self)
+            } else {
+                None
+            })
+    }
+
+    pub fn to_server_tls_config(&self) -> ServerTlsConfig {
+        let cert_path = self.cert_path.as_ref().expect("no certificate path specified");
+        let cert_bin = fs::read(cert_path).expect("can not read tls certificate from file");
+        let pkey_path = self.pkey_path.as_ref().expect("no private key path specified");
+        let key_bin = fs::read(pkey_path).expect("can not read tls private key from file");
+        let identity = Identity::from_pem(cert_bin.clone(), key_bin);
+
+        ServerTlsConfig::new().identity(identity)
     }
 }
 
@@ -518,6 +562,7 @@ pub struct Node {
     backend_type: String,
     pearl: Option<Pearl>,
     metrics: Option<MetricsConfig>,
+    tls: Option<TLSConfig>,
 
     #[serde(skip)]
     bind_ref: Arc<Mutex<String>>,
@@ -544,6 +589,9 @@ pub struct Node {
 
     #[serde(default = "NodeConfig::default_authentication_type")]
     authentication_type: AuthenticationType,
+
+    #[serde(default = "NodeConfig::default_hostname_resolve_period_ms")]
+    hostname_resolve_period_ms: u64,
 }
 
 impl NodeConfig {
@@ -574,6 +622,10 @@ impl NodeConfig {
 
     pub fn metrics(&self) -> &MetricsConfig {
         self.metrics.as_ref().expect("metrics config")
+    }
+
+    pub fn tls_config(&self) -> &Option<TLSConfig> {
+        &self.tls
     }
 
     /// Get log config file path.
@@ -638,6 +690,14 @@ impl NodeConfig {
         AuthenticationType::None
     }
 
+    fn default_hostname_resolve_period_ms() -> u64 {
+        5000
+    }
+
+    pub fn hostname_resolve_period_ms(&self) -> u64 {
+        self.hostname_resolve_period_ms
+    }
+
     pub fn backend_result(&self) -> Result<BackendType, String> {
         match self.backend_type.as_str() {
             "in_memory" => Ok(BackendType::InMemory),
@@ -655,7 +715,7 @@ impl NodeConfig {
         let t = node
             .disks()
             .iter()
-            .map(|disk| DiskPath::new(disk.name().to_owned(), disk.path().to_owned()))
+            .cloned()
             .collect::<Vec<_>>();
 
         {
@@ -729,21 +789,23 @@ impl NodeConfig {
         self.holder_group_size
     }
 
-    fn check_unset(&self) -> Result<(), String> {
-        if self.backend_type == PLACEHOLDER
-            || self.check_interval == PLACEHOLDER
-            || self.cluster_policy == PLACEHOLDER
-            || self.log_config == PLACEHOLDER
-            || self.users_config == PLACEHOLDER
-            || self.name == PLACEHOLDER
-            || self.operation_timeout == PLACEHOLDER
-        {
-            let msg = "some of the fields present, but empty".to_string();
-            error!("{}", msg);
-            Err(msg)
+    fn check_unset_single(val: &str, field_name: &str) -> Result<(), String> {
+        if val == PLACEHOLDER {
+            Err(format!("'{}' present in node config, but empty", field_name))
         } else {
             Ok(())
         }
+    }
+    fn check_unset(&self) -> Result<(), String> {
+        Self::check_unset_single(&self.backend_type, "backend_type")?;
+        Self::check_unset_single(&self.check_interval, "check_interval")?;
+        Self::check_unset_single(&self.cluster_policy, "cluster_policy")?;
+        Self::check_unset_single(&self.log_config, "log_config")?;
+        Self::check_unset_single(&self.users_config, "users_config")?;
+        Self::check_unset_single(&self.name, "name")?;
+        Self::check_unset_single(&self.operation_timeout, "operation_timeout")?;
+        Self::check_unset_single(&self.backend_type, "backend_type")?;
+        Ok(())
     }
 
     fn default_init_par_degree() -> usize {
@@ -752,12 +814,13 @@ impl NodeConfig {
 
     pub fn get_from_string(file: &str, cluster: &ClusterConfig) -> Result<NodeConfig, String> {
         let config = YamlBobConfig::parse::<NodeConfig>(file)?;
-        debug!("config: {:?}", config);
+        debug!("Node config: {:?}", config);
         if let Err(e) = config.validate() {
-            Err(format!("config is not valid: {}", e))
+            debug!("Node config is not valid: {}", e);
+            Err(format!("Node config is not valid: {}", e))
         } else {
             cluster.check(&config)?;
-            debug!("cluster config is valid");
+            debug!("Node config is valid");
             Ok(config)
         }
     }
@@ -817,43 +880,25 @@ impl Validatable for NodeConfig {
             if let Some(pearl) = &self.pearl {
                 pearl.validate()?;
             } else {
-                let msg = "selected pearl backend, but pearl config not set".to_string();
-                error!("{}", msg);
-                return Err(msg);
+                return Err("selected pearl backend, but pearl config not set".to_string());
             }
         }
-        self.operation_timeout
-            .parse::<HumanDuration>()
-            .map_err(|e| {
-                let msg = "field \'timeout\' for \'config\' is not valid".to_string();
-                error!("{}, {}", msg, e);
-                msg
+        self.operation_timeout.parse::<HumanDuration>().map_err(|e| {
+                format!("field 'timeout' for 'config' is not valid: {}", e)
             })?;
         self.check_interval.parse::<HumanDuration>().map_err(|e| {
-            let msg = "field \'check_interval\' for \'config\' is not valid".to_string();
-            error!("{}, {}", msg, e);
-            msg
+            format!("field 'check_interval' for 'config' is not valid: {}", e)
         })?;
         if self.name.is_empty() {
-            let msg = "field \'name\' for \'config\' is empty".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("field 'name' for 'config' is empty".to_string())
         } else if self.cluster_policy.is_empty() {
-            let msg = "field \'cluster_policy\' for \'config\' is empty".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("field 'cluster_policy' for 'config' is empty".to_string())
         } else if self.users_config.is_empty() {
-            let msg = "field \'users_config\' for \'config\' is empty".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("field 'users_config' for 'config' is empty".to_string())
         } else if self.log_config.is_empty() {
-            let msg = "field \'log_config\' for \'config\' is empty".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("field 'log_config' for 'config' is empty".to_string())
         } else if self.quorum == 0 {
-            let msg = "field \'quorum\' for \'config\' must be greater than 0".to_string();
-            error!("{}", msg);
-            Err(msg)
+            Err("field 'quorum' for 'config' must be greater than 0".to_string())
         } else {
             self.metrics
                 .as_ref()
@@ -880,6 +925,7 @@ pub mod tests {
             backend_type: "in_memory".to_string(),
             pearl: None,
             metrics: None,
+            tls: None,
             bind_ref: Arc::default(),
             disks_ref: Arc::default(),
             cleanup_interval: "1d".to_string(),
@@ -896,6 +942,7 @@ pub mod tests {
             index_memory_limit_soft: None,
             holder_group_size: 8,
             authentication_type: AuthenticationType::None,
+            hostname_resolve_period_ms: NodeConfig::default_hostname_resolve_period_ms(),
         }
     }
 }
