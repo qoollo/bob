@@ -5,7 +5,6 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Bobd test mode (#550)
-
 - Added optional get & exist optimization that skips old partitions by its timestamp (#702)
 - Added mimalloc allocator for musl target (#688)
 - Added jemalloc-profile for memory profiling (#797)
