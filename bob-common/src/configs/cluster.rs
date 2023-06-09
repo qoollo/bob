@@ -396,7 +396,7 @@ impl Cluster {
     }
 
     pub fn get_testmode(path: String, addresses: Vec<String>) -> AnyResult<Self> {
-        let disks = vec![DiskPath::new("disk_0".to_string(), path)];
+        let disks = vec![DiskPath::new("disk_0".into(), &path)];
         let len = addresses.len();
         let mut nodes = Vec::with_capacity(len);
         let mut vdisk = VDisk::new(0);

@@ -69,36 +69,21 @@ async fn main() {
 
         let cluster_config = matches.value_of("cluster").unwrap();
         println!("Cluster config: {:?}", cluster_config);
-        cluster = ClusterConfig::try_get(cluster_config).await.unwrap();
+        cluster = ClusterConfig::try_get(cluster_config).await.map_err(|err| {
+            eprintln!("Cluster config parsing error: {}", err);
+            err
+        }).expect("Cluster config parsing error");
+
 
         let node_config_file = matches.value_of("node").unwrap();
         println!("Node config: {:?}", node_config_file);
-        node = cluster.get(node_config_file).await.unwrap();
+        node = cluster.get(node_config_file).await.map_err(|err| {
+            eprintln!("Node config parsing error: {}", err);
+            err
+        }).expect("Node config parsing error");
 
-        log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
-            .expect("can't find log config");
         check_folders(&node, matches.is_present("init_folders"));
     }
-
-    if matches.value_of("node").is_none() {
-        eprintln!("Expect node config");
-        eprintln!("use --help");
-        return;
-    }
-
-    let cluster_config = matches.value_of("cluster").expect("'cluster' argument is required");
-    println!("Cluster config: {:?}", cluster_config);
-    let cluster = ClusterConfig::try_get(cluster_config).await.map_err(|err| {
-        eprintln!("Cluster config parsing error: {}", err);
-        err
-    }).expect("Cluster config parsing error");
-
-    let node_config_file = matches.value_of("node").expect("'node' argument is required");
-    println!("Node config: {:?}", node_config_file);
-    let node = cluster.get(node_config_file).await.map_err(|err| {
-        eprintln!("Node config parsing error: {}", err);
-        err
-    }).expect("Node config parsing error");
 
     let mut extra_logstash_fields = HashMap::new();
     extra_logstash_fields.insert("node_name".to_string(), serde_json::Value::String(node.name().to_string()));
@@ -110,7 +95,7 @@ async fn main() {
 
     check_folders(&node, matches.is_present("init_folders"));
 
-    let mut mapper = VirtualMapper::new(&node, &cluster).await;
+    let mut mapper = VirtualMapper::new(&node, &cluster);
 
     let bind = node.bind();
     let bind_read = bind.lock().expect("mutex");

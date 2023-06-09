@@ -5,7 +5,7 @@ use super::{
     validation::Validatable
 };
 use bob_access::AuthenticationType;
-use crate::core_types::DiskPath;
+use crate::core_types::{DiskPath, DiskName};
 use futures::Future;
 use humantime::Duration as HumanDuration;
 use std::{
@@ -461,14 +461,14 @@ impl Pearl {
         unreachable!()
     }
 
-    pub fn get_testmode(alien_disk: &str) -> Self {
+    pub fn get_testmode(alien_disk: &DiskName) -> Self {
         Self {
             max_blob_size: Pearl::default_max_blob_size(),
             max_data_in_blob: Pearl::default_max_data_in_blob(),
             blob_file_name_prefix: Pearl::default_blob_file_name_prefix(),
             fail_retry_timeout: Pearl::default_fail_retry_timeout(),
             fail_retry_count: Pearl::default_fail_retry_count(),
-            alien_disk: Some(String::from(alien_disk)),
+            alien_disk: Some(alien_disk.to_string()),
             allow_duplicates: Pearl::default_allow_duplicates(),
             settings: BackendSettings {
                 root_dir_name: String::from("bob"),
@@ -480,6 +480,8 @@ impl Pearl {
             enable_aio: Pearl::default_enable_aio(),
             disks_events_logfile: Pearl::default_disks_events_logfile(),
             bloom_filter_max_buf_bits_count: Some(10000),
+            validate_data_checksum_during_index_regen: Pearl::default_validate_data_checksum_during_index_regen(),
+            skip_holders_by_timestamp_step_when_reading: None
         }
     }
 }
@@ -841,7 +843,7 @@ impl NodeConfig {
         8
     }
 
-    pub fn get_testmode(node_name: &str, disk_name: &str, rest_port: Option<u16>) -> Self {
+    pub fn get_testmode(node_name: &str, disk_name: &DiskName, rest_port: Option<u16>) -> Self {
         Self {
              log_config: String::from("dummy"),
              users_config: String::from("dummy"),
@@ -869,6 +871,8 @@ impl NodeConfig {
              bind_to_ip_address: None,
              holder_group_size: NodeConfig::default_holder_group_size(),
              authentication_type: NodeConfig::default_authentication_type(),
+             tls: None,
+             hostname_resolve_period_ms: NodeConfig::default_hostname_resolve_period_ms()
         }
     }
 }
