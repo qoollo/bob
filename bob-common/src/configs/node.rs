@@ -463,8 +463,8 @@ impl Pearl {
 
     pub fn get_testmode(alien_disk: &DiskName) -> Self {
         Self {
-            max_blob_size: Pearl::default_max_blob_size(),
-            max_data_in_blob: Pearl::default_max_data_in_blob(),
+            max_blob_size: ByteUnit::GB,
+            max_data_in_blob: 100_000,
             blob_file_name_prefix: Pearl::default_blob_file_name_prefix(),
             fail_retry_timeout: Pearl::default_fail_retry_timeout(),
             fail_retry_count: Pearl::default_fail_retry_count(),
@@ -473,13 +473,13 @@ impl Pearl {
             settings: BackendSettings {
                 root_dir_name: String::from("bob"),
                 alien_root_dir_name: String::from("alien"),
-                timestamp_period: String::from("1m"),
+                timestamp_period: String::from("1d"),
                 create_pearl_wait_delay: String::from("100ms")
             },
             hash_chars_count: Pearl::default_hash_chars_count(),
             enable_aio: Pearl::default_enable_aio(),
             disks_events_logfile: Pearl::default_disks_events_logfile(),
-            bloom_filter_max_buf_bits_count: Some(10000),
+            bloom_filter_max_buf_bits_count: Some(1_000_000),
             validate_data_checksum_during_index_regen: Pearl::default_validate_data_checksum_during_index_regen(),
             skip_holders_by_timestamp_step_when_reading: None
         }
@@ -849,7 +849,7 @@ impl NodeConfig {
              users_config: String::from("dummy"),
              name: String::from(node_name),
              quorum: 1,
-             operation_timeout: String::from("3sec"),
+             operation_timeout: String::from("60sec"),
              check_interval: String::from("5000ms"),
              count_interval: NodeConfig::default_count_interval(),
              cluster_policy: String::from("quorum"),
@@ -859,8 +859,8 @@ impl NodeConfig {
              bind_ref: Arc::default(),
              disks_ref: Arc::default(),
              cleanup_interval: String::from("1h"),
-             open_blobs_soft_limit: Some(2),
-             open_blobs_hard_limit: Some(10),
+             open_blobs_soft_limit: None,
+             open_blobs_hard_limit: None,
              bloom_filter_memory_limit: Some(8.gibibytes()),
              index_memory_limit: Some(8.gibibytes()),
              index_memory_limit_soft: None,

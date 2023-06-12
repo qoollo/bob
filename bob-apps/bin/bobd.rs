@@ -12,7 +12,7 @@ use bob::{
 use bob_access::{Authenticator, BasicAuthenticator, DeclaredCredentials, StubAuthenticator, UsersMap, AuthenticationType};
 use clap::{crate_version, App, Arg, ArgMatches, SubCommand};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     error::Error as ErrorTrait,
     net::{IpAddr, Ipv4Addr, SocketAddr},
 };
@@ -177,7 +177,7 @@ fn configure_testmode(sub_matches: &ArgMatches) -> AnyResult<(ClusterConfig, Nod
     };
     let mut this_node = None;
     if let Some(node_list) = sub_matches.value_of("nodes") {
-        let available_ips: Vec<String> = NetworkInterface::show()?.into_iter().filter_map(|itf|
+        let available_ips: HashSet<String> = NetworkInterface::show()?.into_iter().filter_map(|itf|
             match itf.addr? {
                 Addr::V4(addr) => {
                     Some(addr.ip.to_string())
@@ -186,49 +186,42 @@ fn configure_testmode(sub_matches: &ArgMatches) -> AnyResult<(ClusterConfig, Nod
         }).collect();
 
         for (index, addr) in node_list.split(",").enumerate() {
-            let split = &addr.split_once(":").context("could not find address in --nodes")?;
+            let split = &addr.split_once(":").context("expected nodes address to have format ip:port")?;
             let in_ip = split.0;
-            let in_port = split.1.parse::<u16>().context("could not parse port in --nodes")?;
+            let in_port = split.1.parse::<u16>().context("failed to parse port")?;
             if this_node.is_none() {
-                this_node = available_ips.iter().find_map(|ip| {
-                    if ip == in_ip && port == in_port {
-                        Some(index)
-                    } else {
-                        None
-                    }
-                })
+                if port == in_port && available_ips.contains(in_ip) {
+                    this_node = Some(index)
+                }
             }
             addresses.push(String::from(addr));
-        }
-        if this_node.is_none() {
-            return Err(anyhow!("no available ips found"));
         }
     } else {
         this_node = Some(0);
         addresses.push(format!("127.0.0.1:{port}"))
     }
-    let this_node = this_node.unwrap();
+    let this_node_index = this_node.ok_or(anyhow!("current node address not found"))?;
     let cluster = ClusterConfig::get_testmode(
-        sub_matches.value_of("data").unwrap_or(format!("data_{this_node}").as_str()).to_string(),
+        sub_matches.value_of("data").unwrap_or(format!("data_{this_node_index}").as_str()).to_string(),
         addresses)?;
     let http_api_port = match sub_matches.value_of("restapi-port") {
         Some(v) => Some(v.parse().context("could not parse --restapi-port")?),
         None => None
     };
-    let node = cluster.get_testmode_node(this_node, http_api_port)?;
+    let node = cluster.get_testmode_node_config(this_node_index, http_api_port)?;
 
     init_testmode_logger(log::LevelFilter::Error);
 
     check_folders(&node, true);
 
     println!("Bob is starting");
-    let n = &cluster.nodes()[this_node];
+    let n = &cluster.nodes()[this_node_index];
     println!("Data directory: {}", n.disks()[0].path());
     println!("gRPC API available at: {}", n.address());
-    let ip = node.http_api_address();
-    let p = node.http_api_port();
-    println!("REST API available at: http://{ip}:{p}");
-    println!("REST API Put and Get available at: http://{ip}:{p}/data");
+    let rest_api_address = node.http_api_address();
+    let rest_api_port = node.http_api_port();
+    println!("REST API available at: http://{rest_api_address}:{rest_api_port}");
+    println!("REST API Put and Get available at: http://{rest_api_address}:{rest_api_port}/data");
 
     Ok((cluster, node))
 }
