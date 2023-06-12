@@ -268,9 +268,11 @@ impl Backend {
                 sw.elapsed().as_secs_f64() * 1000.0
             );
             for p in paths {
-                self.put_single(key, data, Operation::new_local(vdisk_id, p)).await?;
-                trace!("put single, /{:.3}ms/", sw.elapsed().as_secs_f64() * 1000.0);
+                if let Err(e) = self.put_single(key, data, Operation::new_local(vdisk_id, p.clone())).await {
+                    warn!("PUT[{}] error put to {:?}: {:?}", key, p, e);
+                }
             }
+            trace!("put single, /{:.3}ms/", sw.elapsed().as_secs_f64() * 1000.0);
             Ok(())
         } else {
             error!(
