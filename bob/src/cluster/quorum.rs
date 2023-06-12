@@ -41,7 +41,9 @@ impl Quorum {
                 let res = put_local_node(&self.backend, key, data, vdisk_id, p).await;
                 if let Err(e) = res {
                     error!("{}", e);
-                    failed_nodes.push(self.mapper.local_node_name().to_owned());
+                    if failed_nodes.is_empty() {
+                        failed_nodes.push(self.mapper.local_node_name().to_owned());
+                    }
                 } else {
                     local_put_ok += 1;
                     at_least -= 1;
