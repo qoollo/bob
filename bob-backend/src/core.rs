@@ -369,16 +369,14 @@ impl Backend {
             // Lookup local data
             if let Some(paths) = disk_paths {
                 trace!("GET[{}] try read normal", key);
-                let mut futures: FuturesUnordered<_> = paths.into_iter().map(|path| {
-                    self.get_local(key, Operation::new_local(vdisk_id, path))
-                }).collect();
-                while let Some(result) = futures.next().await {
-                    match result {
+                let mut error = None;
+                for path in paths {
+                    match self.get_local(key, Operation::new_local(vdisk_id, path)).await {
                         Ok(data) => return Ok(data),
-                        Err(_) => continue,
+                        Err(e) => error = Some(e),
                     }
                 }
-                Err(Error::internal())
+                Err(error.unwrap_or(Error::key_not_found(key)))
             } else {
                 error!("GET[{}] we read data but can't find path in config", key);
                 Err(Error::internal())
