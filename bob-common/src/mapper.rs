@@ -300,18 +300,16 @@ impl Virtual {
                 None
             }
         }).collect();
-        let return_disks;
         if disks.len() == 0 {
             debug!(
                 "cannot find node: {} for vdisk: {}",
                 self.local_node_name,
                 virt_disk.id()
             );
-            return_disks = None;
+            (virt_disk.id(), None)
         } else {
-            return_disks = Some(disks)
+            (virt_disk.id(), Some(disks))
         }
-        (virt_disk.id(), return_disks)
     }
 
     pub fn is_vdisk_on_node(&self, node_name: &str, id: VDiskId) -> bool {
