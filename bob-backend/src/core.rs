@@ -496,19 +496,15 @@ impl Backend {
                 Err(Error::failed("Multiple errors detected"))
             }
         } else if let Some(paths) = disk_paths {
-            let mut is_err = false;
+            let mut result = Ok(());
             for path in paths {
                 let op = Operation::new_local(vdisk_id, path.clone());
                 if let Err(e) = self.delete_single(key, meta, op, true).await.map(|_| ()) {
-                    error!("DELETE[{}] failed on path {:?}: {:?}", key, path, e);
-                    is_err = true;
+                    warn!("DELETE[{}] failed on path {:?}: {:?}", key, path, e);
+                    result = Err(e);
                 }
             }
-            if is_err {
-                Err(Error::internal())
-            } else {
-                Ok(())
-            }
+            result
         } else {
             error!(
                 "DELETE[{}] dont know what to do with data: op: {:?}. Data is not local and alien",
