@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [v2.0.14-alpha.8] - 2023-06-20
+#### Added
 - Used_swap and bob_virtual_memory metrics added to hardware metrics (#771)
 
 #### Changed
