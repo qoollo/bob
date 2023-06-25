@@ -22,6 +22,7 @@ use tokio::time::sleep;
 use tonic::metadata::{Ascii, MetadataValue};
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 use tonic::{Code, Request, Status};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_ENGINE};
 
 #[macro_use]
 extern crate log;
@@ -209,7 +210,7 @@ impl TaskConfig {
         let basic_password = self.basic_password.clone().unwrap_or_default();
 
         let credentials = format!("{}:{}", basic_username, basic_password);
-        let credentials = base64::encode(credentials);
+        let credentials = BASE64_ENGINE.encode(credentials);
         let authorization = format!("Basic {}", credentials)
             .parse::<MetadataValue<Ascii>>()
             .expect("can not parse authorization value");
