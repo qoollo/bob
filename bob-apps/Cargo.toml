@@ -51,8 +51,6 @@ mimalloc = { version = "0.1", default-features = false, optional = true }
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 jemallocator = { version = "0.5.0", optional = true }
 
-[build-dependencies]
-tonic-build = "0.6"
 
 [[bin]]
 name = "bobd"
