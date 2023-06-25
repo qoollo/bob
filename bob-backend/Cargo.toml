@@ -1,41 +1,26 @@
 [package]
 name = "bob-backend"
-version = "2.1.0-alpha.10"
-authors = [
-    "Kirill Bushminkin <kb@qoollo.com>",
-    "Pavel Iakushin <pyakushin@qoollo.com>",
-    "Nikita Menshov",
-    "Ilia Kopylov",
-    "Ivan Druzhitskiy",
-    "Vladimir Stepanenko",
-    "Pavel Perestoronin",
-    "Konstantin Konnov",
-    "Konstantin Bulany"
-]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-anyhow = "1.0"
-async-lock = "2.7"
-async-trait = "0.1"
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
+chrono = { workspace = true }
+coarsetime = { workspace = true }
+futures = { workspace = true }
+lazy_static = { workspace = true }
+log = { workspace = true }
+metrics = { workspace = true }
+smallvec = { workspace = true }
+tokio = { workspace = true }
+pearl = { workspace = true }
 bob-common = { path = "../bob-common" }
-bytes = "1.4"
-chrono = "0.4"
-coarsetime = "0.1"
-futures = "0.3"
-lazy_static = "1.4"
-log = "0.4"
-metrics = { version = "0.17", features = ["std"] }
+async-lock = "2.7"
 ring = "0.16"
-smallvec = { version = "1.10", features = ["union"] }
 
-[dependencies.pearl]
-version = "0.19.0"
-
-[dependencies.tokio]
-version = "1.28"
-default-features = false
-features = []
 
 [dev-dependencies]
 criterion = "0.4"
