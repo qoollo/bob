@@ -8,7 +8,7 @@ use crate::{
 use futures::Future;
 use pearl::{BloomProvider, ReadResult};
 use ring::digest::{digest, SHA256};
-use async_std::sync::{RwLock as UgradableRwLock, RwLockUpgradableReadGuard};
+use async_lock::{RwLock as UgradableRwLock, RwLockUpgradableReadGuard};
 
 pub type HoldersContainer =
     HierarchicalFilters<Key, <Holder as BloomProvider<Key>>::Filter, Holder>;
