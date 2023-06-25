@@ -32,11 +32,17 @@ log = "0.4"
 metrics = { version = "0.17", features = ["std"] }
 bytes = "1.4"
 chrono = "0.4"
+regex = "1.8"
 http = "0.2"
+rand = "0.8"
+sha2 = "0.10.6"
+base64 = "0.21"
+hex = "0.4"
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.9"
 serde_json = "1.0"
+bincode = "1.3"
 tonic = { version = "0.6", features = ["prost"] }
 smallvec = { version = "1.10", features = ["union"] }
 tokio = { version = "1.28", features = [] }
