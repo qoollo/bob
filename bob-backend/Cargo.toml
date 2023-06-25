@@ -19,7 +19,7 @@ tokio = { workspace = true }
 pearl = { workspace = true }
 bob-common = { path = "../bob-common" }
 async-lock = "2.7"
-ring = "0.16"
+ring = "0.16" # TODO: replace with sha2
 
 
 [dev-dependencies]

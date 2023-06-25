@@ -7,6 +7,7 @@ edition.workspace = true
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+thiserror = { workspace = true }
 base64 = { workspace = true }
 bytes = { workspace = true }
 chrono = { workspace = true }
@@ -24,10 +25,9 @@ bob-access = { path = "../bob-access" }
 bob-grpc = { path = "../bob-grpc" }
 cfg-if = "1.0"
 humantime = "2.1"
-metrics-exporter-prometheus = { version = "0.6", features = ["tokio-exporter"]}
+metrics-exporter-prometheus = { version = "0.6", features = ["tokio-exporter"] }
 metrics-util = "0.10"
 mockall = "0.11"
-thiserror = "1.0"
 ubyte = { version = "0.10", features = ["serde"] }
 
 

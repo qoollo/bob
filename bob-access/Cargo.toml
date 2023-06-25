@@ -17,6 +17,6 @@ tokio = { workspace = true }
 base64 = { workspace = true }
 hex = { workspace = true }
 sha2 = { workspace = true }
-axum = "0.4"
+axum = { workspace = true }
 jsonwebtoken = "7.2"
 unicase = "2.6"
