@@ -22,18 +22,18 @@ uuid = { workspace = true }
 libc = { workspace = true }
 sysinfo = { workspace = true }
 axum = { workspace = true }
+axum-server = { workspace = true, features = ["tls-rustls"] }
+infer = { workspace = true }
 tokio = { workspace = true }
 pearl = { workspace = true }
 bob-access = { path = "../bob-access" }
 bob-backend = { path = "../bob-backend" }
 bob-common = { path = "../bob-common" }
 bob-grpc = { path = "../bob-grpc" }
-axum-server = { version = "0.3.3", features = ["tls-rustls"] }
-infer = "0.14"
 
 
 [build-dependencies]
 chrono = { workspace = true }
 
 [dev-dependencies]
-env_logger = "0.9"
+env_logger = { workspace = true }

@@ -4,6 +4,11 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
+[features]
+default = []
+testing = []
+production = []
+
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
@@ -16,22 +21,16 @@ futures = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+metrics-util = { workspace = true }
 serde = { workspace = true }
 serde_derive = { workspace = true }
 serde_yaml = { workspace = true }
+cfg-if = { workspace = true }
+humantime = { workspace = true }
+mockall = { workspace = true }
+ubyte = { workspace = true }
 tonic = { workspace = true, features = ["tls"] }
 tokio = { workspace = true }
 bob-access = { path = "../bob-access" }
 bob-grpc = { path = "../bob-grpc" }
-cfg-if = "1.0"
-humantime = "2.1"
-metrics-exporter-prometheus = { version = "0.6", features = ["tokio-exporter"] }
-metrics-util = "0.10"
-mockall = "0.11"
-ubyte = { version = "0.10", features = ["serde"] }
-
-
-[features]
-default = []
-testing = []
-production = []

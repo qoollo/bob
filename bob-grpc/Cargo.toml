@@ -9,9 +9,9 @@ bytes = { workspace = true }
 log = { workspace = true }
 tonic = { workspace = true }
 tokio = { workspace = true }
-prost = "0.9"
+prost = { workspace = true }
 
 
 [build-dependencies]
-tonic-build = "0.6"
-prost-build = "0.9"
+tonic-build = { workspace = true }
+prost-build = { workspace = true }

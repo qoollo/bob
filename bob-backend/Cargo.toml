@@ -4,6 +4,9 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
+[features]
+async-io = ["pearl/async-io-rio"]
+
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
@@ -12,21 +15,19 @@ chrono = { workspace = true }
 coarsetime = { workspace = true }
 futures = { workspace = true }
 lazy_static = { workspace = true }
+sha2 = { workspace = true }
 log = { workspace = true }
 metrics = { workspace = true }
 smallvec = { workspace = true }
+async-lock = { workspace = true }
 tokio = { workspace = true }
 pearl = { workspace = true }
 bob-common = { path = "../bob-common" }
-async-lock = "2.7"
 ring = "0.16" # TODO: replace with sha2
 
 
 [dev-dependencies]
-criterion = "0.4"
-
-[features]
-async-io = ["pearl/async-io-rio"]
+criterion = { workspace = true }
 
 [[bench]]
 name = "key_cmp_benchmark"
