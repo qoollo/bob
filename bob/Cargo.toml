@@ -5,6 +5,10 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
+bob-access = { path = "../bob-access" }
+bob-backend = { path = "../bob-backend" }
+bob-common = { path = "../bob-common" }
+bob-grpc = { path = "../bob-grpc" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
@@ -26,10 +30,6 @@ axum-server = { workspace = true, features = ["tls-rustls"] }
 infer = { workspace = true }
 tokio = { workspace = true }
 pearl = { workspace = true }
-bob-access = { path = "../bob-access" }
-bob-backend = { path = "../bob-backend" }
-bob-common = { path = "../bob-common" }
-bob-grpc = { path = "../bob-grpc" }
 
 
 [build-dependencies]

@@ -8,6 +8,7 @@ edition.workspace = true
 async-io = ["pearl/async-io-rio"]
 
 [dependencies]
+bob-common = { path = "../bob-common" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
@@ -22,7 +23,6 @@ smallvec = { workspace = true }
 async-lock = { workspace = true }
 tokio = { workspace = true }
 pearl = { workspace = true }
-bob-common = { path = "../bob-common" }
 
 
 [dev-dependencies]

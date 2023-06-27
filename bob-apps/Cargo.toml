@@ -14,6 +14,9 @@ jemallocator = ["dep:jemallocator"]
 jemallocator-profile = ["dep:jemallocator", "jemallocator/profiling"]
 
 [dependencies]
+bob = { path = "../bob" }
+bob-access = { path = "../bob-access" }
+bob-common = { path = "../bob-common" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
@@ -39,9 +42,6 @@ env_logger = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true, features = ["signal"] }
 pearl = { workspace = true }
-bob = { path = "../bob" }
-bob-access = { path = "../bob-access" }
-bob-common = { path = "../bob-common" }
 
 
 [target.'cfg(all(target_env = "musl", target_arch = "x86_64", target_pointer_width = "64"))'.dependencies]

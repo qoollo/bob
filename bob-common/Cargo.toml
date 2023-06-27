@@ -10,6 +10,8 @@ testing = []
 production = []
 
 [dependencies]
+bob-access = { path = "../bob-access" }
+bob-grpc = { path = "../bob-grpc" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
@@ -32,5 +34,3 @@ mockall = { workspace = true }
 ubyte = { workspace = true }
 tonic = { workspace = true, features = ["tls"] }
 tokio = { workspace = true }
-bob-access = { path = "../bob-access" }
-bob-grpc = { path = "../bob-grpc" }
