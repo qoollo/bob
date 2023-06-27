@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-- Used_swap and bob_virtual_memory metrics added to hardware metrics (#771)
+
 
 #### Changed
 
@@ -14,6 +14,20 @@ Bob versions changelog
 
 #### Updated
 
+
+
+## [v2.0.14-alpha.8] - 2023-06-20
+#### Added
+- Used_swap and bob_virtual_memory metrics added to hardware metrics (#771)
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+- Update Pearl version to v0.9.5 (#815)
 
 
 ## [v2.0.14-alpha.7] - 2023-05-11
