@@ -7,7 +7,6 @@ use bob::{
 
 use clap::{App, Arg, ArgMatches};
 use std::collections::HashMap;
-use std::error::Error;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::fs;
 use std::mem::size_of;
@@ -68,13 +67,8 @@ impl NetConfig {
             match BobApiClient::connect(endpoint.clone()).await {
                 Ok(client) => return client,
                 Err(e) => {
+                    println!("{:?}", e);
                     sleep(Duration::from_millis(1000)).await;
-                    println!(
-                        "{:?}",
-                        e.source()
-                            .and_then(|e| e.downcast_ref::<hyper::Error>())
-                            .unwrap()
-                    );
                 }
             }
         }

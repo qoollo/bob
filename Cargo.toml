@@ -75,7 +75,6 @@ tonic = { version = "0.6", features = ["prost"] }
 tonic-build = "0.6"
 prost = "0.9"
 prost-build = "0.9"
-hyper = { version = "0.14", default-features = false } # TODO: remove to avoid direct dependency
 # axum
 axum = "0.4"
 axum-server = "0.3.3"
