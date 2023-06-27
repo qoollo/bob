@@ -15,12 +15,14 @@ Bob versions changelog
 - NodeName and DiskName types introduced to reduce clone overhead (#775)
 - Avoid Pearl Storage clone (#791)
 - Make iouring optional (#567)
+- Use cargo workspace to declare dependencies to avoid their duplication (#821)
 
 #### Fixed
 - Fix memory leak due to prometheus lib (#788)
 
 #### Updated
 - Pearl updated to v0.19.0 (#798)
+- Update crates versions: tokio, bytes, uuid, infer, base64, bitflags, regex, async-lock (#769)
 
 
 ## [2.1.0-alpha.10] - 2023-05-11
