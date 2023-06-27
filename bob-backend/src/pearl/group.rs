@@ -23,6 +23,7 @@ pub struct Group {
     node_name: NodeName,
     disk_name: DiskName,
     owner_node_identifier: String,
+    safe_timestamp_step: Option<u64>,
     pearl_creation_context: PearlCreationContext,
 }
 
@@ -48,6 +49,7 @@ impl Group {
             directory_path,
             disk_name,
             owner_node_identifier,
+            safe_timestamp_step: None,
             pearl_creation_context,
         }
     }
@@ -84,17 +86,21 @@ impl Group {
         Self::run_pearls(&mut holders, pp).await
     }
 
-    pub async fn run(&self, pp: impl Hooks) -> AnyResult<()> {
+    pub async fn run(&mut self, pp: impl Hooks) -> AnyResult<()> {
         let _reinit_lock = self.reinit_lock.write().await;
-        self.run_under_reinit_lock(pp).await
+        let res = self.run_under_reinit_lock(pp).await;
+        self.safe_timestamp_step = self.safe_timestamp_step().await;
+        res
     }
 
-    pub async fn remount(&self, pp: impl Hooks) -> AnyResult<()> {
+    pub async fn remount(&mut self, pp: impl Hooks) -> AnyResult<()> {
         let _reinit_lock = self.reinit_lock.write().await;
         let cleared = self.holders.write().await.clear_and_get_values();
         close_holders(cleared.iter()).await; // Close old holders
         std::mem::drop(cleared); // This is to guarantee, that all resources will be released before `run_under_reinit_lock` is called
-        self.run_under_reinit_lock(pp).await
+        let res = self.run_under_reinit_lock(pp).await;
+        self.safe_timestamp_step = self.safe_timestamp_step().await;
+        res
     }
 
     async fn run_pearls(holders: &mut HoldersContainer, pp: impl Hooks) -> AnyResult<()> {
@@ -237,42 +243,65 @@ impl Group {
         }
     }
 
+    async fn safe_timestamp_step(&self) -> Option<u64> {
+        if let Some(adjust) = self.settings.config().skip_holders_by_timestamp_step_when_reading_sec() {
+            let mut start_timestamps = self.holders.read().await
+                .iter()
+                .map(|holder| holder.start_timestamp())
+                .collect::<Vec<u64>>();
+            start_timestamps.sort();
+            start_timestamps.push(get_current_timestamp());
+
+            let mut max_diff = self.settings.timestamp_period_as_secs();
+            for i in 0..start_timestamps.len() - 1 {
+                let diff = start_timestamps[i + 1] - start_timestamps[i];
+                if max_diff < diff {
+                    max_diff = diff;
+                }
+            }
+            let step = 2 * max_diff.max(self.settings.timestamp_period_as_secs()) + 1;
+            Some(adjust.max(step))
+        } else {
+            None
+        }
+    }
+
     pub async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let holders = self.holders.read().await;
         let mut has_error = false;
         let mut max_timestamp = None;
         let mut result = None;
+
         for holder in holders
             .iter_possible_childs_rev(&Key::from(key))
             .map(|(_, x)| &x.data)
         {
-            let get = Self::get_common(&holder, key).await;
-            match get {
-                Ok(data) => match data {
-                    ReadResult::Found(data) => {
+            if self.should_check_holder(holder, max_timestamp) {
+                match Self::get_common(&holder, key).await {
+                    Ok(ReadResult::Found(data)) => {
                         trace!("get data: {:?} from: {:?}", data, holder);
                         let ts = data.meta().timestamp();
                         if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
                             max_timestamp = Some(ts);
                             result = Some(data);
                         }
-                    }
-                    ReadResult::Deleted(ts) => {
+                    },
+                    Ok(ReadResult::Deleted(ts)) => {
                         trace!("{} is deleted in {:?} at {}", key, holder, ts);
                         let ts: u64 = ts.into();
                         if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
                             max_timestamp = Some(ts);
                             result = None;
                         }
-                    }
-                    ReadResult::NotFound => {
+                    },
+                    Ok(ReadResult::NotFound) => {
                         debug!("{} not found in {:?}", key, holder)
+                    },
+                    Err(err) => {
+                        has_error = true;
+                        error!("get error: {}, from : {:?}", err, holder);
                     }
-                },
-                Err(err) => {
-                    has_error = true;
-                    error!("get error: {}, from : {:?}", err, holder);
                 }
             }
         }
@@ -306,27 +335,29 @@ impl Group {
         let _reinit_lock = self.reinit_lock.try_read().map_err(|_| Error::holder_temporary_unavailable())?;
         let mut exist = vec![false; keys.len()];
         let holders = self.holders.read().await;
+
         for (ind, &key) in keys.iter().enumerate() {
             let mut max_timestamp = None;
             let mut result = false;
-            for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key))
-            {
-                match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
-                    ReadResult::Found(ts) => {
-                        let ts: u64 = ts.into();
-                        if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
-                            max_timestamp = Some(ts);
-                            result = true;
-                        }
+            for (_, Leaf { data: holder, .. }) in holders.iter_possible_childs_rev(&Key::from(key)) {
+                if self.should_check_holder(holder, max_timestamp) {
+                    match holder.exist(key).await.unwrap_or(ReadResult::NotFound) {
+                        ReadResult::Found(ts) => {
+                            let ts: u64 = ts.into();
+                            if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
+                                max_timestamp = Some(ts);
+                                result = true;
+                            }
+                        },
+                        ReadResult::Deleted(ts) => {
+                            let ts: u64 = ts.into();
+                            if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
+                                max_timestamp = Some(ts);
+                                result = false;
+                            }
+                        },
+                        ReadResult::NotFound => continue,
                     }
-                    ReadResult::Deleted(ts) => {
-                        let ts: u64 = ts.into();
-                        if max_timestamp.is_none() || ts > max_timestamp.unwrap() {
-                            max_timestamp = Some(ts);
-                            result = false;
-                        }
-                    }
-                    ReadResult::NotFound => continue,
                 }
             }
             exist[ind] = result;
@@ -334,7 +365,14 @@ impl Group {
         Ok(exist)
     }
 
-    
+    #[inline]
+    fn should_check_holder(&self, holder: &Holder, max_timestamp: Option<u64>) -> bool {
+        max_timestamp.is_none() ||
+        self.safe_timestamp_step.is_none() ||
+        holder.end_timestamp() + self.safe_timestamp_step.unwrap() >= max_timestamp.unwrap()
+    }
+
+
     pub async fn delete(
         &self,
         key: BobKey,

@@ -1,4 +1,9 @@
+#[cfg(all(any(feature = "mimalloc", feature = "mimalloc-secure"), any(feature = "jemallocator", feature = "jemallocator-profile")))]
+compile_error!("features `mimalloc` and `jemallocator` are mutually exclusive");
+#[cfg(any(feature = "mimalloc", feature = "mimalloc-secure"))]
 include!("alloc/mimalloc.rs");
+#[cfg(any(feature = "jemallocator", feature = "jemallocator-profile"))]
+include!("alloc/jemalloc.rs");
 
 use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
