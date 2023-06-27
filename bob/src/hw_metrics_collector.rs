@@ -24,20 +24,30 @@ impl HWMetricsCollector {
     }
 
     fn collect_used_disks(disks: &[DiskPath]) -> HashMap<PathBuf, String> {
-        System::new_all()
+        System::new_with_specifics(RefreshKind::new().with_disks_list().with_disks())
             .disks()
             .iter()
             .filter_map(|d| {
                 let path = d.mount_point();
+                let path_metadata = match path.metadata() {
+                    Ok(meta) => meta,
+                    Err(err) => {
+                        warn!("Can't get metadata from OS for disk '{}' returned by 'sysinfo': {:?}", path.display(), err);
+                        return None;
+                    }
+                };
                 disks
                     .iter()
                     .find(move |dp| {
-                        let dp_md = Path::new(dp.path())
-                    				.metadata()
-                    				.expect("Can't get metadata from OS");
-                        let p_md = path.metadata()
-                                       .expect("Can't get metadata from OS");
-                        p_md.dev() == dp_md.dev()               
+                        match Path::new(dp.path()).metadata() {
+                            Ok(dp_metadata) => {
+                                path_metadata.dev() == dp_metadata.dev()
+                            },
+                            Err(err) => {
+                                warn!("Can't get metadata from OS for disk '{}' specified in cluster config: {:?}", dp.path(), err);
+                                false
+                            }
+                        }
                     })
                     .map(|config_disk| {
                         let diskpath = path.to_str().expect("Not UTF-8").to_owned();
