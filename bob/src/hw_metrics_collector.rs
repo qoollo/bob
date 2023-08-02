@@ -6,6 +6,8 @@ use bob_common::metrics::{
 };
 use libc::statvfs;
 use std::fs::read_to_string;
+use std::iter::Sum;
+use std::ops::{Add, AddAssign};
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
@@ -596,22 +598,19 @@ fn parse_command_output(command: &mut Command) -> Result<String, String> {
     }
 }
 
-/// Traits Impls
-///
-use std::iter::Sum;
-use std::ops::{Add, AddAssign};
+// Std Traits Impls
 
-impl AddAssign for DiskSpaceMetrics {
-    fn add_assign(&mut self, rhs: Self) {
+impl<'a> AddAssign<&'a Self> for DiskSpaceMetrics {
+    fn add_assign(&mut self, rhs: &Self) {
         self.used_space += rhs.used_space;
         self.free_space += rhs.free_space;
         self.total_space += rhs.total_space;
     }
 }
-impl Add for DiskSpaceMetrics {
+impl<'a> Add<&'a Self> for DiskSpaceMetrics {
     type Output = Self;
 
-    fn add(mut self, rhs: Self) -> Self::Output {
+    fn add(mut self, rhs: &Self) -> Self::Output {
         self += rhs;
         self
     }
@@ -625,7 +624,7 @@ impl<'a> Sum<&'a Self> for DiskSpaceMetrics {
                 used_space: 0,
                 free_space: 0,
             },
-            |a, b| a + b.clone(),
+            |a, b| a + b,
         )
     }
 }

@@ -320,49 +320,67 @@ async fn get_space_info<A: Authenticator>(
     bob: Extension<BobServer<A>>,
 ) -> Result<Json<SpaceInfo>, StatusExt> {
     let mut disk_metrics = bob.grinder().hw_counter().update_space_metrics();
-    let summed_metrics: DiskSpaceMetrics = disk_metrics.values().sum();
+    let DiskSpaceMetrics {
+        total_space,
+        used_space,
+        free_space,
+    } = disk_metrics.values().sum();
 
     let backend = bob.grinder().backend().inner();
     let (dcs, adc) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
     let mut map = HashMap::new();
+    let mut total_occupied = 0;
     for dc in dcs {
-        map.insert(dc.disk().name(), dc.disk_used().await);
+        let occupied_space = dc.disk_used().await;
+        total_occupied += occupied_space;
+        let DiskSpaceMetrics {
+            total_space,
+            used_space,
+            free_space,
+        } = disk_metrics
+            .remove_entry(dc.disk().name())
+            .map(|(_, space)| space)
+            .unwrap_or_default();
+        map.insert(
+            dc.disk().name().clone(),
+            Space {
+                total_disk_space_bytes: total_space,
+                free_disk_space_bytes: free_space,
+                used_disk_space_bytes: used_space,
+                occupied_disk_space_bytes: occupied_space,
+            },
+        );
     }
     let adc_space = adc.disk_used().await;
-    map.entry(adc.disk().name())
-        .and_modify(|s| *s += adc_space)
-        .or_insert(adc_space);
+    map.entry(adc.disk().name().clone())
+        .and_modify(|s| s.occupied_disk_space_bytes += adc_space)
+        .or_insert({
+            let DiskSpaceMetrics {
+                total_space,
+                used_space,
+                free_space,
+            } = disk_metrics
+                .remove_entry(adc.disk().name())
+                .map(|(_, space)| space)
+                .unwrap_or_default();
+            Space {
+                total_disk_space_bytes: total_space,
+                free_disk_space_bytes: free_space,
+                used_disk_space_bytes: used_space,
+                occupied_disk_space_bytes: adc_space,
+            }
+        });
 
     Ok(Json(SpaceInfo {
         space: Space {
-            total_disk_space_bytes: summed_metrics.total_space,
-            used_disk_space_bytes: summed_metrics.used_space,
-            free_disk_space_bytes: summed_metrics.free_space,
-            occupied_disk_space_bytes: map.values().sum(),
+            total_disk_space_bytes: total_space,
+            used_disk_space_bytes: used_space,
+            free_disk_space_bytes: free_space,
+            occupied_disk_space_bytes: total_occupied,
         },
-        disk_space_by_disk: map
-            .iter()
-            .map(|(&name, &occup_space)| {
-                (name.clone(), {
-                    let DiskSpaceMetrics {
-                        total_space,
-                        used_space,
-                        free_space,
-                    } = disk_metrics
-                        .remove_entry(name)
-                        .map(|(_, space)| space)
-                        .unwrap_or_default();
-                    Space {
-                        total_disk_space_bytes: total_space,
-                        free_disk_space_bytes: free_space,
-                        used_disk_space_bytes: used_space,
-                        occupied_disk_space_bytes: occup_space,
-                    }
-                })
-            })
-            .collect(),
+        disk_space_by_disk: map,
     }))
 }
 
