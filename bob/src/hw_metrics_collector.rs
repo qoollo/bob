@@ -1,21 +1,21 @@
 use crate::prelude::*;
 use bob_common::core_types::DiskName;
 use bob_common::metrics::{
-    BOB_RAM, BOB_VIRTUAL_RAM, BOB_CPU_LOAD, DESCRIPTORS_AMOUNT, CPU_IOWAIT, 
-    TOTAL_RAM, AVAILABLE_RAM, USED_RAM, USED_SWAP,
-    TOTAL_SPACE, FREE_SPACE, USED_SPACE, HW_DISKS_FOLDER
+    AVAILABLE_RAM, BOB_CPU_LOAD, BOB_RAM, BOB_VIRTUAL_RAM, CPU_IOWAIT, DESCRIPTORS_AMOUNT,
+    FREE_SPACE, HW_DISKS_FOLDER, TOTAL_RAM, TOTAL_SPACE, USED_RAM, USED_SPACE, USED_SWAP,
 };
 use libc::statvfs;
+use std::fs::read_to_string;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
-use std::fs::read_to_string;
 use sysinfo::{DiskExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 const CPU_STAT_FILE: &str = "/proc/stat";
 const DISK_STAT_FILE: &str = "/proc/diskstats";
 
+#[derive(Debug, Serialize, Default, Clone)]
 pub(crate) struct DiskSpaceMetrics {
     pub(crate) total_space: u64,
     pub(crate) used_space: u64,
@@ -63,7 +63,7 @@ impl HWMetricsCollector {
         tokio::spawn(Self::task(self.interval_time, self.disks.clone()));
     }
 
-    pub(crate) fn update_space_metrics(&self) -> DiskSpaceMetrics {
+    pub(crate) fn update_space_metrics(&self) -> HashMap<DiskName, DiskSpaceMetrics> {
         Self::update_space_metrics_from_disks(&self.disks)
     }
 
@@ -91,10 +91,10 @@ impl HWMetricsCollector {
             match cpu_s_c.iowait() {
                 Ok(iowait) => {
                     gauge!(CPU_IOWAIT, iowait);
-                },
+                }
                 Err(CommandError::Primary(e)) => {
                     warn!("Error while collecting cpu iowait: {}", e);
-                },
+                }
                 Err(CommandError::Unavailable) => (),
             }
 
@@ -112,7 +112,10 @@ impl HWMetricsCollector {
             let available_mem = sys.available_memory();
             let used_mem = total_mem - available_mem;
             let used_swap = sys.used_swap();
-            debug!("used mem in bytes: {} | available mem in bytes: {} | used swap: {}", used_mem, available_mem, used_swap);
+            debug!(
+                "used mem in bytes: {} | available mem in bytes: {} | used swap: {}",
+                used_mem, available_mem, used_swap
+            );
             gauge!(USED_RAM, used_mem as f64);
             gauge!(AVAILABLE_RAM, available_mem as f64);
             gauge!(USED_SWAP, used_swap as f64);
@@ -124,11 +127,14 @@ impl HWMetricsCollector {
         }
     }
 
-    fn update_space_metrics_from_disks(disks: &HashMap<PathBuf, DiskName>) -> DiskSpaceMetrics {
+    fn update_space_metrics_from_disks(
+        disks: &HashMap<PathBuf, DiskName>,
+    ) -> HashMap<DiskName, DiskSpaceMetrics> {
         let disks_metrics = Self::space(disks);
-        gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
-        gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
-        gauge!(FREE_SPACE, bytes_to_mb(disks_metrics.free_space) as f64);
+        let summed_space: DiskSpaceMetrics = disks_metrics.values().sum();
+        gauge!(TOTAL_SPACE, bytes_to_mb(summed_space.total_space) as f64);
+        gauge!(USED_SPACE, bytes_to_mb(summed_space.used_space) as f64);
+        gauge!(FREE_SPACE, bytes_to_mb(summed_space.free_space) as f64);
         disks_metrics
     }
 
@@ -157,12 +163,9 @@ impl HWMetricsCollector {
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
 
-    fn space(disks: &HashMap<PathBuf, DiskName>) -> DiskSpaceMetrics {
-        let mut total = 0;
-        let mut used = 0;
-        let mut free = 0;
-
-        for mount_point in disks.keys() {
+    fn space(disks: &HashMap<PathBuf, DiskName>) -> HashMap<DiskName, DiskSpaceMetrics> {
+        let mut res = HashMap::new();
+        for (mount_point, disk_name) in disks {
             let cm_p = Self::to_cpath(mount_point.as_path());
             let stat = Self::statvfs_wrap(&cm_p);
             if let Some(stat) = stat {
@@ -170,17 +173,18 @@ impl HWMetricsCollector {
                 let blocks = stat.f_blocks as u64;
                 let bavail = stat.f_bavail as u64;
                 let bfree = stat.f_bfree as u64;
-                total += bsize * blocks;
-                free += bsize * bavail;
-                used += (blocks - bfree) * bsize;
+                res.insert(
+                    disk_name.clone(),
+                    DiskSpaceMetrics {
+                        total_space: bsize * blocks,
+                        used_space: bsize * bavail,
+                        free_space: (blocks - bfree) * bsize,
+                    },
+                );
             }
         }
 
-        DiskSpaceMetrics {
-            total_space: total,
-            used_space: used,
-            free_space: free,
-        }
+        res
     }
 }
 
@@ -194,9 +198,7 @@ struct CPUStatCollector {
 
 impl CPUStatCollector {
     fn new() -> CPUStatCollector {
-        CPUStatCollector {
-            procfs_avl: true
-        }
+        CPUStatCollector { procfs_avl: true }
     }
 
     fn stat_cpu_line() -> Result<String, String> {
@@ -229,7 +231,7 @@ impl CPUStatCollector {
                                 if i == CPU_IOWAIT_COLUMN {
                                     f_iowait = val;
                                 }
-                            },
+                            }
                             Err(_) => {
                                 let msg = format!("Can't parse {}", CPU_STAT_FILE);
                                 err = Some(msg);
@@ -244,7 +246,7 @@ impl CPUStatCollector {
                     let msg = format!("CPU stat format in {} changed", CPU_STAT_FILE);
                     err = Some(msg);
                 }
-            },
+            }
             Err(e) => {
                 err = Some(e);
             }
@@ -261,13 +263,11 @@ struct DiffContainer<T> {
 }
 
 impl<T> DiffContainer<T>
-where T: std::ops::Sub<Output = T> +
-         Copy,
+where
+    T: std::ops::Sub<Output = T> + Copy,
 {
     fn new() -> Self {
-        Self {
-            last: None,
-        }
+        Self { last: None }
     }
 
     fn diff(&mut self, new: T) -> Option<T> {
@@ -307,7 +307,7 @@ struct DiskStatsContainer {
     stats: DiffContainer<DiskStats>,
 }
 
-impl  DiskStatsContainer {
+impl DiskStatsContainer {
     fn new(prefix: String) -> Self {
         Self {
             prefix,
@@ -355,7 +355,7 @@ impl DiskStatCollector {
             parts[7].parse::<u64>(),
         ) {
             new_ds.reads = r_ios;
-            new_ds.writes = w_ios;  
+            new_ds.writes = w_ios;
             if new_ds.extended {
                 // time spend doing i/o operations is in 12th column
                 if let Ok(io_time) = parts[12].parse::<u64>() {
@@ -385,7 +385,7 @@ impl DiskStatCollector {
                     // compare device name from 2nd column with disk device names
                     if let Some(ds) = self.disk_metric_data.get_mut(lsp[2]) {
                         let new_ds = Self::parse_stat_line(lsp)?;
-                        
+
                         if let Some(diff) = ds.stats.diff(new_ds) {
                             let iops = (diff.reads + diff.writes) as f64 / elapsed;
                             let gauge_name = format!("{}_iops", ds.prefix);
@@ -401,7 +401,10 @@ impl DiskStatCollector {
                     }
                 } else {
                     self.procfs_avl = false;
-                    let msg = format!("Not enough diskstat info in {} for metrics calculation", DISK_STAT_FILE);
+                    let msg = format!(
+                        "Not enough diskstat info in {} for metrics calculation",
+                        DISK_STAT_FILE
+                    );
                     return Err(CommandError::Primary(msg));
                 }
             }
@@ -490,7 +493,10 @@ impl DescrCounter {
 
         let pid_arg = process::id().to_string();
         let cmd_lsof = Command::new("lsof")
-            .args(["-a", "-p", &pid_arg, "-d", "^mem", "-d", "^cwd", "-d", "^rtd", "-d", "^txt", "-d", "^DEL"])
+            .args([
+                "-a", "-p", &pid_arg, "-d", "^mem", "-d", "^cwd", "-d", "^rtd", "-d", "^txt", "-d",
+                "^DEL",
+            ])
             .stdout(std::process::Stdio::piped())
             .spawn();
         match cmd_lsof {
@@ -507,17 +513,17 @@ impl DescrCounter {
                                         debug!("failed to parse lsof result: {}", e);
                                     }
                                 }
-                            },
+                            }
                             Err(e) => {
                                 debug!("can't use lsof, wc error (fs /proc will be used): {}", e);
                             }
                         }
-                    },
+                    }
                     None => {
                         debug!("lsof has no stdout (fs /proc will be used)");
                     }
                 }
-            },
+            }
             Err(e) => {
                 debug!("can't use lsof (fs /proc will be used): {}", e);
             }
@@ -587,5 +593,39 @@ fn parse_command_output(command: &mut Command) -> Result<String, String> {
             let error = format!("Failed to execute command {}: {}", program, e);
             Err(error)
         }
+    }
+}
+
+/// Traits Impls
+///
+use std::iter::Sum;
+use std::ops::{Add, AddAssign};
+
+impl AddAssign for DiskSpaceMetrics {
+    fn add_assign(&mut self, rhs: Self) {
+        self.used_space += rhs.used_space;
+        self.free_space += rhs.free_space;
+        self.total_space += rhs.total_space;
+    }
+}
+impl Add for DiskSpaceMetrics {
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl<'a> Sum<&'a Self> for DiskSpaceMetrics {
+    fn sum<I: Iterator<Item = &'a Self>>(iter: I) -> Self {
+        iter.fold(
+            Self {
+                total_space: 0,
+                used_space: 0,
+                free_space: 0,
+            },
+            |a, b| a + b.clone(),
+        )
     }
 }

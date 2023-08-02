@@ -19,10 +19,10 @@ use bob_access::{Authenticator, CredentialsHolder};
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
     configs::node::TLSConfig,
+    core_types::{DiskName, NodeDisk, VDisk as DataVDisk},
     data::{BobData, BobKey, BobMeta, BOB_KEY_SIZE},
-    core_types::{VDisk as DataVDisk, NodeDisk},
-    operation_options::{BobPutOptions, BobGetOptions, BobDeleteOptions},
     error::Error as BobError,
+    operation_options::{BobDeleteOptions, BobGetOptions, BobPutOptions},
 };
 use bytes::Bytes;
 use futures::{future::BoxFuture, stream::FuturesUnordered, FutureExt, StreamExt};
@@ -145,12 +145,18 @@ pub(crate) struct NodeConfiguration {
 }
 
 #[derive(Debug, Serialize)]
-pub(crate) struct SpaceInfo {
+struct Space {
     total_disk_space_bytes: u64,
     free_disk_space_bytes: u64,
     used_disk_space_bytes: u64,
     occupied_disk_space_bytes: u64,
-    occupied_disk_space_by_disk: HashMap<String, u64>,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct SpaceInfo {
+    #[serde(flatten)]
+    space: Space,
+    disk_space_by_disk: HashMap<DiskName, Space>,
 }
 
 async fn tls_server(tls_config: &TLSConfig, addr: SocketAddr) -> AxumServer<RustlsAcceptor> {
@@ -313,31 +319,50 @@ async fn status<A: Authenticator>(bob: Extension<BobServer<A>>) -> Json<Node> {
 async fn get_space_info<A: Authenticator>(
     bob: Extension<BobServer<A>>,
 ) -> Result<Json<SpaceInfo>, StatusExt> {
-    let DiskSpaceMetrics {
-        total_space,
-        used_space,
-        free_space,
-    } = bob.grinder().hw_counter().update_space_metrics();
+    let mut disk_metrics = bob.grinder().hw_counter().update_space_metrics();
+    let summed_metrics: DiskSpaceMetrics = disk_metrics.values().sum();
 
     let backend = bob.grinder().backend().inner();
     let (dcs, adc) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
     let mut map = HashMap::new();
-    for dc in dcs.iter() {
-        map.insert(dc.disk().name().to_string(), dc.disk_used().await);
+    for dc in dcs {
+        map.insert(dc.disk().name(), dc.disk_used().await);
     }
     let adc_space = adc.disk_used().await;
-    map.entry(adc.disk().name().to_string())
-        .and_modify(|s| *s = *s + adc_space)
+    map.entry(adc.disk().name())
+        .and_modify(|s| *s += adc_space)
         .or_insert(adc_space);
 
     Ok(Json(SpaceInfo {
-        total_disk_space_bytes: total_space,
-        used_disk_space_bytes: used_space,
-        free_disk_space_bytes: free_space,
-        occupied_disk_space_bytes: map.values().sum(),
-        occupied_disk_space_by_disk: map,
+        space: Space {
+            total_disk_space_bytes: summed_metrics.total_space,
+            used_disk_space_bytes: summed_metrics.used_space,
+            free_disk_space_bytes: summed_metrics.free_space,
+            occupied_disk_space_bytes: map.values().sum(),
+        },
+        disk_space_by_disk: map
+            .iter()
+            .map(|(&name, &occup_space)| {
+                (name.clone(), {
+                    let DiskSpaceMetrics {
+                        total_space,
+                        used_space,
+                        free_space,
+                    } = disk_metrics
+                        .remove_entry(name)
+                        .map(|(_, space)| space)
+                        .unwrap_or_default();
+                    Space {
+                        total_disk_space_bytes: total_space,
+                        free_disk_space_bytes: free_space,
+                        used_disk_space_bytes: used_space,
+                        occupied_disk_space_bytes: occup_space,
+                    }
+                })
+            })
+            .collect(),
     }))
 }
 
