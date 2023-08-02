@@ -171,10 +171,10 @@ impl HWMetricsCollector {
             let cm_p = Self::to_cpath(mount_point.as_path());
             let stat = Self::statvfs_wrap(&cm_p);
             if let Some(stat) = stat {
-                let bsize = stat.f_bsize as u64;
-                let blocks = stat.f_blocks as u64;
-                let bavail = stat.f_bavail as u64;
-                let bfree = stat.f_bfree as u64;
+                let bsize = stat.f_bsize;
+                let blocks = stat.f_blocks;
+                let bavail = stat.f_bavail;
+                let bfree = stat.f_bfree;
                 res.insert(
                     disk_name.clone(),
                     DiskSpaceMetrics {

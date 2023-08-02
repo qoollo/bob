@@ -155,7 +155,7 @@ struct Space {
 #[derive(Debug, Serialize)]
 pub(crate) struct SpaceInfo {
     #[serde(flatten)]
-    space: Space,
+    total_space: Space,
     disk_space_by_disk: HashMap<DiskName, Space>,
 }
 
@@ -330,7 +330,7 @@ async fn get_space_info<A: Authenticator>(
     let (dcs, adc) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
-    let mut map = HashMap::new();
+    let mut disk_space_by_disk = HashMap::new();
     let mut total_occupied = 0;
     for dc in dcs {
         let occupied_space = dc.disk_used().await;
@@ -343,7 +343,7 @@ async fn get_space_info<A: Authenticator>(
             .remove_entry(dc.disk().name())
             .map(|(_, space)| space)
             .unwrap_or_default();
-        map.insert(
+        disk_space_by_disk.insert(
             dc.disk().name().clone(),
             Space {
                 total_disk_space_bytes: total_space,
@@ -354,7 +354,8 @@ async fn get_space_info<A: Authenticator>(
         );
     }
     let adc_space = adc.disk_used().await;
-    map.entry(adc.disk().name().clone())
+    disk_space_by_disk
+        .entry(adc.disk().name().clone())
         .and_modify(|s| s.occupied_disk_space_bytes += adc_space)
         .or_insert({
             let DiskSpaceMetrics {
@@ -374,13 +375,13 @@ async fn get_space_info<A: Authenticator>(
         });
 
     Ok(Json(SpaceInfo {
-        space: Space {
+        total_space: Space {
             total_disk_space_bytes: total_space,
             used_disk_space_bytes: used_space,
             free_disk_space_bytes: free_space,
             occupied_disk_space_bytes: total_occupied,
         },
-        disk_space_by_disk: map,
+        disk_space_by_disk,
     }))
 }
 
