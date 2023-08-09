@@ -35,7 +35,7 @@ impl HWMetricsCollector {
         }
     }
 
-    /// Returns disk names with it's mount point
+    /// Returns disk names mapped to theirs mount points
     ///
     /// Note: If there is multiple mount points for the same disk, mount point will be choosed
     /// arbitrary between them.
@@ -61,7 +61,7 @@ impl HWMetricsCollector {
             .collect())
     }
 
-    /// Maps Disk Inforamtion to the disk's dev ID
+    /// Maps Disk's Inforamtion to the disk's dev ID
     ///
     /// # Panics
     ///
