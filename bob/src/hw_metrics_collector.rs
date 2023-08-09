@@ -1,16 +1,15 @@
 use crate::prelude::*;
 use bob_common::core_types::DiskName;
 use bob_common::metrics::{
-    BOB_RAM, BOB_VIRTUAL_RAM, BOB_CPU_LOAD, DESCRIPTORS_AMOUNT, CPU_IOWAIT, 
-    TOTAL_RAM, AVAILABLE_RAM, USED_RAM, USED_SWAP,
-    TOTAL_SPACE, FREE_SPACE, USED_SPACE, HW_DISKS_FOLDER
+    AVAILABLE_RAM, BOB_CPU_LOAD, BOB_RAM, BOB_VIRTUAL_RAM, CPU_IOWAIT, DESCRIPTORS_AMOUNT,
+    FREE_SPACE, HW_DISKS_FOLDER, TOTAL_RAM, TOTAL_SPACE, USED_RAM, USED_SPACE, USED_SWAP,
 };
 use libc::statvfs;
+use std::fs::read_to_string;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
-use std::fs::read_to_string;
-use sysinfo::{DiskExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
+use sysinfo::{Disk, DiskExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 const CPU_STAT_FILE: &str = "/proc/stat";
@@ -36,25 +35,51 @@ impl HWMetricsCollector {
         }
     }
 
+    /// Returns disk names with it's mount point
+    ///
+    /// Note: If there is multiple mount points for the same disk, mount point will be choosed
+    /// arbitrary between them.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the function couldn't receive metadata from OS
+    ///
     fn collect_used_disks(disks: &[DiskPath]) -> HashMap<PathBuf, DiskName> {
-        System::new_all()
-            .disks()
+        let sys_info = System::new_with_specifics(RefreshKind::new().with_disks_list());
+        let sys_metadata = Self::collect_metadata(sys_info.disks());
+
+        dbg!(disks
             .iter()
-            .filter_map(|d| {
-                let path = d.mount_point();
-                disks
-                    .iter()
-                    .find(move |dp| {
-                        let dp_md = Path::new(dp.path())
-                            .metadata()
-                            .expect("Can't get metadata from OS");
-                        let p_md = path.metadata().expect("Can't get metadata from OS");
-                        p_md.dev() == dp_md.dev()
-                    })
-                    .map(|config_disk| {
-                        let diskpath = path.to_str().expect("Not UTF-8").to_owned();
-                        (PathBuf::from(diskpath), config_disk.name().clone())
-                    })
+            .filter_map(|disk| {
+                let disk_metadata = Path::new(disk.path())
+                    .metadata()
+                    .expect("Can't get metadata from OS");
+                sys_metadata
+                    .get(&disk_metadata.dev())
+                    .map(|sys_disk| (PathBuf::from(sys_disk.mount_point()), disk.name().clone()))
+            })
+            .collect())
+    }
+
+    /// Maps Disk Inforamtion to the disk's dev ID
+    ///
+    /// # Panics
+    ///
+    /// Panics if the function couldn't receive metadata from OS
+    ///
+    // NOTE: we don't really care what mount point saved in disk's metadata since all of them will
+    // be on the same disk with the same dev ID. Also we can't really ensure that specific mount
+    // point will be processed first since they can be passed in arbitrary order
+    fn collect_metadata(sys_disks: &[Disk]) -> HashMap<u64, &Disk> {
+        sys_disks
+            .iter()
+            .rev()
+            .map(|disk| {
+                let metadata = disk
+                    .mount_point()
+                    .metadata()
+                    .expect("Can't get metadata from OS");
+                (metadata.dev(), disk)
             })
             .collect()
     }
@@ -91,10 +116,10 @@ impl HWMetricsCollector {
             match cpu_s_c.iowait() {
                 Ok(iowait) => {
                     gauge!(CPU_IOWAIT, iowait);
-                },
+                }
                 Err(CommandError::Primary(e)) => {
                     warn!("Error while collecting cpu iowait: {}", e);
-                },
+                }
                 Err(CommandError::Unavailable) => (),
             }
 
@@ -112,7 +137,10 @@ impl HWMetricsCollector {
             let available_mem = sys.available_memory();
             let used_mem = total_mem - available_mem;
             let used_swap = sys.used_swap();
-            debug!("used mem in bytes: {} | available mem in bytes: {} | used swap: {}", used_mem, available_mem, used_swap);
+            debug!(
+                "used mem in bytes: {} | available mem in bytes: {} | used swap: {}",
+                used_mem, available_mem, used_swap
+            );
             gauge!(USED_RAM, used_mem as f64);
             gauge!(AVAILABLE_RAM, available_mem as f64);
             gauge!(USED_SWAP, used_swap as f64);
@@ -194,9 +222,7 @@ struct CPUStatCollector {
 
 impl CPUStatCollector {
     fn new() -> CPUStatCollector {
-        CPUStatCollector {
-            procfs_avl: true
-        }
+        CPUStatCollector { procfs_avl: true }
     }
 
     fn stat_cpu_line() -> Result<String, String> {
@@ -229,7 +255,7 @@ impl CPUStatCollector {
                                 if i == CPU_IOWAIT_COLUMN {
                                     f_iowait = val;
                                 }
-                            },
+                            }
                             Err(_) => {
                                 let msg = format!("Can't parse {}", CPU_STAT_FILE);
                                 err = Some(msg);
@@ -244,7 +270,7 @@ impl CPUStatCollector {
                     let msg = format!("CPU stat format in {} changed", CPU_STAT_FILE);
                     err = Some(msg);
                 }
-            },
+            }
             Err(e) => {
                 err = Some(e);
             }
@@ -261,13 +287,11 @@ struct DiffContainer<T> {
 }
 
 impl<T> DiffContainer<T>
-where T: std::ops::Sub<Output = T> +
-         Copy,
+where
+    T: std::ops::Sub<Output = T> + Copy,
 {
     fn new() -> Self {
-        Self {
-            last: None,
-        }
+        Self { last: None }
     }
 
     fn diff(&mut self, new: T) -> Option<T> {
@@ -307,7 +331,7 @@ struct DiskStatsContainer {
     stats: DiffContainer<DiskStats>,
 }
 
-impl  DiskStatsContainer {
+impl DiskStatsContainer {
     fn new(prefix: String) -> Self {
         Self {
             prefix,
@@ -355,7 +379,7 @@ impl DiskStatCollector {
             parts[7].parse::<u64>(),
         ) {
             new_ds.reads = r_ios;
-            new_ds.writes = w_ios;  
+            new_ds.writes = w_ios;
             if new_ds.extended {
                 // time spend doing i/o operations is in 12th column
                 if let Ok(io_time) = parts[12].parse::<u64>() {
@@ -385,7 +409,7 @@ impl DiskStatCollector {
                     // compare device name from 2nd column with disk device names
                     if let Some(ds) = self.disk_metric_data.get_mut(lsp[2]) {
                         let new_ds = Self::parse_stat_line(lsp)?;
-                        
+
                         if let Some(diff) = ds.stats.diff(new_ds) {
                             let iops = (diff.reads + diff.writes) as f64 / elapsed;
                             let gauge_name = format!("{}_iops", ds.prefix);
@@ -401,7 +425,10 @@ impl DiskStatCollector {
                     }
                 } else {
                     self.procfs_avl = false;
-                    let msg = format!("Not enough diskstat info in {} for metrics calculation", DISK_STAT_FILE);
+                    let msg = format!(
+                        "Not enough diskstat info in {} for metrics calculation",
+                        DISK_STAT_FILE
+                    );
                     return Err(CommandError::Primary(msg));
                 }
             }
@@ -490,7 +517,10 @@ impl DescrCounter {
 
         let pid_arg = process::id().to_string();
         let cmd_lsof = Command::new("lsof")
-            .args(["-a", "-p", &pid_arg, "-d", "^mem", "-d", "^cwd", "-d", "^rtd", "-d", "^txt", "-d", "^DEL"])
+            .args([
+                "-a", "-p", &pid_arg, "-d", "^mem", "-d", "^cwd", "-d", "^rtd", "-d", "^txt", "-d",
+                "^DEL",
+            ])
             .stdout(std::process::Stdio::piped())
             .spawn();
         match cmd_lsof {
@@ -507,17 +537,17 @@ impl DescrCounter {
                                         debug!("failed to parse lsof result: {}", e);
                                     }
                                 }
-                            },
+                            }
                             Err(e) => {
                                 debug!("can't use lsof, wc error (fs /proc will be used): {}", e);
                             }
                         }
-                    },
+                    }
                     None => {
                         debug!("lsof has no stdout (fs /proc will be used)");
                     }
                 }
-            },
+            }
             Err(e) => {
                 debug!("can't use lsof (fs /proc will be used): {}", e);
             }
