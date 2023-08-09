@@ -18,6 +18,7 @@ Bob versions changelog
 
 #### Fixed
 - Fix memory leak due to prometheus lib (#788)
+- Fix incorrect disk space calculation inside docker container (#825)
 
 #### Updated
 - Pearl updated to v0.19.0 (#798)
