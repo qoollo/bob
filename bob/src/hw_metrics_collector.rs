@@ -48,7 +48,7 @@ impl HWMetricsCollector {
         let sys_info = System::new_with_specifics(RefreshKind::new().with_disks_list());
         let sys_metadata = Self::collect_metadata(sys_info.disks());
 
-        dbg!(disks
+        disks
             .iter()
             .filter_map(|disk| {
                 let disk_metadata = Path::new(disk.path())
@@ -58,7 +58,7 @@ impl HWMetricsCollector {
                     .get(&disk_metadata.dev())
                     .map(|sys_disk| (PathBuf::from(sys_disk.mount_point()), disk.name().clone()))
             })
-            .collect())
+            .collect()
     }
 
     /// Maps Disk's Inforamtion to the disk's dev ID
