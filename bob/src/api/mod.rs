@@ -367,8 +367,8 @@ async fn find_group<A: Authenticator>(
         .find(|dc| dc.vdisks().iter().any(|&vd| vd == vdisk_id))
         .ok_or_else(|| {
             let dcs = dcs.iter()
-                .map(|dc| format!("DC: {:?}, vdisks: {}",
-                                  dc.disk(),
+                .map(|dc| format!("DC: {}, vdisks: {}",
+                                  dc.disk().name(),
                                   dc.vdisks().iter().map(|v| format!("#{}", v)).collect::<Vec<_>>().join(", ")))
                 .collect::<Vec<_>>()
                 .join(", ");
