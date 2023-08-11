@@ -377,9 +377,9 @@ async fn find_group<A: Authenticator>(
             StatusExt::new(StatusCode::NOT_FOUND, false, err)
         })?;
     needed_dc.vdisk_group(vdisk_id).await.map_err(|e| {
-        let err = format!("VDiskGroup #{} is missing on disk controller {:?}, error: {:?}, available vdisks: {}", 
+        let err = format!("VDiskGroup #{} is missing on disk controller '{}', error: {:?}, available vdisks: {}", 
                           vdisk_id,
-                          needed_dc.disk(),
+                          needed_dc.disk().name(),
                           e,
                           needed_dc.vdisks().iter().map(|v| format!("#{}", v)).collect::<Vec<_>>().join(", "));
         warn!("{}", err);
