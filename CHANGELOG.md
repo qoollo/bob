@@ -19,6 +19,7 @@ Bob versions changelog
 #### Fixed
 - Ensure correct working when node contains multiple replicas of single vdisk (#654)
 - Fix memory leak due to prometheus lib (#788)
+- Fix for grinder delete metrics not being initialized (#824)
 
 #### Updated
 - Pearl updated to v0.19.0 (#798)
