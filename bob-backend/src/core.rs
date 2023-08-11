@@ -349,10 +349,8 @@ impl Backend {
             let mut all_result = Err(Error::key_not_found(key));
             if let Some(paths) = disk_paths {
                 trace!("GET[{}] try read normal", key);
-                let mut futures: FuturesUnordered<_> = paths.into_iter().map(|path| {
-                    self.get_local(key, Operation::new_local(vdisk_id, path))
-                }).collect();
-                while let Some(result) = futures.next().await {
+                for path in paths {
+                    let result = self.get_local(key, Operation::new_local(vdisk_id, path)).await;
                     match result {
                         Ok(data) => return Ok(data),
                         Err(_) => continue,
