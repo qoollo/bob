@@ -1,7 +1,7 @@
 use crate::link_manager::LinkManager;
 use crate::prelude::*;
 
-pub(crate) type Tasks = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>;
+pub(crate) type Tasks = FuturesUnordered<Pin<Box<dyn Future<Output = Result<NodeOutput<()>, NodeOutput<Error>>> + Send>>>;
 
 pub(crate) async fn get_any(
     key: BobKey,
@@ -22,54 +22,54 @@ fn call_node_put(
     data: BobData,
     node: Node,
     options: PutOptions,
-) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
+) -> impl Future<Output = Result<NodeOutput<()>, NodeOutput<Error>>>  {
     debug!("PUT[{}] put to {}", key, node.name());
+    let name = node.name().to_string();
     let task = async move {
         LinkManager::call_node(&node, |conn| conn.put(key, data, options).boxed()).await
     };
-    tokio::spawn(task)
+    tokio::spawn(task).map(|r| match r {
+        Ok(r) => r,
+        Err(e) => Err(NodeOutput::new(name, Error::failed(e.to_string()))),
+    })
 }
 
 fn call_node_delete(
     key: BobKey,
     options: DeleteOptions,
     node: Node,
-) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
+) -> impl Future<Output = Result<NodeOutput<()>, NodeOutput<Error>>> {
     debug!("DELETE[{}] delete to {}", key, node.name());
+    let name = node.name().to_string();
     let task = async move {
         LinkManager::call_node(&node, |conn| conn.delete(key, options).boxed()).await
     };
-    tokio::spawn(task)
+    tokio::spawn(task).map(|r| match r {
+        Ok(r) => r,
+        Err(e) => Err(NodeOutput::new(name, Error::failed(e.to_string()))),
+    })
 }
 
 fn is_result_successful(
-    join_res: Result<Result<NodeOutput<()>, NodeOutput<Error>>, JoinError>,
+    join_res: Result<NodeOutput<()>, NodeOutput<Error>>,
     errors: &mut Vec<NodeOutput<Error>>,
 ) -> usize {
     debug!("handle returned");
     match join_res {
-        Ok(res) => match res {
-            Ok(_) => return 1,
-            Err(e) => {
-                error!("{:?}", e);
-                errors.push(e);
-            }
-        },
+        Ok(_) => return 1,
         Err(e) => {
             error!("{:?}", e);
-            errors.push(NodeOutput::new(
-                "unknown".to_string(),
-                Error::failed(e.to_string()),
-            ))
+            errors.push(e);
         }
     }
     0
 }
 
-async fn finish_at_least_handles(
-    handles: &mut FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>>,
+async fn finish_at_least_handles<R>(
+    handles: &mut FuturesUnordered<R>,
     at_least: usize,
-) -> Vec<NodeOutput<Error>> {
+) -> Vec<NodeOutput<Error>> 
+where R: Future<Output = Result<NodeOutput<()>, NodeOutput<Error>>>{
     let mut ok_count = 0;
     let mut errors = Vec::new();
     while ok_count < at_least {
@@ -110,12 +110,14 @@ pub(crate) async fn delete_at_nodes(
     errors
 }
 
-async fn call_at_least(
+async fn call_at_least<F, R>(
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
-    f: impl Fn(Node) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>>,
-) -> (Tasks, Vec<NodeOutput<Error>>) {
-    let mut handles: FuturesUnordered<_> = target_nodes.cloned().map(|node| f(node)).collect();
+    f: F,
+) -> (Tasks, Vec<NodeOutput<Error>>) 
+where F: Fn(Node) -> R,
+      R: Future<Output = Result<NodeOutput<()>, NodeOutput<Error>>> + Send + 'static {
+    let mut handles: Tasks = target_nodes.cloned().map(|node| f(node).boxed()).collect();
     debug!("total handles count: {}", handles.len());
     let errors = finish_at_least_handles(&mut handles, at_least).await;
     debug!("remains: {}, errors: {}", handles.len(), errors.len());
