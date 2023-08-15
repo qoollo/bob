@@ -267,13 +267,15 @@ impl Backend {
                 "remote nodes is empty, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            for p in paths {
-                if let Err(e) = self.put_single(key, data, Operation::new_local(vdisk_id, p.clone())).await {
-                    warn!("PUT[{}] error put to {:?}: {:?}", key, p, e);
+            let mut result = Ok(());
+            for path in paths {
+                if let Err(e) = self.put_single(key, data, Operation::new_local(vdisk_id, path.clone())).await {
+                    warn!("PUT[{}] error put to {:?}: {:?}", key, path, e);
+                    result = Err(e);
                 }
             }
             trace!("put single, /{:.3}ms/", sw.elapsed().as_secs_f64() * 1000.0);
-            Ok(())
+            result
         } else {
             error!(
                 "PUT[{}] dont now what to do with data: op: {:?}. Data is not local and alien",
