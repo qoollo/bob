@@ -366,13 +366,22 @@ async fn find_group<A: Authenticator>(
         .iter()
         .find(|dc| dc.vdisks().iter().any(|&vd| vd == vdisk_id))
         .ok_or_else(|| {
-            let err = format!("Disk Controller with vdisk #{} not found", vdisk_id);
+            let dcs = dcs.iter()
+                .map(|dc| format!("DC: {}, vdisks: {}",
+                                  dc.disk().name(),
+                                  dc.vdisks().iter().map(|v| format!("#{}", v)).collect::<Vec<_>>().join(", ")))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let err = format!("Disk Controller with vdisk #{} not found, available dcs: {}", vdisk_id, dcs);
             warn!("{}", err);
             StatusExt::new(StatusCode::NOT_FOUND, false, err)
         })?;
-    needed_dc.vdisk_group(vdisk_id).await.map_err(|_| {
-        let err = format!("Disk Controller with vdisk #{} not found", vdisk_id);
-        warn!("{}", err);
+    needed_dc.vdisk_group(vdisk_id).await.map_err(|e| {
+        let err = format!("VDiskGroup #{} is missing on disk controller '{}', available vdisks: {}", 
+                          vdisk_id,
+                          needed_dc.disk().name(),
+                          needed_dc.vdisks().iter().map(|v| format!("#{}", v)).collect::<Vec<_>>().join(", "));
+        warn!("{}. Error: {:?}", err, e);
         StatusExt::new(StatusCode::NOT_FOUND, false, err)
     })
 }
