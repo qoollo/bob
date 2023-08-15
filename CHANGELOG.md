@@ -4,8 +4,10 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Added optional get & exist optimization that skips old partitions by its timestamp (#702)
 - Added mimalloc allocator for musl target (#688)
 - Added jemalloc-profile for memory profiling (#797)
+- Proper support for GetSource::ALL requests (#723)
 
 #### Changed
 - BobClient clone overhead reduced (#774)
@@ -17,6 +19,7 @@ Bob versions changelog
 
 #### Fixed
 - Fix memory leak due to prometheus lib (#788)
+- Fix for grinder delete metrics not being initialized (#824)
 
 #### Updated
 - Pearl updated to v0.19.0 (#798)

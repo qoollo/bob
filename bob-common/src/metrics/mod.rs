@@ -306,10 +306,12 @@ fn init_grinder() {
     register_counter!(GRINDER_GET_COUNTER);
     register_counter!(GRINDER_PUT_COUNTER);
     register_counter!(GRINDER_EXIST_COUNTER);
+    register_counter!(GRINDER_DELETE_COUNTER);
     register_counter!(GRINDER_EXIST_KEYS_COUNT_COUNTER);
     register_counter!(GRINDER_GET_ERROR_COUNT_COUNTER);
     register_counter!(GRINDER_PUT_ERROR_COUNT_COUNTER);
     register_counter!(GRINDER_EXIST_ERROR_COUNT_COUNTER);
+    register_counter!(GRINDER_DELETE_ERROR_COUNT_COUNTER);
     register_counter!(GRINDER_EXIST_ERROR_KEYS_COUNT_COUNTER);
 }
 

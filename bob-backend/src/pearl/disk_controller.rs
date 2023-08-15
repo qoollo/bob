@@ -345,7 +345,7 @@ impl DiskController {
     }
 
     async fn run_groups(groups: Arc<RwLock<Vec<Group>>>, pp: impl Hooks) -> AnyResult<()> {
-        for group in groups.read().await.iter() {
+        for group in groups.write().await.iter_mut() {
             group.run(pp.clone()).await?;
         }
         Ok(())
