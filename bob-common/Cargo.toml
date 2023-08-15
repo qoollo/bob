@@ -44,6 +44,7 @@ tonic = { version = "0.6", features = ["prost", "tls"] }
 tower = "0.4"
 tower-service = "0.3"
 ubyte = { version = "0.10", features = ["serde"] }
+smallvec = { version = "1.10", features = ["union"] }
 
 [dependencies.tokio]
 version = "1.21"

@@ -456,8 +456,8 @@ impl Backend {
         
         if options.get_normal() {
             if let Some(paths) = paths {
-                for p in paths {
-                    result.push(Operation::new_local(vdisk_id, p));
+                for path in paths {
+                    result.push(Operation::new_local(vdisk_id, path));
                 }
             }
         } 

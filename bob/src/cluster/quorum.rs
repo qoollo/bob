@@ -423,8 +423,8 @@ impl Cluster for Quorum {
         debug!("GET[{}] ~~~LOOKUP LOCAL NODE~~~", key);
         let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
         if let Some(paths) = disk_paths {
-            for p in paths {
-                if let Some(data) = lookup_local_node(&self.backend, key, vdisk_id, p).await {
+            for path in paths {
+                if let Some(data) = lookup_local_node(&self.backend, key, vdisk_id, path).await {
                     return Ok(data);
                 }
             }

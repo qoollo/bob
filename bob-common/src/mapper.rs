@@ -12,6 +12,7 @@ use std::{
     convert::TryInto,
     sync::atomic::{AtomicUsize, Ordering},
 };
+use smallvec::SmallVec;
 
 /// Hash map with IDs as keys and `VDisk`s as values.
 pub type VDisksMap = HashMap<VDiskId, DataVDisk>;
@@ -291,13 +292,13 @@ impl Virtual {
             .collect()
     }
 
-    pub fn get_operation(&self, key: BobKey) -> (VDiskId, Option<Vec<DiskPath>>) {
+    pub fn get_operation(&self, key: BobKey) -> (VDiskId, Option<SmallVec<[DiskPath; 1]>>) {
         let virt_disk = self.get_vdisk_for_key(key).expect("vdisk not found");
         let mut disks = None;
         for replica in virt_disk.replicas() {
             if replica.node_name() == &self.local_node_name {
                 if disks.is_none() {
-                    disks = Some(Vec::with_capacity(1));
+                    disks = Some(SmallVec::<[DiskPath; 1]>::new());
                 }
                 disks.as_mut().unwrap().push(DiskPath::from(replica));
             }
