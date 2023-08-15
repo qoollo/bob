@@ -37,8 +37,8 @@ impl HWMetricsCollector {
 
     /// Returns disk names mapped to theirs mount points
     ///
-    /// Note: If there is multiple mount points for the same disk, mount point will be choosed
-    /// arbitrary between them.
+    /// Note: If there is multiple mount points for the same disk, the function will try to match
+    /// mount point with disk path. If it fails to match, the function fallbacks to the first found mount.
     ///
     /// # Panics
     ///
@@ -46,9 +46,9 @@ impl HWMetricsCollector {
     ///
     fn collect_used_disks(disks: &[DiskPath]) -> HashMap<PathBuf, DiskName> {
         let sys_info = System::new_with_specifics(RefreshKind::new().with_disks_list());
-        let sys_metadata = Self::collect_metadata(sys_info.disks());
+        let sys_metadata = Self::collect_metadata(sys_info.disks(), disks);
 
-        disks
+        dbg!(disks
             .iter()
             .filter_map(|disk| {
                 let disk_metadata = Path::new(disk.path())
@@ -58,30 +58,43 @@ impl HWMetricsCollector {
                     .get(&disk_metadata.dev())
                     .map(|sys_disk| (PathBuf::from(sys_disk.mount_point()), disk.name().clone()))
             })
-            .collect()
+            .collect())
     }
 
-    /// Maps Disk's Inforamtion to the disk's dev ID
+    /// Maps Disk's Inforamtion to the disk's dev ID.
+    /// The fucntion will try to match mount point with disk path
+    /// If it's fails to do so, it will fallback to the first found mount point for the specified
+    /// dev ID
     ///
     /// # Panics
     ///
     /// Panics if the function couldn't receive metadata from OS
-    ///
-    // NOTE: we don't really care what mount point saved in disk's metadata since all of them will
-    // be on the same disk with the same dev ID. Also we can't really ensure that specific mount
-    // point will be processed first since they can be passed in arbitrary order
-    fn collect_metadata(sys_disks: &[Disk]) -> HashMap<u64, &Disk> {
-        sys_disks
+    fn collect_metadata<'a>(sys_disks: &'a [Disk], disks: &[DiskPath]) -> HashMap<u64, &'a Disk> {
+        let dev_path: Vec<(_, _)> = disks
             .iter()
-            .rev()
             .map(|disk| {
-                let metadata = disk
-                    .mount_point()
-                    .metadata()
-                    .expect("Can't get metadata from OS");
-                (metadata.dev(), disk)
+                let path = Path::new(disk.path());
+                let disk_metadata = path.metadata().expect("Can't get metadata from OS");
+                (disk_metadata.dev(), path)
             })
-            .collect()
+            .collect();
+        let mut res = HashMap::new();
+        for disk in sys_disks {
+            let metadata = disk
+                .mount_point()
+                .metadata()
+                .expect("Can't get metadata from OS");
+            res.entry(metadata.dev()).or_insert(disk);
+            if dev_path
+                .iter()
+                .filter(|(dev, _)| *dev == metadata.dev())
+                .any(|(_, path)| disk.mount_point().file_name() == path.file_name())
+            {
+                res.insert(metadata.dev(), disk);
+            }
+        }
+
+        res
     }
 
     pub(crate) fn spawn_task(&self) {
@@ -194,13 +207,13 @@ impl HWMetricsCollector {
             let cm_p = Self::to_cpath(mount_point.as_path());
             let stat = Self::statvfs_wrap(&cm_p);
             if let Some(stat) = stat {
-                let bsize = stat.f_bsize as u64;
-                let blocks = stat.f_blocks as u64;
-                let bavail = stat.f_bavail as u64;
-                let bfree = stat.f_bfree as u64;
-                total += bsize * blocks;
-                free += bsize * bavail;
-                used += (blocks - bfree) * bsize;
+                let frsize = stat.f_frsize;
+                let blocks = stat.f_blocks;
+                let bavail = stat.f_bavail;
+                let bfree = stat.f_bfree;
+                total += frsize * blocks;
+                free += frsize * bavail;
+                used += (blocks - bfree) * frsize;
             }
         }
 
