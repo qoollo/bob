@@ -262,6 +262,25 @@ pub(crate) async fn put_sup_nodes(
     }
 }
 
+pub(crate) async fn put_local_node_all(
+    backend: &Backend,
+    key: BobKey,
+    data: &BobData,
+    vdisk_id: VDiskId,
+    disk_paths: smallvec::SmallVec<[DiskPath; 1]>
+) -> usize {
+    let mut successes = 0;
+    for path in disk_paths {
+        let res = put_local_node(&backend, key, data, vdisk_id, path).await;
+        if let Err(e) = res {
+            error!("{}", e);
+        } else {
+            successes += 1;
+            debug!("PUT[{}] local node put successful", key);
+        }
+    }
+    successes
+}
 
 pub(crate) async fn put_local_node(
     backend: &Backend,

@@ -6,7 +6,7 @@ use super::{
         delete_on_remote_nodes_with_options, exist_on_local_alien, exist_on_local_node,
         exist_on_remote_aliens, exist_on_remote_nodes, lookup_local_alien,
         lookup_local_node, lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all,
-        put_local_node, put_sup_nodes, Tasks,
+        put_local_node_all, put_sup_nodes, Tasks,
     },
     support_types::{HashSetExt, RemoteDeleteError, IndexMap},
     Cluster,
@@ -35,28 +35,24 @@ impl Quorum {
         let mut at_least = self.quorum;
         let mut failed_nodes = Vec::new();
         let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
-        if let Some(paths) = disk_paths {
-            debug!("disk path is present, try put local");
-            for p in paths {
-                let res = put_local_node(&self.backend, key, data, vdisk_id, p).await;
-                if let Err(e) = res {
-                    error!("{}", e);
-                    if failed_nodes.is_empty() {
-                        failed_nodes.push(self.mapper.local_node_name().to_owned());
-                    }
-                } else {
-                    local_put_ok += 1;
-                    at_least -= 1;
-                    debug!("PUT[{}] local node put successful", key);
+        let (tasks, errors) = 
+            if let Some(paths) = disk_paths {
+                let paths_len = paths.len();
+                debug!("PUT[{}] ~~~PUT TO {} REMOTE NODES AND LOCAL NODE~~~", key, at_least - paths_len);
+                let (local_puts, (tasks, errors)) = tokio::join!(
+                    put_local_node_all(&self.backend, key, data, vdisk_id, paths),
+                    self.put_remote_nodes(key, data, at_least));
+                if local_puts != paths_len {
+                    failed_nodes.push(self.mapper.local_node_name().to_owned());
                 }
-            }
-        } else {
-            debug!("skip local put");
-        }
+                local_put_ok += local_puts;
+                at_least -= local_puts;
+                (tasks, errors)
+            } else {
+                debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
+                self.put_remote_nodes(key, data, at_least).await
+            };
         debug!("PUT[{}] need at least {} additional puts", key, at_least);
-
-        debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
-        let (tasks, errors) = self.put_remote_nodes(key, data, at_least).await;
         let all_count = self.mapper.get_target_nodes_for_key(key).len();
         let remote_ok_count = all_count - errors.len() - tasks.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().clone()));
