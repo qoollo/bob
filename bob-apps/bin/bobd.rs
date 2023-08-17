@@ -14,7 +14,7 @@ use clap::{crate_version, App, Arg, ArgMatches, SubCommand};
 use std::{
     collections::{HashMap, HashSet},
     error::Error as ErrorTrait,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
+    net::{IpAddr, Ipv4Addr, SocketAddr}, str::FromStr,
 };
 use tokio::runtime::Handle;
 use tonic::transport::Server;
@@ -92,8 +92,6 @@ async fn main() {
     }
     log4rs::init_file(node.log_config(), log4rs::config::Deserializers::default().with_logstash_extra(extra_logstash_fields))
         .expect("can't find log config");
-
-    check_folders(&node, matches.is_present("init_folders"));
 
     let mut mapper = VirtualMapper::new(&node, &cluster);
 
@@ -177,20 +175,18 @@ fn configure_testmode(sub_matches: &ArgMatches) -> AnyResult<(ClusterConfig, Nod
     };
     let mut this_node = None;
     if let Some(node_list) = sub_matches.value_of("nodes") {
-        let available_ips: HashSet<String> = NetworkInterface::show()?.into_iter().filter_map(|itf|
+        let available_ips: HashSet<_> = NetworkInterface::show()?.into_iter().filter_map(|itf|
             match itf.addr? {
                 Addr::V4(addr) => {
-                    Some(addr.ip.to_string())
+                    Some(addr.ip)
                 },
                 _ => None
         }).collect();
 
         for (index, addr) in node_list.split(",").enumerate() {
-            let split = &addr.split_once(":").context("expected nodes address to have format ip:port")?;
-            let in_ip = split.0;
-            let in_port = split.1.parse::<u16>().context("failed to parse port")?;
+            let v4addr = std::net::SocketAddrV4::from_str(addr)?;
             if this_node.is_none() {
-                if port == in_port && available_ips.contains(in_ip) {
+                if port == v4addr.port() && available_ips.contains(v4addr.ip()) {
                     this_node = Some(index)
                 }
             }
