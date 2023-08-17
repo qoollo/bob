@@ -120,15 +120,16 @@ impl Quorum {
         debug!("PUT[{}] ~~~BACKGROUND PUT TO REMOTE NODES~~~", key);
         while let Some(join_res) = rest_tasks.next().await {
             match join_res {
-                Ok(output) => debug!(
+                Ok(Ok(output)) => debug!(
                     "PUT[{}] successful background put to: {}",
                     key,
                     output.node_name()
                 ),
-                Err(e) => {
+                Ok(Err(e)) => {
                     error!("{:?}", e);
                     failed_nodes.push(e.node_name().to_string());
                 }
+                Err(e) => error!("{:?}", e),
             }
         }
         debug!("PUT[{}] ~~~PUT TO REMOTE NODES ALIEN~~~", key);
@@ -152,7 +153,7 @@ impl Quorum {
             key,
             target_nodes.len(),
         );
-        let target_nodes = target_nodes.iter().filter(move |node| node.name() != local_node);
+        let target_nodes = target_nodes.iter().filter(|node| node.name() != local_node);
         put_at_least(key, data, target_nodes, at_least, PutOptions::new_local()).await
     }
 
