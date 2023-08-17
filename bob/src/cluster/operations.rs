@@ -57,10 +57,7 @@ fn is_result_successful(
         },
         Err(e) => {
             error!("{:?}", e);
-            errors.push(NodeOutput::new(
-                "unknown".to_string(),
-                Error::failed(e.to_string()),
-            ))
+            panic!("thread panicked");
         }
     }
     0
