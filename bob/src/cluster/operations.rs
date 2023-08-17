@@ -21,6 +21,7 @@ fn is_result_successful<TErr: Debug>(
         },
         Err(e) => {
             error!("{:?}", e);
+            panic!("panic in thread");
         }
     }
     0
