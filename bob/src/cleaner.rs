@@ -126,7 +126,7 @@ async fn index_cleanup_by_memory_limit(backend: &Arc<Backend>, limit: usize) {
     let mut memory = baseline_memory;
     while memory > limit {
         if let Some(freed) = backend.close_oldest_active_blob().await {
-            memory = memory - freed;
+            memory = memory.saturating_sub(freed);
             debug!("closed index for active blob, freeing {:?} bytes", freed);
         } else {
             break;

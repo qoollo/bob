@@ -7,7 +7,7 @@ use tokio::{runtime::Handle, task::block_in_place};
 use crate::prelude::*;
 
 use super::grinder::Grinder;
-use bob_common::{metrics::SharedMetricsSnapshot, configs::node::TLSConfig};
+use bob_common::{configs::node::TLSConfig, metrics::SharedMetricsSnapshot};
 
 /// Struct contains `Grinder` and receives incomming GRPC requests
 #[derive(Clone, Debug)]
@@ -97,6 +97,13 @@ fn get_extract(req: GetRequest) -> Option<(BobKey, Option<GetOptions>)> {
     Some((key.into(), options))
 }
 
+fn delete_extract(req: DeleteRequest) -> Option<(BobKey, u64, Option<DeleteOptions>)> {
+    let key = req.key?.key;
+    let timestamp = req.meta.as_ref()?.timestamp;
+    let options = req.options;
+    Some((key.into(), timestamp, options))
+}
+
 type ApiResult<T> = Result<Response<T>, Status>;
 
 #[tonic::async_trait]
@@ -137,7 +144,7 @@ where
             );
             let put_result = self
                 .grinder
-                .put(key, &data, BobOptions::new_put(options))
+                .put(key, &data, BobPutOptions::from_grpc(options))
                 .await;
             trace!(
                 "grinder processed put request, /{:.3}ms/",
@@ -187,7 +194,7 @@ where
                 "create new bob options /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let options = BobOptions::new_get(options);
+            let options = BobGetOptions::from_grpc(options);
             trace!(
                 "pass request to grinder /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
@@ -201,8 +208,7 @@ where
                 "grinder finished request processing /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let elapsed = sw.elapsed_ms();
-            debug!("GET[{}]-OK dt: {}ms", key, elapsed);
+            debug!("GET[{}]-OK dt: {}ms", key, sw.elapsed_ms());
             let meta = Some(BlobMeta {
                 timestamp: get_res.meta().timestamp(),
             });
@@ -217,8 +223,13 @@ where
         }
     }
 
-    async fn ping(&self, _: Request<Null>) -> ApiResult<Null> {
+    async fn ping(&self, r: Request<Null>) -> ApiResult<Null> {
         debug!("PING");
+        if let Some(node_name) = r.metadata().get("node_name") {
+            if let Ok(name) = node_name.to_str() {
+                self.grinder.update_node_connection(name);
+            }
+        }
         Ok(Response::new(Null {}))
     }
 
@@ -231,32 +242,48 @@ where
         let req = req.into_inner();
         let ExistRequest { keys, options } = req;
         let keys = keys.into_iter().map(|k| k.key.into()).collect::<Vec<_>>();
-        let options = BobOptions::new_get(options);
+        let options = BobGetOptions::from_grpc(options);
         let exist = self
             .grinder
             .exist(&keys, &options)
             .await
             .map_err::<Status, _>(|e| e.into())?;
-        let elapsed = sw.elapsed();
-        debug!("EXISTS-OK dt: {:?}", elapsed);
+        debug!("EXISTS-OK dt: {:?}", sw.elapsed());
         let response = ExistResponse { exist };
         let response = Response::new(response);
         Ok(response)
     }
 
     async fn delete(&self, req: Request<DeleteRequest>) -> ApiResult<OpStatus> {
+        let creds: CredentialsHolder<A> = (&req).into();
+        if !self.auth.check_credentials_grpc(creds.into())?.has_write() {
+            return Err(Status::permission_denied("WRITE permission required"));
+        }
+
         let req = req.into_inner();
-        let DeleteRequest { key, options } = req;
-        if let Some((key, options)) = key.zip(options) {
+        if let Some((key, timestamp, options)) = delete_extract(req) {
+            trace!("DELETE[{}] request processing started", key);
             let sw = Stopwatch::start_new();
-            self.grinder.delete(key.key.into(), options).await?;
-            let elapsed = sw.elapsed();
-            debug!("DELETE-OK dt: {:?}", elapsed);
-            Ok(Response::new(OpStatus { error: None }))
+            let delete_result = self.grinder
+                .delete(
+                    key,
+                    &BobMeta::new(timestamp),
+                    BobDeleteOptions::from_grpc(options),
+                ).await;
+
+            delete_result
+                .map(|_| {
+                    debug!("DELETE[{}]-OK dt: {:?}", key, sw.elapsed());
+                    Response::new(OpStatus { error: None })
+                })
+                .map_err(|e| {
+                    warn!("DELETE[{}]-ERR dt: {:?}, error: {:?}", key, sw.elapsed(), e);
+                    e.into()
+                })
         } else {
             Err(Status::new(
                 Code::InvalidArgument,
-                "Key and options are mandatory",
+                "Key and meta are mandatory",
             ))
         }
     }

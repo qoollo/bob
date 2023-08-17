@@ -109,8 +109,8 @@ async fn create_cluster(
     cluster: &ClusterConfig,
     map: &[(&str, Call, Arc<CountCall>)],
 ) -> (Quorum, Arc<Backend>) {
-    let mapper = Arc::new(Virtual::new(node, cluster).await);
-    for node in mapper.nodes().values() {
+    let mapper = Arc::new(Virtual::new(node, cluster));
+    for node in mapper.nodes() {
         let mut mock_client = BobClient::new();
 
         let (_, func, call) = map
@@ -118,7 +118,7 @@ async fn create_cluster(
             .find(|(name, _, _)| *name == node.name())
             .expect("find node with name");
         func(&mut mock_client, node.clone(), call.clone());
-        node.set_connection(mock_client).await;
+        node.set_connection(mock_client);
     }
 
     let backend = Arc::new(Backend::new(mapper.clone(), node).await);

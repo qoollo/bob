@@ -2,7 +2,6 @@ pub mod core;
 pub mod mem_backend;
 pub mod pearl;
 pub mod stub_backend;
-pub mod interval_logger;
 
 #[cfg(test)]
 pub mod mem_tests;
@@ -23,17 +22,21 @@ pub(crate) mod prelude {
             cluster::Cluster as ClusterConfig,
             node::{BackendType, Node as NodeConfig, Pearl as PearlConfig},
         },
-        data::{BobData, BobKey, BobMeta, BobOptions, DiskPath, VDiskId},
+        data::{BobData, BobKey, BobMeta},
+        operation_options::{BobPutOptions, BobGetOptions, BobDeleteOptions},
+        core_types::{DiskName, DiskPath, VDiskId},
+        node::NodeName,
         error::Error,
         mapper::Virtual,
         metrics::BACKEND_STATE,
+        stopwatch::Stopwatch,
     };
     pub use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDateTime, Utc};
     pub use futures::{stream::FuturesUnordered, StreamExt, TryFutureExt};
     pub use pearl::{
-        filter::hierarchical::*, filter::traits::*, filter::Config as BloomConfig, rio, Builder,
-        Error as PearlError, ErrorKind as PearlErrorKind, Key as KeyTrait, RefKey as RefKeyTrait,
-        Storage,
+        filter::hierarchical::*, filter::traits::*, filter::Config as BloomConfig, Builder,
+        Error as PearlError, ErrorKind as PearlErrorKind, IoDriver, Key as KeyTrait,
+        RefKey as RefKeyTrait, Storage,
     };
     pub use std::{
         collections::{hash_map::Entry, HashMap},
@@ -45,9 +48,9 @@ pub(crate) mod prelude {
         sync::Arc,
         time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     };
-    pub use stopwatch::Stopwatch;
     pub use tokio::{
         fs::{create_dir_all, read_dir, remove_dir_all, remove_file, DirEntry},
         sync::{RwLock, Semaphore},
     };
+    pub use std::sync::RwLock as SyncRwLock;
 }
