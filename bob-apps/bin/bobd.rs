@@ -14,7 +14,7 @@ use clap::{crate_version, App, Arg, ArgMatches, SubCommand};
 use std::{
     collections::{HashMap, HashSet},
     error::Error as ErrorTrait,
-    net::{IpAddr, Ipv4Addr, SocketAddr}, str::FromStr,
+    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4}, str::FromStr,
 };
 use tokio::runtime::Handle;
 use tonic::transport::Server;
@@ -184,7 +184,7 @@ fn configure_testmode(sub_matches: &ArgMatches) -> AnyResult<(ClusterConfig, Nod
         }).collect();
 
         for (index, addr) in node_list.split(",").enumerate() {
-            let v4addr = std::net::SocketAddrV4::from_str(addr)?;
+            let v4addr = SocketAddrV4::from_str(addr)?;
             if this_node.is_none() {
                 if port == v4addr.port() && available_ips.contains(v4addr.ip()) {
                     this_node = Some(index)
