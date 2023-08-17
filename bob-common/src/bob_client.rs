@@ -82,7 +82,7 @@ pub mod b_client {
             &self.target_node_address
         }
 
-        pub async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult {
+        pub async fn put(&self, key: BobKey, d: BobData, options: PutOptions, affected_replicas: usize) -> PutResult {
             debug!("real client put called");
             let meta = BlobMeta {
                 timestamp: d.meta().timestamp(),
@@ -109,12 +109,12 @@ pub mod b_client {
             match client.put(req).await {
                 Ok(_) => {
                     self.metrics.put_timer_stop(timer);
-                    Ok(NodeOutput::new(node_name, ()))
+                    Ok(NodeOutput::new_with_affected_replicas(node_name, (), affected_replicas))
                 }
                 Err(e) => {
                     self.metrics.put_error_count();
                     self.metrics.put_timer_stop(timer);
-                    Err(NodeOutput::new(node_name, e.into()))
+                    Err(NodeOutput::new_with_affected_replicas(node_name, e.into(), affected_replicas))
                 }
             }
         }
@@ -247,7 +247,7 @@ pub mod b_client {
     mock! {
         pub BobClient {
             pub async fn create<'a>(node: &Node, operation_timeout: Duration, metrics: BobClientMetrics, local_node_name: NodeName, tls_config: Option<&'a FactoryTlsConfig>) -> Result<Self, String>;
-            pub async fn put(&self, key: BobKey, d: BobData, options: PutOptions) -> PutResult;
+            pub async fn put(&self, key: BobKey, d: BobData, options: PutOptions, affected_replicas: usize) -> PutResult;
             pub async fn get(&self, key: BobKey, options: GetOptions) -> GetResult;
             pub async fn ping(&self) -> PingResult;
             pub fn target_node_name(&self) -> &NodeName;

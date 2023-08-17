@@ -15,8 +15,6 @@ use log::Level;
 
 use bob_common::{interval_logger::IntervalLoggerSafe, metrics::BLOOM_FILTERS_RAM};
 
-use futures::StreamExt;
-
 pub const BACKEND_STARTING: f64 = 0f64;
 pub const BACKEND_STARTED: f64 = 1f64;
 

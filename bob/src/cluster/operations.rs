@@ -13,7 +13,7 @@ fn is_result_successful<TErr: Debug>(
     debug!("handle returned");
     match join_res {
         Ok(res) => match res {
-            Ok(_) => return 1,
+            Ok(r) => return r.affected_replicas(),
             Err(e) => {
                 debug!("{:?}", e);
                 errors.push(e);
@@ -186,11 +186,12 @@ fn call_node_put(
     data: BobData,
     node: Node,
     options: BobPutOptions,
+    affected_replicas: usize
 ) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
     debug!("PUT[{}] put to {}", key, node.name());
     let task = async move {
         let grpc_options = options.to_grpc();
-        LinkManager::call_node(&node, |conn| conn.put(key, data, grpc_options).boxed()).await
+        LinkManager::call_node(&node, |conn| conn.put(key, data, grpc_options, affected_replicas).boxed()).await
     };
     tokio::spawn(task)
 }
@@ -202,9 +203,11 @@ pub(crate) async fn put_at_least(
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
     options: BobPutOptions,
+    affected_replicas_by_node: &HashMap<NodeName, usize>
 ) -> (Tasks<Error>, Vec<NodeOutput<Error>>) {
     call_at_least(target_nodes, at_least, |n| {
-        call_node_put(key, data.clone(), n.clone(), options.clone())
+        call_node_put(key, data.clone(), n.clone(), options.clone(),
+                      *affected_replicas_by_node.get(n.name()).unwrap_or(&1))
     })
     .await
 }
@@ -241,11 +244,13 @@ pub(crate) async fn put_sup_nodes(
     key: BobKey,
     data: &BobData,
     requests: impl Iterator<Item = (&Node, BobPutOptions)>,
+    affected_replicas_by_node: &HashMap<NodeName, usize>
 ) -> Result<(), Vec<NodeOutput<Error>>> {
     let mut ret = vec![];
     for (node, options) in requests {
         let result = LinkManager::call_node(node, |client| {
-            Box::pin(client.put(key, data.clone(), options.to_grpc()))
+            Box::pin(client.put(key, data.clone(), options.to_grpc(),
+                                *affected_replicas_by_node.get(node.name()).unwrap_or(&1)))
         })
         .await;
         debug!("{:?}", result);
