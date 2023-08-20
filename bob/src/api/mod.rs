@@ -19,10 +19,10 @@ use bob_access::{Authenticator, CredentialsHolder};
 use bob_backend::pearl::{Group as PearlGroup, Holder, NoopHooks};
 use bob_common::{
     configs::node::TLSConfig,
-    core_types::{DiskName, NodeDisk, VDisk as DataVDisk},
     data::{BobData, BobKey, BobMeta, BOB_KEY_SIZE},
+    core_types::{VDisk as DataVDisk, NodeDisk, DiskName},
+    operation_options::{BobPutOptions, BobGetOptions, BobDeleteOptions},
     error::Error as BobError,
-    operation_options::{BobDeleteOptions, BobGetOptions, BobPutOptions},
 };
 use bytes::Bytes;
 use futures::{future::BoxFuture, stream::FuturesUnordered, FutureExt, StreamExt};
@@ -149,14 +149,18 @@ struct Space {
     total_disk_space_bytes: u64,
     free_disk_space_bytes: u64,
     used_disk_space_bytes: u64,
-    occupied_disk_space_bytes: u64,
 }
 
 #[derive(Debug, Serialize)]
 pub(crate) struct SpaceInfo {
     #[serde(flatten)]
     total_space: Space,
-    disk_space_by_disk: HashMap<DiskName, Space>,
+
+    /// Key - Bob disk name
+    occupied_disk_space_by_disk: HashMap<DiskName, u64>,
+    
+    /// Key - mount point
+    disk_space_by_disk: HashMap<PathBuf, Space>,
 }
 
 async fn tls_server(tls_config: &TLSConfig, addr: SocketAddr) -> AxumServer<RustlsAcceptor> {
@@ -319,70 +323,52 @@ async fn status<A: Authenticator>(bob: Extension<BobServer<A>>) -> Json<Node> {
 async fn get_space_info<A: Authenticator>(
     bob: Extension<BobServer<A>>,
 ) -> Result<Json<SpaceInfo>, StatusExt> {
-    let mut disk_metrics = bob.grinder().hw_counter().update_space_metrics();
-    let DiskSpaceMetrics {
-        total_space,
-        used_space,
-        free_space,
-    } = disk_metrics.values().sum();
-
+    let disk_metrics = bob.grinder().hw_counter().update_space_metrics();
+    let total_disks_metrics: DiskSpaceMetrics = disk_metrics.values().sum();
     let backend = bob.grinder().backend().inner();
     let (dcs, adc) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
-    let mut disk_space_by_disk = HashMap::new();
-    let mut total_occupied = 0;
-    for dc in dcs {
-        let occupied_space = dc.disk_used().await;
-        total_occupied += occupied_space;
-        let DiskSpaceMetrics {
-            total_space,
-            used_space,
-            free_space,
-        } = disk_metrics
-            .remove_entry(dc.disk().name())
-            .map(|(_, space)| space)
-            .unwrap_or_default();
-        disk_space_by_disk.insert(
-            dc.disk().name().clone(),
-            Space {
-                total_disk_space_bytes: total_space,
-                free_disk_space_bytes: free_space,
-                used_disk_space_bytes: used_space,
-                occupied_disk_space_bytes: occupied_space,
-            },
-        );
-    }
+    
+    let mut occupied_disk_space_by_disk: HashMap<DiskName, u64> = futures::future::join_all(
+        dcs.iter().map(|dc| async { ( dc.disk().name().clone(), dc.disk_used().await ) })
+    ).await.into_iter().collect();
+
+    let disk_space_by_disk = 
+        dcs
+        .iter()
+        .map(|dc| { 
+            let mount_point = PathBuf::from(dc.disk().path());
+            let space = get_space(&disk_metrics, &mount_point);
+            (mount_point, space)
+        }).collect();
+
     let adc_space = adc.disk_used().await;
-    disk_space_by_disk
-        .entry(adc.disk().name().clone())
-        .and_modify(|s| s.occupied_disk_space_bytes += adc_space)
-        .or_insert({
-            let DiskSpaceMetrics {
-                total_space,
-                used_space,
-                free_space,
-            } = disk_metrics
-                .remove_entry(adc.disk().name())
-                .map(|(_, space)| space)
-                .unwrap_or_default();
-            Space {
-                total_disk_space_bytes: total_space,
-                free_disk_space_bytes: free_space,
-                used_disk_space_bytes: used_space,
-                occupied_disk_space_bytes: adc_space,
-            }
-        });
+    occupied_disk_space_by_disk.entry(adc.disk().name().clone())
+        .and_modify(|s| *s += adc_space)
+        .or_insert(adc_space);
 
     Ok(Json(SpaceInfo {
         total_space: Space {
-            total_disk_space_bytes: total_space,
-            used_disk_space_bytes: used_space,
-            free_disk_space_bytes: free_space,
-            occupied_disk_space_bytes: total_occupied,
+            total_disk_space_bytes: total_disks_metrics.total_space,
+            used_disk_space_bytes: total_disks_metrics.used_space,
+            free_disk_space_bytes: total_disks_metrics.free_space,
         },
         disk_space_by_disk,
+        occupied_disk_space_by_disk,
     }))
+}
+
+fn get_space(metrics: &HashMap<&PathBuf, DiskSpaceMetrics>, mount_point: &PathBuf) -> Space {
+    metrics.get(&mount_point).map_or(Space {
+        total_disk_space_bytes: 0,
+        free_disk_space_bytes: 0,
+        used_disk_space_bytes: 0,
+    }, |metrics| Space {
+        total_disk_space_bytes: metrics.total_space,
+        free_disk_space_bytes: metrics.free_space,
+        used_disk_space_bytes: metrics.used_space,
+    })
 }
 
 fn not_acceptable_backend() -> StatusExt {
@@ -410,13 +396,22 @@ async fn find_group<A: Authenticator>(
         .iter()
         .find(|dc| dc.vdisks().iter().any(|&vd| vd == vdisk_id))
         .ok_or_else(|| {
-            let err = format!("Disk Controller with vdisk #{} not found", vdisk_id);
+            let dcs = dcs.iter()
+                .map(|dc| format!("DC: {}, vdisks: {}",
+                                  dc.disk().name(),
+                                  dc.vdisks().iter().map(|v| format!("#{}", v)).collect::<Vec<_>>().join(", ")))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let err = format!("Disk Controller with vdisk #{} not found, available dcs: {}", vdisk_id, dcs);
             warn!("{}", err);
             StatusExt::new(StatusCode::NOT_FOUND, false, err)
         })?;
-    needed_dc.vdisk_group(vdisk_id).await.map_err(|_| {
-        let err = format!("Disk Controller with vdisk #{} not found", vdisk_id);
-        warn!("{}", err);
+    needed_dc.vdisk_group(vdisk_id).await.map_err(|e| {
+        let err = format!("VDiskGroup #{} is missing on disk controller '{}', available vdisks: {}", 
+                          vdisk_id,
+                          needed_dc.disk().name(),
+                          needed_dc.vdisks().iter().map(|v| format!("#{}", v)).collect::<Vec<_>>().join(", "));
+        warn!("{}. Error: {:?}", err, e);
         StatusExt::new(StatusCode::NOT_FOUND, false, err)
     })
 }
