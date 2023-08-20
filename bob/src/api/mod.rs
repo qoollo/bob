@@ -156,6 +156,9 @@ pub(crate) struct SpaceInfo {
     #[serde(flatten)]
     total_space: Space,
 
+    /// Total occupied disk space by Bob
+    occupied_disk_space_bytes: u64,
+
     /// Key - Bob disk name
     occupied_disk_space_by_disk: HashMap<DiskName, u64>,
     
@@ -354,8 +357,9 @@ async fn get_space_info<A: Authenticator>(
             used_disk_space_bytes: total_disks_metrics.used_space,
             free_disk_space_bytes: total_disks_metrics.free_space,
         },
-        disk_space_by_disk,
+        occupied_disk_space_bytes: occupied_disk_space_by_disk.values().sum(),
         occupied_disk_space_by_disk,
+        disk_space_by_disk,
     }))
 }
 
