@@ -326,7 +326,7 @@ async fn status<A: Authenticator>(bob: Extension<BobServer<A>>) -> Json<Node> {
 async fn get_space_info<A: Authenticator>(
     bob: Extension<BobServer<A>>,
 ) -> Result<Json<SpaceInfo>, StatusExt> {
-    let disk_metrics = dbg!(bob.grinder().hw_counter().update_space_metrics());
+    let disk_metrics = bob.grinder().hw_counter().update_space_metrics();
     let total_disks_metrics: DiskSpaceMetrics = disk_metrics.values().sum();
     let backend = bob.grinder().backend().inner();
     let (dcs, adc) = backend
