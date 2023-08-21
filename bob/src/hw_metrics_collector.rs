@@ -67,7 +67,10 @@ impl HWMetricsCollector {
         tokio::spawn(Self::task(self.interval_time, self.disks.clone()));
     }
 
-    pub(crate) fn update_space_metrics(&self) -> HashMap<&PathBuf, DiskSpaceMetrics> {
+    /// Returns the updated space metrics of this [`HWMetricsCollector`].
+    ///
+    /// Key -- `f_fsid` of underlying [`statvfs`] function, represents file system ID
+    pub(crate) fn update_space_metrics(&self) -> HashMap<u64, DiskSpaceMetrics> {
         Self::update_space_metrics_from_disks(&self.disks)
     }
 
@@ -130,7 +133,7 @@ impl HWMetricsCollector {
 
     fn update_space_metrics_from_disks(
         disks: &HashMap<PathBuf, DiskName>,
-    ) -> HashMap<&PathBuf, DiskSpaceMetrics> {
+    ) -> HashMap<u64, DiskSpaceMetrics> {
         let disks_metrics = Self::space(disks);
         let summed_space: DiskSpaceMetrics = disks_metrics.values().sum();
         gauge!(TOTAL_SPACE, bytes_to_mb(summed_space.total_space) as f64);
@@ -164,7 +167,10 @@ impl HWMetricsCollector {
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
 
-    fn space(disks: &HashMap<PathBuf, DiskName>) -> HashMap<&PathBuf, DiskSpaceMetrics> {
+    /// Maps [`DiskSpaceMetrics`] to the corresponding `f_fsid` of [`statvfs`] function result
+    ///
+    /// `f_fsid` represents file system ID.
+    fn space(disks: &HashMap<PathBuf, DiskName>) -> HashMap<u64, DiskSpaceMetrics> {
         let mut res = HashMap::new();
         for (mount_point, disk_name) in disks {
             let cm_p = Self::to_cpath(mount_point.as_path());
@@ -175,12 +181,12 @@ impl HWMetricsCollector {
                 let bavail = stat.f_bavail;
                 let bfree = stat.f_bfree;
                 res.insert(
-                    mount_point,
+                    stat.f_fsid,
                     DiskSpaceMetrics {
+                        disk_name: disk_name.clone(),
                         total_space: bsize * blocks,
                         used_space: bsize * bavail,
                         free_space: (blocks - bfree) * bsize,
-                        disk_name: disk_name.clone(),
                     },
                 );
             }
@@ -616,7 +622,7 @@ impl<'a> Add<&'a Self> for DiskSpaceMetrics {
 
 impl<'a> Sum<&'a Self> for DiskSpaceMetrics {
     /// Summarize [`DiskSpaceMetrics`] over an iterator.
-    /// NOTE: the `disk_name` field will chosen from the first appeared disk in iterator if there
+    /// NOTE: the `disk_name` field will be chosen from the first appeared disk in iterator if there
     /// is any. Otherwise 'None' will be passed
     fn sum<I: Iterator<Item = &'a Self>>(mut iter: I) -> Self {
         let init = if let Some(metrics) = iter.next() {

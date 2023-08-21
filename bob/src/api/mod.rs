@@ -163,7 +163,7 @@ pub(crate) struct SpaceInfo {
     occupied_disk_space_by_disk: HashMap<DiskName, u64>,
     
     /// Key - mount point
-    disk_space_by_disk: HashMap<PathBuf, Space>,
+    disk_space_by_disk: HashMap<DiskName, Space>,
 }
 
 async fn tls_server(tls_config: &TLSConfig, addr: SocketAddr) -> AxumServer<RustlsAcceptor> {
@@ -326,7 +326,7 @@ async fn status<A: Authenticator>(bob: Extension<BobServer<A>>) -> Json<Node> {
 async fn get_space_info<A: Authenticator>(
     bob: Extension<BobServer<A>>,
 ) -> Result<Json<SpaceInfo>, StatusExt> {
-    let disk_metrics = bob.grinder().hw_counter().update_space_metrics();
+    let disk_metrics = dbg!(bob.grinder().hw_counter().update_space_metrics());
     let total_disks_metrics: DiskSpaceMetrics = disk_metrics.values().sum();
     let backend = bob.grinder().backend().inner();
     let (dcs, adc) = backend
@@ -337,14 +337,14 @@ async fn get_space_info<A: Authenticator>(
         dcs.iter().map(|dc| async { ( dc.disk().name().clone(), dc.disk_used().await ) })
     ).await.into_iter().collect();
 
-    let disk_space_by_disk = 
-        dcs
-        .iter()
-        .map(|dc| { 
-            let mount_point = PathBuf::from(dc.disk().path());
-            let space = get_space(&disk_metrics, &mount_point);
-            (mount_point, space)
-        }).collect();
+    let disk_space_by_disk = disk_metrics.into_values().map(|disk| (
+        disk.disk_name, 
+        Space {
+            total_disk_space_bytes: disk.total_space,
+            free_disk_space_bytes: disk.free_space,
+            used_disk_space_bytes: disk.used_space 
+        }
+    )).collect();
 
     let adc_space = adc.disk_used().await;
     occupied_disk_space_by_disk.entry(adc.disk().name().clone())
@@ -361,18 +361,6 @@ async fn get_space_info<A: Authenticator>(
         occupied_disk_space_by_disk,
         disk_space_by_disk,
     }))
-}
-
-fn get_space(metrics: &HashMap<&PathBuf, DiskSpaceMetrics>, mount_point: &PathBuf) -> Space {
-    metrics.get(&mount_point).map_or(Space {
-        total_disk_space_bytes: 0,
-        free_disk_space_bytes: 0,
-        used_disk_space_bytes: 0,
-    }, |metrics| Space {
-        total_disk_space_bytes: metrics.total_space,
-        free_disk_space_bytes: metrics.free_space,
-        used_disk_space_bytes: metrics.used_space,
-    })
 }
 
 fn not_acceptable_backend() -> StatusExt {
