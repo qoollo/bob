@@ -1,14 +1,16 @@
+
 use crate::prelude::*;
 use bob_common::core_types::DiskName;
 use bob_common::metrics::{
-    AVAILABLE_RAM, BOB_CPU_LOAD, BOB_RAM, BOB_VIRTUAL_RAM, CPU_IOWAIT, DESCRIPTORS_AMOUNT,
-    FREE_SPACE, HW_DISKS_FOLDER, TOTAL_RAM, TOTAL_SPACE, USED_RAM, USED_SPACE, USED_SWAP,
+    BOB_RAM, BOB_VIRTUAL_RAM, BOB_CPU_LOAD, DESCRIPTORS_AMOUNT, CPU_IOWAIT, 
+    TOTAL_RAM, AVAILABLE_RAM, USED_RAM, USED_SWAP,
+    TOTAL_SPACE, FREE_SPACE, USED_SPACE, HW_DISKS_FOLDER
 };
 use libc::statvfs;
-use std::fs::read_to_string;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
+use std::fs::read_to_string;
 use sysinfo::{Disk, DiskExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
@@ -35,15 +37,14 @@ impl HWMetricsCollector {
         }
     }
 
-    /// Returns disk names mapped to theirs mount points
+    /// Returns disk names mapped to the corresponding mount points
     ///
-    /// Note: If there is multiple mount points for the same disk, the function will try to match
-    /// mount point with disk path. If it fails to match, the function fallbacks to the first found mount.
+    /// Note: If there are multiple mount points for the same disk, the function will try to match
+    /// correct mount point with disk path. If it fails to match, the function fallbacks to the first found mount point.
     ///
     /// # Panics
     ///
     /// Panics if the function couldn't receive metadata from OS
-    ///
     fn collect_used_disks(disks: &[DiskPath]) -> HashMap<PathBuf, DiskName> {
         let sys_info = System::new_with_specifics(RefreshKind::new().with_disks_list());
         let sys_metadata = Self::collect_metadata(sys_info.disks(), disks);
@@ -61,10 +62,11 @@ impl HWMetricsCollector {
             .collect()
     }
 
-    /// Maps Disk's Inforamtion to the disk's dev ID.
+    /// Maps disk's Inforamtion to the disk's device ID.
+    ///
     /// The fucntion will try to match mount point with disk path
     /// If it's fails to do so, it will fallback to the first found mount point for the specified
-    /// dev ID
+    /// device ID
     ///
     /// # Panics
     ///
@@ -129,10 +131,10 @@ impl HWMetricsCollector {
             match cpu_s_c.iowait() {
                 Ok(iowait) => {
                     gauge!(CPU_IOWAIT, iowait);
-                }
+                },
                 Err(CommandError::Primary(e)) => {
                     warn!("Error while collecting cpu iowait: {}", e);
-                }
+                },
                 Err(CommandError::Unavailable) => (),
             }
 
@@ -150,10 +152,7 @@ impl HWMetricsCollector {
             let available_mem = sys.available_memory();
             let used_mem = total_mem - available_mem;
             let used_swap = sys.used_swap();
-            debug!(
-                "used mem in bytes: {} | available mem in bytes: {} | used swap: {}",
-                used_mem, available_mem, used_swap
-            );
+            debug!("used mem in bytes: {} | available mem in bytes: {} | used swap: {}", used_mem, available_mem, used_swap);
             gauge!(USED_RAM, used_mem as f64);
             gauge!(AVAILABLE_RAM, available_mem as f64);
             gauge!(USED_SWAP, used_swap as f64);
@@ -207,13 +206,13 @@ impl HWMetricsCollector {
             let cm_p = Self::to_cpath(mount_point.as_path());
             let stat = Self::statvfs_wrap(&cm_p);
             if let Some(stat) = stat {
-                let frsize = stat.f_frsize;
-                let blocks = stat.f_blocks;
-                let bavail = stat.f_bavail;
-                let bfree = stat.f_bfree;
-                total += frsize * blocks;
-                free += frsize * bavail;
-                used += (blocks - bfree) * frsize;
+                let bsize = stat.f_bsize as u64;
+                let blocks = stat.f_blocks as u64;
+                let bavail = stat.f_bavail as u64;
+                let bfree = stat.f_bfree as u64;
+                total += bsize * blocks;
+                free += bsize * bavail;
+                used += (blocks - bfree) * bsize;
             }
         }
 
@@ -235,7 +234,9 @@ struct CPUStatCollector {
 
 impl CPUStatCollector {
     fn new() -> CPUStatCollector {
-        CPUStatCollector { procfs_avl: true }
+        CPUStatCollector {
+            procfs_avl: true
+        }
     }
 
     fn stat_cpu_line() -> Result<String, String> {
@@ -268,7 +269,7 @@ impl CPUStatCollector {
                                 if i == CPU_IOWAIT_COLUMN {
                                     f_iowait = val;
                                 }
-                            }
+                            },
                             Err(_) => {
                                 let msg = format!("Can't parse {}", CPU_STAT_FILE);
                                 err = Some(msg);
@@ -283,7 +284,7 @@ impl CPUStatCollector {
                     let msg = format!("CPU stat format in {} changed", CPU_STAT_FILE);
                     err = Some(msg);
                 }
-            }
+            },
             Err(e) => {
                 err = Some(e);
             }
@@ -300,11 +301,13 @@ struct DiffContainer<T> {
 }
 
 impl<T> DiffContainer<T>
-where
-    T: std::ops::Sub<Output = T> + Copy,
+where T: std::ops::Sub<Output = T> +
+         Copy,
 {
     fn new() -> Self {
-        Self { last: None }
+        Self {
+            last: None,
+        }
     }
 
     fn diff(&mut self, new: T) -> Option<T> {
@@ -344,7 +347,7 @@ struct DiskStatsContainer {
     stats: DiffContainer<DiskStats>,
 }
 
-impl DiskStatsContainer {
+impl  DiskStatsContainer {
     fn new(prefix: String) -> Self {
         Self {
             prefix,
@@ -392,7 +395,7 @@ impl DiskStatCollector {
             parts[7].parse::<u64>(),
         ) {
             new_ds.reads = r_ios;
-            new_ds.writes = w_ios;
+            new_ds.writes = w_ios;  
             if new_ds.extended {
                 // time spend doing i/o operations is in 12th column
                 if let Ok(io_time) = parts[12].parse::<u64>() {
@@ -422,7 +425,7 @@ impl DiskStatCollector {
                     // compare device name from 2nd column with disk device names
                     if let Some(ds) = self.disk_metric_data.get_mut(lsp[2]) {
                         let new_ds = Self::parse_stat_line(lsp)?;
-
+                        
                         if let Some(diff) = ds.stats.diff(new_ds) {
                             let iops = (diff.reads + diff.writes) as f64 / elapsed;
                             let gauge_name = format!("{}_iops", ds.prefix);
@@ -438,10 +441,7 @@ impl DiskStatCollector {
                     }
                 } else {
                     self.procfs_avl = false;
-                    let msg = format!(
-                        "Not enough diskstat info in {} for metrics calculation",
-                        DISK_STAT_FILE
-                    );
+                    let msg = format!("Not enough diskstat info in {} for metrics calculation", DISK_STAT_FILE);
                     return Err(CommandError::Primary(msg));
                 }
             }
@@ -530,10 +530,7 @@ impl DescrCounter {
 
         let pid_arg = process::id().to_string();
         let cmd_lsof = Command::new("lsof")
-            .args([
-                "-a", "-p", &pid_arg, "-d", "^mem", "-d", "^cwd", "-d", "^rtd", "-d", "^txt", "-d",
-                "^DEL",
-            ])
+            .args(["-a", "-p", &pid_arg, "-d", "^mem", "-d", "^cwd", "-d", "^rtd", "-d", "^txt", "-d", "^DEL"])
             .stdout(std::process::Stdio::piped())
             .spawn();
         match cmd_lsof {
@@ -550,17 +547,17 @@ impl DescrCounter {
                                         debug!("failed to parse lsof result: {}", e);
                                     }
                                 }
-                            }
+                            },
                             Err(e) => {
                                 debug!("can't use lsof, wc error (fs /proc will be used): {}", e);
                             }
                         }
-                    }
+                    },
                     None => {
                         debug!("lsof has no stdout (fs /proc will be used)");
                     }
                 }
-            }
+            },
             Err(e) => {
                 debug!("can't use lsof (fs /proc will be used): {}", e);
             }
