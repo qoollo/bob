@@ -162,8 +162,8 @@ pub(crate) struct SpaceInfo {
     /// Key - Bob disk name
     occupied_disk_space_by_disk: HashMap<DiskName, u64>,
     
-    /// Key - mount point
-    disk_space_by_disk: HashMap<DiskName, Space>,
+    /// Key - Mount point or Bob disk name if no mount point was found
+    disk_space_by_disk: HashMap<String, Space>,
 }
 
 async fn tls_server(tls_config: &TLSConfig, addr: SocketAddr) -> AxumServer<RustlsAcceptor> {
@@ -337,8 +337,10 @@ async fn get_space_info<A: Authenticator>(
         dcs.iter().map(|dc| async { ( dc.disk().name().clone(), dc.disk_used().await ) })
     ).await.into_iter().collect();
 
+    let disk_path: HashMap<_, _> = dcs.iter().map(|dc| (dc.disk().name().to_string(), dc.disk().path().to_string())).collect();
+
     let disk_space_by_disk = disk_metrics.into_values().map(|disk| (
-        disk.disk_name, 
+        disk_path.get(&disk.disk_name.to_string()).unwrap_or(&disk.disk_name.to_string()).clone(), 
         Space {
             total_disk_space_bytes: disk.total_space,
             free_disk_space_bytes: disk.free_space,
