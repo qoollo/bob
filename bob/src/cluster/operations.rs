@@ -1,19 +1,20 @@
 use crate::link_manager::LinkManager;
 use crate::prelude::*;
-use super::support_types::RemoteDeleteError;
+use super::support_types::{RemoteDeleteError, RemotePutResponse, RemotePutError};
 
-pub(crate) type Tasks<Err> = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Err>>>>;
+pub(crate) type Tasks<Res, Err> = FuturesUnordered<JoinHandle<Result<NodeOutput<Res>, NodeOutput<Err>>>>;
 
 // ======================= Helpers =================
 
-fn is_result_successful<TErr: Debug>(
-    join_res: Result<Result<NodeOutput<()>, NodeOutput<TErr>>, JoinError>,
+fn is_result_successful<TRes, TErr: Debug>(
+    join_res: Result<Result<NodeOutput<TRes>, NodeOutput<TErr>>, JoinError>,
     errors: &mut Vec<NodeOutput<TErr>>,
+    get_affected_count: impl Fn(TRes) -> usize
 ) -> usize {
     debug!("handle returned");
     match join_res {
         Ok(res) => match res {
-            Ok(r) => return r.affected_replicas(),
+            Ok(r) => return get_affected_count(r.into_inner()),
             Err(e) => {
                 debug!("{:?}", e);
                 errors.push(e);
@@ -26,15 +27,16 @@ fn is_result_successful<TErr: Debug>(
     0
 }
 
-pub(crate) async fn finish_at_least_handles<TErr: Debug>(
-    handles: &mut Tasks<TErr>,
+pub(crate) async fn finish_at_least_handles<TRes, TErr: Debug>(
+    handles: &mut Tasks<TRes, TErr>,
     at_least: usize,
+    get_affected_count: impl Fn(TRes) -> usize
 ) -> Vec<NodeOutput<TErr>> {
     let mut ok_count = 0;
     let mut errors = Vec::new();
     while ok_count < at_least {
         if let Some(join_res) = handles.next().await {
-            ok_count += is_result_successful(join_res, &mut errors);
+            ok_count += is_result_successful(join_res, &mut errors, &get_affected_count);
         } else {
             break;
         }
@@ -43,14 +45,15 @@ pub(crate) async fn finish_at_least_handles<TErr: Debug>(
     errors
 }
 
-async fn call_at_least<TOp, TErr: Debug>(
+async fn call_at_least<TOp, TRes, TErr: Debug>(
     target_nodes: impl Iterator<Item = TOp>,
     at_least: usize,
-    f: impl Fn(TOp) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>,
-) -> (FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>>, Vec<NodeOutput<TErr>>) {
+    f: impl Fn(TOp) -> JoinHandle<Result<NodeOutput<TRes>, NodeOutput<TErr>>>,
+    get_affected_count: impl Fn(TRes) -> usize
+) -> (FuturesUnordered<JoinHandle<Result<NodeOutput<TRes>, NodeOutput<TErr>>>>, Vec<NodeOutput<TErr>>) {
     let mut handles: FuturesUnordered<_> = target_nodes.map(|op| f(op)).collect();
     trace!("total handles count: {}", handles.len());
-    let errors = finish_at_least_handles(&mut handles, at_least).await;
+    let errors = finish_at_least_handles(&mut handles, at_least, &get_affected_count).await;
     trace!("remains: {}, errors: {}", handles.len(), errors.len());
     (handles, errors)
 }
@@ -64,7 +67,7 @@ async fn finish_all_handles<TErr: Debug>(
     let mut errors = Vec::new();
     while let Some(join_res) = handles.next().await {
         total_count += 1;
-        ok_count += is_result_successful(join_res, &mut errors);
+        ok_count += is_result_successful(join_res, &mut errors, |_| 1);
     }
     trace!("ok_count/total: {}/{}", ok_count, total_count);
     errors
@@ -187,11 +190,14 @@ fn call_node_put(
     node: Node,
     options: BobPutOptions,
     affected_replicas: usize
-) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
+) -> JoinHandle<Result<NodeOutput<RemotePutResponse>, NodeOutput<RemotePutError>>> {
     debug!("PUT[{}] put to {}", key, node.name());
     let task = async move {
         let grpc_options = options.to_grpc();
-        LinkManager::call_node(&node, |conn| conn.put(key, data, grpc_options, affected_replicas).boxed()).await
+        let call_result = LinkManager::call_node(&node, |conn| conn.put(key, data, grpc_options).boxed()).await;
+        call_result
+            .map(|o| o.map(|_| RemotePutResponse::new(affected_replicas)))
+            .map_err(|o| o.map(|e| RemotePutError::new(affected_replicas, e)))
     };
     tokio::spawn(task)
 }
@@ -204,11 +210,11 @@ pub(crate) async fn put_at_least(
     at_least: usize,
     options: BobPutOptions,
     affected_replicas_by_node: &HashMap<NodeName, usize>
-) -> (Tasks<Error>, Vec<NodeOutput<Error>>) {
+) -> (Tasks<RemotePutResponse, RemotePutError>, Vec<NodeOutput<RemotePutError>>) {
     call_at_least(target_nodes, at_least, |n| {
         call_node_put(key, data.clone(), n.clone(), options.clone(),
                       *affected_replicas_by_node.get(n.name()).unwrap_or(&1))
-    })
+    }, |r| r.affected_replicas())
     .await
 }
 
@@ -243,14 +249,12 @@ pub(crate) async fn put_local_all(
 pub(crate) async fn put_sup_nodes(
     key: BobKey,
     data: &BobData,
-    requests: impl Iterator<Item = (&Node, BobPutOptions)>,
-    affected_replicas_by_node: &HashMap<NodeName, usize>
+    requests: impl Iterator<Item = (&Node, BobPutOptions)>
 ) -> Result<(), Vec<NodeOutput<Error>>> {
     let mut ret = vec![];
     for (node, options) in requests {
         let result = LinkManager::call_node(node, |client| {
-            Box::pin(client.put(key, data.clone(), options.to_grpc(),
-                                *affected_replicas_by_node.get(node.name()).unwrap_or(&1)))
+            Box::pin(client.put(key, data.clone(), options.to_grpc()))
         })
         .await;
         debug!("{:?}", result);

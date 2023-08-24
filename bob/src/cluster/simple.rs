@@ -89,8 +89,7 @@ impl Cluster for Quorum {
                     remote_nodes: vec![], //TODO check
                     force_node: true,
                     overwrite: false,
-                },
-                self.mapper.get_replicas_count(c.target_node_name(), key)
+                }
             ))
         })
         .await

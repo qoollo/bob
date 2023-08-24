@@ -46,7 +46,6 @@ struct NodeInner {
 pub struct Output<T> {
     node_name: NodeName,
     inner: T,
-    affected_replicas: usize
 }
 
 
@@ -155,20 +154,12 @@ impl Debug for Node {
 
 
 impl<T> Output<T> {
-    pub fn new_with_affected_replicas(node_name: NodeName, inner: T, affected_replicas: usize) -> Self {
-        Self { node_name, inner, affected_replicas }
-    }
-
     pub fn new(node_name: NodeName, inner: T) -> Self {
-        Self { node_name, inner, affected_replicas: 1 }
+        Self { node_name, inner }
     }
 
     pub fn node_name(&self) -> &NodeName {
         &self.node_name
-    }
-
-    pub fn affected_replicas(&self) -> usize {
-        self.affected_replicas
     }
 
     pub fn inner(&self) -> &T {
@@ -183,7 +174,6 @@ impl<T> Output<T> {
         Output::<TOut> {
             node_name: self.node_name,
             inner: map_fn(self.inner),
-            affected_replicas: self.affected_replicas
         }
     }
 }

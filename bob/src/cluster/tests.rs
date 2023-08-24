@@ -26,7 +26,7 @@ fn ping_ok(client: &mut BobClient, node: Node) {
 }
 
 fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
-    client.expect_put().returning(move |_key, _data, _options, _| {
+    client.expect_put().returning(move |_key, _data, _options| {
         call.put_inc();
         warn!("OK OK");
         test_utils::put_ok(node.name().to_owned())
@@ -35,7 +35,7 @@ fn put_ok(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
 
 fn put_err(client: &mut BobClient, node: Node, call: Arc<CountCall>) {
     debug!("mock BobClient return error on PUT");
-    client.expect_put().returning(move |_key, _data, _options, _| {
+    client.expect_put().returning(move |_key, _data, _options| {
         call.put_inc();
         test_utils::put_err(node.name().to_owned())
     });

@@ -8,7 +8,7 @@ use super::{
         lookup_local_node, lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all,
         put_local_node_all, put_sup_nodes, Tasks,
     },
-    support_types::{HashSetExt, RemoteDeleteError, IndexMap},
+    support_types::{HashSetExt, RemoteDeleteError, IndexMap, RemotePutError, RemotePutResponse},
     Cluster,
 };
 
@@ -58,7 +58,7 @@ impl Quorum {
         let all_count: usize = target_nodes.iter()
             .map(|n| *affected_replicas_by_node.get(n.name()).unwrap_or(&1))
             .sum();
-        let errored: usize = errors.iter().map(|o| o.affected_replicas()).sum();
+        let errored: usize = errors.iter().map(|o| o.inner().affected_replicas()).sum();
         let remote_ok_count = all_count - errored - tasks.len() - local_put_ok;
         failed_nodes.extend(errors.iter().map(|e| e.node_name().clone()));
         if remote_ok_count + local_put_ok >= self.quorum {
@@ -93,7 +93,7 @@ impl Quorum {
 
     async fn background_put(
         self,
-        mut rest_tasks: Tasks<Error>,
+        mut rest_tasks: Tasks<RemotePutResponse, RemotePutError>,
         key: BobKey,
         data: &BobData,
         mut failed_nodes: Vec<NodeName>
@@ -127,7 +127,7 @@ impl Quorum {
         data: &BobData,
         at_least: usize,
         affected_replicas_by_node: &HashMap<NodeName, usize>
-    ) -> (Tasks<Error>, Vec<NodeOutput<Error>>) {
+    ) -> (Tasks<RemotePutResponse, RemotePutError>, Vec<NodeOutput<RemotePutError>>) {
         let local_node = self.mapper.local_node_name();
         let target_nodes = self.mapper.get_target_nodes_for_key(key);
         debug!(
@@ -164,7 +164,7 @@ impl Quorum {
             .map(|(node, remote_node)| (node, BobPutOptions::new_alien(vec![remote_node])))
             .collect();
         debug!("PUT[{}] additional alien requests: {:?}", key, queries);
-        if let Err(sup_nodes_errors) = put_sup_nodes(key, data, queries.into_iter(), &HashMap::new()).await {
+        if let Err(sup_nodes_errors) = put_sup_nodes(key, data, queries.into_iter()).await {
             debug!("support nodes errors: {:?}", sup_nodes_errors);
             failed_nodes.extend(
                 sup_nodes_errors
