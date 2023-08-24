@@ -90,7 +90,7 @@ impl Cluster for Quorum {
                     force_node: true,
                     overwrite: false,
                 },
-                self.mapper.get_replicas_count(c.target_node_name().as_str(), key)
+                self.mapper.get_replicas_count(c.target_node_name(), key)
             ))
         })
         .await

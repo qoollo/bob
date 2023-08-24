@@ -40,9 +40,9 @@ impl Quorum {
             if let Some(paths) = disk_paths {
                 let paths_len = paths.len();
                 debug!("PUT[{}] ~~~PUT TO {} REMOTE NODES AND LOCAL NODE~~~", key, at_least - paths_len);
-                let (local_puts, (tasks, errors)) = tokio::join!(
-                    put_local_node_all(&self.backend, key, data, vdisk_id, paths),
-                    self.put_remote_nodes(key, data, at_least, &affected_replicas_by_node));
+                let ((tasks, errors), local_puts) = tokio::join!(
+                    self.put_remote_nodes(key, data, at_least, &affected_replicas_by_node),
+                    put_local_node_all(&self.backend, key, data, vdisk_id, paths));
                 if local_puts != paths_len {
                     failed_nodes.push(self.mapper.local_node_name().to_owned());
                 }
@@ -69,7 +69,7 @@ impl Quorum {
             debug!("PUT[{}] spawn {} background put tasks", key, tasks.len());
             let q = self.clone();
             let data = data.clone();
-            tokio::spawn(async move { q.background_put(tasks, key, &data, failed_nodes, &affected_replicas_by_node).await });
+            tokio::spawn(async move { q.background_put(tasks, key, &data, failed_nodes).await });
             Ok(())
         } else {
             assert!(tasks.is_empty(), "All target nodes put are expected to be completed before alien put begins");
@@ -80,7 +80,7 @@ impl Quorum {
                 self.quorum,
                 errors
             );
-            if let Err(err) = self.put_aliens(failed_nodes, key, data, &affected_replicas_by_node).await {
+            if let Err(err) = self.put_aliens(failed_nodes, key, data).await {
                 error!("PUT[{}] smth wrong with cluster/node configuration", key);
                 error!("PUT[{}] node errors: {:?}", key, errors);
                 Err(err)
@@ -96,8 +96,7 @@ impl Quorum {
         mut rest_tasks: Tasks<Error>,
         key: BobKey,
         data: &BobData,
-        mut failed_nodes: Vec<NodeName>,
-        affected_replicas_by_node: &HashMap<NodeName, usize>
+        mut failed_nodes: Vec<NodeName>
     ) {
         debug!("PUT[{}] ~~~BACKGROUND PUT TO REMOTE NODES~~~", key);
         while let Some(join_res) = rest_tasks.next().await {
@@ -116,7 +115,7 @@ impl Quorum {
         }
         debug!("PUT[{}] ~~~PUT TO REMOTE NODES ALIEN~~~", key);
         if !failed_nodes.is_empty() {
-            if let Err(e) = self.put_aliens(failed_nodes, key, &data, affected_replicas_by_node).await {
+            if let Err(e) = self.put_aliens(failed_nodes, key, &data).await {
                 error!("{}", e);
             }
         }
@@ -145,8 +144,7 @@ impl Quorum {
         &self,
         mut failed_nodes: Vec<NodeName>,
         key: BobKey,
-        data: &BobData,
-        affected_replicas_by_node: &HashMap<NodeName, usize>
+        data: &BobData
     ) -> Result<(), Error> {
         debug!("PUT[{}] ~~~TRY PUT TO REMOTE ALIENS FIRST~~~", key);
         if failed_nodes.is_empty() {
@@ -166,7 +164,7 @@ impl Quorum {
             .map(|(node, remote_node)| (node, BobPutOptions::new_alien(vec![remote_node])))
             .collect();
         debug!("PUT[{}] additional alien requests: {:?}", key, queries);
-        if let Err(sup_nodes_errors) = put_sup_nodes(key, data, queries.into_iter(), affected_replicas_by_node).await {
+        if let Err(sup_nodes_errors) = put_sup_nodes(key, data, queries.into_iter(), &HashMap::new()).await {
             debug!("support nodes errors: {:?}", sup_nodes_errors);
             failed_nodes.extend(
                 sup_nodes_errors

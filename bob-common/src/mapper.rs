@@ -300,7 +300,7 @@ impl Virtual {
                 if disks.is_none() {
                     disks = Some(SmallVec::<[DiskPath; 1]>::new());
                 }
-                disks.as_mut().unwrap().push(DiskPath::from(replica));
+                disks.as_mut().expect("disks it not None here").push(DiskPath::from(replica));
             }
         }
         if disks.is_none() {
@@ -322,7 +322,7 @@ impl Virtual {
             .any(|node| node.name() == node_name)
     }
 
-    pub fn get_replicas_count(&self, node_name: &str, key: BobKey) -> usize {
+    pub fn get_replicas_count(&self, node_name: &NodeName, key: BobKey) -> usize {
         let id = self.vdisk_id_from_key(key);
         if let Some(vdisk) = self.vdisks.get(&id) {
             vdisk.replicas().iter().filter(|r| r.node_name().as_str() == node_name).count()
