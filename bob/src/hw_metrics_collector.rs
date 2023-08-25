@@ -70,7 +70,7 @@ impl HWMetricsCollector {
     /// Returns the updated space metrics of this [`HWMetricsCollector`].
     ///
     /// Key -- `f_fsid` of underlying [`statvfs`] function, represents file system ID
-    pub(crate) fn update_space_metrics(&self) -> HashMap<u64, DiskSpaceMetrics> {
+    pub(crate) fn update_space_metrics(&self) -> HashMap<PathBuf, DiskSpaceMetrics> {
         Self::update_space_metrics_from_disks(&self.disks)
     }
 
@@ -133,7 +133,7 @@ impl HWMetricsCollector {
 
     fn update_space_metrics_from_disks(
         disks: &HashMap<PathBuf, DiskName>,
-    ) -> HashMap<u64, DiskSpaceMetrics> {
+    ) -> HashMap<PathBuf, DiskSpaceMetrics> {
         let disks_metrics = Self::space(disks);
         let summed_space: DiskSpaceMetrics = disks_metrics.values().sum();
         gauge!(TOTAL_SPACE, bytes_to_mb(summed_space.total_space) as f64);
@@ -167,11 +167,12 @@ impl HWMetricsCollector {
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
 
-    /// Maps [`DiskSpaceMetrics`] to the corresponding `f_fsid` of [`statvfs`] function result
+    /// Maps [`DiskSpaceMetrics`] to the corresponding mount point.
     ///
-    /// `f_fsid` represents file system ID.
-    fn space(disks: &HashMap<PathBuf, DiskName>) -> HashMap<u64, DiskSpaceMetrics> {
+    /// `f_fsid` field of [`statvfs`] is used to ensure that disks are unique.
+    fn space(disks: &HashMap<PathBuf, DiskName>) -> HashMap<PathBuf, DiskSpaceMetrics> {
         let mut res = HashMap::new();
+        let mut fs_ids = HashSet::new();
         for (mount_point, disk_name) in disks {
             let cm_p = Self::to_cpath(mount_point.as_path());
             let stat = Self::statvfs_wrap(&cm_p);
@@ -180,14 +181,16 @@ impl HWMetricsCollector {
                 let blocks = stat.f_blocks;
                 let bavail = stat.f_bavail;
                 let bfree = stat.f_bfree;
-                res.insert(
-                    stat.f_fsid,
-                    DiskSpaceMetrics {
-                        disk_name: disk_name.clone(),
-                        total_space: bsize * blocks,
-                        used_space: bsize * bavail,
-                        free_space: (blocks - bfree) * bsize,
-                    },
+                fs_ids.insert(stat.f_fsid).then(|| 
+                    res.insert(
+                        mount_point.clone(),
+                        DiskSpaceMetrics {
+                            disk_name: disk_name.clone(),
+                            total_space: bsize * blocks,
+                            used_space: bsize * bavail,
+                            free_space: (blocks - bfree) * bsize,
+                        },
+                    )
                 );
             }
         }
