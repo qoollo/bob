@@ -184,6 +184,7 @@ fn configure_testmode(sub_matches: &ArgMatches) -> AnyResult<(ClusterConfig, Nod
         }).collect();
 
         for (index, addr) in node_list.split(",").enumerate() {
+            let addr = addr.trim();
             let v4addr = SocketAddrV4::from_str(addr)?;
             if this_node.is_none() {
                 if port == v4addr.port() && available_ips.contains(v4addr.ip()) {
