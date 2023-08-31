@@ -494,13 +494,16 @@ impl DescrCounter {
             .stdout(std::process::Stdio::piped())
             .spawn();
         match cmd_lsof {
-            Ok(cmd_lsof) => {
-                match cmd_lsof.stdout {
+            Ok(mut cmd_lsof) => {
+                match cmd_lsof.stdout.take() {
                     Some(stdout) => {
                         match parse_command_output(Command::new("wc").arg("-l").stdin(stdout)) {
                             Ok(output) => {
                                 match output.trim().parse::<u64>() {
                                     Ok(count) => {
+                                        if let Err(e) = cmd_lsof.wait() {
+                                            debug!("lsof exited with error {:?}", e);
+                                        }
                                         return Some(count - 5); // exclude stdin, stdout, stderr, lsof pipe and wc pipe
                                     }
                                     Err(e) => {
@@ -516,6 +519,9 @@ impl DescrCounter {
                     None => {
                         debug!("lsof has no stdout (fs /proc will be used)");
                     }
+                }
+                if let Err(e) = cmd_lsof.wait() {
+                    debug!("lsof exited with error {:?}", e);
                 }
             },
             Err(e) => {
