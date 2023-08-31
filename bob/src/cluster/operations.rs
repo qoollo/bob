@@ -1,8 +1,8 @@
 use crate::link_manager::LinkManager;
 use crate::prelude::*;
-use super::support_types::RemoteDeleteError;
+use super::support_types::{RemoteDeleteError, NodeOutputJoinHandle};
 
-pub(crate) type Tasks<Err> = FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<Err>>>>;
+pub(crate) type Tasks<Err> = FuturesUnordered<NodeOutputJoinHandle<Err>>;
 
 // ======================= Helpers =================
 
@@ -21,7 +21,9 @@ fn is_result_successful<TErr: Debug>(
         },
         Err(e) => {
             error!("{:?}", e);
-            panic!("panic in thread");
+            if e.is_panic() {
+                panic!("panic in thread");
+            }
         }
     }
     0
@@ -47,8 +49,8 @@ pub(crate) async fn finish_at_least_handles<TErr: Debug>(
 async fn call_at_least<TOp, TErr: Debug>(
     target_nodes: impl Iterator<Item = TOp>,
     at_least: usize,
-    f: impl Fn(TOp) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>,
-) -> (FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>>, Vec<NodeOutput<TErr>>) {
+    f: impl Fn(TOp) -> NodeOutputJoinHandle<TErr>,
+) -> (FuturesUnordered<NodeOutputJoinHandle<TErr>>, Vec<NodeOutput<TErr>>) {
     let mut handles: FuturesUnordered<_> = target_nodes.map(|op| f(op)).collect();
     trace!("total handles count: {}", handles.len());
     let errors = finish_at_least_handles(&mut handles, at_least).await;
@@ -189,13 +191,14 @@ fn call_node_put(
     data: BobData,
     node: Node,
     options: BobPutOptions,
-) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<Error>>> {
+) -> NodeOutputJoinHandle<Error> {
     debug!("PUT[{}] put to {}", key, node.name());
+    let name = node.name().clone();
     let task = async move {
         let grpc_options = options.to_grpc();
         LinkManager::call_node(&node, |conn| conn.put(key, data, grpc_options).boxed()).await
     };
-    tokio::spawn(task)
+    NodeOutputJoinHandle::new(tokio::spawn(task), name)
 }
 
 

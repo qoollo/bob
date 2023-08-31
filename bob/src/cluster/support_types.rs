@@ -128,3 +128,27 @@ impl IndexMap {
         });
     }
 }
+
+pub(crate) struct NodeOutputJoinHandle<Err>(JoinHandle<Result<NodeOutput<()>, NodeOutput<Err>>>, NodeName);
+
+impl<Err> NodeOutputJoinHandle<Err> {
+    pub(super) fn new(handle: JoinHandle<Result<NodeOutput<()>, NodeOutput<Err>>>, node_name: NodeName) -> Self {
+        Self(handle, node_name)
+    }
+}
+
+impl<Err> Future for NodeOutputJoinHandle<Err> {
+    type Output = Result<Result<NodeOutput<()>, NodeOutput<Err>>, JoinError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+        use std::task::Poll;
+
+        match self.0.poll_unpin(cx) {
+            Poll::Ready(r) => Poll::Ready(r.map(|r| r
+                                                    .map(|o| o.with_node_name(self.1.clone()))
+                                                    .map_err(|o| o.with_node_name(self.1.clone())))),
+            Poll::Pending => std::task::Poll::Pending
+        }
+    }
+
+}

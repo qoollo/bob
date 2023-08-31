@@ -176,6 +176,13 @@ impl<T> Output<T> {
             inner: map_fn(self.inner),
         }
     }
+
+    pub fn with_node_name(self, node_name: NodeName) -> Output<T> {
+        Self {
+            node_name,
+            inner: self.inner
+        }
+    }
 }
 
 impl Output<BobData> {
