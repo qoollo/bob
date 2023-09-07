@@ -31,7 +31,7 @@ pub mod b_client {
         local_node_name: NodeName,
 
         operation_timeout: Duration,
-        ping_timeout: Duration,
+        check_timeout: Duration,
         auth_header: String,
         metrics: BobClientMetrics,
     }
@@ -43,7 +43,7 @@ pub mod b_client {
         pub async fn create(
             node: &Node,
             operation_timeout: Duration,
-            ping_timeout: Duration,
+            check_timeout: Duration,
             metrics: BobClientMetrics,
             local_node_name: NodeName,
             tls_config: Option<&FactoryTlsConfig>,
@@ -71,7 +71,7 @@ pub mod b_client {
                 target_node_address: node.address().to_owned(),
                 local_node_name,
                 operation_timeout,
-                ping_timeout,
+                check_timeout,
                 auth_header,
                 metrics
             })
@@ -157,7 +157,7 @@ pub mod b_client {
             let mut req = Request::new(Null {});
             self.set_credentials(&mut req);
             self.set_node_name(&mut req);
-            self.set_ping_timeout(&mut req);
+            self.set_check_timeout(&mut req);
 
             let node_name = self.target_node_name.to_owned();
             let mut client = self.client.clone();
@@ -246,8 +246,8 @@ pub mod b_client {
             r.set_timeout(self.operation_timeout);
         }
 
-        fn set_ping_timeout<T>(&self, r: &mut Request<T>) {
-            r.set_timeout(self.ping_timeout);
+        fn set_check_timeout<T>(&self, r: &mut Request<T>) {
+            r.set_timeout(self.check_timeout);
         }
     }
 
@@ -322,7 +322,7 @@ pub struct FactoryTlsConfig {
 #[derive(Clone)]
 pub struct Factory {
     operation_timeout: Duration,
-    ping_timeout: Duration,
+    check_timeout: Duration,
     metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
     local_node_name: NodeName,
     tls_config: Option<FactoryTlsConfig>,
@@ -333,14 +333,14 @@ impl Factory {
     #[must_use]
     pub fn new(
         operation_timeout: Duration,
-        ping_timeout: Duration,
+        check_timeout: Duration,
         metrics: Arc<dyn MetricsContainerBuilder + Send + Sync>,
         local_node_name: NodeName,
         tls_config: Option<FactoryTlsConfig>,
     ) -> Self {
         Factory {
             operation_timeout,
-            ping_timeout,
+            check_timeout,
             metrics,
             local_node_name,
             tls_config,
@@ -351,7 +351,7 @@ impl Factory {
         BobClient::create(
             node,
             self.operation_timeout,
-            self.ping_timeout,
+            self.check_timeout,
             metrics,
             self.local_node_name.clone(),
             self.tls_config.as_ref(),
