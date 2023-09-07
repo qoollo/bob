@@ -3,6 +3,7 @@ users_config: /bob/config-examples/users.yaml
 name: node1
 quorum: 3
 operation_timeout: 3sec
+check_timeout: 3sec
 check_interval: 5000ms
 cleanup_interval: 5000ms
 cluster_policy: quorum
