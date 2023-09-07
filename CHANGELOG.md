@@ -21,6 +21,7 @@ Bob versions changelog
 #### Fixed
 - Fix memory leak due to prometheus lib (#788)
 - Fix for grinder delete metrics not being initialized (#824)
+- Fix chrono deprecated function warning (#832)
 
 #### Updated
 - Pearl updated to v0.19.0 (#798)
