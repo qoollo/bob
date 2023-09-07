@@ -509,6 +509,7 @@ users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
+check_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: stub
@@ -526,6 +527,7 @@ users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
+check_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: pearl
@@ -543,6 +545,7 @@ users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
+check_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: pearl
@@ -571,6 +574,7 @@ users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
+check_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: pearl
@@ -599,6 +603,7 @@ users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
+check_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: pearl
@@ -627,6 +632,7 @@ users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
+check_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: pearl
@@ -655,6 +661,7 @@ users_config: users.yaml
 name: n1
 quorum: 1
 operation_timeout: 12h 5min 2ns
+check_timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
 backend_type: InvalidType
@@ -690,6 +697,7 @@ users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
+check_timeout: 12h 5min 2ns
 check_interval: 100mms
 cluster_policy: quorum # quorum
 backend_type: stub
@@ -707,6 +715,7 @@ users_config: users.yaml
 name: n1
 quorum: 1
 operation_timeout: 12h 5min 2ns
+check_timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
 backend_type: stub
@@ -741,6 +750,7 @@ users_config: users.yaml
 name: 1n2112321321321321
 quorum: 1
 operation_timeout: 12h 5min 2ns
+check_timeout: 12h 5min 2ns
 check_interval: 100sec
 cluster_policy: quorum # quorum
 backend_type: stub
@@ -775,6 +785,7 @@ users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
+check_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: stub
@@ -798,6 +809,7 @@ users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
+check_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: stub
@@ -820,6 +832,7 @@ users_config: users.yaml
 name: no
 quorum: 1
 operation_timeout: 12h 5min 2ns
+check_timeout: 12h 5min 2ns
 check_interval: 100ms
 cluster_policy: quorum # quorum
 backend_type: stub

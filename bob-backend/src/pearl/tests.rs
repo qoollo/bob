@@ -32,6 +32,7 @@ users_config: users.yaml
 name: local_node
 quorum: 1
 operation_timeout: 3sec
+check_timeout: 3sec
 check_interval: 5000ms
 cluster_policy: quorum             # quorum
 backend_type: pearl                # in_memory, stub, pearl

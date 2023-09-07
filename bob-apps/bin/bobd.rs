@@ -245,7 +245,11 @@ async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper
                 tls_domain_name: tls_config.domain_name.clone(),
             }
         });
-    let factory = Factory::new(node.operation_timeout(), metrics, node.name().into(), factory_tls_config);
+    let factory = Factory::new(node.operation_timeout(),
+                               node.check_timeout(),
+                               metrics,
+                               node.name().into(),
+                               factory_tls_config);
 
     let mut server_builder = Server::builder();
     if let Some(node_tls_config) = node.tls_config().as_ref().and_then(|tls_config| tls_config.grpc_config()) {
