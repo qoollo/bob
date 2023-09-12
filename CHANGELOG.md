@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Bobd test mode (#550)
 - Added optional get & exist optimization that skips old partitions by its timestamp (#702)
 - Added mimalloc allocator for musl target (#688)
 - Added jemalloc-profile for memory profiling (#797)
@@ -20,6 +21,7 @@ Bob versions changelog
 #### Fixed
 - Fix memory leak due to prometheus lib (#788)
 - Fix for grinder delete metrics not being initialized (#824)
+- Fix chrono deprecated function warning (#832)
 - Fix lsof zombie spawn (#830)
 
 #### Updated
