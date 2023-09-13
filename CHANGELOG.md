@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Bobd test mode (#550)
 - Added optional get & exist optimization that skips old partitions by its timestamp (#702)
 - Added mimalloc allocator for musl target (#688)
 - Added jemalloc-profile for memory profiling (#797)
@@ -15,11 +16,14 @@ Bob versions changelog
 - NodeName and DiskName types introduced to reduce clone overhead (#775)
 - Avoid Pearl Storage clone (#791)
 - Make iouring optional (#567)
+- Add different logs for different branches in error on vdisk search (#808)
 
 #### Fixed
 - Ensure correct working when node contains multiple replicas of single vdisk (#654)
 - Fix memory leak due to prometheus lib (#788)
 - Fix for grinder delete metrics not being initialized (#824)
+- Fix chrono deprecated function warning (#832)
+- Fix lsof zombie spawn (#830)
 
 #### Updated
 - Pearl updated to v0.19.0 (#798)
