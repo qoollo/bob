@@ -19,6 +19,8 @@ Bob versions changelog
 - Add different logs for different branches in error on vdisk search (#808)
 
 #### Fixed
+- Do not propagate an initialization error when it is determined that the disk is not available (#807)
+- Fix crash in hardware metrics when disk is not available (#812)
 - Fix memory leak due to prometheus lib (#788)
 - Fix for grinder delete metrics not being initialized (#824)
 - Fix chrono deprecated function warning (#832)

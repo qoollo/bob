@@ -430,14 +430,11 @@ impl Holder {
     }
 
     async fn init_holder(&self) -> AnyResult<Storage<Key>> {
-        let f = || Utils::check_or_create_directory(&self.inner.disk_path);
-        self.inner.config
-            .try_multiple_times_async(
-                f,
-                &format!("cannot check path: {:?}", self.inner.disk_path),
-                self.inner.config.fail_retry_timeout(),
-            )
-            .await?;
+        Utils::check_or_create_directory(&self.inner.disk_path).await
+            .map_err(|err| {
+                error!("cannot create holder dir: {:?}. Error: {:?}", self.inner.disk_path, err);
+                err
+    }       )?;
 
         self.inner.config
             .try_multiple_times_async(

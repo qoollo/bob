@@ -21,26 +21,75 @@ impl StartTimestampConfig {
 }
 
 impl Utils {
+    /// Creates directory. Parent directory should exist
     pub async fn check_or_create_directory(path: &Path) -> BackendResult<()> {
         if path.exists() {
-            trace!("directory: {:?} exists", path);
-        } else {
-            let dir = path
-                .to_str()
-                .ok_or_else(|| Error::storage("invalid some path, check vdisk or disk names"))?;
+            trace!("directory: {} exists", path.display());
+            return Ok(());
+        } 
 
-            create_dir_all(&path)
-                .await
-                .map(|_| info!("create directory: {}", dir))
-                .map_err(|e| match e.kind() {
+        let dir = path
+            .to_str()
+            .ok_or_else(|| Error::storage("invalid some path, check vdisk or disk names"))?;
+
+        match tokio::fs::create_dir(&path).await {
+            Ok(_) => {
+                info!("dir created: {}", path.display());
+                Ok(())
+            },
+            Err(err) => {
+                match err.kind() {
+                    IOErrorKind::AlreadyExists => {
+                        trace!("directory: {} exists", path.display());
+                        Ok(())
+                    },
+                    IOErrorKind::NotFound => {
+                        Err(Error::storage(format!("cannot create directory, because part of the path is not exist: '{}', error: {}", dir, err)))
+                    },
                     IOErrorKind::PermissionDenied | IOErrorKind::Other => {
-                        Error::possible_disk_disconnection()
+                        Err(Error::possible_disk_disconnection())
+                    },
+                    _ => {
+                        Err(Error::storage(format!("cannot create directory: '{}', error: {}", dir, err)))
                     }
-                    _ => Error::storage(format!("cannot create directory: {}, error: {}", dir, e)),
-                })?;
-            info!("dir created: {}", path.display());
+                }
+            }
         }
-        Ok(())
+    }
+
+    /// Creates directory and all its parents. If `base_path` is specified, then it should exist before creation started
+    pub async fn check_or_create_all_directories(path: &Path, base_path: Option<&Path>) -> BackendResult<()> {
+        if path.exists() {
+            trace!("directory: {:?} exists", path);
+            return Ok(());
+        } 
+
+        if let Some(base_path) = base_path {
+            if !base_path.exists() {
+                return Err(Error::storage(format!("cannot create directory, because base path is not exist. Dir: '{}', Base path: '{}'", path.display(), base_path.display())));
+            }
+        }
+
+        let dir = path
+            .to_str()
+            .ok_or_else(|| Error::storage("invalid some path, check vdisk or disk names"))?;
+
+        match tokio::fs::create_dir_all(&path).await {
+            Ok(_) => {
+                info!("dir created: {}", path.display());
+                Ok(())
+            },
+            Err(err) => {
+                match err.kind() {
+                    IOErrorKind::PermissionDenied | IOErrorKind::Other => {
+                        Err(Error::possible_disk_disconnection())
+                    },
+                    _ => {
+                        Err(Error::storage(format!("cannot create directory: {}, error: {}", dir, err)))
+                    }
+                }
+            }
+        }
     }
 
     pub async fn drop_pearl_lock_file(path: &Path) -> BackendResult<()> {

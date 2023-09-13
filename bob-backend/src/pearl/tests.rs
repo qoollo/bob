@@ -20,6 +20,8 @@ async fn create_backend(node_config: &str, cluster_config: &str) -> BackendResul
     let node = NodeConfig::get_from_string(node_config, &cluster).unwrap();
     debug!("node: {:?}", node);
 
+    let disk = node.disks().lock().expect("lock error")[0].path().to_owned();
+    std::fs::create_dir_all(&disk).expect("dir creation error");
     let mapper = Arc::new(Virtual::new(&node, &cluster));
     debug!("mapper: {:?}", mapper);
     PearlBackend::new(mapper, &node).await

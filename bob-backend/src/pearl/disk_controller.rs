@@ -305,7 +305,7 @@ impl DiskController {
             .cloned()
     }
 
-    async fn get_or_create_pearl(&self, operation: &Operation) -> BackendResult<Group> {
+    async fn get_or_create_alien_pearl(&self, operation: &Operation) -> BackendResult<Group> {
         trace!("try get alien pearl, operation {:?}", operation);
         // block for read lock: it should be dropped before write lock is acquired (otherwise - deadlock)
         {
@@ -361,7 +361,7 @@ impl DiskController {
     }
 
     async fn groups_run_initialized(&self, pp: impl Hooks) -> AnyResult<()> {
-        let res = {
+        let mut res = {
             let _permit = self.run_sem.acquire().await.expect("Semaphore is closed");
             Self::run_groups(self.groups.clone(), pp).await
         };
@@ -369,6 +369,7 @@ impl DiskController {
             error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
             if !Self::is_work_dir_available(self.disk.path()) {
                 self.change_state(GroupsState::NotReady).await;
+                res = Ok(());
             }
         } else {
             self.change_state(GroupsState::Ready).await;
@@ -384,7 +385,7 @@ impl DiskController {
         data: &BobData,
     ) -> Result<(), Error> {
         if *self.state.read().await == GroupsState::Ready {
-            let vdisk_group = self.get_or_create_pearl(&op).await;
+            let vdisk_group = self.get_or_create_alien_pearl(&op).await;
             match vdisk_group {
                 Ok(group) => match group.put(key, data, StartTimestampConfig::new(false)).await {
                     Err(e) => Err(self.process_error(e).await),
@@ -569,7 +570,7 @@ impl DiskController {
                     }
                 } else {
                     // we should create group only when force_delete == true
-                    match self.get_or_create_pearl(&op).await {
+                    match self.get_or_create_alien_pearl(&op).await {
                         Ok(group) => group,
                         Err(err) => {
                             error!(

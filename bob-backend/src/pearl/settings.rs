@@ -158,7 +158,7 @@ impl Settings {
     ) -> BackendResult<Group> {
         let path = self.alien_path(vdisk_id, &remote_node_name);
 
-        Utils::check_or_create_directory(&path).await?;
+        Utils::check_or_create_all_directories(&path, Some(&self.alien_folder)).await?;
 
         let disk_name = self
             .config
@@ -178,8 +178,6 @@ impl Settings {
     }
 
     pub async fn get_all_subdirectories(path: &Path) -> BackendResult<Vec<DirEntry>> {
-        Utils::check_or_create_directory(path).await?;
-
         let mut dir = read_dir(path).await.map_err(|e| {
             let msg = format!("couldn't process path: {:?}, error: {:?} ", path, e);
             error!("{}", msg);
