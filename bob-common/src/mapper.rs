@@ -325,7 +325,7 @@ impl Virtual {
     pub fn get_replicas_count(&self, node_name: &NodeName, key: BobKey) -> usize {
         let id = self.vdisk_id_from_key(key);
         if let Some(vdisk) = self.vdisks.get(&id) {
-            vdisk.replicas().iter().filter(|r| r.node_name().as_str() == node_name).count()
+            vdisk.replicas().iter().filter(|r| r.node_name() == node_name).count()
         } else {
             0
         }
