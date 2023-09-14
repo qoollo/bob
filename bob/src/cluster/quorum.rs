@@ -127,7 +127,7 @@ impl Quorum {
         data: &BobData,
         at_least: usize,
         affected_replicas_by_node: &HashMap<NodeName, usize>
-    ) -> (Tasks<RemotePutResponse, RemotePutError>, Vec<NodeOutput<RemotePutError>>) {
+    ) -> (Tasks<RemotePutResponse, RemotePutError>, Vec<NodeOutput<RemotePutResponse>>, Vec<NodeOutput<RemotePutError>>) {
         let local_node = self.mapper.local_node_name();
         let target_nodes = self.mapper.get_target_nodes_for_key(key);
         debug!(
