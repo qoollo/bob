@@ -210,7 +210,7 @@ pub(crate) async fn put_at_least(
     at_least: usize,
     options: BobPutOptions,
     affected_replicas_by_node: &HashMap<NodeName, usize>
-) -> (Tasks<RemotePutResponse, RemotePutError>, Vec<NodeOutput<RemotePutError>>) {
+) -> (Tasks<RemotePutResponse, RemotePutError>, Vec<NodeOutput<RemotePutResponse>>, Vec<NodeOutput<RemotePutError>>) {
     call_at_least(target_nodes, at_least, |n| {
         call_node_put(key, data.clone(), n.clone(), options.clone(),
                       *affected_replicas_by_node.get(n.name()).unwrap_or(&1))
