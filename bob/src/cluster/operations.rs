@@ -6,15 +6,36 @@ pub(crate) type Tasks<Res, Err> = FuturesUnordered<JoinHandle<Result<NodeOutput<
 
 // ======================= Helpers =================
 
-fn is_result_successful<TRes, TErr: Debug>(
+pub(crate) trait AffectedReplicasProvider {
+    fn get_affected_replicas_count(&self) -> usize;
+}
+
+impl AffectedReplicasProvider for () {
+    fn get_affected_replicas_count(&self) -> usize {
+        1
+    }
+}
+
+impl AffectedReplicasProvider for RemotePutResponse {
+    fn get_affected_replicas_count(&self) -> usize {
+        self.affected_replicas()
+    }
+}
+
+fn process_result<TRes: AffectedReplicasProvider, TErr: Debug>(
     join_res: Result<Result<NodeOutput<TRes>, NodeOutput<TErr>>, JoinError>,
-    errors: &mut Vec<NodeOutput<TErr>>,
-    get_affected_count: impl Fn(TRes) -> usize
+    oks: &mut Vec<NodeOutput<TRes>>,
+    errors: &mut Vec<NodeOutput<TErr>>
 ) -> usize {
     debug!("handle returned");
     match join_res {
         Ok(res) => match res {
-            Ok(r) => return get_affected_count(r.into_inner()),
+            Ok(r) =>
+            {
+                let affected_replicas = r.inner().get_affected_replicas_count();
+                oks.push(r);
+                return affected_replicas;
+            }
             Err(e) => {
                 debug!("{:?}", e);
                 errors.push(e);
@@ -27,35 +48,34 @@ fn is_result_successful<TRes, TErr: Debug>(
     0
 }
 
-pub(crate) async fn finish_at_least_handles<TRes, TErr: Debug>(
+pub(crate) async fn finish_at_least_handles<TRes: AffectedReplicasProvider, TErr: Debug>(
     handles: &mut Tasks<TRes, TErr>,
     at_least: usize,
-    get_affected_count: impl Fn(TRes) -> usize
-) -> Vec<NodeOutput<TErr>> {
+) -> (Vec<NodeOutput<TRes>>, Vec<NodeOutput<TErr>>) {
     let mut ok_count = 0;
     let mut errors = Vec::new();
+    let mut oks = Vec::new();
     while ok_count < at_least {
         if let Some(join_res) = handles.next().await {
-            ok_count += is_result_successful(join_res, &mut errors, &get_affected_count);
+            ok_count += process_result(join_res, &mut oks, &mut errors);
         } else {
             break;
         }
     }
-    trace!("ok_count/at_least: {}/{}", ok_count, at_least);
-    errors
+    warn!("ok_count/at_least: {}/{}", ok_count, at_least);
+    (oks, errors)
 }
 
-async fn call_at_least<TOp, TRes, TErr: Debug>(
+async fn call_at_least<TOp, TRes: AffectedReplicasProvider, TErr: Debug>(
     target_nodes: impl Iterator<Item = TOp>,
     at_least: usize,
-    f: impl Fn(TOp) -> JoinHandle<Result<NodeOutput<TRes>, NodeOutput<TErr>>>,
-    get_affected_count: impl Fn(TRes) -> usize
+    f: impl Fn(TOp) -> JoinHandle<Result<NodeOutput<TRes>, NodeOutput<TErr>>>
 ) -> (FuturesUnordered<JoinHandle<Result<NodeOutput<TRes>, NodeOutput<TErr>>>>, Vec<NodeOutput<TRes>>, Vec<NodeOutput<TErr>>) {
     let mut handles: FuturesUnordered<_> = target_nodes.map(|op| f(op)).collect();
     trace!("total handles count: {}", handles.len());
-    let errors = finish_at_least_handles(&mut handles, at_least, &get_affected_count).await;
-    trace!("remains: {}, errors: {}", handles.len(), errors.len());
-    (handles, errors)
+    let (oks, errors) = finish_at_least_handles(&mut handles, at_least).await;
+    trace!("remains: {}, oks: {}, errors: {}", handles.len(), oks.len(), errors.len());
+    (handles, oks, errors)
 }
 
 
@@ -64,10 +84,11 @@ async fn finish_all_handles<TErr: Debug>(
 ) -> Vec<NodeOutput<TErr>> {
     let mut ok_count = 0;
     let mut total_count = 0;
+    let mut oks = Vec::new();
     let mut errors = Vec::new();
     while let Some(join_res) = handles.next().await {
         total_count += 1;
-        ok_count += is_result_successful(join_res, &mut errors, |_| 1);
+        ok_count += process_result(join_res, &mut oks, &mut errors);
     }
     trace!("ok_count/total: {}/{}", ok_count, total_count);
     errors
@@ -214,7 +235,7 @@ pub(crate) async fn put_at_least(
     call_at_least(target_nodes, at_least, |n| {
         call_node_put(key, data.clone(), n.clone(), options.clone(),
                       *affected_replicas_by_node.get(n.name()).unwrap_or(&1))
-    }, |r| r.affected_replicas())
+    })
     .await
 }
 

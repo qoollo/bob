@@ -36,11 +36,11 @@ impl Quorum {
         let mut failed_nodes = Vec::new();
         let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
         let affected_replicas_by_node = self.mapper.get_replicas_count_by_node(key);
-        let (tasks, errors) = 
+        let (tasks, oks, errors) = 
             if let Some(paths) = disk_paths {
                 let paths_len = paths.len();
                 debug!("PUT[{}] ~~~PUT TO {} REMOTE NODES AND LOCAL NODE~~~", key, at_least - paths_len);
-                let ((tasks, errors), local_puts) = tokio::join!(
+                let ((tasks, oks, errors), local_puts) = tokio::join!(
                     self.put_remote_nodes(key, data, at_least, &affected_replicas_by_node),
                     put_local_node_all(&self.backend, key, data, vdisk_id, paths));
                 if local_puts != paths_len {
@@ -48,18 +48,13 @@ impl Quorum {
                 }
                 local_put_ok += local_puts;
                 at_least -= local_puts;
-                (tasks, errors)
+                (tasks, oks, errors)
             } else {
                 debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
                 self.put_remote_nodes(key, data, at_least, &affected_replicas_by_node).await
             };
         debug!("PUT[{}] need at least {} additional puts", key, at_least);
-        let target_nodes = self.mapper.get_target_nodes_for_key(key);
-        let all_count: usize = target_nodes.iter()
-            .map(|n| *affected_replicas_by_node.get(n.name()).unwrap_or(&1))
-            .sum();
-        let errored: usize = errors.iter().map(|o| o.inner().affected_replicas()).sum();
-        let remote_ok_count = all_count - errored - tasks.len() - local_put_ok;
+        let remote_ok_count = oks.iter().map(|f| affected_replicas_by_node[f.node_name()]).sum::<usize>();
         failed_nodes.extend(errors.iter().map(|e| e.node_name().clone()));
         if remote_ok_count + local_put_ok >= self.quorum {
             if tasks.is_empty() && failed_nodes.is_empty() {
