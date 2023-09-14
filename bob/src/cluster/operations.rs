@@ -50,7 +50,7 @@ async fn call_at_least<TOp, TRes, TErr: Debug>(
     at_least: usize,
     f: impl Fn(TOp) -> JoinHandle<Result<NodeOutput<TRes>, NodeOutput<TErr>>>,
     get_affected_count: impl Fn(TRes) -> usize
-) -> (FuturesUnordered<JoinHandle<Result<NodeOutput<TRes>, NodeOutput<TErr>>>>, Vec<NodeOutput<TErr>>) {
+) -> (FuturesUnordered<JoinHandle<Result<NodeOutput<TRes>, NodeOutput<TErr>>>>, Vec<NodeOutput<TRes>>, Vec<NodeOutput<TErr>>) {
     let mut handles: FuturesUnordered<_> = target_nodes.map(|op| f(op)).collect();
     trace!("total handles count: {}", handles.len());
     let errors = finish_at_least_handles(&mut handles, at_least, &get_affected_count).await;
