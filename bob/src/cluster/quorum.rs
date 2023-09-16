@@ -32,7 +32,7 @@ impl Quorum {
 
     async fn put_at_least(&self, key: BobKey, data: &BobData) -> Result<(), Error> {
         let mut local_put_ok = 0_usize;
-        let mut at_least = self.quorum;
+        let at_least = self.quorum;
         let mut failed_nodes = Vec::new();
         let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
         let affected_replicas_by_node = self.mapper.get_replicas_count_by_node(key);
@@ -47,15 +47,16 @@ impl Quorum {
                     failed_nodes.push(self.mapper.local_node_name().to_owned());
                 }
                 local_put_ok += local_puts;
-                at_least -= local_puts;
                 (tasks, oks, errors)
             } else {
                 debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
                 self.put_remote_nodes(key, data, at_least, &affected_replicas_by_node).await
             };
-        debug!("PUT[{}] need at least {} additional puts", key, at_least);
         let remote_ok_count = oks.iter().map(|f| affected_replicas_by_node[f.node_name()]).sum::<usize>();
         failed_nodes.extend(errors.iter().map(|e| e.node_name().clone()));
+        debug!("PUT[{}] LOCAL PUT OK: {}, REMOTE PUT OK: {}, REMOTE PUT ERRORS: {}", 
+               key, local_put_ok, remote_ok_count, 
+               errors.iter().map(|e| affected_replicas_by_node[e.node_name()]).sum::<usize>());
         if remote_ok_count + local_put_ok >= self.quorum {
             if tasks.is_empty() && failed_nodes.is_empty() {
                 return Ok(());

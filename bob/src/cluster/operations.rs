@@ -54,7 +54,7 @@ pub(crate) async fn finish_at_least_handles<TRes: AffectedReplicasProvider, TErr
 ) -> (Vec<NodeOutput<TRes>>, Vec<NodeOutput<TErr>>) {
     let mut ok_count = 0;
     let mut errors = Vec::new();
-    let mut oks = Vec::new();
+    let mut oks = Vec::with_capacity(at_least.min(handles.len()));
     while ok_count < at_least {
         if let Some(join_res) = handles.next().await {
             ok_count += process_result(join_res, &mut oks, &mut errors);
@@ -84,7 +84,7 @@ async fn finish_all_handles<TErr: Debug>(
 ) -> Vec<NodeOutput<TErr>> {
     let mut ok_count = 0;
     let mut total_count = 0;
-    let mut oks = Vec::new();
+    let mut oks = Vec::with_capacity(handles.len());
     let mut errors = Vec::new();
     while let Some(join_res) = handles.next().await {
         total_count += 1;
