@@ -39,7 +39,7 @@ impl Quorum {
         let (tasks, oks, errors) = 
             if let Some(paths) = disk_paths {
                 let paths_len = paths.len();
-                debug!("PUT[{}] ~~~PUT TO {} REMOTE NODES AND LOCAL NODE~~~", key, at_least - paths_len);
+                debug!("PUT[{}] ~~~PUT {} REPLICAS TO REMOTE NODES AND {} REPLICAS TO LOCAL NODE~~~", key, at_least - paths_len, paths_len);
                 let ((tasks, oks, errors), local_puts) = tokio::join!(
                     self.put_remote_nodes(key, data, at_least, &affected_replicas_by_node),
                     put_local_node_all(&self.backend, key, data, vdisk_id, paths));
@@ -49,7 +49,7 @@ impl Quorum {
                 local_put_ok += local_puts;
                 (tasks, oks, errors)
             } else {
-                debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
+                debug!("PUT[{}] ~~~PUT {} REPLICAS TO REMOTE NODES~~~", key, at_least);
                 self.put_remote_nodes(key, data, at_least, &affected_replicas_by_node).await
             };
         let remote_ok_count = oks.iter().map(|f| f.inner().affected_replicas()).sum::<usize>();
