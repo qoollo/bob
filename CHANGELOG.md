@@ -19,6 +19,7 @@ Bob versions changelog
 - Add different logs for different branches in error on vdisk search (#808)
 
 #### Fixed
+- Ensure correct working when node contains multiple replicas of single vdisk (#654)
 - Fix memory leak due to prometheus lib (#788)
 - Fix for grinder delete metrics not being initialized (#824)
 - Fix chrono deprecated function warning (#832)

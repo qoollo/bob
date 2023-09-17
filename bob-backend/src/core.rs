@@ -243,10 +243,10 @@ impl Backend {
     pub async fn put(&self, key: BobKey, data: &BobData, options: BobPutOptions) -> Result<(), Error> {
         trace!(">>>>>>- - - - - BACKEND PUT START - - - - -");
         let sw = Stopwatch::start_new();
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
         trace!(
             "get operation {:?}, /{:.3}ms/",
-            disk_path,
+            disk_paths,
             sw.elapsed().as_secs_f64() * 1000.0
         );
         let res = if options.to_alien() {
@@ -260,16 +260,20 @@ impl Backend {
                 self.put_single(key, data, op).await?;
             }
             Ok(())
-        } else if let Some(path) = disk_path {
+        } else if let Some(paths) = disk_paths {
             debug!(
                 "remote nodes is empty, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let res = self
-                .put_single(key, data, Operation::new_local(vdisk_id, path))
-                .await;
+            let mut result = Ok(());
+            for path in paths {
+                if let Err(e) = self.put_single(key, data, Operation::new_local(vdisk_id, path.clone())).await {
+                    warn!("PUT[{}] error put to {:?}: {:?}", key, path, e);
+                    result = Err(e);
+                }
+            }
             trace!("put single, /{:.3}ms/", sw.elapsed().as_secs_f64() * 1000.0);
-            res
+            result
         } else {
             error!(
                 "PUT[{}] dont now what to do with data: op: {:?}. Data is not local and alien",
@@ -338,14 +342,20 @@ impl Backend {
     }
 
     pub async fn get(&self, key: BobKey, options: &BobGetOptions) -> Result<BobData, Error> {
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
 
         // Get all first: we search both in local data and in aliens
         if options.get_all() {
             let mut all_result = Err(Error::key_not_found(key));
-            if let Some(path) = disk_path {
+            if let Some(paths) = disk_paths {
                 trace!("GET[{}] try read normal", key);
-                all_result = self.get_single(key, Operation::new_local(vdisk_id, path.clone())).await;
+                for path in paths {
+                    let result = self.get_local(key, Operation::new_local(vdisk_id, path)).await;
+                    match result {
+                        Ok(data) => return Ok(data),
+                        Err(_) => continue,
+                    }
+                }
             }
             if all_result.is_err() {
                 trace!("GET[{}] try read alien", key);
@@ -355,9 +365,16 @@ impl Backend {
         } 
         else if options.get_normal() {
             // Lookup local data
-            if let Some(path) = disk_path {
+            if let Some(paths) = disk_paths {
                 trace!("GET[{}] try read normal", key);
-                self.get_single(key, Operation::new_local(vdisk_id, path.clone())).await
+                let mut error = None;
+                for path in paths {
+                    match self.get_local(key, Operation::new_local(vdisk_id, path)).await {
+                        Ok(data) => return Ok(data),
+                        Err(e) => error = Some(e),
+                    }
+                }
+                Err(error.unwrap_or(Error::key_not_found(key)))
             } else {
                 error!("GET[{}] we read data but can't find path in config", key);
                 Err(Error::internal())
@@ -368,7 +385,7 @@ impl Backend {
             trace!("GET[{}] try read alien", key);
             self.get_single(key, Operation::new_alien(vdisk_id)).await
         } else {
-            error!("GET[{}] can't read from anywhere {:?}, {:?}", key, disk_path, options);
+            error!("GET[{}] can't read from anywhere {:?}, {:?}", key, disk_paths, options);
             Err(Error::internal())
         }
     }
@@ -427,17 +444,19 @@ impl Backend {
     }
 
     fn find_operations(&self, key: BobKey, options: &BobGetOptions) -> SmallVec<[Operation; 1]> {
-        let (vdisk_id, path) = self.mapper.get_operation(key);
+        let (vdisk_id, paths) = self.mapper.get_operation(key);
 
         // With GET_ALL we should lookup both local data and aliens
-        let capacity = if options.get_normal() && path.is_some() { 1 } else { 0 } +
+        let capacity = if options.get_normal() { paths.as_ref().map(|v| v.len()).unwrap_or_default() } else { 0 } +
                               if options.get_alien() { 1 } else { 0 };
 
         let mut result = SmallVec::with_capacity(capacity);
         
         if options.get_normal() {
-            if let Some(path) = path {
-                result.push(Operation::new_local(vdisk_id, path));
+            if let Some(paths) = paths {
+                for path in paths {
+                    result.push(Operation::new_local(vdisk_id, path));
+                }
             }
         } 
         if options.get_alien() {
@@ -453,7 +472,7 @@ impl Backend {
         meta: &BobMeta,
         options: BobDeleteOptions
     ) -> Result<(), Error> {
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
         if options.to_alien() {
             // Process all nodes for key
             let mut errors = Vec::new();
@@ -474,9 +493,16 @@ impl Backend {
             } else {
                 Err(Error::failed("Multiple errors detected"))
             }
-        } else if let Some(path) = disk_path {
-            let op = Operation::new_local(vdisk_id, path);
-            self.delete_single(key, meta, op, true).await.map(|_| ())
+        } else if let Some(paths) = disk_paths {
+            let mut result = Ok(());
+            for path in paths {
+                let op = Operation::new_local(vdisk_id, path.clone());
+                if let Err(e) = self.delete_single(key, meta, op, true).await.map(|_| ()) {
+                    warn!("DELETE[{}] failed on path {:?}: {:?}", key, path, e);
+                    result = Err(e);
+                }
+            }
+            result
         } else {
             error!(
                 "DELETE[{}] dont know what to do with data: op: {:?}. Data is not local and alien",
