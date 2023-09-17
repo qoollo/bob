@@ -52,11 +52,11 @@ impl Quorum {
                 debug!("PUT[{}] ~~~PUT TO REMOTE NODES~~~", key);
                 self.put_remote_nodes(key, data, at_least, &affected_replicas_by_node).await
             };
-        let remote_ok_count = oks.iter().map(|f| affected_replicas_by_node[f.node_name()]).sum::<usize>();
+        let remote_ok_count = oks.iter().map(|f| f.inner().affected_replicas()).sum::<usize>();
         failed_nodes.extend(errors.iter().map(|e| e.node_name().clone()));
         debug!("PUT[{}] LOCAL PUT OK: {}, REMOTE PUT OK: {}, REMOTE PUT ERRORS: {}", 
                key, local_put_ok, remote_ok_count, 
-               errors.iter().map(|e| affected_replicas_by_node[e.node_name()]).sum::<usize>());
+               errors.iter().map(|e| e.inner().affected_replicas()).sum::<usize>());
         if remote_ok_count + local_put_ok >= self.quorum {
             if tasks.is_empty() && failed_nodes.is_empty() {
                 return Ok(());

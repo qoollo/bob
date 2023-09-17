@@ -42,7 +42,6 @@ impl RemotePutResponse {
 
 #[derive(Debug)]
 pub(crate) struct RemotePutError {
-    #[allow(dead_code)] // We need affected replicas for debug print
     affected_replicas: usize,
     #[allow(dead_code)] // We need error for debug print
     error: Error
@@ -51,6 +50,10 @@ pub(crate) struct RemotePutError {
 impl RemotePutError {
     pub(super) fn new(affected_replicas: usize, error: Error) -> Self {
         Self { affected_replicas, error }
+    }
+
+    pub(crate) fn affected_replicas(&self) -> usize {
+        self.affected_replicas
     }
 }
 

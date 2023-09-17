@@ -322,15 +322,6 @@ impl Virtual {
             .any(|node| node.name() == node_name)
     }
 
-    pub fn get_replicas_count(&self, node_name: &NodeName, key: BobKey) -> usize {
-        let id = self.vdisk_id_from_key(key);
-        if let Some(vdisk) = self.vdisks.get(&id) {
-            vdisk.replicas().iter().filter(|r| r.node_name() == node_name).count()
-        } else {
-            0
-        }
-    }
-
     pub fn get_replicas_count_by_node(&self, key: BobKey) -> HashMap<NodeName, usize> {
         let mut result = HashMap::new();
         let id = self.vdisk_id_from_key(key);
