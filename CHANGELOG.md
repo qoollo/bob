@@ -4,6 +4,20 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+
+
+#### Changed
+
+
+#### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.11] - 2023-09-20
+#### Added
 - Bobd test mode (#550)
 - Added optional get & exist optimization that skips old partitions by its timestamp (#702)
 - Added mimalloc allocator for musl target (#688)
