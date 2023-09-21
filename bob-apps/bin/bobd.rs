@@ -175,8 +175,8 @@ fn configure_testmode(sub_matches: &ArgMatches) -> AnyResult<(ClusterConfig, Nod
     };
     let mut this_node = None;
     if let Some(node_list) = sub_matches.value_of("nodes") {
-        let available_ips: HashSet<_> = NetworkInterface::show()?.into_iter().filter_map(|itf|
-            match itf.addr? {
+        let available_ips: HashSet<_> = NetworkInterface::show()?.into_iter().flat_map(|itf| itf.addr).filter_map(|addr|
+            match addr {
                 Addr::V4(addr) => {
                     Some(addr.ip)
                 },
