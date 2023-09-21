@@ -26,6 +26,38 @@ impl<T: Eq + core::hash::Hash> HashSetExt<T> for HashSet<T> {
 }
 
 #[derive(Debug)]
+pub(crate) struct RemotePutResponse {
+    affected_replicas: usize
+}
+
+impl RemotePutResponse {
+    pub(super) fn new(affected_replicas: usize) -> Self {
+        Self { affected_replicas }
+    }
+
+    pub(super) fn affected_replicas(&self) -> usize {
+        self.affected_replicas
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct RemotePutError {
+    affected_replicas: usize,
+    #[allow(dead_code)] // We need error for debug print
+    error: Error
+}
+
+impl RemotePutError {
+    pub(super) fn new(affected_replicas: usize, error: Error) -> Self {
+        Self { affected_replicas, error }
+    }
+
+    pub(crate) fn affected_replicas(&self) -> usize {
+        self.affected_replicas
+    }
+}
+
+#[derive(Debug)]
 pub(super) struct RemoteDeleteError {
     force_alien_nodes: SmallVec<[NodeName; 1]>, // Will have 0 or 1 elements most of the time
     error: Error
@@ -33,10 +65,7 @@ pub(super) struct RemoteDeleteError {
 
 impl RemoteDeleteError {
     pub(super) fn new(force_alien_nodes: SmallVec<[NodeName; 1]>, error: Error) -> Self {
-        Self {
-            force_alien_nodes: force_alien_nodes,
-            error: error
-        }
+        Self { force_alien_nodes, error }
     }
     #[allow(dead_code)]
     pub(super) fn force_alien_nodes(&self) -> &[NodeName] {

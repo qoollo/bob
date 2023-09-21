@@ -28,7 +28,7 @@ sysinfo = { workspace = true }
 axum = { workspace = true }
 axum-server = { workspace = true, features = ["tls-rustls"] }
 infer = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["process"] }
 pearl = { workspace = true }
 
 

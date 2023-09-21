@@ -17,6 +17,7 @@ async-trait = { workspace = true }
 thiserror = { workspace = true }
 base64 = { workspace = true }
 bytes = { workspace = true }
+smallvec = { workspace = true }
 chrono = { workspace = true }
 coarsetime = { workspace = true }
 futures = { workspace = true }

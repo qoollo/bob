@@ -8,7 +8,7 @@ use crate::{
     node::NodeName,
     core_types::{DiskPath, VDiskId, NodeDisk, DiskName},
 };
-use anyhow::Result as AnyResult;
+use anyhow::{Result as AnyResult, anyhow};
 use http::Uri;
 use std::collections::{ HashMap, HashSet };
 
@@ -391,6 +391,50 @@ impl Cluster {
             Err(format!("Cluster config is not valid: {}", e))
         } else {
             debug!("config is valid");
+            Ok(config)
+        }
+    }
+
+    pub fn get_testmode(path: String, addresses: Vec<String>) -> AnyResult<Self> {
+        let disks = vec![DiskPath::new("disk_0".into(), &path)];
+        let mut nodes = Vec::with_capacity(addresses.len());
+        let mut vdisks = Vec::with_capacity(addresses.len());
+        for (i, address) in addresses.into_iter().enumerate() {
+            let node = Node {
+                name: format!("node_{i}"),
+                address,
+                disks: disks.clone()
+            };
+            let replica = Replica::new(node.name().to_string(), node.disks()[0].name().to_string());
+            let mut vdisk = VDisk::new(i as u32);
+            vdisk.push_replica(replica);
+            nodes.push(node);
+            vdisks.push(vdisk);
+        }
+        let dist_func = DistributionFunc::default();
+        let config = Cluster {
+            nodes,
+            vdisks,
+            racks: vec![],
+            distribution_func: dist_func
+        };
+
+        if let Err(e) = config.validate() {
+            let msg = format!("config is not valid: {e}");
+            Err(anyhow!(msg))
+        } else {
+            Ok(config)
+        }
+    }
+
+    pub fn get_testmode_node_config(&self, n_node: usize, rest_port: Option<u16>) -> AnyResult<NodeConfig> {
+        let node = &self.nodes().get(n_node).ok_or(anyhow!("node with index {} not found", n_node))?;
+        let config = NodeConfig::get_testmode(node.name(), node.disks()[0].name(), rest_port);
+        if let Err(e) = config.validate() {
+            Err(anyhow!("config is not valid: {e}"))
+        } else {
+            self.check(&config)
+                .map_err(|e| anyhow!("node config check failed: {e}"))?;
             Ok(config)
         }
     }

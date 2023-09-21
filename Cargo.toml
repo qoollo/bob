@@ -55,6 +55,7 @@ humantime = "2.1"
 mockall = "0.11"
 ubyte = { version = "0.10", features = ["serde"] }
 criterion = "0.4"
+network-interface = "0.1.2"
 # log
 log = "0.4"
 log4rs = "1.2"
