@@ -38,6 +38,7 @@ Bob versions changelog
 - Fix for grinder delete metrics not being initialized (#824)
 - Fix chrono deprecated function warning (#832)
 - Fix lsof zombie spawn (#830)
+- Fix log level for operations (#837)
 
 #### Updated
 - Pearl updated to v0.19.0 (#798)
