@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Fix log level for operations (#837)
 
 #### Updated
 
