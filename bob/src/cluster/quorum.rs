@@ -131,8 +131,14 @@ impl Quorum {
             key,
             target_nodes.len(),
         );
-        let target_nodes = target_nodes.iter().filter(|node| node.name() != local_node);
-        put_at_least(key, data, target_nodes, at_least, BobPutOptions::new_local(), affected_replicas_by_node).await
+        let remote_exists = target_nodes.iter().any(|n| n.name() != local_node);
+        if remote_exists {
+            let target_nodes = target_nodes.iter().filter(|node| node.name() != local_node);
+            put_at_least(key, data, target_nodes, at_least,
+                         BobPutOptions::new_local(), affected_replicas_by_node).await
+        } else {
+            (FuturesUnordered::new(), vec![], vec![])
+        }
     }
 
 
