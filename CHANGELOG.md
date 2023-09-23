@@ -10,6 +10,20 @@ Bob versions changelog
 
 
 #### Fixed
+
+
+#### Updated
+
+
+
+## [2.1.0-alpha.12] - 2023-09-23
+#### Added
+
+
+#### Changed
+
+
+#### Fixed
 - Fix log level for operations (#837)
 
 #### Updated
