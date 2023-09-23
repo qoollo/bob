@@ -138,7 +138,7 @@ impl Quorum {
             put_at_least(key, data, target_nodes, at_least,
                          BobPutOptions::new_local(), affected_replicas_by_node).await
         } else {
-            (FuturesUnordered::new(), vec![], vec![])
+            (FuturesUnordered::default(), vec![], vec![])
         }
     }
 
