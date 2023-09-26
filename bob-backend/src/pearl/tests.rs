@@ -72,7 +72,7 @@ async fn test_write_multiple_read() {
     let vdisk_id = 0;
     let backend = backend().await;
     backend.run().await.unwrap();
-    let path = DiskPath::new(DISK_NAME.into(), "");
+    let path = DiskPath::new(DISK_NAME.into(), "/tmp/d1");
     let operation = Operation::new_local(vdisk_id, path);
     let data = BobData::new(vec![].into(), BobMeta::new(TIMESTAMP));
     let write = backend
