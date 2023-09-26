@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Fix local replicas error (#841)
 
 #### Updated
 
