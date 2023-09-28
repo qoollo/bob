@@ -83,15 +83,8 @@ async fn main() {
         }).expect("Node config parsing error");
 
         check_folders(&node, matches.is_present("init_folders"));
+        initialize_logger(&node, &cluster);
     }
-
-    let mut extra_logstash_fields = HashMap::new();
-    extra_logstash_fields.insert("node_name".to_string(), serde_json::Value::String(node.name().to_string()));
-    if let Some(cluster_node_info) = cluster.nodes().iter().find(|item| item.name() == node.name()) {
-        extra_logstash_fields.insert("node_address".to_string(), serde_json::Value::String(cluster_node_info.address().to_string()));
-    }
-    log4rs::init_file(node.log_config(), log4rs::config::Deserializers::default().with_logstash_extra(extra_logstash_fields))
-        .expect("can't find log config");
 
     let mut mapper = VirtualMapper::new(&node, &cluster);
 
@@ -342,6 +335,16 @@ fn spawn_signal_handler<A: Authenticator, TFut: futures::Future<Output = &'stati
         log::logger().flush();
         std::process::exit(0);
     });
+}
+
+fn initialize_logger(node: &NodeConfig, cluster: &ClusterConfig) {
+    let mut extra_logstash_fields = HashMap::new();
+    extra_logstash_fields.insert("node_name".to_string(), serde_json::Value::String(node.name().to_string()));
+    if let Some(cluster_node_info) = cluster.nodes().iter().find(|item| item.name() == node.name()) {
+        extra_logstash_fields.insert("node_address".to_string(), serde_json::Value::String(cluster_node_info.address().to_string()));
+    }
+    log4rs::init_file(node.log_config(), log4rs::config::Deserializers::default().with_logstash_extra(extra_logstash_fields))
+        .expect("can't find log config");
 }
 
 fn check_folders(node: &NodeConfig, init_flag: bool) {
