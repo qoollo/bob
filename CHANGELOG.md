@@ -10,6 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Fix testmode launch prerequisites (#843)
 
 
 #### Updated
