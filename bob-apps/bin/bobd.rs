@@ -191,9 +191,15 @@ fn configure_testmode(sub_matches: &ArgMatches) -> AnyResult<(ClusterConfig, Nod
         addresses.push(format!("127.0.0.1:{port}"))
     }
     let this_node_index = this_node.ok_or(anyhow!("current node address not found"))?;
-    let cluster = ClusterConfig::get_testmode(
-        sub_matches.value_of("data").unwrap_or(format!("data_{this_node_index}").as_str()).to_string(),
-        addresses)?;
+    let dir = match sub_matches.value_of("data") {
+        Some(d) => d.to_string(),
+        None => {
+            let dir = format!("data_{this_node_index}");
+            create_dir(&dir)?;
+            dir
+        },
+    };
+    let cluster = ClusterConfig::get_testmode(dir, addresses)?;
     let http_api_port = match sub_matches.value_of("restapi-port") {
         Some(v) => Some(v.parse().context("could not parse --restapi-port")?),
         None => None
