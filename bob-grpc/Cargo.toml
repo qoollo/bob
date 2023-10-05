@@ -1,37 +1,17 @@
 [package]
 name = "bob-grpc"
-version = "2.1.0-alpha.12"
-authors = [
-    "Kirill Bushminkin <kb@qoollo.com>",
-    "Pavel Iakushin <pyakushin@qoollo.com>",
-    "Nikita Menshov",
-    "Ilia Kopylov",
-    "Ivan Druzhitskiy",
-    "Vladimir Stepanenko",
-    "Pavel Perestoronin",
-    "Konstantin Konnov",
-    "Konstantin Bulany"
-]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-async-trait = "0.1"
-bytes = "1.2"
-cfg-if = "1.0"
-http = "0.2"
-hyper = { version = "0.14", default-features = false }
-lazy_static = "1.4"
-log = "0.4"
-prost = "0.9"
-tonic = { version = "0.6", features = ["prost"] }
-tower = "0.4"
-tower-service = "0.3"
+bytes = { workspace = true }
+log = { workspace = true }
+tonic = { workspace = true }
+tokio = { workspace = true }
+prost = { workspace = true }
 
-[dependencies.tokio]
-version = "1.21"
-default-features = false
-features = []
 
 [build-dependencies]
-tonic-build = "0.6"
-prost-build = "0.9"
+tonic-build = { workspace = true }
+prost-build = { workspace = true }

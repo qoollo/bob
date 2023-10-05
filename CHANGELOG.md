@@ -7,13 +7,13 @@ Bob versions changelog
 
 
 #### Changed
-
+- Use cargo workspace to declare dependencies to avoid their duplication (#821)
 
 #### Fixed
 
 
 #### Updated
-
+- Update crates versions: tokio, bytes, uuid, infer, base64, bitflags, regex, async-lock (#769)
 
 
 ## [2.1.0-alpha.12] - 2023-09-23
