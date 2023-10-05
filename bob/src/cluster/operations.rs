@@ -62,7 +62,7 @@ pub(crate) async fn finish_at_least_handles<TRes: AffectedReplicasProvider, TErr
             break;
         }
     }
-    warn!("ok_count/at_least: {}/{}", ok_count, at_least);
+    trace!("ok_count/at_least: {}/{}", ok_count, at_least);
     (oks, errors)
 }
 

@@ -16,6 +16,20 @@ Bob versions changelog
 - Update crates versions: tokio, bytes, uuid, infer, base64, bitflags, regex, async-lock (#769)
 
 
+## [2.1.0-alpha.12] - 2023-09-23
+#### Added
+
+
+#### Changed
+
+
+#### Fixed
+- Fix log level for operations (#837)
+
+#### Updated
+
+
+
 ## [2.1.0-alpha.11] - 2023-09-20
 #### Added
 - Bobd test mode (#550)
