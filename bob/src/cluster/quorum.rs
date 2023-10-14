@@ -39,7 +39,8 @@ impl Quorum {
         let (tasks, oks, errors) = 
             if let Some(paths) = disk_paths {
                 let paths_len = paths.len();
-                debug!("PUT[{}] ~~~PUT {} REPLICAS TO REMOTE NODES AND {} REPLICAS TO LOCAL NODE~~~", key, at_least - paths_len, paths_len);
+                let at_least = at_least - paths_len;
+                debug!("PUT[{}] ~~~PUT {} REPLICAS TO REMOTE NODES AND {} REPLICAS TO LOCAL NODE~~~", key, at_least, paths_len);
                 let ((tasks, oks, errors), local_puts) = tokio::join!(
                     self.put_remote_nodes(key, data, at_least, &affected_replicas_by_node),
                     put_local_node_all(&self.backend, key, data, vdisk_id, paths));
@@ -131,8 +132,14 @@ impl Quorum {
             key,
             target_nodes.len(),
         );
-        let target_nodes = target_nodes.iter().filter(|node| node.name() != local_node);
-        put_at_least(key, data, target_nodes, at_least, BobPutOptions::new_local(), affected_replicas_by_node).await
+        let remote_exists = target_nodes.iter().any(|n| n.name() != local_node);
+        if remote_exists {
+            let target_nodes = target_nodes.iter().filter(|node| node.name() != local_node);
+            put_at_least(key, data, target_nodes, at_least,
+                         BobPutOptions::new_local(), affected_replicas_by_node).await
+        } else {
+            (FuturesUnordered::default(), vec![], vec![])
+        }
     }
 
 

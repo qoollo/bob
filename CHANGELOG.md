@@ -10,6 +10,7 @@ Bob versions changelog
 - Use cargo workspace to declare dependencies to avoid their duplication (#821)
 
 #### Fixed
+- Fix multiple local replicas bugs (#837)
 
 
 #### Updated
