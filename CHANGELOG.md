@@ -14,7 +14,7 @@ Bob versions changelog
 
 #### Updated
 - Update crates versions: tokio, bytes, uuid, infer, base64, bitflags, regex, async-lock (#769)
-- Pearl updated to v0.20.0 ()
+- Pearl updated to v0.20.0 (#848)
 
 
 ## [2.1.0-alpha.12] - 2023-09-23
