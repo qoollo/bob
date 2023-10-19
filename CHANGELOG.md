@@ -10,7 +10,8 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Do not propagate an initialization error when it is determined that the disk is not available (#807)
+- Fix crash in hardware metrics when disk is not available (#812)
 
 #### Updated
 

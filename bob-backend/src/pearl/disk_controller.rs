@@ -351,7 +351,7 @@ impl DiskController {
     }
 
     async fn groups_run_initialized(&self, pp: impl Hooks) -> AnyResult<()> {
-        let res = {
+        let mut res = {
             let _permit = self.run_sem.acquire().await.expect("Semaphore is closed");
             Self::run_groups(self.groups.clone(), pp).await
         };
@@ -359,6 +359,7 @@ impl DiskController {
             error!("Can't run groups on disk {:?} (reason: {})", self.disk, e);
             if !Self::is_work_dir_available(self.disk.path()) {
                 self.change_state(GroupsState::NotReady).await;
+                res = Ok(());
             }
         } else {
             self.change_state(GroupsState::Ready).await;
