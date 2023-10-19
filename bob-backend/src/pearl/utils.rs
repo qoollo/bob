@@ -97,7 +97,7 @@ impl Utils {
                 Error::failed(format!("smth wrong with time: {:?}, error: {}", period, e))
             })
             .map(|period| {
-                let time = DateTime::from_utc(
+                let time = DateTime::from_naive_utc_and_offset(
                     NaiveDateTime::from_timestamp_opt(time.try_into().unwrap(), 0).expect("time out of range"),
                     Utc,
                 );
