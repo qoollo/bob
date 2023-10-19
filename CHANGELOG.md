@@ -10,7 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
-
+- Fix chrono deprecated function warning (#832)
 
 #### Updated
 
