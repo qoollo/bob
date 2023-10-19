@@ -8,7 +8,6 @@ Bob versions changelog
 
 #### Changed
 - Use cargo workspace to declare dependencies to avoid their duplication (#821)
-- Removed `open_blobs_soft_limit` and `open_blobs_hard_limit` from node config example (#703)
 - Record timestamp is now passed to Pearl level and used to find newest record in get and exist functions (#708)
 
 #### Fixed
