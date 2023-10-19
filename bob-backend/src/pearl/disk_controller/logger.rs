@@ -27,7 +27,7 @@ impl DisksEventsLogger {
         f.sync_all().await
     }
 
-    pub(crate) async fn log(&self, disk_name: &str, event: &str, is_alien: bool) {
+    pub(crate) async fn log(&self, disk_name: &DiskName, event: &str, is_alien: bool) {
         let cur_time = Local::now();
         let log_msg = format!(
             "{};{};{};{}\n",

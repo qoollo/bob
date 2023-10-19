@@ -1,52 +1,99 @@
+#[cfg(all(any(feature = "mimalloc", feature = "mimalloc-secure"), any(feature = "jemallocator", feature = "jemallocator-profile")))]
+compile_error!("features `mimalloc` and `jemallocator` are mutually exclusive");
+#[cfg(any(feature = "mimalloc", feature = "mimalloc-secure"))]
+include!("alloc/mimalloc.rs");
+#[cfg(any(feature = "jemallocator", feature = "jemallocator-profile"))]
+include!("alloc/jemalloc.rs");
+
 use bob::{
     build_info::BuildInfo, init_counters, BobApiServer, BobServer, ClusterConfig, NodeConfig, Factory, Grinder,
     VirtualMapper, BackendType, FactoryTlsConfig,
 };
 use bob_access::{Authenticator, BasicAuthenticator, DeclaredCredentials, StubAuthenticator, UsersMap, AuthenticationType};
-use clap::{crate_version, App, Arg, ArgMatches};
+use clap::{crate_version, App, Arg, ArgMatches, SubCommand};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     error::Error as ErrorTrait,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
+    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4}, str::FromStr,
 };
 use tokio::runtime::Handle;
 use tonic::transport::Server;
+use qoollo_log4rs_logstash::config::DeserializersExt; 
 use std::path::PathBuf;
 use std::fs::create_dir;
 
 #[macro_use]
 extern crate log;
 
+use log4rs::append::console::ConsoleAppender;
+use log4rs::encode::pattern::PatternEncoder;
+use log4rs::config::{Appender, Config, Root};
+
+use network_interface::{NetworkInterface, NetworkInterfaceConfig, Addr};
+
+use anyhow::{anyhow, Context, Result as AnyResult};
+
 #[tokio::main]
 async fn main() {
     let matches = get_matches();
 
-    if matches.value_of("cluster").is_none() {
-        eprintln!("Expect cluster config");
-        eprintln!("use --help");
-        return;
+    let cluster;
+    let node;
+    if let (sc, Some(sub_matches)) = matches.subcommand() {
+        match sc {
+            "testmode" => match configure_testmode(sub_matches) {
+                Ok((c, n)) => {
+                    cluster = c;
+                    node = n;
+                }
+                Err(e) => {
+                    eprintln!("Initialization error: {}", e);
+                    eprintln!("use --help");
+                    return;
+                }
+            },
+            _ => unreachable!("unknown command"),
+        }
+    } else {
+        if matches.value_of("cluster").is_none() {
+            eprintln!("Expect cluster config");
+            eprintln!("use --help");
+            return;
+        }
+
+        if matches.value_of("node").is_none() {
+            eprintln!("Expect node config");
+            eprintln!("use --help");
+            return;
+        }
+
+        let cluster_config = matches.value_of("cluster").unwrap();
+        println!("Cluster config: {:?}", cluster_config);
+        cluster = ClusterConfig::try_get(cluster_config).await.map_err(|err| {
+            eprintln!("Cluster config parsing error: {}", err);
+            err
+        }).expect("Cluster config parsing error");
+
+
+        let node_config_file = matches.value_of("node").unwrap();
+        println!("Node config: {:?}", node_config_file);
+        node = cluster.get(node_config_file).await.map_err(|err| {
+            eprintln!("Node config parsing error: {}", err);
+            err
+        }).expect("Node config parsing error");
+
+        check_folders(&node, matches.is_present("init_folders"));
     }
 
-    if matches.value_of("node").is_none() {
-        eprintln!("Expect node config");
-        eprintln!("use --help");
-        return;
+    let mut extra_logstash_fields = HashMap::new();
+    extra_logstash_fields.insert("node_name".to_string(), serde_json::Value::String(node.name().to_string()));
+    if let Some(cluster_node_info) = cluster.nodes().iter().find(|item| item.name() == node.name()) {
+        extra_logstash_fields.insert("node_address".to_string(), serde_json::Value::String(cluster_node_info.address().to_string()));
     }
-
-    let cluster_config = matches.value_of("cluster").unwrap();
-    println!("Cluster config: {:?}", cluster_config);
-    let cluster = ClusterConfig::try_get(cluster_config).await.unwrap();
-
-    let node_config_file = matches.value_of("node").unwrap();
-    println!("Node config: {:?}", node_config_file);
-    let node = cluster.get(node_config_file).await.unwrap();
-
-    log4rs::init_file(node.log_config(), log4rs_logstash::config::deserializers())
+    log4rs::init_file(node.log_config(), log4rs::config::Deserializers::default().with_logstash_extra(extra_logstash_fields))
         .expect("can't find log config");
 
-    check_folders(&node, matches.is_present("init_folders"));
-
-    let mut mapper = VirtualMapper::new(&node, &cluster).await;
+    let mut mapper = VirtualMapper::new(&node, &cluster);
 
     let bind = node.bind();
     let bind_read = bind.lock().expect("mutex");
@@ -77,7 +124,7 @@ async fn main() {
             .iter()
             .find(|n| n.name() == name)
             .unwrap_or_else(|| panic!("cannot find node: '{}' in cluster config", name));
-        mapper = VirtualMapper::new(&node, &cluster).await;
+        mapper = VirtualMapper::new(&node, &cluster);
         addr = if let Ok(addr) = found.address().parse() {
             addr
         } else if let Some(port) = port_from_address(found.address()) {
@@ -118,6 +165,73 @@ async fn main() {
             warn!("valid authentication type not provided");
         }
     }
+}
+
+fn configure_testmode(sub_matches: &ArgMatches) -> AnyResult<(ClusterConfig, NodeConfig)> {
+    let mut addresses = Vec::with_capacity(1);
+    let port = match sub_matches.value_of("grpc-port") {
+        Some(v) => v.parse().context("could not parse --grpc-port")?,
+        None => 20000
+    };
+    let mut this_node = None;
+    if let Some(node_list) = sub_matches.value_of("nodes") {
+        let available_ips: HashSet<_> = NetworkInterface::show()?.into_iter().flat_map(|itf| itf.addr).filter_map(|addr|
+            match addr {
+                Addr::V4(addr) => {
+                    Some(addr.ip)
+                },
+                _ => None
+        }).collect();
+
+        for (index, addr) in node_list.split(",").enumerate() {
+            let addr = addr.trim();
+            let v4addr = SocketAddrV4::from_str(addr)?;
+            if this_node.is_none() {
+                if port == v4addr.port() && available_ips.contains(v4addr.ip()) {
+                    this_node = Some(index)
+                }
+            }
+            addresses.push(String::from(addr));
+        }
+    } else {
+        this_node = Some(0);
+        addresses.push(format!("127.0.0.1:{port}"))
+    }
+    let this_node_index = this_node.ok_or(anyhow!("current node address not found"))?;
+    let cluster = ClusterConfig::get_testmode(
+        sub_matches.value_of("data").unwrap_or(format!("data_{this_node_index}").as_str()).to_string(),
+        addresses)?;
+    let http_api_port = match sub_matches.value_of("restapi-port") {
+        Some(v) => Some(v.parse().context("could not parse --restapi-port")?),
+        None => None
+    };
+    let node = cluster.get_testmode_node_config(this_node_index, http_api_port)?;
+
+    init_testmode_logger(log::LevelFilter::Error);
+
+    check_folders(&node, true);
+
+    println!("Bob is starting");
+    let n = &cluster.nodes()[this_node_index];
+    println!("Data directory: {}", n.disks()[0].path());
+    println!("gRPC API available at: {}", n.address());
+    let rest_api_address = node.http_api_address();
+    let rest_api_port = node.http_api_port();
+    println!("REST API available at: http://{rest_api_address}:{rest_api_port}");
+    println!("REST API Put and Get available at: http://{rest_api_address}:{rest_api_port}/data");
+
+    Ok((cluster, node))
+}
+
+fn init_testmode_logger(loglevel: log::LevelFilter) {
+    let stdout = ConsoleAppender::builder()
+        .encoder(Box::new(PatternEncoder::new( "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {h({l})}    {m}\n")))
+        .build();
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(Root::builder().appender("stdout").build(loglevel))
+        .unwrap();
+    log4rs::init_config(config).unwrap();
 }
 
 async fn run_server<A: Authenticator>(node: NodeConfig, authenticator: A, mapper: VirtualMapper, address: IpAddr, port: u16, addr: SocketAddr) {
@@ -269,39 +383,66 @@ fn check_folders(node: &NodeConfig, init_flag: bool) {
 
 fn get_matches<'a>() -> ArgMatches<'a> {
     let ver = format!("{}\n{}", crate_version!(), BuildInfo::default());
+    let testmode_sc = SubCommand::with_name("testmode")
+        .about("Bob's test mode")
+        .arg(
+            Arg::with_name("data")
+            .help("Path to bob data directory")
+            .takes_value(true)
+            .long("data")
+        )
+        .arg(
+            Arg::with_name("grpc-port")
+            .help("gRPC API port")
+            .takes_value(true)
+            .long("grpc-port")
+        )
+        .arg(
+            Arg::with_name("restapi-port")
+            .help("REST API port")
+            .takes_value(true)
+            .long("restapi-port")
+        )
+        .arg(
+            Arg::with_name("nodes")
+            .help("Comma separated node addresses. Example: 127.0.0.1:20000,127.0.0.1:20001")
+            .takes_value(true)
+            .long("nodes")
+        );
+
     App::new("bobd")
         .version(ver.as_str())
         .arg(
             Arg::with_name("cluster")
-                .help("cluster config file")
+                .help("Cluster config file")
                 .takes_value(true)
                 .short("c")
                 .long("cluster"),
         )
         .arg(
             Arg::with_name("node")
-                .help("node config file")
+                .help("Node config file")
                 .takes_value(true)
                 .short("n")
                 .long("node"),
         )
         .arg(
             Arg::with_name("name")
-                .help("node name")
+                .help("Node name")
                 .takes_value(true)
                 .short("a")
                 .long("name"),
         )
         .arg(
             Arg::with_name("http_api_address")
-                .help("http api address")
+                .help("Http api address")
                 .short("h")
                 .long("host")
                 .takes_value(true),
         )
         .arg(
             Arg::with_name("http_api_port")
-                .help("http api port")
+                .help("Http api port")
                 .short("p")
                 .long("port")
                 .takes_value(true),
@@ -312,5 +453,6 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .long("init_folders")
                 .takes_value(false),
         )
+        .subcommand(testmode_sc)
         .get_matches()
 }

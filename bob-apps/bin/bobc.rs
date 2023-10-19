@@ -19,6 +19,7 @@ use tokio::fs;
 use tonic::metadata::{Ascii, MetadataValue};
 use tonic::transport::Channel;
 use tonic::Request;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_ENGINE};
 
 struct NetConfig {
     port: u16,
@@ -157,7 +158,7 @@ impl AppArgs {
             self.user.clone().unwrap_or_default(),
             self.password.clone().unwrap_or_default()
         );
-        let credentials = base64::encode(credentials);
+        let credentials = BASE64_ENGINE.encode(credentials);
         let authorization = format!("Basic {}", credentials)
             .parse::<MetadataValue<Ascii>>()
             .expect("can not parse authorization value");

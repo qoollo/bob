@@ -71,6 +71,7 @@ macro_rules! sized_key {
         impl<'a> KeyTrait<'a> for $t {
             type Ref = $r<'a>;
             const LEN: u16 = $n;
+            const MEM_SIZE: usize = std::mem::size_of::<Vec<u8>>() + $n;
         }
 
         impl Default for $t {

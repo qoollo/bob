@@ -49,7 +49,7 @@ impl Quorum {
         F: FnMut(&'_ BobClient) -> crate::link_manager::ClusterCallFuture<'_, T> + Send + Clone,
         T: Send + Debug,
     {
-        let target_nodes: Vec<_> = self.mapper.nodes().values().cloned().collect();
+        let target_nodes: Vec<_> = self.mapper.nodes().iter().cloned().collect();
 
         debug!(
             "{}[{}]: Nodes for fan out: {:?}",
@@ -89,7 +89,7 @@ impl Cluster for Quorum {
                     remote_nodes: vec![], //TODO check
                     force_node: true,
                     overwrite: false,
-                },
+                }
             ))
         })
         .await

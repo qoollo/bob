@@ -46,17 +46,17 @@ impl VDisk {
 
 #[derive(Clone, Debug)]
 pub struct MemDisk {
-    pub name: String,
+    pub name: DiskName,
     pub vdisks: HashMap<VDiskId, VDisk>,
 }
 
 impl MemDisk {
-    pub fn new_direct(name: String, vdisks_count: u32) -> Self {
+    pub fn new_direct(name: DiskName, vdisks_count: u32) -> Self {
         let vdisks = (0..vdisks_count).map(|i| (i, VDisk::default())).collect();
         Self { name, vdisks }
     }
 
-    pub fn new(name: String, mapper: &Virtual) -> Self {
+    pub fn new(name: DiskName, mapper: &Virtual) -> Self {
         let vdisks = mapper
             .get_vdisks_by_disk(&name)
             .iter()
@@ -109,7 +109,7 @@ impl MemDisk {
 
 #[derive(Clone, Debug)]
 pub struct MemBackend {
-    pub disks: HashMap<String, MemDisk>,
+    pub disks: HashMap<DiskName, MemDisk>,
     pub foreign_data: MemDisk,
 }
 
@@ -119,11 +119,11 @@ impl MemBackend {
             .local_disks()
             .iter()
             .map(DiskPath::name)
-            .map(|name| (name.to_string(), MemDisk::new(name.to_string(), mapper)))
+            .map(|name| (name.clone(), MemDisk::new(name.clone(), mapper)))
             .collect();
         Self {
             disks,
-            foreign_data: MemDisk::new_direct("foreign".to_string(), mapper.vdisks_count()),
+            foreign_data: MemDisk::new_direct("foreign".into(), mapper.vdisks_count()),
         }
     }
 }

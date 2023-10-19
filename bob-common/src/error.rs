@@ -2,7 +2,8 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use thiserror::Error as ErrorTrait;
 use tonic::Status;
 
-use crate::data::{BobKey, VDiskId};
+use crate::data::BobKey;
+use crate::core_types::VDiskId;
 
 #[derive(Debug, Clone, ErrorTrait)]
 pub struct Error {

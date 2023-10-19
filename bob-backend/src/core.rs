@@ -4,6 +4,7 @@ use std::{
     fmt::{Display, Formatter, Result as FMTResult},
     hash::Hash,
 };
+use smallvec::SmallVec;
 
 use crate::{
     mem_backend::MemBackend,
@@ -21,7 +22,7 @@ pub const BACKEND_STARTED: f64 = 1f64;
 pub struct Operation {
     vdisk_id: VDiskId,
     disk_path: Option<DiskPath>,
-    remote_node_name: Option<String>, // save data to alien/<remote_node_name>
+    remote_node_name: Option<NodeName>, // save data to alien/<remote_node_name>
 }
 
 impl Operation {
@@ -29,8 +30,8 @@ impl Operation {
         self.vdisk_id
     }
 
-    pub fn remote_node_name(&self) -> Option<&str> {
-        self.remote_node_name.as_deref()
+    pub fn remote_node_name(&self) -> Option<&NodeName> {
+        self.remote_node_name.as_ref()
     }
 }
 
@@ -62,18 +63,8 @@ impl Operation {
         }
     }
 
-    // local operation doesn't contain remote node, so node name is passed through argument
-    #[must_use]
-    pub fn clone_local_alien(&self, local_node_name: &str) -> Self {
-        Self {
-            vdisk_id: self.vdisk_id,
-            disk_path: None,
-            remote_node_name: Some(local_node_name.to_owned()),
-        }
-    }
-
     #[inline]
-    pub fn set_remote_folder(&mut self, name: String) {
+    pub fn set_remote_node_name(&mut self, name: NodeName) {
         self.remote_node_name = Some(name);
     }
 
@@ -83,8 +74,8 @@ impl Operation {
     }
 
     #[inline]
-    pub fn disk_name_local(&self) -> String {
-        self.disk_path.as_ref().expect("no path").name().to_owned()
+    pub fn disk_name_local(&self) -> &DiskName {
+        self.disk_path.as_ref().expect("no path").name()
     }
 }
 
@@ -163,7 +154,7 @@ pub trait MetricsProducer: Send + Sync {
 
 #[derive(Hash, PartialEq, Eq, Debug)]
 enum BackendErrorAction {
-    PUT(String, String),
+    PUT(DiskName, String),
 }
 
 impl Display for BackendErrorAction {
@@ -181,7 +172,7 @@ impl Display for BackendErrorAction {
 }
 
 impl BackendErrorAction {
-    fn put(disk: String, error: &Error) -> Self {
+    fn put(disk: DiskName, error: &Error) -> Self {
         BackendErrorAction::PUT(disk, error.to_string())
     }
 }
@@ -252,10 +243,10 @@ impl Backend {
     pub async fn put(&self, key: BobKey, data: &BobData, options: BobPutOptions) -> Result<(), Error> {
         trace!(">>>>>>- - - - - BACKEND PUT START - - - - -");
         let sw = Stopwatch::start_new();
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
         trace!(
             "get operation {:?}, /{:.3}ms/",
-            disk_path,
+            disk_paths,
             sw.elapsed().as_secs_f64() * 1000.0
         );
         let res = if options.to_alien() {
@@ -263,22 +254,26 @@ impl Backend {
             for node_name in options.remote_nodes() {
                 debug!("PUT[{}] core backend put remote node: {}", key, node_name);
                 let mut op = Operation::new_alien(vdisk_id);
-                op.set_remote_folder(node_name.to_owned());
+                op.set_remote_node_name(node_name.clone());
 
                 //TODO make it parallel?
                 self.put_single(key, data, op).await?;
             }
             Ok(())
-        } else if let Some(path) = disk_path {
+        } else if let Some(paths) = disk_paths {
             debug!(
                 "remote nodes is empty, /{:.3}ms/",
                 sw.elapsed().as_secs_f64() * 1000.0
             );
-            let res = self
-                .put_single(key, data, Operation::new_local(vdisk_id, path))
-                .await;
+            let mut result = Ok(());
+            for path in paths {
+                if let Err(e) = self.put_single(key, data, Operation::new_local(vdisk_id, path.clone())).await {
+                    warn!("PUT[{}] error put to {:?}: {:?}", key, path, e);
+                    result = Err(e);
+                }
+            }
             trace!("put single, /{:.3}ms/", sw.elapsed().as_secs_f64() * 1000.0);
-            res
+            result
         } else {
             error!(
                 "PUT[{}] dont now what to do with data: op: {:?}. Data is not local and alien",
@@ -327,12 +322,12 @@ impl Backend {
                         local_err
                     );
                     let error_to_log =
-                        BackendErrorAction::put(operation.disk_name_local(), &local_err);
+                        BackendErrorAction::put(operation.disk_name_local().clone(), &local_err);
                     self.error_logger.report_error(error_to_log);
 
                     // write to alien/<local name>
-                    let mut op = operation.clone_local_alien(self.mapper().local_node_name());
-                    op.set_remote_folder(self.mapper.local_node_name().to_owned());
+                    let mut op = operation.clone();
+                    op.set_remote_node_name(self.mapper.local_node_name().clone());
                     self.inner
                         .put_alien(op, key, data)
                         .await
@@ -347,32 +342,50 @@ impl Backend {
     }
 
     pub async fn get(&self, key: BobKey, options: &BobGetOptions) -> Result<BobData, Error> {
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
 
-        // we cannot get data from alien if it belong this node
-
-        if options.get_normal() {
-            if let Some(path) = disk_path {
+        // Get all first: we search both in local data and in aliens
+        if options.get_all() {
+            let mut all_result = Err(Error::key_not_found(key));
+            if let Some(paths) = disk_paths {
                 trace!("GET[{}] try read normal", key);
-                self.get_local(key, Operation::new_local(vdisk_id, path.clone()))
-                    .await
+                for path in paths {
+                    let result = self.get_local(key, Operation::new_local(vdisk_id, path)).await;
+                    match result {
+                        Ok(data) => return Ok(data),
+                        Err(_) => continue,
+                    }
+                }
+            }
+            if all_result.is_err() {
+                trace!("GET[{}] try read alien", key);
+                all_result = self.get_single(key, Operation::new_alien(vdisk_id)).await;
+            }
+            all_result
+        } 
+        else if options.get_normal() {
+            // Lookup local data
+            if let Some(paths) = disk_paths {
+                trace!("GET[{}] try read normal", key);
+                let mut error = None;
+                for path in paths {
+                    match self.get_local(key, Operation::new_local(vdisk_id, path)).await {
+                        Ok(data) => return Ok(data),
+                        Err(e) => error = Some(e),
+                    }
+                }
+                Err(error.unwrap_or(Error::key_not_found(key)))
             } else {
                 error!("GET[{}] we read data but can't find path in config", key);
                 Err(Error::internal())
             }
         }
-        //TODO how read from all alien folders?
         else if options.get_alien() {
-            //TODO check is alien? how? add field to grpc
+            // Lookup aliens
             trace!("GET[{}] try read alien", key);
-            //TODO read from all vdisk ids
-            let op = Operation::new_alien(vdisk_id);
-            self.get_single(key, op).await
+            self.get_single(key, Operation::new_alien(vdisk_id)).await
         } else {
-            error!(
-                "GET[{}] can't read from anywhere {:?}, {:?}",
-                key, disk_path, options
-            );
+            error!("GET[{}] can't read from anywhere {:?}, {:?}", key, disk_paths, options);
             Err(Error::internal())
         }
     }
@@ -395,7 +408,11 @@ impl Backend {
         let mut exist = vec![false; keys.len()];
         let keys_by_id_and_path = self.group_keys_by_operations(keys, options);
         for (operation, (keys, indexes)) in keys_by_id_and_path {
-            let result = self.inner.exist(operation, &keys).await;
+            let result = if operation.is_data_alien() {
+                self.inner.exist_alien(operation, &keys).await
+            } else {
+                self.inner.exist(operation, &keys).await
+            };
             if let Ok(result) = result {
                 for (&res, ind) in result.iter().zip(indexes) {
                     exist[ind] |= res;
@@ -412,8 +429,8 @@ impl Backend {
     ) -> HashMap<Operation, (Vec<BobKey>, Vec<usize>)> {
         let mut keys_by_operations: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
         for (ind, &key) in keys.iter().enumerate() {
-            let operation = self.find_operation(key, options);
-            if let Some(operation) = operation {
+            let operations = self.find_operations(key, options);
+            for operation in operations {
                 keys_by_operations
                     .entry(operation)
                     .and_modify(|(keys, indexes)| {
@@ -426,15 +443,27 @@ impl Backend {
         keys_by_operations
     }
 
-    fn find_operation(&self, key: BobKey, options: &BobGetOptions) -> Option<Operation> {
-        let (vdisk_id, path) = self.mapper.get_operation(key);
+    fn find_operations(&self, key: BobKey, options: &BobGetOptions) -> SmallVec<[Operation; 1]> {
+        let (vdisk_id, paths) = self.mapper.get_operation(key);
+
+        // With GET_ALL we should lookup both local data and aliens
+        let capacity = if options.get_normal() { paths.as_ref().map(|v| v.len()).unwrap_or_default() } else { 0 } +
+                              if options.get_alien() { 1 } else { 0 };
+
+        let mut result = SmallVec::with_capacity(capacity);
+        
         if options.get_normal() {
-            path.map(|path| Operation::new_local(vdisk_id, path))
-        } else if options.get_alien() {
-            Some(Operation::new_alien(vdisk_id))
-        } else {
-            None
-        }
+            if let Some(paths) = paths {
+                for path in paths {
+                    result.push(Operation::new_local(vdisk_id, path));
+                }
+            }
+        } 
+        if options.get_alien() {
+            result.push(Operation::new_alien(vdisk_id));
+        } 
+
+        result
     }
 
     pub async fn delete(
@@ -443,14 +472,14 @@ impl Backend {
         meta: &BobMeta,
         options: BobDeleteOptions
     ) -> Result<(), Error> {
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
         if options.to_alien() {
             // Process all nodes for key
             let mut errors = Vec::new();
             for node in self.mapper.get_target_nodes_for_key(key) {
                 let force_delete = options.is_force_delete(node.name());
                 let mut op = Operation::new_alien(vdisk_id);
-                op.set_remote_folder(node.name().to_owned());
+                op.set_remote_node_name(node.name().clone());
                 let delete_res = self.delete_single(key, meta, op, force_delete).await;
                 if let Err(err) = delete_res {
                     error!("DELETE[{}] Error deleting from aliens (node: {}, force_delete: {}): {:?}", key, node.name(), force_delete, err);
@@ -464,9 +493,16 @@ impl Backend {
             } else {
                 Err(Error::failed("Multiple errors detected"))
             }
-        } else if let Some(path) = disk_path {
-            let op = Operation::new_local(vdisk_id, path);
-            self.delete_single(key, meta, op, true).await.map(|_| ())
+        } else if let Some(paths) = disk_paths {
+            let mut result = Ok(());
+            for path in paths {
+                let op = Operation::new_local(vdisk_id, path.clone());
+                if let Err(e) = self.delete_single(key, meta, op, true).await.map(|_| ()) {
+                    warn!("DELETE[{}] failed on path {:?}: {:?}", key, path, e);
+                    result = Err(e);
+                }
+            }
+            result
         } else {
             error!(
                 "DELETE[{}] dont know what to do with data: op: {:?}. Data is not local and alien",
