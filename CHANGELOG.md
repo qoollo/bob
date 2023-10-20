@@ -4,7 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
-
+- Blob performes fsync if buffered bytes are larger than max_dirty_bytes_before_sync config param (#748)
 
 #### Changed
 - Use cargo workspace to declare dependencies to avoid their duplication (#821)

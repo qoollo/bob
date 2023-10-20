@@ -487,6 +487,7 @@ impl Holder {
         let prefix = self.inner.config.blob_file_name_prefix();
         let max_data = self.inner.config.max_data_in_blob();
         let max_blob_size = self.inner.config.max_blob_size();
+        let max_dirty_bytes_before_sync = self.inner.config.max_dirty_bytes_before_sync();
         let mut filter_config = BloomConfig::default();
         let validate_data_during_index_regen = self.inner.config.validate_data_checksum_during_index_regen();
         if let Some(count) = self.inner.config.max_buf_bits_count() {
@@ -497,6 +498,7 @@ impl Holder {
             .blob_file_name_prefix(prefix)
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
+            .set_max_dirty_bytes_before_sync(max_dirty_bytes_before_sync)
             .set_filter_config(filter_config)
             .set_validate_data_during_index_regen(validate_data_during_index_regen)
             .set_dump_sem(self.inner.pearl_creation_context.dump_sem.clone())

@@ -273,11 +273,17 @@ pub struct Pearl {
     /// This optimization is unsafe, value should be at least 2 times the maximum value of 'timestamp_period' that was used throughout the lifetime of the cluster
     #[serde(default)]
     skip_holders_by_timestamp_step_when_reading: Option<String>,
+    #[serde(default = "Pearl::default_max_dirty_bytes_before_sync")]
+    max_dirty_bytes_before_sync: ByteUnit,
 }
 
 impl Pearl {
     pub fn max_buf_bits_count(&self) -> Option<usize> {
         self.bloom_filter_max_buf_bits_count
+    }
+
+    pub fn max_dirty_bytes_before_sync(&self) -> u64 {
+        self.max_dirty_bytes_before_sync.as_u64()
     }
 
     pub fn alien_disk(&self) -> Option<&str> {
@@ -328,6 +334,11 @@ impl Pearl {
 
     fn default_allow_duplicates() -> bool {
         true
+    }
+
+    fn default_max_dirty_bytes_before_sync() -> ByteUnit {
+        // 10Mb
+        10 * ByteUnit::MiB
     }
 
     pub fn allow_duplicates(&self) -> bool {
@@ -481,7 +492,8 @@ impl Pearl {
             disks_events_logfile: Pearl::default_disks_events_logfile(),
             bloom_filter_max_buf_bits_count: Some(1_000_000),
             validate_data_checksum_during_index_regen: Pearl::default_validate_data_checksum_during_index_regen(),
-            skip_holders_by_timestamp_step_when_reading: None
+            skip_holders_by_timestamp_step_when_reading: None,
+            max_dirty_bytes_before_sync: Pearl::default_max_dirty_bytes_before_sync(),
         }
     }
 }
