@@ -274,7 +274,7 @@ pub struct Pearl {
     #[serde(default)]
     skip_holders_by_timestamp_step_when_reading: Option<String>,
     #[serde(default = "Pearl::default_max_dirty_bytes_before_sync")]
-    max_dirty_bytes_before_sync: usize,
+    max_dirty_bytes_before_sync: ByteUnit,
 }
 
 impl Pearl {
@@ -282,8 +282,8 @@ impl Pearl {
         self.bloom_filter_max_buf_bits_count
     }
 
-    pub fn max_dirty_bytes_before_sync(&self) -> usize {
-        self.max_dirty_bytes_before_sync
+    pub fn max_dirty_bytes_before_sync(&self) -> u64 {
+        self.max_dirty_bytes_before_sync.as_u64()
     }
 
     pub fn alien_disk(&self) -> Option<&str> {
@@ -336,9 +336,9 @@ impl Pearl {
         true
     }
 
-    fn default_max_dirty_bytes_before_sync() -> usize {
+    fn default_max_dirty_bytes_before_sync() -> ByteUnit {
         // 10Mb
-        10485760
+        10 * ByteUnit::MiB
     }
 
     pub fn allow_duplicates(&self) -> bool {
@@ -492,7 +492,8 @@ impl Pearl {
             disks_events_logfile: Pearl::default_disks_events_logfile(),
             bloom_filter_max_buf_bits_count: Some(1_000_000),
             validate_data_checksum_during_index_regen: Pearl::default_validate_data_checksum_during_index_regen(),
-            skip_holders_by_timestamp_step_when_reading: None
+            skip_holders_by_timestamp_step_when_reading: None,
+            max_dirty_bytes_before_sync: Pearl::default_max_dirty_bytes_before_sync(),
         }
     }
 }
