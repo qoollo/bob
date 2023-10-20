@@ -111,7 +111,7 @@ impl Node {
         if let Some(conn) = self.get_connection() {
             self.ping(conn.as_ref()).await
         } else {
-            warn!("will connect to {:?}", self);
+            info!("will connect to {:?}", self);
             let client = client_factory.produce(&self).await?;
             self.ping(&client).await?;
             self.set_connection(client);
