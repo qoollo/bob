@@ -1,12 +1,14 @@
 use crate::prelude::*;
+use bob_common::core_types::DiskName;
 use bob_common::metrics::{
-    BOB_RAM, CPU_IOWAIT, CPU_LOAD, DESCRIPTORS_AMOUNT, AVAILABLE_RAM, FREE_SPACE, HW_DISKS_FOLDER,
-    TOTAL_RAM, TOTAL_SPACE, USED_RAM, USED_SPACE,
+    BOB_RAM, BOB_VIRTUAL_RAM, BOB_CPU_LOAD, DESCRIPTORS_AMOUNT, CPU_IOWAIT, 
+    TOTAL_RAM, AVAILABLE_RAM, USED_RAM, USED_SWAP,
+    TOTAL_SPACE, FREE_SPACE, USED_SPACE, HW_DISKS_FOLDER
 };
 use libc::statvfs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-use std::process::{self, Command};
+use tokio::process::Command;
 use std::fs::read_to_string;
 use sysinfo::{DiskExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
 
@@ -21,7 +23,7 @@ pub(crate) struct DiskSpaceMetrics {
 }
 
 pub(crate) struct HWMetricsCollector {
-    disks: HashMap<PathBuf, String>,
+    disks: HashMap<PathBuf, DiskName>,
     interval_time: Duration,
 }
 
@@ -34,7 +36,7 @@ impl HWMetricsCollector {
         }
     }
 
-    fn collect_used_disks(disks: &[DiskPath]) -> HashMap<PathBuf, String> {
+    fn collect_used_disks(disks: &[DiskPath]) -> HashMap<PathBuf, DiskName> {
         System::new_all()
             .disks()
             .iter()
@@ -51,7 +53,7 @@ impl HWMetricsCollector {
                     })
                     .map(|config_disk| {
                         let diskpath = path.to_str().expect("Not UTF-8").to_owned();
-                        (PathBuf::from(diskpath), config_disk.name().to_owned())
+                        (PathBuf::from(diskpath), config_disk.name().clone())
                     })
             })
             .collect()
@@ -65,13 +67,13 @@ impl HWMetricsCollector {
         Self::update_space_metrics_from_disks(&self.disks)
     }
 
-    async fn task(t: Duration, disks: HashMap<PathBuf, String>) {
+    async fn task(t: Duration, disks: HashMap<PathBuf, DiskName>) {
         let mut interval = interval(t);
         let mut sys = System::new_all();
         let mut dcounter = DescrCounter::new();
         let mut cpu_s_c = CPUStatCollector::new();
-        let mut disk_s_c = DiskStatCollector::new(&disks);
-        let total_mem = kb_to_b(sys.total_memory());
+        let mut disk_s_c = DiskStatCollector::new(&disks).await;
+        let total_mem = sys.total_memory();
         gauge!(TOTAL_RAM, total_mem as f64);
         debug!("total mem in bytes: {}", total_mem);
         let pid = sysinfo::get_current_pid().expect("Cannot determine current process PID");
@@ -97,20 +99,25 @@ impl HWMetricsCollector {
             }
 
             if let Some(proc) = sys.process(pid) {
-                gauge!(CPU_LOAD, proc.cpu_usage() as f64);
-                let bob_ram = kb_to_b(proc.memory());
+                gauge!(BOB_CPU_LOAD, proc.cpu_usage() as f64);
+                let bob_ram = proc.memory();
                 gauge!(BOB_RAM, bob_ram as f64);
+                let bob_virtual_ram = proc.virtual_memory();
+                gauge!(BOB_VIRTUAL_RAM, bob_virtual_ram as f64);
             } else {
                 debug!("Can't get process stat descriptor");
             }
 
             let _ = Self::update_space_metrics_from_disks(&disks);
-            let available_mem = kb_to_b(sys.available_memory());
+            let available_mem = sys.available_memory();
             let used_mem = total_mem - available_mem;
-            debug!("used mem in bytes: {} | available mem in bytes: {}", used_mem, available_mem);
+            let used_swap = sys.used_swap();
+            debug!("used mem in bytes: {} | available mem in bytes: {} | used swap: {}", used_mem, available_mem, used_swap);
             gauge!(USED_RAM, used_mem as f64);
             gauge!(AVAILABLE_RAM, available_mem as f64);
-            gauge!(DESCRIPTORS_AMOUNT, dcounter.descr_amount() as f64);
+            gauge!(USED_SWAP, used_swap as f64);
+            let descr_amount = dcounter.descr_amount().await as f64;
+            gauge!(DESCRIPTORS_AMOUNT, descr_amount);
 
             if let Err(CommandError::Primary(e)) = disk_s_c.collect_and_send_metrics() {
                 warn!("Error while collecting stats of disks: {}", e);
@@ -118,7 +125,7 @@ impl HWMetricsCollector {
         }
     }
 
-    fn update_space_metrics_from_disks(disks: &HashMap<PathBuf, String>) -> DiskSpaceMetrics {
+    fn update_space_metrics_from_disks(disks: &HashMap<PathBuf, DiskName>) -> DiskSpaceMetrics {
         let disks_metrics = Self::space(disks);
         gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
         gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
@@ -151,7 +158,7 @@ impl HWMetricsCollector {
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
 
-    fn space(disks: &HashMap<PathBuf, String>) -> DiskSpaceMetrics {
+    fn space(disks: &HashMap<PathBuf, DiskName>) -> DiskSpaceMetrics {
         let mut total = 0;
         let mut used = 0;
         let mut free = 0;
@@ -316,11 +323,11 @@ struct DiskStatCollector {
 }
 
 impl DiskStatCollector {
-    fn new(disks: &HashMap<PathBuf, String>) -> Self {
+    async fn new(disks: &HashMap<PathBuf, DiskName>) -> Self {
         let mut disk_metric_data = HashMap::new();
         for (path, disk_name) in disks {
             let path_str = path.as_os_str().to_str().unwrap();
-            if let Ok(dev_name) = Self::dev_name(path_str) {
+            if let Ok(dev_name) = Self::dev_name(path_str).await {
                 let metric_prefix = format!("{}.{}", HW_DISKS_FOLDER, disk_name);
                 disk_metric_data.insert(dev_name, DiskStatsContainer::new(metric_prefix));
             } else {
@@ -403,8 +410,8 @@ impl DiskStatCollector {
         Ok(())
     }
 
-    fn dev_name(disk_path: &str) -> Result<String, String> {
-        let output = parse_command_output(Command::new("df").arg(disk_path))?;
+    async fn dev_name(disk_path: &str) -> Result<String, String> {
+        let output = parse_command_output(Command::new("df").arg(disk_path)).await?;
 
         let mut lines = output.lines();
         lines.next(); // skip headers
@@ -467,49 +474,62 @@ impl DescrCounter {
         }
     }
 
-    fn descr_amount(&mut self) -> u64 {
+    async fn descr_amount(&mut self) -> u64 {
         if self.cached_times == 0 {
             self.cached_times = CACHED_TIMES;
-            self.value = self.count_descriptors();
+            self.value = self.count_descriptors().await;
         } else {
             self.cached_times -= 1;
         }
         self.value
     }
 
-    fn count_descriptors_by_lsof(&mut self) -> Option<u64> {
+    async fn count_descriptors_by_lsof(&mut self) -> Option<u64> {
         if !self.lsof_enabled {
             return None;
         }
 
-        let pid_arg = process::id().to_string();
+        let pid_arg = std::process::id().to_string();
         let cmd_lsof = Command::new("lsof")
             .args(["-a", "-p", &pid_arg, "-d", "^mem", "-d", "^cwd", "-d", "^rtd", "-d", "^txt", "-d", "^DEL"])
             .stdout(std::process::Stdio::piped())
             .spawn();
         match cmd_lsof {
-            Ok(cmd_lsof) => {
-                match cmd_lsof.stdout {
+            Ok(mut cmd_lsof) => {
+                match cmd_lsof.stdout.take() {
                     Some(stdout) => {
-                        match parse_command_output(Command::new("wc").arg("-l").stdin(stdout)) {
-                            Ok(output) => {
-                                match output.trim().parse::<u64>() {
-                                    Ok(count) => {
-                                        return Some(count - 5); // exclude stdin, stdout, stderr, lsof pipe and wc pipe
-                                    }
+                        match TryInto::<std::process::Stdio>::try_into(stdout) {
+                            Ok(stdio) => {
+                                match parse_command_output(Command::new("wc").arg("-l").stdin(stdio)).await {
+                                    Ok(output) => {
+                                        match output.trim().parse::<u64>() {
+                                            Ok(count) => {
+                                                if let Err(e) = cmd_lsof.wait().await {
+                                                    debug!("lsof exited with error {}", e);
+                                                }
+                                                return Some(count - 5); // exclude stdin, stdout, stderr, lsof pipe and wc pipe
+                                            }
+                                            Err(e) => {
+                                                debug!("failed to parse lsof result: {}", e);
+                                            }
+                                        }
+                                    },
                                     Err(e) => {
-                                        debug!("failed to parse lsof result: {}", e);
+                                        debug!("can't use lsof, wc error (fs /proc will be used): {}", e);
                                     }
                                 }
-                            },
+                            }
                             Err(e) => {
-                                debug!("can't use lsof, wc error (fs /proc will be used): {}", e);
+                                debug!("failed to parse stdout of lsof to stdio: {}", e);
                             }
                         }
                     },
                     None => {
                         debug!("lsof has no stdout (fs /proc will be used)");
                     }
+                }
+                if let Err(e) = cmd_lsof.wait().await {
+                    debug!("lsof exited with error {}", e);
                 }
             },
             Err(e) => {
@@ -520,7 +540,7 @@ impl DescrCounter {
         None
     }
 
-    fn count_descriptors(&mut self) -> u64 {
+    async fn count_descriptors(&mut self) -> u64 {
         // FIXME: didn't find better way, but iterator's `count` method has O(n) complexity
         // isolated tests (notice that in this case directory may be cached, so it works more
         // quickly):
@@ -537,7 +557,7 @@ impl DescrCounter {
         //  |  10.000   |      0.006     |
         //  with payload
         //  |  10.000   |      0.018     |
-        if let Some(descr) = self.count_descriptors_by_lsof() {
+        if let Some(descr) = self.count_descriptors_by_lsof().await {
             return descr;
         }
 
@@ -558,13 +578,9 @@ fn bytes_to_mb(bytes: u64) -> u64 {
     bytes / 1024 / 1024
 }
 
-fn kb_to_b(kbs: u64) -> u64 {
-    kbs * 1024
-}
-
-fn parse_command_output(command: &mut Command) -> Result<String, String> {
-    let output = command.output();
-    let program = command.get_program().to_str().unwrap();
+async fn parse_command_output(command: &mut Command) -> Result<String, String> {
+    let output = command.output().await;
+    let program = command.as_std().get_program().to_str().unwrap();
     match output {
         Ok(output) => match (output.status.success(), String::from_utf8(output.stdout)) {
             (true, Ok(out)) => Ok(out),

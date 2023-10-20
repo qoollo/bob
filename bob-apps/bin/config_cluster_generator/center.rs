@@ -11,8 +11,8 @@ use std::{
 
 const REPLICA_IN_FIRST_RACK: usize = 2;
 type RackName = String;
-type NodeName = String;
-type DiskName = String;
+type NodeName = bob_common::node::NodeName;
+type DiskName = bob_common::core_types::DiskName;
 
 #[derive(Debug, Default)]
 struct Counter {
@@ -126,7 +126,7 @@ impl Center {
                     },
                 )?;
             for node in rack.nodes() {
-                node_rack_map.insert(node, rack.name())
+                node_rack_map.insert(NodeName::from(node), rack.name())
             .map_or_else(
                     || Ok(()),
                 |_| {
@@ -238,7 +238,7 @@ impl Center {
         self.iter_disks()
             .find(|(_, node, disk)| {
                 self.counter.disk_used_count(&node.name, &disk.name) == min_key
-                    && list.contains(&Replica::new(node.name.clone(), disk.name.clone()))
+                    && list.contains(&Replica::new(node.name.to_string(), disk.name.to_string()))
             })
             .ok_or_else(|| anyhow!("Can't find disk"))
     }
@@ -445,7 +445,7 @@ impl Rack {
         let (node, disk) = disks
             .find(|(node, disk)| {
                 min_key == counter.disk_used_count(&node.name, &disk.name)
-                    && list.contains(&Replica::new(node.name.clone(), disk.name.clone()))
+                    && list.contains(&Replica::new(node.name.to_string(), disk.name.to_string()))
             })
             .ok_or_else(|| anyhow!("Can't find disk"))?;
 
@@ -521,7 +521,7 @@ impl Disk {
 }
 
 fn get_used_nodes_names(replicas: &[Replica]) -> Vec<NodeName> {
-    replicas.iter().map(|r| r.node().to_string()).collect()
+    replicas.iter().map(|r| NodeName::from(r.node())).collect()
 }
 
 pub fn get_new_disks(
@@ -541,7 +541,7 @@ pub fn get_new_disks(
                     && disk == &old_disk
             })
         })
-        .map(|(node, disk)| (node.name().to_owned(), disk.name().to_owned()))
+        .map(|(node, disk)| (NodeName::from(node.name()), DiskName::from(disk.name())))
         .collect()
 }
 

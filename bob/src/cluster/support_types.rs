@@ -26,20 +26,49 @@ impl<T: Eq + core::hash::Hash> HashSetExt<T> for HashSet<T> {
 }
 
 #[derive(Debug)]
+pub(crate) struct RemotePutResponse {
+    affected_replicas: usize
+}
+
+impl RemotePutResponse {
+    pub(super) fn new(affected_replicas: usize) -> Self {
+        Self { affected_replicas }
+    }
+
+    pub(super) fn affected_replicas(&self) -> usize {
+        self.affected_replicas
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct RemotePutError {
+    affected_replicas: usize,
+    #[allow(dead_code)] // We need error for debug print
+    error: Error
+}
+
+impl RemotePutError {
+    pub(super) fn new(affected_replicas: usize, error: Error) -> Self {
+        Self { affected_replicas, error }
+    }
+
+    pub(crate) fn affected_replicas(&self) -> usize {
+        self.affected_replicas
+    }
+}
+
+#[derive(Debug)]
 pub(super) struct RemoteDeleteError {
-    force_alien_nodes: SmallVec<[String; 1]>, // Will have 0 or 1 elements most of the time
+    force_alien_nodes: SmallVec<[NodeName; 1]>, // Will have 0 or 1 elements most of the time
     error: Error
 }
 
 impl RemoteDeleteError {
-    pub(super) fn new(force_alien_nodes: SmallVec<[String; 1]>, error: Error) -> Self {
-        Self {
-            force_alien_nodes: force_alien_nodes,
-            error: error
-        }
+    pub(super) fn new(force_alien_nodes: SmallVec<[NodeName; 1]>, error: Error) -> Self {
+        Self { force_alien_nodes, error }
     }
     #[allow(dead_code)]
-    pub(super) fn force_alien_nodes(&self) -> &[String] {
+    pub(super) fn force_alien_nodes(&self) -> &[NodeName] {
         return &self.force_alien_nodes;
     }
     #[allow(dead_code)]
@@ -47,7 +76,7 @@ impl RemoteDeleteError {
         return &self.error;
     }
 
-    pub(super) fn into_force_alien_nodes(self) -> SmallVec<[String; 1]> {
+    pub(super) fn into_force_alien_nodes(self) -> SmallVec<[NodeName; 1]> {
         return self.force_alien_nodes;
     }
 }
@@ -55,5 +84,76 @@ impl RemoteDeleteError {
 impl From<RemoteDeleteError> for Error {
     fn from(w: RemoteDeleteError) -> Error {
         w.error
+    }
+}
+
+pub(crate) struct IndexMap {
+    indexes: Vec<usize>,
+}
+
+impl IndexMap {
+    /// Create empty indexes map
+    pub(crate) fn new() -> Self {
+        Self { indexes: vec![] }
+    }
+
+    /// Create with indexes with `false` values
+    pub(crate) fn where_not_exists(data: &[bool]) -> Self {
+        Self {
+            indexes: data
+                .iter()
+                .enumerate()
+                .filter(|(_, f)| !**f)
+                .map(|(i, _)| i)
+                .collect(),
+        }
+    }
+
+    /// Check that indexes are empty
+    pub(crate) fn is_empty(&self) -> bool {
+        self.indexes.is_empty()
+    }
+
+    /// Get number of indexes in the map
+    pub(crate) fn len(&self) -> usize {
+        self.indexes.len()
+    }
+
+    /// Add index
+    pub(crate) fn push(&mut self, item: usize) {
+        debug_assert!(!self.indexes.contains(&item));
+        self.indexes.push(item);
+    }
+
+    /// Collect data with allowed indexes
+    pub(crate) fn collect<T: Clone>(
+        &self,
+        data: &[T]
+    ) -> Vec<T> {
+        let mut result = Vec::with_capacity(self.indexes.len());
+        for &i in &self.indexes {
+            debug_assert!(i < data.len());
+            result.push(data[i].clone());
+        }
+        result
+    }
+
+    /// Update elements in original according to internal indexes mapping
+    pub(crate) fn update_existence(&self, original: &mut [bool], mapped: &[bool]) {
+        let max = original.len();
+        assert!(self.indexes.len() == mapped.len());
+        for i in 0..self.indexes.len() {
+            let ind = self.indexes[i];
+            debug_assert!(ind < max);
+            original[ind] |= mapped[i];
+        }
+    }
+
+    /// Retain only elements that is false in the `original` slice
+    pub(crate) fn retain_not_existed(&mut self, original: &[bool]) {
+        self.indexes.retain(|&i| {
+            debug_assert!(i < original.len());
+            original[i] == false
+        });
     }
 }

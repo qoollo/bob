@@ -28,7 +28,7 @@ pub struct Grinder {
 impl Grinder {
     /// Creates new instance of the Grinder
     pub async fn new(mapper: Virtual, config: &NodeConfig) -> Grinder {
-        let nodes = mapper.nodes().values().cloned().collect::<Vec<_>>();
+        let nodes = mapper.nodes().iter().cloned().collect::<Vec<_>>();
         let link_manager = Arc::new(LinkManager::new(nodes.as_slice(), config.check_interval()));
         let mapper = Arc::new(mapper);
         let backend = Arc::new(Backend::new(mapper.clone(), config).await);
@@ -256,6 +256,10 @@ impl Grinder {
         trace!(">>>- - - - - GRINDER DELETE FINISHED - - - - -");
         self.cleaner.request_index_cleanup();
         result
+    }
+
+    pub(crate) fn update_node_connection(&self, node_name: &str) {
+        self.link_manager.update_node_connection(node_name);
     }
 }
 

@@ -20,7 +20,7 @@ async fn create_backend(node_config: &str, cluster_config: &str) -> BackendResul
     let node = NodeConfig::get_from_string(node_config, &cluster).unwrap();
     debug!("node: {:?}", node);
 
-    let mapper = Arc::new(Virtual::new(&node, &cluster).await);
+    let mapper = Arc::new(Virtual::new(&node, &cluster));
     debug!("mapper: {:?}", mapper);
     PearlBackend::new(mapper, &node).await
 }
@@ -72,7 +72,7 @@ async fn test_write_multiple_read() {
     let vdisk_id = 0;
     let backend = backend().await;
     backend.run().await.unwrap();
-    let path = DiskPath::new(DISK_NAME.to_owned(), "".to_owned());
+    let path = DiskPath::new(DISK_NAME.into(), "");
     let operation = Operation::new_local(vdisk_id, path);
     let data = BobData::new(vec![].into(), BobMeta::new(TIMESTAMP));
     let write = backend

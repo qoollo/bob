@@ -110,17 +110,21 @@ pub const DISK_USED: &str = "backend.used_disk";
 
 pub const DESCRIPTORS_AMOUNT: &str = "hardware.descr_amount";
 
-pub const CPU_LOAD: &str = "hardware.cpu_load";
+pub const BOB_CPU_LOAD: &str = "hardware.bob_cpu_load";
 pub const CPU_IOWAIT: &str = "hardware.cpu_iowait";
 pub const AVAILABLE_RAM: &str = "hardware.available_ram";
 pub const USED_RAM: &str = "hardware.used_ram";
 pub const TOTAL_RAM: &str = "hardware.total_ram";
+pub const USED_SWAP: &str = "hardware.used_swap";
 pub const BOB_RAM: &str = "hardware.bob_ram";
+pub const BOB_VIRTUAL_RAM: &str = "hardware.bob_virtual_ram";
 pub const FREE_SPACE: &str = "hardware.free_space";
 pub const USED_SPACE: &str = "hardware.used_space";
 pub const TOTAL_SPACE: &str = "hardware.total_space";
 
 const CLIENTS_METRICS_DIR: &str = "clients";
+
+const PROMETHEUS_RENDER_INTERVAL_SEC: u64 = 3600;
 
 /// Type to measure time of requests processing
 pub type Timer = Instant;
@@ -291,6 +295,7 @@ pub async fn init_counters(
     );
     let metrics = Arc::new(container);
     init_grinder();
+    init_client();
     init_backend();
     init_link_manager();
     init_pearl();
@@ -301,11 +306,29 @@ fn init_grinder() {
     register_counter!(GRINDER_GET_COUNTER);
     register_counter!(GRINDER_PUT_COUNTER);
     register_counter!(GRINDER_EXIST_COUNTER);
+    register_counter!(GRINDER_DELETE_COUNTER);
     register_counter!(GRINDER_EXIST_KEYS_COUNT_COUNTER);
     register_counter!(GRINDER_GET_ERROR_COUNT_COUNTER);
     register_counter!(GRINDER_PUT_ERROR_COUNT_COUNTER);
     register_counter!(GRINDER_EXIST_ERROR_COUNT_COUNTER);
+    register_counter!(GRINDER_DELETE_ERROR_COUNT_COUNTER);
     register_counter!(GRINDER_EXIST_ERROR_KEYS_COUNT_COUNTER);
+}
+
+fn init_client() {
+    register_counter!(CLIENT_EXIST_COUNTER);
+    register_counter!(CLIENT_EXIST_ERROR_COUNT_COUNTER);
+    register_counter!(CLIENT_EXIST_ERROR_KEYS_COUNT_COUNTER);
+    register_counter!(CLIENT_EXIST_KEYS_COUNT_COUNTER);
+
+    register_counter!(CLIENT_DELETE_COUNTER);
+    register_counter!(CLIENT_DELETE_ERROR_COUNT_COUNTER);
+
+    register_counter!(CLIENT_GET_COUNTER);
+    register_counter!(CLIENT_GET_ERROR_COUNT_COUNTER);
+
+    register_counter!(CLIENT_PUT_COUNTER);
+    register_counter!(CLIENT_PUT_ERROR_COUNT_COUNTER);
 }
 
 fn init_backend() {
@@ -371,6 +394,18 @@ fn build_prometheus(node_config: &NodeConfig) -> PrometheusRecorder {
         }
     };
     tokio::spawn(future);
+
+    // Fix for memory leak in prometheus crate, https://github.com/qoollo/bob/issues/788
+    let handle = recorder.handle();
+    let future = async move {
+        let mut timer = tokio::time::interval(Duration::from_secs(PROMETHEUS_RENDER_INTERVAL_SEC));
+        loop {
+            let _ = timer.tick().await;
+            let _ = handle.render();
+        }
+    };
+    tokio::spawn(future);
+
     recorder
 }
 
