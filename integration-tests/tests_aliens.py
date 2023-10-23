@@ -80,9 +80,10 @@ except ValueError:
 #runs put and stops nodes in cycle
 written_count = 0
 try:
-    for i in range(1, parsed_args.nodes_amount + 1):
-        #make correctly formatted args 
+    for i in range(parsed_args.nodes_amount):
+        #make correctly formatted args
         dict_args = make_run_args(parsed_args, written_count, record_amount)
+        dict_args['-p'] = str(parsed_args.transport_min_port + i)
         bobp_args = args_to_str(dict_args)
         #run put
         print(f'Running bobp -b put {bobp_args.rstrip()}')
@@ -91,7 +92,7 @@ try:
         if not 'total err: 0' in str(p):
             print_then_exit(f'Put test failed, see output.')
         written_count += dict_args.get('-c')
-        if i < parsed_args.nodes_amount:
+        if i < parsed_args.nodes_amount - 1:
             #stops one
             sleep(10)
             d_cli.container.stop(container_dict[str(parsed_args.transport_min_port + i)])
@@ -119,6 +120,7 @@ sleep(float(parsed_args.cluster_start_waiting_time)/1000 + 1)
 
 
 dict_args = make_run_args(parsed_args, 0, str(written_count))
+dict_args['-p'] = str(parsed_args.transport_min_port + parsed_args.nodes_amount - 1)
 bobp_args = args_to_str(dict_args)
 for item in run_options:
     run_tests(item, bobp_args)
