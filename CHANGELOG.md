@@ -9,6 +9,7 @@ Bob versions changelog
 #### Changed
 - Use cargo workspace to declare dependencies to avoid their duplication (#821)
 - Record timestamp is now passed to Pearl level and used to find newest record in get and exist functions (#708)
+- Writing logic for aliens integration tests (#851)
 
 #### Fixed
 
