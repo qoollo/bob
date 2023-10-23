@@ -290,19 +290,18 @@ impl DiskController {
         Ok(groups)
     }
 
-    async fn find_group(&self, operation: &Operation) -> BackendResult<Group> {
-        Self::find_in_groups(self.groups.read().await.iter(), operation).ok_or_else(|| {
-            Error::failed(format!("cannot find actual alien folder. {:?}", operation))
-        })
+    async fn find_groups(&self, operation: &Operation) -> BackendResult<Vec<Group>> {
+        Ok(Self::find_in_groups(self.groups.read().await.iter(), operation))
     }
 
     fn find_in_groups<'pearl, 'op>(
         mut pearls: impl Iterator<Item = &'pearl Group>,
         operation: &'op Operation,
-    ) -> Option<Group> {
+    ) -> Vec<Group> {
         pearls
-            .find(|group| group.can_process_operation(operation))
+            .filter(|group| group.can_process_operation(operation))
             .cloned()
+            .collect()
     }
 
     async fn get_or_create_pearl(&self, operation: &Operation) -> BackendResult<Group> {
@@ -311,14 +310,14 @@ impl DiskController {
         {
             let read_lock_groups = self.groups.read().await;
             let pearl = Self::find_in_groups(read_lock_groups.iter(), operation);
-            if let Some(g) = pearl {
+            if let Some(g) = pearl.first().cloned() {
                 return Ok(g);
             }
         }
 
         let mut write_lock_groups = self.groups.write().await;
         let pearl = Self::find_in_groups(write_lock_groups.iter(), operation);
-        if let Some(g) = pearl {
+        if let Some(g) = pearl.first().cloned() {
             return Ok(g);
         }
 
@@ -465,17 +464,13 @@ impl DiskController {
 
     pub(crate) async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            let vdisk_group = self.find_group(&op).await;
-            if let Ok(group) = vdisk_group {
-                group.get(key).await
-            } else {
-                debug!(
-                    "GET[alien][{}] No alien group has been created for vdisk #{}",
-                    key,
-                    op.vdisk_id()
-                );
-                Err(Error::key_not_found(key))
+            for vdisk_group in self.find_groups(&op).await.unwrap_or(vec![]) {
+                let res = vdisk_group.get(key).await;
+                if res.is_ok() {
+                    return res;
+                }
             }
+            Err(Error::key_not_found(key))
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -510,16 +505,14 @@ impl DiskController {
         keys: &[BobKey],
     ) -> Result<Vec<bool>, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            let vdisk_group = self.find_group(&operation).await;
-            if let Ok(group) = vdisk_group {
-                group.exist(keys).await
-            } else {
-                trace!(
-                    "EXIST[alien] No alien group has been created for vdisk #{}",
-                    operation.vdisk_id()
-                );
-                Ok(vec![false; keys.len()])
+            for vdisk_group in self.find_groups(&operation).await.unwrap_or(vec![]) {
+                let res = vdisk_group.exist(keys).await;
+                if res.is_ok() {
+                    return res;
+                }
+
             }
+            Ok(vec![false; keys.len()])
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -561,31 +554,7 @@ impl DiskController {
         force_delete: bool,
     ) -> Result<u64, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            let vdisk_group =
-                if !force_delete {
-                    match self.find_group(&op).await {
-                        Ok(group) => group,
-                        Err(_) => return Ok(0)
-                    }
-                } else {
-                    // we should create group only when force_delete == true
-                    match self.get_or_create_pearl(&op).await {
-                        Ok(group) => group,
-                        Err(err) => {
-                            error!(
-                                "DELETE[alien][{}] Cannot find group, op: {:?}, err: {}",
-                                key, op, err
-                            );
-                            return Err(Error::vdisk_not_found(op.vdisk_id()));
-                        }
-                    }
-                };
-
-            match vdisk_group.delete(key, meta, StartTimestampConfig::new(false), force_delete).await
-            {
-                Err(e) => Err(self.process_error(e).await),
-                Ok(x) => Ok(x),
-            }
+            panic!("Unimplemented");
         } else {
             Err(Error::dc_is_not_available())
         }
