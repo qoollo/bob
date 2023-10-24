@@ -295,7 +295,7 @@ impl DiskController {
     }
 
     fn find_in_groups<'pearl, 'op>(
-        mut pearls: impl Iterator<Item = &'pearl Group>,
+        pearls: impl Iterator<Item = &'pearl Group>,
         operation: &'op Operation,
     ) -> Vec<Group> {
         pearls
@@ -464,13 +464,13 @@ impl DiskController {
 
     pub(crate) async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            for vdisk_group in self.find_groups(&op).await.unwrap_or(vec![]) {
-                let res = vdisk_group.get(key).await;
-                if res.is_ok() {
-                    return res;
-                }
+            let mut results = self.get_alien_results_unordered(&op, |g| async move { g.get(key).await }).await.unwrap_or(vec![]);
+            results.sort_by_key(|d| d.meta().timestamp());
+            if let Some(r) = results.into_iter().last() {
+                Ok(r)
+            } else {
+                Err(Error::key_not_found(key))
             }
-            Err(Error::key_not_found(key))
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -505,14 +505,13 @@ impl DiskController {
         keys: &[BobKey],
     ) -> Result<Vec<bool>, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            for vdisk_group in self.find_groups(&operation).await.unwrap_or(vec![]) {
-                let res = vdisk_group.exist(keys).await;
-                if res.is_ok() {
-                    return res;
+            let results = self.get_alien_results_unordered(&operation, |g| async move { g.exist(keys).await }).await.unwrap_or(vec![]);
+            Ok(results.into_iter().fold(vec![false; keys.len()], |mut s, n| {
+                for i in 0..n.len() {
+                    s[i] |= n[i];
                 }
-
-            }
-            Ok(vec![false; keys.len()])
+                s
+            }))
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -554,7 +553,25 @@ impl DiskController {
         force_delete: bool,
     ) -> Result<u64, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            panic!("Unimplemented");
+            if let Some(results) = self.get_alien_results_unordered(&op, |g| async move { g.delete(key, meta, StartTimestampConfig::new(false), force_delete).await }).await {
+                Ok(results.into_iter().fold(0, |s, n| s + n))
+            } else {
+                if force_delete { 
+                    // If delete is forced we need to create at least one group
+                    match self.get_or_create_pearl(&op).await {
+                        Ok(group) => group.delete(key, meta, StartTimestampConfig::new(false), force_delete).await,
+                        Err(err) => {
+                            error!(
+                                "DELETE[alien][{}] Cannot find group, op: {:?}, err: {}",
+                                key, op, err
+                            );
+                            Err(Error::vdisk_not_found(op.vdisk_id()))
+                        }
+                    }
+                } else {
+                    Ok(0)
+                }
+            }
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -680,5 +697,34 @@ impl DiskController {
             .collect::<FuturesUnordered<_>>()
             .fold(0, |acc, x| async move { acc + x })
             .await
+    }
+
+    async fn get_alien_results_unordered<R, RF, F>(&self, op: &Operation, f: F) -> Option<Vec<R>>
+        where
+            RF: Future<Output = Result<R, Error>>,
+            F: Fn(Group) -> RF 
+    {
+        if let Ok(groups) = self.find_groups(op).await {
+            if groups.is_empty() {
+                return None;
+            }
+            let mut result = vec![];
+            let mut futures = FuturesUnordered::new();
+            for g in groups {
+                futures.push(f(g));
+            }
+            while let Some(r) = futures.next().await {
+                match r {
+                    Ok(r) => result.push(r),
+                    Err(e) => { 
+                        trace!("Error getting alien results for op {:?}: {:?}", op, e);
+                        self.process_error(e).await;
+                    },
+                }
+            }
+            Some(result)
+        } else {
+            None
+        }
     }
 }
