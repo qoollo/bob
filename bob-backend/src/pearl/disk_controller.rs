@@ -304,7 +304,7 @@ impl DiskController {
             .collect()
     }
 
-    async fn get_or_create_pearl(&self, operation: &Operation) -> BackendResult<Group> {
+    async fn get_or_create_first_pearl(&self, operation: &Operation) -> BackendResult<Group> {
         trace!("try get alien pearl, operation {:?}", operation);
         // block for read lock: it should be dropped before write lock is acquired (otherwise - deadlock)
         {
@@ -383,7 +383,7 @@ impl DiskController {
         data: &BobData,
     ) -> Result<(), Error> {
         if *self.state.read().await == GroupsState::Ready {
-            let vdisk_group = self.get_or_create_pearl(&op).await;
+            let vdisk_group = self.get_or_create_first_pearl(&op).await;
             match vdisk_group {
                 Ok(group) => match group.put(key, data, StartTimestampConfig::new(false)).await {
                     Err(e) => Err(self.process_error(e).await),
@@ -558,7 +558,7 @@ impl DiskController {
             } else {
                 if force_delete { 
                     // If delete is forced we need to create at least one group
-                    match self.get_or_create_pearl(&op).await {
+                    match self.get_or_create_first_pearl(&op).await {
                         Ok(group) => group.delete(key, meta, StartTimestampConfig::new(false), force_delete).await,
                         Err(err) => {
                             error!(
