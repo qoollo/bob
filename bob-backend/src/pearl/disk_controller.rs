@@ -704,27 +704,31 @@ impl DiskController {
             RF: Future<Output = Result<R, Error>>,
             F: Fn(Group) -> RF 
     {
-        if let Ok(groups) = self.find_groups(op).await {
-            if groups.is_empty() {
-                return None;
-            }
-            let mut result = vec![];
-            let mut futures = FuturesUnordered::new();
-            for g in groups {
-                futures.push(f(g));
-            }
-            while let Some(r) = futures.next().await {
-                match r {
-                    Ok(r) => result.push(r),
-                    Err(e) => { 
-                        trace!("Error getting alien results for op {:?}: {:?}", op, e);
-                        self.process_error(e).await;
-                    },
+        match self.find_groups(op).await {
+            Ok(groups) => {
+                if groups.is_empty() {
+                    return None;
                 }
+                let mut result = vec![];
+                let mut futures = FuturesUnordered::new();
+                for g in groups {
+                    futures.push(f(g));
+                }
+                while let Some(r) = futures.next().await {
+                    match r {
+                        Ok(r) => result.push(r),
+                        Err(e) => {
+                            trace!("error getting alien results for op {:?}: {:?}", op, e);
+                            self.process_error(e).await;
+                        },
+                    }
+                }
+                Some(result)
             }
-            Some(result)
-        } else {
-            None
+            Err(e) => {
+                trace!("error finding groups for op {:?}: {:?}", op, e);
+                None
+            }
         }
     }
 }
