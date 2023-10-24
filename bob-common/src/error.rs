@@ -156,23 +156,24 @@ impl From<Status> for Error {
         let name = words.next();
         let length = status.message().len();
         match name {
-            None => None,
+            None => Self::failed(format!("Can't parse status from {}", status.message())),
             Some(name) => match name {
-                "KeyNotFound" => parse_next(words, Self::key_not_found),
-                "DuplicateKey" => Some(Self::duplicate_key()),
-                "Timeout" => Some(Self::timeout()),
-                "VDiskNotFound" => parse_next(words, Self::vdisk_not_found),
-                "Storage" => Some(Self::storage(rest_words(words, length))),
-                "VDiskIsNotReady" => Some(Self::vdisk_is_not_ready()),
-                "Failed" => Some(Self::failed(rest_words(words, length))),
-                "Internal" => Some(Self::internal()),
-                "PearlChangeState" => Some(Self::pearl_change_state(rest_words(words, length))),
-                "Unauthorized" => Some(Self::unauthorized()),
-                "HolderTemporaryUnavailable" => Some(Self::holder_temporary_unavailable()),
-                _ => None,
+                "KeyNotFound" => parse_next(words, Self::key_not_found)
+                    .unwrap_or_else(|| Self::failed(format!("Failed to parse key from {}", status.message()))),
+                "DuplicateKey" => Self::duplicate_key(),
+                "Timeout" => Self::timeout(),
+                "VDiskNotFound" => parse_next(words, Self::vdisk_not_found)
+                    .unwrap_or_else(|| Self::failed(format!("Failed to parse vdisk_id from {}", status.message()))),
+                "Storage" => Self::storage(rest_words(words, length)),
+                "VDiskIsNotReady" => Self::vdisk_is_not_ready(),
+                "Failed" => Self::failed(rest_words(words, length)),
+                "Internal" => Self::internal(),
+                "PearlChangeState" => Self::pearl_change_state(rest_words(words, length)),
+                "Unauthorized" => Self::unauthorized(),
+                "HolderTemporaryUnavailable" => Self::holder_temporary_unavailable(),
+                _ => Self::failed(format!("Can't parse status {:?} from {}", name, status.message())),
             },
         }
-        .unwrap_or_else(|| Self::failed("Can't parse status"))
     }
 }
 
