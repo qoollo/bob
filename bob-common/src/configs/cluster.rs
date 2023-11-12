@@ -83,6 +83,13 @@ pub struct Node {
 }
 
 impl Node {
+    pub fn new(name: String, address: String, disks: Vec<DiskPath>) -> Node {
+        Node {
+            name,
+            address,
+            disks,
+        }
+    }
     /// Returns node name, empty if name wasn't set in config.
     #[inline]
     #[must_use]
@@ -247,6 +254,14 @@ pub struct Cluster {
 }
 
 impl Cluster {
+    pub fn new(nodes: Vec<Node>, vdisks: Vec<VDisk>, racks: Vec<Rack>, distribution_func: DistributionFunc) -> Cluster {
+        Cluster {
+            nodes,
+            vdisks,
+            racks,
+            distribution_func,
+        }
+    }
     /// Returns slice with [`Node`]s.
     #[must_use]
     pub fn nodes(&self) -> &[Node] {
