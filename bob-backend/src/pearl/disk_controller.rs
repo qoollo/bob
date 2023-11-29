@@ -290,7 +290,7 @@ impl DiskController {
         Ok(groups)
     }
 
-    async fn find_all_groups(&self, operation: &Operation) -> Vec<Group> {
+    async fn find_all_groups(&self, operation: &Operation) -> smallvec::SmallVec<[Group; 1]> {
         self.groups.read().await
             .iter()
             .filter(|group| group.can_process_operation(operation))
