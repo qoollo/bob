@@ -100,16 +100,15 @@ impl Quorum {
         debug!("PUT[{}] ~~~BACKGROUND PUT TO REMOTE NODES~~~", key);
         while let Some(join_res) = rest_tasks.next().await {
             match join_res {
-                Ok(Ok(output)) => debug!(
+                Ok(output) => debug!(
                     "PUT[{}] successful background put to: {}",
                     key,
                     output.node_name()
                 ),
-                Ok(Err(e)) => {
+                Err(e) => {
                     error!("{:?}", e);
                     failed_nodes.push(e.node_name().clone());
                 }
-                Err(e) => error!("{:?}", e),
             }
         }
         debug!("PUT[{}] ~~~PUT TO REMOTE NODES ALIEN~~~", key);

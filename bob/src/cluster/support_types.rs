@@ -138,15 +138,20 @@ impl<Err> NodeOutputJoinHandle<Err> {
 }
 
 impl<Err> Future for NodeOutputJoinHandle<Err> {
-    type Output = Result<Result<NodeOutput<()>, NodeOutput<Err>>, JoinError>;
+    type Output = Result<NodeOutput<()>, NodeOutput<Err>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
         use std::task::Poll;
 
         match self.0.poll_unpin(cx) {
-            Poll::Ready(r) => Poll::Ready(r.map(|r| r
-                                                    .map(|o| o.with_node_name(self.1.clone()))
-                                                    .map_err(|o| o.with_node_name(self.1.clone())))),
+            Poll::Ready(Ok(r)) => Poll::Ready(r),
+            Poll::Ready(Err(e)) => {
+                error!("{:?}", e);
+                if e.is_panic() {
+                    panic!("panic in thread");
+                }
+                panic!("cancellation is not supported")
+            },
             Poll::Pending => std::task::Poll::Pending
         }
     }
