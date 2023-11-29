@@ -1,18 +1,40 @@
 use crate::link_manager::LinkManager;
 use crate::prelude::*;
-use super::support_types::{RemoteDeleteError, NodeOutputJoinHandle};
+use super::support_types::{RemoteDeleteError, RemotePutResponse, RemotePutError, NodeOutputJoinHandle};
 
-pub(crate) type Tasks<Err> = FuturesUnordered<NodeOutputJoinHandle<Err>>;
+pub(crate) type Tasks<Res, Err> = FuturesUnordered<NodeOutputJoinHandle<Res, Err>>;
 
 // ======================= Helpers =================
 
-fn is_result_successful<TErr: Debug>(
-    join_res: Result<NodeOutput<()>, NodeOutput<TErr>>,
-    errors: &mut Vec<NodeOutput<TErr>>,
+pub(crate) trait AffectedReplicasProvider {
+    fn get_affected_replicas_count(&self) -> usize;
+}
+
+impl AffectedReplicasProvider for () {
+    fn get_affected_replicas_count(&self) -> usize {
+        1
+    }
+}
+
+impl AffectedReplicasProvider for RemotePutResponse {
+    fn get_affected_replicas_count(&self) -> usize {
+        self.affected_replicas()
+    }
+}
+
+fn process_result<TRes: AffectedReplicasProvider, TErr: Debug>(
+    join_res: Result<NodeOutput<TRes>, NodeOutput<TErr>>,
+    oks: &mut Vec<NodeOutput<TRes>>,
+    errors: &mut Vec<NodeOutput<TErr>>
 ) -> usize {
     debug!("handle returned");
     match join_res {
-        Ok(_) => return 1,
+        Ok(r) =>
+        {
+            let affected_replicas = r.inner().get_affected_replicas_count();
+            oks.push(r);
+            return affected_replicas;
+        }
         Err(e) => {
             debug!("{:?}", e);
             errors.push(e);
@@ -21,45 +43,47 @@ fn is_result_successful<TErr: Debug>(
     0
 }
 
-pub(crate) async fn finish_at_least_handles<TErr: Debug>(
-    handles: &mut Tasks<TErr>,
+pub(crate) async fn finish_at_least_handles<TRes: AffectedReplicasProvider, TErr: Debug>(
+    handles: &mut Tasks<TRes, TErr>,
     at_least: usize,
-) -> Vec<NodeOutput<TErr>> {
+) -> (Vec<NodeOutput<TRes>>, Vec<NodeOutput<TErr>>) {
     let mut ok_count = 0;
     let mut errors = Vec::new();
+    let mut oks = Vec::with_capacity(at_least.min(handles.len()));
     while ok_count < at_least {
         if let Some(join_res) = handles.next().await {
-            ok_count += is_result_successful(join_res, &mut errors);
+            ok_count += process_result(join_res, &mut oks, &mut errors);
         } else {
             break;
         }
     }
     trace!("ok_count/at_least: {}/{}", ok_count, at_least);
-    errors
+    (oks, errors)
 }
 
-async fn call_at_least<TOp, TErr: Debug>(
+async fn call_at_least<TOp, TRes: AffectedReplicasProvider, TErr: Debug>(
     target_nodes: impl Iterator<Item = TOp>,
     at_least: usize,
-    f: impl Fn(TOp) -> NodeOutputJoinHandle<TErr>,
-) -> (FuturesUnordered<NodeOutputJoinHandle<TErr>>, Vec<NodeOutput<TErr>>) {
+    f: impl Fn(TOp) -> NodeOutputJoinHandle<TRes, TErr>
+) -> (FuturesUnordered<NodeOutputJoinHandle<TRes, TErr>>, Vec<NodeOutput<TRes>>, Vec<NodeOutput<TErr>>) {
     let mut handles: FuturesUnordered<_> = target_nodes.map(|op| f(op)).collect();
     trace!("total handles count: {}", handles.len());
-    let errors = finish_at_least_handles(&mut handles, at_least).await;
-    trace!("remains: {}, errors: {}", handles.len(), errors.len());
-    (handles, errors)
+    let (oks, errors) = finish_at_least_handles(&mut handles, at_least).await;
+    trace!("remains: {}, oks: {}, errors: {}", handles.len(), oks.len(), errors.len());
+    (handles, oks, errors)
 }
 
 
 async fn finish_all_handles<TErr: Debug>(
-    handles: &mut FuturesUnordered<NodeOutputJoinHandle<TErr>>
+    handles: &mut FuturesUnordered<NodeOutputJoinHandle<(), TErr>>
 ) -> Vec<NodeOutput<TErr>> {
     let mut ok_count = 0;
     let mut total_count = 0;
+    let mut oks = Vec::with_capacity(handles.len());
     let mut errors = Vec::new();
     while let Some(join_res) = handles.next().await {
         total_count += 1;
-        ok_count += is_result_successful(join_res, &mut errors);
+        ok_count += process_result(join_res, &mut oks, &mut errors);
     }
     trace!("ok_count/total: {}/{}", ok_count, total_count);
     errors
@@ -67,7 +91,7 @@ async fn finish_all_handles<TErr: Debug>(
 
 async fn call_all<TOp, TErr: Debug>(
     operations: impl Iterator<Item = TOp>,
-    f: impl Fn(TOp) -> NodeOutputJoinHandle<TErr>,
+    f: impl Fn(TOp) -> NodeOutputJoinHandle<(), TErr>,
 ) -> (usize, Vec<NodeOutput<TErr>>) {
     let mut handles: FuturesUnordered<_> = operations.map(|op| f(op)).collect();
     let handles_len = handles.len();
@@ -117,19 +141,17 @@ pub(crate) async fn lookup_local_node(
     backend: &Backend,
     key: BobKey,
     vdisk_id: VDiskId,
-    disk_path: Option<DiskPath>,
+    disk_path: DiskPath,
 ) -> Option<BobData> {
-    if let Some(path) = disk_path {
-        debug!("local node has vdisk replica, check local");
-        let op = Operation::new_local(vdisk_id, path);
-        match backend.get_local(key, op).await {
-            Ok(data) => {
-                debug!("GET[{}] key found in local node", key);
-                return Some(data);
-            }
-            Err(e) if e.is_key_not_found() => debug!("GET[{}] not found in local node", key),
-            Err(e) => error!("local node backend returned error: {}", e),
+    debug!("local node has vdisk replica, check local");
+    let op = Operation::new_local(vdisk_id, disk_path);
+    match backend.get_local(key, op).await {
+        Ok(data) => {
+            debug!("GET[{}] key found in local node", key);
+            return Some(data);
         }
+        Err(e) if e.is_key_not_found() => debug!("GET[{}] not found in local node", key),
+        Err(e) => error!("local node backend returned error: {}", e),
     }
     None
 }
@@ -183,12 +205,16 @@ fn call_node_put(
     data: BobData,
     node: Node,
     options: BobPutOptions,
-) -> NodeOutputJoinHandle<Error> {
+    affected_replicas: usize
+) -> NodeOutputJoinHandle<RemotePutResponse, RemotePutError> {
     debug!("PUT[{}] put to {}", key, node.name());
     let name = node.name().clone();
     let task = async move {
         let grpc_options = options.to_grpc();
-        LinkManager::call_node(&node, |conn| conn.put(key, data, grpc_options).boxed()).await
+        let call_result = LinkManager::call_node(&node, |conn| conn.put(key, data, grpc_options).boxed()).await;
+        call_result
+            .map(|o| o.map(|_| RemotePutResponse::new(affected_replicas)))
+            .map_err(|o| o.map(|e| RemotePutError::new(affected_replicas, e)))
     };
     NodeOutputJoinHandle::new(tokio::spawn(task), name)
 }
@@ -200,9 +226,11 @@ pub(crate) async fn put_at_least(
     target_nodes: impl Iterator<Item = &Node>,
     at_least: usize,
     options: BobPutOptions,
-) -> (Tasks<Error>, Vec<NodeOutput<Error>>) {
+    affected_replicas_by_node: &HashMap<NodeName, usize>
+) -> (Tasks<RemotePutResponse, RemotePutError>, Vec<NodeOutput<RemotePutResponse>>, Vec<NodeOutput<RemotePutError>>) {
     call_at_least(target_nodes, at_least, |n| {
-        call_node_put(key, data.clone(), n.clone(), options.clone())
+        call_node_put(key, data.clone(), n.clone(), options.clone(),
+                      *affected_replicas_by_node.get(n.name()).unwrap_or(&1))
     })
     .await
 }
@@ -238,7 +266,7 @@ pub(crate) async fn put_local_all(
 pub(crate) async fn put_sup_nodes(
     key: BobKey,
     data: &BobData,
-    requests: impl Iterator<Item = (&Node, BobPutOptions)>,
+    requests: impl Iterator<Item = (&Node, BobPutOptions)>
 ) -> Result<(), Vec<NodeOutput<Error>>> {
     let mut ret = vec![];
     for (node, options) in requests {
@@ -260,6 +288,25 @@ pub(crate) async fn put_sup_nodes(
     }
 }
 
+pub(crate) async fn put_local_node_all(
+    backend: &Backend,
+    key: BobKey,
+    data: &BobData,
+    vdisk_id: VDiskId,
+    disk_paths: smallvec::SmallVec<[DiskPath; 1]>
+) -> usize {
+    let mut successes = 0;
+    for path in disk_paths {
+        let res = put_local_node(&backend, key, data, vdisk_id, path).await;
+        if let Err(e) = res {
+            error!("{}", e);
+        } else {
+            successes += 1;
+            debug!("PUT[{}] local node put successful", key);
+        }
+    }
+    successes
+}
 
 pub(crate) async fn put_local_node(
     backend: &Backend,
@@ -367,7 +414,7 @@ fn call_node_delete(
     meta: BobMeta,
     options: BobDeleteOptions,
     node: Node,
-) -> NodeOutputJoinHandle<RemoteDeleteError> {
+) -> NodeOutputJoinHandle<(), RemoteDeleteError> {
     trace!("DELETE[{}] delete to {}", key, node.name());
     let name = node.name().clone();
     let task = async move {

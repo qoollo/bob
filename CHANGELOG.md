@@ -4,6 +4,37 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Blob performes fsync if buffered bytes are larger than max_dirty_bytes_before_sync config param (#748)
+
+#### Changed
+- Use cargo workspace to declare dependencies to avoid their duplication (#821)
+- Record timestamp is now passed to Pearl level and used to find newest record in get and exist functions (#708)
+
+#### Fixed
+
+
+#### Updated
+- Update crates versions: tokio, bytes, uuid, infer, base64, bitflags, regex, async-lock (#769)
+- Pearl updated to v0.20.0 (#848)
+
+
+## [2.1.0-alpha.12] - 2023-09-23
+#### Added
+
+
+#### Changed
+
+
+#### Fixed
+- Fix log level for operations (#837)
+
+#### Updated
+
+
+
+## [2.1.0-alpha.11] - 2023-09-20
+#### Added
+- Bobd test mode (#550)
 - Added optional get & exist optimization that skips old partitions by its timestamp (#702)
 - Added mimalloc allocator for musl target (#688)
 - Added jemalloc-profile for memory profiling (#797)
@@ -19,8 +50,11 @@ Bob versions changelog
 
 #### Fixed
 - Error propagation for JoinHandle errors (#572)
+- Ensure correct working when node contains multiple replicas of single vdisk (#654)
 - Fix memory leak due to prometheus lib (#788)
 - Fix for grinder delete metrics not being initialized (#824)
+- Fix chrono deprecated function warning (#832)
+- Fix lsof zombie spawn (#830)
 
 #### Updated
 - Pearl updated to v0.19.0 (#798)

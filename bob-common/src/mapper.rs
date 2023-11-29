@@ -12,6 +12,7 @@ use std::{
     convert::TryInto,
     sync::atomic::{AtomicUsize, Ordering},
 };
+use smallvec::SmallVec;
 
 /// Hash map with IDs as keys and `VDisk`s as values.
 pub type VDisksMap = HashMap<VDiskId, DataVDisk>;
@@ -291,23 +292,26 @@ impl Virtual {
             .collect()
     }
 
-    pub fn get_operation(&self, key: BobKey) -> (VDiskId, Option<DiskPath>) {
+    pub fn get_operation(&self, key: BobKey) -> (VDiskId, Option<SmallVec<[DiskPath; 1]>>) {
         let virt_disk = self.get_vdisk_for_key(key).expect("vdisk not found");
-        let disk = virt_disk.replicas().iter().find_map(|disk| {
-            if disk.node_name() == &self.local_node_name {
-                Some(DiskPath::from(disk))
-            } else {
-                None
+        let mut disks = None;
+        for replica in virt_disk.replicas() {
+            if replica.node_name() == &self.local_node_name {
+                if disks.is_none() {
+                    disks = Some(SmallVec::<[DiskPath; 1]>::new());
+                }
+                disks.as_mut().expect("disks it not None here").push(DiskPath::from(replica));
             }
-        }); //TODO prepare at start?
-        if disk.is_none() {
+        }
+        if disks.is_none() {
             debug!(
                 "cannot find node: {} for vdisk: {}",
                 self.local_node_name,
                 virt_disk.id()
             );
         }
-        (virt_disk.id(), disk)
+
+        (virt_disk.id(), disks)
     }
 
     pub fn is_vdisk_on_node(&self, node_name: &str, id: VDiskId) -> bool {
@@ -316,5 +320,16 @@ impl Virtual {
             .nodes()
             .iter()
             .any(|node| node.name() == node_name)
+    }
+
+    pub fn get_replicas_count_by_node(&self, key: BobKey) -> HashMap<NodeName, usize> {
+        let mut result = HashMap::new();
+        let id = self.vdisk_id_from_key(key);
+        if let Some(vdisk) = self.vdisks.get(&id) {
+            for replica in vdisk.replicas() {
+                result.entry(replica.node_name().clone()).and_modify(|c| *c += 1).or_insert(1);
+            }
+        }
+        result
     }
 }

@@ -271,7 +271,7 @@ impl Holder {
         counter!(PEARL_PUT_COUNTER, 1);
         let data_size = Self::calc_data_size(&data);
         let timer = Instant::now();
-        let res = storage.write(key, data.to_serialized_bytes()).await;
+        let res = storage.write(key, data.to_serialized_bytes(), BlobRecordTimestamp::new(data.meta().timestamp())).await;
         let res = match res {
             Err(e) => {
                 counter!(PEARL_PUT_ERROR_COUNTER, 1);
@@ -487,6 +487,7 @@ impl Holder {
         let prefix = self.inner.config.blob_file_name_prefix();
         let max_data = self.inner.config.max_data_in_blob();
         let max_blob_size = self.inner.config.max_blob_size();
+        let max_dirty_bytes_before_sync = self.inner.config.max_dirty_bytes_before_sync();
         let mut filter_config = BloomConfig::default();
         let validate_data_during_index_regen = self.inner.config.validate_data_checksum_during_index_regen();
         if let Some(count) = self.inner.config.max_buf_bits_count() {
@@ -497,6 +498,7 @@ impl Holder {
             .blob_file_name_prefix(prefix)
             .max_data_in_blob(max_data)
             .max_blob_size(max_blob_size)
+            .set_max_dirty_bytes_before_sync(max_dirty_bytes_before_sync)
             .set_filter_config(filter_config)
             .set_validate_data_during_index_regen(validate_data_during_index_regen)
             .set_dump_sem(self.inner.pearl_creation_context.dump_sem.clone())
@@ -505,15 +507,14 @@ impl Holder {
             .with_context(|| format!("cannot build pearl by path: {:?}", &self.inner.disk_path))
     }
 
-    pub async fn delete(&self, key: BobKey, _meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
+    pub async fn delete(&self, key: BobKey, meta: &BobMeta, force_delete: bool) -> Result<u64, Error> {
         let state = self.storage.read().await;
         if let Some(storage) = state.get() {
             trace!("Vdisk: {}, delete key: {}", self.inner.vdisk, key);
             counter!(PEARL_DELETE_COUNTER, 1);
             let timer = Instant::now();
-            // TODO: use meta
             let res = storage
-                .delete(Key::from(key), !force_delete)
+                .delete(Key::from(key), BlobRecordTimestamp::new(meta.timestamp()), !force_delete)
                 .await
                 .map_err(|e| {
                     trace!("error on delete: {:?}", e);

@@ -26,6 +26,38 @@ impl<T: Eq + core::hash::Hash> HashSetExt<T> for HashSet<T> {
 }
 
 #[derive(Debug)]
+pub(crate) struct RemotePutResponse {
+    affected_replicas: usize
+}
+
+impl RemotePutResponse {
+    pub(super) fn new(affected_replicas: usize) -> Self {
+        Self { affected_replicas }
+    }
+
+    pub(super) fn affected_replicas(&self) -> usize {
+        self.affected_replicas
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct RemotePutError {
+    affected_replicas: usize,
+    #[allow(dead_code)] // We need error for debug print
+    error: Error
+}
+
+impl RemotePutError {
+    pub(super) fn new(affected_replicas: usize, error: Error) -> Self {
+        Self { affected_replicas, error }
+    }
+
+    pub(crate) fn affected_replicas(&self) -> usize {
+        self.affected_replicas
+    }
+}
+
+#[derive(Debug)]
 pub(super) struct RemoteDeleteError {
     force_alien_nodes: SmallVec<[NodeName; 1]>, // Will have 0 or 1 elements most of the time
     error: Error
@@ -33,10 +65,7 @@ pub(super) struct RemoteDeleteError {
 
 impl RemoteDeleteError {
     pub(super) fn new(force_alien_nodes: SmallVec<[NodeName; 1]>, error: Error) -> Self {
-        Self {
-            force_alien_nodes: force_alien_nodes,
-            error: error
-        }
+        Self { force_alien_nodes, error }
     }
     #[allow(dead_code)]
     pub(super) fn force_alien_nodes(&self) -> &[NodeName] {
@@ -129,16 +158,16 @@ impl IndexMap {
     }
 }
 
-pub(crate) struct NodeOutputJoinHandle<Err>(JoinHandle<Result<NodeOutput<()>, NodeOutput<Err>>>, NodeName);
+pub(crate) struct NodeOutputJoinHandle<Res, Err>(JoinHandle<Result<NodeOutput<Res>, NodeOutput<Err>>>, NodeName);
 
-impl<Err> NodeOutputJoinHandle<Err> {
-    pub(super) fn new(handle: JoinHandle<Result<NodeOutput<()>, NodeOutput<Err>>>, node_name: NodeName) -> Self {
+impl<Res, Err> NodeOutputJoinHandle<Res, Err> {
+    pub(super) fn new(handle: JoinHandle<Result<NodeOutput<Res>, NodeOutput<Err>>>, node_name: NodeName) -> Self {
         Self(handle, node_name)
     }
 }
 
-impl<Err> Future for NodeOutputJoinHandle<Err> {
-    type Output = Result<NodeOutput<()>, NodeOutput<Err>>;
+impl<Res, Err> Future for NodeOutputJoinHandle<Res, Err> {
+    type Output = Result<NodeOutput<Res>, NodeOutput<Err>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
         use std::task::Poll;

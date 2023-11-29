@@ -4,11 +4,11 @@ use super::{
     operations::{
         delete_on_local_aliens, delete_on_local_node, delete_on_remote_nodes,
         delete_on_remote_nodes_with_options, exist_on_local_alien, exist_on_local_node,
-        exist_on_remote_aliens, exist_on_remote_nodes, finish_at_least_handles, lookup_local_alien,
+        exist_on_remote_aliens, exist_on_remote_nodes, lookup_local_alien,
         lookup_local_node, lookup_remote_aliens, lookup_remote_nodes, put_at_least, put_local_all,
-        put_local_node, put_sup_nodes, Tasks,
+        put_local_node_all, put_sup_nodes, Tasks,
     },
-    support_types::{HashSetExt, RemoteDeleteError, IndexMap},
+    support_types::{HashSetExt, RemoteDeleteError, IndexMap, RemotePutError, RemotePutResponse},
     Cluster,
 };
 
@@ -34,32 +34,29 @@ impl Quorum {
         let mut local_put_ok = 0_usize;
         let at_least = self.quorum;
         let mut failed_nodes = Vec::new();
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        let (tasks, errors) =
-            if let Some(disk_path) = disk_path {
-                debug!("PUT[{}] ~~~PUT TO {} REMOTE NODES AND LOCAL NODE~~~", key, at_least - 1);
-                let (remote_put, local_put) = tokio::join!(
-                    self.put_remote_nodes(key, data, at_least - 1),
-                    put_local_node(&self.backend, key, data, vdisk_id, disk_path),
-                );
-                let (mut remote_tasks, mut errors) = remote_put;
-                if let Err(e) = local_put {
-                    error!("{}", e);
-                    failed_nodes.push(self.mapper.local_node_name().clone());
-                    debug!("PUT[{}] local failed, put another remote", key);
-                    errors.extend(finish_at_least_handles(&mut remote_tasks, 1).await.into_iter());
-                } else {
-                    local_put_ok += 1;
-                    debug!("PUT[{}] local node put successful", key);
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
+        let affected_replicas_by_node = self.mapper.get_replicas_count_by_node(key);
+        let (tasks, oks, errors) = 
+            if let Some(paths) = disk_paths {
+                let paths_len = paths.len();
+                debug!("PUT[{}] ~~~PUT {} REPLICAS TO REMOTE NODES AND {} REPLICAS TO LOCAL NODE~~~", key, at_least - paths_len, paths_len);
+                let ((tasks, oks, errors), local_puts) = tokio::join!(
+                    self.put_remote_nodes(key, data, at_least, &affected_replicas_by_node),
+                    put_local_node_all(&self.backend, key, data, vdisk_id, paths));
+                if local_puts != paths_len {
+                    failed_nodes.push(self.mapper.local_node_name().to_owned());
                 }
-                (remote_tasks, errors)
+                local_put_ok += local_puts;
+                (tasks, oks, errors)
             } else {
-                debug!("PUT[{}] ~~~PUT TO {} REMOTE NODES~~~", key, at_least);
-                self.put_remote_nodes(key, data, at_least).await
+                debug!("PUT[{}] ~~~PUT {} REPLICAS TO REMOTE NODES~~~", key, at_least);
+                self.put_remote_nodes(key, data, at_least, &affected_replicas_by_node).await
             };
-        let all_count = self.mapper.get_target_nodes_for_key(key).len();
-        let remote_ok_count = all_count - errors.len() - tasks.len() - local_put_ok;
+        let remote_ok_count = oks.iter().map(|f| f.inner().affected_replicas()).sum::<usize>();
         failed_nodes.extend(errors.iter().map(|e| e.node_name().clone()));
+        debug!("PUT[{}] LOCAL PUT OK: {}, REMOTE PUT OK: {}, REMOTE PUT ERRORS: {}", 
+               key, local_put_ok, remote_ok_count, 
+               errors.iter().map(|e| e.inner().affected_replicas()).sum::<usize>());
         if remote_ok_count + local_put_ok >= self.quorum {
             if tasks.is_empty() && failed_nodes.is_empty() {
                 return Ok(());
@@ -92,10 +89,10 @@ impl Quorum {
 
     async fn background_put(
         self,
-        mut rest_tasks: Tasks<Error>,
+        mut rest_tasks: Tasks<RemotePutResponse, RemotePutError>,
         key: BobKey,
         data: &BobData,
-        mut failed_nodes: Vec<NodeName>,
+        mut failed_nodes: Vec<NodeName>
     ) {
         debug!("PUT[{}] ~~~BACKGROUND PUT TO REMOTE NODES~~~", key);
         while let Some(join_res) = rest_tasks.next().await {
@@ -124,7 +121,8 @@ impl Quorum {
         key: BobKey,
         data: &BobData,
         at_least: usize,
-    ) -> (Tasks<Error>, Vec<NodeOutput<Error>>) {
+        affected_replicas_by_node: &HashMap<NodeName, usize>
+    ) -> (Tasks<RemotePutResponse, RemotePutError>, Vec<NodeOutput<RemotePutResponse>>, Vec<NodeOutput<RemotePutError>>) {
         let local_node = self.mapper.local_node_name();
         let target_nodes = self.mapper.get_target_nodes_for_key(key);
         debug!(
@@ -133,7 +131,7 @@ impl Quorum {
             target_nodes.len(),
         );
         let target_nodes = target_nodes.iter().filter(|node| node.name() != local_node);
-        put_at_least(key, data, target_nodes, at_least, BobPutOptions::new_local()).await
+        put_at_least(key, data, target_nodes, at_least, BobPutOptions::new_local(), affected_replicas_by_node).await
     }
 
 
@@ -141,7 +139,7 @@ impl Quorum {
         &self,
         mut failed_nodes: Vec<NodeName>,
         key: BobKey,
-        data: &BobData,
+        data: &BobData
     ) -> Result<(), Error> {
         debug!("PUT[{}] ~~~TRY PUT TO REMOTE ALIENS FIRST~~~", key);
         if failed_nodes.is_empty() {
@@ -190,15 +188,17 @@ impl Quorum {
 
     async fn delete_on_nodes(&self, key: BobKey, meta: &BobMeta) -> Result<(), Error> {
         debug!("DELETE[{}] ~~~DELETE LOCAL NODE FIRST~~~", key);
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
         let mut failed_nodes = HashSet::new();
         let mut total = 0;
-        if let Some(disk_path) = disk_path {
+        if let Some(disk_paths) = disk_paths {
             total += 1;
-            let res = delete_on_local_node(&self.backend, key, meta, vdisk_id, disk_path).await;
-            if let Err(e) = res {
-                error!("{}", e);
-                failed_nodes.insert(self.mapper.local_node_name().clone());
+            for disk_path in disk_paths {
+                let res = delete_on_local_node(&self.backend, key, meta, vdisk_id, disk_path).await;
+                if let Err(e) = res {
+                    error!("{}", e);
+                    failed_nodes.insert(self.mapper.local_node_name().clone());
+                }
             }
         };
 
@@ -418,9 +418,13 @@ impl Cluster for Quorum {
     //todo check no data (no error)
     async fn get(&self, key: BobKey) -> Result<BobData, Error> {
         debug!("GET[{}] ~~~LOOKUP LOCAL NODE~~~", key);
-        let (vdisk_id, disk_path) = self.mapper.get_operation(key);
-        if let Some(data) = lookup_local_node(&self.backend, key, vdisk_id, disk_path).await {
-            return Ok(data);
+        let (vdisk_id, disk_paths) = self.mapper.get_operation(key);
+        if let Some(paths) = disk_paths {
+            for path in paths {
+                if let Some(data) = lookup_local_node(&self.backend, key, vdisk_id, path).await {
+                    return Ok(data);
+                }
+            }
         }
         debug!("GET[{}] ~~~LOOKUP REMOTE NODES~~~", key);
         if let Some(data) = lookup_remote_nodes(&self.mapper, key).await {
