@@ -156,7 +156,7 @@ impl From<Status> for Error {
         let name = words.next();
         let length = status.message().len();
         match name {
-            None => Self::failed(format!("Can't parse status from {}", status.message())),
+            None => Self::failed(format!("Can't parse status from {:?}, {}", status.code(), status.message())),
             Some(name) => match name {
                 "KeyNotFound" => parse_next(words, Self::key_not_found)
                     .unwrap_or_else(|| Self::failed(format!("Failed to parse key from {}", status.message()))),
@@ -171,7 +171,7 @@ impl From<Status> for Error {
                 "PearlChangeState" => Self::pearl_change_state(rest_words(words, length)),
                 "Unauthorized" => Self::unauthorized(),
                 "HolderTemporaryUnavailable" => Self::holder_temporary_unavailable(),
-                _ => Self::failed(format!("Can't parse status {:?} from {}", name, status.message())),
+                _ => Self::failed(format!("Can't parse status {:?} from {:?}, {}", name, status.code(), status.message())),
             },
         }
     }
