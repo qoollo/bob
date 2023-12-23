@@ -435,11 +435,13 @@ impl DiskController {
     }
 
     pub(crate) fn can_process_operation(&self, op: &Operation) -> bool {
-        self.is_alien && op.is_data_alien()
-            || self
-                .vdisks
-                .iter()
-                .any(|&vdisk_id| vdisk_id == op.vdisk_id())
+        if self.is_alien && op.is_data_alien() {
+            return true;
+        }
+
+        let path_match = op.disk_path().map(|p| p == self.disk).unwrap_or(true);
+        let vdisk_match = self.vdisks.iter().any(|&vdisk_id| vdisk_id == op.vdisk_id());
+        path_match && vdisk_match
     }
 
     pub(crate) async fn get(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {

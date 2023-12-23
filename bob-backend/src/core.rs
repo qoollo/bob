@@ -33,6 +33,10 @@ impl Operation {
     pub fn remote_node_name(&self) -> Option<&NodeName> {
         self.remote_node_name.as_ref()
     }
+
+    pub fn disk_path(&self) -> Option<DiskPath> {
+        self.disk_path.clone()
+    }
 }
 
 impl Debug for Operation {

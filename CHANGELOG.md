@@ -11,7 +11,7 @@ Bob versions changelog
 - Record timestamp is now passed to Pearl level and used to find newest record in get and exist functions (#708)
 
 #### Fixed
-
+- Fix local replicas error (#841)
 
 #### Updated
 - Update crates versions: tokio, bytes, uuid, infer, base64, bitflags, regex, async-lock (#769)

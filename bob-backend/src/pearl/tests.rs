@@ -72,7 +72,7 @@ async fn test_write_multiple_read() {
     let vdisk_id = 0;
     let backend = backend().await;
     backend.run().await.unwrap();
-    let path = DiskPath::new(DISK_NAME.into(), "");
+    let path = DiskPath::new(DISK_NAME.into(), "/tmp/d1");
     let operation = Operation::new_local(vdisk_id, path);
     let data = BobData::new(vec![].into(), BobMeta::new(TIMESTAMP));
     let write = backend
@@ -90,4 +90,80 @@ async fn test_write_multiple_read() {
     let res = backend.get(operation, BobKey::from(KEY_ID)).await;
     assert_eq!(TIMESTAMP, res.unwrap().meta().timestamp());
     drop_pearl().await;
+}
+
+async fn multiple_local_replicas_backend() -> PearlBackend {
+    let node_config = "
+log_config: logger.yaml
+users_config: users.yaml
+name: local_node
+quorum: 2
+operation_timeout: 3sec
+check_interval: 5000ms
+cluster_policy: quorum             # quorum
+backend_type: pearl                # in_memory, stub, pearl
+cleanup_interval: 1d
+pearl:                             # used only for 'backend_type: pearl'
+  max_blob_size: 10000000          # size in bytes. required for 'pearl'
+  max_data_in_blob: 10000          # optional
+  blob_file_name_prefix: bob       # optional
+  fail_retry_timeout: 100ms
+  alien_disk: disk1                # required for 'pearl'
+  settings:                        # describes how create and manage bob directories. required for 'pearl'
+    root_dir_name: bob             # root dir for bob storage. required for 'pearl'
+    alien_root_dir_name: alien     # root dir for alien storage in 'alien_disk'. required for 'pearl'
+    timestamp_period: 1d           # period when new pearl directory created. required for 'pearl'
+    create_pearl_wait_delay: 100ms
+";
+    let cluster_config = "
+nodes:
+    - name: local_node
+      address: 127.0.0.1:20000
+      disks:
+        - name: disk1
+          path: /tmp/multiple-d1
+        - name: disk2
+          path: /tmp/multiple-d2
+vdisks:
+    - id: 0
+      replicas:
+        - node: local_node
+          disk: disk1
+        - node: local_node
+          disk: disk2
+";
+    debug!("node_config: {}", node_config);
+    debug!("cluster_config: {}", cluster_config);
+    create_backend(node_config, cluster_config).await.unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_write_multiple_local_replicas() {
+    let disk1_dir = "/tmp/multiple-d1";
+    let vdisk_id = 0;
+    let backend = multiple_local_replicas_backend().await;
+    backend.run().await.unwrap();
+
+    let ops = [("disk1", disk1_dir), ("disk2", "/tmp/multiple-d2")];
+    for (disk, path) in ops { 
+        let path = DiskPath::new(disk.into(), path);
+        let operation = Operation::new_local(vdisk_id, path);
+        let data = BobData::new(vec![].into(), BobMeta::new(TIMESTAMP));
+        let write = backend
+            .put(operation.clone(), BobKey::from(KEY_ID), &data)
+            .await;
+        assert!(write.is_ok());
+
+        let read = backend.get(operation.clone(), BobKey::from(KEY_ID)).await;
+        assert_eq!(TIMESTAMP, read.unwrap().meta().timestamp());
+    }
+    
+    let mut alien_path = PathBuf::from(disk1_dir);
+    alien_path.push("alien");
+    let content = std::fs::read_dir(alien_path).unwrap();
+    assert_eq!(0, content.count(), "alien path should be empty");
+
+    for (_, path) in ops {
+        remove_dir_all(path).await.unwrap();
+    }
 }
