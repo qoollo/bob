@@ -11,6 +11,7 @@ Bob versions changelog
 - Record timestamp is now passed to Pearl level and used to find newest record in get and exist functions (#708)
 
 #### Fixed
+- Fix testmode launch prerequisites (#843)
 
 
 #### Updated
