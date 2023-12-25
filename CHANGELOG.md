@@ -9,6 +9,7 @@ Bob versions changelog
 #### Changed
 - Use cargo workspace to declare dependencies to avoid their duplication (#821)
 - Record timestamp is now passed to Pearl level and used to find newest record in get and exist functions (#708)
+- Amount and max delay of retries for checking backend state in integration tests (#856)
 
 #### Fixed
 
