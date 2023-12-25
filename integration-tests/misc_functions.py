@@ -12,7 +12,7 @@ def request_metrics(port):
         raise UserWarning('Failed to get metrics, retrying...')
     
          
-@retry((UserWarning), tries=6, delay=1, backoff=2, max_delay=30)
+@retry((UserWarning), tries=7, delay=1, backoff=2, max_delay=30)
 def ensure_backend_up(bob_nodes_amount, rest_min_port):
     try:
         for item in range(bob_nodes_amount):
