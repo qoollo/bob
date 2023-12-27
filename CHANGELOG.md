@@ -9,6 +9,8 @@ Bob versions changelog
 #### Changed
 - Use cargo workspace to declare dependencies to avoid their duplication (#821)
 - Record timestamp is now passed to Pearl level and used to find newest record in get and exist functions (#708)
+- Save gRPC error when parsing status (#842)
+- Increased number and max delay of retries for Bob state checking in integration tests (#856)
 - Writing logic for aliens integration tests (#851)
 
 #### Fixed
