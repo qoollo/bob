@@ -527,7 +527,7 @@ impl DiskController {
                             result[i] |= r[i];
                         }
                     },
-                    Err(e) => trace!("error getting exist results for op {:?}: {:?}", op, e),
+                    Err(e) => debug!("error getting exist results for op {:?}: {:?}", op, e),
                 }
             }
             Ok(result)
