@@ -476,7 +476,7 @@ impl DiskController {
                     Ok(_) => { },
                     Err(e) if e.is_key_not_found() => { },
                     Err(e) => {
-                        debug!("errorgetting data from alien for op {:?}: {:?}", op, e);
+                        debug!("error getting data from alien for op {:?}: {:?}", op, e);
                     },
                 }
             }
