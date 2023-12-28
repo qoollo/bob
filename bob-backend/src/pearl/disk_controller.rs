@@ -572,35 +572,39 @@ impl DiskController {
         force_delete: bool,
     ) -> Result<u64, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            let mut result = 0;
-            let mut err = None;
             let groups = self.find_all_groups(&op).await;
             if force_delete && groups.is_empty() {
                 // If delete is forced we need to create at least one group
                 match self.get_or_create_pearl(&op).await {
                     Ok(group) => match group.delete(key, meta, StartTimestampConfig::new(false), force_delete).await {
-                        Ok(r) => result += r,
-                        Err(e) => err = Some(self.process_error(e).await),
+                        Ok(r) => Ok(r),
+                        Err(e) => Err(self.process_error(e).await),
                     },
                     Err(e) => {
                         error!(
                             "DELETE[alien][{}] Cannot find group, op: {:?}, err: {}",
                             key, op, e
                         );
-                        err = Some(Error::vdisk_not_found(op.vdisk_id()))
+                        Err(Error::vdisk_not_found(op.vdisk_id()))
                     }
                 }
-            }
-            for g in groups {
-                match g.delete(key, meta, StartTimestampConfig::new(false), force_delete).await {
-                    Ok(r) => result += r,
-                    Err(e) => err = Some(self.process_error(e).await),
-                }
-            }
-            if let Some(e) = err {
-                Err(e)
             } else {
-                Ok(result)
+                let mut result = 0;
+                let mut err = None;
+                for g in groups {
+                    match g.delete(key, meta, StartTimestampConfig::new(false), force_delete).await {
+                        Ok(r) => result += r,
+                        Err(e) => {
+                            debug!("DELETE[alien][{}] Error delete in one of the groups, op: {:?}, err: {}", key, op, e);
+                            err = Some(self.process_error(e).await)
+                        }
+                    }
+                }
+                if let Some(e) = err {
+                    Err(e)
+                } else {
+                    Ok(result)
+                }
             }
         } else {
             Err(Error::dc_is_not_available())
