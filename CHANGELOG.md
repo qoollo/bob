@@ -14,6 +14,7 @@ Bob versions changelog
 - Writing logic for aliens integration tests (#851)
 
 #### Fixed
+- Fix missing alien records due to multiple groups (#806)
 
 
 #### Updated
