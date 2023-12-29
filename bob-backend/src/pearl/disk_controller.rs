@@ -578,7 +578,10 @@ impl DiskController {
                 match self.get_or_create_pearl(&op).await {
                     Ok(group) => match group.delete(key, meta, StartTimestampConfig::new(false), force_delete).await {
                         Ok(r) => Ok(r),
-                        Err(e) => Err(self.process_error(e).await),
+                        Err(e) => {
+                            debug!("DELETE[alien][{}] Error delete in one of the groups, op: {:?}, err: {}", key, op, e);
+                            Err(self.process_error(e).await)
+                        },
                     },
                     Err(e) => {
                         error!(
