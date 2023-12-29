@@ -91,6 +91,7 @@ pub(crate) mod test_utils {
     use chrono::Local;
     use env_logger::fmt::{Color, Formatter as EnvFormatter};
     use log::{Level, Record};
+    use std::io::Write;
     use std::io::Result as IOResult;
 
     use crate::prelude::*;
