@@ -13,6 +13,7 @@ Bob versions changelog
 - Increased number and max delay of retries for Bob state checking in integration tests (#856)
 
 #### Fixed
+- Fix missing alien records due to multiple groups (#806)
 
 
 #### Updated
