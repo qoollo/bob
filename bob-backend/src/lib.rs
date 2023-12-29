@@ -20,7 +20,6 @@ pub(crate) mod prelude {
     pub use anyhow::{Context, Result as AnyResult};
     pub use bob_common::{
         configs::{
-            cluster::Cluster as ClusterConfig,
             node::{BackendType, Node as NodeConfig, Pearl as PearlConfig},
         },
         data::{BobData, BobKey, BobMeta, BobOptions, DiskPath, VDiskId},
@@ -36,7 +35,7 @@ pub(crate) mod prelude {
         Error as PearlError, ErrorKind as PearlErrorKind, Key as KeyTrait, Storage,
     };
     pub use std::{
-        collections::{hash_map::Entry, HashMap},
+        collections::HashMap,
         convert::TryInto,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
         fs::Metadata,
