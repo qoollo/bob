@@ -70,7 +70,6 @@ mod prelude {
     pub use std::{
         collections::HashMap,
         fmt::{Debug, Formatter, Result as FmtResult},
-        io::Write,
         pin::Pin,
         sync::Arc,
         time::{Duration, Instant},

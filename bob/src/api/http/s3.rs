@@ -164,7 +164,7 @@ impl<'r> FromRequest<'r> for CopyObjectHeaders {
             .and_then(|x| x.parse().ok())
         {
             Some(key) => key,
-            None => return Outcome::Forward(()),
+            None => return Outcome::Forward(Status::BadRequest),
         };
         Outcome::Success(CopyObjectHeaders {
             if_modified_since: headers
