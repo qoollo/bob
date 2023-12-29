@@ -70,7 +70,6 @@ mod prelude {
     pub use std::{
         collections::HashMap,
         fmt::{Debug, Formatter, Result as FmtResult},
-        io::Write,
         pin::Pin,
         sync::Arc,
         time::{Duration, Instant},
@@ -92,6 +91,7 @@ pub(crate) mod test_utils {
     use chrono::Local;
     use env_logger::fmt::{Color, Formatter as EnvFormatter};
     use log::{Level, Record};
+    use std::io::Write;
     use std::io::Result as IOResult;
 
     use crate::prelude::*;
