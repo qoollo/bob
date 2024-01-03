@@ -462,17 +462,20 @@ impl DiskController {
 
     pub(crate) async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            let result = self.get_alien_results(&op, |g| async move { g.get(key).await },
-                                                None,
-                                                |r, d| {
-                                                    let d_ts = d.meta().timestamp();
-                                                    if d_ts > r.as_ref().map(|d: &BobData| d.meta().timestamp()).unwrap_or(0) { 
-                                                        Some(d) 
-                                                    } else { 
-                                                        r
-                                                    }
-                                                });
-            if let Some(Some(r)) = result {
+            let mut result: Option<BobData> = None;
+            for g in self.find_all_groups(&op).await {
+                match g.get(key).await {
+                    Ok(data) if data.meta().timestamp() > result.as_ref().map_or(0, |d| d.meta().timestamp()) => {
+                        result = Some(data);
+                    },
+                    Ok(_) => { },
+                    Err(e) if e.is_key_not_found() => { },
+                    Err(e) => {
+                        debug!("error getting data from alien for op {:?}: {:?}", op, e);
+                    },
+                }
+            }
+            if let Some(r) = result {
                 Ok(r)
             } else {
                 Err(Error::key_not_found(key))
@@ -507,18 +510,22 @@ impl DiskController {
 
     pub(crate) async fn exist_alien(
         &self,
-        operation: Operation,
+        op: Operation,
         keys: &[BobKey],
     ) -> Result<Vec<bool>, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            Ok(self.get_alien_results(&operation, |g| async move { g.exist(keys).await },
-                                      vec![false; keys.len()],
-                                      |mut s, n| {
-                                          for i in 0..n.len() {
-                                              s[i] |= n[i];
-                                          }
-                                          s
-                                      }).await.unwrap_or(vec![false; keys.len()]))
+            let mut result = vec![false; keys.len()];
+            for g in self.find_all_groups(&op).await {
+                match g.exist(keys).await {
+                    Ok(r) => {
+                        for i in 0..r.len() {
+                            result[i] |= r[i];
+                        }
+                    },
+                    Err(e) => debug!("error getting exist results for op {:?}: {:?}", op, e),
+                }
+            }
+            Ok(result)
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -601,28 +608,4 @@ impl DiskController {
     pub(crate) fn groups(&self) -> Arc<RwLock<Vec<Group>>> {
         self.groups.clone()
     } 
-
-    async fn get_alien_results<R, RF, F, Res>(&self, op: &Operation, f: F, 
-                                              init: Res, fold: impl Fn(Res, R) -> Res) -> Option<Res>
-        where
-            RF: Future<Output = Result<R, Error>>,
-            F: Fn(Group) -> RF 
-    {
-        let groups = self.find_all_groups(op).await;
-        if groups.is_empty() {
-            return None;
-        }
-        let mut result = init;
-        for g in groups {
-            let r = f(g).await;
-            match r {
-                Ok(r) => result = fold(result, r),
-                Err(e) => {
-                    trace!("error getting alien results for op {:?}: {:?}", op, e);
-                    // self.process_error(e).await; // TODO Need to be uncommented in version 2.1
-                },
-            }
-        }
-        Some(result)
-    }
 }
