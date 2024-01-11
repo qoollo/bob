@@ -280,13 +280,7 @@ impl DiskController {
         Ok(groups)
     }
 
-    async fn find_group(&self, operation: &Operation) -> BackendResult<Group> {
-        Self::find_single_group(self.groups.read().await.iter(), operation).ok_or_else(|| {
-            Error::failed(format!("cannot find actual alien folder. {:?}", operation))
-        })
-    }
-
-    async fn find_all_groups(&self, operation: &Operation) -> BackendResult<Group> {
+    async fn find_all_groups(&self, operation: &Operation) -> smallvec::SmallVec<[Group; 1]> {
         self.groups.read().await
             .iter()
             .filter(|group| group.can_process_operation(operation))
