@@ -10,6 +10,7 @@ Bob versions changelog
 
 
 #### Fixed
+- Fix missing alien records due to multiple groups (#806)
 
 
 #### Updated

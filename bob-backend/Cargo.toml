@@ -33,6 +33,7 @@ thiserror = "1.0"
 tonic = { version = "0.6", features = ["prost"] }
 tower = "0.4"
 tower-service = "0.3"
+smallvec = "1.10"
 
 [dependencies.pearl]
 version = "=0.9.6"

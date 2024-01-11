@@ -280,13 +280,15 @@ impl DiskController {
         Ok(groups)
     }
 
-    async fn find_group(&self, operation: &Operation) -> BackendResult<Group> {
-        Self::find_in_groups(self.groups.read().await.iter(), operation).ok_or_else(|| {
-            Error::failed(format!("cannot find actual alien folder. {:?}", operation))
-        })
+    async fn find_all_groups(&self, operation: &Operation) -> smallvec::SmallVec<[Group; 1]> {
+        self.groups.read().await
+            .iter()
+            .filter(|group| group.can_process_operation(operation))
+            .cloned()
+            .collect()
     }
 
-    fn find_in_groups<'pearl, 'op>(
+    fn find_single_group<'pearl, 'op>(
         mut pearls: impl Iterator<Item = &'pearl Group>,
         operation: &'op Operation,
     ) -> Option<Group> {
@@ -300,14 +302,14 @@ impl DiskController {
         // block for read lock: it should be dropped before write lock is acquired (otherwise - deadlock)
         {
             let read_lock_groups = self.groups.read().await;
-            let pearl = Self::find_in_groups(read_lock_groups.iter(), operation);
+            let pearl = Self::find_single_group(read_lock_groups.iter(), operation);
             if let Some(g) = pearl {
                 return Ok(g);
             }
         }
 
         let mut write_lock_groups = self.groups.write().await;
-        let pearl = Self::find_in_groups(write_lock_groups.iter(), operation);
+        let pearl = Self::find_single_group(write_lock_groups.iter(), operation);
         if let Some(g) = pearl {
             return Ok(g);
         }
@@ -454,15 +456,22 @@ impl DiskController {
 
     pub(crate) async fn get_alien(&self, op: Operation, key: BobKey) -> Result<BobData, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            let vdisk_group = self.find_group(&op).await;
-            if let Ok(group) = vdisk_group {
-                group.get(key).await
+            let mut result: Option<BobData> = None;
+            for g in self.find_all_groups(&op).await {
+                match g.get(key).await {
+                    Ok(data) if data.meta().timestamp() > result.as_ref().map_or(0, |d| d.meta().timestamp()) => {
+                        result = Some(data);
+                    },
+                    Ok(_) => { },
+                    Err(e) if e.is_key_not_found() => { },
+                    Err(e) => {
+                        debug!("error getting data from alien for op {:?}: {:?}", op, e);
+                    },
+                }
+            }
+            if let Some(r) = result {
+                Ok(r)
             } else {
-                warn!(
-                    "GET[alien][{}] No alien group has been created for vdisk #{}",
-                    key,
-                    op.vdisk_id()
-                );
                 Err(Error::key_not_found(key))
             }
         } else {
@@ -495,20 +504,22 @@ impl DiskController {
 
     pub(crate) async fn exist_alien(
         &self,
-        operation: Operation,
+        op: Operation,
         keys: &[BobKey],
     ) -> Result<Vec<bool>, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            let vdisk_group = self.find_group(&operation).await;
-            if let Ok(group) = vdisk_group {
-                group.exist(keys).await
-            } else {
-                trace!(
-                    "EXIST[alien] No alien group has been created for vdisk #{}",
-                    operation.vdisk_id()
-                );
-                Ok(vec![false; keys.len()])
+            let mut result = vec![false; keys.len()];
+            for g in self.find_all_groups(&op).await {
+                match g.exist(keys).await {
+                    Ok(r) => {
+                        for i in 0..r.len() {
+                            result[i] |= r[i];
+                        }
+                    },
+                    Err(e) => debug!("error getting exist results for op {:?}: {:?}", op, e),
+                }
             }
+            Ok(result)
         } else {
             Err(Error::dc_is_not_available())
         }
@@ -590,5 +601,5 @@ impl DiskController {
 
     pub(crate) fn groups(&self) -> Arc<RwLock<Vec<Group>>> {
         self.groups.clone()
-    }
+    } 
 }
