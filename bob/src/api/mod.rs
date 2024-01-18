@@ -242,7 +242,7 @@ where
         ),
         ("/vdisks/:vdisk_id/partitions", get(partitions::<A>)),
         ("/disks/:disk_name/vdisks/:vdisk_id/partitions", get(partitions_by_disk_vdisk::<A>)),
-        ("/alien/disks/:disk_name/vdisks/:vdisk_id/partitions", get(alien_partitions_by_disk_vdisk::<A>)),
+        ("/alien/nodes/:node_name/vdisks/:vdisk_id/partitions", get(alien_partitions_by_disk_vdisk::<A>)),
         (
             "/vdisks/:vdisk_id/partitions/:partition_id",
             get(partition_by_id::<A>),
@@ -257,7 +257,7 @@ where
             delete(delete_partition::<A>),
         ),
         ("/disks/:disk_name/vdisks/:vdisk_id/partitions/:partition_id", delete(delete_partition_by_id::<A>)),
-        ("/alien/disks/:disk_name/vdisks/:vdisk_id/partitions/:partition_id", delete(alien_delete_partition_by_id::<A>)),
+        ("/alien/nodes/:node_name/vdisks/:vdisk_id/partitions/:partition_id", delete(alien_delete_partition_by_id::<A>)),
         ("/alien", get(alien)),
         ("/alien/detach", post(detach_alien_partitions::<A>)),
         ("/alien/dir", get(get_alien_directory::<A>)),
@@ -1176,7 +1176,7 @@ where
 // GET /alien/disks/:disk_name/vdisks/:vdisk_id/partitions
 async fn alien_partitions_by_disk_vdisk<A>(
     bob: Extension<BobServer<A>>,
-    AxumPath((disk_name, vdisk_id)): AxumPath<(String, u32)>,
+    AxumPath((node_name, vdisk_id)): AxumPath<(String, u32)>,
     creds: CredentialsHolder<A>,
 ) -> Result<Json<Vec<PartitionSlim>>, StatusExt>
 where
@@ -1189,7 +1189,7 @@ where
     {
         return Err(AuthError::PermissionDenied.into());
     }
-    let group = find_alien_group_on_disk(&bob, &disk_name, vdisk_id).await?;
+    let group = find_alien_group_on_disk(&bob, &node_name, vdisk_id).await?;
     let partitions = create_slim_partitions(group).await;
     Ok(Json(partitions))
 }
@@ -1226,7 +1226,7 @@ where
 // DELETE /alien/disks/:disk_name/vdisks/:vdisk_id/partitions/:partition_id
 async fn alien_delete_partition_by_id<A>(
     bob: Extension<BobServer<A>>,
-    AxumPath((disk_name, vdisk_id, partition_id)): AxumPath<(String, u32, String)>,
+    AxumPath((node_name, vdisk_id, partition_id)): AxumPath<(String, u32, String)>,
     creds: CredentialsHolder<A>,
 ) -> Result<StatusExt, StatusExt>
 where
@@ -1239,14 +1239,14 @@ where
     {
         return Err(AuthError::PermissionDenied.into());
     }
-    let group = find_alien_group_on_disk(&bob, &disk_name, vdisk_id).await?;
+    let group = find_alien_group_on_disk(&bob, &node_name, vdisk_id).await?;
     let pearl = group.detach_by_id(&partition_id).await.ok();
     if let Some(holder) = pearl {
-        drop_directories(vec![holder], format!("id {} in vdisk {} on disk {}", partition_id, vdisk_id, disk_name)).await
+        drop_directories(vec![holder], format!("id {} in vdisk {} for node {}", partition_id, vdisk_id, node_name)).await
     } else {
         let msg = format!(
-            "partition {} not found on vdisk {} on disk {} or it is active",
-            partition_id, vdisk_id, disk_name
+            "alien partition {} not found on vdisk {} for node {} or it is active",
+            partition_id, vdisk_id, node_name
         );
         Err(StatusExt::new(StatusCode::BAD_REQUEST, true, msg))
     }
@@ -1266,14 +1266,22 @@ async fn find_group_on_disk<A: Authenticator>(
 
 async fn find_alien_group_on_disk<A: Authenticator>(
     bob: &BobServer<A>, 
-    disk_name: &str, 
+    node_name: &str, 
     vdisk_id: u32
 ) -> Result<PearlGroup, StatusExt> {
     let backend = bob.grinder().backend().inner();
     let (_, adc) = backend
         .disk_controllers()
         .ok_or_else(not_acceptable_backend)?;
-    find_disk_vdisk_group(&[adc], disk_name, vdisk_id).await
+    let groups = adc.groups();
+    let pearls = groups.read().await;
+    pearls.iter()
+        .find(|g| g.node_name() == node_name && g.vdisk_id() == vdisk_id)
+        .cloned()
+        .ok_or_else(|| { 
+            let msg = format!("Alien vdisk group for node {} vdisk {} not found", node_name, vdisk_id); 
+            StatusExt::new(StatusCode::NOT_FOUND, false, msg) 
+        })
 }
 
 async fn find_disk_vdisk_group(
