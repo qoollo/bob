@@ -535,7 +535,7 @@ impl Group {
                 }
             }
         }
-        return Err(Error::pearl_change_state(format!("pearl:{} not found", id)));
+        Err(Error::pearl_change_state(format!("pearl:{} not found", id)))
     }
 
     pub async fn detach_all(&self) -> BackendResult<()> {
