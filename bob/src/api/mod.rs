@@ -1192,9 +1192,9 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group_on_disk(&bob, &disk_name, vdisk_id).await?;
-    let pearls = group.detach_by_id(&partition_id).await.ok();
-    if let Some(holders) = pearls {
-        drop_directories(holders, format!("id {} in vdisk {} on disk {}", partition_id, vdisk_id, disk_name)).await
+    let pearl = group.detach_by_id(&partition_id).await.ok();
+    if let Some(holder) = pearl {
+        drop_directories(vec![holder], format!("id {} in vdisk {} on disk {}", partition_id, vdisk_id, disk_name)).await
     } else {
         let msg = format!(
             "partition {} not found on vdisk {} on disk {} or it is active",

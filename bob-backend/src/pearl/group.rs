@@ -517,24 +517,25 @@ impl Group {
         Ok(removed)
     }
 
-    pub async fn detach_by_id(&self, id: &str) -> BackendResult<Vec<Holder>> {
+    pub async fn detach_by_id(&self, id: &str) -> BackendResult<Holder> {
         let mut holders = self.holders.write().await;
         debug!("write lock acquired");
         let ts = get_current_timestamp();
-        let mut removed = vec![];
         for ind in 0..holders.len() {
             if let Some(holder) = holders.get_child(ind) {
-                if holder.data.get_id() == id && !holder.data.gets_into_interval(ts) {
-                    removed.push(holders.remove(ind).expect("should be presented"));
+                if holder.data.get_id() == id {
+                    if !holder.data.gets_into_interval(ts) {
+                        let removed = holders.remove(ind).expect("should be presented");
+                        removed.close_storage().await;
+                        return Ok(removed);
+                    }
+                    else {
+                        return Err(Error::pearl_change_state(format!("pearl:{} is active", id)));
+                    }
                 }
             }
         }
-        if removed.is_empty() {
-            let msg = format!("pearl:{} not found", id);
-            return Err(Error::pearl_change_state(msg));
-        }
-        close_holders(removed.iter()).await;
-        Ok(removed)
+        return Err(Error::pearl_change_state(format!("pearl:{} not found", id)));
     }
 
     pub async fn detach_all(&self) -> BackendResult<()> {
