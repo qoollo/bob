@@ -1169,7 +1169,6 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_group_on_disk(&bob, &disk_name, vdisk_id).await?;
-    debug!("group with provided vdisk_id found");
     let partitions = create_slim_partitions(group).await;
     Ok(Json(partitions))
 }
@@ -1191,7 +1190,6 @@ where
         return Err(AuthError::PermissionDenied.into());
     }
     let group = find_alien_group_on_disk(&bob, &disk_name, vdisk_id).await?;
-    debug!("group with provided vdisk_id found");
     let partitions = create_slim_partitions(group).await;
     Ok(Json(partitions))
 }
