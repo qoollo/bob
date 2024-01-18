@@ -242,7 +242,7 @@ where
         ),
         ("/vdisks/:vdisk_id/partitions", get(partitions::<A>)),
         ("/disks/:disk_name/vdisks/:vdisk_id/partitions", get(partitions_by_disk_vdisk::<A>)),
-        ("/alien/nodes/:node_name/vdisks/:vdisk_id/partitions", get(alien_partitions_by_disk_vdisk::<A>)),
+        ("/alien/nodes/:node_name/vdisks/:vdisk_id/partitions", get(alien_partitions_by_node_vdisk::<A>)),
         (
             "/vdisks/:vdisk_id/partitions/:partition_id",
             get(partition_by_id::<A>),
@@ -1174,7 +1174,7 @@ where
 }
 
 // GET /alien/disks/:disk_name/vdisks/:vdisk_id/partitions
-async fn alien_partitions_by_disk_vdisk<A>(
+async fn alien_partitions_by_node_vdisk<A>(
     bob: Extension<BobServer<A>>,
     AxumPath((node_name, vdisk_id)): AxumPath<(String, u32)>,
     creds: CredentialsHolder<A>,
