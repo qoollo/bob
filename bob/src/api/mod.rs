@@ -1291,7 +1291,7 @@ async fn find_disk_vdisk_group(
 ) -> Result<PearlGroup, StatusExt> {
     let needed_dc = dcs
         .iter()
-        .find(|dc| dc.disk().name() == disk_name && dc.vdisks().iter().any(|&vd| vd == vdisk_id))
+        .find(|dc| dc.disk().name() == disk_name)
         .ok_or_else(|| {
             let dcs = dcs.iter()
                 .map(|dc| format!("DC: {}, vdisks: {}",
