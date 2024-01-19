@@ -1173,7 +1173,7 @@ where
     Ok(Json(partitions))
 }
 
-// GET /alien/disks/:disk_name/vdisks/:vdisk_id/partitions
+// GET /alien/nodes/:node_name/vdisks/:vdisk_id/partitions
 async fn alien_partitions_by_node_vdisk<A>(
     bob: Extension<BobServer<A>>,
     AxumPath((node_name, vdisk_id)): AxumPath<(String, u32)>,
@@ -1223,7 +1223,7 @@ where
     }
 }
 
-// DELETE /alien/disks/:disk_name/vdisks/:vdisk_id/partitions/:partition_id
+// DELETE /alien/nodes/:node_name/vdisks/:vdisk_id/partitions/:partition_id
 async fn alien_delete_partition_by_id<A>(
     bob: Extension<BobServer<A>>,
     AxumPath((node_name, vdisk_id, partition_id)): AxumPath<(String, u32, String)>,
