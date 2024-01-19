@@ -748,7 +748,7 @@ where
     let holders = group.holders();
     let pearls = holders.read().await;
     debug!("get pearl holders: OK");
-    let partitions = pearls.iter().map(Holder::get_id).collect();
+    let partitions = pearls.iter().map(|h| h.get_id().to_owned()).collect();
 
     let node_name = group.node_name().to_string();
     let disk_name = group.disk_name().to_string();
@@ -1317,7 +1317,7 @@ async fn create_slim_partitions(group: PearlGroup) -> Vec<PartitionSlim> {
     let holders = group.holders();
     let pearls = holders.read().await;
     return pearls.iter()
-        .map(|h| PartitionSlim { id: h.get_id(), timestamp: h.start_timestamp() })
+        .map(|h| PartitionSlim { id: h.get_id().to_owned(), timestamp: h.start_timestamp() })
         .collect();
 }
 
