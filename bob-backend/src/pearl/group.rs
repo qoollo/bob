@@ -530,7 +530,7 @@ impl Group {
                         return Ok(removed);
                     }
                     else {
-                        return Err(Error::pearl_change_state(format!("pearl:{} is active", id)));
+                        return Err(Error::pearl_change_state(format!("Cannot detach active partition (pearl:{})", id)));
                     }
                 }
             }
