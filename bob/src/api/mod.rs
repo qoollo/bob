@@ -1219,7 +1219,7 @@ where
             "partition {} not found on vdisk {} on disk {} or it is active",
             partition_id, vdisk_id, disk_name
         );
-        Err(StatusExt::new(StatusCode::BAD_REQUEST, true, msg))
+        Err(StatusExt::new(StatusCode::NOT_FOUND, true, msg))
     }
 }
 
@@ -1248,7 +1248,7 @@ where
             "alien partition {} not found on vdisk {} for node {} or it is active",
             partition_id, vdisk_id, node_name
         );
-        Err(StatusExt::new(StatusCode::BAD_REQUEST, true, msg))
+        Err(StatusExt::new(StatusCode::NOT_FOUND, true, msg))
     }
 }
 
