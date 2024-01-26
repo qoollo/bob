@@ -533,7 +533,7 @@ impl DiskController {
             for holder in holders.iter() {
                 let storage = holder.storage().read().await;
                 let storage = storage.storage().clone();
-                let id = holder.get_id();
+                let id = holder.get_id().to_owned();
                 futures.push(async move {
                     match storage.close().await {
                         Ok(_) => debug!("holder {} closed", id),
@@ -599,7 +599,7 @@ impl DiskController {
             .await
     }
 
-    pub(crate) fn groups(&self) -> Arc<RwLock<Vec<Group>>> {
+    pub fn groups(&self) -> Arc<RwLock<Vec<Group>>> {
         self.groups.clone()
     } 
 }
