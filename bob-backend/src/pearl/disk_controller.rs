@@ -519,18 +519,21 @@ impl DiskController {
         keys: &[BobKey],
     ) -> Result<Vec<bool>, Error> {
         if *self.state.read().await == GroupsState::Ready {
-            let mut result = vec![false; keys.len()];
+            let mut result: Option<Vec<bool>> = None;
             for g in self.find_all_groups(&op).await {
                 match g.exist(keys).await {
                     Ok(r) => {
-                        for i in 0..r.len() {
-                            result[i] |= r[i];
-                        }
+                        result = result.map(|mut result| {
+                            for i in 0..r.len() {
+                                result[i] |= r[i];
+                            }
+                            result
+                        }).or(Some(r));
                     },
                     Err(e) => debug!("error getting exist results for op {:?}: {:?}", op, e),
                 }
             }
-            Ok(result)
+            Ok(result.unwrap_or_else(|| vec![false; keys.len()]))
         } else {
             Err(Error::dc_is_not_available())
         }

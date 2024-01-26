@@ -12,6 +12,7 @@ Bob versions changelog
 - Save gRPC error when parsing status (#842)
 - Increased number and max delay of retries for Bob state checking in integration tests (#856)
 - Update writing logic for aliens integration tests to capture lost records problem (#851)
+- Remove allocation on alien exist (#861)
 
 #### Fixed
 - Fix missing alien records due to multiple groups (#806)
