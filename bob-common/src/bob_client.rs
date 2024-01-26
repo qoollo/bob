@@ -20,6 +20,7 @@ pub mod b_client {
         transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
         Request,
     };
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_ENGINE};
 
     /// Client for interaction with bob backend.
     /// Clone implementation was removed, because struct is large. Use Arc to store copies
@@ -61,7 +62,7 @@ pub mod b_client {
                 .await
                 .map_err(|e| e.to_string())?;
 
-            let auth_header = format!("InterNode {}", base64::encode(local_node_name.as_str()));
+            let auth_header = format!("InterNode {}", BASE64_ENGINE.encode(local_node_name.as_str()));
 
             Ok(Self {
                 client,

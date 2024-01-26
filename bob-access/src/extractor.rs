@@ -2,6 +2,7 @@ use crate::{credentials::{RequestCredentials, RequestCredentialsBuilder}, error:
 use axum::extract::RequestParts;
 use http::Request;
 use tonic::{transport::server::TcpConnectInfo, Request as TonicRequest};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_ENGINE};
 
 pub trait Extractor {
     fn get_header(&self, header: &str) -> Result<Option<&str>, Error>;
@@ -23,7 +24,7 @@ fn prepare_builder<T: Extractor>(slf: &T) -> Result<RequestCredentialsBuilder, E
 }
 
 fn username_password_from_credentials(credentials: &str) -> Result<(String, String), Error> {
-    let credentials = base64::decode(credentials)
+    let credentials = BASE64_ENGINE.decode(credentials)
         .map_err(|e| Error::ConversionError(format!("bad base64 credentials: {}", e)))?;
     let str_cred = String::from_utf8(credentials)
         .map_err(|e| Error::ConversionError(format!("invalid utf8 credentials characters: {}", e)))?;
@@ -42,7 +43,7 @@ fn username_password_from_credentials(credentials: &str) -> Result<(String, Stri
 }
 
 fn nodename_from_credentials(credentials: &str) -> Result<String, Error> {
-    let credentials = base64::decode(credentials)
+    let credentials = BASE64_ENGINE.decode(credentials)
         .map_err(|e| Error::ConversionError(format!("bad base64 credentials: {}", e)))?;
     let nodename = String::from_utf8(credentials)
         .map_err(|e| Error::ConversionError(format!("invalid utf8 credentials characters: {}", e)))?;

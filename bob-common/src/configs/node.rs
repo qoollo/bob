@@ -5,7 +5,7 @@ use super::{
     validation::Validatable
 };
 use bob_access::AuthenticationType;
-use crate::core_types::DiskPath;
+use crate::core_types::{DiskPath, DiskName};
 use futures::Future;
 use humantime::Duration as HumanDuration;
 use std::{
@@ -21,7 +21,7 @@ use std::{net::Ipv4Addr, sync::Arc, fs};
 use tokio::time::sleep;
 use tonic::transport::{ServerTlsConfig, Identity};
 
-use ubyte::ByteUnit;
+use ubyte::{ByteUnit, ToByteUnit};
 
 const AIO_FLAG_ORDERING: Ordering = Ordering::Relaxed;
 
@@ -214,6 +214,25 @@ impl MetricsConfig {
     }
 }
 
+impl Default for MetricsConfig {
+    fn default() -> Self {
+        let name = Some(String::from("bob"));
+        let prometheus_addr = String::default();
+        let prometheus_enabled = false;
+        let graphite_enabled =  false;
+        let graphite = None;
+        let prefix = None;
+        Self {
+            name,
+            prometheus_addr,
+            prometheus_enabled,
+            graphite_enabled,
+            graphite,
+            prefix
+        }
+    }
+}
+
 impl Validatable for MetricsConfig {
     fn validate(&self) -> Result<(), String> {
         self.check_unset()?;
@@ -254,11 +273,17 @@ pub struct Pearl {
     /// This optimization is unsafe, value should be at least 2 times the maximum value of 'timestamp_period' that was used throughout the lifetime of the cluster
     #[serde(default)]
     skip_holders_by_timestamp_step_when_reading: Option<String>,
+    #[serde(default = "Pearl::default_max_dirty_bytes_before_sync")]
+    max_dirty_bytes_before_sync: ByteUnit,
 }
 
 impl Pearl {
     pub fn max_buf_bits_count(&self) -> Option<usize> {
         self.bloom_filter_max_buf_bits_count
+    }
+
+    pub fn max_dirty_bytes_before_sync(&self) -> u64 {
+        self.max_dirty_bytes_before_sync.as_u64()
     }
 
     pub fn alien_disk(&self) -> Option<&str> {
@@ -311,6 +336,11 @@ impl Pearl {
         true
     }
 
+    fn default_max_dirty_bytes_before_sync() -> ByteUnit {
+        // 10Mb
+        10 * ByteUnit::MiB
+    }
+
     pub fn allow_duplicates(&self) -> bool {
         self.allow_duplicates
     }
@@ -336,7 +366,7 @@ impl Pearl {
     }
 
     fn default_max_blob_size() -> ByteUnit {
-        ByteUnit::MB
+        ByteUnit::GB
     }
 
     pub fn max_blob_size(&self) -> u64 {
@@ -440,6 +470,31 @@ impl Pearl {
             sleep(retry_delay).await
         }
         unreachable!()
+    }
+
+    pub fn get_testmode(alien_disk: &DiskName) -> Self {
+        Self {
+            max_blob_size: ByteUnit::GB,
+            max_data_in_blob: 100_000,
+            blob_file_name_prefix: Pearl::default_blob_file_name_prefix(),
+            fail_retry_timeout: Pearl::default_fail_retry_timeout(),
+            fail_retry_count: Pearl::default_fail_retry_count(),
+            alien_disk: Some(alien_disk.to_string()),
+            allow_duplicates: Pearl::default_allow_duplicates(),
+            settings: BackendSettings {
+                root_dir_name: String::from("bob"),
+                alien_root_dir_name: String::from("alien"),
+                timestamp_period: String::from("1d"),
+                create_pearl_wait_delay: String::from("100ms")
+            },
+            hash_chars_count: Pearl::default_hash_chars_count(),
+            enable_aio: Pearl::default_enable_aio(),
+            disks_events_logfile: Pearl::default_disks_events_logfile(),
+            bloom_filter_max_buf_bits_count: Some(1_000_000),
+            validate_data_checksum_during_index_regen: Pearl::default_validate_data_checksum_during_index_regen(),
+            skip_holders_by_timestamp_step_when_reading: None,
+            max_dirty_bytes_before_sync: Pearl::default_max_dirty_bytes_before_sync(),
+        }
     }
 }
 
@@ -798,6 +853,39 @@ impl NodeConfig {
 
     pub fn default_holder_group_size() -> usize {
         8
+    }
+
+    pub fn get_testmode(node_name: &str, disk_name: &DiskName, rest_port: Option<u16>) -> Self {
+        Self {
+             log_config: String::from("dummy"),
+             users_config: String::from("dummy"),
+             name: String::from(node_name),
+             quorum: 1,
+             operation_timeout: String::from("60sec"),
+             check_interval: String::from("5000ms"),
+             count_interval: NodeConfig::default_count_interval(),
+             cluster_policy: String::from("quorum"),
+             backend_type: String::from("pearl"),
+             pearl: Some(Pearl::get_testmode(disk_name)),
+             metrics: Some(MetricsConfig::default()), 
+             bind_ref: Arc::default(),
+             disks_ref: Arc::default(),
+             cleanup_interval: String::from("1h"),
+             open_blobs_soft_limit: None,
+             open_blobs_hard_limit: None,
+             bloom_filter_memory_limit: Some(8.gibibytes()),
+             index_memory_limit: Some(8.gibibytes()),
+             index_memory_limit_soft: None,
+             init_par_degree: NodeConfig::default_init_par_degree(),
+             disk_access_par_degree: NodeConfig::default_disk_access_par_degree(),
+             http_api_port: rest_port.unwrap_or_else(|| Node::default_http_api_port()),
+             http_api_address: Node::default_http_api_address(),
+             bind_to_ip_address: None,
+             holder_group_size: NodeConfig::default_holder_group_size(),
+             authentication_type: NodeConfig::default_authentication_type(),
+             tls: None,
+             hostname_resolve_period_ms: NodeConfig::default_hostname_resolve_period_ms()
+        }
     }
 }
 

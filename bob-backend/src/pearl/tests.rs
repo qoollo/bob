@@ -2,6 +2,7 @@ use crate::prelude::*;
 
 use super::{core::BackendResult, Pearl as PearlBackend};
 use crate::core::{BackendStorage, Operation};
+use bob_common::configs::cluster::Cluster as ClusterConfig;
 
 static DISK_NAME: &str = "disk1";
 static PEARL_PATH: &str = "/tmp/d1/";
