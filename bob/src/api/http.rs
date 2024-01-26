@@ -445,7 +445,7 @@ async fn partitions(
     debug!("get pearl holders: OK");
     let mut partitions = vec![];
     for pearl in pearls.iter() {
-        partitions.push(pearl.get_id());
+        partitions.push(pearl.get_id().to_owned());
     }
     let ps = VDiskPartitions {
         node_name: group.node_name().to_owned(),
