@@ -337,6 +337,59 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StatusExt"
+  /disks/{DiskName}/vdisks/{VDiskId}/partitions:
+    get:
+      summary: Return partitions allocated on vdisk on vdisk
+      parameters:
+        - $ref: "#/components/parameters/DiskNameParam"
+        - $ref: "#/components/parameters/VDiskIdParam"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PartitionSlim"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Disk or vdisk not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+  /disks/{DiskName}/vdisks/{VDiskId}/partitions/{PartitionId}:
+    delete:
+      summary: Remove specified partition on vdisk on disk
+      parameters:
+        - $ref: "#/components/parameters/DiskNameParam"
+        - $ref: "#/components/parameters/VDiskIdParam"
+        - $ref: "#/components/parameters/PartitionIdParam"
+      responses:
+        "200":
+          description: Successfully removed partition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Disk, vdisk or partition not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /vdisks/{VDiskId}/remount:
     post:
       summary: Remount partitions on vdisk
@@ -385,6 +438,59 @@ paths:
             application/json:
               schema:
                 type: string
+  /alien/nodes/{NodeName}/vdisks/{VDiskId}/partitions:
+    get:
+      summary: Return alien partitions allocated on vdisk on vdisk
+      parameters:
+        - $ref: "#/components/parameters/NodeNameParam"
+        - $ref: "#/components/parameters/VDiskIdParam"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PartitionSlim"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Disk or vdisk not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+  /alien/nodes/{NodeName}/vdisks/{VDiskId}/partitions/{PartitionId}:
+    delete:
+      summary: Remove specified alien partition on vdisk on disk
+      parameters:
+        - $ref: "#/components/parameters/NodeNameParam"
+        - $ref: "#/components/parameters/VDiskIdParam"
+        - $ref: "#/components/parameters/PartitionIdParam"
+      responses:
+        "200":
+          description: Successfully removed partition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "403":
+          description: "Permission denied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
+        "404":
+          description: "Disk, vdisk or partition not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusExt"
   /configuration:
     get:
       summary: Returns configuration of the node
@@ -611,6 +717,12 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
   parameters:
+    NodeNameParam:
+      name: NodeName
+      in: path
+      required: true
+      schema:
+        type: string
     DiskNameParam:
       name: DiskName
       in: path
@@ -623,6 +735,12 @@ components:
       required: true
       schema:
         type: integer
+    PartitionIdParam:
+      name: PartitionId
+      in: path
+      required: true
+      schema:
+        type: string
     DataKeyParam:
       name: DataKey
       in: path
@@ -793,3 +911,11 @@ components:
           type: boolean
         msg:
           type: string
+    PartitionSlim:
+      type: object
+      properties:
+        id: 
+          type: string
+        timestamp:
+          type: integer
+

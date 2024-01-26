@@ -87,6 +87,12 @@ pub(crate) struct Partition {
     records_count: usize,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub(crate) struct PartitionSlim {
+    id: String,
+    timestamp: u64
+}
+
 #[derive(Debug)]
 pub struct StatusExt {
     status: StatusCode,
@@ -235,6 +241,8 @@ where
             get(vdisk_records_count::<A>),
         ),
         ("/vdisks/:vdisk_id/partitions", get(partitions::<A>)),
+        ("/disks/:disk_name/vdisks/:vdisk_id/partitions", get(partitions_by_disk_vdisk::<A>)),
+        ("/alien/nodes/:node_name/vdisks/:vdisk_id/partitions", get(alien_partitions_by_node_vdisk::<A>)),
         (
             "/vdisks/:vdisk_id/partitions/:partition_id",
             get(partition_by_id::<A>),
@@ -248,6 +256,8 @@ where
             "/vdisks/:vdisk_id/partitions/by_timestamp/:timestamp",
             delete(delete_partition::<A>),
         ),
+        ("/disks/:disk_name/vdisks/:vdisk_id/partitions/:partition_id", delete(delete_partition_by_id::<A>)),
+        ("/alien/nodes/:node_name/vdisks/:vdisk_id/partitions/:partition_id", delete(alien_delete_partition_by_id::<A>)),
         ("/alien", get(alien)),
         ("/alien/detach", post(detach_alien_partitions::<A>)),
         ("/alien/dir", get(get_alien_directory::<A>)),
@@ -738,7 +748,7 @@ where
     let holders = group.holders();
     let pearls = holders.read().await;
     debug!("get pearl holders: OK");
-    let partitions = pearls.iter().map(Holder::get_id).collect();
+    let partitions = pearls.iter().map(|h| h.get_id().to_owned()).collect();
 
     let node_name = group.node_name().to_string();
     let disk_name = group.disk_name().to_string();
@@ -880,7 +890,7 @@ where
     let group = find_group(&bob, vdisk_id).await?;
     let pearls = group.detach(timestamp).await.ok();
     if let Some(holders) = pearls {
-        drop_directories(holders, timestamp, vdisk_id).await
+        drop_directories(holders, format!("timestamp {} on vdisk {}", timestamp, vdisk_id)).await
     } else {
         let msg = format!(
             "partitions with timestamp {} not found on vdisk {} or it is active",
@@ -892,8 +902,7 @@ where
 
 async fn drop_directories(
     holders: Vec<Holder>,
-    timestamp: u64,
-    vdisk_id: u32,
+    partitions_description: String
 ) -> Result<StatusExt, StatusExt> {
     let mut result_msg = String::new();
     let mut is_error = false;
@@ -901,11 +910,11 @@ async fn drop_directories(
         let msg = if let Some(err) = holder.drop_directory().await.err() {
             is_error = true;
             format!(
-                "partitions with timestamp {} delete failed on vdisk {}, error: {}",
-                timestamp, vdisk_id, err
+                "partitions {} delete failed, error: {}",
+                partitions_description, err
             )
         } else {
-            format!("partitions deleted with timestamp {}", timestamp)
+            format!("partitions {} deleted", partitions_description)
         };
         result_msg.push_str(&msg);
         result_msg.push('\n');
@@ -1141,6 +1150,175 @@ where
         .await
         .map_err(|e| internal(e.to_string()))?;
     Ok(StatusExt::new(StatusCode::OK, true, format!("Done")))
+}
+
+// GET /disks/:disk_name/vdisks/:vdisk_id/partitions
+async fn partitions_by_disk_vdisk<A>(
+    bob: Extension<BobServer<A>>,
+    AxumPath((disk_name, vdisk_id)): AxumPath<(String, u32)>,
+    creds: CredentialsHolder<A>,
+) -> Result<Json<Vec<PartitionSlim>>, StatusExt>
+where
+    A: Authenticator,
+{
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_read()
+    {
+        return Err(AuthError::PermissionDenied.into());
+    }
+    let group = find_group_on_disk(&bob, &disk_name, vdisk_id).await?;
+    let partitions = create_slim_partitions(group).await;
+    Ok(Json(partitions))
+}
+
+// GET /alien/nodes/:node_name/vdisks/:vdisk_id/partitions
+async fn alien_partitions_by_node_vdisk<A>(
+    bob: Extension<BobServer<A>>,
+    AxumPath((node_name, vdisk_id)): AxumPath<(String, u32)>,
+    creds: CredentialsHolder<A>,
+) -> Result<Json<Vec<PartitionSlim>>, StatusExt>
+where
+    A: Authenticator,
+{
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_read()
+    {
+        return Err(AuthError::PermissionDenied.into());
+    }
+    let group = find_alien_group_on_disk(&bob, &node_name, vdisk_id).await?;
+    let partitions = create_slim_partitions(group).await;
+    Ok(Json(partitions))
+}
+
+// DELETE /disks/:disk_name/vdisks/:vdisk_id/partitions/:partition_id
+async fn delete_partition_by_id<A>(
+    bob: Extension<BobServer<A>>,
+    AxumPath((disk_name, vdisk_id, partition_id)): AxumPath<(String, u32, String)>,
+    creds: CredentialsHolder<A>,
+) -> Result<StatusExt, StatusExt>
+where
+    A: Authenticator,
+{
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_write()
+    {
+        return Err(AuthError::PermissionDenied.into());
+    }
+    let group = find_group_on_disk(&bob, &disk_name, vdisk_id).await?;
+    let pearl = group.detach_by_id(&partition_id).await.ok();
+    if let Some(holder) = pearl {
+        drop_directories(vec![holder], format!("id {} in vdisk {} on disk {}", partition_id, vdisk_id, disk_name)).await
+    } else {
+        let msg = format!(
+            "partition {} not found on vdisk {} on disk {} or it is active",
+            partition_id, vdisk_id, disk_name
+        );
+        Err(StatusExt::new(StatusCode::NOT_FOUND, true, msg))
+    }
+}
+
+// DELETE /alien/nodes/:node_name/vdisks/:vdisk_id/partitions/:partition_id
+async fn alien_delete_partition_by_id<A>(
+    bob: Extension<BobServer<A>>,
+    AxumPath((node_name, vdisk_id, partition_id)): AxumPath<(String, u32, String)>,
+    creds: CredentialsHolder<A>,
+) -> Result<StatusExt, StatusExt>
+where
+    A: Authenticator,
+{
+    if !bob
+        .auth()
+        .check_credentials_rest(creds.into())?
+        .has_rest_write()
+    {
+        return Err(AuthError::PermissionDenied.into());
+    }
+    let group = find_alien_group_on_disk(&bob, &node_name, vdisk_id).await?;
+    let pearl = group.detach_by_id(&partition_id).await.ok();
+    if let Some(holder) = pearl {
+        drop_directories(vec![holder], format!("id {} in vdisk {} for node {}", partition_id, vdisk_id, node_name)).await
+    } else {
+        let msg = format!(
+            "alien partition {} not found on vdisk {} for node {} or it is active",
+            partition_id, vdisk_id, node_name
+        );
+        Err(StatusExt::new(StatusCode::NOT_FOUND, true, msg))
+    }
+}
+
+async fn find_group_on_disk<A: Authenticator>(
+    bob: &BobServer<A>, 
+    disk_name: &str, 
+    vdisk_id: u32
+) -> Result<PearlGroup, StatusExt> {
+    let backend = bob.grinder().backend().inner();
+    let (dcs, _) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    find_disk_vdisk_group(dcs, disk_name, vdisk_id).await
+}
+
+async fn find_alien_group_on_disk<A: Authenticator>(
+    bob: &BobServer<A>, 
+    node_name: &str, 
+    vdisk_id: u32
+) -> Result<PearlGroup, StatusExt> {
+    let backend = bob.grinder().backend().inner();
+    let (_, adc) = backend
+        .disk_controllers()
+        .ok_or_else(not_acceptable_backend)?;
+    let groups = adc.groups();
+    let pearls = groups.read().await;
+    pearls.iter()
+        .find(|g| g.node_name() == node_name && g.vdisk_id() == vdisk_id)
+        .cloned()
+        .ok_or_else(|| { 
+            let msg = format!("Alien vdisk group for node {} vdisk {} not found", node_name, vdisk_id); 
+            StatusExt::new(StatusCode::NOT_FOUND, false, msg) 
+        })
+}
+
+async fn find_disk_vdisk_group(
+    dcs: &[std::sync::Arc<bob_backend::pearl::DiskController>], 
+    disk_name: &str, 
+    vdisk_id: u32
+) -> Result<PearlGroup, StatusExt> {
+    let needed_dc = dcs
+        .iter()
+        .find(|dc| dc.disk().name() == disk_name)
+        .ok_or_else(|| {
+            let dcs = dcs.iter()
+                .map(|dc| format!("DC: {}, vdisks: {}",
+                                  dc.disk().name(),
+                                  dc.vdisks().iter().map(|v| format!("#{}", v)).collect::<Vec<_>>().join(", ")))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let err = format!("Disk Controller {} with vdisk #{} not found, available dcs: {}", disk_name, vdisk_id, dcs);
+            warn!("{}", err);
+            StatusExt::new(StatusCode::NOT_FOUND, false, err)
+        })?;
+    needed_dc.vdisk_group(vdisk_id).await.map_err(|e| {
+        let err = format!("VDiskGroup #{} is missing on disk controller '{}', available vdisks: {}", 
+                          vdisk_id,
+                          needed_dc.disk().name(),
+                          needed_dc.vdisks().iter().map(|v| format!("#{}", v)).collect::<Vec<_>>().join(", "));
+        warn!("{}. Error: {:?}", err, e);
+        StatusExt::new(StatusCode::NOT_FOUND, false, err)
+    })
+}
+
+async fn create_slim_partitions(group: PearlGroup) -> Vec<PartitionSlim> {
+    let holders = group.holders();
+    let pearls = holders.read().await;
+    return pearls.iter()
+        .map(|h| PartitionSlim { id: h.get_id().to_owned(), timestamp: h.start_timestamp() })
+        .collect();
 }
 
 fn internal(message: String) -> StatusExt {

@@ -83,12 +83,11 @@ impl Holder {
         self.inner.end_timestamp
     }
 
-    pub fn get_id(&self) -> String {
+    pub fn get_id(&self) -> &str {
         self.inner.disk_path
             .file_name()
             .and_then(std::ffi::OsStr::to_str)
             .unwrap_or("unparsable string")
-            .to_owned()
     }
 
     pub fn cloned_storage(&self) -> Arc<RwLock<PearlSync>> {

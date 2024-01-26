@@ -421,7 +421,7 @@ impl Group {
         let mut total_count = 0;
         // General assumption is that processing in order from new to old holders is better, but this is not strictly required
         for holder in holders.into_iter().rev() {
-            let holder_id = holder.1.get_id();
+            let holder_id = holder.1.get_id().to_owned();
             let delete = Self::delete_common(holder.1, key, meta, false).await;
             total_count += match delete {
                 Ok(count) => {
@@ -515,6 +515,27 @@ impl Group {
         }
         close_holders(removed.iter()).await;
         Ok(removed)
+    }
+
+    pub async fn detach_by_id(&self, id: &str) -> BackendResult<Holder> {
+        let mut holders = self.holders.write().await;
+        debug!("write lock acquired");
+        let ts = get_current_timestamp();
+        for ind in 0..holders.len() {
+            if let Some(holder) = holders.get_child(ind) {
+                if holder.data.get_id() == id {
+                    if !holder.data.gets_into_interval(ts) {
+                        let removed = holders.remove(ind).expect("should be presented");
+                        removed.close_storage().await;
+                        return Ok(removed);
+                    }
+                    else {
+                        return Err(Error::pearl_change_state(format!("Cannot detach active partition (pearl:{})", id)));
+                    }
+                }
+            }
+        }
+        Err(Error::pearl_change_state(format!("pearl:{} not found", id)))
     }
 
     pub async fn detach_all(&self) -> BackendResult<()> {

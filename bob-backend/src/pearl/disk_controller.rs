@@ -724,7 +724,7 @@ impl DiskController {
             .await
     }
 
-    pub(crate) fn groups(&self) -> Arc<RwLock<Vec<Group>>> {
+    pub fn groups(&self) -> Arc<RwLock<Vec<Group>>> {
         self.groups.clone()
     }
 
