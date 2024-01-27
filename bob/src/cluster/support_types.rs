@@ -157,3 +157,32 @@ impl IndexMap {
         });
     }
 }
+
+pub(crate) struct NodeOutputJoinHandle<Res, Err>(JoinHandle<Result<NodeOutput<Res>, NodeOutput<Err>>>, NodeName);
+
+impl<Res, Err> NodeOutputJoinHandle<Res, Err> {
+    pub(super) fn new(handle: JoinHandle<Result<NodeOutput<Res>, NodeOutput<Err>>>, node_name: NodeName) -> Self {
+        Self(handle, node_name)
+    }
+}
+
+impl<Res, Err> Future for NodeOutputJoinHandle<Res, Err> {
+    type Output = Result<NodeOutput<Res>, NodeOutput<Err>>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+        use std::task::Poll;
+
+        match self.0.poll_unpin(cx) {
+            Poll::Ready(Ok(r)) => Poll::Ready(r),
+            Poll::Ready(Err(e)) => {
+                error!("{:?}", e);
+                if e.is_panic() {
+                    panic!("panic in thread");
+                }
+                panic!("cancellation is not supported")
+            },
+            Poll::Pending => std::task::Poll::Pending
+        }
+    }
+
+}

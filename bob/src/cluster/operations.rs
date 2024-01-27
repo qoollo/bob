@@ -1,8 +1,8 @@
 use crate::link_manager::LinkManager;
 use crate::prelude::*;
-use super::support_types::{RemoteDeleteError, RemotePutResponse, RemotePutError};
+use super::support_types::{RemoteDeleteError, RemotePutResponse, RemotePutError, NodeOutputJoinHandle};
 
-pub(crate) type Tasks<Res, Err> = FuturesUnordered<JoinHandle<Result<NodeOutput<Res>, NodeOutput<Err>>>>;
+pub(crate) type Tasks<Res, Err> = FuturesUnordered<NodeOutputJoinHandle<Res, Err>>;
 
 // ======================= Helpers =================
 
@@ -23,26 +23,21 @@ impl AffectedReplicasProvider for RemotePutResponse {
 }
 
 fn process_result<TRes: AffectedReplicasProvider, TErr: Debug>(
-    join_res: Result<Result<NodeOutput<TRes>, NodeOutput<TErr>>, JoinError>,
+    join_res: Result<NodeOutput<TRes>, NodeOutput<TErr>>,
     oks: &mut Vec<NodeOutput<TRes>>,
     errors: &mut Vec<NodeOutput<TErr>>
 ) -> usize {
     debug!("handle returned");
     match join_res {
-        Ok(res) => match res {
-            Ok(r) =>
-            {
-                let affected_replicas = r.inner().get_affected_replicas_count();
-                oks.push(r);
-                return affected_replicas;
-            }
-            Err(e) => {
-                debug!("{:?}", e);
-                errors.push(e);
-            }
-        },
+        Ok(r) =>
+        {
+            let affected_replicas = r.inner().get_affected_replicas_count();
+            oks.push(r);
+            return affected_replicas;
+        }
         Err(e) => {
-            error!("{:?}", e);
+            debug!("{:?}", e);
+            errors.push(e);
         }
     }
     0
@@ -69,8 +64,8 @@ pub(crate) async fn finish_at_least_handles<TRes: AffectedReplicasProvider, TErr
 async fn call_at_least<TOp, TRes: AffectedReplicasProvider, TErr: Debug>(
     target_nodes: impl Iterator<Item = TOp>,
     at_least: usize,
-    f: impl Fn(TOp) -> JoinHandle<Result<NodeOutput<TRes>, NodeOutput<TErr>>>
-) -> (FuturesUnordered<JoinHandle<Result<NodeOutput<TRes>, NodeOutput<TErr>>>>, Vec<NodeOutput<TRes>>, Vec<NodeOutput<TErr>>) {
+    f: impl Fn(TOp) -> NodeOutputJoinHandle<TRes, TErr>
+) -> (FuturesUnordered<NodeOutputJoinHandle<TRes, TErr>>, Vec<NodeOutput<TRes>>, Vec<NodeOutput<TErr>>) {
     let mut handles: FuturesUnordered<_> = target_nodes.map(|op| f(op)).collect();
     trace!("total handles count: {}", handles.len());
     let (oks, errors) = finish_at_least_handles(&mut handles, at_least).await;
@@ -80,7 +75,7 @@ async fn call_at_least<TOp, TRes: AffectedReplicasProvider, TErr: Debug>(
 
 
 async fn finish_all_handles<TErr: Debug>(
-    handles: &mut FuturesUnordered<JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>>
+    handles: &mut FuturesUnordered<NodeOutputJoinHandle<(), TErr>>
 ) -> Vec<NodeOutput<TErr>> {
     let mut ok_count = 0;
     let mut total_count = 0;
@@ -96,7 +91,7 @@ async fn finish_all_handles<TErr: Debug>(
 
 async fn call_all<TOp, TErr: Debug>(
     operations: impl Iterator<Item = TOp>,
-    f: impl Fn(TOp) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<TErr>>>,
+    f: impl Fn(TOp) -> NodeOutputJoinHandle<(), TErr>,
 ) -> (usize, Vec<NodeOutput<TErr>>) {
     let mut handles: FuturesUnordered<_> = operations.map(|op| f(op)).collect();
     let handles_len = handles.len();
@@ -211,8 +206,9 @@ fn call_node_put(
     node: Node,
     options: BobPutOptions,
     affected_replicas: usize
-) -> JoinHandle<Result<NodeOutput<RemotePutResponse>, NodeOutput<RemotePutError>>> {
+) -> NodeOutputJoinHandle<RemotePutResponse, RemotePutError> {
     debug!("PUT[{}] put to {}", key, node.name());
+    let name = node.name().clone();
     let task = async move {
         let grpc_options = options.to_grpc();
         let call_result = LinkManager::call_node(&node, |conn| conn.put(key, data, grpc_options).boxed()).await;
@@ -220,7 +216,7 @@ fn call_node_put(
             .map(|o| o.map(|_| RemotePutResponse::new(affected_replicas)))
             .map_err(|o| o.map(|e| RemotePutError::new(affected_replicas, e)))
     };
-    tokio::spawn(task)
+    NodeOutputJoinHandle::new(tokio::spawn(task), name)
 }
 
 
@@ -418,15 +414,16 @@ fn call_node_delete(
     meta: BobMeta,
     options: BobDeleteOptions,
     node: Node,
-) -> JoinHandle<Result<NodeOutput<()>, NodeOutput<RemoteDeleteError>>> {
+) -> NodeOutputJoinHandle<(), RemoteDeleteError> {
     trace!("DELETE[{}] delete to {}", key, node.name());
+    let name = node.name().clone();
     let task = async move {
         let force_alien_nodes_copy = options.force_delete_nodes().iter().cloned().collect();
         let grpc_options = options.to_grpc();
         let call_result = LinkManager::call_node(&node, |conn| conn.delete(key, meta, grpc_options).boxed()).await;
         call_result.map_err(|err| err.map(|inner| RemoteDeleteError::new(force_alien_nodes_copy, inner)))
     };
-    tokio::spawn(task)
+    NodeOutputJoinHandle::new(tokio::spawn(task), name)
 }
 
 
