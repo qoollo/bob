@@ -57,21 +57,22 @@ impl LinkManager {
             interval.tick().await;
             let mut err_cnt = 0;
             let mut status = String::from("Node status: ");
-            for node in nodes.iter() {
-                if let Err(e) = node.check(&factory).await {
+            let mut futures :FuturesUnordered<_> = nodes.iter().map(|n| n.check(&factory) .map(|r| (n.name().clone(), r))).collect();
+            while let Some((name, res)) = futures.next().await {
+                if let Err(e) = res {
                     if log_in_this_iter {
                         error!(
                             "No connection to {}:[{}] - {}",
-                            node.name(),
-                            node.address(),
+                            name,
+                            nodes.iter().find(|n| n.name() == &name).unwrap().address(),
                             e
                         );
-                        status += &format!("[-]{:<10} ", node.name());
+                        status += &format!("[-]{:<10} ", name);
                     }
                     err_cnt += 1;
                 } else {
                     if log_in_this_iter {
-                        status += &format!("[+]{:<10} ", node.name());
+                        status += &format!("[+]{:<10} ", name);
                     }
                 }
             }

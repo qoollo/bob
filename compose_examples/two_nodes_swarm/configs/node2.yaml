@@ -3,6 +3,7 @@ log_config: /configs/logger.yaml
 name: node2
 quorum: 2
 operation_timeout: 15sec
+check_timeout: 3sec
 check_interval: 5000ms
 cleanup_interval: 60s
 cluster_policy: quorum

@@ -46,6 +46,7 @@ Bob versions changelog
 - Added mimalloc allocator for musl target (#688)
 - Added jemalloc-profile for memory profiling (#797)
 - Proper support for GetSource::ALL requests (#723)
+- Add check timeout config option (#805)
 
 #### Changed
 - BobClient clone overhead reduced (#774)

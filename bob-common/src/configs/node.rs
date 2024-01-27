@@ -568,6 +568,7 @@ pub struct Node {
     name: String,
     quorum: usize,
     operation_timeout: String,
+    check_timeout: String,
     check_interval: String,
     #[serde(default = "NodeConfig::default_count_interval")]
     count_interval: String,
@@ -664,6 +665,14 @@ impl NodeConfig {
     /// Get grpc request operation timeout, parsed from humantime format.
     pub fn operation_timeout(&self) -> Duration {
         self.operation_timeout
+            .parse::<HumanDuration>()
+            .expect("parse humantime duration")
+            .into()
+    }
+
+    /// Get check request operation timeout, parsed from humantime format.
+    pub fn check_timeout(&self) -> Duration {
+        self.check_timeout
             .parse::<HumanDuration>()
             .expect("parse humantime duration")
             .into()
@@ -818,6 +827,7 @@ impl NodeConfig {
         Self::check_unset_single(&self.users_config, "users_config")?;
         Self::check_unset_single(&self.name, "name")?;
         Self::check_unset_single(&self.operation_timeout, "operation_timeout")?;
+        Self::check_unset_single(&self.check_timeout, "check_timeout")?;
         Self::check_unset_single(&self.backend_type, "backend_type")?;
         Ok(())
     }
@@ -862,6 +872,7 @@ impl NodeConfig {
              name: String::from(node_name),
              quorum: 1,
              operation_timeout: String::from("60sec"),
+             check_timeout: String::from("5sec"),
              check_interval: String::from("5000ms"),
              count_interval: NodeConfig::default_count_interval(),
              cluster_policy: String::from("quorum"),
@@ -902,6 +913,9 @@ impl Validatable for NodeConfig {
         self.operation_timeout.parse::<HumanDuration>().map_err(|e| {
                 format!("field 'timeout' for 'config' is not valid: {}", e)
             })?;
+        self.check_timeout.parse::<HumanDuration>().map_err(|e| {
+                format!("field 'timeout' for 'config' is not valid: {}", e)
+            })?;
         self.check_interval.parse::<HumanDuration>().map_err(|e| {
             format!("field 'check_interval' for 'config' is not valid: {}", e)
         })?;
@@ -936,6 +950,7 @@ pub mod tests {
             name: name.to_string(),
             quorum,
             operation_timeout: "3sec".to_string(),
+            check_timeout: "1sec".to_string(),
             check_interval: "3sec".to_string(),
             cluster_policy: "quorum".to_string(),
             backend_type: "in_memory".to_string(),

@@ -2,6 +2,7 @@ log_config: /bob/config-examples/logger.yaml
 name: node4
 quorum: 3
 operation_timeout: 3sec
+check_timeout: 3sec
 check_interval: 5000ms
 cluster_policy: quorum
 backend_type: pearl

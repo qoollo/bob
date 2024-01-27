@@ -22,6 +22,8 @@ name: local_node
 quorum: 1
 # [time] timeout for every GRPC operation
 operation_timeout: 3sec
+# [time] timeout for node check operation
+check_timeout: 3sec
 # [time] interval for checking connections
 check_interval: 5000ms
 # [simple, quorum] simple - without checking status
