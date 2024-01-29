@@ -4,19 +4,14 @@ mod config_cluster_generator;
 extern crate log;
 
 use anyhow::{anyhow, Result as AnyResult};
-use bob::{ClusterConfig};
+use bob::ClusterConfig;
+use bob_common::configs::{cluster::DistributionFunc};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use config_cluster_generator::{
     center::{check_expand_configs, get_new_disks, get_new_racks, Center},
-    utils::{
-        init_logger, ceil, read_config_from_file, write_to_file,
-        generate_range_samples, substitute_node, parse_address_pattern
-    },
+    pattern::{pattern_to_nodes},
+    utils::{ceil, init_logger, read_config_from_file, write_to_file},
 };
-use itertools::Itertools;
-
-use bob_common::configs::cluster::{DistributionFunc, Node};
-use bob_common::core_types::{DiskName, DiskPath};
 
 #[tokio::main]
 async fn main() {
@@ -36,6 +31,7 @@ fn try_main() -> AnyResult<()> {
         ("new", Some(matches)) => subcommand_new(matches),
         ("expand", Some(matches)) => subcommand_expand(matches),
         ("new-hw", Some(matches)) => subcommand_new_hw(matches),
+        ("expand-hw", Some(matches)) => subcommand_expand_hw(matches),
         _ => Err(anyhow!("incorrect arguments: ERR")),
     }
 }
@@ -91,6 +87,23 @@ fn subcommand_new_hw(matches: &ArgMatches) -> AnyResult<()> {
     Ok(())
 }
 
+fn subcommand_expand_hw(matches: &ArgMatches) -> AnyResult<()> {
+    debug!("start config extending with new nodes by range pattern");
+    debug!("arguments: {:?}", matches);
+    let config = read_config_from_file(&get_input_config_name(matches))?;
+    let output = expand_hw_config(matches, config)?;
+    let output = serde_yaml::to_string(&output).expect("config serialization error");
+    debug!("config cluster extending: OK");
+    if let Some(name) = matches.value_of("output") {
+        write_to_file(output, name.to_owned());
+        debug!("output to file: OK");
+    } else {
+        println!("{}", output);
+        debug!("no file provided, stdout print: OK");
+    }
+    Ok(())
+}
+
 fn generate_config(matches: &ArgMatches, input: ClusterConfig) -> AnyResult<ClusterConfig> {
     let replicas_count = get_replicas_count(matches)?;
     let (total_vdisks, vdisks_per_disk) = get_vdisks_total_and_per_disk(matches)?;
@@ -123,6 +136,14 @@ fn generate_hw_config(matches: &ArgMatches) -> AnyResult<ClusterConfig> {
     let node_pattern = get_nodename(matches);
     let res = pattern_gen(pattern, node_pattern)?;
     debug!("generate hw config: OK");
+    Ok(res)
+}
+
+fn expand_hw_config(matches: &ArgMatches, config: ClusterConfig) -> AnyResult<ClusterConfig> {
+    let pattern = get_pattern(matches)?;
+    let node_pattern = get_nodename(matches);
+    let res = pattern_expand(config, pattern, node_pattern)?;
+    debug!("expand hw config: OK");
     Ok(res)
 }
 
@@ -187,35 +208,19 @@ fn simple_gen(
 }
 
 fn pattern_gen(pattern: String, node_pattern: String) -> AnyResult<ClusterConfig> {
-    let nodes: Vec<Node> = generate_range_samples(&pattern)
-        .iter()
-        .map(|key| {
-            let (ip, port, path) = parse_address_pattern(&key).unwrap();
-            ((ip, port), path)
-        })
-        .group_by(|key| key.0)
-        .into_iter()
-        .enumerate()
-        .map(|(node_count, (ip_port, addresses))| {
-            let disks: Vec<DiskPath> = addresses
-                .enumerate()
-                .map(|(disk_count, (_, disk))| {
-                    DiskPath::new(
-                        DiskName::new(format!("disk{}", disk_count + 1).as_str()),
-                        disk.as_str(),
-                    )
-                })
-                .collect();
-
-            Node::new(
-                substitute_node(&node_pattern, ip_port.0, ip_port.1, node_count).clone(),
-                format!("{}:{}", ip_port.0, ip_port.1),
-                disks,
-            )
-        })
-        .collect();
+    let nodes = pattern_to_nodes(pattern, node_pattern)?;
     let config = ClusterConfig::new(nodes, vec![], vec![], DistributionFunc::default());
     debug!("pattern gen: OK [\n{:#?}\n]", config);
+    Ok(config)
+}
+
+fn pattern_expand(
+    mut config: ClusterConfig,
+    pattern: String,
+    node_pattern: String,
+) -> AnyResult<ClusterConfig> {
+    let nodes = pattern_to_nodes(pattern, node_pattern)?;
+    config.disjoint_union_nodes(nodes);
     Ok(config)
 }
 
@@ -269,7 +274,7 @@ fn get_pattern(matches: &ArgMatches) -> AnyResult<String> {
         Ok(name.to_owned())
     } else {
         debug!("get_pattern: No value");
-        Err(anyhow!("Failed no pattern present"))
+        Err(anyhow!("Failed: no pattern present"))
     }
 }
 
@@ -321,7 +326,7 @@ fn get_matches() -> ArgMatches<'static> {
         .takes_value(true);
     let nodename_config = Arg::with_name("nodename")
         .short("n")
-        .default_value("Node_{ip}:{port}_{id}")
+        .default_value("Node_{ip}_{port}_{id}")
         .help("Node name pattern for pattern generation")
         .takes_value(true);
     debug!("input arg: OK");
@@ -340,7 +345,13 @@ fn get_matches() -> ArgMatches<'static> {
         .arg(replicas);
 
     let subcommand_new_hw = SubCommand::with_name("new-hw")
-        .arg(output)
+        .arg(output.clone())
+        .arg(pattern_config.clone())
+        .arg(nodename_config.clone());
+
+    let subcommand_expand_hw = SubCommand::with_name("expand-hw")
+        .arg(input.clone())
+        .arg(output.clone())
         .arg(pattern_config)
         .arg(nodename_config);
 
@@ -348,5 +359,6 @@ fn get_matches() -> ArgMatches<'static> {
         .subcommand(subcommand_expand)
         .subcommand(subcommand_new)
         .subcommand(subcommand_new_hw)
+        .subcommand(subcommand_expand_hw)
         .get_matches()
 }

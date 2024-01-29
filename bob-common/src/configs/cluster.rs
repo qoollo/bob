@@ -1,16 +1,16 @@
 use super::{
     node::BackendType,
     reader::YamlBobConfig,
-    validation::{Validatable, Validator}
+    validation::{Validatable, Validator},
 };
 use crate::{
     configs::node::Node as NodeConfig,
+    core_types::{DiskName, DiskPath, NodeDisk, VDiskId},
     node::NodeName,
-    core_types::{DiskPath, VDiskId, NodeDisk, DiskName},
 };
-use anyhow::{Result as AnyResult, anyhow};
+use anyhow::{anyhow, Result as AnyResult};
 use http::Uri;
-use std::collections::{ HashMap, HashSet };
+use std::collections::{HashMap, HashSet};
 
 impl Validatable for DiskPath {
     fn validate(&self) -> Result<(), String> {
@@ -254,7 +254,12 @@ pub struct Cluster {
 }
 
 impl Cluster {
-    pub fn new(nodes: Vec<Node>, vdisks: Vec<VDisk>, racks: Vec<Rack>, distribution_func: DistributionFunc) -> Cluster {
+    pub fn new(
+        nodes: Vec<Node>,
+        vdisks: Vec<VDisk>,
+        racks: Vec<Rack>,
+        distribution_func: DistributionFunc,
+    ) -> Cluster {
         Cluster {
             nodes,
             vdisks,
@@ -287,7 +292,7 @@ impl Cluster {
     }
 
     /// Extends the vdisks collection with contents of the iterator.
-    pub fn vdisks_extend(&mut self, iter: impl IntoIterator<Item = VDisk>) {
+    pub fn vdisks_extend(&mut self, iter: impl IntoIterator<Item=VDisk>) {
         self.vdisks.extend(iter)
     }
 
@@ -451,6 +456,26 @@ impl Cluster {
             self.check(&config)
                 .map_err(|e| anyhow!("node config check failed: {e}"))?;
             Ok(config)
+        }
+    }
+
+    pub fn disjoint_union_nodes(&mut self, other_nodes: Vec<Node>) {
+        for node2 in other_nodes {
+            if let Some(node1) = self
+                .nodes
+                .iter_mut()
+                .find(|node1| node1.address() == node2.address()) {
+                node2.disks.into_iter().for_each(|disk2| {
+                    if !node1.disks.iter().any(|disk1| disk1.path() == disk2.path()) {
+                        node1.disks.push(DiskPath::new(
+                            DiskName::new(&format!("disk{}", node1.disks.len() + 1)),
+                            disk2.path(),
+                        ));
+                    }
+                });
+            } else {
+                self.nodes.push(node2);
+            }
         }
     }
 }
