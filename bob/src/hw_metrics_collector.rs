@@ -172,7 +172,7 @@ impl HWMetricsCollector {
     fn space(disks: &HashMap<PathBuf, DiskName>) -> HashMap<PathBuf, DiskSpaceMetrics> {
         let mut res = HashMap::new();
         let mut fs_ids = HashSet::new();
-        for (mount_point, disk_name) in disks {
+        for (mount_point, _) in disks {
             let cm_p = Self::to_cpath(mount_point.as_path());
             let stat = Self::statvfs_wrap(&cm_p);
             if let Some(stat) = stat {

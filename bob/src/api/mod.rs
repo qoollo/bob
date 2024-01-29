@@ -338,8 +338,6 @@ async fn get_space_info<A: Authenticator>(
     ).await.into_iter().collect();
     let adc_space = adc.disk_used().await;
 
-    let disk_path: HashMap<_, _> = dcs.iter().map(|dc| (dc.disk().name().to_string(), dc.disk().path().to_string())).collect();
-
     let disk_space_by_disk = disk_metrics.into_iter().map(|(mount_point, disk)| (
         mount_point.to_string_lossy().to_string(),
         Space {
