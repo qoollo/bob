@@ -10,7 +10,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
 use std::fs::read_to_string;
-use sysinfo::{DiskExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
+use sysinfo::{Disk, DiskExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 const CPU_STAT_FILE: &str = "/proc/stat";
@@ -36,27 +36,73 @@ impl HWMetricsCollector {
         }
     }
 
+    /// Returns disk names mapped to the corresponding mount points
+    ///
+    /// Note: If there are multiple mount points for the same disk, the function will try to match
+    /// correct mount point with disk path. If it fails to match, the function fallbacks to the first found mount point.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the function couldn't receive metadata from OS
     fn collect_used_disks(disks: &[DiskPath]) -> HashMap<PathBuf, DiskName> {
-        System::new_all()
-            .disks()
+        let sys_info = System::new_with_specifics(RefreshKind::new().with_disks_list());
+        let sys_metadata = Self::collect_metadata(sys_info.disks(), disks);
+
+        disks
             .iter()
-            .filter_map(|d| {
-                let path = d.mount_point();
-                disks
-                    .iter()
-                    .find(move |dp| {
-                        let dp_md = Path::new(dp.path())
-                            .metadata()
-                            .expect("Can't get metadata from OS");
-                        let p_md = path.metadata().expect("Can't get metadata from OS");
-                        p_md.dev() == dp_md.dev()
-                    })
-                    .map(|config_disk| {
-                        let diskpath = path.to_str().expect("Not UTF-8").to_owned();
-                        (PathBuf::from(diskpath), config_disk.name().clone())
-                    })
+            .filter_map(|disk| {
+                let disk_metadata = Path::new(disk.path())
+                    .metadata()
+                    .expect("Can't get metadata from OS");
+                sys_metadata
+                    .get(&disk_metadata.dev())
+                    .map(|sys_disk| (PathBuf::from(sys_disk.mount_point()), disk.name().clone()))
             })
             .collect()
+    }
+
+    /// Maps disk's Information to the disk's device ID.
+    ///
+    /// The fucntion will try to match mount point with disk path
+    /// If it's fails to do so, it will fallback to the first found mount point for the specified
+    /// device ID
+    ///
+    /// # Panics
+    ///
+    /// Panics if the function couldn't receive metadata from OS
+    fn collect_metadata<'a>(sys_disks: &'a [Disk], disks: &[DiskPath]) -> HashMap<u64, &'a Disk> {
+        let dev_path: Vec<(_, _)> = disks
+            .iter()
+            .map(|disk| {
+                let path = Path::new(disk.path());
+                let disk_metadata = path.metadata().expect("Can't get metadata from OS");
+                (disk_metadata.dev(), path)
+            })
+            .collect();
+        let mut res = HashMap::new();
+        for disk in sys_disks {
+            let metadata = disk
+                .mount_point()
+                .metadata()
+                .expect("Can't get metadata from OS");
+            res.entry(metadata.dev()).or_insert(disk);
+            if dev_path
+                .iter()
+                .filter(|(dev, _)| *dev == metadata.dev())
+                .any(|(_, path)| 
+                    matches!(
+                        (path.file_name(), disk.mount_point().file_name()),
+                                (Some(path), Some(disk)) 
+                        if path.to_string_lossy().starts_with(&disk.to_string_lossy().to_string())
+                    )
+                )
+            {
+                // NOTE: HashMap saves the last matched mount point, discarding the previous one.
+                res.insert(metadata.dev(), disk);
+            }
+        }
+
+        res
     }
 
     pub(crate) fn spawn_task(&self) {
@@ -167,13 +213,13 @@ impl HWMetricsCollector {
             let cm_p = Self::to_cpath(mount_point.as_path());
             let stat = Self::statvfs_wrap(&cm_p);
             if let Some(stat) = stat {
-                let bsize = stat.f_bsize as u64;
+                let frsize = stat.f_frsize as u64;
                 let blocks = stat.f_blocks as u64;
                 let bavail = stat.f_bavail as u64;
                 let bfree = stat.f_bfree as u64;
-                total += bsize * blocks;
-                free += bsize * bavail;
-                used += (blocks - bfree) * bsize;
+                total += frsize * blocks;
+                free += frsize * bavail;
+                used += (blocks - bfree) * frsize;
             }
         }
 
