@@ -5,6 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Blob performes fsync if buffered bytes are larger than max_dirty_bytes_before_sync config param (#748)
+- Added detailed information about total, used and free space on every disk (#823)
 
 #### Changed
 - Use cargo workspace to declare dependencies to avoid their duplication (#821)
@@ -46,7 +47,6 @@ Bob versions changelog
 - Added mimalloc allocator for musl target (#688)
 - Added jemalloc-profile for memory profiling (#797)
 - Proper support for GetSource::ALL requests (#723)
-- Added detailed information about total, used and free space on every disk (#823)
 
 #### Changed
 - BobClient clone overhead reduced (#774)
