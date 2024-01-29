@@ -1,5 +1,5 @@
 use crate::{
-    build_info::BuildInfo, hw_metrics_collector::DiskSpaceMetrics, server::Server as BobServer,
+    build_info::BuildInfo, server::Server as BobServer,
 };
 use axum::{
     body::{self, BoxBody},
@@ -327,7 +327,6 @@ async fn get_space_info<A: Authenticator>(
     bob: Extension<BobServer<A>>,
 ) -> Result<Json<SpaceInfo>, StatusExt> {
     let disk_metrics = bob.grinder().hw_counter().update_space_metrics();
-    let total_disks_metrics: DiskSpaceMetrics = disk_metrics.values().sum();
     let backend = bob.grinder().backend().inner();
     let (dcs, adc) = backend
         .disk_controllers()
@@ -338,7 +337,7 @@ async fn get_space_info<A: Authenticator>(
     ).await.into_iter().collect();
     let adc_space = adc.disk_used().await;
 
-    let disk_space_by_disk = disk_metrics.into_iter().map(|(mount_point, disk)| (
+    let disk_space_by_disk = disk_metrics.per_disk.into_iter().map(|(mount_point, disk)| (
         mount_point.to_string_lossy().to_string(),
         Space {
             total_disk_space_bytes: disk.total_space,
@@ -353,9 +352,9 @@ async fn get_space_info<A: Authenticator>(
 
     Ok(Json(SpaceInfo {
         total_space: Space {
-            total_disk_space_bytes: total_disks_metrics.total_space,
-            used_disk_space_bytes: total_disks_metrics.used_space,
-            free_disk_space_bytes: total_disks_metrics.free_space,
+            total_disk_space_bytes: disk_metrics.total_space,
+            used_disk_space_bytes: disk_metrics.used_space,
+            free_disk_space_bytes: disk_metrics.free_space,
         },
         occupied_disk_space_bytes: occupied_disk_space_by_disk.values().sum(),
         occupied_disk_space_by_disk,

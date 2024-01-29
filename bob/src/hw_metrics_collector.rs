@@ -23,6 +23,14 @@ pub(crate) struct DiskSpaceMetrics {
     pub(crate) total_space: u64,
     pub(crate) used_space: u64,
     pub(crate) free_space: u64,
+    pub(crate) per_disk: HashMap<PathBuf, SpaceMetrics>
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SpaceMetrics {
+    pub(crate) total_space: u64,
+    pub(crate) used_space: u64,
+    pub(crate) free_space: u64,
 }
 
 pub(crate) struct HWMetricsCollector {
@@ -70,7 +78,7 @@ impl HWMetricsCollector {
     ///
     /// Key -- mount points of used disks
     /// Value -- Updated [`DiskSpaceMetrics`]
-    pub(crate) fn update_space_metrics(&self) -> HashMap<PathBuf, DiskSpaceMetrics> {
+    pub(crate) fn update_space_metrics(&self) -> DiskSpaceMetrics {
         Self::update_space_metrics_from_disks(&self.disks)
     }
 
@@ -134,13 +142,13 @@ impl HWMetricsCollector {
 
     fn update_space_metrics_from_disks(
         disks: &HashMap<PathBuf, DiskName>,
-    ) -> HashMap<PathBuf, DiskSpaceMetrics> {
+    ) -> DiskSpaceMetrics {
         let disks_metrics = Self::space(disks);
-        let summed_space: DiskSpaceMetrics = disks_metrics.values().sum();
-        gauge!(TOTAL_SPACE, bytes_to_mb(summed_space.total_space) as f64);
-        gauge!(USED_SPACE, bytes_to_mb(summed_space.used_space) as f64);
-        gauge!(FREE_SPACE, bytes_to_mb(summed_space.free_space) as f64);
-        disks_metrics
+        let SpaceMetrics { total_space, used_space, free_space } = disks_metrics.values().sum();
+        gauge!(TOTAL_SPACE, bytes_to_mb(total_space) as f64);
+        gauge!(USED_SPACE, bytes_to_mb(used_space) as f64);
+        gauge!(FREE_SPACE, bytes_to_mb(free_space) as f64);
+        DiskSpaceMetrics { total_space, used_space, free_space, per_disk: disks_metrics }
     }
 
     fn to_cpath(path: &Path) -> Vec<u8> {
@@ -168,8 +176,8 @@ impl HWMetricsCollector {
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
 
-    /// Maps mount point to the corresponding [`DiskSpaceMetrics`].
-    fn space(disks: &HashMap<PathBuf, DiskName>) -> HashMap<PathBuf, DiskSpaceMetrics> {
+    /// Maps mount point to the corresponding [`SpaceMetrics`].
+    fn space(disks: &HashMap<PathBuf, DiskName>) -> HashMap<PathBuf, SpaceMetrics> {
         let mut res = HashMap::new();
         let mut fs_ids = HashSet::new();
         for (mount_point, _) in disks {
@@ -183,7 +191,7 @@ impl HWMetricsCollector {
                 if fs_ids.insert(stat.f_fsid) { 
                     res.insert(
                         mount_point.clone(),
-                        DiskSpaceMetrics {
+                        SpaceMetrics {
                             total_space: bsize * blocks,
                             used_space: bsize * bavail,
                             free_space: (blocks - bfree) * bsize,
@@ -618,14 +626,14 @@ async fn parse_command_output(command: &mut Command) -> Result<String, String> {
 
 // Std Traits Impls
 
-impl<'a> AddAssign<&'a Self> for DiskSpaceMetrics {
+impl<'a> AddAssign<&'a Self> for SpaceMetrics {
     fn add_assign(&mut self, rhs: &Self) {
         self.used_space += rhs.used_space;
         self.free_space += rhs.free_space;
         self.total_space += rhs.total_space;
     }
 }
-impl<'a> Add<&'a Self> for DiskSpaceMetrics {
+impl<'a> Add<&'a Self> for SpaceMetrics {
     type Output = Self;
 
     fn add(mut self, rhs: &Self) -> Self::Output {
@@ -634,7 +642,7 @@ impl<'a> Add<&'a Self> for DiskSpaceMetrics {
     }
 }
 
-impl<'a> Sum<&'a Self> for DiskSpaceMetrics {
+impl<'a> Sum<&'a Self> for SpaceMetrics {
     /// Summarize [`DiskSpaceMetrics`] over an iterator.
     /// NOTE: the `disk_name` field will be chosen from the first appeared disk in iterator if there
     /// is any. Otherwise 'None' will be passed
