@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 members = [
     "bob",
     "bob-apps",
@@ -6,6 +7,85 @@ members = [
     "bob-common",
     "bob-access",
 ]
+
+[workspace.package]
+version = "2.1.0-alpha.12"
+edition = "2021"
+authors = [
+    "Kirill Bushminkin <kb@qoollo.com>",
+    "Pavel Iakushin <pyakushin@qoollo.com>",
+    "Nikita Menshov",
+    "Ilia Kopylov",
+    "Ivan Druzhitskiy",
+    "Vladimir Stepanenko",
+    "Pavel Perestoronin",
+    "Konstantin Konnov",
+    "Konstantin Bulany",
+    "Alexey Maltsev",
+    "Maksim Panov"
+]
+
+[workspace.dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+lazy_static = "1.4"
+thiserror = "1.0"
+bitflags = "2.3"
+futures = "0.3"
+bytes = "1.4"
+chrono = "0.4"
+coarsetime = "0.1"
+regex = "1.8"
+http = "0.2"
+rand = "0.8"
+uuid = "1.3"
+sha2 = "0.10"
+base64 = "0.21"
+hex = "0.4"
+infer = "0.14"
+unicase = "2.6"
+async-lock = "2.7"
+smallvec = { version = "1.10", features = ["union"] }
+libc = "0.2"
+sysinfo = "0.27"
+jsonwebtoken = "7.2"
+reqwest = { version = "0.11", default-features = false }
+clap = "2.34"
+cfg-if = "1.0"
+humantime = "2.1"
+mockall = "0.11"
+ubyte = { version = "0.10", features = ["serde"] }
+criterion = "0.4"
+network-interface = "1.0"
+# log
+log = "0.4"
+log4rs = "1.2"
+qoollo-log4rs-logstash = { version = "0.2", features = ["rustls"] }
+env_logger = "0.9" # TODO: replace with log4rs
+# metrics
+metrics = { version = "0.17", features = ["std"] }
+metrics-exporter-prometheus = { version = "0.6", features = ["tokio-exporter"] }
+metrics-util = "0.10"
+# serde
+serde = { version = "1.0", features = ["rc"] }
+serde_derive = "1.0"
+serde_yaml = "0.8" # can't update due to the bug in ubyte (https://github.com/SergioBenitez/ubyte/pull/10)
+serde_json = "1.0"
+bincode = "1.3"
+# tonic + prost
+tonic = { version = "0.6", features = ["prost"] }
+tonic-build = "0.6"
+prost = "0.9"
+prost-build = "0.9"
+# axum
+axum = "0.4"
+axum-server = "0.3.3"
+# tokio
+tokio = { version = "1.28", features = [] }
+
+# pearl
+[workspace.dependencies.pearl]
+version = "0.21.0"
 
 
 [profile.release]

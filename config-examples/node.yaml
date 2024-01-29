@@ -86,6 +86,8 @@ pearl:
   #skip_holders_by_timestamp_step_when_reading: 2h
   # [size] required for 'pearl'
   max_blob_size: 100 mb
+  # optional, sets the number of bytes, after writing which sync to disk occurs
+  max_dirty_bytes_before_sync: 10 mb
   # optional, required for 'pearl', disables search for existing keys before write
   allow_duplicates: true
   # optional

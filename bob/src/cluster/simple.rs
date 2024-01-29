@@ -89,7 +89,7 @@ impl Cluster for Quorum {
                     remote_nodes: vec![], //TODO check
                     force_node: true,
                     overwrite: false,
-                },
+                }
             ))
         })
         .await

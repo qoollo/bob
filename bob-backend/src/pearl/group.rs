@@ -7,8 +7,8 @@ use crate::{
 };
 use futures::Future;
 use pearl::{BloomProvider, ReadResult};
-use ring::digest::{digest, SHA256};
-use async_std::sync::{RwLock as UgradableRwLock, RwLockUpgradableReadGuard};
+use sha2::{Sha256, Digest};
+use async_lock::{RwLock as UgradableRwLock, RwLockUpgradableReadGuard};
 
 pub type HoldersContainer =
     HierarchicalFilters<Key, <Holder as BloomProvider<Key>>::Filter, Holder>;
@@ -591,8 +591,8 @@ impl Group {
     }
 
     fn get_owner_node_hash(&self) -> String {
-        let hash = digest(&SHA256, self.owner_node_identifier.as_bytes());
-        let hash = hash.as_ref();
+        let hash = Sha256::digest(self.owner_node_identifier.as_bytes());
+        let hash = hash.as_slice();
         let mut hex = vec![];
         // Translate bytes to simple digit-letter representation
         for i in (0..hash.len()).step_by(3) {
