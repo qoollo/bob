@@ -20,7 +20,6 @@ const DISK_STAT_FILE: &str = "/proc/diskstats";
 
 #[derive(Debug, Clone)]
 pub(crate) struct DiskSpaceMetrics {
-    pub(crate) disk_name: DiskName,
     pub(crate) total_space: u64,
     pub(crate) used_space: u64,
     pub(crate) free_space: u64,
@@ -69,7 +68,8 @@ impl HWMetricsCollector {
 
     /// Returns the updated space metrics of this [`HWMetricsCollector`].
     ///
-    /// Key -- `f_fsid` of underlying [`statvfs`] function, represents file system ID
+    /// Key -- mount points of used disks
+    /// Value -- Updated [`DiskSpaceMetrics`]
     pub(crate) fn update_space_metrics(&self) -> HashMap<PathBuf, DiskSpaceMetrics> {
         Self::update_space_metrics_from_disks(&self.disks)
     }
@@ -168,9 +168,7 @@ impl HWMetricsCollector {
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
 
-    /// Maps [`DiskSpaceMetrics`] to the corresponding mount point.
-    ///
-    /// `f_fsid` field of [`statvfs`] is used to ensure that disks are unique.
+    /// Maps mount point to the corresponding [`DiskSpaceMetrics`].
     fn space(disks: &HashMap<PathBuf, DiskName>) -> HashMap<PathBuf, DiskSpaceMetrics> {
         let mut res = HashMap::new();
         let mut fs_ids = HashSet::new();
@@ -178,21 +176,20 @@ impl HWMetricsCollector {
             let cm_p = Self::to_cpath(mount_point.as_path());
             let stat = Self::statvfs_wrap(&cm_p);
             if let Some(stat) = stat {
-                let bsize = stat.f_bsize;
-                let blocks = stat.f_blocks;
-                let bavail = stat.f_bavail;
-                let bfree = stat.f_bfree;
-                fs_ids.insert(stat.f_fsid).then(|| 
+                let bsize: u64 = stat.f_bsize;
+                let blocks: u64 = stat.f_blocks;
+                let bavail: u64 = stat.f_bavail;
+                let bfree: u64 = stat.f_bfree;
+                if fs_ids.insert(stat.f_fsid) { 
                     res.insert(
                         mount_point.clone(),
                         DiskSpaceMetrics {
-                            disk_name: disk_name.clone(),
                             total_space: bsize * blocks,
                             used_space: bsize * bavail,
                             free_space: (blocks - bfree) * bsize,
                         },
-                    )
-                );
+                    );
+                }
             }
         }
 
@@ -646,7 +643,6 @@ impl<'a> Sum<&'a Self> for DiskSpaceMetrics {
             metrics.clone()
         } else {
             return Self {
-                disk_name: "None".into(),
                 total_space: 0,
                 used_space: 0,
                 free_space: 0,
