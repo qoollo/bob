@@ -4,12 +4,12 @@ use bob_common::metrics::{
     TOTAL_RAM, AVAILABLE_RAM, USED_RAM, USED_SWAP,
     TOTAL_SPACE, FREE_SPACE, USED_SPACE, HW_DISKS_FOLDER
 };
-use libc::statvfs;
-use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tokio::process::Command;
 use std::fs::read_to_string;
-use sysinfo::{DiskExt, ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
+use sysinfo::{ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
+
+mod fetchers;
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 const CPU_STAT_FILE: &str = "/proc/stat";
@@ -28,34 +28,11 @@ pub(crate) struct HWMetricsCollector {
 
 impl HWMetricsCollector {
     pub(crate) fn new(mapper: Arc<Virtual>, interval_time: Duration) -> Self {
-        let disks = Self::collect_used_disks(mapper.local_disks());
+        let disks = fetchers::collect_used_disks(mapper.local_disks());
         Self {
             disks,
             interval_time,
         }
-    }
-
-    fn collect_used_disks(disks: &[DiskPath]) -> HashSet<PathBuf> {
-        System::new_all()
-            .disks()
-            .iter()
-            .filter_map(|d| {
-                let path = d.mount_point();
-                disks
-                    .iter()
-                    .find(move |dp| {
-                        let dp_md = Path::new(dp.path())
-                            .metadata()
-                            .expect("Can't get metadata from OS");
-                        let p_md = path.metadata().expect("Can't get metadata from OS");
-                        p_md.dev() == dp_md.dev()
-                    })
-                    .map(|_| {
-                        let diskpath = path.to_str().expect("Not UTF-8").to_owned();
-                        PathBuf::from(diskpath)
-                    })
-            })
-            .collect()
     }
 
     pub(crate) fn spawn_task(&self) {
@@ -125,63 +102,13 @@ impl HWMetricsCollector {
     }
 
     fn update_space_metrics_from_disks(disks: &HashSet<PathBuf>) -> DiskSpaceMetrics {
-        let disks_metrics = Self::space(disks);
+        let disks_metrics = fetchers::space(disks);
         gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
         gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
         gauge!(FREE_SPACE, bytes_to_mb(disks_metrics.free_space) as f64);
         disks_metrics
     }
 
-    fn to_cpath(path: &Path) -> Vec<u8> {
-        use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
-
-        let path_os: &OsStr = path.as_ref();
-        let mut cpath = path_os.as_bytes().to_vec();
-        cpath.push(0);
-        cpath
-    }
-
-    fn statvfs_wrap(mount_point: &Vec<u8>) -> Option<statvfs> {
-        unsafe {
-            let mut stat: statvfs = std::mem::zeroed();
-            if statvfs(mount_point.as_ptr() as *const _, &mut stat) == 0 {
-                Some(stat)
-            } else {
-                None
-            }
-        }
-    }
-
-    // FIXME: maybe it's better to cache needed disks, but I am not sure, that they would be
-    // refreshed, if I clone them
-    // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
-    // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
-
-    fn space(disks: &HashSet<PathBuf>) -> DiskSpaceMetrics {
-        let mut total = 0;
-        let mut used = 0;
-        let mut free = 0;
-
-        for mount_point in disks {
-            let cm_p = Self::to_cpath(mount_point.as_path());
-            let stat = Self::statvfs_wrap(&cm_p);
-            if let Some(stat) = stat {
-                let bsize = stat.f_bsize as u64;
-                let blocks = stat.f_blocks as u64;
-                let bavail = stat.f_bavail as u64;
-                let bfree = stat.f_bfree as u64;
-                total += bsize * blocks;
-                free += bsize * bavail;
-                used += (blocks - bfree) * bsize;
-            }
-        }
-
-        DiskSpaceMetrics {
-            total_space: total,
-            used_space: used,
-            free_space: free,
-        }
-    }
 }
 
 enum CommandError {
