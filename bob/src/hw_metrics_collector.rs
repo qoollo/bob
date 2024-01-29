@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use bob_common::core_types::DiskName;
 use bob_common::metrics::{
     BOB_RAM, BOB_VIRTUAL_RAM, BOB_CPU_LOAD, DESCRIPTORS_AMOUNT, CPU_IOWAIT, 
     TOTAL_RAM, AVAILABLE_RAM, USED_RAM, USED_SWAP,
@@ -23,7 +22,7 @@ pub(crate) struct DiskSpaceMetrics {
 }
 
 pub(crate) struct HWMetricsCollector {
-    disks: HashMap<PathBuf, DiskName>,
+    disks: HashSet<PathBuf>,
     interval_time: Duration,
 }
 
@@ -36,7 +35,7 @@ impl HWMetricsCollector {
         }
     }
 
-    fn collect_used_disks(disks: &[DiskPath]) -> HashMap<PathBuf, DiskName> {
+    fn collect_used_disks(disks: &[DiskPath]) -> HashSet<PathBuf> {
         System::new_all()
             .disks()
             .iter()
@@ -51,9 +50,9 @@ impl HWMetricsCollector {
                         let p_md = path.metadata().expect("Can't get metadata from OS");
                         p_md.dev() == dp_md.dev()
                     })
-                    .map(|config_disk| {
+                    .map(|_| {
                         let diskpath = path.to_str().expect("Not UTF-8").to_owned();
-                        (PathBuf::from(diskpath), config_disk.name().clone())
+                        PathBuf::from(diskpath)
                     })
             })
             .collect()
@@ -67,7 +66,7 @@ impl HWMetricsCollector {
         Self::update_space_metrics_from_disks(&self.disks)
     }
 
-    async fn task(t: Duration, disks: HashMap<PathBuf, DiskName>) {
+    async fn task(t: Duration, disks: HashSet<PathBuf>) {
         let mut interval = interval(t);
         let mut sys = System::new_all();
         let mut dcounter = DescrCounter::new();
@@ -125,7 +124,7 @@ impl HWMetricsCollector {
         }
     }
 
-    fn update_space_metrics_from_disks(disks: &HashMap<PathBuf, DiskName>) -> DiskSpaceMetrics {
+    fn update_space_metrics_from_disks(disks: &HashSet<PathBuf>) -> DiskSpaceMetrics {
         let disks_metrics = Self::space(disks);
         gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
         gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
@@ -158,12 +157,12 @@ impl HWMetricsCollector {
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
 
-    fn space(disks: &HashMap<PathBuf, DiskName>) -> DiskSpaceMetrics {
+    fn space(disks: &HashSet<PathBuf>) -> DiskSpaceMetrics {
         let mut total = 0;
         let mut used = 0;
         let mut free = 0;
 
-        for mount_point in disks.keys() {
+        for mount_point in disks {
             let cm_p = Self::to_cpath(mount_point.as_path());
             let stat = Self::statvfs_wrap(&cm_p);
             if let Some(stat) = stat {
@@ -323,15 +322,15 @@ struct DiskStatCollector {
 }
 
 impl DiskStatCollector {
-    async fn new(disks: &HashMap<PathBuf, DiskName>) -> Self {
+    async fn new(disks: &HashSet<PathBuf>) -> Self {
         let mut disk_metric_data = HashMap::new();
-        for (path, disk_name) in disks {
+        for path in disks {
             let path_str = path.as_os_str().to_str().unwrap();
             if let Ok(dev_name) = Self::dev_name(path_str).await {
-                let metric_prefix = format!("{}.{}", HW_DISKS_FOLDER, disk_name);
+                let metric_prefix = format!("{}.{}", HW_DISKS_FOLDER, path_str);
                 disk_metric_data.insert(dev_name, DiskStatsContainer::new(metric_prefix));
             } else {
-                warn!("Device name of disk {} is unknown", disk_name);
+                warn!("Device name of path {:?} is unknown", path);
             }
         }
 
