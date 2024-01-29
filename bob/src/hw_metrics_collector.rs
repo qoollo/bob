@@ -75,9 +75,6 @@ impl HWMetricsCollector {
     }
 
     /// Returns the updated space metrics of this [`HWMetricsCollector`].
-    ///
-    /// Key -- mount points of used disks
-    /// Value -- Updated [`DiskSpaceMetrics`]
     pub(crate) fn update_space_metrics(&self) -> DiskSpaceMetrics {
         Self::update_space_metrics_from_disks(&self.disks)
     }
@@ -177,6 +174,9 @@ impl HWMetricsCollector {
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
 
     /// Maps mount point to the corresponding [`SpaceMetrics`].
+    ///
+    /// Key -- mount points of used disks
+    /// Value -- Up-to-date [`SpaceMetrics`]
     fn space(disks: &HashMap<PathBuf, DiskName>) -> HashMap<PathBuf, SpaceMetrics> {
         let mut res = HashMap::new();
         let mut fs_ids = HashSet::new();
@@ -643,7 +643,7 @@ impl<'a> Add<&'a Self> for SpaceMetrics {
 }
 
 impl<'a> Sum<&'a Self> for SpaceMetrics {
-    /// Summarize [`DiskSpaceMetrics`] over an iterator.
+    /// Summarize [`SpaceMetrics`] over an iterator.
     /// NOTE: the `disk_name` field will be chosen from the first appeared disk in iterator if there
     /// is any. Otherwise 'None' will be passed
     fn sum<I: Iterator<Item = &'a Self>>(mut iter: I) -> Self {
