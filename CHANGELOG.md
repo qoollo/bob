@@ -9,13 +9,20 @@ Bob versions changelog
 #### Changed
 - Use cargo workspace to declare dependencies to avoid their duplication (#821)
 - Record timestamp is now passed to Pearl level and used to find newest record in get and exist functions (#708)
+- Save gRPC error when parsing status (#842)
+- Increased number and max delay of retries for Bob state checking in integration tests (#856)
+- Update writing logic for aliens integration tests to capture lost records problem (#851)
+- Remove allocation on alien exist (#861)
 
 #### Fixed
+- Fix missing alien records due to multiple groups (#806)
+- Fix warnings for imports (#858)
 
 
 #### Updated
 - Update crates versions: tokio, bytes, uuid, infer, base64, bitflags, regex, async-lock (#769)
 - Pearl updated to v0.20.0 (#848)
+- Pearl updated to v0.21.0 (#855)
 
 
 ## [2.1.0-alpha.12] - 2023-09-23

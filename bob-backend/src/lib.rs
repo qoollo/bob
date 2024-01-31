@@ -18,10 +18,7 @@ extern crate lazy_static;
 pub(crate) mod prelude {
     pub use anyhow::{Context, Result as AnyResult};
     pub use bob_common::{
-        configs::{
-            cluster::Cluster as ClusterConfig,
-            node::{BackendType, Node as NodeConfig, Pearl as PearlConfig},
-        },
+        configs::node::{BackendType, Node as NodeConfig, Pearl as PearlConfig},
         data::{BobData, BobKey, BobMeta},
         operation_options::{BobPutOptions, BobGetOptions, BobDeleteOptions},
         core_types::{DiskName, DiskPath, VDiskId},
@@ -35,18 +32,18 @@ pub(crate) mod prelude {
     pub use futures::{stream::FuturesUnordered, StreamExt, TryFutureExt};
     pub use pearl::{
         filter::hierarchical::*, filter::traits::*, filter::Config as BloomConfig, Builder,
-        Error as PearlError, ErrorKind as PearlErrorKind, IoDriver, Key as KeyTrait,
+        ErrorKind as PearlErrorKind, IoDriver, Key as KeyTrait,
         RefKey as RefKeyTrait, Storage,
     };
     pub use std::{
-        collections::{hash_map::Entry, HashMap},
+        collections::HashMap,
         convert::TryInto,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
         fs::Metadata,
         io::{Error as IOError, ErrorKind as IOErrorKind, Result as IOResult},
         path::{Path, PathBuf},
         sync::Arc,
-        time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+        time::{Duration, Instant, SystemTime},
     };
     pub use tokio::{
         fs::{create_dir_all, read_dir, remove_dir_all, remove_file, DirEntry},
