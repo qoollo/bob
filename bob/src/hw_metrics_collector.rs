@@ -198,8 +198,8 @@ impl HWMetricsCollector {
                         mount_point.clone(),
                         SpaceMetrics {
                             total_space: bsize * blocks,
-                            used_space: bsize * bavail,
-                            free_space: (blocks - bfree) * bsize,
+                            used_space: (blocks - bfree) * bsize,
+                            free_space: bsize * bavail,
                         },
                     );
                 }
