@@ -6,6 +6,8 @@ use bob_common::metrics::{
     TOTAL_SPACE, FREE_SPACE, USED_SPACE, HW_DISKS_FOLDER
 };
 use libc::statvfs;
+use std::ops::{AddAssign, Add};
+use std::iter::Sum;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
@@ -16,7 +18,14 @@ const DESCRS_DIR: &str = "/proc/self/fd/";
 const CPU_STAT_FILE: &str = "/proc/stat";
 const DISK_STAT_FILE: &str = "/proc/diskstats";
 
+#[derive(Debug, Clone)]
 pub(crate) struct DiskSpaceMetrics {
+    pub(crate) total: SpaceMetrics,
+    pub(crate) per_disk: HashMap<PathBuf, SpaceMetrics>
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SpaceMetrics {
     pub(crate) total_space: u64,
     pub(crate) used_space: u64,
     pub(crate) free_space: u64,
@@ -63,6 +72,7 @@ impl HWMetricsCollector {
         tokio::spawn(Self::task(self.interval_time, self.disks.clone()));
     }
 
+    /// Returns the updated space metrics of this [`HWMetricsCollector`].
     pub(crate) fn update_space_metrics(&self) -> DiskSpaceMetrics {
         Self::update_space_metrics_from_disks(&self.disks)
     }
@@ -125,12 +135,22 @@ impl HWMetricsCollector {
         }
     }
 
-    fn update_space_metrics_from_disks(disks: &HashMap<PathBuf, DiskName>) -> DiskSpaceMetrics {
+    fn update_space_metrics_from_disks(
+        disks: &HashMap<PathBuf, DiskName>,
+    ) -> DiskSpaceMetrics {
         let disks_metrics = Self::space(disks);
-        gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
-        gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
-        gauge!(FREE_SPACE, bytes_to_mb(disks_metrics.free_space) as f64);
-        disks_metrics
+        let SpaceMetrics { total_space, used_space, free_space } = disks_metrics.values().sum();
+        gauge!(TOTAL_SPACE, bytes_to_mb(total_space) as f64);
+        gauge!(USED_SPACE, bytes_to_mb(used_space) as f64);
+        gauge!(FREE_SPACE, bytes_to_mb(free_space) as f64);
+        DiskSpaceMetrics {
+                total: SpaceMetrics {
+                    total_space,
+                    used_space,
+                    free_space,
+                },
+                per_disk: disks_metrics,
+            }
     }
 
     fn to_cpath(path: &Path) -> Vec<u8> {
@@ -158,30 +178,35 @@ impl HWMetricsCollector {
     // NOTE: HashMap contains only needed mount points of used disks, so it won't be really big,
     // but maybe it's more efficient to store disks (instead of mount_points) and update them one by one
 
-    fn space(disks: &HashMap<PathBuf, DiskName>) -> DiskSpaceMetrics {
-        let mut total = 0;
-        let mut used = 0;
-        let mut free = 0;
-
-        for mount_point in disks.keys() {
+    /// Maps mount point to the corresponding [`SpaceMetrics`].
+    ///
+    /// Key -- mount points of used disks
+    /// Value -- Up-to-date [`SpaceMetrics`]
+    fn space(disks: &HashMap<PathBuf, DiskName>) -> HashMap<PathBuf, SpaceMetrics> {
+        let mut res = HashMap::new();
+        let mut fs_ids = HashSet::new();
+        for (mount_point, _) in disks {
             let cm_p = Self::to_cpath(mount_point.as_path());
             let stat = Self::statvfs_wrap(&cm_p);
             if let Some(stat) = stat {
-                let bsize = stat.f_bsize as u64;
-                let blocks = stat.f_blocks as u64;
-                let bavail = stat.f_bavail as u64;
-                let bfree = stat.f_bfree as u64;
-                total += bsize * blocks;
-                free += bsize * bavail;
-                used += (blocks - bfree) * bsize;
+                let bsize: u64 = stat.f_bsize;
+                let blocks: u64 = stat.f_blocks;
+                let bavail: u64 = stat.f_bavail;
+                let bfree: u64 = stat.f_bfree;
+                if fs_ids.insert(stat.f_fsid) { 
+                    res.insert(
+                        mount_point.clone(),
+                        SpaceMetrics {
+                            total_space: bsize * blocks,
+                            used_space: (blocks - bfree) * bsize,
+                            free_space: bsize * bavail,
+                        },
+                    );
+                }
             }
         }
 
-        DiskSpaceMetrics {
-            total_space: total,
-            used_space: used,
-            free_space: free,
-        }
+        res
     }
 }
 
@@ -601,5 +626,44 @@ async fn parse_command_output(command: &mut Command) -> Result<String, String> {
             let error = format!("Failed to execute command {}: {}", program, e);
             Err(error)
         }
+    }
+}
+
+// Std Traits Impls
+
+impl<'a> AddAssign<&'a Self> for SpaceMetrics {
+    fn add_assign(&mut self, rhs: &Self) {
+        self.used_space += rhs.used_space;
+        self.free_space += rhs.free_space;
+        self.total_space += rhs.total_space;
+    }
+}
+impl<'a> Add<&'a Self> for SpaceMetrics {
+    type Output = Self;
+
+    fn add(mut self, rhs: &Self) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl<'a> Sum<&'a Self> for SpaceMetrics {
+    /// Summarize [`SpaceMetrics`] over an iterator.
+    /// NOTE: the `disk_name` field will be chosen from the first appeared disk in iterator if there
+    /// is any. Otherwise 'None' will be passed
+    fn sum<I: Iterator<Item = &'a Self>>(mut iter: I) -> Self {
+        let init = if let Some(metrics) = iter.next() {
+            metrics.clone()
+        } else {
+            return Self {
+                total_space: 0,
+                used_space: 0,
+                free_space: 0,
+            }
+        };
+        iter.fold(
+            init,
+            |a, b| a + b,
+        )
     }
 }

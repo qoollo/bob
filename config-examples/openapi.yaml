@@ -750,21 +750,51 @@ components:
           type: string
         root_dir_name:
           type: string
-    SpaceInfo:
+    Space:
       type: object
+      required:
+      - total_disk_space_bytes
+      - free_disk_space_bytes
+      - used_disk_space_bytes
       properties:
-        total_disk_space_bytes:
-          type: integer
         free_disk_space_bytes:
           type: integer
+          format: int64
+          minimum: 0
+        total_disk_space_bytes:
+          type: integer
+          format: int64
+          minimum: 0
         used_disk_space_bytes:
           type: integer
-        occupied_disk_space_bytes:
-          type: integer
-        occupied_disk_space_by_disk:
-          type: object
-          additionalProperties:
+          format: int64
+          minimum: 0
+    SpaceInfo:
+      allOf:
+      - $ref: '#/components/schemas/Space'
+      - type: object
+        required:
+        - occupied_disk_space_bytes
+        - occupied_disk_space_by_disk
+        - disk_space_by_disk
+        properties:
+          disk_space_by_disk:
+            type: object
+            description: Key - Mount point or Bob disk name if no mount point was found
+            additionalProperties:
+              $ref: '#/components/schemas/Space'
+          occupied_disk_space_by_disk:
+            type: object
+            description: Key - Bob disk name
+            additionalProperties:
+              type: integer
+              format: int64
+              minimum: 0
+          occupied_disk_space_bytes:
             type: integer
+            format: int64
+            description: Total occupied disk space by Bob
+            minimum: 0
     MetricsEntryModel:
       type: object
       properties:
