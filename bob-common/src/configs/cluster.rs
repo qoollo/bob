@@ -28,7 +28,7 @@ impl Validatable for DiskPath {
 }
 
 /// Rack config struct, with name and [`Node`] names.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Rack {
     name: String,
     nodes: Vec<String>,
@@ -75,7 +75,7 @@ impl Validatable for Rack {
 }
 
 /// Node config struct, with name, address and [`DiskPath`]s.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Node {
     name: String,
     address: String,
@@ -176,7 +176,7 @@ impl Validatable for Replica {
 }
 
 /// Config for virtual disks, stores replicas locations.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct VDisk {
     id: u32,
     #[serde(default)]
@@ -456,26 +456,6 @@ impl Cluster {
             self.check(&config)
                 .map_err(|e| anyhow!("node config check failed: {e}"))?;
             Ok(config)
-        }
-    }
-
-    pub fn disjoint_union_nodes(&mut self, other_nodes: Vec<Node>) {
-        for node2 in other_nodes {
-            if let Some(node1) = self
-                .nodes
-                .iter_mut()
-                .find(|node1| node1.address() == node2.address()) {
-                node2.disks.into_iter().for_each(|disk2| {
-                    if !node1.disks.iter().any(|disk1| disk1.path() == disk2.path()) {
-                        node1.disks.push(DiskPath::new(
-                            DiskName::new(&format!("disk{}", node1.disks.len() + 1)),
-                            disk2.path(),
-                        ));
-                    }
-                });
-            } else {
-                self.nodes.push(node2);
-            }
         }
     }
 }
