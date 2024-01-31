@@ -352,9 +352,9 @@ async fn get_space_info<A: Authenticator>(
 
     Ok(Json(SpaceInfo {
         total_space: Space {
-            total_disk_space_bytes: disk_metrics.total_space,
-            used_disk_space_bytes: disk_metrics.used_space,
-            free_disk_space_bytes: disk_metrics.free_space,
+            total_disk_space_bytes: disk_metrics.total.total_space,
+            used_disk_space_bytes: disk_metrics.total.used_space,
+            free_disk_space_bytes: disk_metrics.total.free_space,
         },
         occupied_disk_space_bytes: occupied_disk_space_by_disk.values().sum(),
         occupied_disk_space_by_disk,

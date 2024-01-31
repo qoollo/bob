@@ -20,9 +20,7 @@ const DISK_STAT_FILE: &str = "/proc/diskstats";
 
 #[derive(Debug, Clone)]
 pub(crate) struct DiskSpaceMetrics {
-    pub(crate) total_space: u64,
-    pub(crate) used_space: u64,
-    pub(crate) free_space: u64,
+    pub(crate) total: SpaceMetrics,
     pub(crate) per_disk: HashMap<PathBuf, SpaceMetrics>
 }
 
@@ -145,7 +143,14 @@ impl HWMetricsCollector {
         gauge!(TOTAL_SPACE, bytes_to_mb(total_space) as f64);
         gauge!(USED_SPACE, bytes_to_mb(used_space) as f64);
         gauge!(FREE_SPACE, bytes_to_mb(free_space) as f64);
-        DiskSpaceMetrics { total_space, used_space, free_space, per_disk: disks_metrics }
+        DiskSpaceMetrics {
+                total: SpaceMetrics {
+                    total_space,
+                    used_space,
+                    free_space,
+                },
+                per_disk: disks_metrics,
+            }
     }
 
     fn to_cpath(path: &Path) -> Vec<u8> {
