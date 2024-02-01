@@ -1,12 +1,21 @@
 use super::name_types::{Name, NameMarker}; 
-use crate::{
-    node::{Node, NodeName},
-};
+use crate::node::{Node, NodeName};
 use std::{
     fmt::Debug,
     sync::Arc,
     hash::{Hash, Hasher},
 };
+
+/// Marker type for [`PhysicalDiskName`]
+pub struct OfPhysicalDisk;
+impl NameMarker for OfPhysicalDisk {
+    fn display_name() -> &'static str {
+        "PhysicalDiskName"
+    }
+}
+
+/// PhysicalDiskName. Clone is lightweight
+pub type PhysicalDiskName = Name<OfPhysicalDisk>;
 
 /// Marker type for [`DiskName`]
 pub struct OfDisk;

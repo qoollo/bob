@@ -52,7 +52,7 @@ mod prelude {
         configs::node::Node as NodeConfig,
         data::{BobData, BobKey, BobMeta},
         operation_options::{BobPutOptions, BobGetOptions, BobDeleteOptions},
-        core_types::{DiskPath, VDiskId},
+        core_types::{DiskPath, VDiskId, PhysicalDiskName},
         error::Error,
         mapper::Virtual,
         metrics::{

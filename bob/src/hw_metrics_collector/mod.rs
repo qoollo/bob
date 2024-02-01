@@ -240,8 +240,10 @@ impl std::ops::Sub for DiskStats {
     }
 }
 
+
+
 struct DiskStatsContainer {
-    path_str: String,
+    path_str: PhysicalDiskName,
     stats: DiffContainer<DiskStats>,
 }
 
@@ -265,7 +267,7 @@ impl DiskStatCollector {
             if let Ok(dev_name) = Self::dev_name(path_str).await {
                 // let metric_prefix = format!("{}.{}", HW_DISKS_FOLDER, path_str);
                 disk_metric_data.insert(dev_name, DiskStatsContainer { 
-                    path_str: path_str.to_owned(), stats: DiffContainer::new() 
+                    path_str: path_str.into(), stats: DiffContainer::new() 
                 });
             } else {
                 warn!("Device name of path {:?} is unknown", path);
@@ -310,7 +312,7 @@ impl DiskStatCollector {
         Ok(new_ds)
     }
 
-    fn collect_metrics(&mut self) -> Result<HashMap<String, DiskMetrics>, CommandError> {
+    fn collect_metrics(&mut self) -> Result<HashMap<PhysicalDiskName, DiskMetrics>, CommandError> {
         let diskstats = self.diskstats()?;
         let now = Instant::now();
         let elapsed = now.duration_since(self.upd_timestamp);
@@ -321,7 +323,8 @@ impl DiskStatCollector {
             for i in diskstats {
                 let lsp: Vec<&str> = i.split_whitespace().collect();
                 if lsp.len() >= 8 {
-                    if let Some(ds) = self.disk_metric_data.get_mut(lsp[2]) {
+                    let dev_name = lsp[2];
+                    if let Some(ds) = self.disk_metric_data.get_mut(dev_name) {
                         let new_ds = Self::parse_stat_line(lsp)?;
                         
                         if let Some(diff) = ds.stats.diff(new_ds) {
@@ -331,7 +334,6 @@ impl DiskStatCollector {
                             } else { 
                                 None 
                             };
-                            // TODO Remove unnecessary allocation?
                             result.insert(ds.path_str.clone(), DiskMetrics { iops, util });
                         }
                     }
