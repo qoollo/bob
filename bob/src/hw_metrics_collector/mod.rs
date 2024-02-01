@@ -64,16 +64,6 @@ impl HWMetricsCollector {
                     .with_memory(),
             );
 
-            match cpu_s_c.iowait() {
-                Ok(iowait) => {
-                    gauge!(CPU_IOWAIT, iowait);
-                },
-                Err(CommandError::Primary(e)) => {
-                    warn!("Error while collecting cpu iowait: {}", e);
-                },
-                Err(CommandError::Unavailable) => (),
-            }
-
             if let Some(proc) = sys.process(pid) {
                 gauge!(BOB_CPU_LOAD, proc.cpu_usage() as f64);
                 let bob_ram = proc.memory();
@@ -84,7 +74,6 @@ impl HWMetricsCollector {
                 debug!("Can't get process stat descriptor");
             }
 
-            let _ = Self::update_space_metrics_from_disks(&disks);
             let available_mem = sys.available_memory();
             let used_mem = total_mem - available_mem;
             let used_swap = sys.used_swap();
@@ -92,12 +81,34 @@ impl HWMetricsCollector {
             gauge!(USED_RAM, used_mem as f64);
             gauge!(AVAILABLE_RAM, available_mem as f64);
             gauge!(USED_SWAP, used_swap as f64);
+
+            let _ = Self::update_space_metrics_from_disks(&disks);
+
             let descr_amount = dcounter.descr_amount().await as f64;
             gauge!(DESCRIPTORS_AMOUNT, descr_amount);
 
-            if let Err(CommandError::Primary(e)) = disk_s_c.collect_and_send_metrics() {
-                warn!("Error while collecting stats of disks: {}", e);
+            match cpu_s_c.iowait() {
+                Ok(iowait) => {
+                    gauge!(CPU_IOWAIT, iowait);
+                },
+                Err(CommandError::Primary(e)) => {
+                    warn!("Error while collecting cpu iowait: {}", e);
+                },
+                Err(CommandError::Unavailable) => (),
             }
+
+            match disk_s_c.collect_metrics() {
+                Ok(m) => {
+                    for (path_str, metrics) in m {
+                        gauge!(format!("{}.{}_iops", HW_DISKS_FOLDER, path_str), metrics.iops);
+                        if let Some(util) = metrics.util {
+                            gauge!(format!("{}.{}_util", HW_DISKS_FOLDER, path_str), util);
+                        }
+                    }
+                },
+                Err(CommandError::Primary(e)) => warn!("Error while collecting stats of disks: {}", e),
+                Err(CommandError::Unavailable) => (),
+            };
         }
     }
 
@@ -230,18 +241,15 @@ impl std::ops::Sub for DiskStats {
 }
 
 struct DiskStatsContainer {
-    prefix: String,
+    path_str: String,
     stats: DiffContainer<DiskStats>,
 }
 
-impl  DiskStatsContainer {
-    fn new(prefix: String) -> Self {
-        Self {
-            prefix,
-            stats: DiffContainer::new(),
-        }
-    }
+struct DiskMetrics {
+    iops: f64,
+    util: Option<f64>
 }
+
 struct DiskStatCollector {
     procfs_avl: bool,
     disk_metric_data: HashMap<String, DiskStatsContainer>,
@@ -250,12 +258,15 @@ struct DiskStatCollector {
 
 impl DiskStatCollector {
     async fn new(disks: &HashSet<PathBuf>) -> Self {
+        // TODO Are disks always on unique devs?
         let mut disk_metric_data = HashMap::new();
         for path in disks {
             let path_str = path.as_os_str().to_str().unwrap();
             if let Ok(dev_name) = Self::dev_name(path_str).await {
-                let metric_prefix = format!("{}.{}", HW_DISKS_FOLDER, path_str);
-                disk_metric_data.insert(dev_name, DiskStatsContainer::new(metric_prefix));
+                // let metric_prefix = format!("{}.{}", HW_DISKS_FOLDER, path_str);
+                disk_metric_data.insert(dev_name, DiskStatsContainer { 
+                    path_str: path_str.to_owned(), stats: DiffContainer::new() 
+                });
             } else {
                 warn!("Device name of path {:?} is unknown", path);
             }
@@ -299,31 +310,29 @@ impl DiskStatCollector {
         Ok(new_ds)
     }
 
-    fn collect_and_send_metrics(&mut self) -> Result<(), CommandError> {
+    fn collect_metrics(&mut self) -> Result<HashMap<String, DiskMetrics>, CommandError> {
         let diskstats = self.diskstats()?;
         let now = Instant::now();
         let elapsed = now.duration_since(self.upd_timestamp);
+        let mut result = HashMap::new();
         if elapsed > DIFFCONTAINER_THRESHOLD {
             self.upd_timestamp = now;
             let elapsed = elapsed.as_secs_f64();
             for i in diskstats {
                 let lsp: Vec<&str> = i.split_whitespace().collect();
                 if lsp.len() >= 8 {
-                    // compare device name from 2nd column with disk device names
                     if let Some(ds) = self.disk_metric_data.get_mut(lsp[2]) {
                         let new_ds = Self::parse_stat_line(lsp)?;
                         
                         if let Some(diff) = ds.stats.diff(new_ds) {
                             let iops = (diff.reads + diff.writes) as f64 / elapsed;
-                            let gauge_name = format!("{}_iops", ds.prefix);
-                            gauge!(gauge_name, iops);
-
-                            if diff.extended {
-                                // disk util in %
-                                let util = diff.io_time as f64 / elapsed / 10.;
-                                let gauge_name = format!("{}_util", ds.prefix);
-                                gauge!(gauge_name, util);
-                            }
+                            let util = if diff.extended {
+                                Some(diff.io_time as f64 / elapsed / 10.)
+                            } else { 
+                                None 
+                            };
+                            // TODO Remove unnecessary allocation?
+                            result.insert(ds.path_str.clone(), DiskMetrics { iops, util });
                         }
                     }
                 } else {
@@ -333,7 +342,7 @@ impl DiskStatCollector {
                 }
             }
         }
-        Ok(())
+        Ok(result)
     }
 
     async fn dev_name(disk_path: &str) -> Result<String, String> {
