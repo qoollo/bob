@@ -14,8 +14,8 @@ impl NameMarker for OfPhysicalDisk {
     }
 }
 
-/// PhysicalDiskName. Clone is lightweight
-pub type PhysicalDiskName = Name<OfPhysicalDisk>;
+/// PhysicalDiskId. Clone is lightweight
+pub type PhysicalDiskId = Name<OfPhysicalDisk>;
 
 /// Marker type for [`DiskName`]
 pub struct OfDisk;

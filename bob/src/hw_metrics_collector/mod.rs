@@ -4,7 +4,6 @@ use bob_common::metrics::{
     TOTAL_RAM, AVAILABLE_RAM, USED_RAM, USED_SWAP,
     TOTAL_SPACE, FREE_SPACE, USED_SPACE, HW_DISKS_FOLDER
 };
-use std::path::PathBuf;
 use tokio::process::Command;
 use std::fs::read_to_string;
 use sysinfo::{ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
@@ -22,7 +21,7 @@ pub(crate) struct DiskSpaceMetrics {
 }
 
 pub(crate) struct HWMetricsCollector {
-    disks: HashSet<PathBuf>,
+    disks: HashSet<PhysicalDiskId>,
     interval_time: Duration,
 }
 
@@ -43,7 +42,7 @@ impl HWMetricsCollector {
         Self::update_space_metrics_from_disks(&self.disks)
     }
 
-    async fn task(t: Duration, disks: HashSet<PathBuf>) {
+    async fn task(t: Duration, disks: HashSet<PhysicalDiskId>) {
         let mut interval = interval(t);
         let mut sys = System::new_all();
         let mut dcounter = DescrCounter::new();
@@ -112,7 +111,7 @@ impl HWMetricsCollector {
         }
     }
 
-    fn update_space_metrics_from_disks(disks: &HashSet<PathBuf>) -> DiskSpaceMetrics {
+    fn update_space_metrics_from_disks(disks: &HashSet<PhysicalDiskId>) -> DiskSpaceMetrics {
         let disks_metrics = fetchers::space(disks);
         gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
         gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
@@ -243,7 +242,7 @@ impl std::ops::Sub for DiskStats {
 
 
 struct DiskStatsContainer {
-    path_str: PhysicalDiskName,
+    path_str: PhysicalDiskId,
     stats: DiffContainer<DiskStats>,
 }
 
@@ -259,11 +258,12 @@ struct DiskStatCollector {
 }
 
 impl DiskStatCollector {
-    async fn new(disks: &HashSet<PathBuf>) -> Self {
+    async fn new(disks: &HashSet<PhysicalDiskId>) -> Self {
         // TODO Are disks always on unique devs?
         let mut disk_metric_data = HashMap::new();
         for path in disks {
-            let path_str = path.as_os_str().to_str().unwrap();
+            // TODO Do we need conversion to os_str?
+            let path_str = std::path::Path::new(path.as_str()).as_os_str().to_str().unwrap();
             if let Ok(dev_name) = Self::dev_name(path_str).await {
                 // let metric_prefix = format!("{}.{}", HW_DISKS_FOLDER, path_str);
                 disk_metric_data.insert(dev_name, DiskStatsContainer { 
@@ -312,7 +312,7 @@ impl DiskStatCollector {
         Ok(new_ds)
     }
 
-    fn collect_metrics(&mut self) -> Result<HashMap<PhysicalDiskName, DiskMetrics>, CommandError> {
+    fn collect_metrics(&mut self) -> Result<HashMap<PhysicalDiskId, DiskMetrics>, CommandError> {
         let diskstats = self.diskstats()?;
         let now = Instant::now();
         let elapsed = now.duration_since(self.upd_timestamp);
