@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, hw_metrics_collector::os_data_fetcher::OsDependentMetricsCollector};
 use bob_common::metrics::{
     BOB_RAM, BOB_VIRTUAL_RAM, BOB_CPU_LOAD, DESCRIPTORS_AMOUNT, CPU_IOWAIT, 
     TOTAL_RAM, AVAILABLE_RAM, USED_RAM, USED_SWAP,
@@ -9,6 +9,7 @@ use std::fs::read_to_string;
 use sysinfo::{ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
 
 mod fetchers;
+mod os_data_fetcher;
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
 const CPU_STAT_FILE: &str = "/proc/stat";
@@ -21,33 +22,31 @@ pub(crate) struct DiskSpaceMetrics {
 }
 
 pub(crate) struct HWMetricsCollector {
-    disks: HashSet<PhysicalDiskId>,
+    os_metrics_collector: OsDependentMetricsCollector,
     interval_time: Duration,
 }
 
 impl HWMetricsCollector {
-    pub(crate) fn new(mapper: Arc<Virtual>, interval_time: Duration) -> Self {
-        let disks = fetchers::collect_used_disks(mapper.local_disks());
+    pub(crate) async fn new(mapper: Arc<Virtual>, interval_time: Duration) -> Self {
+        let os_metrics_collector = OsDependentMetricsCollector::new(mapper.local_disks()).await;
         Self {
-            disks,
+            os_metrics_collector,
             interval_time,
         }
     }
 
     pub(crate) fn spawn_task(&self) {
-        tokio::spawn(Self::task(self.interval_time, self.disks.clone()));
+        tokio::spawn(Self::task(self.interval_time, self.os_metrics_collector.clone()));
     }
 
-    pub(crate) fn update_space_metrics(&self) -> DiskSpaceMetrics {
-        Self::update_space_metrics_from_disks(&self.disks)
+    pub(crate) async fn update_space_metrics(&self) -> DiskSpaceMetrics {
+        Self::update_space_metrics_from_disks(&self.os_metrics_collector).await
     }
 
-    async fn task(t: Duration, disks: HashSet<PhysicalDiskId>) {
+    async fn task(t: Duration, os_metrics_collector: OsDependentMetricsCollector) {
+        let mut state = os_metrics_collector.create_state();
         let mut interval = interval(t);
         let mut sys = System::new_all();
-        let mut dcounter = DescrCounter::new();
-        let mut cpu_s_c = CPUStatCollector::new();
-        let mut disk_s_c = DiskStatCollector::new(&disks).await;
         let total_mem = sys.total_memory();
         gauge!(TOTAL_RAM, total_mem as f64);
         debug!("total mem in bytes: {}", total_mem);
@@ -81,38 +80,31 @@ impl HWMetricsCollector {
             gauge!(AVAILABLE_RAM, available_mem as f64);
             gauge!(USED_SWAP, used_swap as f64);
 
-            let _ = Self::update_space_metrics_from_disks(&disks);
+            let data = os_metrics_collector.collect(&mut state).await;
 
-            let descr_amount = dcounter.descr_amount().await as f64;
-            gauge!(DESCRIPTORS_AMOUNT, descr_amount);
+            let _ = Self::update_space_metrics_from_disks(&os_metrics_collector);
 
-            match cpu_s_c.iowait() {
-                Ok(iowait) => {
-                    gauge!(CPU_IOWAIT, iowait);
-                },
-                Err(CommandError::Primary(e)) => {
-                    warn!("Error while collecting cpu iowait: {}", e);
-                },
-                Err(CommandError::Unavailable) => (),
+            if let Some(descr_amount) = data.descriptors_amount {
+                gauge!(DESCRIPTORS_AMOUNT, descr_amount);
             }
 
-            match disk_s_c.collect_metrics() {
-                Ok(m) => {
-                    for (path_str, metrics) in m {
-                        gauge!(format!("{}.{}_iops", HW_DISKS_FOLDER, path_str), metrics.iops);
-                        if let Some(util) = metrics.util {
-                            gauge!(format!("{}.{}_util", HW_DISKS_FOLDER, path_str), util);
-                        }
-                    }
-                },
-                Err(CommandError::Primary(e)) => warn!("Error while collecting stats of disks: {}", e),
-                Err(CommandError::Unavailable) => (),
-            };
+            if let Some(cpu_iowait) = data.cpu_iowait {
+                gauge!(CPU_IOWAIT, cpu_iowait);
+            }
+
+            for (disk_id, metrics) in data.disk_metrics {
+                if let Some(iops) = metrics.iops {
+                    gauge!(format!("{}.{}_iops", HW_DISKS_FOLDER, disk_id), iops);
+                }
+                if let Some(util) = metrics.util {
+                    gauge!(format!("{}.{}_util", HW_DISKS_FOLDER, disk_id), util);
+                }
+            }
         }
     }
 
-    fn update_space_metrics_from_disks(disks: &HashSet<PhysicalDiskId>) -> DiskSpaceMetrics {
-        let disks_metrics = fetchers::space(disks);
+    async fn update_space_metrics_from_disks(os_metrics_collector: &OsDependentMetricsCollector) -> DiskSpaceMetrics {
+        let disks_metrics = os_metrics_collector.collect_space_metrics().await;
         gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
         gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
         gauge!(FREE_SPACE, bytes_to_mb(disks_metrics.free_space) as f64);

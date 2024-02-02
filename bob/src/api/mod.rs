@@ -317,7 +317,7 @@ async fn get_space_info<A: Authenticator>(
         total_space,
         used_space,
         free_space,
-    } = bob.grinder().hw_counter().update_space_metrics();
+    } = bob.grinder().hw_counter().update_space_metrics().await;
 
     let backend = bob.grinder().backend().inner();
     let (dcs, adc) = backend
