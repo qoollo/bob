@@ -1,16 +1,16 @@
 use super::{
     node::BackendType,
     reader::YamlBobConfig,
-    validation::{Validatable, Validator},
+    validation::{Validatable, Validator}
 };
 use crate::{
     configs::node::Node as NodeConfig,
-    core_types::{DiskName, DiskPath, NodeDisk, VDiskId},
     node::NodeName,
+    core_types::{DiskPath, VDiskId, NodeDisk, DiskName},
 };
-use anyhow::{anyhow, Result as AnyResult};
+use anyhow::{Result as AnyResult, anyhow};
 use http::Uri;
-use std::collections::{HashMap, HashSet};
+use std::collections::{ HashMap, HashSet };
 
 impl Validatable for DiskPath {
     fn validate(&self) -> Result<(), String> {
@@ -83,6 +83,7 @@ pub struct Node {
 }
 
 impl Node {
+    #[must_use]
     pub fn new(name: String, address: String, disks: Vec<DiskPath>) -> Node {
         Node {
             name,
@@ -102,6 +103,20 @@ impl Node {
     #[must_use]
     pub fn disks(&self) -> &[DiskPath] {
         &self.disks
+    }
+
+    /// Merges new disk paths into a node's disk list, without duplicates.
+    pub fn merge_disks(&mut self, new_disks_paths: impl Iterator<Item = String>) {
+        let mut disk_counter = self.disks().len() + 1;
+        for disk_path in new_disks_paths {
+            if !self.disks().iter().any(|d| d.path() == disk_path) {
+                self.disks.push(DiskPath::new(
+                    DiskName::new(&format!("disk{}", disk_counter)),
+                    disk_path.as_str(),
+                ));
+                disk_counter += 1;
+            }
+        }
     }
 
     /// Returns node address, empty if address wasn't set in config.
@@ -292,7 +307,7 @@ impl Cluster {
     }
 
     /// Extends the vdisks collection with contents of the iterator.
-    pub fn vdisks_extend(&mut self, iter: impl IntoIterator<Item=VDisk>) {
+    pub fn vdisks_extend(&mut self, iter: impl IntoIterator<Item = VDisk>) {
         self.vdisks.extend(iter)
     }
 

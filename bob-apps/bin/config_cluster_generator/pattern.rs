@@ -1,35 +1,37 @@
 use anyhow::{anyhow, Result as AnyResult};
 use bob_common::configs::cluster::Node;
-use bob_common::core_types::{DiskName, DiskPath};
 use itertools::Itertools;
+use regex::{Captures, Regex};
 
-fn parse_address_pattern(pattern: &String) -> AnyResult<((String, u16), String)> {
-    debug!("Pattern to parse: {}", pattern);
-    let re: regex::Regex = regex::Regex::new(r"^([\w.]+):(\d+)(/[\w/]+)$").unwrap();
-
-    if let Some(captures) = re.captures(pattern) {
-        let ip = captures.get(1).unwrap().as_str().to_owned();
-        let port = captures.get(2).unwrap().as_str();
-        let path = captures.get(3).unwrap().as_str().to_owned();
-
+fn parse_address_sample(sample: &str) -> AnyResult<((String, u16), String)> {
+    debug!("Sample to parse: {}", sample);
+    let re = Regex::new(r"^(?<addr>[\w.]+):(?<port>\d+)(?<path>/[\w/]+)$").unwrap();
+    if let Some(captures) = re.captures(sample) {
+        let ip = captures["addr"].to_owned();
+        let port = &captures["port"];
+        let path = captures["path"].to_owned();
         let port: u16 = port
             .parse()
             .map_err(|_| anyhow!("Failed to parse port {}", port))?;
         Ok(((ip, port), path))
     } else {
-        Err(anyhow!("Failed to parse the pattern {}", pattern))
+        Err(anyhow!("Failed to parse the sample {}", sample))
     }
 }
 
-fn substitute_node(node_pattern: &str, ip: &str, port: u16, id: usize) -> String {
-    node_pattern
-        .replace("{ip}", &ip)
-        .replace("{port}", &port.to_string())
-        .replace("{id}", &id.to_string())
+fn substitute_node_pattern(node_pattern: &str, ip: &str, port: u16, id: usize) -> String {
+    let re = Regex::new(r"\{(\w+)}").unwrap();
+    re.replace_all(node_pattern, |caps: &Captures| match &caps[1] {
+        "ip" => ip.to_string(),
+        "port" => port.to_string(),
+        "id" => id.to_string(),
+        _ => caps[0].to_string(),
+    })
+    .to_string()
 }
 
 fn generate_range_samples(pattern: &str) -> impl Iterator<Item = String> {
-    let re = regex::Regex::new(r"\[(\d+)-(\d+)]").unwrap();
+    let re = Regex::new(r"\[(\d+)-(\d+)]").unwrap();
 
     let ranges = re.captures_iter(pattern).map(|captures| {
         let start: usize = captures[1].parse().unwrap();
@@ -43,7 +45,7 @@ fn generate_range_samples(pattern: &str) -> impl Iterator<Item = String> {
             if let itertools::EitherOrBoth::Both(part, range) = x {
                 range.map(|i| part.to_string() + &i.to_string()).collect()
             } else {
-                vec![x.left().unwrap().to_string()]
+                vec![x.left().expect("is some because split > range").to_string()]
             }
         })
         .multi_cartesian_product()
@@ -56,73 +58,38 @@ pub fn pattern_extend_nodes(
     pattern: String,
     node_pattern: String,
 ) -> AnyResult<Vec<Node>> {
-    let mut err = Ok(());
+    let parsed_samples = generate_range_samples(&pattern)
+        .map(|key| parse_address_sample(&key))
+        .collect::<AnyResult<Vec<_>>>()?;
+
     let mut node_counter = old_nodes.len();
-    let new_nodes: Vec<Node> = generate_range_samples(&pattern)
-        .map_while(|key| {
-            let result = parse_address_pattern(&key);
-            match result {
-                Ok(((ip, port), path)) => Some(((ip, port), path)),
-                Err(e) => {
-                    err = Err(e);
-                    None
-                }
-            }
-        })
-        .group_by(|key| key.0.clone())
+    for (ip_port, addresses) in parsed_samples
+        .iter()
+        .group_by(|(ip_port, _)| ip_port)
         .into_iter()
-        .filter_map(|(ip_port, addresses)| {
-            let address = format!("{}:{}", ip_port.0, ip_port.1);
-            let existed_node = old_nodes
-                .iter()
-                .find_position(|node| node.address() == address);
+    {
+        let address = format!("{}:{}", ip_port.0, ip_port.1);
+        if let Some(node) = old_nodes.iter_mut().find(|node| node.address() == address) {
+            node.merge_disks(addresses.map(|(_, path)| path.to_owned()));
+        } else {
+            node_counter += 1;
+            let mut new_node = Node::new(
+                substitute_node_pattern(&node_pattern, &ip_port.0, ip_port.1, node_counter),
+                address,
+                vec![],
+            );
+            new_node.merge_disks(addresses.map(|(_, path)| path.to_owned()));
+            old_nodes.push(new_node);
+        }
+    }
 
-            let mut old_disks = existed_node
-                .map(|(_, node)| node.disks().to_vec())
-                .unwrap_or_default();
-
-            let mut disk_counter = old_disks.len();
-            let new_disks: Vec<DiskPath> = addresses
-                .filter_map(|(_, path)| {
-                    let disk_path = path.as_str();
-                    if !old_nodes.is_empty() && old_disks.iter().any(|d| d.path() == disk_path) {
-                        None
-                    } else {
-                        disk_counter += 1;
-                        Some(DiskPath::new(
-                            DiskName::new(&format!("disk{}", disk_counter)),
-                            disk_path,
-                        ))
-                    }
-                })
-                .collect();
-            old_disks.extend_from_slice(&new_disks);
-            if let Some((pos, node)) = existed_node {
-                old_nodes[pos] = Node::new(node.name().to_string(), address, old_disks);
-                None
-            } else {
-                node_counter += 1;
-                Some(Node::new(
-                    substitute_node(
-                        node_pattern.as_str(),
-                        ip_port.0.as_str(),
-                        ip_port.1,
-                        node_counter,
-                    ),
-                    address,
-                    old_disks,
-                ))
-            }
-        })
-        .collect();
-    err?;
-    old_nodes.extend_from_slice(&new_nodes);
     Ok(old_nodes)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bob_common::core_types::{DiskName, DiskPath};
 
     #[test]
     fn test_generate_range_samples() {
@@ -149,7 +116,7 @@ mod tests {
     #[test]
     fn test_parse_address_pattern() {
         let pattern = String::from("127.0.0.1:8080/disk/path");
-        let result = parse_address_pattern(&pattern);
+        let result = parse_address_sample(&pattern);
         assert!(result.is_ok());
 
         let ((ip, port), path) = result.unwrap();
@@ -158,11 +125,11 @@ mod tests {
         assert_eq!(path, "/disk/path");
 
         let pattern = String::from("127.0.0.1:65536/disk/path");
-        let result = parse_address_pattern(&pattern);
+        let result = parse_address_sample(&pattern);
         assert!(result.is_err());
 
         let pattern = String::from("a,a:8080/disk/path");
-        let result = parse_address_pattern(&pattern);
+        let result = parse_address_sample(&pattern);
         assert!(result.is_err());
     }
     #[test]
@@ -259,7 +226,7 @@ mod tests {
     #[test]
     fn test_pattern_extend_nodes_invalid() {
         let old_nodes = vec![];
-        let pattern = "test[1-4]:[65535-65537]/a[2-5]".to_string(); // port type: u8
+        let pattern = "test[1-4]:[65535-65537]/a[2-5]".to_string(); // port type: u16
         let node_pattern = "{ip}_{port}_{id}".to_string();
         let result = pattern_extend_nodes(old_nodes, pattern, node_pattern);
         assert!(result.is_err());
