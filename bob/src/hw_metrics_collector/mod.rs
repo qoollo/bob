@@ -6,7 +6,6 @@ use bob_common::metrics::{
 };
 use sysinfo::{ProcessExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
 
-mod fetchers;
 mod os_data_fetcher;
 
 #[derive(Default)]

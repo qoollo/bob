@@ -22,8 +22,12 @@ pub(crate) use unix::OsDataFetcher;
 
 #[cfg(not(any(target_family = "unix")))]
 mod default {
+    use std::collections::{HashSet, HashMap};
+    use super::{DiskSpaceMetrics, OsDiskMetrics, OsDataMetrics};
+    use bob_common::core_types::{PhysicalDiskId, DiskPath};
+
     #[derive(Clone)]
-    pub(super) struct OsDataFetcher {
+    pub(crate) struct OsDataFetcher {
         disks: HashSet<PhysicalDiskId>
     }
 
@@ -41,3 +45,5 @@ mod default {
         }
     }
 }
+#[cfg(not(any(target_family = "unix")))]
+pub(crate) use default::OsDataFetcher;
