@@ -12,7 +12,6 @@ pub(super) struct OsDataMetrics {
     pub(super) descriptors_amount: Option<f64>,
     pub(super) cpu_iowait: Option<f64>,
     pub(super) disk_metrics: HashMap<PhysicalDiskId, OsDiskMetrics>,
-    pub(super) disk_space_metrics: HashMap<PhysicalDiskId, DiskSpaceMetrics>
 }
 
 #[cfg(target_family = "unix")]
@@ -38,7 +37,7 @@ mod default {
         }
 
         pub async fn collect_space_metrics(&self) -> DiskSpaceMetrics {
-            DiskSpaceMetrics { total_space: 0, used_space: 0, free_space: 0 }
+            DiskSpaceMetrics::default()
         }
     }
 }

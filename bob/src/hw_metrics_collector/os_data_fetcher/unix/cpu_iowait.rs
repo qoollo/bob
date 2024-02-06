@@ -1,4 +1,4 @@
-use crate::hw_metrics_collector::{file_contents, CommandError};
+use super::{file_contents, CommandError};
 
 const CPU_STAT_FILE: &str = "/proc/stat";
 

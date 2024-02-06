@@ -1,5 +1,7 @@
 use tokio::process::Command;
 
+use super::parse_command_output;
+
 const DESCRS_DIR: &str = "/proc/self/fd/";
 
 // this constant means, that `descriptors amount` value will be recalculated only on every
@@ -119,32 +121,6 @@ impl DescrCounter {
                 debug!("failed to count descriptors: {}", e);
                 0 // proc is unsupported
             }
-        }
-    }
-}
-
-async fn parse_command_output(command: &mut Command) -> Result<String, String> {
-    let output = command.output().await;
-    let program = command.as_std().get_program().to_str().unwrap();
-    match output {
-        Ok(output) => match (output.status.success(), String::from_utf8(output.stdout)) {
-            (true, Ok(out)) => Ok(out),
-            (false, _) => {
-                if let Ok(e) = String::from_utf8(output.stderr) {
-                    let error = format!("Command {} finished with error: {}", program, e);
-                    Err(error)
-                } else {
-                    Err("Command finished with error".to_string())
-                }
-            }
-            (_, Err(e)) => {
-                let error = format!("Can not convert output of {} into string: {}", program, e);
-                Err(error)
-            }
-        },
-        Err(e) => {
-            let error = format!("Failed to execute command {}: {}", program, e);
-            Err(error)
         }
     }
 }
