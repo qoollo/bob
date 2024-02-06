@@ -1,4 +1,4 @@
-use crate::{prelude::*, hw_metrics_collector::os_data_fetcher::OsDependentMetricsCollector};
+use crate::{prelude::*, hw_metrics_collector::os_data_fetcher::OsDataFetcher};
 use bob_common::metrics::{
     BOB_RAM, BOB_VIRTUAL_RAM, BOB_CPU_LOAD, DESCRIPTORS_AMOUNT, CPU_IOWAIT, 
     TOTAL_RAM, AVAILABLE_RAM, USED_RAM, USED_SWAP,
@@ -12,7 +12,6 @@ mod fetchers;
 mod os_data_fetcher;
 
 const DESCRS_DIR: &str = "/proc/self/fd/";
-const CPU_STAT_FILE: &str = "/proc/stat";
 const DISK_STAT_FILE: &str = "/proc/diskstats";
 
 pub(crate) struct DiskSpaceMetrics {
@@ -22,13 +21,18 @@ pub(crate) struct DiskSpaceMetrics {
 }
 
 pub(crate) struct HWMetricsCollector {
-    os_metrics_collector: OsDependentMetricsCollector,
+    os_metrics_collector: OsDataFetcher,
     interval_time: Duration,
+}
+
+enum CommandError {
+    Unavailable,
+    Primary(String),
 }
 
 impl HWMetricsCollector {
     pub(crate) async fn new(mapper: Arc<Virtual>, interval_time: Duration) -> Self {
-        let os_metrics_collector = OsDependentMetricsCollector::new(mapper.local_disks()).await;
+        let os_metrics_collector = OsDataFetcher::new(mapper.local_disks()).await;
         Self {
             os_metrics_collector,
             interval_time,
@@ -43,8 +47,7 @@ impl HWMetricsCollector {
         Self::update_space_metrics_from_disks(&self.os_metrics_collector).await
     }
 
-    async fn task(t: Duration, os_metrics_collector: OsDependentMetricsCollector) {
-        let mut state = os_metrics_collector.create_state();
+    async fn task(t: Duration, mut os_metrics_collector: OsDataFetcher) {
         let mut interval = interval(t);
         let mut sys = System::new_all();
         let total_mem = sys.total_memory();
@@ -80,7 +83,7 @@ impl HWMetricsCollector {
             gauge!(AVAILABLE_RAM, available_mem as f64);
             gauge!(USED_SWAP, used_swap as f64);
 
-            let data = os_metrics_collector.collect(&mut state).await;
+            let data = os_metrics_collector.collect().await;
 
             let _ = Self::update_space_metrics_from_disks(&os_metrics_collector);
 
@@ -103,7 +106,7 @@ impl HWMetricsCollector {
         }
     }
 
-    async fn update_space_metrics_from_disks(os_metrics_collector: &OsDependentMetricsCollector) -> DiskSpaceMetrics {
+    async fn update_space_metrics_from_disks(os_metrics_collector: &OsDataFetcher) -> DiskSpaceMetrics {
         let disks_metrics = os_metrics_collector.collect_space_metrics().await;
         gauge!(TOTAL_SPACE, bytes_to_mb(disks_metrics.total_space) as f64);
         gauge!(USED_SPACE, bytes_to_mb(disks_metrics.used_space) as f64);
@@ -112,77 +115,6 @@ impl HWMetricsCollector {
     }
 
 }
-
-enum CommandError {
-    Unavailable,
-    Primary(String),
-}
-struct CPUStatCollector {
-    procfs_avl: bool,
-}
-
-impl CPUStatCollector {
-    fn new() -> CPUStatCollector {
-        CPUStatCollector {
-            procfs_avl: true
-        }
-    }
-
-    fn stat_cpu_line() -> Result<String, String> {
-        let lines = file_contents(CPU_STAT_FILE)?;
-        for stat_line in lines {
-            if stat_line.starts_with("cpu") {
-                return Ok(stat_line);
-            }
-        }
-        Err(format!("Can't find cpu stat line in {}", CPU_STAT_FILE))
-    }
-
-    fn iowait(&mut self) -> Result<f64, CommandError> {
-        if !self.procfs_avl {
-            return Err(CommandError::Unavailable);
-        }
-
-        const CPU_IOWAIT_COLUMN: usize = 5;
-        let mut err = None;
-        match Self::stat_cpu_line() {
-            Ok(line) => {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() > CPU_IOWAIT_COLUMN {
-                    let mut sum = 0.;
-                    let mut f_iowait = 0.;
-                    for i in 1..parts.len() {
-                        match parts[i].parse::<f64>() {
-                            Ok(val) => {
-                                sum += val;
-                                if i == CPU_IOWAIT_COLUMN {
-                                    f_iowait = val;
-                                }
-                            },
-                            Err(_) => {
-                                let msg = format!("Can't parse {}", CPU_STAT_FILE);
-                                err = Some(msg);
-                                break;
-                            }
-                        }
-                    }
-                    if err.is_none() {
-                        return Ok(f_iowait * 100. / sum);
-                    }
-                } else {
-                    let msg = format!("CPU stat format in {} changed", CPU_STAT_FILE);
-                    err = Some(msg);
-                }
-            },
-            Err(e) => {
-                err = Some(e);
-            }
-        }
-        self.procfs_avl = false;
-        Err(CommandError::Primary(err.unwrap()))
-    }
-}
-
 const DIFFCONTAINER_THRESHOLD: Duration = Duration::from_millis(500);
 
 struct DiffContainer<T> {
