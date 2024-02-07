@@ -19,8 +19,12 @@ mod unix;
 #[cfg(target_family = "unix")]
 pub(crate) use unix::OsDataFetcher;
 
+#[cfg(target_family = "windows")]
+mod windows;
+#[cfg(target_family = "windows")]
+pub(crate) use windows::OsDataFetcher;
 
-#[cfg(not(any(target_family = "unix")))]
+#[cfg(not(any(target_family = "unix", target_family = "windows")))]
 mod default {
     use std::collections::{HashSet, HashMap};
     use super::{DiskSpaceMetrics, OsDiskMetrics, OsDataMetrics};
@@ -45,5 +49,5 @@ mod default {
         }
     }
 }
-#[cfg(not(any(target_family = "unix")))]
+#[cfg(not(any(target_family = "unix", target_family = "windows")))]
 pub(crate) use default::OsDataFetcher;
