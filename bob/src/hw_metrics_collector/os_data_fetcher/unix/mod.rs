@@ -104,13 +104,13 @@ impl OsDataFetcher {
             .iter()
             .filter_map(|d| {
                 let path = d.mount_point();
+                let p_md = path.metadata().expect("Can't get metadata from OS");
                 if bob_disks
                     .iter()
                     .any(move |dp| {
                         let dp_md = Path::new(dp.path())
                             .metadata()
                             .expect("Can't get metadata from OS");
-                        let p_md = path.metadata().expect("Can't get metadata from OS");
                         p_md.dev() == dp_md.dev()
                     }) {
                     Some(path.to_str().expect("Not UTF-8").into())
