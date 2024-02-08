@@ -29,3 +29,19 @@ jobs:
         with:
           command: test
           args: --features testing,async-io
+
+  tests-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checks-out repository
+        uses: actions/checkout@v2
+      - name: Install latest stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+      - name: Tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --features testing
