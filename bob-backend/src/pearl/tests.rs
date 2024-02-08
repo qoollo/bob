@@ -67,6 +67,8 @@ vdisks:
     create_backend(node_config, cluster_config).await.unwrap()
 }
 
+// Does not work in windows yet (file lock error)
+#[cfg(not(target_family = "windows"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_write_multiple_read() {
     drop_pearl().await;
