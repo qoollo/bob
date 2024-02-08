@@ -1,5 +1,5 @@
-use std::{collections::{HashMap, HashSet}, path::Path};
-use super::{DiskSpaceMetrics, OsDiskMetrics, OsDataMetrics};
+use std::collections::HashSet;
+use super::{DiskSpaceMetrics, OsDataMetrics};
 use bob_common::core_types::{PhysicalDiskId, DiskPath};
 use sysinfo::{DiskExt, System, SystemExt};
 
@@ -11,7 +11,6 @@ pub(crate) struct OsDataFetcher {
 impl OsDataFetcher {
     pub async fn new(bob_disks: &[DiskPath]) -> Self {
         let disks = find_physical_disks(bob_disks).await;
-        println!("{:?}", disks);
         Self { disks }
     }
 
@@ -20,7 +19,28 @@ impl OsDataFetcher {
     }
 
     pub async fn collect_space_metrics(&self) -> DiskSpaceMetrics {
-        DiskSpaceMetrics::default()
+        let mut total = 0;
+        let mut used = 0;
+        let mut free = 0;
+
+        for disk in System::new_all().disks()
+            .iter()
+            .filter(|d| self.disks.contains(&get_id(d))) {
+
+            let disk_total = disk.total_space();
+            let disk_free = disk.available_space();
+            let disk_used = disk_total - disk_free;
+            
+            total += disk_total;
+            free += disk_free;
+            used += disk_used;
+        }
+
+        DiskSpaceMetrics { 
+            total_space: total,
+            used_space: used,
+            free_space: free
+        }
     }
 }
 
@@ -38,10 +58,14 @@ async fn find_physical_disks(bob_disks: &[DiskPath]) -> HashSet<PhysicalDiskId> 
                         .expect("canonicalize bob path");
                     dp.starts_with(&path)
                 }) {
-                Some(d.mount_point().to_str().unwrap().into())
+                Some(get_id(d))
             } else {
                 None
             }
         })
         .collect()
+}
+
+fn get_id(d: &sysinfo::Disk) -> PhysicalDiskId {
+    d.mount_point().to_str().unwrap().into()
 } 
