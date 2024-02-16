@@ -53,11 +53,17 @@ jobs:
         run: target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobd --version
   build-windows:
     runs-on: windows-latest
+    env:
+      TARGET: "x86_64-pc-windows-gnu"
+      BUILD_PROFILE: "release"
     steps:
       - name: Checks-out repository
         uses: actions/checkout@v2
       - name: Install latest stable
         uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
       - name: Estimate output binaries directory
         run: |
           echo "BUILD_PROFILE_DIR=$(case "$BUILD_PROFILE" in\
