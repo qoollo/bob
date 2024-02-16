@@ -51,7 +51,7 @@ jobs:
           args: --features async-io --profile=${{ env.BUILD_PROFILE }} --target=${{ env.TARGET }}
       - name: Check bobd version
         run: target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobd --version
-  build:
+  build-windows:
     runs-on: windows-latest
     steps:
       - name: Checks-out repository
