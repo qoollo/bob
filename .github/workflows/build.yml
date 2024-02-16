@@ -64,8 +64,6 @@ jobs:
         with:
           toolchain: stable
           default: true
-      - name: Output estimated working-directory
-        run: echo ${{ env.BUILD_PROFILE_DIR }}
       - name: Build release
         uses: actions-rs/cargo@v1
         with:
