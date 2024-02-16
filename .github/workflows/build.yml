@@ -70,7 +70,7 @@ jobs:
           command: build
           args: --profile=${{ env.BUILD_PROFILE }} --target=${{ env.TARGET }}
       - name: Check bobd version
-        run: ${GITHUB_ACTION_PATH//\\//}/target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobd --version
+        run: ${GITHUB_ACTION_PATH//\\//}/target/${{ env.TARGET }}/${{ env.BUILD_PROFILE }}/bobd --version
         shell: bash
 
   build-alpine-image:
