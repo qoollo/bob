@@ -64,14 +64,6 @@ jobs:
         with:
           toolchain: stable
           default: true
-      - name: Estimate output binaries directory
-        run: |
-          echo "BUILD_PROFILE_DIR=$(case "$BUILD_PROFILE" in\
-          ("dev") echo "debug";;\
-          ("test") echo "debug";;\
-          ("bench") echo "release";;\
-          (*) echo "$BUILD_PROFILE";;\
-          esac)" >> $GITHUB_ENV
       - name: Output estimated working-directory
         run: echo ${{ env.BUILD_PROFILE_DIR }}
       - name: Build release
