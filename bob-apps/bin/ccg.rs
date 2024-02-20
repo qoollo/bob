@@ -5,7 +5,6 @@ extern crate log;
 
 use anyhow::{anyhow, Result as AnyResult};
 use bob::ClusterConfig;
-use bob_common::configs::{cluster::DistributionFunc};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use config_cluster_generator::{
     center::{check_expand_configs, get_new_disks, get_new_racks, Center},
@@ -209,7 +208,7 @@ fn simple_gen(
 
 fn pattern_gen(pattern: String, node_pattern: String) -> AnyResult<ClusterConfig> {
     let nodes = pattern_extend_nodes(vec![], pattern, node_pattern)?;
-    let config = ClusterConfig::new(nodes, vec![], vec![], DistributionFunc::default());
+    let config = ClusterConfig::new(nodes);
     debug!("pattern gen: OK [\n{:#?}\n]", config);
     Ok(config)
 }
@@ -220,7 +219,7 @@ fn pattern_expand(
     node_pattern: String,
 ) -> AnyResult<ClusterConfig> {
     let nodes = pattern_extend_nodes(config.nodes().to_owned(), pattern, node_pattern)?;
-    let config = ClusterConfig::new(nodes, config.vdisks().to_owned(), config.racks().to_owned(), config.distribution_func());
+    let config = ClusterConfig::new(nodes);
     debug!("pattern extending: OK [\n{:#?}\n]", config);
     Ok(config)
 }

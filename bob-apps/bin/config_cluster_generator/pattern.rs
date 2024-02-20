@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result as AnyResult};
 use bob_common::configs::cluster::Node;
+use bob_common::core_types::{DiskName, DiskPath};
 use itertools::Itertools;
 use regex::{Captures, Regex};
 
@@ -61,35 +62,47 @@ pub fn pattern_extend_nodes(
     let parsed_samples = generate_range_samples(&pattern)
         .map(|key| parse_address_sample(&key))
         .collect::<AnyResult<Vec<_>>>()?;
-
-    let mut node_counter = old_nodes.len();
-    for (ip_port, addresses) in parsed_samples
+    parsed_samples
         .iter()
         .group_by(|(ip_port, _)| ip_port)
         .into_iter()
-    {
-        let address = format!("{}:{}", ip_port.0, ip_port.1);
-        if let Some(node) = old_nodes.iter_mut().find(|node| node.address() == address) {
-            node.merge_disks(addresses.map(|(_, path)| path.to_owned()));
-        } else {
-            node_counter += 1;
-            let mut new_node = Node::new(
-                substitute_node_pattern(&node_pattern, &ip_port.0, ip_port.1, node_counter),
-                address,
-                vec![],
-            );
-            new_node.merge_disks(addresses.map(|(_, path)| path.to_owned()));
-            old_nodes.push(new_node);
-        }
-    }
-
+        .for_each(|(ip_port, addresses)| {
+            let address = format!("{}:{}", ip_port.0, ip_port.1);
+            let mut p_node = old_nodes.iter_mut().find(|node| node.address() == address);
+            if p_node.is_none() {
+                old_nodes.push(Node::new(
+                    substitute_node_pattern(
+                        &node_pattern,
+                        &ip_port.0,
+                        ip_port.1,
+                        old_nodes.len() + 1,
+                    ),
+                    address,
+                    vec![],
+                ));
+                p_node = old_nodes.last_mut();
+            }
+            let p_node = p_node.expect("is some because it's either the pushed one or found");
+            let old_disks = p_node.disks();
+            let new_disks: Vec<DiskPath> = addresses
+                .map(|(_, path)| path)
+                .filter(|disk_path| !p_node.disks().iter().any(|d| d.path() == *disk_path))
+                .enumerate()
+                .map(|(idx, disk_path)| {
+                    DiskPath::new(
+                        DiskName::new(&format!("disk{}", idx + old_disks.len() + 1)),
+                        disk_path.as_str(),
+                    )
+                })
+                .collect();
+            p_node.disks_extend(new_disks);
+        });
     Ok(old_nodes)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bob_common::core_types::{DiskName, DiskPath};
 
     #[test]
     fn test_generate_range_samples() {

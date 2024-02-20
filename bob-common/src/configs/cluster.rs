@@ -105,18 +105,9 @@ impl Node {
         &self.disks
     }
 
-    /// Merges new disk paths into a node's disk list, without duplicates.
-    pub fn merge_disks(&mut self, new_disks_paths: impl Iterator<Item = String>) {
-        let mut disk_counter = self.disks().len() + 1;
-        for disk_path in new_disks_paths {
-            if !self.disks().iter().any(|d| d.path() == disk_path) {
-                self.disks.push(DiskPath::new(
-                    DiskName::new(&format!("disk{}", disk_counter)),
-                    disk_path.as_str(),
-                ));
-                disk_counter += 1;
-            }
-        }
+    /// Extends the disks collection with contents of the iterator.
+    pub fn disks_extend(&mut self, iter: impl IntoIterator<Item = DiskPath>) {
+        self.disks.extend(iter)
     }
 
     /// Returns node address, empty if address wasn't set in config.
@@ -271,15 +262,12 @@ pub struct Cluster {
 impl Cluster {
     pub fn new(
         nodes: Vec<Node>,
-        vdisks: Vec<VDisk>,
-        racks: Vec<Rack>,
-        distribution_func: DistributionFunc,
     ) -> Cluster {
         Cluster {
             nodes,
-            vdisks,
-            racks,
-            distribution_func,
+            vdisks: Vec::default(),
+            racks: Vec::default(),
+            distribution_func: DistributionFunc::default(),
         }
     }
     /// Returns slice with [`Node`]s.
