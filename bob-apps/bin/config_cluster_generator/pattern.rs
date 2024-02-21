@@ -54,6 +54,21 @@ fn generate_range_samples(pattern: &str) -> impl Iterator<Item = String> {
         .into_iter()
 }
 
+fn pattern_extend_disks(node: &mut Node, disk_paths: impl Iterator<Item = String>) {
+    let old_disks = node.disks();
+    let new_disks: Vec<DiskPath> = disk_paths
+        .filter(|disk_path| !old_disks.iter().any(|d| d.path() == *disk_path))
+        .enumerate()
+        .map(|(idx, disk_path)| {
+            DiskPath::new(
+                DiskName::new(&format!("disk{}", idx + old_disks.len() + 1)),
+                disk_path.as_str(),
+            )
+        })
+        .collect();
+    node.disks_extend(new_disks);
+}
+
 pub fn pattern_extend_nodes(
     mut old_nodes: Vec<Node>,
     pattern: String,
@@ -83,19 +98,7 @@ pub fn pattern_extend_nodes(
                 p_node = old_nodes.last_mut();
             }
             let p_node = p_node.expect("is some because it's either the pushed one or found");
-            let old_disks = p_node.disks();
-            let new_disks: Vec<DiskPath> = addresses
-                .map(|(_, path)| path)
-                .filter(|disk_path| !p_node.disks().iter().any(|d| d.path() == *disk_path))
-                .enumerate()
-                .map(|(idx, disk_path)| {
-                    DiskPath::new(
-                        DiskName::new(&format!("disk{}", idx + old_disks.len() + 1)),
-                        disk_path.as_str(),
-                    )
-                })
-                .collect();
-            p_node.disks_extend(new_disks);
+            pattern_extend_disks(p_node, addresses.map(|(_, path)| path.to_owned()));
         });
     Ok(old_nodes)
 }
