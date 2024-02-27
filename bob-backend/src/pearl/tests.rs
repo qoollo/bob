@@ -90,5 +90,6 @@ async fn test_write_multiple_read() {
     assert_eq!(TIMESTAMP, res.unwrap().meta().timestamp());
     let res = backend.get(operation, BobKey::from(KEY_ID)).await;
     assert_eq!(TIMESTAMP, res.unwrap().meta().timestamp());
+    backend.shutdown().await;
     drop_pearl().await;
 }

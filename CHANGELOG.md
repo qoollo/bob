@@ -17,7 +17,7 @@ Bob versions changelog
 #### Fixed
 - Fix missing alien records due to multiple groups (#806)
 - Fix warnings for imports (#858)
-
+- Fix hardware metrics platform-dependence (#730)
 
 #### Updated
 - Update crates versions: tokio, bytes, uuid, infer, base64, bitflags, regex, async-lock (#769)

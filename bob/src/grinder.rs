@@ -44,7 +44,7 @@ impl Grinder {
         let hw_counter = Arc::new(HWMetricsCollector::new(
             mapper.clone(),
             Duration::from_secs(60),
-        ));
+        ).await);
 
         let counter = Arc::new(BlobsCounter::new(config.count_interval()));
         Grinder {
