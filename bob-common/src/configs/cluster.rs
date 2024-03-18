@@ -75,7 +75,7 @@ impl Validatable for Rack {
 }
 
 /// Node config struct, with name, address and [`DiskPath`]s.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Node {
     name: String,
     address: String,
@@ -83,6 +83,14 @@ pub struct Node {
 }
 
 impl Node {
+    #[must_use]
+    pub fn new(name: String, address: String, disks: Vec<DiskPath>) -> Node {
+        Node {
+            name,
+            address,
+            disks,
+        }
+    }
     /// Returns node name, empty if name wasn't set in config.
     #[inline]
     #[must_use]
@@ -95,6 +103,11 @@ impl Node {
     #[must_use]
     pub fn disks(&self) -> &[DiskPath] {
         &self.disks
+    }
+
+    /// Extends the disks collection with contents of the iterator.
+    pub fn disks_extend(&mut self, iter: impl IntoIterator<Item = DiskPath>) {
+        self.disks.extend(iter)
     }
 
     /// Returns node address, empty if address wasn't set in config.
@@ -247,6 +260,16 @@ pub struct Cluster {
 }
 
 impl Cluster {
+    pub fn new(
+        nodes: Vec<Node>,
+    ) -> Cluster {
+        Cluster {
+            nodes,
+            vdisks: Vec::default(),
+            racks: Vec::default(),
+            distribution_func: DistributionFunc::default(),
+        }
+    }
     /// Returns slice with [`Node`]s.
     #[must_use]
     pub fn nodes(&self) -> &[Node] {

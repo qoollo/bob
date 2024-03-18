@@ -43,6 +43,7 @@ env_logger = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true, features = ["signal"] }
 pearl = { workspace = true }
+itertools = "0.10.5"
 
 
 [target.'cfg(all(target_env = "musl", target_arch = "x86_64", target_pointer_width = "64"))'.dependencies]

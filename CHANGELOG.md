@@ -5,6 +5,7 @@ Bob versions changelog
 ## [Unreleased]
 #### Added
 - Blob performes fsync if buffered bytes are larger than max_dirty_bytes_before_sync config param (#748)
+- Command to generate nodes section for cluster.yaml or add new nodes to an existing cluster.yaml using range syntax patterns (#568)
 
 #### Changed
 - Use cargo workspace to declare dependencies to avoid their duplication (#821)
