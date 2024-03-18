@@ -28,7 +28,7 @@ impl Validatable for DiskPath {
 }
 
 /// Rack config struct, with name and [`Node`] names.
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rack {
     name: String,
     nodes: Vec<String>,
@@ -182,7 +182,7 @@ impl Validatable for Replica {
 }
 
 /// Config for virtual disks, stores replicas locations.
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct VDisk {
     id: u32,
     #[serde(default)]

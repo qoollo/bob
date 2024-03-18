@@ -4,16 +4,17 @@ use bob_common::core_types::{DiskName, DiskPath};
 use itertools::Itertools;
 use regex::{Captures, Regex};
 
-fn parse_address_sample(sample: &str) -> AnyResult<((String, u16), String)> {
+type Sample = ((String, u16), String);
+
+fn parse_address_sample(sample: &str) -> AnyResult<Sample> {
     debug!("Sample to parse: {}", sample);
     let re = Regex::new(r"^(?<addr>[\w.]+):(?<port>\d+)(?<path>/[\w/]+)$").unwrap();
     if let Some(captures) = re.captures(sample) {
         let ip = captures["addr"].to_owned();
-        let port = &captures["port"];
+        let port = captures["port"]
+            .parse::<u16>()
+            .map_err(|_| anyhow!("Failed to parse port {}", &captures["port"]))?;
         let path = captures["path"].to_owned();
-        let port: u16 = port
-            .parse()
-            .map_err(|_| anyhow!("Failed to parse port {}", port))?;
         Ok(((ip, port), path))
     } else {
         Err(anyhow!("Failed to parse the sample {}", sample))
@@ -55,9 +56,9 @@ fn generate_range_samples(pattern: &str) -> impl Iterator<Item = String> {
 }
 
 fn pattern_extend_disks(node: &mut Node, disk_paths: impl Iterator<Item = String>) {
-    let old_disks = node.disks();
+    let old_disks: std::collections::HashSet<_> = node.disks().iter().map(|d| d.path()).collect();
     let new_disks: Vec<DiskPath> = disk_paths
-        .filter(|disk_path| !old_disks.iter().any(|d| d.path() == *disk_path))
+        .filter(|disk_path| !old_disks.contains(disk_path.as_str()))
         .enumerate()
         .map(|(idx, disk_path)| {
             DiskPath::new(
@@ -69,42 +70,59 @@ fn pattern_extend_disks(node: &mut Node, disk_paths: impl Iterator<Item = String
     node.disks_extend(new_disks);
 }
 
+fn extend_nodes_by_samples(
+    nodes: &mut Vec<Node>,
+    parsed_samples: &Vec<Sample>,
+    node_pattern: String,
+) {
+    let existing_addresses: std::collections::HashSet<_> =
+        nodes.iter().map(|node| node.address()).collect();
+    let mut new_nodes = Vec::new();
+    for (ip_port, _) in &parsed_samples.iter().group_by(|(ip_port, _)| ip_port) {
+        let address = format!("{}:{}", ip_port.0, ip_port.1);
+        if !existing_addresses.contains(address.as_str()) {
+            let new_node = Node::new(
+                substitute_node_pattern(
+                    &node_pattern,
+                    &ip_port.0,
+                    ip_port.1,
+                    nodes.len() + new_nodes.len() + 1,
+                ),
+                address.to_owned(),
+                vec![],
+            );
+            new_nodes.push(new_node);
+        }
+    }
+    nodes.extend(new_nodes);
+}
+
 pub fn pattern_extend_nodes(
-    mut old_nodes: Vec<Node>,
+    mut nodes: Vec<Node>,
     pattern: String,
     node_pattern: String,
 ) -> AnyResult<Vec<Node>> {
     let parsed_samples = generate_range_samples(&pattern)
         .map(|key| parse_address_sample(&key))
         .collect::<AnyResult<Vec<_>>>()?;
-    parsed_samples
-        .iter()
-        .group_by(|(ip_port, _)| ip_port)
-        .into_iter()
-        .for_each(|(ip_port, addresses)| {
-            let address = format!("{}:{}", ip_port.0, ip_port.1);
-            let mut p_node = old_nodes.iter_mut().find(|node| node.address() == address);
-            if p_node.is_none() {
-                old_nodes.push(Node::new(
-                    substitute_node_pattern(
-                        &node_pattern,
-                        &ip_port.0,
-                        ip_port.1,
-                        old_nodes.len() + 1,
-                    ),
-                    address,
-                    vec![],
-                ));
-                p_node = old_nodes.last_mut();
-            }
-            let p_node = p_node.expect("is some because it's either the pushed one or found");
-            pattern_extend_disks(p_node, addresses.map(|(_, path)| path.to_owned()));
-        });
-    Ok(old_nodes)
+
+    extend_nodes_by_samples(&mut nodes, &parsed_samples, node_pattern);
+    for (ip_port, paths) in &parsed_samples.iter().group_by(|(ip_port, _)| ip_port) {
+        if let Some(node) = nodes
+            .iter_mut()
+            .find(|node| node.address() == format!("{}:{}", ip_port.0, ip_port.1))
+        {
+            let disks_to_extend = paths.map(|(_, path)| path.to_owned());
+            pattern_extend_disks(node, disks_to_extend);
+        }
+    }
+
+    Ok(nodes)
 }
 
 #[cfg(test)]
 mod tests {
+    use super::Node;
     use super::*;
 
     #[test]
@@ -150,11 +168,11 @@ mod tests {
     }
     #[test]
     fn test_pattern_extend_nodes() {
-        let old_nodes = vec![];
+        let nodes = vec![];
         let pattern = "test[1-3]:10000/a[1-2]".to_string();
         let node_pattern = "{ip}_{port}_{id}".to_string();
 
-        let result = pattern_extend_nodes(old_nodes, pattern, node_pattern).unwrap();
+        let result = pattern_extend_nodes(nodes, pattern, node_pattern).unwrap();
 
         assert_eq!(
             result,
