@@ -196,12 +196,12 @@ jobs:
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
           echo "VERSION_NO_FORMATTING=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g')" >> $GITHUB_ENV
       - name: Download binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-binaries-${{ matrix.key }}
           path: ./integration-tests
       - name: Download docker images
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-image-key${{ matrix.key }}
           path: ./integration-tests
@@ -268,12 +268,12 @@ jobs:
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
           echo "VERSION_NO_FORMATTING=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g')" >> $GITHUB_ENV
       - name: Download binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-binaries-${{ matrix.key }}
           path: ./integration-tests
       - name: Download docker images
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-image-key${{ matrix.key }}
           path: ./integration-tests
@@ -348,12 +348,12 @@ jobs:
           echo "VERSION=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g' | sed -e 's/-/./g')" >> $GITHUB_ENV
           echo "VERSION_NO_FORMATTING=$(cat bob-apps/Cargo.toml | grep ^version | head -1 | awk '{print $3}' | sed -e 's/"//g')" >> $GITHUB_ENV
       - name: Download binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-binaries-${{ matrix.key }}
           path: ./integration-tests
       - name: Download docker images
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-image-key${{ matrix.key }}
           path: ./integration-tests
