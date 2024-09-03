@@ -69,7 +69,7 @@ jobs:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-binaries-${{ matrix.bob_key_size }}
       - name: Set env
@@ -100,7 +100,7 @@ jobs:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-rpm-${{ matrix.bob_key_size }}
       - name: Set env
@@ -127,7 +127,7 @@ jobs:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-binaries-${{ matrix.bob_key_size }}
       - name: Set env
@@ -163,7 +163,7 @@ jobs:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-deb-${{ matrix.bob_key_size }}
       - name: Set env
@@ -190,7 +190,7 @@ jobs:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-binaries-${{ matrix.bob_key_size }}
       - name: Set env
@@ -223,7 +223,7 @@ jobs:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-zip-${{ matrix.bob_key_size }}
       - name: Set env
