@@ -405,8 +405,8 @@ impl Holder {
                 }
             }
         } else {
-            warn!("bob will start with standard sync fs io api");
-            warn!("cause: disabled in config");
+            trace!("bob will start with standard sync fs io api");
+            trace!("cause: disabled in config");
             builder
         };
         builder
