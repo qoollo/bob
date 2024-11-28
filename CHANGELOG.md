@@ -7,13 +7,26 @@ Bob versions changelog
 
 
 #### Changed
-- Reduce startup logs in normal flow (#876)
+
 
 #### Fixed
 
 
 #### Updated
 
+
+
+## [2.0.14-alpha.11] - 2024-11-28
+#### Added
+
+
+#### Changed
+- Reduce startup logs in normal flow (#876)
+
+#### Fixed
+
+
+#### Updated
 
 
 ## [2.0.14-alpha.10] - 2024-01-11
