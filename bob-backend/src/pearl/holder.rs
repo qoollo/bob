@@ -398,15 +398,13 @@ impl Holder {
                     builder.enable_aio(ioring)
                 }
                 Err(e) => {
-                    warn!("bob will start with standard sync fs io api");
-                    warn!("can't start with AIO, cause: {}", e);
+                    warn!("bob will start with standard sync fs io api, can't start with AIO, cause: {}", e);
                     self.config.set_aio(false);
                     builder
                 }
             }
         } else {
-            trace!("bob will start with standard sync fs io api");
-            trace!("cause: disabled in config");
+            trace!("bob will start with standard sync fs io api, cause: disabled in config");
             builder
         };
         builder
