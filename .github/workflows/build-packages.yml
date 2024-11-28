@@ -3,11 +3,10 @@ name: build-packages
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
-    
-jobs:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+"
 
+jobs:
   build-release:
     runs-on: ubuntu-latest
     strategy:
@@ -17,8 +16,8 @@ jobs:
       TARGET: "x86_64-unknown-linux-musl"
       BUILD_PROFILE: "release-lto"
     steps:
-      - name: Checks-out repository 
-        uses: actions/checkout@v2
+      - name: Checks-out repository
+        uses: actions/checkout@v4.1.7
       - name: Set env variables and install packages
         run: |
           echo "BOB_COMMIT_HASH=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
@@ -48,7 +47,7 @@ jobs:
       - name: Check bobd version
         run: target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobd --version
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4.1.7
         with:
           name: bob-binaries-${{ matrix.bob_key_size }}
           path: |
@@ -58,7 +57,7 @@ jobs:
             target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/bobc
             target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/ccg
             target/${{ env.TARGET }}/${{ env.BUILD_PROFILE_DIR }}/brt
- 
+
   build-rpm:
     runs-on: ubuntu-latest
     needs: build-release
@@ -66,8 +65,8 @@ jobs:
       matrix:
         bob_key_size: [8, 16]
     steps:
-      - name: Checks-out repository 
-        uses: actions/checkout@v2
+      - name: Checks-out repository
+        uses: actions/checkout@v4.1.7
       - name: Download artifact
         uses: actions/download-artifact@v4.1.7
         with:
@@ -84,7 +83,7 @@ jobs:
           tar czf ./rpmbuild/SOURCES/bob-${{ env.VERSION }}.tar.gz ../${cur_dir_name}/{bobd,bobp,bobc,brt,ccg,linux-packages/bob_limits.conf,linux-packages/bob.service} ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml --transform s/${cur_dir_name}/bob-${{ env.VERSION }}/
           rpmbuild -ba --define "_topdir ${PWD}/rpmbuild" linux-packages/bob.spec
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4.1.7
         with:
           name: bob-rpm-${{ matrix.bob_key_size }}
           path: rpmbuild/RPMS/x86_64/bob-${{ env.VERSION }}-${{ github.run_id }}.x86_64.rpm
@@ -97,8 +96,8 @@ jobs:
       matrix:
         bob_key_size: [8, 16]
     steps:
-      - name: Checks-out repository 
-        uses: actions/checkout@v2
+      - name: Checks-out repository
+        uses: actions/checkout@v4.1.7
       - name: Download artifact
         uses: actions/download-artifact@v4.1.7
         with:
@@ -109,7 +108,7 @@ jobs:
         if: ${{ matrix.bob_key_size != 8 }}
         run: echo "asset_name_postfix=-key${{ matrix.bob_key_size }}" >> $GITHUB_ENV
       - name: Upload rpm to release
-        uses: svenstaro/upload-release-action@v2
+        uses: svenstaro/upload-release-action@v4.1.7
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: bob-${{ env.VERSION }}-${{ github.run_id }}.x86_64.rpm
@@ -124,8 +123,8 @@ jobs:
       matrix:
         bob_key_size: [8, 16]
     steps:
-      - name: Checks-out repository 
-        uses: actions/checkout@v2
+      - name: Checks-out repository
+        uses: actions/checkout@v4.1.7
       - name: Download artifact
         uses: actions/download-artifact@v4.1.7
         with:
@@ -147,7 +146,7 @@ jobs:
           sed -i "s/current_version/${{ env.VERSION }}/" bob_${{ env.VERSION }}_amd64/DEBIAN/control
           dpkg-deb --build ./bob_${{ env.VERSION }}_amd64
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4.1.7
         with:
           name: bob-deb-${{ matrix.bob_key_size }}
           path: bob_${{ env.VERSION }}_amd64.deb
@@ -160,8 +159,8 @@ jobs:
       matrix:
         bob_key_size: [8, 16]
     steps:
-      - name: Checks-out repository 
-        uses: actions/checkout@v2
+      - name: Checks-out repository
+        uses: actions/checkout@v4.1.7
       - name: Download artifact
         uses: actions/download-artifact@v4.1.7
         with:
@@ -172,7 +171,7 @@ jobs:
         if: ${{ matrix.bob_key_size != 8 }}
         run: echo "asset_name_postfix=_key${{ matrix.bob_key_size }}" >> $GITHUB_ENV
       - name: Upload deb to release
-        uses: svenstaro/upload-release-action@v2
+        uses: svenstaro/upload-release-action@v4.1.7
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: bob_${{ env.VERSION }}_amd64.deb
@@ -187,8 +186,8 @@ jobs:
       matrix:
         bob_key_size: [8, 16]
     steps:
-      - name: Checks-out repository 
-        uses: actions/checkout@v2
+      - name: Checks-out repository
+        uses: actions/checkout@v4.1.7
       - name: Download artifact
         uses: actions/download-artifact@v4.1.7
         with:
@@ -207,7 +206,7 @@ jobs:
           cp linux-packages/bob_limits.conf bob_${{ env.VERSION }}/etc/security/limits.d/bob.conf
           zip -r bob_${{ env.VERSION }}.zip bob_${{ env.VERSION }}
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4.1.7
         with:
           name: bob-zip-${{ matrix.bob_key_size }}
           path: bob_${{ env.VERSION }}.zip
@@ -220,8 +219,8 @@ jobs:
       matrix:
         bob_key_size: [8, 16]
     steps:
-      - name: Checks-out repository 
-        uses: actions/checkout@v2
+      - name: Checks-out repository
+        uses: actions/checkout@v4.1.7
       - name: Download artifact
         uses: actions/download-artifact@v4.1.7
         with:
@@ -232,7 +231,7 @@ jobs:
         if: ${{ matrix.bob_key_size != 8 }}
         run: echo "asset_name_postfix=_key${{ matrix.bob_key_size }}" >> $GITHUB_ENV
       - name: Upload zip file to release
-        uses: svenstaro/upload-release-action@v2
+        uses: svenstaro/upload-release-action@v4.1.7
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: bob_${{ env.VERSION }}.zip
