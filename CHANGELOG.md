@@ -7,7 +7,7 @@ Bob versions changelog
 
 
 #### Changed
-
+- Reduce startup logs in normal flow (#876)
 
 #### Fixed
 
