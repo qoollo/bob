@@ -38,7 +38,7 @@ jobs:
       - name: Check bobd version
         run: target/${{ env.TARGET }}/${{ env.BUILD_MODE }}/bobd --version
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4.1.7
         with:
           name: bob-binaries-${{ matrix.bob_key_size }}
           path: |
@@ -57,7 +57,7 @@ jobs:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-binaries-${{ matrix.bob_key_size }}
       - name: Set env
@@ -72,7 +72,7 @@ jobs:
           tar czf ./rpmbuild/SOURCES/bob-${{ env.VERSION }}.tar.gz ../${cur_dir_name}/{bobd,bobp,brt,ccg,bob_limits.conf,bob.service} ../${cur_dir_name}/config-examples/{cluster,node,logger}.yaml --transform s/${cur_dir_name}/bob-${{ env.VERSION }}/
           rpmbuild -ba --define "_topdir ${PWD}/rpmbuild" bob.spec
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4.1.7
         with:
           name: bob-rpm-${{ matrix.bob_key_size }}
           path: rpmbuild/RPMS/x86_64/bob-${{ env.VERSION }}-${{ github.run_id }}.x86_64.rpm
@@ -88,7 +88,7 @@ jobs:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-rpm-${{ matrix.bob_key_size }}
       - name: Set env
@@ -115,7 +115,7 @@ jobs:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-binaries-${{ matrix.bob_key_size }}
       - name: Set env
@@ -135,7 +135,7 @@ jobs:
           sed -i "s/current_version/${{ env.VERSION }}/" bob_${{ env.VERSION }}_amd64/DEBIAN/control
           dpkg-deb --build ./bob_${{ env.VERSION }}_amd64
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4.1.7
         with:
           name: bob-deb-${{ matrix.bob_key_size }}
           path: bob_${{ env.VERSION }}_amd64.deb
@@ -151,7 +151,7 @@ jobs:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-deb-${{ matrix.bob_key_size }}
       - name: Set env
@@ -178,7 +178,7 @@ jobs:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-binaries-${{ matrix.bob_key_size }}
       - name: Set env
@@ -195,7 +195,7 @@ jobs:
           cp bob_limits.conf bob_${{ env.VERSION }}/etc/security/limits.d/bob.conf
           zip -r bob_${{ env.VERSION }}.zip bob_${{ env.VERSION }}
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4.1.7
         with:
           name: bob-zip-${{ matrix.bob_key_size }}
           path: bob_${{ env.VERSION }}.zip
@@ -211,7 +211,7 @@ jobs:
       - name: Checks-out repository 
         uses: actions/checkout@v2
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: bob-zip-${{ matrix.bob_key_size }}
       - name: Set env
