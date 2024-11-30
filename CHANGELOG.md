@@ -4,6 +4,7 @@ Bob versions changelog
 
 ## [Unreleased]
 #### Added
+- Partitions API for aliens (#833)
 
 
 #### Changed
